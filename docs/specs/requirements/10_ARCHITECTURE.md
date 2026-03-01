@@ -2,7 +2,7 @@
 
 ## Scope
 - `REQ-ARCH-001`: The app shall be Windows-first (Windows 10/11) and implemented in Python + PyQt6.
-- `REQ-ARCH-002`: The graph editor UI shall use `QGraphicsScene/QGraphicsView` with custom `QGraphicsItem` nodes/edges.
+- `REQ-ARCH-002`: The graph editor UI shall use a QML (`QtQuick`) canvas with Python bridge/controller models for nodes, edges, selection, and camera state.
 - `REQ-ARCH-003`: The runtime shall use hybrid DAG + event trigger execution semantics.
 - `REQ-ARCH-004`: Workflow execution shall run in a dedicated worker process per run session.
 
@@ -20,4 +20,4 @@
 ## Acceptance
 - `AC-REQ-ARCH-001-01`: Application launches on Windows with PyQt6 and displays the main shell.
 - `AC-REQ-ARCH-004-01`: Run starts without blocking UI thread; worker failure does not crash UI process.
-- `AC-REQ-ARCH-005-01`: Status bar methods update widgets in real time.
+- `AC-REQ-ARCH-005-01`: Status methods update QML shell status surfaces in real time through bridge models.

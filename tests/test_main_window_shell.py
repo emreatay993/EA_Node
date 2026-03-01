@@ -9,9 +9,8 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QKeySequence
-from PyQt6.QtWidgets import QApplication, QMessageBox, QStatusBar, QToolBar
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from ea_node_editor.app import APP_STYLESHEET
 from ea_node_editor.ui.main_window import MainWindow
@@ -56,20 +55,12 @@ class MainWindowShellTests(unittest.TestCase):
         self._autosave_patch.stop()
         self._temp_dir.cleanup()
 
-    def test_shell_layout_zones_are_present(self) -> None:
-        self.assertIsNotNone(self.window.menuBar())
-        self.assertGreaterEqual(len(self.window.findChildren(QToolBar)), 1)
-        self.assertIsInstance(self.window.statusBar(), QStatusBar)
-        self.assertIsNotNone(self.window.node_library_panel)
+    def test_qml_shell_and_bridges_are_present(self) -> None:
+        self.assertIsNotNone(self.window.quick_widget)
+        self.assertIs(self.window.centralWidget(), self.window.quick_widget)
+        self.assertIsNotNone(self.window.scene)
         self.assertIsNotNone(self.window.view)
-        self.assertIsNotNone(self.window.workspace_tabs)
-        self.assertIsNotNone(self.window.console_panel)
-
-        view_pos = self.window.view.mapTo(self.window, QPoint(0, 0))
-        tabs_pos = self.window.workspace_tabs.mapTo(self.window, QPoint(0, 0))
-        console_pos = self.window.console_panel.mapTo(self.window, QPoint(0, 0))
-        self.assertGreater(tabs_pos.y(), view_pos.y())
-        self.assertGreater(console_pos.y(), tabs_pos.y())
+        self.assertGreaterEqual(self.window.workspace_tabs.count(), 1)
 
     def test_status_api_contract_updates_visible_values(self) -> None:
         self.window.set_engine_state("running", "Job #12")
@@ -136,9 +127,9 @@ class MainWindowShellTests(unittest.TestCase):
         self.window.action_toggle_script_editor.trigger()
         self.app.processEvents()
 
-        self.assertTrue(self.window.script_editor_dock.isVisible())
-        self.assertEqual(self.window.script_editor_dock.current_node_id, script_node_id)
-        self.assertTrue(self.window.script_editor_dock.editor.hasFocus())
+        self.assertTrue(self.window.script_editor.visible)
+        self.assertEqual(self.window.script_editor.current_node_id, script_node_id)
+        self.assertTrue(self.window.script_editor.has_focus)
 
     def test_multi_view_and_workspace_switch_retains_independent_camera_state(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -151,7 +142,6 @@ class MainWindowShellTests(unittest.TestCase):
         self.window._save_active_view_state()
         first_v2_id = self.window.workspace_manager.create_view(first_workspace_id, name="V2")
         self.window._restore_active_view_state()
-        self.window._refresh_view_button()
         self.window.view.set_zoom(0.7)
         self.window.view.centerOn(-55.0, 75.0)
         first_node_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)
@@ -171,17 +161,15 @@ class MainWindowShellTests(unittest.TestCase):
             first_v2_id,
         )
         self.assertAlmostEqual(self.window.view.zoom, 0.7, places=2)
-        center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
-        self.assertAlmostEqual(center.x(), -55.0, delta=5.0)
-        self.assertAlmostEqual(center.y(), 75.0, delta=5.0)
+        self.assertAlmostEqual(self.window.view.center_x, -55.0, delta=5.0)
+        self.assertAlmostEqual(self.window.view.center_y, 75.0, delta=5.0)
         self.assertIn(first_node_id, self.window.model.project.workspaces[first_workspace_id].nodes)
 
         self.window._switch_view(first_v1_id)
         self.app.processEvents()
         self.assertAlmostEqual(self.window.view.zoom, 1.4, places=2)
-        center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
-        self.assertAlmostEqual(center.x(), 110.0, delta=5.0)
-        self.assertAlmostEqual(center.y(), 210.0, delta=5.0)
+        self.assertAlmostEqual(self.window.view.center_x, 110.0, delta=5.0)
+        self.assertAlmostEqual(self.window.view.center_y, 210.0, delta=5.0)
 
     def test_closing_dirty_workspace_honors_unsaved_warning(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -243,9 +231,8 @@ class MainWindowShellTests(unittest.TestCase):
                 third_v2_id,
             )
             self.assertAlmostEqual(restored.view.zoom, 1.65, places=2)
-            center = restored.view.mapToScene(restored.view.viewport().rect().center())
-            self.assertAlmostEqual(center.x(), 222.0, delta=3.0)
-            self.assertAlmostEqual(center.y(), -111.0, delta=3.0)
+            self.assertAlmostEqual(restored.view.center_x, 222.0, delta=3.0)
+            self.assertAlmostEqual(restored.view.center_y, -111.0, delta=3.0)
         finally:
             restored.close()
             self.app.processEvents()
@@ -265,31 +252,6 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn(workspace_id, workspace_docs)
         saved_nodes = {node["node_id"] for node in workspace_docs[workspace_id].get("nodes", [])}
         self.assertIn(node_id, saved_nodes)
-
-    def test_node_library_add_uses_selected_item_when_current_row_is_unset(self) -> None:
-        workspace_id = self.window.workspace_manager.active_workspace_id()
-        workspace = self.window.model.project.workspaces[workspace_id]
-        baseline_count = len(workspace.nodes)
-
-        panel = self.window.node_library_panel
-        target_item = None
-        for index in range(panel.list_widget.count()):
-            candidate = panel.list_widget.item(index)
-            if candidate is not None and candidate.text() == "[Core] Start":
-                target_item = candidate
-                break
-        self.assertIsNotNone(target_item)
-        if target_item is None:
-            self.fail("Expected [Core] Start item in node library list.")
-
-        panel.list_widget.clearSelection()
-        panel.list_widget.setCurrentRow(-1)
-        target_item.setSelected(True)
-        panel._on_add_clicked()
-        self.app.processEvents()
-
-        workspace_after = self.window.model.project.workspaces[workspace_id]
-        self.assertEqual(len(workspace_after.nodes), baseline_count + 1)
 
     def test_recovery_prompt_accept_loads_newer_autosave(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -455,7 +417,7 @@ class MainWindowShellTests(unittest.TestCase):
         )
         self.app.processEvents()
 
-        output_text = self.window.console_panel.output.toPlainText()
+        output_text = self.window.console_panel.output_text
         self.assertIn("[stdout] tick_ui_0", output_text)
         self.assertIn("[stderr] warn_ui_0", output_text)
         self.assertNotIn("should_not_appear", output_text)
@@ -527,12 +489,11 @@ class MainWindowShellTests(unittest.TestCase):
             )
             self.app.processEvents()
 
-        center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
-        self.assertAlmostEqual(center.x(), expected_center.x(), delta=8.0)
-        self.assertAlmostEqual(center.y(), expected_center.y(), delta=8.0)
+        self.assertAlmostEqual(self.window.view.center_x, expected_center.x(), delta=8.0)
+        self.assertAlmostEqual(self.window.view.center_y, expected_center.y(), delta=8.0)
         self.assertEqual(self.window.scene.selected_node_id(), failed_node_id)
 
-        errors_text = self.window.console_panel.errors.toPlainText()
+        errors_text = self.window.console_panel.errors_text
         self.assertIn("RuntimeError: boom", errors_text)
         self.assertIn("traceback: line 1", errors_text)
         critical.assert_called_once()

@@ -17,6 +17,7 @@
 7. `RC3_P06_signing_and_verification.md`
 8. `RC3_P07_pilot_readiness.md`
 9. `RC3_P08_qa_traceability.md`
+10. `RC3_P09_qml_cutover.md`
 
 ## Handoff Artifacts (Mandatory Per Packet)
 

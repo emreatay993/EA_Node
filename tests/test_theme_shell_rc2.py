@@ -51,11 +51,11 @@ class ThemeShellRc2Tests(unittest.TestCase):
         self.assertIn("QStatusBar#mainStatusBar", APP_STYLESHEET)
         self.assertIn("QDockWidget::title", APP_STYLESHEET)
 
-    def test_script_editor_action_and_dock_are_wired(self) -> None:
-        self.assertFalse(self.window.script_editor_dock.isVisible())
+    def test_script_editor_action_is_wired_in_qml_shell(self) -> None:
+        self.assertFalse(self.window.script_editor.visible)
         self.window.action_toggle_script_editor.trigger()
         self.app.processEvents()
-        self.assertTrue(self.window.script_editor_dock.isVisible())
+        self.assertTrue(self.window.script_editor.visible)
         self.assertTrue(self.window.action_toggle_script_editor.isChecked())
         metadata = self.window.model.project.metadata
         self.assertTrue(metadata["ui"]["script_editor"]["visible"])
@@ -67,4 +67,3 @@ class ThemeShellRc2Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
