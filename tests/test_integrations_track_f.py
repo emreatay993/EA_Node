@@ -81,6 +81,25 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
                         )
                     )
                 self.assertIn("openpyxl", str(write_error.exception).lower())
+                self.assertIn("runtime mode: source", str(write_error.exception).lower())
+                self.assertIn("csv remains supported", str(write_error.exception).lower())
+
+    def test_excel_xlsx_dependency_message_in_packaged_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            read_path = Path(temp_dir) / "input.xlsx"
+            read_path.write_text("placeholder", encoding="utf-8")
+            with mock.patch.object(integrations, "openpyxl", None), mock.patch.object(
+                integrations.sys,
+                "frozen",
+                True,
+                create=True,
+            ):
+                with self.assertRaises(RuntimeError) as read_error:
+                    ExcelReadNodePlugin().execute(_context(properties={"path": str(read_path)}))
+        message = str(read_error.exception).lower()
+        self.assertIn("runtime mode: packaged", message)
+        self.assertIn("rebuild package", message)
+        self.assertIn("csv remains supported", message)
 
     def test_file_read_write_text_and_json_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -17,6 +17,7 @@ This project ships a Windows package using PyInstaller and the repository-root s
 
 - `-SkipSmoke`: build only, no startup smoke check.
 - `-SmokeSeconds <int>`: startup smoke duration in seconds (default `5`).
+- `-DependencyMatrixPath <path>`: output path for optional dependency policy matrix (default `docs\specs\perf\rc3\dependency_matrix.csv`).
 
 ## Output Folder Conventions
 
@@ -48,4 +49,26 @@ Manual smoke run:
 ## Notes
 
 - The onedir output is preferred for RC reliability and simpler diagnostics.
-- If optional dependency `openpyxl` is not installed, Excel XLSX node paths remain dependency-gated at runtime (existing behavior).
+
+## Optional Dependency Policy
+
+The packaging script now emits a deterministic dependency matrix CSV on each build run:
+
+- `docs\specs\perf\rc3\dependency_matrix.csv`
+
+Current optional dependency contract:
+
+- `openpyxl`:
+  - Source runtime: CSV flows are always supported; XLSX flows require `openpyxl`.
+  - Packaged runtime: same behavior, with deterministic runtime guidance to rebuild package with `openpyxl` in build environment.
+  - Policy: optional include, bundle only when installed in build environment.
+- `psutil`:
+  - Source runtime: live system metrics use `psutil` when available.
+  - Packaged runtime: same fallback contract; when unavailable, metrics deterministically show `CPU:0% RAM:0/0 GB`.
+  - Policy: optional include, absence allowed with deterministic fallback.
+
+Recommended packaging command for policy evidence:
+
+```powershell
+.\scripts\build_windows_package.ps1 -SkipSmoke -DependencyMatrixPath docs\specs\perf\rc3\dependency_matrix.csv
+```
