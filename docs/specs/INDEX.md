@@ -19,6 +19,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 11. [Context Window Work Packets](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/CONTEXT_WINDOW_WORK_PACKETS.md)
 12. [RC2 Work Packet Manifest](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc2/RC2_MANIFEST.md)
 13. [RC2 Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc2/RC2_STATUS.md)
+14. [RC3 Work Packet Manifest](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc3/RC3_MANIFEST.md)
+15. [RC3 Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc3/RC3_STATUS.md)
 
 ## ADRs
 
