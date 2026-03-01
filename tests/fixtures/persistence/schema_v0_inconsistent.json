@@ -1,0 +1,112 @@
+{
+  "schema_version": 0,
+  "project_id": "proj_legacy_inconsistent",
+  "name": "Legacy Inconsistent",
+  "active_workspace_id": "ws_legacy",
+  "metadata": {
+    "workspace_order": [
+      "ws_removed",
+      "ws_legacy",
+      "ws_legacy"
+    ]
+  },
+  "workspaces": [
+    {
+      "workspace_id": "ws_legacy",
+      "name": "Legacy Workspace",
+      "active_view_id": "view_legacy_1",
+      "views": [
+        {
+          "view_id": "view_legacy_1",
+          "name": "V1",
+          "zoom": 1.0,
+          "pan_x": 0.0,
+          "pan_y": 0.0
+        }
+      ],
+      "nodes": [
+        {
+          "node_id": "node_start",
+          "type_id": "core.start",
+          "title": "Start",
+          "x": 0.0,
+          "y": 0.0,
+          "exposed_ports": {
+            "exec_out": false,
+            "trigger": true
+          }
+        },
+        {
+          "node_id": "node_logger",
+          "type_id": "core.logger",
+          "title": "Logger",
+          "x": 120.0,
+          "y": 0.0,
+          "exposed_ports": {
+            "exec_in": false,
+            "message": true,
+            "exec_out": true
+          }
+        },
+        {
+          "node_id": "node_unknown",
+          "type_id": "legacy.missing",
+          "title": "Unknown",
+          "x": 240.0,
+          "y": 0.0
+        }
+      ],
+      "edges": [
+        {
+          "edge_id": "edge_hidden",
+          "source_node_id": "node_start",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_logger",
+          "target_port_key": "exec_in"
+        },
+        {
+          "edge_id": "edge_missing_port",
+          "source_node_id": "node_start",
+          "source_port_key": "missing",
+          "target_node_id": "node_logger",
+          "target_port_key": "exec_in"
+        },
+        {
+          "edge_id": "edge_wrong_direction",
+          "source_node_id": "node_logger",
+          "source_port_key": "exec_in",
+          "target_node_id": "node_start",
+          "target_port_key": "trigger"
+        },
+        {
+          "edge_id": "edge_missing_node",
+          "source_node_id": "node_missing",
+          "source_port_key": "exec_out",
+          "target_node_id": "node_logger",
+          "target_port_key": "exec_in"
+        },
+        {
+          "edge_id": "edge_valid",
+          "source_node_id": "node_start",
+          "source_port_key": "trigger",
+          "target_node_id": "node_logger",
+          "target_port_key": "message"
+        },
+        {
+          "edge_id": "edge_duplicate",
+          "source_node_id": "node_start",
+          "source_port_key": "trigger",
+          "target_node_id": "node_logger",
+          "target_port_key": "message"
+        },
+        {
+          "edge_id": "edge_unknown_node",
+          "source_node_id": "node_unknown",
+          "source_port_key": "value",
+          "target_node_id": "node_logger",
+          "target_port_key": "message"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "active_workspace_id": "ws_36a8b78afa",
+  "metadata": {
+    "workspace_order": [
+      "ws_36a8b78afa"
+    ]
+  },
+  "name": "untitled",
+  "project_id": "proj_local",
+  "schema_version": 1,
+  "workspace_order": [
+    "ws_36a8b78afa"
+  ],
+  "workspaces": [
+    {
+      "active_view_id": "view_fc3acc66fe",
+      "dirty": false,
+      "edges": [],
+      "name": "Workspace 1",
+      "nodes": [],
+      "views": [
+        {
+          "name": "V1",
+          "pan_x": -1.0,
+          "pan_y": -1.0,
+          "view_id": "view_fc3acc66fe",
+          "zoom": 1.0
+        }
+      ],
+      "workspace_id": "ws_36a8b78afa"
+    }
+  ]
+}

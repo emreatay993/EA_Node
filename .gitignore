@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual envs
+venv/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+
+# Build and release artifacts
+artifacts/
+build/
+dist/
+*.spec.bak
+
+# Runtime/user data
+*.log
+*.tmp
+*.cache
+
+# Generated GUI preview extraction
+docs/specs/gui/_unzipped_preview/
+
