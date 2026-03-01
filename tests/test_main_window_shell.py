@@ -128,6 +128,18 @@ class MainWindowShellTests(unittest.TestCase):
             self.app.processEvents()
             resume_run.assert_called_once_with("run_test")
 
+    def test_script_editor_action_focuses_editor_when_script_node_selected(self) -> None:
+        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=80.0, y=60.0)
+        self.window.scene.focus_node(script_node_id)
+        self.app.processEvents()
+
+        self.window.action_toggle_script_editor.trigger()
+        self.app.processEvents()
+
+        self.assertTrue(self.window.script_editor_dock.isVisible())
+        self.assertEqual(self.window.script_editor_dock.current_node_id, script_node_id)
+        self.assertTrue(self.window.script_editor_dock.editor.hasFocus())
+
     def test_multi_view_and_workspace_switch_retains_independent_camera_state(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
         first_v1_id = self.window.model.project.workspaces[first_workspace_id].active_view_id
