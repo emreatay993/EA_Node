@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import sys
 import threading
 import time
 import unittest
@@ -107,6 +109,77 @@ class ProcessExecutionClientTests(unittest.TestCase):
             timeout=6.0,
         )
         self.assertIsNotNone(completed)
+
+    def test_client_receives_streamed_process_output_events(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        process_node = model.add_node(
+            ws.workspace_id,
+            "io.process_run",
+            "Process",
+            100,
+            0,
+            properties={
+                "command": sys.executable,
+                "args": json.dumps(
+                    [
+                        "-c",
+                        (
+                            "import sys, time\n"
+                            "print('tick_client_0', flush=True)\n"
+                            "time.sleep(0.15)\n"
+                            "print('warn_client_0', file=sys.stderr, flush=True)\n"
+                            "time.sleep(0.15)\n"
+                            "print('tick_client_1', flush=True)\n"
+                        ),
+                    ]
+                ),
+                "timeout_sec": 5.0,
+                "shell": False,
+                "fail_on_nonzero": True,
+                "env": {},
+                "encoding": "utf-8",
+                "cwd": "",
+            },
+        )
+        end = model.add_node(ws.workspace_id, "core.end", "End", 200, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, process_node.node_id, "exec_out", end.node_id, "exec_in")
+        serializer = JsonProjectSerializer()
+
+        run_id = self.client.start_run(
+            project_path="",
+            workspace_id=ws.workspace_id,
+            trigger={"kind": "manual", "project_doc": serializer.to_document(model.project)},
+        )
+        self.assertTrue(run_id)
+
+        first_stream_event = self._wait_for_event(
+            lambda event: event.get("type") == "log"
+            and event.get("run_id") == run_id
+            and "tick_client_0" in str(event.get("message", "")),
+            timeout=6.0,
+        )
+        self.assertIsNotNone(first_stream_event)
+
+        completed = self._wait_for_event(
+            lambda event: event.get("type") == "run_completed" and event.get("run_id") == run_id,
+            timeout=6.0,
+        )
+        self.assertIsNotNone(completed)
+
+        with self._events_lock:
+            run_events = [event for event in self._events if event.get("run_id") == run_id]
+
+        stream_messages = [
+            str(event.get("message", ""))
+            for event in run_events
+            if event.get("type") == "log"
+        ]
+        self.assertTrue(any("tick_client_0" in message for message in stream_messages))
+        self.assertTrue(any("tick_client_1" in message for message in stream_messages))
+        self.assertTrue(any("warn_client_0" in message for message in stream_messages))
 
 
 if __name__ == "__main__":

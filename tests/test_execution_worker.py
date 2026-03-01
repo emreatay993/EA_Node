@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import queue
+import sys
 import unittest
 
 from ea_node_editor.execution.worker import run_workflow
@@ -126,6 +128,81 @@ class ExecutionWorkerTests(unittest.TestCase):
             stop_events.append(stop_event_queue.get())
         self.assertTrue(any(event.get("type") == "run_stopped" for event in stop_events))
         self.assertFalse(any(event.get("type") == "node_started" for event in stop_events))
+
+    def test_run_workflow_streams_process_run_output_before_node_completion(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        process_node = model.add_node(
+            ws.workspace_id,
+            "io.process_run",
+            "Process",
+            100,
+            0,
+            properties={
+                "command": sys.executable,
+                "args": json.dumps(
+                    [
+                        "-c",
+                        (
+                            "import sys, time\n"
+                            "print('tick_worker_0', flush=True)\n"
+                            "time.sleep(0.15)\n"
+                            "print('tick_worker_1', flush=True)\n"
+                            "print('warn_worker_0', file=sys.stderr, flush=True)\n"
+                        ),
+                    ]
+                ),
+                "timeout_sec": 5.0,
+                "shell": False,
+                "fail_on_nonzero": True,
+                "env": {},
+                "encoding": "utf-8",
+                "cwd": "",
+            },
+        )
+        end = model.add_node(ws.workspace_id, "core.end", "End", 200, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, process_node.node_id, "exec_out", end.node_id, "exec_in")
+
+        event_queue: queue.Queue = queue.Queue()
+        serializer = JsonProjectSerializer()
+        run_workflow(
+            {
+                "run_id": "run_stream_worker",
+                "workspace_id": ws.workspace_id,
+                "project_doc": serializer.to_document(model.project),
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = []
+        while not event_queue.empty():
+            events.append(event_queue.get())
+
+        streamed_logs = [
+            event
+            for event in events
+            if event.get("type") == "log" and event.get("node_id") == process_node.node_id
+        ]
+        self.assertTrue(any("tick_worker_0" in str(event.get("message", "")) for event in streamed_logs))
+        self.assertTrue(any("tick_worker_1" in str(event.get("message", "")) for event in streamed_logs))
+        self.assertTrue(any("warn_worker_0" in str(event.get("message", "")) for event in streamed_logs))
+
+        log_indexes = [
+            index
+            for index, event in enumerate(events)
+            if event.get("type") == "log" and event.get("node_id") == process_node.node_id
+        ]
+        completed_indexes = [
+            index
+            for index, event in enumerate(events)
+            if event.get("type") == "node_completed" and event.get("node_id") == process_node.node_id
+        ]
+        self.assertTrue(log_indexes, "Expected streamed log events for process node")
+        self.assertTrue(completed_indexes, "Expected process node completion event")
+        self.assertLess(min(log_indexes), min(completed_indexes))
 
 
 if __name__ == "__main__":

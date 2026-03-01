@@ -405,6 +405,50 @@ class MainWindowShellTests(unittest.TestCase):
                 restored.close()
                 self.app.processEvents()
 
+    def test_stream_log_events_are_scoped_to_active_run(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+
+        self.window.execution_event.emit(
+            {
+                "type": "log",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_stream",
+                "level": "info",
+                "message": "[stdout] tick_ui_0",
+            }
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "log",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_stream",
+                "level": "info",
+                "message": "[stderr] warn_ui_0",
+            }
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "log",
+                "run_id": "run_stale",
+                "workspace_id": workspace_id,
+                "node_id": "node_stream",
+                "level": "info",
+                "message": "[stdout] should_not_appear",
+            }
+        )
+        self.app.processEvents()
+
+        output_text = self.window.console_panel.output.toPlainText()
+        self.assertIn("[stdout] tick_ui_0", output_text)
+        self.assertIn("[stderr] warn_ui_0", output_text)
+        self.assertNotIn("should_not_appear", output_text)
+        self.assertEqual(self.window._engine_state_value, "running")
+
     def test_stale_run_events_do_not_mutate_active_run_ui(self) -> None:
         self.window._active_run_id = "run_live"
         self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)

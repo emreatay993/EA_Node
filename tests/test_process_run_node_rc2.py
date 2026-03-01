@@ -89,6 +89,48 @@ class ProcessRunNodeRc2Tests(unittest.TestCase):
                 )
             )
 
+    def test_process_run_node_streams_stdout_and_stderr_logs(self) -> None:
+        plugin = ProcessRunNodePlugin()
+        stream_logs: list[tuple[str, str]] = []
+        script = (
+            "import sys, time\n"
+            "print('tick_0', flush=True)\n"
+            "time.sleep(0.15)\n"
+            "print('warn_0', file=sys.stderr, flush=True)\n"
+            "time.sleep(0.15)\n"
+            "print('tick_1', flush=True)\n"
+        )
+        result = plugin.execute(
+            ExecutionContext(
+                run_id="run_stream",
+                node_id="node_stream",
+                workspace_id="ws",
+                inputs={
+                    "command": sys.executable,
+                    "args": json.dumps(["-c", script]),
+                },
+                properties={
+                    "args": "[]",
+                    "timeout_sec": 5.0,
+                    "shell": False,
+                    "fail_on_nonzero": True,
+                    "env": {},
+                    "encoding": "utf-8",
+                    "cwd": "",
+                },
+                emit_log=lambda level, message: stream_logs.append((str(level), str(message))),
+            )
+        )
+
+        self.assertEqual(result.outputs["exit_code"], 0)
+        self.assertIn("tick_0", result.outputs["stdout"])
+        self.assertIn("tick_1", result.outputs["stdout"])
+        self.assertIn("warn_0", result.outputs["stderr"])
+        messages = [message for _level, message in stream_logs]
+        self.assertTrue(any("[stdout] tick_0" in message for message in messages))
+        self.assertTrue(any("[stdout] tick_1" in message for message in messages))
+        self.assertTrue(any("[stderr] warn_0" in message for message in messages))
+
     def test_stop_run_cancels_active_process_node(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -158,4 +200,3 @@ class ProcessRunNodeRc2Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
