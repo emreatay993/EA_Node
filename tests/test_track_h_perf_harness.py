@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from ea_node_editor.telemetry.performance_harness import (
     BenchmarkConfig,
     SyntheticGraphConfig,
+    _resolve_baseline_mode,
     generate_synthetic_project,
     run_benchmark,
 )
@@ -43,7 +44,46 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertGreaterEqual(report["metrics"]["project_graph_load_ms"]["summary"]["p95"], 0.0)
         self.assertGreaterEqual(report["metrics"]["pan_zoom_combined_ms"]["summary"]["p95"], 0.0)
 
+    def test_benchmark_runner_emits_baseline_series_with_machine_metadata(self) -> None:
+        report = run_benchmark(
+            BenchmarkConfig(
+                synthetic_graph=SyntheticGraphConfig(node_count=60, edge_count=160, seed=11),
+                load_iterations=1,
+                interaction_samples=8,
+            ),
+            baseline_runs=2,
+            baseline_mode="interactive",
+            baseline_tag="unit_test",
+        )
+
+        baseline_series = report["baseline_series"]
+        self.assertEqual(baseline_series["mode"], "interactive")
+        self.assertEqual(baseline_series["tag"], "unit_test")
+        self.assertEqual(baseline_series["run_count"], 2)
+        self.assertEqual(len(baseline_series["runs"]), 2)
+
+        first_run = baseline_series["runs"][0]
+        self.assertIn("run_id", first_run)
+        self.assertIn("generated_at_utc", first_run)
+        self.assertIn("environment", first_run)
+        self.assertIn("metrics", first_run)
+        self.assertIn("hostname", first_run["environment"])
+        self.assertIn("machine", first_run["environment"])
+        self.assertIn("load_p95_ms", first_run["metrics"])
+        self.assertIn("pan_zoom_p95_ms", first_run["metrics"])
+
+        variance_eval = baseline_series["variance_eval"]
+        self.assertIn("load_p95_ms", variance_eval)
+        self.assertIn("pan_zoom_p95_ms", variance_eval)
+        self.assertIn("pass", variance_eval["load_p95_ms"])
+        self.assertIn("details", variance_eval["pan_zoom_p95_ms"])
+
+    def test_resolve_baseline_mode_auto(self) -> None:
+        self.assertEqual(_resolve_baseline_mode("auto", "offscreen"), "offscreen")
+        self.assertEqual(_resolve_baseline_mode("auto", "windows"), "interactive")
+        self.assertEqual(_resolve_baseline_mode("interactive", "offscreen"), "interactive")
+        self.assertEqual(_resolve_baseline_mode("offscreen", "windows"), "offscreen")
+
 
 if __name__ == "__main__":
     unittest.main()
-
