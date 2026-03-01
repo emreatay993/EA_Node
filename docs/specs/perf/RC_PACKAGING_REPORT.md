@@ -47,3 +47,26 @@
 - Uninstall phase: `PASS`
 - Source executable SHA-256: `28818C5CB9161AAFC2D62C824FCF2B2996F54623603C0DFEF967487E01E36277`
 - Installer bundle SHA-256: `52CDEDBDCB2E2D003794E90D127C71E472FD5BB0FCB3C3A809DF578703FDB22B`
+
+## RC3 Signing and Verification Update
+
+- Date (UTC): `2026-03-01T20:27:46Z`
+- Signing verify command: `powershell -NoProfile -File scripts/sign_release_artifacts.ps1 -VerifyOnly`
+- Packaging verify command: `powershell -NoProfile -File scripts/build_windows_package.ps1 -SkipSmoke`
+
+### Signing Result
+
+- Status: `PASS`
+- Signing run id: `20260301_232746`
+- Signing manifest: `artifacts/releases/signing/20260301_232746/signing_manifest.json`
+- Signing summary: `artifacts/releases/signing/20260301_232746/signing_summary.md`
+- Mode: `verify_only`
+- Require signed artifacts: `False`
+- Signable target snapshot: executable/scripts observed as `NotSigned` in verify-only mode (expected without configured cert); strict enforcement remains available via `EA_SIGN_REQUIRE_SIGNED`.
+- Supplementary strict-gate check: `EA_SIGN_REQUIRE_SIGNED=1` produced expected non-zero exit (`1`) with evidence at `artifacts/releases/signing/20260301_233011/`.
+
+### Packaging Rebuild Result
+
+- Status: `PASS`
+- Rebuilt executable: `artifacts/pyinstaller/dist/EA_Node_Editor/EA_Node_Editor.exe`
+- Dependency matrix emission: `docs/specs/perf/rc3/dependency_matrix.csv`

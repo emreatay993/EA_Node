@@ -98,3 +98,34 @@ Validation performed by the installer script:
 4. Execute uninstall and verify executable removal.
 
 The existing OneDir output remains the fallback distribution path.
+
+## Signing and Verification (RC3)
+
+Validate signing metadata for release artifacts:
+
+```powershell
+.\scripts\sign_release_artifacts.ps1 -VerifyOnly
+```
+
+Sign then verify signable targets (certificate material is externalized):
+
+```powershell
+.\scripts\sign_release_artifacts.ps1 -CertThumbprint <thumbprint> -TimestampServer <url> -RequireSignedArtifacts
+```
+
+Environment variable equivalents:
+
+- `EA_SIGN_CERT_THUMBPRINT`: signing certificate thumbprint (no private key material stored in repo).
+- `EA_SIGN_TIMESTAMP_URL`: RFC3161/AuthentiCode timestamp URL.
+- `EA_SIGN_REQUIRE_SIGNED`: strict validation gate (`1|true|yes`) for signable artifacts.
+
+Signing evidence outputs:
+
+- `artifacts\releases\signing\<run_id>\signing_manifest.json`
+- `artifacts\releases\signing\<run_id>\signing_summary.md`
+
+Validation behavior:
+
+1. Collect signature snapshots for packaged executable and latest installer scripts.
+2. Optionally apply signatures when certificate thumbprint is supplied.
+3. Fail fast with non-zero exit when missing artifacts are detected or strict signature verification fails.
