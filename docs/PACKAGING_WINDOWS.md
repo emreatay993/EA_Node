@@ -72,3 +72,29 @@ Recommended packaging command for policy evidence:
 ```powershell
 .\scripts\build_windows_package.ps1 -SkipSmoke -DependencyMatrixPath docs\specs\perf\rc3\dependency_matrix.csv
 ```
+
+## Installer Pipeline (RC3)
+
+Generate unattended installer bundle artifacts and validate install/uninstall lifecycle:
+
+```powershell
+.\scripts\build_windows_installer.ps1
+```
+
+Installer outputs are written under:
+
+- `artifacts\releases\installer\<run_id>\`
+  - `EA_Node_Editor_installer_bundle_<run_id>.zip`
+  - `scripts\Install-EA_Node_Editor.ps1`
+  - `scripts\Uninstall-EA_Node_Editor.ps1`
+  - `installer_manifest.json`
+  - `installer_validation.json`
+
+Validation performed by the installer script:
+
+1. Install payload to a temporary target root.
+2. Verify installed `EA_Node_Editor.exe` exists.
+3. Launch installed executable in `QT_QPA_PLATFORM=offscreen` mode for short liveness check.
+4. Execute uninstall and verify executable removal.
+
+The existing OneDir output remains the fallback distribution path.
