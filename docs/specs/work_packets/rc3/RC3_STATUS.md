@@ -5,7 +5,7 @@
 
 | Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
 |---|---|---|---|---|---|---|---|
-| P00 Orchestration | `rc3/p00-orchestration` | PASS | `a488970` | `New-Item -ItemType Directory docs/specs/work_packets/rc3` + scaffold `RC3_MANIFEST.md`, `RC3_STATUS.md`, `RC3_P00..P08*.md`; rewrite `docs/specs/INDEX.md` + run `& { $required = @(...) ; ... ; Write-Output 'RC3_P00_FILE_GATE_PASS' }` | PASS (`1/1`): RC3 file/index gate command returned `RC3_P00_FILE_GATE_PASS` | `docs/specs/work_packets/rc3/*`, `docs/specs/INDEX.md` | none |
+| P00 Orchestration | `rc3/p00-orchestration` | PASS | `a488970` | `New-Item -ItemType Directory docs/specs/work_packets/rc3`; scaffold `RC3_MANIFEST.md`, `RC3_STATUS.md`, and `RC3_P00..P08` contract/prompt files; rewrite `docs/specs/INDEX.md`; run Verification #1 command from `RC3_P00_orchestration_bootstrap.md` | PASS (`1/1`): RC3 file/index gate command returned `RC3_P00_FILE_GATE_PASS` | `docs/specs/work_packets/rc3/*`, `docs/specs/INDEX.md` | none |
 | P01 Process Streaming | `rc3/p01-process-streaming` | TODO | `n/a` | pending | pending | pending | stream event schema drift |
 | P02 Script Editor Ergonomics | `rc3/p02-script-editor-ergonomics` | TODO | `n/a` | pending | pending | pending | UI regression risk in dock focus/shortcuts |
 | P03 Desktop Perf Baselines | `rc3/p03-desktop-perf-baselines` | TODO | `n/a` | pending | pending | pending | hardware variance across pilot machines |
