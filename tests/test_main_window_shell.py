@@ -14,7 +14,7 @@ from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from ea_node_editor.app import APP_STYLESHEET
-from ea_node_editor.ui.main_window import MainWindow
+from ea_node_editor.ui.shell.window import ShellWindow
 
 
 def _action_shortcuts(action) -> set[str]:  # noqa: ANN001
@@ -35,16 +35,16 @@ class MainWindowShellTests(unittest.TestCase):
         self._session_path = Path(self._temp_dir.name) / "last_session.json"
         self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
         self._session_patch = patch(
-            "ea_node_editor.ui.main_window.recent_session_path",
+            "ea_node_editor.ui.shell.window.recent_session_path",
             return_value=self._session_path,
         )
         self._autosave_patch = patch(
-            "ea_node_editor.ui.main_window.autosave_project_path",
+            "ea_node_editor.ui.shell.window.autosave_project_path",
             return_value=self._autosave_path,
         )
         self._session_patch.start()
         self._autosave_patch.start()
-        self.window = MainWindow()
+        self.window = ShellWindow()
         self.window.resize(1200, 800)
         self.window.show()
         self.app.processEvents()
@@ -65,28 +65,28 @@ class MainWindowShellTests(unittest.TestCase):
 
     def test_qml_invokable_slots_exist_for_shell_buttons(self) -> None:
         meta = self.window.metaObject()
-        self.assertGreaterEqual(meta.indexOfMethod("open_workflow_settings()"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("toggle_script_editor()"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("toggle_script_editor(bool)"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("connect_ports_from_qml(QString,QString,QString,QString)"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("remove_edge_from_qml(QString)"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("remove_node_from_qml(QString)"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("rename_node_from_qml(QString)"), 0)
-        self.assertGreaterEqual(meta.indexOfMethod("delete_selected_graph_items(QVariantList)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("show_workflow_settings_dialog()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible(bool)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_connect_ports(QString,QString,QString,QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_remove_edge(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_remove_node(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_rename_node(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_delete_selected_graph_items(QVariantList)"), 0)
         self.assertGreaterEqual(
-            meta.indexOfMethod("drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
+            meta.indexOfMethod("request_drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
             0,
         )
 
-        with patch("ea_node_editor.ui.main_window.WorkflowSettingsDialog.exec", return_value=0):
+        with patch("ea_node_editor.ui.shell.window.WorkflowSettingsDialog.exec", return_value=0):
             QMetaObject.invokeMethod(
                 self.window,
-                "open_workflow_settings",
+                "show_workflow_settings_dialog",
                 Qt.ConnectionType.DirectConnection,
             )
         QMetaObject.invokeMethod(
             self.window,
-            "toggle_script_editor",
+            "set_script_editor_panel_visible",
             Qt.ConnectionType.DirectConnection,
             Q_ARG(bool, False),
         )
@@ -94,10 +94,10 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertFalse(self.window.script_editor.visible)
 
     def test_status_api_contract_updates_visible_values(self) -> None:
-        self.window.set_engine_state("running", "Job #12")
-        self.window.set_job_counts(2, 3, 4, 1)
-        self.window.set_metrics(37.0, 4.3, 16.0)
-        self.window.set_notification_counts(5, 2)
+        self.window.update_engine_status("running", "Job #12")
+        self.window.update_job_counters(2, 3, 4, 1)
+        self.window.update_system_metrics(37.0, 4.3, 16.0)
+        self.window.update_notification_counters(5, 2)
         self.app.processEvents()
 
         self.assertEqual(self.window.status_engine.icon(), "Run")
@@ -187,7 +187,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.window.scene.select_node(target_id, True)
         self.app.processEvents()
 
-        self.window.connect_selected_from_qml()
+        self.window.request_connect_selected_nodes()
         self.app.processEvents()
 
         edges = self.window.model.project.workspaces[workspace_id].edges
@@ -199,14 +199,14 @@ class MainWindowShellTests(unittest.TestCase):
         target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
         self.app.processEvents()
 
-        created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "exec_in")
+        created = self.window.request_connect_ports(source_id, "exec_out", target_id, "exec_in")
         self.assertTrue(created)
         edge_id = next(iter(self.window.model.project.workspaces[workspace_id].edges))
-        removed = self.window.remove_edge_from_qml(edge_id)
+        removed = self.window.request_remove_edge(edge_id)
         self.assertTrue(removed)
         self.app.processEvents()
 
-        created_reversed = self.window.connect_ports_from_qml(target_id, "exec_in", source_id, "exec_out")
+        created_reversed = self.window.request_connect_ports(target_id, "exec_in", source_id, "exec_out")
         self.assertTrue(created_reversed)
         edges = self.window.model.project.workspaces[workspace_id].edges
         self.assertEqual(len(edges), 1)
@@ -221,7 +221,7 @@ class MainWindowShellTests(unittest.TestCase):
         target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
         self.app.processEvents()
 
-        created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "exec_out")
+        created = self.window.request_connect_ports(source_id, "exec_out", target_id, "exec_out")
         self.assertFalse(created)
 
     def test_qml_connect_ports_rejects_exec_to_data_kind_mismatch(self) -> None:
@@ -229,12 +229,12 @@ class MainWindowShellTests(unittest.TestCase):
         target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
         self.app.processEvents()
 
-        created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "message")
+        created = self.window.request_connect_ports(source_id, "exec_out", target_id, "message")
         self.assertFalse(created)
 
-    def test_qml_drop_node_from_library_places_node_at_exact_scene_position(self) -> None:
+    def test_qml_request_drop_node_from_library_places_node_at_exact_scene_position(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        placed = self.window.drop_node_from_library(
+        placed = self.window.request_drop_node_from_library(
             "core.start",
             123.5,
             456.25,
@@ -254,12 +254,12 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertAlmostEqual(node.y, 456.25, places=4)
         self.assertEqual(len(workspace.edges), 0)
 
-    def test_qml_drop_node_from_library_port_target_autoconnects_single_candidate(self) -> None:
+    def test_qml_request_drop_node_from_library_port_target_autoconnects_single_candidate(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         target_id = self.window.scene.add_node_from_type("core.end", x=360.0, y=40.0)
         self.app.processEvents()
 
-        created = self.window.drop_node_from_library(
+        created = self.window.request_drop_node_from_library(
             "core.start",
             120.0,
             60.0,
@@ -281,16 +281,16 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(edge.target_node_id, target_id)
         self.assertEqual(edge.target_port_key, "exec_in")
 
-    def test_qml_drop_node_from_library_port_target_ambiguous_uses_prompt_selection(self) -> None:
+    def test_qml_request_drop_node_from_library_port_target_ambiguous_uses_prompt_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         target_id = self.window.scene.add_node_from_type("core.logger", x=360.0, y=40.0)
         self.app.processEvents()
 
         with patch(
-            "ea_node_editor.ui.main_window.QInputDialog.getItem",
+            "ea_node_editor.ui.shell.window.QInputDialog.getItem",
             return_value=("Constant.as_text -> Logger.message", True),
         ):
-            created = self.window.drop_node_from_library(
+            created = self.window.request_drop_node_from_library(
                 "core.constant",
                 160.0,
                 90.0,
@@ -309,14 +309,14 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(edge.target_port_key, "message")
         self.assertEqual(edge.source_port_key, "as_text")
 
-    def test_qml_drop_node_from_library_edge_target_inserts_inline(self) -> None:
+    def test_qml_request_drop_node_from_library_edge_target_inserts_inline(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
         target_id = self.window.scene.add_node_from_type("core.end", x=380.0, y=20.0)
         edge_id = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
         self.app.processEvents()
 
-        created = self.window.drop_node_from_library(
+        created = self.window.request_drop_node_from_library(
             "core.logger",
             210.0,
             90.0,
@@ -341,12 +341,12 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn((source_id, "exec_out", new_node_id, "exec_in"), edge_tuples)
         self.assertIn((new_node_id, "exec_out", target_id, "exec_in"), edge_tuples)
 
-    def test_qml_drop_node_from_library_falls_back_to_node_only_when_no_valid_connection(self) -> None:
+    def test_qml_request_drop_node_from_library_falls_back_to_node_only_when_no_valid_connection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         target_id = self.window.scene.add_node_from_type("core.logger", x=320.0, y=20.0)
         self.app.processEvents()
 
-        created = self.window.drop_node_from_library(
+        created = self.window.request_drop_node_from_library(
             "core.start",
             120.0,
             140.0,
@@ -364,42 +364,42 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertTrue(new_node_id)
         self.assertIn(new_node_id, workspace.nodes)
 
-    def test_qml_remove_edge_from_qml_mutates_model(self) -> None:
+    def test_qml_request_remove_edge_mutates_model(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
         edge_id = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
         self.app.processEvents()
 
-        removed = self.window.remove_edge_from_qml(edge_id)
+        removed = self.window.request_remove_edge(edge_id)
         self.assertTrue(removed)
         self.assertNotIn(edge_id, self.window.model.project.workspaces[workspace_id].edges)
 
-    def test_qml_remove_node_from_qml_removes_incident_edges(self) -> None:
+    def test_qml_request_remove_node_removes_incident_edges(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
         edge_id = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
         self.app.processEvents()
 
-        removed = self.window.remove_node_from_qml(source_id)
+        removed = self.window.request_remove_node(source_id)
         self.assertTrue(removed)
         workspace = self.window.model.project.workspaces[workspace_id]
         self.assertNotIn(source_id, workspace.nodes)
         self.assertNotIn(edge_id, workspace.edges)
 
-    def test_qml_rename_node_from_qml_updates_title(self) -> None:
+    def test_qml_request_rename_node_updates_title(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         self.app.processEvents()
 
-        with patch("ea_node_editor.ui.main_window.QInputDialog.getText", return_value=("Renamed Node", True)):
-            renamed = self.window.rename_node_from_qml(node_id)
+        with patch("ea_node_editor.ui.shell.window.QInputDialog.getText", return_value=("Renamed Node", True)):
+            renamed = self.window.request_rename_node(node_id)
         self.assertTrue(renamed)
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         self.assertEqual(node.title, "Renamed Node")
 
-    def test_qml_delete_selected_graph_items_removes_nodes_and_edges(self) -> None:
+    def test_qml_request_delete_selected_graph_items_removes_nodes_and_edges(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=40.0)
@@ -408,7 +408,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.window.scene.select_node(removable_node_id, False)
         self.app.processEvents()
 
-        deleted = self.window.delete_selected_graph_items([edge_id])
+        deleted = self.window.request_delete_selected_graph_items([edge_id])
         self.assertTrue(deleted)
         workspace = self.window.model.project.workspaces[workspace_id]
         self.assertNotIn(edge_id, workspace.edges)
@@ -607,8 +607,8 @@ class MainWindowShellTests(unittest.TestCase):
         initial_view_count = len(workspace.views)
         original_active_view_id = workspace.active_view_id
 
-        with patch("ea_node_editor.ui.main_window.QInputDialog.getText", return_value=("Inspection", True)):
-            self.window.create_view_from_qml()
+        with patch("ea_node_editor.ui.shell.window.QInputDialog.getText", return_value=("Inspection", True)):
+            self.window.request_create_view()
         self.app.processEvents()
 
         updated_workspace = self.window.model.project.workspaces[workspace_id]
@@ -620,7 +620,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(active_items[0]["label"], "Inspection")
         self.assertEqual(updated_workspace.active_view_id, active_items[0]["view_id"])
 
-        self.window.switch_view_from_qml(original_active_view_id)
+        self.window.request_switch_view(original_active_view_id)
         self.app.processEvents()
         self.assertEqual(self.window.model.project.workspaces[workspace_id].active_view_id, original_active_view_id)
 
@@ -668,7 +668,7 @@ class MainWindowShellTests(unittest.TestCase):
         ]
         self.assertEqual(expected_order, [first_workspace_id, third_workspace_id, second_workspace_id])
 
-        restored = MainWindow()
+        restored = ShellWindow()
         restored.resize(1200, 800)
         restored.show()
         self.app.processEvents()
@@ -729,8 +729,8 @@ class MainWindowShellTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        with patch.object(MainWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.Yes):
-            restored = MainWindow()
+        with patch.object(ShellWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.Yes):
+            restored = ShellWindow()
             restored.resize(1200, 800)
             restored.show()
             self.app.processEvents()
@@ -766,8 +766,8 @@ class MainWindowShellTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        with patch.object(MainWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.No):
-            restored = MainWindow()
+        with patch.object(ShellWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.No):
+            restored = ShellWindow()
             restored.resize(1200, 800)
             restored.show()
             self.app.processEvents()
@@ -799,8 +799,8 @@ class MainWindowShellTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        with patch.object(MainWindow, "_prompt_recover_autosave") as prompt:
-            restored = MainWindow()
+        with patch.object(ShellWindow, "_prompt_recover_autosave") as prompt:
+            restored = ShellWindow()
             restored.resize(1200, 800)
             restored.show()
             self.app.processEvents()
@@ -816,8 +816,8 @@ class MainWindowShellTests(unittest.TestCase):
         self._autosave_path.write_text("{bad json", encoding="utf-8")
         os.utime(self._autosave_path, None)
 
-        with patch.object(MainWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.Yes):
-            restored = MainWindow()
+        with patch.object(ShellWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.Yes):
+            restored = ShellWindow()
             restored.resize(1200, 800)
             restored.show()
             self.app.processEvents()
@@ -850,8 +850,8 @@ class MainWindowShellTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-        with patch.object(MainWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.No) as prompt:
-            restored = MainWindow()
+        with patch.object(ShellWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.No) as prompt:
+            restored = ShellWindow()
             self.assertEqual(prompt.call_count, 0)
             restored.resize(1200, 800)
             restored.show()

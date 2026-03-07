@@ -7,15 +7,15 @@
 - `REQ-ARCH-004`: Workflow execution shall run in a dedicated worker process per run session.
 
 ## Public Interfaces
-- `REQ-ARCH-005`: Main window shall expose:
-  - `set_engine_state(state, details='')`
-  - `set_job_counts(running, queued, done, failed)`
-  - `set_metrics(cpu_percent, ram_used_gb, ram_total_gb)`
-  - `set_notification_counts(warnings, errors)`
+- `REQ-ARCH-005`: `ShellWindow` shall expose:
+  - `update_engine_status(state, details='')`
+  - `update_job_counters(running, queued, done, failed)`
+  - `update_system_metrics(cpu_percent, ram_used_gb, ram_total_gb)`
+  - `update_notification_counters(warnings, errors)`
 - `REQ-ARCH-006`: Workspace manager shall expose create/rename/duplicate/close/switch workspace and create/switch view APIs.
 - `REQ-ARCH-007`: Node SDK shall define typed node specs (`NodeTypeSpec`, `PortSpec`, `PropertySpec`) and executable plugin contract.
 - `REQ-ARCH-008`: Persistence shall expose load/save/migrate API for `.sfe` files.
-- `REQ-ARCH-009`: Main window shall expose orchestration UI APIs `open_workflow_settings()` and `toggle_script_editor()`.
+- `REQ-ARCH-009`: `ShellWindow` shall expose orchestration UI APIs `show_workflow_settings_dialog()` and `set_script_editor_panel_visible()`.
 
 ## Acceptance
 - `AC-REQ-ARCH-001-01`: Application launches on Windows with PyQt6 and displays the main shell.

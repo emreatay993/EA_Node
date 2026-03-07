@@ -10,7 +10,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
 
-from ea_node_editor.ui.main_window import MainWindow
+from ea_node_editor.ui.shell.window import ShellWindow
 
 
 class ScriptEditorDockRc2Tests(unittest.TestCase):
@@ -23,16 +23,16 @@ class ScriptEditorDockRc2Tests(unittest.TestCase):
         self._session_path = Path(self._temp_dir.name) / "last_session.json"
         self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
         self._session_patch = patch(
-            "ea_node_editor.ui.main_window.recent_session_path",
+            "ea_node_editor.ui.shell.window.recent_session_path",
             return_value=self._session_path,
         )
         self._autosave_patch = patch(
-            "ea_node_editor.ui.main_window.autosave_project_path",
+            "ea_node_editor.ui.shell.window.autosave_project_path",
             return_value=self._autosave_path,
         )
         self._session_patch.start()
         self._autosave_patch.start()
-        self.window = MainWindow()
+        self.window = ShellWindow()
         self.window.show()
         self.app.processEvents()
 
@@ -52,7 +52,7 @@ class ScriptEditorDockRc2Tests(unittest.TestCase):
         self.window.scene.focus_node(script_node_id)
         self.app.processEvents()
 
-        self.window.toggle_script_editor(True)
+        self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
         self.assertEqual(self.window.script_editor.current_node_id, script_node_id)
         self.assertIn("output_data = 42", self.window.script_editor.script_text)
@@ -64,10 +64,10 @@ class ScriptEditorDockRc2Tests(unittest.TestCase):
 
     def test_script_editor_state_persists_in_metadata(self) -> None:
         self.assertFalse(self.window.model.project.metadata["ui"]["script_editor"]["visible"])
-        self.window.toggle_script_editor(True)
+        self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
         self.assertTrue(self.window.model.project.metadata["ui"]["script_editor"]["visible"])
-        self.window.toggle_script_editor(False)
+        self.window.set_script_editor_panel_visible(False)
         self.app.processEvents()
         self.assertFalse(self.window.model.project.metadata["ui"]["script_editor"]["visible"])
 
@@ -78,7 +78,7 @@ class ScriptEditorDockRc2Tests(unittest.TestCase):
         workspace.nodes[script_node_id].properties["script"] = "alpha = 1\nbeta = 2\n"
 
         self.window.scene.focus_node(script_node_id)
-        self.window.toggle_script_editor(True)
+        self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
 
         self.window.script_editor.set_script_text("alpha = 123\nbeta = 2\n")
@@ -90,12 +90,12 @@ class ScriptEditorDockRc2Tests(unittest.TestCase):
         self.assertIn("Sel 5", self.window.script_editor.cursor_label)
         self.assertIn("Pos 5", self.window.script_editor.cursor_label)
 
-    def test_toggle_script_editor_focuses_editor_for_script_node(self) -> None:
+    def test_set_script_editor_panel_visible_focuses_editor_for_script_node(self) -> None:
         script_node_id = self.window.scene.add_node_from_type("core.python_script", x=40.0, y=40.0)
         self.window.scene.focus_node(script_node_id)
         self.app.processEvents()
 
-        self.window.toggle_script_editor(True)
+        self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
 
         self.assertTrue(self.window.script_editor.has_focus)

@@ -20,8 +20,8 @@
 
 ## RC2 UX Surfaces
 - `REQ-UI-011`: Application shell styling shall match Stitch references using QML theme tokens and surface hierarchy.
-- `REQ-UI-012`: Main window shall expose `open_workflow_settings()` and persist workflow settings metadata from a modal UI.
-- `REQ-UI-013`: Main window shall expose `toggle_script_editor()` and provide a Python script editor surface bound to selected `core.python_script` nodes.
+- `REQ-UI-012`: `ShellWindow` shall expose `show_workflow_settings_dialog()` and persist workflow settings metadata from a modal UI.
+- `REQ-UI-013`: `ShellWindow` shall expose `set_script_editor_panel_visible()` and provide a Python script editor surface bound to selected `core.python_script` nodes.
 
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.

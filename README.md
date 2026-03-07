@@ -26,11 +26,9 @@ ea_node_editor/
   app.py                  # Application entry point
   settings.py             # Paths, defaults, autosave interval
 
-  graph/                  # The data model and canvas
+  graph/                  # Graph domain model + graph rules
     model.py              # ProjectData, WorkspaceData, NodeInstance, EdgeInstance
-    scene.py              # QGraphicsScene that binds model to the canvas
-    view.py               # Zoom, pan, viewport
-    items/                # Visual items for nodes and edges
+    rules.py              # Canonical port/data compatibility and exposure helpers
 
   nodes/                  # Node type system
     types.py              # PortSpec, PropertySpec, NodeTypeSpec, NodePlugin protocol
@@ -52,19 +50,27 @@ ea_node_editor/
   persistence/
     serializer.py         # Save / load .sfe project files (versioned JSON)
 
-  ui/                     # User interface (PyQt6 + QML)
-    main_window.py        # Top-level window shell
-    controllers/          # Focused controllers extracted from main_window
-      project_controller.py
-      execution_controller.py
-      inspector_controller.py
+  ui/                     # User interface shell orchestration
+    shell/
+      window.py           # ShellWindow (QMainWindow host + orchestration)
+      project_flow.py     # Project/session helpers (merge/defaults/fingerprints/persistence)
+      run_flow.py         # Run lifecycle helpers (event scoping + action-state derivation)
+      workspace_flow.py   # Workspace/view tab helpers
+      inspector_flow.py   # Inspector property coercion helpers
+      library_flow.py     # Library drop/autowire helper selection
     graph_interactions.py # Connect, delete, rename operations
-    panels/               # Console, inspector, node library, script editor
     dialogs/              # Workflow settings dialog
     theme/                # Dark theme tokens and stylesheets
     editor/               # Code editor widget
 
-  ui_qml/                 # QML shell and Python-QML bridges
+  ui_qml/                 # QML shell + bridge/state models
+    graph_scene_bridge.py # GraphSceneBridge (nodes/edges/selection)
+    viewport_bridge.py    # ViewportBridge (zoom/pan/camera)
+    edge_routing.py       # Edge geometry and payload routing helpers
+    console_model.py
+    script_editor_model.py
+    status_model.py
+    workspace_tabs_model.py
   workspace/              # Workspace ordering and lifecycle
   telemetry/              # CPU/RAM metrics, performance harness
 

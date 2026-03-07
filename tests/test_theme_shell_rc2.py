@@ -11,7 +11,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.app import APP_STYLESHEET
-from ea_node_editor.ui.main_window import MainWindow
+from ea_node_editor.ui.shell.window import ShellWindow
 
 
 class ThemeShellRc2Tests(unittest.TestCase):
@@ -25,16 +25,16 @@ class ThemeShellRc2Tests(unittest.TestCase):
         self._session_path = Path(self._temp_dir.name) / "last_session.json"
         self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
         self._session_patch = patch(
-            "ea_node_editor.ui.main_window.recent_session_path",
+            "ea_node_editor.ui.shell.window.recent_session_path",
             return_value=self._session_path,
         )
         self._autosave_patch = patch(
-            "ea_node_editor.ui.main_window.autosave_project_path",
+            "ea_node_editor.ui.shell.window.autosave_project_path",
             return_value=self._autosave_path,
         )
         self._session_patch.start()
         self._autosave_patch.start()
-        self.window = MainWindow()
+        self.window = ShellWindow()
         self.window.resize(1200, 800)
         self.window.show()
         self.app.processEvents()
