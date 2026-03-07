@@ -191,14 +191,6 @@ class MainWindow(QMainWindow):
         self.action_connect_selected.setShortcut(QKeySequence("Ctrl+L"))
         self.action_connect_selected.triggered.connect(self._connect_selected_nodes)
 
-        self.action_zoom_in = QAction("Zoom +", self)
-        self.action_zoom_in.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomIn))
-        self.action_zoom_in.triggered.connect(lambda: self.view.set_zoom(self.view.zoom * 1.15))
-
-        self.action_zoom_out = QAction("Zoom -", self)
-        self.action_zoom_out.setShortcuts(QKeySequence.keyBindings(QKeySequence.StandardKey.ZoomOut))
-        self.action_zoom_out.triggered.connect(lambda: self.view.set_zoom(self.view.zoom / 1.15))
-
         self.action_new_view = QAction("New View", self)
         self.action_new_view.setShortcut(QKeySequence("Ctrl+Shift+V"))
         self.action_new_view.triggered.connect(self._create_view)
@@ -240,8 +232,6 @@ class MainWindow(QMainWindow):
             self.action_stop,
             self.action_pause,
             self.action_connect_selected,
-            self.action_zoom_in,
-            self.action_zoom_out,
             self.action_new_view,
             self.action_duplicate_workspace,
             self.action_rename_workspace,
@@ -270,8 +260,6 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.action_connect_selected)
 
         view_menu = menu_bar.addMenu("&View")
-        view_menu.addAction(self.action_zoom_in)
-        view_menu.addAction(self.action_zoom_out)
         view_menu.addAction(self.action_toggle_script_editor)
 
         run_menu = menu_bar.addMenu("&Run")
