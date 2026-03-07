@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.graph.model import ProjectData
-from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import PROJECT_EXTENSION
 
@@ -14,8 +13,8 @@ from .project_codec import JsonProjectCodec
 
 
 class JsonProjectSerializer:
-    def __init__(self, registry: NodeRegistry | None = None) -> None:
-        self._registry = registry or build_default_registry()
+    def __init__(self, registry: NodeRegistry) -> None:
+        self._registry = registry
         self._migration = JsonProjectMigration(self._registry)
         self._codec = JsonProjectCodec()
 

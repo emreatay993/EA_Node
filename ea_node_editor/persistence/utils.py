@@ -2,19 +2,25 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 
 def merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
     merged = copy.deepcopy(defaults)
-    if not isinstance(values, dict):
+    if not isinstance(values, Mapping):
         return merged
     for key, value in values.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-            merged[key] = merge_defaults(value, merged[key])
+        normalized_key = str(key)
+        if (
+            normalized_key in merged
+            and isinstance(merged[normalized_key], dict)
+            and isinstance(value, Mapping)
+        ):
+            merged[normalized_key] = merge_defaults(dict(value), merged[normalized_key])
         else:
-            merged[key] = value
+            merged[normalized_key] = copy.deepcopy(value)
     return merged
 
 

@@ -11,6 +11,7 @@ from unittest import mock
 
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins import integrations_email, integrations_spreadsheet
 from ea_node_editor.nodes.builtins.core import PythonScriptNodePlugin
 from ea_node_editor.nodes.builtins.integrations import (
@@ -225,7 +226,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
 class IntegrationFlowSmokeTests(unittest.TestCase):
     def _run_model(self, model: GraphModel, workspace_id: str) -> list[dict]:
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         run_workflow(
             {
                 "run_id": "run_smoke",

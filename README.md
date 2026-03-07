@@ -59,8 +59,12 @@ ea_node_editor/
 
   ui/                     # User interface shell orchestration
     shell/
-      window.py           # ShellWindow (QMainWindow host + orchestration)
-      project_flow.py     # Project/session helpers (merge/defaults/fingerprints/persistence)
+      window.py           # ShellWindow (QMainWindow host + QML bridge delegation)
+      state.py            # Mutable shell/runtime state container
+      controllers/
+        run_controller.py
+        project_session_controller.py
+        workspace_library_controller.py
       run_flow.py         # Run lifecycle helpers (event scoping + action-state derivation)
       workspace_flow.py   # Workspace/view tab helpers
       inspector_flow.py   # Inspector property coercion helpers

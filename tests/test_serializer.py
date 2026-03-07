@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -23,7 +24,7 @@ class SerializerTests(unittest.TestCase):
         node_b = model.add_node(workspace.workspace_id, "core.end", "End", 80, 120)
         edge = model.add_edge(workspace.workspace_id, node_a.node_id, "exec_out", node_b.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "project.sfe"
             serializer.save(str(path), model.project)
@@ -66,7 +67,7 @@ class SerializerTests(unittest.TestCase):
         model.project.workspaces[second].views[second_v2.view_id].pan_y = 99.0
         model.set_active_view(second, second_v2.view_id)
 
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "project.sfe"
             serializer.save(str(path), model.project)
@@ -108,7 +109,7 @@ class SerializerTests(unittest.TestCase):
         edge = model.add_edge(second, source.node_id, "trigger", target.node_id, "message")
         self.assertIsNotNone(edge.edge_id)
 
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         doc = serializer.to_document(model.project)
         self.assertEqual(doc["workspace_order"], [second, first])
         self.assertEqual([ws["workspace_id"] for ws in doc["workspaces"]], [second, first])
@@ -122,7 +123,7 @@ class SerializerTests(unittest.TestCase):
             self.assertEqual(path_a.read_text(encoding="utf-8"), path_b.read_text(encoding="utf-8"))
 
     def test_migration_normalizes_conflicting_target_inputs_deterministically(self) -> None:
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         payload = {
             "schema_version": SCHEMA_VERSION,
             "project_id": "proj_conflict",
@@ -209,7 +210,7 @@ class SerializerTests(unittest.TestCase):
         )
 
     def test_migrate_v0_fixture_adds_defaults_and_normalizes_workspace_and_view(self) -> None:
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         payload = json.loads((FIXTURES_DIR / "schema_v0_minimal.json").read_text(encoding="utf-8"))
         project = serializer.from_document(payload)
 
@@ -219,7 +220,7 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(project.workspaces["ws_b"].active_view_id, "view_b1")
 
     def test_migrate_v0_fixture_repairs_invalid_hidden_and_duplicate_edges(self) -> None:
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         payload = json.loads((FIXTURES_DIR / "schema_v0_inconsistent.json").read_text(encoding="utf-8"))
         project = serializer.from_document(payload)
 

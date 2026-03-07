@@ -3,13 +3,14 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 
 
 class SerializerV2MigrationRc2Tests(unittest.TestCase):
     def test_v1_document_is_auto_upgraded_to_v2_with_metadata_defaults(self) -> None:
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         v1_doc = {
             "schema_version": 1,
             "project_id": "proj_v1",
@@ -48,7 +49,7 @@ class SerializerV2MigrationRc2Tests(unittest.TestCase):
         self.assertIn("workflow_settings", project.metadata)
 
     def test_v2_document_contains_normalized_ui_and_workflow_settings(self) -> None:
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         model = GraphModel()
         model.project.metadata["ui"] = {"script_editor": {"visible": True}}
         model.project.metadata["workflow_settings"] = {
@@ -64,4 +65,3 @@ class SerializerV2MigrationRc2Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

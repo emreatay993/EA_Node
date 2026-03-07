@@ -6,6 +6,12 @@ from typing import Any, Callable, Protocol
 
 from ea_node_editor.graph.model import ProjectData
 from ea_node_editor.settings import autosave_project_path, recent_session_path
+from ea_node_editor.persistence.utils import (
+    coerce_timestamp as coerce_timestamp_value,
+    document_fingerprint as document_fingerprint_value,
+    write_json_atomic,
+)
+
 
 class _SerializerProtocol(Protocol):
     def load(self, path: str) -> ProjectData:
@@ -13,27 +19,6 @@ class _SerializerProtocol(Protocol):
 
     def to_document(self, project: ProjectData) -> dict[str, Any]:
         ...
-
-
-def _coerce_timestamp(value: Any) -> float:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _document_fingerprint(project_doc: dict[str, Any]) -> str:
-    return json.dumps(project_doc, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-
-def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f"{path.name}.tmp")
-    temp_path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True),
-        encoding="utf-8",
-    )
-    temp_path.replace(path)
 
 
 class SessionAutosaveStore:
@@ -70,7 +55,7 @@ class SessionAutosaveStore:
             "last_manual_save_ts": last_manual_save_ts,
             "project_doc": project_doc,
         }
-        _write_json_atomic(self._session_path_provider(), session_payload)
+        write_json_atomic(self._session_path_provider(), session_payload)
 
     def discard_autosave_snapshot(self) -> None:
         autosave_path = self._autosave_path_provider()
@@ -87,10 +72,10 @@ class SessionAutosaveStore:
         project_doc: dict[str, Any],
         last_fingerprint: str,
     ) -> str:
-        fingerprint = _document_fingerprint(project_doc)
+        fingerprint = document_fingerprint_value(project_doc)
         if fingerprint == last_fingerprint:
             return last_fingerprint
-        _write_json_atomic(self._autosave_path_provider(), project_doc)
+        write_json_atomic(self._autosave_path_provider(), project_doc)
         return fingerprint
 
     def load_recoverable_autosave(
@@ -125,7 +110,7 @@ class SessionAutosaveStore:
             return None
 
         recovered_doc = self._serializer.to_document(recovered_project)
-        if _document_fingerprint(current_project_doc) == _document_fingerprint(recovered_doc):
+        if document_fingerprint_value(current_project_doc) == document_fingerprint_value(recovered_doc):
             self.discard_autosave_snapshot()
             return None
 
@@ -133,8 +118,8 @@ class SessionAutosaveStore:
 
     @staticmethod
     def coerce_timestamp(value: Any) -> float:
-        return _coerce_timestamp(value)
+        return coerce_timestamp_value(value)
 
     @staticmethod
     def document_fingerprint(project_doc: dict[str, Any]) -> str:
-        return _document_fingerprint(project_doc)
+        return document_fingerprint_value(project_doc)

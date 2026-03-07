@@ -9,6 +9,7 @@ import unittest
 
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.integrations import ProcessRunNodePlugin
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -154,7 +155,7 @@ class ProcessRunNodeRc2Tests(unittest.TestCase):
         )
         model.add_edge(ws.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         event_queue: queue.Queue = queue.Queue()
         command_queue: queue.Queue = queue.Queue()
         run_id = "run_stop_process"

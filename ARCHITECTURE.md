@@ -222,7 +222,8 @@ sequenceDiagram
 ## Folder map
 - `main.py`: launcher.
 - `ea_node_editor/app.py`: Qt app bootstrap.
-- `ea_node_editor/ui/shell/window.py`: top-level orchestrator and QML bridge surface.
+- `ea_node_editor/ui/shell/window.py`: thin QMainWindow/QML bridge + slot/property surface.
+- `ea_node_editor/ui/shell/controllers/`: run, project/session, and workspace/library orchestration controllers.
 - `ea_node_editor/ui_qml/`: QML UI and Python bridge/state models.
 - `ea_node_editor/graph/`: graph datamodel and wiring rules.
 - `ea_node_editor/nodes/`: SDK, registry, built-ins, plugin/package support.
@@ -237,7 +238,9 @@ sequenceDiagram
 - Add plugin loading source/rules: `ea_node_editor/nodes/plugin_loader.py`.
 - Change graph wiring rules: `ea_node_editor/graph/rules.py`.
 - Change execution semantics or event behavior: `ea_node_editor/execution/worker.py` and `execution/protocol.py`.
-- Change run orchestration/UI reaction: `ea_node_editor/ui/shell/window.py`.
+- Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
+- Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py`.
+- Change workspace/view/library orchestration: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py`.
 - Change persistence schema normalization/migration: `ea_node_editor/persistence/migration.py`.
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml` + `ui_qml/graph_scene_bridge.py`.
 

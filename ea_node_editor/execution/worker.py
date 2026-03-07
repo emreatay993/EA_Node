@@ -93,13 +93,12 @@ def _emit_protocol_error(
     )
 
 
-def _load_project_doc(command: StartRunCommand) -> dict[str, Any]:
+def _load_project_doc(command: StartRunCommand, serializer: JsonProjectSerializer) -> dict[str, Any]:
     if command.project_doc:
         return dict(command.project_doc)
     path = command.project_path
     if not path:
         raise ValueError("Missing project_path and project_doc")
-    serializer = JsonProjectSerializer()
     project = serializer.load(path)
     return serializer.to_document(project)
 
@@ -267,7 +266,8 @@ def run_workflow(
     trigger = dict(typed_command.trigger)
     control = _RunControl(command_queue, event_queue, run_id=run_id, workspace_id=workspace_id)
     registry = build_default_registry()
-    project_doc = _load_project_doc(typed_command)
+    serializer = JsonProjectSerializer(registry)
+    project_doc = _load_project_doc(typed_command, serializer)
     workspace = _workspace_doc_from_project(project_doc, workspace_id)
 
     nodes = {node["node_id"]: node for node in workspace.get("nodes", [])}

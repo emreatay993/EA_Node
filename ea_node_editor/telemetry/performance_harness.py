@@ -233,7 +233,7 @@ def _workspace_bounds(workspace: WorkspaceData) -> tuple[float, float, float, fl
 
 def benchmark_load_times_ms(*, doc: dict[str, Any], workspace_id: str, iterations: int) -> list[float]:
     app = QApplication.instance() or QApplication([])
-    serializer = JsonProjectSerializer()
+    serializer = JsonProjectSerializer(build_default_registry())
     samples: list[float] = []
 
     for _ in range(iterations):
@@ -262,7 +262,7 @@ def benchmark_pan_zoom_ms(
     if samples <= 0:
         raise ValueError("samples must be > 0")
     app = QApplication.instance() or QApplication([])
-    serializer = JsonProjectSerializer()
+    serializer = JsonProjectSerializer(build_default_registry())
     project = serializer.from_document(doc)
     model = GraphModel(project)
     scene, view = _bind_scene_for_workspace(app=app, model=model, workspace_id=workspace_id)
@@ -309,7 +309,7 @@ def benchmark_pan_zoom_ms(
 
 def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     project = generate_synthetic_project(config.synthetic_graph)
-    serializer = JsonProjectSerializer()
+    serializer = JsonProjectSerializer(build_default_registry())
     doc = serializer.to_document(project)
     workspace_id = project.active_workspace_id
 

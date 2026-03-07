@@ -8,6 +8,7 @@ import unittest
 
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
@@ -63,7 +64,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
             model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
             model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         return ws.workspace_id, serializer.to_document(model.project)
 
     def test_worker_death_emits_failure_and_next_run_recovers(self) -> None:
@@ -146,7 +147,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
         end = model.add_node(ws.workspace_id, "core.end", "End", 200, 0)
         model.add_edge(ws.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
         model.add_edge(ws.workspace_id, process_node.node_id, "exec_out", end.node_id, "exec_in")
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
 
         run_id = self.client.start_run(
             project_path="",

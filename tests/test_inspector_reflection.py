@@ -45,7 +45,7 @@ class InspectorReflectionTests(unittest.TestCase):
         self.scene.set_node_property(logger_id, "message", "live inspector message")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         run_workflow(
             {
                 "run_id": "run_inspector_reflection",

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
 from ea_node_editor.settings import (
     DEFAULT_UI_STATE,
     DEFAULT_WORKFLOW_SETTINGS,
@@ -104,23 +104,9 @@ class JsonProjectMigration:
 
     @staticmethod
     def merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
-        merged = copy.deepcopy(defaults)
         if not isinstance(values, Mapping):
-            return merged
-        for key, value in values.items():
-            normalized_key = str(key)
-            if (
-                normalized_key in merged
-                and isinstance(merged[normalized_key], dict)
-                and isinstance(value, Mapping)
-            ):
-                merged[normalized_key] = JsonProjectMigration.merge_defaults(
-                    value,
-                    merged[normalized_key],
-                )
-            else:
-                merged[normalized_key] = copy.deepcopy(value)
-        return merged
+            return merge_defaults_dict({}, defaults)
+        return merge_defaults_dict({str(key): value for key, value in values.items()}, defaults)
 
     @staticmethod
     def as_list(value: Any) -> list[Any]:

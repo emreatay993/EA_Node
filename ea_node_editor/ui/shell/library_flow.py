@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtWidgets import QInputDialog, QWidget
-
 
 def input_port_is_available(workspace, node_id: str, port_key: str) -> bool:
     for edge in workspace.edges.values():
@@ -14,11 +12,13 @@ def input_port_is_available(workspace, node_id: str, port_key: str) -> bool:
 
 def pick_connection_candidate(
     *,
-    parent: QWidget,
+    parent,
     title: str,
     label: str,
     candidates: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
+    from PyQt6.QtWidgets import QInputDialog
+
     if not candidates:
         return None
     if len(candidates) == 1:

@@ -7,6 +7,7 @@ import unittest
 
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
@@ -21,7 +22,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         run_workflow(
             {
                 "run_id": "run_test",
@@ -55,7 +56,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         run_workflow(
             {
                 "run_id": "run_error",
@@ -82,7 +83,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
         model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
 
         pause_event_queue: queue.Queue = queue.Queue()
         pause_command_queue: queue.Queue = queue.Queue()
@@ -166,7 +167,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, process_node.node_id, "exec_out", end.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer()
+        serializer = JsonProjectSerializer(build_default_registry())
         run_workflow(
             {
                 "run_id": "run_stream_worker",

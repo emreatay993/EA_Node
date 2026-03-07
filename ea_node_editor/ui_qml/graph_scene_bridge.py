@@ -82,15 +82,6 @@ class GraphSceneBridge(QObject):
         self._workspace_id = workspace_id
         self._selected_node_ids = []
 
-        workspace = model.project.workspaces[workspace_id]
-        for node in workspace.nodes.values():
-            spec = registry.get_spec(node.type_id)
-            node.properties = registry.normalize_properties(node.type_id, node.properties)
-            node.exposed_ports = {
-                port.key: bool(node.exposed_ports.get(port.key, port.exposed))
-                for port in spec.ports
-            }
-
         self._rebuild_models()
         self.workspace_changed.emit(workspace_id)
         self.node_selected.emit("")
