@@ -143,14 +143,6 @@ Rectangle {
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
                 ShellButton {
-                    text: "+ Workspace"
-                    onClicked: mainWindow.request_create_workspace()
-                }
-                ShellButton {
-                    text: "+ View"
-                    onClicked: mainWindow.request_create_view()
-                }
-                ShellButton {
                     text: "Settings"
                     onClicked: mainWindow.show_workflow_settings_dialog()
                 }
@@ -394,6 +386,10 @@ Rectangle {
                                     }
                                 }
                             }
+                            ShellButton {
+                                text: "+ View"
+                                onClicked: mainWindow.request_create_view()
+                            }
 
                             Text {
                                 text: mainWindow.active_view_name ? ("Active: " + mainWindow.active_view_name) : ""
@@ -447,6 +443,11 @@ Rectangle {
                                         onClicked: workspaceTabsBridge.activate_workspace(modelData.workspace_id)
                                     }
                                 }
+                            }
+                            ShellButton {
+                                y: 4
+                                text: "+ Workspace"
+                                onClicked: mainWindow.request_create_workspace()
                             }
                         }
                     }
