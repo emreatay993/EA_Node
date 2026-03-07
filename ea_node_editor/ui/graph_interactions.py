@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Iterable, Protocol
 
 from ea_node_editor.graph.model import WorkspaceData
+from ea_node_editor.graph.rules import are_port_kinds_compatible, port_kind
 from ea_node_editor.nodes.registry import NodeRegistry
 
 
@@ -181,13 +182,11 @@ class GraphInteractions:
             spec = self._registry.get_spec(type_id)
         except KeyError:
             return None
-        for port in spec.ports:
-            if port.key == port_key:
-                return port.kind
-        return None
+        try:
+            return port_kind(spec, port_key)
+        except KeyError:
+            return None
 
     @staticmethod
     def _are_port_kinds_compatible(source_kind: str, target_kind: str) -> bool:
-        if source_kind == "exec" or target_kind == "exec":
-            return source_kind == "exec" and target_kind == "exec"
-        return True
+        return are_port_kinds_compatible(source_kind, target_kind)

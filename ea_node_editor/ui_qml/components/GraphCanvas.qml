@@ -38,6 +38,51 @@ Item {
         return (viewBridge ? viewBridge.center_y : 0.0) + (screenY - root.height * 0.5) / Math.max(0.1, zoom);
     }
 
+    function _wheelDeltaY(eventObj) {
+        if (!eventObj)
+            return 0.0;
+        var delta = 0.0;
+        if (eventObj.angleDelta && Number(eventObj.angleDelta.y) !== 0)
+            delta = Number(eventObj.angleDelta.y);
+        else if (eventObj.pixelDelta && Number(eventObj.pixelDelta.y) !== 0)
+            delta = Number(eventObj.pixelDelta.y) * 0.5;
+        if (eventObj.inverted)
+            delta = -delta;
+        return delta;
+    }
+
+    function applyWheelZoom(eventObj) {
+        if (!viewBridge)
+            return false;
+        var deltaY = _wheelDeltaY(eventObj);
+        if (Math.abs(deltaY) < 0.001)
+            return false;
+
+        var cursorX = Number(eventObj && eventObj.x);
+        var cursorY = Number(eventObj && eventObj.y);
+        var hasCursor = isFinite(cursorX) && isFinite(cursorY);
+        var sceneBeforeX = 0.0;
+        var sceneBeforeY = 0.0;
+        if (hasCursor) {
+            sceneBeforeX = screenToSceneX(cursorX);
+            sceneBeforeY = screenToSceneY(cursorY);
+        }
+
+        var steps = deltaY / 120.0;
+        if (Math.abs(steps) < 0.01)
+            steps = deltaY > 0 ? 1.0 : -1.0;
+        steps = Math.max(-1.0, Math.min(1.0, steps));
+        var factor = Math.pow(1.15, steps);
+        viewBridge.adjust_zoom(factor);
+
+        if (hasCursor) {
+            var sceneAfterX = screenToSceneX(cursorX);
+            var sceneAfterY = screenToSceneY(cursorY);
+            viewBridge.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
+        }
+        return true;
+    }
+
     function sceneToScreenX(sceneX) {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         return root.width * 0.5 + (sceneX - (viewBridge ? viewBridge.center_x : 0.0)) * zoom;
@@ -180,11 +225,9 @@ Item {
     }
 
     function _arePortKindsCompatible(sourceKind, targetKind) {
-        if (!sourceKind || !targetKind)
+        if (!sceneBridge)
             return false;
-        if (sourceKind === "exec" || targetKind === "exec")
-            return sourceKind === "exec" && targetKind === "exec";
-        return true;
+        return sceneBridge.are_port_kinds_compatible(String(sourceKind || ""), String(targetKind || ""));
     }
 
     function _isDropAllowed(sourceDrag, candidate) {
@@ -213,34 +256,16 @@ Item {
         return true;
     }
 
-    function _isFlowKind(kind) {
-        return kind === "exec" || kind === "completed" || kind === "failed";
-    }
-
     function _areDataTypesCompatible(sourceType, targetType) {
-        var sourceValue = String(sourceType || "").trim().toLowerCase();
-        var targetValue = String(targetType || "").trim().toLowerCase();
-        if (!sourceValue || !targetValue)
+        if (!sceneBridge)
             return false;
-        if (sourceValue === "any" || targetValue === "any")
-            return true;
-        return sourceValue === targetValue;
-    }
-
-    function _areAutoConnectKindsCompatible(sourceKind, targetKind) {
-        var sourceValue = String(sourceKind || "").trim();
-        var targetValue = String(targetKind || "").trim();
-        if (!sourceValue || !targetValue)
-            return false;
-        if (_isFlowKind(sourceValue) || _isFlowKind(targetValue))
-            return sourceValue === targetValue;
-        return true;
+        return sceneBridge.are_data_types_compatible(String(sourceType || ""), String(targetType || ""));
     }
 
     function _portsCompatibleForAuto(sourcePort, targetPort) {
         if (!sourcePort || !targetPort)
             return false;
-        return _areAutoConnectKindsCompatible(sourcePort.kind, targetPort.kind)
+        return _arePortKindsCompatible(sourcePort.kind, targetPort.kind)
             && _areDataTypesCompatible(sourcePort.data_type, targetPort.data_type);
     }
 
@@ -540,7 +565,7 @@ Item {
         root._closeContextMenus();
         root.clearPendingConnection();
         var target = root._computeLibraryDropTarget(screenX, screenY, payload);
-        mainWindowBridge.drop_node_from_library(
+        mainWindowBridge.request_drop_node_from_library(
             String(payload.type_id || ""),
             root.screenToSceneX(screenX),
             root.screenToSceneY(screenY),
@@ -613,7 +638,7 @@ Item {
         var candidate = clicked;
         candidate.valid_drop = _isDropAllowed(sourceDrag, candidate);
         if (candidate.valid_drop && mainWindowBridge) {
-            var created = mainWindowBridge.connect_ports_from_qml(
+            var created = mainWindowBridge.request_connect_ports(
                 pending.node_id,
                 pending.port_key,
                 clicked.node_id,
@@ -913,6 +938,7 @@ Item {
         id: world
         width: root.worldSize
         height: root.worldSize
+        transformOrigin: Item.TopLeft
         scale: viewBridge ? viewBridge.zoom_value : 1.0
         x: root.width * 0.5 - ((viewBridge ? viewBridge.center_x : 0) + root.worldOffset) * scale
         y: root.height * 0.5 - ((viewBridge ? viewBridge.center_y : 0) + root.worldOffset) * scale
@@ -1044,6 +1070,11 @@ Item {
         onCanceled: {
             selecting = false;
         }
+
+        onWheel: function(wheel) {
+            if (root.applyWheelZoom(wheel))
+                wheel.accepted = true;
+        }
     }
 
     Rectangle {
@@ -1093,18 +1124,6 @@ Item {
         }
     }
 
-    WheelHandler {
-        id: zoomWheel
-        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-        onWheel: {
-            if (!viewBridge)
-                return;
-            var factor = wheel.angleDelta.y > 0 ? 1.15 : (1.0 / 1.15);
-            viewBridge.adjust_zoom(factor);
-            wheel.accepted = true;
-        }
-    }
-
     Rectangle {
         id: edgeContextPopup
         visible: root.edgeContextVisible
@@ -1140,7 +1159,7 @@ Item {
                 onPressed: {
                     if (!mainWindowBridge || !root.edgeContextEdgeId)
                         return;
-                    mainWindowBridge.remove_edge_from_qml(root.edgeContextEdgeId);
+                    mainWindowBridge.request_remove_edge(root.edgeContextEdgeId);
                     root.selectedEdgeIds = root.selectedEdgeIds.filter(function(value) {
                         return value !== root.edgeContextEdgeId;
                     });
@@ -1189,7 +1208,7 @@ Item {
                 onPressed: {
                     if (!mainWindowBridge || !root.nodeContextNodeId)
                         return;
-                    mainWindowBridge.rename_node_from_qml(root.nodeContextNodeId);
+                    mainWindowBridge.request_rename_node(root.nodeContextNodeId);
                     root._closeContextMenus();
                     mouse.accepted = true;
                 }
@@ -1221,7 +1240,7 @@ Item {
                 onPressed: {
                     if (!mainWindowBridge || !root.nodeContextNodeId)
                         return;
-                    mainWindowBridge.remove_node_from_qml(root.nodeContextNodeId);
+                    mainWindowBridge.request_remove_node(root.nodeContextNodeId);
                     root.clearEdgeSelection();
                     root._closeContextMenus();
                     mouse.accepted = true;
@@ -1232,7 +1251,7 @@ Item {
 
     Keys.onDeletePressed: function(event) {
         if (mainWindowBridge)
-            mainWindowBridge.delete_selected_graph_items(root.selectedEdgeIds);
+            mainWindowBridge.request_delete_selected_graph_items(root.selectedEdgeIds);
         root.selectedEdgeIds = [];
         root.clearPendingConnection();
         root._closeContextMenus();

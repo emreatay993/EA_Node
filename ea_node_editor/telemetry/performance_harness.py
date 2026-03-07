@@ -18,10 +18,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ProjectData, ViewState, WorkspaceData
-from ea_node_editor.graph.scene import NodeGraphScene
-from ea_node_editor.graph.view import NodeGraphView
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 
 @dataclass(slots=True, frozen=True)
@@ -206,16 +206,29 @@ def _bind_scene_for_workspace(
     app: QApplication,
     model: GraphModel,
     workspace_id: str,
-) -> tuple[NodeGraphScene, NodeGraphView]:
+) -> tuple[GraphSceneBridge, ViewportBridge]:
     registry = build_default_registry()
-    scene = NodeGraphScene()
-    view = NodeGraphView()
-    view.setScene(scene)
-    view.resize(1280, 720)
-    view.show()
+    scene = GraphSceneBridge()
+    view = ViewportBridge()
+    view.set_viewport_size(1280.0, 720.0)
     scene.set_workspace(model, registry, workspace_id)
     app.processEvents()
     return scene, view
+
+
+def _workspace_bounds(workspace: WorkspaceData) -> tuple[float, float, float, float]:
+    if not workspace.nodes:
+        return -5000.0, 5000.0, -5000.0, 5000.0
+    xs = [float(node.x) for node in workspace.nodes.values()]
+    ys = [float(node.y) for node in workspace.nodes.values()]
+    margin_x = 800.0
+    margin_y = 500.0
+    return (
+        min(xs) - margin_x,
+        max(xs) + margin_x,
+        min(ys) - margin_y,
+        max(ys) + margin_y,
+    )
 
 
 def benchmark_load_times_ms(*, doc: dict[str, Any], workspace_id: str, iterations: int) -> list[float]:
@@ -230,8 +243,6 @@ def benchmark_load_times_ms(*, doc: dict[str, Any], workspace_id: str, iteration
         scene, view = _bind_scene_for_workspace(app=app, model=model, workspace_id=workspace_id)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         samples.append(elapsed_ms)
-        view.close()
-        scene.clear()
         view.deleteLater()
         scene.deleteLater()
         app.processEvents()
@@ -255,21 +266,22 @@ def benchmark_pan_zoom_ms(
     project = serializer.from_document(doc)
     model = GraphModel(project)
     scene, view = _bind_scene_for_workspace(app=app, model=model, workspace_id=workspace_id)
+    workspace = model.project.workspaces[workspace_id]
 
     random_gen = random.Random(seed)
-    rect = scene.sceneRect()
+    left, right, top, bottom = _workspace_bounds(workspace)
     pan_samples_ms: list[float] = []
     zoom_samples_ms: list[float] = []
 
     for index in range(samples):
         current_center = view.mapToScene(view.viewport().rect().center())
         pan_x = max(
-            rect.left(),
-            min(rect.right(), current_center.x() + random_gen.uniform(-180.0, 180.0)),
+            left,
+            min(right, current_center.x() + random_gen.uniform(-180.0, 180.0)),
         )
         pan_y = max(
-            rect.top(),
-            min(rect.bottom(), current_center.y() + random_gen.uniform(-120.0, 120.0)),
+            top,
+            min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
         )
         started = time.perf_counter()
         view.centerOn(pan_x, pan_y)
@@ -283,8 +295,6 @@ def benchmark_pan_zoom_ms(
         app.processEvents()
         zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
 
-    view.close()
-    scene.clear()
     view.deleteLater()
     scene.deleteLater()
     app.processEvents()

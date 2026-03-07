@@ -14,9 +14,14 @@ from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMainWindow, QMessageBox
 
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel, NodeInstance, ProjectData
+from ea_node_editor.graph.rules import (
+    find_port,
+    is_port_exposed,
+    ports_compatible,
+)
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
+from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import (
     AUTOSAVE_INTERVAL_MS,
@@ -28,13 +33,22 @@ from ea_node_editor.settings import (
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.dialogs.workflow_settings_dialog import WorkflowSettingsDialog
 from ea_node_editor.ui.graph_interactions import GraphInteractions
-from ea_node_editor.ui_qml.graph_bridge import QmlGraphScene, QmlGraphView
-from ea_node_editor.ui_qml.models import (
-    ConsoleModel,
-    ScriptEditorModel,
-    StatusItemModel,
-    WorkspaceTabsModel,
+from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
+from ea_node_editor.ui.shell.library_flow import input_port_is_available, pick_connection_candidate
+from ea_node_editor.ui.shell.project_flow import (
+    coerce_timestamp,
+    document_fingerprint,
+    merge_defaults,
+    write_json_atomic,
 )
+from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_action_state
+from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
+from ea_node_editor.ui_qml.status_model import StatusItemModel
+from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
 from ea_node_editor.workspace.manager import WorkspaceManager
 
@@ -54,7 +68,7 @@ def _configure_qtquick_backend() -> None:
 _configure_qtquick_backend()
 
 
-class MainWindow(QMainWindow):
+class ShellWindow(QMainWindow):
     execution_event = pyqtSignal(dict)
     node_library_changed = pyqtSignal()
     workspace_state_changed = pyqtSignal()
@@ -71,18 +85,6 @@ class MainWindow(QMainWindow):
         "node_completed",
         "log",
     }
-
-    @staticmethod
-    def _merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
-        merged = json.loads(json.dumps(defaults))
-        if not isinstance(values, dict):
-            return merged
-        for key, value in values.items():
-            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
-                merged[key] = MainWindow._merge_defaults(value, merged[key])
-            else:
-                merged[key] = value
-        return merged
 
     def __init__(self) -> None:
         super().__init__()
@@ -107,8 +109,8 @@ class MainWindow(QMainWindow):
         self._last_autosave_fingerprint = ""
         self._autosave_recovery_deferred = False
 
-        self.scene = QmlGraphScene(self)
-        self.view = QmlGraphView(self)
+        self.scene = GraphSceneBridge(self)
+        self.view = ViewportBridge(self)
         self._graph_interactions = GraphInteractions(scene=self.scene, registry=self.registry)
         self.console_panel = ConsoleModel(self)
         self.script_editor = ScriptEditorModel(self)
@@ -168,12 +170,12 @@ class MainWindow(QMainWindow):
 
         self.action_workflow_settings = QAction("Workflow Settings", self)
         self.action_workflow_settings.setShortcut(QKeySequence("Ctrl+,"))
-        self.action_workflow_settings.triggered.connect(self.open_workflow_settings)
+        self.action_workflow_settings.triggered.connect(self.show_workflow_settings_dialog)
 
         self.action_toggle_script_editor = QAction("Script Editor", self)
         self.action_toggle_script_editor.setCheckable(True)
         self.action_toggle_script_editor.setShortcut(QKeySequence("Ctrl+Shift+E"))
-        self.action_toggle_script_editor.triggered.connect(self.toggle_script_editor)
+        self.action_toggle_script_editor.triggered.connect(self.set_script_editor_panel_visible)
 
         self.action_run = QAction("Run", self)
         self.action_run.setShortcut(QKeySequence("F5"))
@@ -522,11 +524,11 @@ class MainWindow(QMainWindow):
         self.node_library_changed.emit()
 
     @pyqtSlot(str)
-    def add_node_from_library(self, type_id: str) -> None:
+    def request_add_node_from_library(self, type_id: str) -> None:
         self._add_node_from_library(type_id)
 
     @pyqtSlot(str, float, float, str, str, str, str, result=bool)
-    def drop_node_from_library(
+    def request_drop_node_from_library(
         self,
         type_id: str,
         scene_x: float,
@@ -557,27 +559,27 @@ class MainWindow(QMainWindow):
         return True
 
     @pyqtSlot()
-    def run_from_qml(self) -> None:
+    def request_run_workflow(self) -> None:
         self._run_workflow()
 
     @pyqtSlot()
-    def pause_resume_from_qml(self) -> None:
+    def request_toggle_run_pause(self) -> None:
         self._toggle_pause_resume()
 
     @pyqtSlot()
-    def stop_from_qml(self) -> None:
+    def request_stop_workflow(self) -> None:
         self._stop_workflow()
 
     @pyqtSlot()
-    def create_workspace_from_qml(self) -> None:
+    def request_create_workspace(self) -> None:
         self._create_workspace()
 
     @pyqtSlot()
-    def create_view_from_qml(self) -> None:
+    def request_create_view(self) -> None:
         self._create_view()
 
     @pyqtSlot(str)
-    def switch_view_from_qml(self, view_id: str) -> None:
+    def request_switch_view(self, view_id: str) -> None:
         workspace_id = self.workspace_manager.active_workspace_id()
         workspace = self.model.project.workspaces.get(workspace_id)
         if workspace is None:
@@ -591,31 +593,31 @@ class MainWindow(QMainWindow):
         self._switch_view(target_id)
 
     @pyqtSlot()
-    def save_project_from_qml(self) -> None:
+    def request_save_project(self) -> None:
         self._save_project()
 
     @pyqtSlot()
-    def open_project_from_qml(self) -> None:
+    def request_open_project(self) -> None:
         self._open_project()
 
     @pyqtSlot()
-    def rename_workspace_from_qml(self) -> None:
+    def request_rename_workspace(self) -> None:
         self._rename_active_workspace()
 
     @pyqtSlot()
-    def duplicate_workspace_from_qml(self) -> None:
+    def request_duplicate_workspace(self) -> None:
         self._duplicate_active_workspace()
 
     @pyqtSlot()
-    def close_workspace_from_qml(self) -> None:
+    def request_close_workspace(self) -> None:
         self._close_active_workspace()
 
     @pyqtSlot()
-    def connect_selected_from_qml(self) -> None:
+    def request_connect_selected_nodes(self) -> None:
         self._connect_selected_nodes()
 
     @pyqtSlot(str, str, str, str, result=bool)
-    def connect_ports_from_qml(
+    def request_connect_ports(
         self,
         node_a_id: str,
         port_a: str,
@@ -628,14 +630,14 @@ class MainWindow(QMainWindow):
         return result.ok
 
     @pyqtSlot(str, result=bool)
-    def remove_edge_from_qml(self, edge_id: str) -> bool:
+    def request_remove_edge(self, edge_id: str) -> bool:
         result = self._graph_interactions.remove_edge(edge_id)
         if result.ok:
             self._refresh_workspace_tabs()
         return result.ok
 
     @pyqtSlot(str, result=bool)
-    def remove_node_from_qml(self, node_id: str) -> bool:
+    def request_remove_node(self, node_id: str) -> bool:
         result = self._graph_interactions.remove_node(node_id)
         if result.ok:
             self.selected_node_changed.emit()
@@ -643,7 +645,7 @@ class MainWindow(QMainWindow):
         return result.ok
 
     @pyqtSlot(str, result=bool)
-    def rename_node_from_qml(self, node_id: str) -> bool:
+    def request_rename_node(self, node_id: str) -> bool:
         workspace = self.model.project.workspaces.get(self.workspace_manager.active_workspace_id())
         if workspace is None:
             return False
@@ -660,7 +662,7 @@ class MainWindow(QMainWindow):
         return result.ok
 
     @pyqtSlot("QVariantList", result=bool)
-    def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
+    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
         result = self._graph_interactions.delete_selected_items(edge_ids)
         if result.ok:
             self.selected_node_changed.emit()
@@ -676,7 +678,7 @@ class MainWindow(QMainWindow):
         property_spec = next((prop for prop in spec.properties if prop.key == key), None)
         if property_spec is None:
             return
-        coerced = self._coerce_editor_input_value(property_spec.type, value, property_spec.default)
+        coerced = coerce_editor_input_value(property_spec.type, value, property_spec.default)
         self._on_node_property_changed(node.node_id, property_spec.key, coerced)
 
     @pyqtSlot(str, bool)
@@ -699,8 +701,8 @@ class MainWindow(QMainWindow):
 
     def _ensure_project_metadata_defaults(self) -> None:
         metadata = self.model.project.metadata if isinstance(self.model.project.metadata, dict) else {}
-        metadata["ui"] = self._merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
-        metadata["workflow_settings"] = self._merge_defaults(
+        metadata["ui"] = merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
+        metadata["workflow_settings"] = merge_defaults(
             metadata.get("workflow_settings"),
             DEFAULT_WORKFLOW_SETTINGS,
         )
@@ -708,7 +710,7 @@ class MainWindow(QMainWindow):
 
     def _workflow_settings_payload(self) -> dict[str, Any]:
         self._ensure_project_metadata_defaults()
-        return self._merge_defaults(
+        return merge_defaults(
             self.model.project.metadata.get("workflow_settings", {}),
             DEFAULT_WORKFLOW_SETTINGS,
         )
@@ -732,25 +734,18 @@ class MainWindow(QMainWindow):
         self.action_toggle_script_editor.setChecked(visible)
 
     def _switch_workspace_by_offset(self, offset: int) -> None:
-        count = self.workspace_tabs.count()
-        if count <= 0:
+        target = next_workspace_tab_index(
+            self.workspace_tabs.count(),
+            self.workspace_tabs.currentIndex(),
+            offset,
+        )
+        if target is None:
             return
-        current = self.workspace_tabs.currentIndex()
-        if current < 0:
-            current = 0
-        target = (current + offset) % count
         self.workspace_tabs.setCurrentIndex(target)
 
     def _refresh_workspace_tabs(self) -> None:
         current_workspace = self.workspace_manager.active_workspace_id()
-        tabs: list[dict[str, Any]] = []
-        for workspace_ref in self.workspace_manager.list_workspaces():
-            tabs.append(
-                {
-                    "workspace_id": workspace_ref.workspace_id,
-                    "label": f"{workspace_ref.name}{' *' if workspace_ref.dirty else ''}",
-                }
-            )
+        tabs = build_workspace_tab_items(self.workspace_manager.list_workspaces())
         self.workspace_tabs.set_tabs(tabs, current_workspace)
         self.workspace_state_changed.emit()
 
@@ -897,54 +892,6 @@ class MainWindow(QMainWindow):
         workspace_id = self.workspace_manager.active_workspace_id()
         return self.model.project.workspaces.get(workspace_id)
 
-    @staticmethod
-    def _find_port(spec: NodeTypeSpec, port_key: str) -> PortSpec | None:
-        key = str(port_key).strip()
-        for port in spec.ports:
-            if port.key == key:
-                return port
-        return None
-
-    @staticmethod
-    def _is_flow_kind(kind: str) -> bool:
-        return kind in {"exec", "completed", "failed"}
-
-    @classmethod
-    def _are_port_kinds_compatible(cls, source_kind: str, target_kind: str) -> bool:
-        if not source_kind or not target_kind:
-            return False
-        if cls._is_flow_kind(source_kind) or cls._is_flow_kind(target_kind):
-            return source_kind == target_kind
-        return True
-
-    @staticmethod
-    def _are_data_types_compatible(source_data_type: str, target_data_type: str) -> bool:
-        source_value = str(source_data_type).strip().lower()
-        target_value = str(target_data_type).strip().lower()
-        if not source_value or not target_value:
-            return False
-        if source_value == "any" or target_value == "any":
-            return True
-        return source_value == target_value
-
-    @classmethod
-    def _ports_compatible(cls, source_port: PortSpec, target_port: PortSpec) -> bool:
-        return cls._are_port_kinds_compatible(source_port.kind, target_port.kind) and cls._are_data_types_compatible(
-            source_port.data_type,
-            target_port.data_type,
-        )
-
-    @staticmethod
-    def _is_port_exposed(node: NodeInstance, port: PortSpec) -> bool:
-        return bool(node.exposed_ports.get(port.key, port.exposed))
-
-    @staticmethod
-    def _input_port_is_available(workspace, node_id: str, port_key: str) -> bool:
-        for edge in workspace.edges.values():
-            if edge.target_node_id == node_id and edge.target_port_key == port_key:
-                return False
-        return True
-
     def _prompt_connection_candidate(
         self,
         *,
@@ -952,20 +899,12 @@ class MainWindow(QMainWindow):
         label: str,
         candidates: list[dict[str, Any]],
     ) -> dict[str, Any] | None:
-        if not candidates:
-            return None
-        if len(candidates) == 1:
-            return candidates[0]
-
-        options = [str(candidate.get("label", "")).strip() or f"Option {index + 1}" for index, candidate in enumerate(candidates)]
-        selected, ok = QInputDialog.getItem(self, title, label, options, 0, False)
-        if not ok:
-            return None
-        selected_text = str(selected).strip()
-        for index, option in enumerate(options):
-            if option == selected_text:
-                return candidates[index]
-        return None
+        return pick_connection_candidate(
+            parent=self,
+            title=title,
+            label=label,
+            candidates=candidates,
+        )
 
     def _auto_connect_dropped_node_to_port(
         self,
@@ -984,18 +923,18 @@ class MainWindow(QMainWindow):
 
         new_spec = self.registry.get_spec(new_node.type_id)
         target_spec = self.registry.get_spec(target_node.type_id)
-        target_port = self._find_port(target_spec, target_port_key)
+        target_port = find_port(target_spec, str(target_port_key).strip())
         if target_port is None:
             return False
 
         candidates: list[dict[str, Any]] = []
         if target_port.direction == "in":
-            if not self._input_port_is_available(workspace, target_node.node_id, target_port.key):
+            if not input_port_is_available(workspace, target_node.node_id, target_port.key):
                 return False
             for port in new_spec.ports:
-                if port.direction != "out" or not self._is_port_exposed(new_node, port):
+                if port.direction != "out" or not is_port_exposed(new_node, new_spec, port.key):
                     continue
-                if not self._ports_compatible(port, target_port):
+                if not ports_compatible(port, target_port):
                     continue
                 candidates.append(
                     {
@@ -1008,9 +947,9 @@ class MainWindow(QMainWindow):
                 )
         elif target_port.direction == "out":
             for port in new_spec.ports:
-                if port.direction != "in" or not self._is_port_exposed(new_node, port):
+                if port.direction != "in" or not is_port_exposed(new_node, new_spec, port.key):
                     continue
-                if not self._ports_compatible(target_port, port):
+                if not ports_compatible(target_port, port):
                     continue
                 candidates.append(
                     {
@@ -1060,20 +999,24 @@ class MainWindow(QMainWindow):
         source_spec = self.registry.get_spec(source_node.type_id)
         target_spec = self.registry.get_spec(target_node.type_id)
         new_spec = self.registry.get_spec(new_node.type_id)
-        source_port = self._find_port(source_spec, edge.source_port_key)
-        target_port = self._find_port(target_spec, edge.target_port_key)
+        source_port = find_port(source_spec, str(edge.source_port_key).strip())
+        target_port = find_port(target_spec, str(edge.target_port_key).strip())
         if source_port is None or target_port is None:
             return False
 
         candidate_inputs = [
             port
             for port in new_spec.ports
-            if port.direction == "in" and self._is_port_exposed(new_node, port) and self._ports_compatible(source_port, port)
+            if port.direction == "in"
+            and is_port_exposed(new_node, new_spec, port.key)
+            and ports_compatible(source_port, port)
         ]
         candidate_outputs = [
             port
             for port in new_spec.ports
-            if port.direction == "out" and self._is_port_exposed(new_node, port) and self._ports_compatible(port, target_port)
+            if port.direction == "out"
+            and is_port_exposed(new_node, new_spec, port.key)
+            and ports_compatible(port, target_port)
         ]
 
         candidates: list[dict[str, Any]] = []
@@ -1181,7 +1124,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot()
     @pyqtSlot(bool)
-    def open_workflow_settings(self, _checked: bool = False) -> None:
+    def show_workflow_settings_dialog(self, _checked: bool = False) -> None:
         self._ensure_project_metadata_defaults()
         dialog = WorkflowSettingsDialog(
             initial_settings=self.model.project.metadata.get("workflow_settings", {}),
@@ -1194,7 +1137,7 @@ class MainWindow(QMainWindow):
 
     @pyqtSlot()
     @pyqtSlot(bool)
-    def toggle_script_editor(self, checked: bool | None = None) -> None:
+    def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
         target_visible = bool(checked) if checked is not None else not self.script_editor.visible
         self.script_editor.set_visible(target_visible)
         self.action_toggle_script_editor.setChecked(target_visible)
@@ -1219,39 +1162,13 @@ class MainWindow(QMainWindow):
         spec = self.registry.get_spec(node.type_id)
         return node, spec
 
-    @staticmethod
-    def _coerce_editor_input_value(prop_type: str, value: Any, default: Any) -> Any:
-        if prop_type == "bool":
-            return bool(value)
-        if prop_type == "int":
-            try:
-                return int(value)
-            except (TypeError, ValueError):
-                return default
-        if prop_type == "float":
-            try:
-                return float(value)
-            except (TypeError, ValueError):
-                return default
-        if prop_type == "json":
-            if isinstance(value, str):
-                text = value.strip()
-                if not text:
-                    return default
-                try:
-                    return json.loads(text)
-                except json.JSONDecodeError:
-                    return default
-            return value
-        return str(value)
-
     def _run_workflow(self) -> None:
         if self._active_run_id:
             if self._engine_state_value == "paused":
                 self._resume_workflow()
             else:
                 self.console_panel.append_log("warning", "A workflow run is already active.")
-                self.set_notification_counts(self.console_panel.warning_count, self.console_panel.error_count)
+                self.update_notification_counters(self.console_panel.warning_count, self.console_panel.error_count)
             return
 
         workspace_id = self.workspace_manager.active_workspace_id()
@@ -1269,7 +1186,7 @@ class MainWindow(QMainWindow):
         )
         if not run_id:
             self.console_panel.append_log("error", "Failed to start workflow run.")
-            self.set_notification_counts(self.console_panel.warning_count, self.console_panel.error_count)
+            self.update_notification_counters(self.console_panel.warning_count, self.console_panel.error_count)
             self._set_run_ui_state("error", "Start Failed", 0, 0, 0, 1, clear_run=True)
             return
         self._active_run_id = run_id
@@ -1288,34 +1205,31 @@ class MainWindow(QMainWindow):
         if not self._active_run_id or self._engine_state_value != "running":
             return
         self.execution_client.pause_run(self._active_run_id)
-        self.set_engine_state("running", "Pausing")
+        self.update_engine_status("running", "Pausing")
 
     def _resume_workflow(self) -> None:
         if not self._active_run_id or self._engine_state_value != "paused":
             return
         self.execution_client.resume_run(self._active_run_id)
-        self.set_engine_state("running", "Resuming")
+        self.update_engine_status("running", "Resuming")
 
     def _stop_workflow(self) -> None:
         if not self._active_run_id:
             return
         self.execution_client.stop_run(self._active_run_id)
         if self._engine_state_value == "paused":
-            self.set_engine_state("paused", "Stopping")
+            self.update_engine_status("paused", "Stopping")
         else:
-            self.set_engine_state("running", "Stopping")
+            self.update_engine_status("running", "Stopping")
         self._update_run_actions()
-
-    def _event_targets_active_run(self, event: dict[str, Any]) -> bool:
-        event_type = str(event.get("type", ""))
-        if event_type not in self._RUN_SCOPED_EVENT_TYPES:
-            return True
-        event_run_id = str(event.get("run_id", ""))
-        return bool(self._active_run_id and event_run_id and event_run_id == self._active_run_id)
 
     def _handle_execution_event(self, event: dict) -> None:
         event_type = str(event.get("type", ""))
-        if not self._event_targets_active_run(event):
+        if not event_targets_active_run(
+            event,
+            active_run_id=self._active_run_id,
+            run_scoped_event_types=self._RUN_SCOPED_EVENT_TYPES,
+        ):
             return
 
         if event_type in {"run_started", "node_started", "node_completed"}:
@@ -1323,14 +1237,14 @@ class MainWindow(QMainWindow):
 
         if event_type == "log":
             self.console_panel.append_log(event.get("level", "info"), event.get("message", ""))
-            self.set_notification_counts(self.console_panel.warning_count, self.console_panel.error_count)
+            self.update_notification_counters(self.console_panel.warning_count, self.console_panel.error_count)
         elif event_type == "run_completed":
             self._set_run_ui_state("ready", "Completed", 0, 0, 1, 0, clear_run=True)
         elif event_type == "run_failed":
             self._set_run_ui_state("error", "Failed", 0, 0, 0, 1)
             self.console_panel.append_log("error", event.get("error", "Unknown failure"))
             self.console_panel.append_log("error", event.get("traceback", ""))
-            self.set_notification_counts(self.console_panel.warning_count, self.console_panel.error_count)
+            self.update_notification_counters(self.console_panel.warning_count, self.console_panel.error_count)
             self._focus_failed_node(event.get("workspace_id", ""), event.get("node_id", ""), event.get("error", ""))
             self._clear_active_run()
             self._update_run_actions()
@@ -1349,7 +1263,7 @@ class MainWindow(QMainWindow):
                 self._set_run_ui_state("error", "Failed", 0, 0, 0, 1)
         elif event_type == "protocol_error":
             self.console_panel.append_log("error", event.get("error", "Execution protocol error."))
-            self.set_notification_counts(self.console_panel.warning_count, self.console_panel.error_count)
+            self.update_notification_counters(self.console_panel.warning_count, self.console_panel.error_count)
 
     def _clear_active_run(self) -> None:
         self._active_run_id = ""
@@ -1367,18 +1281,17 @@ class MainWindow(QMainWindow):
         clear_run: bool = False,
     ) -> None:
         self._engine_state_value = state
-        self.set_engine_state(state, details)
-        self.set_job_counts(running, queued, done, failed)
+        self.update_engine_status(state, details)
+        self.update_job_counters(running, queued, done, failed)
         if clear_run:
             self._clear_active_run()
         self._update_run_actions()
 
     def _update_run_actions(self) -> None:
-        has_active_run = bool(self._active_run_id)
-        can_pause = has_active_run and self._engine_state_value in {"running", "paused"}
+        can_pause, pause_label = run_action_state(self._active_run_id, self._engine_state_value)
         self.action_stop.setEnabled(True)
         self.action_pause.setEnabled(can_pause)
-        self.action_pause.setText("Resume" if self._engine_state_value == "paused" else "Pause")
+        self.action_pause.setText(pause_label)
 
     def _focus_failed_node(self, workspace_id: str, node_id: str, error: str) -> None:
         if workspace_id and workspace_id != self.workspace_manager.active_workspace_id():
@@ -1444,7 +1357,7 @@ class MainWindow(QMainWindow):
             workspace.dirty = False
         self._refresh_workspace_tabs()
         self._discard_autosave_snapshot()
-        self._last_autosave_fingerprint = self._document_fingerprint(
+        self._last_autosave_fingerprint = document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._persist_session()
@@ -1457,7 +1370,7 @@ class MainWindow(QMainWindow):
         self.project_path = ""
         self._last_manual_save_ts = 0.0
         self._discard_autosave_snapshot()
-        self._last_autosave_fingerprint = self._document_fingerprint(
+        self._last_autosave_fingerprint = document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._refresh_workspace_tabs()
@@ -1485,7 +1398,7 @@ class MainWindow(QMainWindow):
         except OSError:
             self._last_manual_save_ts = time.time()
         self._discard_autosave_snapshot()
-        self._last_autosave_fingerprint = self._document_fingerprint(
+        self._last_autosave_fingerprint = document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._refresh_workspace_tabs()
@@ -1497,7 +1410,7 @@ class MainWindow(QMainWindow):
     def _restore_session(self) -> None:
         session = self._load_session_payload()
         session_project_path = str(session.get("project_path", "")).strip()
-        self._last_manual_save_ts = self._coerce_timestamp(session.get("last_manual_save_ts", 0.0))
+        self._last_manual_save_ts = coerce_timestamp(session.get("last_manual_save_ts", 0.0))
 
         restored = False
         if session_project_path and Path(session_project_path).exists():
@@ -1537,31 +1450,10 @@ class MainWindow(QMainWindow):
             self.project_path = ""
 
         self._ensure_project_metadata_defaults()
-        self._last_autosave_fingerprint = self._document_fingerprint(
+        self._last_autosave_fingerprint = document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self.project_meta_changed.emit()
-
-    @staticmethod
-    def _coerce_timestamp(value: Any) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return 0.0
-
-    @staticmethod
-    def _document_fingerprint(project_doc: dict[str, Any]) -> str:
-        return json.dumps(project_doc, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-    @staticmethod
-    def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        temp_path = path.with_name(f"{path.name}.tmp")
-        temp_path.write_text(
-            json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True),
-            encoding="utf-8",
-        )
-        temp_path.replace(path)
 
     def _load_session_payload(self) -> dict[str, Any]:
         session_path = recent_session_path()
@@ -1610,7 +1502,7 @@ class MainWindow(QMainWindow):
         # If session restore already yielded the same document, autosave recovery is redundant.
         current_doc = self.serializer.to_document(self.model.project)
         recovered_doc = self.serializer.to_document(recovered_project)
-        if self._document_fingerprint(current_doc) == self._document_fingerprint(recovered_doc):
+        if document_fingerprint(current_doc) == document_fingerprint(recovered_doc):
             self._discard_autosave_snapshot()
             return None
 
@@ -1649,7 +1541,7 @@ class MainWindow(QMainWindow):
         self._refresh_workspace_tabs()
         self._switch_workspace(self.workspace_manager.active_workspace_id())
         self._restore_script_editor_state()
-        self._last_autosave_fingerprint = self._document_fingerprint(
+        self._last_autosave_fingerprint = document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._persist_session()
@@ -1658,10 +1550,10 @@ class MainWindow(QMainWindow):
         try:
             self._save_active_view_state()
             project_doc = self.serializer.to_document(self.model.project)
-            fingerprint = self._document_fingerprint(project_doc)
+            fingerprint = document_fingerprint(project_doc)
             if fingerprint == self._last_autosave_fingerprint:
                 return
-            self._write_json_atomic(autosave_project_path(), project_doc)
+            write_json_atomic(autosave_project_path(), project_doc)
             self._last_autosave_fingerprint = fingerprint
             self._persist_session(project_doc=project_doc)
         except Exception:  # noqa: BLE001
@@ -1677,13 +1569,13 @@ class MainWindow(QMainWindow):
             "project_doc": document,
         }
         try:
-            self._write_json_atomic(recent_session_path(), session)
+            write_json_atomic(recent_session_path(), session)
         except Exception:  # noqa: BLE001
             return
 
     def _update_metrics(self) -> None:
         metrics = read_system_metrics()
-        self.set_metrics(metrics.cpu_percent, metrics.ram_used_gb, metrics.ram_total_gb)
+        self.update_system_metrics(metrics.cpu_percent, metrics.ram_used_gb, metrics.ram_total_gb)
 
     def _open_logs(self) -> None:
         return
@@ -1747,7 +1639,7 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     # Main window API contract
-    def set_engine_state(
+    def update_engine_status(
         self,
         state: Literal["ready", "running", "paused", "error"],
         details: str = "",
@@ -1764,13 +1656,13 @@ class MainWindow(QMainWindow):
         self.status_engine.set_icon(icon_map.get(state, "E"))
         self.status_engine.set_text(text)
 
-    def set_job_counts(self, running: int, queued: int, done: int, failed: int) -> None:
+    def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
         self.status_jobs.set_text(f"R:{running} Q:{queued} D:{done} F:{failed}")
 
-    def set_metrics(self, cpu_percent: float, ram_used_gb: float, ram_total_gb: float) -> None:
+    def update_system_metrics(self, cpu_percent: float, ram_used_gb: float, ram_total_gb: float) -> None:
         self.status_metrics.set_text(
             f"CPU:{cpu_percent:.0f}% RAM:{ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
         )
 
-    def set_notification_counts(self, warnings: int, errors: int) -> None:
+    def update_notification_counters(self, warnings: int, errors: int) -> None:
         self.status_notifications.set_text(f"W:{warnings} E:{errors}")

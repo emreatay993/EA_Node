@@ -118,45 +118,45 @@ Rectangle {
 
                 ShellButton {
                     text: "Open"
-                    onClicked: mainWindow.open_project_from_qml()
+                    onClicked: mainWindow.request_open_project()
                 }
                 ShellButton {
                     text: "Save"
-                    onClicked: mainWindow.save_project_from_qml()
+                    onClicked: mainWindow.request_save_project()
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
                 ShellButton {
                     text: "Run"
-                    onClicked: mainWindow.run_from_qml()
+                    onClicked: mainWindow.request_run_workflow()
                 }
                 ShellButton {
                     text: "Pause"
-                    onClicked: mainWindow.pause_resume_from_qml()
+                    onClicked: mainWindow.request_toggle_run_pause()
                 }
                 ShellButton {
                     text: "Stop"
-                    onClicked: mainWindow.stop_from_qml()
+                    onClicked: mainWindow.request_stop_workflow()
                 }
                 ShellButton {
                     text: "Connect"
-                    onClicked: mainWindow.connect_selected_from_qml()
+                    onClicked: mainWindow.request_connect_selected_nodes()
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
                 ShellButton {
                     text: "+ Workspace"
-                    onClicked: mainWindow.create_workspace_from_qml()
+                    onClicked: mainWindow.request_create_workspace()
                 }
                 ShellButton {
                     text: "+ View"
-                    onClicked: mainWindow.create_view_from_qml()
+                    onClicked: mainWindow.request_create_view()
                 }
                 ShellButton {
                     text: "Settings"
-                    onClicked: mainWindow.open_workflow_settings()
+                    onClicked: mainWindow.show_workflow_settings_dialog()
                 }
                 ShellButton {
                     text: scriptEditorBridge.visible ? "Hide Script" : "Script"
-                    onClicked: mainWindow.toggle_script_editor()
+                    onClicked: mainWindow.set_script_editor_panel_visible()
                 }
                 Item { Layout.fillWidth: true }
                 Text {
@@ -335,7 +335,7 @@ Rectangle {
                                         nextMap[modelData.category] = nextState
                                         libraryPane.collapsedCategories = nextMap
                                     } else {
-                                        mainWindow.add_node_from_library(modelData.type_id)
+                                        mainWindow.request_add_node_from_library(modelData.type_id)
                                     }
                                 }
                                 onCanceled: {
@@ -390,7 +390,7 @@ Rectangle {
                                     delegate: ShellButton {
                                         text: modelData.label
                                         selectedStyle: !!modelData.active
-                                        onClicked: mainWindow.switch_view_from_qml(modelData.view_id)
+                                        onClicked: mainWindow.request_switch_view(modelData.view_id)
                                     }
                                 }
                             }
@@ -763,7 +763,7 @@ Rectangle {
                     }
                     ShellButton {
                         text: "X"
-                        onClicked: mainWindow.toggle_script_editor(false)
+                        onClicked: mainWindow.set_script_editor_panel_visible(false)
                     }
                 }
             }
