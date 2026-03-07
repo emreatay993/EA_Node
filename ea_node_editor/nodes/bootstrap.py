@@ -1,0 +1,54 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from ea_node_editor.nodes.builtins.core import (
+    BranchNodePlugin,
+    ConstantNodePlugin,
+    EndNodePlugin,
+    LoggerNodePlugin,
+    OnFailureNodePlugin,
+    PythonScriptNodePlugin,
+    StartNodePlugin,
+)
+from ea_node_editor.nodes.builtins.hpc import (
+    HPCFetchResultNodePlugin,
+    HPCMonitorNodePlugin,
+    HPCOnStatusNodePlugin,
+    HPCSubmitNodePlugin,
+)
+from ea_node_editor.nodes.builtins.integrations import (
+    EmailSendNodePlugin,
+    ExcelReadNodePlugin,
+    ExcelWriteNodePlugin,
+    FileReadNodePlugin,
+    FileWriteNodePlugin,
+    ProcessRunNodePlugin,
+)
+from ea_node_editor.nodes.registry import NodeRegistry
+
+
+def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeRegistry:
+    registry = NodeRegistry()
+    registry.register(StartNodePlugin)
+    registry.register(EndNodePlugin)
+    registry.register(ConstantNodePlugin)
+    registry.register(LoggerNodePlugin)
+    registry.register(PythonScriptNodePlugin)
+    registry.register(ExcelReadNodePlugin)
+    registry.register(ExcelWriteNodePlugin)
+    registry.register(FileReadNodePlugin)
+    registry.register(FileWriteNodePlugin)
+    registry.register(EmailSendNodePlugin)
+    registry.register(ProcessRunNodePlugin)
+    registry.register(OnFailureNodePlugin)
+    registry.register(BranchNodePlugin)
+    registry.register(HPCSubmitNodePlugin)
+    registry.register(HPCMonitorNodePlugin)
+    registry.register(HPCOnStatusNodePlugin)
+    registry.register(HPCFetchResultNodePlugin)
+
+    from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
+
+    discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
+    return registry

@@ -1,0 +1,552 @@
+from __future__ import annotations
+
+import copy
+import json
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+from ea_node_editor.graph.model import (
+    EdgeInstance,
+    NodeInstance,
+    ProjectData,
+    ViewState,
+    WorkspaceData,
+)
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.settings import (
+    DEFAULT_UI_STATE,
+    DEFAULT_WORKFLOW_SETTINGS,
+    PROJECT_EXTENSION,
+    SCHEMA_VERSION,
+)
+
+
+class JsonProjectSerializer:
+    def __init__(self, registry: NodeRegistry | None = None) -> None:
+        self._registry = registry or build_default_registry()
+
+    def load(self, path: str) -> ProjectData:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        migrated = self.migrate(payload)
+        return self._project_from_dict(migrated)
+
+    def save(self, path: str, project: ProjectData) -> None:
+        target = Path(path)
+        if target.suffix.lower() != PROJECT_EXTENSION:
+            target = target.with_suffix(PROJECT_EXTENSION)
+        doc = self._project_to_dict(project)
+        target.write_text(
+            json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True),
+            encoding="utf-8",
+        )
+
+    def to_document(self, project: ProjectData) -> dict[str, Any]:
+        return self._project_to_dict(project)
+
+    def from_document(self, payload: dict[str, Any]) -> ProjectData:
+        migrated = self.migrate(payload)
+        return self._project_from_dict(migrated)
+
+    def migrate(self, raw_doc: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(raw_doc, Mapping):
+            raise ValueError("Project document must be a JSON object.")
+        version = self._coerce_int(raw_doc.get("schema_version", 0), default=0)
+        doc = dict(raw_doc)
+        if version > SCHEMA_VERSION:
+            raise ValueError(f"Unsupported schema version: {version}")
+        while version < SCHEMA_VERSION:
+            if version == 0:
+                doc = self._migrate_v0_to_v1(doc)
+                version = 1
+            elif version == 1:
+                doc = self._migrate_v1_to_v2(doc)
+                version = 2
+            else:
+                raise ValueError(f"Unsupported schema version: {version}")
+        return self._normalize_document(doc)
+
+    @staticmethod
+    def _migrate_v0_to_v1(doc: dict[str, Any]) -> dict[str, Any]:
+        migrated = dict(doc)
+        migrated["schema_version"] = 1
+        if "metadata" not in migrated:
+            migrated["metadata"] = {}
+        return migrated
+
+    @staticmethod
+    def _migrate_v1_to_v2(doc: dict[str, Any]) -> dict[str, Any]:
+        migrated = dict(doc)
+        metadata = migrated.get("metadata")
+        if not isinstance(metadata, Mapping):
+            metadata = {}
+        merged = dict(metadata)
+        if "ui" not in merged:
+            merged["ui"] = {}
+        if "workflow_settings" not in merged:
+            merged["workflow_settings"] = {}
+        migrated["metadata"] = merged
+        migrated["schema_version"] = 2
+        return migrated
+
+    @staticmethod
+    def _coerce_str(value: Any, default: str = "") -> str:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped if stripped else default
+        if value is None:
+            return default
+        text = str(value).strip()
+        return text if text else default
+
+    @staticmethod
+    def _coerce_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _coerce_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    @staticmethod
+    def _coerce_bool(value: Any, default: bool = False) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return bool(value)
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "y", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "n", "off"}:
+                return False
+        return default
+
+    @staticmethod
+    def _as_dict(value: Any) -> dict[str, Any]:
+        if isinstance(value, Mapping):
+            return {str(key): item for key, item in value.items()}
+        return {}
+
+    @staticmethod
+    def _merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
+        merged = copy.deepcopy(defaults)
+        if not isinstance(values, Mapping):
+            return merged
+        for key, value in values.items():
+            normalized_key = str(key)
+            if (
+                normalized_key in merged
+                and isinstance(merged[normalized_key], dict)
+                and isinstance(value, Mapping)
+            ):
+                merged[normalized_key] = JsonProjectSerializer._merge_defaults(
+                    value,
+                    merged[normalized_key],
+                )
+            else:
+                merged[normalized_key] = copy.deepcopy(value)
+        return merged
+
+    @staticmethod
+    def _as_list(value: Any) -> list[Any]:
+        if isinstance(value, list):
+            return list(value)
+        if isinstance(value, tuple):
+            return list(value)
+        if isinstance(value, Mapping):
+            return list(value.values())
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return list(value)
+        return []
+
+    @staticmethod
+    def _port_spec(spec: NodeTypeSpec, key: str):
+        for port in spec.ports:
+            if port.key == key:
+                return port
+        return None
+
+    def _normalize_workspace_order(self, doc: dict[str, Any], workspace_ids: set[str]) -> list[str]:
+        order: list[str] = []
+        for source in (
+            doc.get("workspace_order"),
+            self._as_dict(doc.get("metadata")).get("workspace_order"),
+        ):
+            for workspace_id in self._as_list(source):
+                normalized_id = self._coerce_str(workspace_id)
+                if normalized_id and normalized_id in workspace_ids and normalized_id not in order:
+                    order.append(normalized_id)
+        for workspace_id in sorted(workspace_ids):
+            if workspace_id not in order:
+                order.append(workspace_id)
+        return order
+
+    @staticmethod
+    def _normalize_metadata(source: Any, workspace_order: list[str]) -> dict[str, Any]:
+        metadata = JsonProjectSerializer._as_dict(source)
+        metadata["workspace_order"] = list(workspace_order)
+        metadata["ui"] = JsonProjectSerializer._merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
+        metadata["workflow_settings"] = JsonProjectSerializer._merge_defaults(
+            metadata.get("workflow_settings"),
+            DEFAULT_WORKFLOW_SETTINGS,
+        )
+        return metadata
+
+    def _normalize_document(self, doc: dict[str, Any]) -> dict[str, Any]:
+        normalized_workspaces: dict[str, dict[str, Any]] = {}
+        for workspace_doc in self._as_list(doc.get("workspaces", [])):
+            if not isinstance(workspace_doc, Mapping):
+                continue
+            workspace_id = self._coerce_str(workspace_doc.get("workspace_id"))
+            if not workspace_id or workspace_id in normalized_workspaces:
+                continue
+            normalized_workspaces[workspace_id] = self._normalize_workspace_doc(workspace_doc, workspace_id)
+
+        workspace_order = self._normalize_workspace_order(doc, set(normalized_workspaces))
+        active_workspace_id = self._coerce_str(doc.get("active_workspace_id"))
+        if active_workspace_id not in normalized_workspaces:
+            active_workspace_id = workspace_order[0] if workspace_order else ""
+
+        metadata = self._normalize_metadata(doc.get("metadata"), workspace_order)
+
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": self._coerce_str(doc.get("project_id"), "proj_unknown"),
+            "name": self._coerce_str(doc.get("name"), "untitled"),
+            "active_workspace_id": active_workspace_id,
+            "workspace_order": workspace_order,
+            "workspaces": [normalized_workspaces[workspace_id] for workspace_id in workspace_order],
+            "metadata": metadata,
+        }
+
+    def _normalize_workspace_doc(self, workspace_doc: Mapping[str, Any], workspace_id: str) -> dict[str, Any]:
+        views_by_id: dict[str, dict[str, Any]] = {}
+        for index, view_doc in enumerate(self._as_list(workspace_doc.get("views", [])), start=1):
+            if not isinstance(view_doc, Mapping):
+                continue
+            view_id = self._coerce_str(view_doc.get("view_id"))
+            if not view_id or view_id in views_by_id:
+                continue
+            views_by_id[view_id] = {
+                "view_id": view_id,
+                "name": self._coerce_str(view_doc.get("name"), f"V{index}"),
+                "zoom": self._coerce_float(view_doc.get("zoom"), 1.0),
+                "pan_x": self._coerce_float(view_doc.get("pan_x"), 0.0),
+                "pan_y": self._coerce_float(view_doc.get("pan_y"), 0.0),
+            }
+
+        if not views_by_id:
+            fallback_view_id = f"{workspace_id}_view_1"
+            views_by_id[fallback_view_id] = {
+                "view_id": fallback_view_id,
+                "name": "V1",
+                "zoom": 1.0,
+                "pan_x": 0.0,
+                "pan_y": 0.0,
+            }
+
+        active_view_id = self._coerce_str(workspace_doc.get("active_view_id"))
+        if active_view_id not in views_by_id:
+            active_view_id = sorted(views_by_id)[0]
+
+        nodes_by_id: dict[str, dict[str, Any]] = {}
+        node_specs: dict[str, NodeTypeSpec] = {}
+        for node_doc in self._as_list(workspace_doc.get("nodes", [])):
+            if not isinstance(node_doc, Mapping):
+                continue
+            node_id = self._coerce_str(node_doc.get("node_id"))
+            type_id = self._coerce_str(node_doc.get("type_id"))
+            if not node_id or node_id in nodes_by_id or not type_id:
+                continue
+            try:
+                spec = self._registry.get_spec(type_id)
+            except KeyError:
+                continue
+            raw_exposed_ports = self._as_dict(node_doc.get("exposed_ports"))
+            normalized_exposed_ports = {
+                port.key: self._coerce_bool(raw_exposed_ports.get(port.key, port.exposed), port.exposed)
+                for port in spec.ports
+            }
+            nodes_by_id[node_id] = {
+                "node_id": node_id,
+                "type_id": type_id,
+                "title": self._coerce_str(node_doc.get("title"), spec.display_name),
+                "x": self._coerce_float(node_doc.get("x"), 0.0),
+                "y": self._coerce_float(node_doc.get("y"), 0.0),
+                "collapsed": self._coerce_bool(node_doc.get("collapsed"), False),
+                "properties": self._registry.normalize_properties(type_id, self._as_dict(node_doc.get("properties"))),
+                "exposed_ports": normalized_exposed_ports,
+                "parent_node_id": self._coerce_str(node_doc.get("parent_node_id")) or None,
+            }
+            node_specs[node_id] = spec
+
+        for node_id, node in nodes_by_id.items():
+            parent_id = node.get("parent_node_id")
+            if parent_id not in nodes_by_id or parent_id == node_id:
+                node["parent_node_id"] = None
+
+        candidate_edges: list[dict[str, str]] = []
+        for edge_doc in self._as_list(workspace_doc.get("edges", [])):
+            if not isinstance(edge_doc, Mapping):
+                continue
+            edge_id = self._coerce_str(edge_doc.get("edge_id"))
+            source_node_id = self._coerce_str(edge_doc.get("source_node_id"))
+            source_port_key = self._coerce_str(edge_doc.get("source_port_key"))
+            target_node_id = self._coerce_str(edge_doc.get("target_node_id"))
+            target_port_key = self._coerce_str(edge_doc.get("target_port_key"))
+            if (
+                not edge_id
+                or not source_node_id
+                or not source_port_key
+                or not target_node_id
+                or not target_port_key
+            ):
+                continue
+            if source_node_id not in nodes_by_id or target_node_id not in nodes_by_id:
+                continue
+
+            source_spec = node_specs[source_node_id]
+            target_spec = node_specs[target_node_id]
+            source_port = self._port_spec(source_spec, source_port_key)
+            target_port = self._port_spec(target_spec, target_port_key)
+            if source_port is None or target_port is None:
+                continue
+            if source_port.direction != "out" or target_port.direction != "in":
+                continue
+            source_exposed = nodes_by_id[source_node_id]["exposed_ports"].get(source_port_key, source_port.exposed)
+            target_exposed = nodes_by_id[target_node_id]["exposed_ports"].get(target_port_key, target_port.exposed)
+            if not source_exposed or not target_exposed:
+                continue
+
+            candidate_edges.append(
+                {
+                "edge_id": edge_id,
+                "source_node_id": source_node_id,
+                "source_port_key": source_port_key,
+                "target_node_id": target_node_id,
+                "target_port_key": target_port_key,
+                }
+            )
+
+        edges_by_id: dict[str, dict[str, Any]] = {}
+        seen_connections: set[tuple[str, str, str, str]] = set()
+        seen_target_inputs: set[tuple[str, str]] = set()
+        for edge in candidate_edges:
+            edge_id = edge["edge_id"]
+            if edge_id in edges_by_id:
+                continue
+            connection = (
+                edge["source_node_id"],
+                edge["source_port_key"],
+                edge["target_node_id"],
+                edge["target_port_key"],
+            )
+            if connection in seen_connections:
+                continue
+            target_input = (
+                edge["target_node_id"],
+                edge["target_port_key"],
+            )
+            if target_input in seen_target_inputs:
+                continue
+            seen_connections.add(connection)
+            seen_target_inputs.add(target_input)
+            edges_by_id[edge_id] = edge
+
+        return {
+            "workspace_id": workspace_id,
+            "name": self._coerce_str(workspace_doc.get("name"), "Workspace"),
+            "dirty": self._coerce_bool(workspace_doc.get("dirty"), False),
+            "active_view_id": active_view_id,
+            "views": [views_by_id[view_id] for view_id in sorted(views_by_id)],
+            "nodes": [nodes_by_id[node_id] for node_id in sorted(nodes_by_id)],
+            "edges": [edges_by_id[edge_id] for edge_id in sorted(edges_by_id)],
+        }
+
+    def _project_to_dict(self, project: ProjectData) -> dict[str, Any]:
+        workspace_order: list[str] = []
+        for workspace_id in self._as_list(project.metadata.get("workspace_order")):
+            normalized_id = self._coerce_str(workspace_id)
+            if normalized_id and normalized_id in project.workspaces and normalized_id not in workspace_order:
+                workspace_order.append(normalized_id)
+        for workspace_id in sorted(project.workspaces):
+            if workspace_id not in workspace_order:
+                workspace_order.append(workspace_id)
+
+        active_workspace_id = project.active_workspace_id
+        if active_workspace_id not in project.workspaces:
+            active_workspace_id = workspace_order[0] if workspace_order else ""
+
+        metadata = self._normalize_metadata(project.metadata, workspace_order)
+
+        workspaces: list[dict[str, Any]] = []
+        for workspace_id in workspace_order:
+            workspace = project.workspaces[workspace_id]
+            workspace.ensure_default_view()
+            active_view_id = workspace.active_view_id
+            if active_view_id not in workspace.views:
+                active_view_id = sorted(workspace.views)[0]
+            workspaces.append(
+                {
+                    "workspace_id": workspace.workspace_id,
+                    "name": workspace.name,
+                    "dirty": workspace.dirty,
+                    "active_view_id": active_view_id,
+                    "views": [
+                        {
+                            "view_id": view.view_id,
+                            "name": view.name,
+                            "zoom": view.zoom,
+                            "pan_x": view.pan_x,
+                            "pan_y": view.pan_y,
+                        }
+                        for view in sorted(
+                            workspace.views.values(), key=lambda item: item.view_id
+                        )
+                    ],
+                    "nodes": [
+                        {
+                            "node_id": node.node_id,
+                            "type_id": node.type_id,
+                            "title": node.title,
+                            "x": node.x,
+                            "y": node.y,
+                            "collapsed": node.collapsed,
+                            "properties": node.properties,
+                            "exposed_ports": node.exposed_ports,
+                            "parent_node_id": node.parent_node_id,
+                        }
+                        for node in sorted(
+                            workspace.nodes.values(), key=lambda item: item.node_id
+                        )
+                    ],
+                    "edges": [
+                        {
+                            "edge_id": edge.edge_id,
+                            "source_node_id": edge.source_node_id,
+                            "source_port_key": edge.source_port_key,
+                            "target_node_id": edge.target_node_id,
+                            "target_port_key": edge.target_port_key,
+                        }
+                        for edge in sorted(
+                            workspace.edges.values(), key=lambda item: item.edge_id
+                        )
+                    ],
+                }
+            )
+        return {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": project.project_id,
+            "name": project.name,
+            "active_workspace_id": active_workspace_id,
+            "workspace_order": workspace_order,
+            "workspaces": workspaces,
+            "metadata": metadata,
+        }
+
+    @staticmethod
+    def _project_from_dict(payload: dict[str, Any]) -> ProjectData:
+        project = ProjectData(
+            project_id=payload.get("project_id", "proj_unknown"),
+            name=payload.get("name", "untitled"),
+            schema_version=int(payload.get("schema_version", SCHEMA_VERSION)),
+            active_workspace_id=payload.get("active_workspace_id", ""),
+            metadata=dict(payload.get("metadata", {})) if isinstance(payload.get("metadata"), Mapping) else {},
+        )
+        for ws_doc in payload.get("workspaces", []):
+            if not isinstance(ws_doc, Mapping):
+                continue
+            workspace_id = ws_doc.get("workspace_id")
+            workspace_name = ws_doc.get("name")
+            if not workspace_id or not workspace_name:
+                continue
+            workspace = WorkspaceData(
+                workspace_id=str(workspace_id),
+                name=str(workspace_name),
+                active_view_id=ws_doc.get("active_view_id", ""),
+                dirty=bool(ws_doc.get("dirty", False)),
+            )
+            for view_doc in ws_doc.get("views", []):
+                if not isinstance(view_doc, Mapping):
+                    continue
+                view_id = view_doc.get("view_id")
+                if not view_id:
+                    continue
+                view = ViewState(
+                    view_id=str(view_id),
+                    name=view_doc.get("name", "V"),
+                    zoom=float(view_doc.get("zoom", 1.0)),
+                    pan_x=float(view_doc.get("pan_x", 0.0)),
+                    pan_y=float(view_doc.get("pan_y", 0.0)),
+                )
+                workspace.views[view.view_id] = view
+            workspace.ensure_default_view()
+            if workspace.active_view_id not in workspace.views:
+                workspace.active_view_id = next(iter(workspace.views))
+            for node_doc in ws_doc.get("nodes", []):
+                if not isinstance(node_doc, Mapping):
+                    continue
+                node_id = node_doc.get("node_id")
+                type_id = node_doc.get("type_id")
+                if not node_id or not type_id:
+                    continue
+                node = NodeInstance(
+                    node_id=str(node_id),
+                    type_id=str(type_id),
+                    title=node_doc.get("title", str(type_id)),
+                    x=float(node_doc.get("x", 0.0)),
+                    y=float(node_doc.get("y", 0.0)),
+                    collapsed=bool(node_doc.get("collapsed", False)),
+                    properties=dict(node_doc.get("properties", {})),
+                    exposed_ports=dict(node_doc.get("exposed_ports", {})),
+                    parent_node_id=node_doc.get("parent_node_id"),
+                )
+                workspace.nodes[node.node_id] = node
+            for edge_doc in ws_doc.get("edges", []):
+                if not isinstance(edge_doc, Mapping):
+                    continue
+                edge_id = edge_doc.get("edge_id")
+                source_node_id = edge_doc.get("source_node_id")
+                source_port_key = edge_doc.get("source_port_key")
+                target_node_id = edge_doc.get("target_node_id")
+                target_port_key = edge_doc.get("target_port_key")
+                if (
+                    not edge_id
+                    or not source_node_id
+                    or not source_port_key
+                    or not target_node_id
+                    or not target_port_key
+                ):
+                    continue
+                edge = EdgeInstance(
+                    edge_id=str(edge_id),
+                    source_node_id=str(source_node_id),
+                    source_port_key=str(source_port_key),
+                    target_node_id=str(target_node_id),
+                    target_port_key=str(target_port_key),
+                )
+                workspace.edges[edge.edge_id] = edge
+            project.workspaces[workspace.workspace_id] = workspace
+        project.ensure_default_workspace()
+        workspace_order = payload.get("workspace_order")
+        if not isinstance(workspace_order, list):
+            workspace_order = project.metadata.get("workspace_order", [])
+        normalized_order: list[str] = []
+        for workspace_id in workspace_order:
+            if workspace_id in project.workspaces and workspace_id not in normalized_order:
+                normalized_order.append(workspace_id)
+        for workspace_id in project.workspaces:
+            if workspace_id not in normalized_order:
+                normalized_order.append(workspace_id)
+        project.metadata = JsonProjectSerializer._normalize_metadata(project.metadata, normalized_order)
+        if project.active_workspace_id not in project.workspaces and normalized_order:
+            project.active_workspace_id = normalized_order[0]
+        return project
