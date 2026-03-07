@@ -8,9 +8,9 @@
 - `docs/specs/requirements/40_NODE_SDK.md`
 
 ## Allowed Files
-- `ea_node_editor/ui/panels/node_library_panel.py`
-- `ea_node_editor/ui/panels/inspector_panel.py`
-- `ea_node_editor/ui/main_window.py`
+- `ea_node_editor/ui_qml/MainShell.qml`
+- `ea_node_editor/ui/shell/window.py`
+- `ea_node_editor/ui_qml/graph_scene_bridge.py`
 - `tests/test_registry_filters.py`
 - `tests/test_inspector_reflection.py`
 - `tests/test_main_window_shell.py`
@@ -28,4 +28,3 @@
 ## Merge Gate
 - Existing filter and inspector tests pass.
 - New library tree behavior tests pass.
-

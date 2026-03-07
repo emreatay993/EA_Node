@@ -8,9 +8,10 @@
 - `docs/specs/gui/3_stitch_engineering_node_editor_workspace (2).zip`
 
 ## Allowed Files
-- `ea_node_editor/ui/main_window.py`
-- `ea_node_editor/ui/panels/script_editor_dock.py`
-- `ea_node_editor/ui/editor/*`
+- `ea_node_editor/ui/shell/window.py`
+- `ea_node_editor/ui_qml/MainShell.qml`
+- `ea_node_editor/ui_qml/script_editor_model.py`
+- `ea_node_editor/ui/editor/code_editor.py`
 - `tests/test_script_editor_dock_rc2.py`
 - `tests/test_main_window_shell.py`
 
@@ -27,4 +28,3 @@
 ## Merge Gate
 - Editor binding and persistence tests pass.
 - Existing shell tests remain green.
-

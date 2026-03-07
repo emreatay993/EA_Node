@@ -10,8 +10,8 @@
 
 ## Allowed Files
 - `ea_node_editor/app.py`
-- `ea_node_editor/ui/main_window.py`
-- `ea_node_editor/ui/status_bar.py`
+- `ea_node_editor/ui/shell/window.py`
+- `ea_node_editor/ui_qml/status_model.py`
 - `ea_node_editor/ui/theme/*`
 - `tests/test_theme_shell_rc2.py`
 - `tests/test_main_window_shell.py`
@@ -27,6 +27,5 @@
 - `docs/specs/perf/rc2/shell_idle.png`
 
 ## Merge Gate
-- Existing main window shell tests pass.
+- Existing shell window tests pass.
 - New shell/theme tests pass.
-

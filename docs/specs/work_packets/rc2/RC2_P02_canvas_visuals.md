@@ -9,10 +9,9 @@
 - `docs/specs/gui/1_stitch_engineering_node_editor_workspace.zip`
 
 ## Allowed Files
-- `ea_node_editor/graph/scene.py`
-- `ea_node_editor/graph/items/node_item.py`
-- `ea_node_editor/graph/items/edge_item.py`
-- `ea_node_editor/graph/view.py`
+- `ea_node_editor/ui_qml/graph_scene_bridge.py`
+- `ea_node_editor/ui_qml/edge_routing.py`
+- `ea_node_editor/ui_qml/viewport_bridge.py`
 - `tests/test_graph_track_b.py`
 
 ## Do Not Touch
@@ -29,4 +28,3 @@
 ## Merge Gate
 - Graph tests pass.
 - Perf harness stays under target thresholds.
-

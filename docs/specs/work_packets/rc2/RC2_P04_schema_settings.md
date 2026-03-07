@@ -11,7 +11,7 @@
 ## Allowed Files
 - `ea_node_editor/settings.py`
 - `ea_node_editor/persistence/serializer.py`
-- `ea_node_editor/ui/main_window.py`
+- `ea_node_editor/ui/shell/window.py`
 - `ea_node_editor/ui/dialogs/workflow_settings_dialog.py`
 - `tests/test_serializer.py`
 - `tests/test_settings_dialog_rc2.py`
@@ -28,4 +28,3 @@
 ## Merge Gate
 - v1->v2 migration tests pass.
 - Settings persistence and trigger inclusion tests pass.
-

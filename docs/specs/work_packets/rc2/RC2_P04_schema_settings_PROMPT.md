@@ -7,7 +7,6 @@ Constraints:
 
 Deliverables:
 1. Schema version bump + migration path.
-2. Workflow settings modal and `open_workflow_settings()` API.
+2. Workflow settings modal and `show_workflow_settings_dialog()` API.
 3. Tests for migration and modal persistence.
 4. `settings_modal.png` artifact path.
-

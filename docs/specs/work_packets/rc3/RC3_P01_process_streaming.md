@@ -17,7 +17,7 @@
 - `ea_node_editor/execution/client.py`
 - `ea_node_editor/execution/worker.py`
 - `ea_node_editor/nodes/builtins/integrations.py`
-- `ea_node_editor/ui/main_window.py`
+- `ea_node_editor/ui/shell/window.py`
 - `tests/test_process_run_node_rc2.py`
 - `tests/test_execution_worker.py`
 - `tests/test_execution_client.py`

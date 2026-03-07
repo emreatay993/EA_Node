@@ -13,8 +13,8 @@
 
 ## Allowed Files
 - `ea_node_editor/ui/editor/code_editor.py`
-- `ea_node_editor/ui/panels/script_editor_dock.py`
-- `ea_node_editor/ui/main_window.py`
+- `ea_node_editor/ui_qml/script_editor_model.py`
+- `ea_node_editor/ui/shell/window.py`
 - `tests/test_script_editor_dock_rc2.py`
 - `tests/test_main_window_shell.py`
 
