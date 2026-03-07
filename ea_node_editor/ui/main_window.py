@@ -1316,6 +1316,19 @@ class MainWindow(QMainWindow):
         if autosave_ts <= manual_save_ts:
             return None
 
+        try:
+            recovered_project = self.serializer.load(str(autosave_path))
+        except Exception:  # noqa: BLE001
+            self._discard_autosave_snapshot()
+            return None
+
+        # If session restore already yielded the same document, autosave recovery is redundant.
+        current_doc = self.serializer.to_document(self.model.project)
+        recovered_doc = self.serializer.to_document(recovered_project)
+        if self._document_fingerprint(current_doc) == self._document_fingerprint(recovered_doc):
+            self._discard_autosave_snapshot()
+            return None
+
         if not self.isVisible():
             self._autosave_recovery_deferred = True
             return None
@@ -1325,11 +1338,6 @@ class MainWindow(QMainWindow):
             self._discard_autosave_snapshot()
             return None
 
-        try:
-            recovered_project = self.serializer.load(str(autosave_path))
-        except Exception:  # noqa: BLE001
-            self._discard_autosave_snapshot()
-            return None
         self._discard_autosave_snapshot()
         return recovered_project
 

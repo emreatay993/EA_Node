@@ -644,6 +644,37 @@ class MainWindowShellTests(unittest.TestCase):
                 restored.close()
                 self.app.processEvents()
 
+    def test_recovery_prompt_is_skipped_when_autosave_matches_restored_session(self) -> None:
+        baseline_doc = self.window.serializer.to_document(self.window.model.project)
+        self._session_path.write_text(
+            json.dumps(
+                {
+                    "project_path": "",
+                    "last_manual_save_ts": 0.0,
+                    "project_doc": baseline_doc,
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        self._autosave_path.write_text(
+            json.dumps(baseline_doc, indent=2, sort_keys=True, ensure_ascii=True),
+            encoding="utf-8",
+        )
+
+        with patch.object(MainWindow, "_prompt_recover_autosave") as prompt:
+            restored = MainWindow()
+            restored.resize(1200, 800)
+            restored.show()
+            self.app.processEvents()
+            try:
+                self.assertEqual(prompt.call_count, 0)
+                self.assertFalse(self._autosave_path.exists())
+            finally:
+                restored.close()
+                self.app.processEvents()
+
     def test_restore_session_handles_corrupted_session_and_autosave_files(self) -> None:
         self._session_path.write_text("{bad json", encoding="utf-8")
         self._autosave_path.write_text("{bad json", encoding="utf-8")

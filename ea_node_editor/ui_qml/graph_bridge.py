@@ -720,14 +720,14 @@ def _edge_color(spec: NodeTypeSpec, source_port_key: str, data_type_warning: boo
         if port.key != source_port_key:
             continue
         if port.kind == "exec":
-            return "#63B378"
+            return "#67D487"
         if port.kind == "completed":
-            return "#CCB464"
+            return "#E4CE7D"
         if port.kind == "failed":
             return "#D94F4F"
     if data_type_warning:
         return "#E8A838"
-    return "#6F89AF"
+    return "#7AA8FF"
 
 
 def _port_data_type(spec: NodeTypeSpec, port_key: str) -> str:

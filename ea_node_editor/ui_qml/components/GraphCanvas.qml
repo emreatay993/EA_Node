@@ -148,7 +148,7 @@ Item {
     }
 
     function _portKind(nodeId, portKey) {
-        var nodes = root.nodePayload || [];
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (!node || node.node_id !== nodeId)

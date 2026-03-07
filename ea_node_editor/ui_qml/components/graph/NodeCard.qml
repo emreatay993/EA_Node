@@ -54,6 +54,8 @@ Rectangle {
             return "#67D487";
         if (portKind === "completed")
             return "#E4CE7D";
+        if (portKind === "failed")
+            return "#D94F4F";
         return "#7AA8FF";
     }
 
@@ -142,15 +144,16 @@ Rectangle {
                         property bool pendingState: card.isPendingPort("in", modelData.key)
                         property bool interactiveState: hoveredState || pendingState
                         property bool connectedState: card.isConnectedPort(modelData)
+                        property color portColor: card.basePortColor(modelData.kind)
                         width: interactiveState ? 14 : 8
                         height: interactiveState ? 14 : 8
                         radius: width * 0.5
                         anchors.verticalCenter: parent.verticalCenter
-                        color: interactiveState ? "#FFDA6B" : (connectedState ? "#67D487" : "transparent")
+                        color: interactiveState ? "#FFDA6B" : (connectedState ? portColor : "transparent")
                         border.width: interactiveState ? 2 : 1
                         border.color: interactiveState
                             ? "#FFF4CB"
-                            : (connectedState ? "#67D487" : card.basePortColor(modelData.kind))
+                            : portColor
 
                         Rectangle {
                             anchors.centerIn: parent
@@ -245,15 +248,16 @@ Rectangle {
                         property bool pendingState: card.isPendingPort("out", modelData.key)
                         property bool interactiveState: hoveredState || pendingState
                         property bool connectedState: card.isConnectedPort(modelData)
+                        property color portColor: card.basePortColor(modelData.kind)
                         width: interactiveState ? 14 : 8
                         height: interactiveState ? 14 : 8
                         radius: width * 0.5
                         anchors.verticalCenter: parent.verticalCenter
-                        color: interactiveState ? "#FFDA6B" : (connectedState ? "#67D487" : "transparent")
+                        color: interactiveState ? "#FFDA6B" : (connectedState ? portColor : "transparent")
                         border.width: interactiveState ? 2 : 1
                         border.color: interactiveState
                             ? "#FFF4CB"
-                            : (connectedState ? "#67D487" : card.basePortColor(modelData.kind))
+                            : portColor
 
                         Rectangle {
                             anchors.centerIn: parent

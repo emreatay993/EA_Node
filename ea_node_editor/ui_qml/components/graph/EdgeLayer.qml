@@ -297,7 +297,7 @@ Item {
                         root.sceneToScreenY(geometry.ty)
                     );
                 }
-                ctx.strokeStyle = selected ? "#A7D8FF" : (edge.color || "#6F89AF");
+                ctx.strokeStyle = selected ? "#A7D8FF" : (edge.color || "#7AA8FF");
                 ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : 2.0) * zoom);
                 ctx.stroke();
             }
