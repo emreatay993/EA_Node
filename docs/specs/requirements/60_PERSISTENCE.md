@@ -13,6 +13,9 @@
 - `REQ-PERSIST-006`: Last session shall persist workspace/view state across restarts.
 - `REQ-PERSIST-007`: Metadata schema shall persist normalized UI state and workflow settings (`metadata.ui`, `metadata.workflow_settings`) with auto-migration from earlier schema versions.
 
+## Module Decomposition
+- `REQ-PERSIST-008`: Persistence internals shall be split into project codec (`ProjectData` <-> JSON document), migration/normalization pipeline, and session/autosave storage service.
+
 ## Acceptance
 - `AC-REQ-PERSIST-001-01`: Save/load round trip preserves ids, wiring, properties, active workspace, and active view.
 - `AC-REQ-PERSIST-004-01`: Older schema docs are upgraded without manual edits.

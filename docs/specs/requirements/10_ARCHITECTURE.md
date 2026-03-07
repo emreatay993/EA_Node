@@ -14,7 +14,7 @@
   - `update_notification_counters(warnings, errors)`
 - `REQ-ARCH-006`: Workspace manager shall expose create/rename/duplicate/close/switch workspace and create/switch view APIs.
 - `REQ-ARCH-007`: Node SDK shall define typed node specs (`NodeTypeSpec`, `PortSpec`, `PropertySpec`) and executable plugin contract.
-- `REQ-ARCH-008`: Persistence shall expose load/save/migrate API for `.sfe` files.
+- `REQ-ARCH-008`: Persistence shall expose load/save/migrate API for `.sfe` files, with split internals for project codec, migration/normalization, and session/autosave storage services.
 - `REQ-ARCH-009`: `ShellWindow` shall expose orchestration UI APIs `show_workflow_settings_dialog()` and `set_script_editor_panel_visible()`.
 
 ## Acceptance

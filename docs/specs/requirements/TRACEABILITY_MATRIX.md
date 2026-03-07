@@ -21,30 +21,33 @@
 | REQ-GRAPH-007 | 30_GRAPH_MODEL | `ea_node_editor/ui_qml/edge_routing.py`, `ea_node_editor/ui_qml/edge_routing.py` |
 | REQ-GRAPH-008 | 30_GRAPH_MODEL | `ea_node_editor/ui_qml/edge_routing.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `tests/test_graph_track_b.py` |
 | REQ-NODE-001 | 40_NODE_SDK | `ea_node_editor/nodes/types.py` |
-| REQ-NODE-002 | 40_NODE_SDK | `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/integrations.py`, `ea_node_editor/execution/worker.py` |
+| REQ-NODE-002 | 40_NODE_SDK | `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/integrations.py`, `ea_node_editor/nodes/builtins/integrations_*.py`, `ea_node_editor/execution/worker.py` |
 | REQ-NODE-003 | 40_NODE_SDK | `ea_node_editor/nodes/registry.py` |
 | REQ-NODE-004 | 40_NODE_SDK | `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/execution/worker.py`, `tests/test_inspector_reflection.py` |
 | REQ-NODE-005 | 40_NODE_SDK | `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/edge_routing.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `tests/test_graph_track_b.py` |
-| REQ-NODE-006 | 40_NODE_SDK | `ea_node_editor/nodes/types.py`, `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/integrations.py`, `tests/test_registry_validation.py` |
+| REQ-NODE-006 | 40_NODE_SDK | `ea_node_editor/nodes/types.py`, `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/integrations.py`, `ea_node_editor/nodes/builtins/integrations_*.py`, `tests/test_registry_validation.py` |
 | REQ-EXEC-001 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/client.py`, `worker.py` |
-| REQ-EXEC-002 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/protocol.py`, `ea_node_editor/execution/client.py`, `ea_node_editor/execution/worker.py`, `tests/test_execution_worker.py`, `tests/test_execution_client.py` |
+| REQ-EXEC-002 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/protocol.py` (typed dataclasses + queue boundary adapters), `ea_node_editor/execution/client.py`, `ea_node_editor/execution/worker.py`, `tests/test_execution_worker.py`, `tests/test_execution_client.py` |
 | REQ-EXEC-003 | 50_EXECUTION_ENGINE | `ea_node_editor/ui/shell/window.py` Qt queued `execution_event` path, `ea_node_editor/execution/client.py` listener thread, `tests/test_main_window_shell.py` |
 | REQ-EXEC-004 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/worker.py` exec-edge scheduling, `tests/test_execution_worker.py` |
 | REQ-EXEC-005 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/worker.py` data-edge input propagation, `tests/test_execution_worker.py` |
 | REQ-EXEC-006 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/worker.py` structured `run_failed` traceback payload, `ea_node_editor/ui/shell/window.py` failure routing/focus, `tests/test_execution_worker.py`, `tests/test_main_window_shell.py` |
 | REQ-EXEC-007 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/worker.py` event emissions |
+| REQ-EXEC-009 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/protocol.py` dataclasses + dict adapters, `ea_node_editor/execution/client.py` typed command/event usage, `ea_node_editor/execution/worker.py` typed command/event usage |
 | REQ-UI-010 | 20_UI_UX | `ea_node_editor/ui/shell/window.py` failed-node focus + parent-chain reveal via `parent_node_id`, `tests/test_main_window_shell.py` |
-| REQ-PERSIST-001 | 60_PERSISTENCE | `ea_node_editor/persistence/serializer.py` |
-| REQ-PERSIST-002 | 60_PERSISTENCE | `ea_node_editor/persistence/serializer.py`, `tests/test_serializer.py`, `tests/test_main_window_shell.py` |
-| REQ-PERSIST-003 | 60_PERSISTENCE | `ea_node_editor/persistence/serializer.py` deterministic workspace/view/node/edge ordering, `tests/test_serializer.py` deterministic save assertions |
-| REQ-PERSIST-004 | 60_PERSISTENCE | `ea_node_editor/persistence/serializer.py` migration pipeline + legacy repair, `tests/fixtures/persistence/schema_v0_*.json`, `tests/test_serializer.py` migration tests |
-| REQ-PERSIST-005 | 60_PERSISTENCE | `ea_node_editor/persistence/serializer.py` migrate-before-model construction (`load`/`from_document`), `ea_node_editor/ui/shell/window.py` guarded restore/open flow |
-| REQ-PERSIST-006 | 60_PERSISTENCE | `ea_node_editor/ui/shell/window.py` session restore/persist + autosave/recovery prompt flow, `tests/test_main_window_shell.py` session/autosave recovery tests including `test_recovery_prompt_is_deferred_until_main_window_is_visible` |
+| REQ-PERSIST-001 | 60_PERSISTENCE | `ea_node_editor/persistence/serializer.py` (facade), `ea_node_editor/persistence/project_codec.py` |
+| REQ-PERSIST-002 | 60_PERSISTENCE | `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/persistence/serializer.py`, `tests/test_serializer.py`, `tests/test_main_window_shell.py` |
+| REQ-PERSIST-003 | 60_PERSISTENCE | `ea_node_editor/persistence/project_codec.py` deterministic workspace/view/node/edge ordering, `tests/test_serializer.py` deterministic save assertions |
+| REQ-PERSIST-004 | 60_PERSISTENCE | `ea_node_editor/persistence/migration.py` migration/normalization pipeline + legacy repair, `tests/fixtures/persistence/schema_v0_*.json`, `tests/test_serializer.py` migration tests |
+| REQ-PERSIST-005 | 60_PERSISTENCE | `ea_node_editor/persistence/migration.py` migrate-before-model construction (`load`/`from_document`), `ea_node_editor/ui/shell/window.py` guarded restore/open flow |
+| REQ-PERSIST-006 | 60_PERSISTENCE | `ea_node_editor/persistence/session_store.py`, `ea_node_editor/ui/shell/window.py` session restore/persist + autosave/recovery prompt flow, `tests/test_main_window_shell.py` session/autosave recovery tests including `test_recovery_prompt_is_deferred_until_main_window_is_visible` |
+| REQ-PERSIST-008 | 60_PERSISTENCE | `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/persistence/migration.py`, `ea_node_editor/persistence/session_store.py`, `ea_node_editor/persistence/serializer.py` |
 | REQ-INT-001 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/core.py` |
-| REQ-INT-002 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations.py` |
-| REQ-INT-003 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations.py` CSV/XLSX handling and dependency gate, `tests/test_integrations_track_f.py` |
-| REQ-INT-004 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations.py` File Read/Write text+JSON behavior, `tests/test_integrations_track_f.py` |
-| REQ-INT-005 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations.py` Email Send SMTP/TLS/auth validation, `tests/test_integrations_track_f.py` |
+| REQ-INT-002 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations.py` (facade), `ea_node_editor/nodes/builtins/integrations_spreadsheet.py`, `ea_node_editor/nodes/builtins/integrations_file_io.py`, `ea_node_editor/nodes/builtins/integrations_email.py`, `ea_node_editor/nodes/builtins/integrations_process.py` |
+| REQ-INT-003 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations_spreadsheet.py` CSV/XLSX handling and dependency gate, `tests/test_integrations_track_f.py` |
+| REQ-INT-004 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations_file_io.py` File Read/Write text+JSON behavior, `tests/test_integrations_track_f.py` |
+| REQ-INT-005 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations_email.py` Email Send SMTP/TLS/auth validation, `tests/test_integrations_track_f.py` |
+| REQ-INT-007 | 70_INTEGRATIONS | `ea_node_editor/nodes/builtins/integrations_spreadsheet.py`, `ea_node_editor/nodes/builtins/integrations_file_io.py`, `ea_node_editor/nodes/builtins/integrations_email.py`, `ea_node_editor/nodes/builtins/integrations_process.py`, `ea_node_editor/nodes/builtins/integrations.py` |
 | REQ-PERF-001 | 80_PERFORMANCE | `ea_node_editor/telemetry/performance_harness.py` target-scale synthetic graph generator (`generate_synthetic_project`), `tests/test_track_h_perf_harness.py`, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md` |
 | REQ-PERF-002 | 80_PERFORMANCE | `ea_node_editor/telemetry/performance_harness.py` pan/zoom interaction benchmark with p50/p95 reporting, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `docs/specs/perf/track_h_benchmark_report.json` |
 | REQ-PERF-003 | 80_PERFORMANCE | `ea_node_editor/telemetry/performance_harness.py` project+graph load benchmark, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `docs/specs/perf/track_h_benchmark_report.json` |
@@ -77,6 +80,6 @@
 | REQ-GRAPH-009 | 30_GRAPH_MODEL | Stitch visual refresh + LOD: `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/edge_routing.py`, `ea_node_editor/ui_qml/edge_routing.py`, `ea_node_editor/ui_qml/viewport_bridge.py`, `tests/test_graph_track_b.py` |
 | REQ-NODE-007 | 40_NODE_SDK | Decorator helpers: `ea_node_editor/nodes/decorators.py`, `ea_node_editor/nodes/__init__.py`, `tests/test_decorator_sdk_rc2.py` |
 | REQ-NODE-008 | 40_NODE_SDK | Decorator compatibility with registry: `ea_node_editor/nodes/builtins/core.py` (`ConstantNodePlugin`), `tests/test_decorator_sdk_rc2.py`, `tests/test_registry_validation.py` |
-| REQ-INT-006 | 70_INTEGRATIONS | External process runner node: `ea_node_editor/nodes/builtins/integrations.py::ProcessRunNodePlugin`, `ea_node_editor/nodes/bootstrap.py`, `tests/test_process_run_node_rc2.py` |
+| REQ-INT-006 | 70_INTEGRATIONS | External process runner node: `ea_node_editor/nodes/builtins/integrations_process.py::ProcessRunNodePlugin`, compatibility export in `ea_node_editor/nodes/builtins/integrations.py`, `ea_node_editor/nodes/bootstrap.py`, `tests/test_process_run_node_rc2.py` |
 | REQ-EXEC-008 | 50_EXECUTION_ENGINE | Active subprocess cancellation on `stop_run`: `ea_node_editor/execution/worker.py`, `tests/test_process_run_node_rc2.py::test_stop_run_cancels_active_process_node` |
-| REQ-PERSIST-007 | 60_PERSISTENCE | Schema v2 metadata normalization (`metadata.ui`, `metadata.workflow_settings`) + migration: `ea_node_editor/settings.py`, `ea_node_editor/persistence/serializer.py`, `tests/test_serializer_v2_migration_rc2.py`, `tests/test_serializer.py` |
+| REQ-PERSIST-007 | 60_PERSISTENCE | Schema v2 metadata normalization (`metadata.ui`, `metadata.workflow_settings`) + migration: `ea_node_editor/settings.py`, `ea_node_editor/persistence/migration.py`, `ea_node_editor/persistence/serializer.py`, `tests/test_serializer_v2_migration_rc2.py`, `tests/test_serializer.py` |

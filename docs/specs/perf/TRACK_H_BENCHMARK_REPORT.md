@@ -1,6 +1,6 @@
 # Track H Benchmark Report
 
-- Generated (UTC): `2026-03-07T21:35:42.168003+00:00`
+- Generated (UTC): `2026-03-07T22:04:53.697667+00:00`
 - Command:
   `venv\Scripts\python -m ea_node_editor.telemetry.performance_harness`
 - Platform: `Windows-10-10.0.26200-SP0`
@@ -18,18 +18,18 @@
 
 | Metric | p50 | p95 | Mean | Min | Max |
 |---|---:|---:|---:|---:|---:|
-| Project + graph load | 46.826 | 61.588 | 49.680 | 42.563 | 64.798 |
-| Pan interaction | 0.004 | 0.008 | 0.009 | 0.002 | 0.630 |
-| Zoom interaction | 0.004 | 0.007 | 0.007 | 0.002 | 0.337 |
-| Pan + zoom (combined) | 0.008 | 0.014 | 0.016 | 0.005 | 0.966 |
+| Project + graph load | 45.691 | 52.112 | 46.794 | 42.619 | 53.343 |
+| Pan interaction | 0.003 | 0.004 | 0.003 | 0.002 | 0.028 |
+| Zoom interaction | 0.002 | 0.003 | 0.003 | 0.002 | 0.103 |
+| Pan + zoom (combined) | 0.005 | 0.006 | 0.006 | 0.005 | 0.107 |
 
 ## Requirement Check
 
 | Requirement | Result | Details |
 |---|---|---|
 | REQ-PERF-001 | PASS | Generated graph size 1000 nodes / 5000 edges |
-| REQ-PERF-002 | PASS | Pan p95=0.008 ms, Zoom p95=0.007 ms (frame p95 target <= 33 ms) |
-| REQ-PERF-003 | PASS | Project+graph load p95=61.588 ms (target < 3000 ms) |
+| REQ-PERF-002 | PASS | Pan p95=0.004 ms, Zoom p95=0.003 ms (frame p95 target <= 33 ms) |
+| REQ-PERF-003 | PASS | Project+graph load p95=52.112 ms (target < 3000 ms) |
 
 ## Baseline Series
 
@@ -39,7 +39,7 @@
 
 | Run | Mode | Load p95 (ms) | Pan+Zoom p95 (ms) | Qt Platform | Machine |
 |---|---|---:|---:|---|---|
-| run_01 | offscreen | 61.588 | 0.014 | offscreen | AMD64 |
+| run_01 | offscreen | 52.112 | 0.006 | offscreen | AMD64 |
 
 ### Variance Policy
 

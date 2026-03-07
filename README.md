@@ -39,16 +39,23 @@ ea_node_editor/
     package_manager.py    # Import / export .eanp node packages
     builtins/
       core.py             # Start, End, Constant, Logger, Python Script
-      integrations.py     # Excel Read/Write, File Read/Write, Email, Process Run
+      integrations.py     # Compatibility facade (re-exports integration plugins)
+      integrations_spreadsheet.py
+      integrations_file_io.py
+      integrations_email.py
+      integrations_process.py
       hpc.py              # HPC Submit, Monitor, On Status, Fetch Results
 
   execution/              # Workflow run engine
-    protocol.py           # Typed event and command definitions
+    protocol.py           # Typed event/command protocol + queue adapters
     worker.py             # Runs the workflow in a separate process
     client.py             # UI-side client that talks to the worker process
 
   persistence/
-    serializer.py         # Save / load .sfe project files (versioned JSON)
+    serializer.py         # Backward-compatible facade for load/save/to/from/migrate
+    migration.py          # Schema migration + normalization
+    project_codec.py      # ProjectData <-> document codec
+    session_store.py      # Session/autosave storage + recovery helpers
 
   ui/                     # User interface shell orchestration
     shell/

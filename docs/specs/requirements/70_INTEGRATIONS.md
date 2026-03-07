@@ -9,6 +9,7 @@
 - `REQ-INT-003`: Excel nodes shall support CSV and XLSX (XLSX requiring `openpyxl`).
 - `REQ-INT-004`: File nodes shall support text and JSON payload writing.
 - `REQ-INT-005`: Email node shall support SMTP host/port and optional TLS/auth.
+- `REQ-INT-007`: Built-in integration implementation shall be split by domain module (spreadsheet, file I/O, email, process-run) with stable type IDs.
 
 ## Acceptance
 - `AC-REQ-INT-001-01`: Starter nodes appear in node library and can be placed in graph.

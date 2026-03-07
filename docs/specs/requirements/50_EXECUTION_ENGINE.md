@@ -3,6 +3,7 @@
 ## Process Model
 - `REQ-EXEC-001`: Execution shall run in a worker process separate from UI process.
 - `REQ-EXEC-002`: UI/worker communication shall use queue-based command/event protocol.
+- `REQ-EXEC-009`: Typed protocol dataclasses shall be canonical in client/worker runtime, with dict adapters only at queue boundaries.
 - `REQ-EXEC-003`: UI thread shall not block during run.
 
 ## Workflow Semantics
