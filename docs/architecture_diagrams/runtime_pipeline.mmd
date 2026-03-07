@@ -1,0 +1,24 @@
+flowchart TD
+    A[App start main.py to app run] --> B[ShellWindow init]
+    B --> C[Build registry + serializer + session store + graph model]
+    C --> D[Restore session / optional autosave recovery]
+    D --> E[Bind GraphSceneBridge + ViewportBridge to active workspace]
+    E --> F[QML renders nodes_model + edges_model]
+
+    F --> G[User edits graph on canvas]
+    G --> H[QML requests reach ShellWindow slots]
+    H --> I[GraphSceneBridge / GraphInteractions validate + mutate GraphModel]
+    I --> J[Rebuild models publishes new payloads]
+    J --> F
+
+    F --> K[User clicks Run]
+    K --> L[ShellWindow serializes project snapshot + trigger]
+    L --> M[Execution client starts run]
+    M --> N[Worker process runs workflow]
+    N --> O[Node execution + event stream]
+    O --> P[ShellWindow handles execution events]
+    P --> Q[Status/console updates + failed-node focus]
+
+    F --> R[Save or autosave tick]
+    R --> S[Serializer + session store persist state]
+    S --> T[Project, session, autosave files updated]

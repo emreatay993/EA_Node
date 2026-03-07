@@ -1,0 +1,39 @@
+flowchart LR
+    U[User] --> QML[MainShell.qml + GraphCanvas]
+    QML --> SW[ShellWindow]
+
+    SW --> GS[GraphSceneBridge]
+    SW --> VP[ViewportBridge]
+    SW --> CM[ConsoleModel + StatusItemModel + ScriptEditorModel]
+    SW --> GI[GraphInteractions]
+    GS --> GR[(GraphModel)]
+    GI --> GR
+    GS --> ER[edge_routing helpers]
+
+    SW --> WM[WorkspaceManager]
+    WM --> GR
+
+    SW --> REG[NodeRegistry]
+    REG --> BUILTINS[nodes.builtins.*]
+    REG --> PLUG[plugin_loader]
+    PLUG --> PLUGDIR[(%APPDATA%/EA_Node_Editor/plugins)]
+    PLUG --> ENTRYPTS[(Python entry points)]
+
+    SW --> SER[JsonProjectSerializer]
+    SER --> MIG[JsonProjectMigration]
+    SER --> CODEC[JsonProjectCodec]
+    SER --> SFE[(.sfe project files)]
+
+    SW --> SESS[SessionAutosaveStore]
+    SESS --> LAST[(last_session.json)]
+    SESS --> AUTO[(autosave.sfe)]
+
+    SW --> EXEC[ProcessExecutionClient]
+    EXEC -->|commands| CMDQ[(command_queue)]
+    CMDQ --> WORKER[worker_main / run_workflow]
+    WORKER -->|events| EVTQ[(event_queue)]
+    EVTQ --> EXEC
+    WORKER --> REG
+    WORKER --> NODEPLUGINS[NodePlugin.execute / async_execute]
+
+    SW --> METRICS[telemetry.system_metrics]

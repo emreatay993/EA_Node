@@ -1,0 +1,38 @@
+sequenceDiagram
+    participant User
+    participant QML as QML Shell
+    participant SW as ShellWindow
+    participant EC as ProcessExecutionClient
+    participant W as Worker (run_workflow)
+    participant R as NodeRegistry
+    participant P as NodePlugin
+
+    User->>QML: Click Run
+    QML->>SW: request_run_workflow()
+    SW->>SW: serializer.to_document() + build trigger
+    SW->>EC: start_run(project_path, workspace_id, trigger)
+    EC->>W: StartRunCommand (queue)
+    W->>W: load project_doc + build edge topology
+    W->>EC: run_started + run_state(running)
+
+    loop per ready node
+        W->>R: create(node.type_id)
+        R-->>W: plugin instance
+        W->>P: execute(ctx) / async_execute(ctx)
+        P-->>W: NodeResult
+        W->>EC: node_started / node_completed / log
+    end
+
+    alt run failed
+        W->>EC: run_failed + run_state(error)
+        EC->>SW: event callback
+        SW->>SW: _focus_failed_node() + UI error state
+    else run stopped
+        W->>EC: run_stopped + run_state(ready)
+        EC->>SW: event callback
+        SW->>SW: clear active run + update actions
+    else run completed
+        W->>EC: run_completed + run_state(ready)
+        EC->>SW: event callback
+        SW->>SW: completed state + counters
+    end
