@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import time
 from pathlib import Path
@@ -23,6 +22,7 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.settings import (
     AUTOSAVE_INTERVAL_MS,
     DEFAULT_UI_STATE,
@@ -35,12 +35,7 @@ from ea_node_editor.ui.dialogs.workflow_settings_dialog import WorkflowSettingsD
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
 from ea_node_editor.ui.shell.library_flow import input_port_is_available, pick_connection_candidate
-from ea_node_editor.ui.shell.project_flow import (
-    coerce_timestamp,
-    document_fingerprint,
-    merge_defaults,
-    write_json_atomic,
-)
+from ea_node_editor.ui.shell.project_flow import merge_defaults
 from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_action_state
 from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -93,6 +88,11 @@ class ShellWindow(QMainWindow):
 
         self.registry: NodeRegistry = build_default_registry()
         self.serializer = JsonProjectSerializer()
+        self._session_store = SessionAutosaveStore(
+            serializer=self.serializer,
+            session_path_provider=recent_session_path,
+            autosave_path_provider=autosave_project_path,
+        )
         self.model = GraphModel(ProjectData(project_id="proj_local", name="untitled"))
         self.workspace_manager = WorkspaceManager(self.model)
         self._ensure_project_metadata_defaults()
@@ -1357,7 +1357,7 @@ class ShellWindow(QMainWindow):
             workspace.dirty = False
         self._refresh_workspace_tabs()
         self._discard_autosave_snapshot()
-        self._last_autosave_fingerprint = document_fingerprint(
+        self._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._persist_session()
@@ -1370,7 +1370,7 @@ class ShellWindow(QMainWindow):
         self.project_path = ""
         self._last_manual_save_ts = 0.0
         self._discard_autosave_snapshot()
-        self._last_autosave_fingerprint = document_fingerprint(
+        self._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._refresh_workspace_tabs()
@@ -1398,7 +1398,7 @@ class ShellWindow(QMainWindow):
         except OSError:
             self._last_manual_save_ts = time.time()
         self._discard_autosave_snapshot()
-        self._last_autosave_fingerprint = document_fingerprint(
+        self._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._refresh_workspace_tabs()
@@ -1408,9 +1408,9 @@ class ShellWindow(QMainWindow):
         self.project_meta_changed.emit()
 
     def _restore_session(self) -> None:
-        session = self._load_session_payload()
+        session = self._session_store.load_session_payload()
         session_project_path = str(session.get("project_path", "")).strip()
-        self._last_manual_save_ts = coerce_timestamp(session.get("last_manual_save_ts", 0.0))
+        self._last_manual_save_ts = SessionAutosaveStore.coerce_timestamp(session.get("last_manual_save_ts", 0.0))
 
         restored = False
         if session_project_path and Path(session_project_path).exists():
@@ -1450,60 +1450,22 @@ class ShellWindow(QMainWindow):
             self.project_path = ""
 
         self._ensure_project_metadata_defaults()
-        self._last_autosave_fingerprint = document_fingerprint(
+        self._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self.project_meta_changed.emit()
 
-    def _load_session_payload(self) -> dict[str, Any]:
-        session_path = recent_session_path()
-        if not session_path.exists():
-            return {}
-        try:
-            payload = json.loads(session_path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return {}
-        return payload if isinstance(payload, dict) else {}
-
     def _discard_autosave_snapshot(self) -> None:
-        try:
-            autosave_path = autosave_project_path()
-            if autosave_path.exists():
-                autosave_path.unlink()
-        except OSError:
-            pass
+        self._session_store.discard_autosave_snapshot()
         self._last_autosave_fingerprint = ""
 
     def _recover_autosave_if_newer(self) -> ProjectData | None:
-        autosave_path = autosave_project_path()
-        if not autosave_path.exists():
-            return None
-
-        try:
-            autosave_ts = autosave_path.stat().st_mtime
-        except OSError:
-            return None
-
-        manual_save_ts = self._last_manual_save_ts
-        if self.project_path and Path(self.project_path).exists():
-            try:
-                manual_save_ts = max(manual_save_ts, Path(self.project_path).stat().st_mtime)
-            except OSError:
-                pass
-        if autosave_ts <= manual_save_ts:
-            return None
-
-        try:
-            recovered_project = self.serializer.load(str(autosave_path))
-        except Exception:  # noqa: BLE001
-            self._discard_autosave_snapshot()
-            return None
-
-        # If session restore already yielded the same document, autosave recovery is redundant.
-        current_doc = self.serializer.to_document(self.model.project)
-        recovered_doc = self.serializer.to_document(recovered_project)
-        if document_fingerprint(current_doc) == document_fingerprint(recovered_doc):
-            self._discard_autosave_snapshot()
+        recovered_project = self._session_store.load_recoverable_autosave(
+            current_project_doc=self.serializer.to_document(self.model.project),
+            project_path=self.project_path,
+            last_manual_save_ts=self._last_manual_save_ts,
+        )
+        if recovered_project is None:
             return None
 
         if not self.isVisible():
@@ -1541,7 +1503,7 @@ class ShellWindow(QMainWindow):
         self._refresh_workspace_tabs()
         self._switch_workspace(self.workspace_manager.active_workspace_id())
         self._restore_script_editor_state()
-        self._last_autosave_fingerprint = document_fingerprint(
+        self._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self.serializer.to_document(self.model.project)
         )
         self._persist_session()
@@ -1550,11 +1512,10 @@ class ShellWindow(QMainWindow):
         try:
             self._save_active_view_state()
             project_doc = self.serializer.to_document(self.model.project)
-            fingerprint = document_fingerprint(project_doc)
-            if fingerprint == self._last_autosave_fingerprint:
-                return
-            write_json_atomic(autosave_project_path(), project_doc)
-            self._last_autosave_fingerprint = fingerprint
+            self._last_autosave_fingerprint = self._session_store.autosave_if_changed(
+                project_doc=project_doc,
+                last_fingerprint=self._last_autosave_fingerprint,
+            )
             self._persist_session(project_doc=project_doc)
         except Exception:  # noqa: BLE001
             return
@@ -1563,13 +1524,12 @@ class ShellWindow(QMainWindow):
         self._save_active_view_state()
         self._persist_script_editor_state()
         document = project_doc if isinstance(project_doc, dict) else self.serializer.to_document(self.model.project)
-        session = {
-            "project_path": self.project_path,
-            "last_manual_save_ts": self._last_manual_save_ts,
-            "project_doc": document,
-        }
         try:
-            write_json_atomic(recent_session_path(), session)
+            self._session_store.persist_session(
+                project_path=self.project_path,
+                last_manual_save_ts=self._last_manual_save_ts,
+                project_doc=document,
+            )
         except Exception:  # noqa: BLE001
             return
 
