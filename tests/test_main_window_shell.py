@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
@@ -61,6 +62,32 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIsNotNone(self.window.scene)
         self.assertIsNotNone(self.window.view)
         self.assertGreaterEqual(self.window.workspace_tabs.count(), 1)
+
+    def test_qml_invokable_slots_exist_for_shell_buttons(self) -> None:
+        meta = self.window.metaObject()
+        self.assertGreaterEqual(meta.indexOfMethod("open_workflow_settings()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("toggle_script_editor()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("toggle_script_editor(bool)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("connect_ports_from_qml(QString,QString,QString,QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("remove_edge_from_qml(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("remove_node_from_qml(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("rename_node_from_qml(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("delete_selected_graph_items(QVariantList)"), 0)
+
+        with patch("ea_node_editor.ui.main_window.WorkflowSettingsDialog.exec", return_value=0):
+            QMetaObject.invokeMethod(
+                self.window,
+                "open_workflow_settings",
+                Qt.ConnectionType.DirectConnection,
+            )
+        QMetaObject.invokeMethod(
+            self.window,
+            "toggle_script_editor",
+            Qt.ConnectionType.DirectConnection,
+            Q_ARG(bool, False),
+        )
+        self.app.processEvents()
+        self.assertFalse(self.window.script_editor.visible)
 
     def test_status_api_contract_updates_visible_values(self) -> None:
         self.window.set_engine_state("running", "Job #12")
@@ -119,6 +146,236 @@ class MainWindowShellTests(unittest.TestCase):
             self.app.processEvents()
             resume_run.assert_called_once_with("run_test")
 
+    def test_qml_connect_selected_supports_additive_selection(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
+        self.window.scene.select_node(source_id)
+        self.window.scene.select_node(target_id, True)
+        self.app.processEvents()
+
+        self.window.connect_selected_from_qml()
+        self.app.processEvents()
+
+        edges = self.window.model.project.workspaces[workspace_id].edges
+        self.assertEqual(len(edges), 1)
+
+    def test_qml_connect_ports_orients_bidirectional_drag_request(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
+        self.app.processEvents()
+
+        created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "exec_in")
+        self.assertTrue(created)
+        edge_id = next(iter(self.window.model.project.workspaces[workspace_id].edges))
+        removed = self.window.remove_edge_from_qml(edge_id)
+        self.assertTrue(removed)
+        self.app.processEvents()
+
+        created_reversed = self.window.connect_ports_from_qml(target_id, "exec_in", source_id, "exec_out")
+        self.assertTrue(created_reversed)
+        edges = self.window.model.project.workspaces[workspace_id].edges
+        self.assertEqual(len(edges), 1)
+        edge = next(iter(edges.values()))
+        self.assertEqual(edge.source_node_id, source_id)
+        self.assertEqual(edge.target_node_id, target_id)
+        self.assertEqual(edge.source_port_key, "exec_out")
+        self.assertEqual(edge.target_port_key, "exec_in")
+
+    def test_qml_connect_ports_rejects_same_direction(self) -> None:
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
+        self.app.processEvents()
+
+        created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "exec_out")
+        self.assertFalse(created)
+
+    def test_qml_remove_edge_from_qml_mutates_model(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
+        edge_id = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.app.processEvents()
+
+        removed = self.window.remove_edge_from_qml(edge_id)
+        self.assertTrue(removed)
+        self.assertNotIn(edge_id, self.window.model.project.workspaces[workspace_id].edges)
+
+    def test_qml_remove_node_from_qml_removes_incident_edges(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
+        edge_id = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.app.processEvents()
+
+        removed = self.window.remove_node_from_qml(source_id)
+        self.assertTrue(removed)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertNotIn(source_id, workspace.nodes)
+        self.assertNotIn(edge_id, workspace.edges)
+
+    def test_qml_rename_node_from_qml_updates_title(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        self.app.processEvents()
+
+        with patch("ea_node_editor.ui.main_window.QInputDialog.getText", return_value=("Renamed Node", True)):
+            renamed = self.window.rename_node_from_qml(node_id)
+        self.assertTrue(renamed)
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(node.title, "Renamed Node")
+
+    def test_qml_delete_selected_graph_items_removes_nodes_and_edges(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=40.0)
+        removable_node_id = self.window.scene.add_node_from_type("core.logger", x=520.0, y=40.0)
+        edge_id = self.window.scene.add_edge(source_id, "trigger", target_id, "payload")
+        self.window.scene.select_node(removable_node_id, False)
+        self.app.processEvents()
+
+        deleted = self.window.delete_selected_graph_items([edge_id])
+        self.assertTrue(deleted)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertNotIn(edge_id, workspace.edges)
+        self.assertNotIn(removable_node_id, workspace.nodes)
+
+    def test_qml_rect_selection_supports_replace_and_additive_modes(self) -> None:
+        node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        node_b = self.window.scene.add_node_from_type("core.end", x=360.0, y=30.0)
+        self.app.processEvents()
+
+        self.window.scene.select_nodes_in_rect(0.0, 0.0, 280.0, 180.0)
+        self.app.processEvents()
+        selected_after_replace = {
+            item["node_id"]
+            for item in self.window.scene.nodes_model
+            if item["selected"]
+        }
+        self.assertEqual(selected_after_replace, {node_a})
+
+        self.window.scene.select_nodes_in_rect(300.0, 0.0, 700.0, 200.0, True)
+        self.app.processEvents()
+        selected_after_additive = {
+            item["node_id"]
+            for item in self.window.scene.nodes_model
+            if item["selected"]
+        }
+        self.assertEqual(selected_after_additive, {node_a, node_b})
+
+    def test_qml_parallel_edges_between_same_nodes_use_distinct_lanes(self) -> None:
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.logger", x=320.0, y=60.0)
+        self.window.scene.set_node_collapsed(source_id, True)
+        self.window.scene.set_node_collapsed(target_id, True)
+        self.app.processEvents()
+
+        edge_a = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        edge_b = self.window.scene.add_edge(source_id, "trigger", target_id, "message")
+        self.app.processEvents()
+
+        edges_by_id = {item["edge_id"]: item for item in self.window.scene.edges_model}
+        self.assertIn(edge_a, edges_by_id)
+        self.assertIn(edge_b, edges_by_id)
+        c1_gap = abs(edges_by_id[edge_a]["c1y"] - edges_by_id[edge_b]["c1y"])
+        c2_gap = abs(edges_by_id[edge_a]["c2y"] - edges_by_id[edge_b]["c2y"])
+        self.assertGreater(c1_gap, 8.0)
+        self.assertGreater(c2_gap, 8.0)
+
+    def test_qml_backward_edge_routes_outside_connected_node_bounds(self) -> None:
+        source_id = self.window.scene.add_node_from_type("core.start", x=360.0, y=80.0)
+        target_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=220.0)
+        self.app.processEvents()
+
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.app.processEvents()
+
+        nodes_by_id = {item["node_id"]: item for item in self.window.scene.nodes_model}
+        source_node = nodes_by_id[source_id]
+        target_node = nodes_by_id[target_id]
+        edge = self.window.scene.edges_model[0]
+
+        source_right = source_node["x"] + source_node["width"]
+        target_left = target_node["x"]
+        source_top = source_node["y"]
+        source_bottom = source_node["y"] + source_node["height"]
+        target_top = target_node["y"]
+        target_bottom = target_node["y"] + target_node["height"]
+
+        self.assertGreater(edge["c1x"], source_right)
+        self.assertLess(edge["c2x"], target_left)
+        self.assertEqual(edge["route"], "pipe")
+
+        pipe_points = edge["pipe_points"]
+        self.assertGreaterEqual(len(pipe_points), 6)
+        self.assertAlmostEqual(pipe_points[0]["x"], edge["sx"], places=4)
+        self.assertAlmostEqual(pipe_points[0]["y"], edge["sy"], places=4)
+        self.assertAlmostEqual(pipe_points[-1]["x"], edge["tx"], places=4)
+        self.assertAlmostEqual(pipe_points[-1]["y"], edge["ty"], places=4)
+        self.assertGreater(pipe_points[1]["x"], source_right)
+        self.assertLess(pipe_points[-2]["x"], target_left)
+        self.assertAlmostEqual(pipe_points[2]["y"], pipe_points[3]["y"], places=4)
+        self.assertGreater(pipe_points[2]["y"], source_bottom)
+        self.assertLess(pipe_points[2]["y"], target_top)
+        self.assertTrue(pipe_points[2]["y"] < source_top or pipe_points[2]["y"] > source_bottom)
+        self.assertTrue(pipe_points[2]["y"] < target_top or pipe_points[2]["y"] > target_bottom)
+
+    def test_qml_library_filter_slots_apply_category_direction_and_type(self) -> None:
+        self.window.set_library_query("")
+        self.window.set_library_category("Input / Output")
+        self.window.set_library_direction("in")
+        self.window.set_library_data_type("path")
+        self.app.processEvents()
+
+        type_ids = {item["type_id"] for item in self.window.filtered_node_library_items}
+        self.assertIn("io.file_read", type_ids)
+        self.assertIn("io.file_write", type_ids)
+        self.assertIn("io.excel_read", type_ids)
+        self.assertIn("io.excel_write", type_ids)
+        self.assertNotIn("core.logger", type_ids)
+
+    def test_qml_selected_node_inspector_mutations_update_graph_model(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.has_selected_node)
+        property_keys = {item["key"] for item in self.window.selected_node_property_items}
+        self.assertIn("message", property_keys)
+        port_keys = {item["key"] for item in self.window.selected_node_port_items}
+        self.assertIn("exec_in", port_keys)
+
+        self.window.set_selected_node_property("message", "updated in qml inspector")
+        self.window.set_selected_port_exposed("exec_in", False)
+        self.window.set_selected_node_collapsed(True)
+        self.app.processEvents()
+
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(node.properties["message"], "updated in qml inspector")
+        self.assertFalse(node.exposed_ports["exec_in"])
+        self.assertTrue(node.collapsed)
+
+    def test_qml_node_payload_port_list_tracks_exposed_ports(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.start", x=0.0, y=0.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        initial_nodes = self.window.scene.nodes_model
+        start_payload = next(item for item in initial_nodes if item["node_id"] == node_id)
+        initial_ports = {port["key"] for port in start_payload["ports"]}
+        self.assertEqual(initial_ports, {"exec_out", "trigger"})
+
+        self.window.scene.set_exposed_port(node_id, "exec_out", False)
+        self.app.processEvents()
+
+        updated_nodes = self.window.scene.nodes_model
+        updated_payload = next(item for item in updated_nodes if item["node_id"] == node_id)
+        updated_ports = {port["key"] for port in updated_payload["ports"]}
+        self.assertEqual(updated_ports, {"trigger"})
+
+
     def test_script_editor_action_focuses_editor_when_script_node_selected(self) -> None:
         script_node_id = self.window.scene.add_node_from_type("core.python_script", x=80.0, y=60.0)
         self.window.scene.focus_node(script_node_id)
@@ -170,6 +427,29 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertAlmostEqual(self.window.view.zoom, 1.4, places=2)
         self.assertAlmostEqual(self.window.view.center_x, 110.0, delta=5.0)
         self.assertAlmostEqual(self.window.view.center_y, 210.0, delta=5.0)
+
+    def test_qml_create_view_updates_active_view_items_and_allows_switching(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        initial_view_count = len(workspace.views)
+        original_active_view_id = workspace.active_view_id
+
+        with patch("ea_node_editor.ui.main_window.QInputDialog.getText", return_value=("Inspection", True)):
+            self.window.create_view_from_qml()
+        self.app.processEvents()
+
+        updated_workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(updated_workspace.views), initial_view_count + 1)
+        self.assertEqual(self.window.active_view_name, "Inspection")
+
+        active_items = [item for item in self.window.active_view_items if item.get("active")]
+        self.assertEqual(len(active_items), 1)
+        self.assertEqual(active_items[0]["label"], "Inspection")
+        self.assertEqual(updated_workspace.active_view_id, active_items[0]["view_id"])
+
+        self.window.switch_view_from_qml(original_active_view_id)
+        self.app.processEvents()
+        self.assertEqual(self.window.model.project.workspaces[workspace_id].active_view_id, original_active_view_id)
 
     def test_closing_dirty_workspace_honors_unsaved_warning(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()

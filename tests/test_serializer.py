@@ -121,6 +121,93 @@ class SerializerTests(unittest.TestCase):
             serializer.save(str(path_b), model.project)
             self.assertEqual(path_a.read_text(encoding="utf-8"), path_b.read_text(encoding="utf-8"))
 
+    def test_migration_normalizes_conflicting_target_inputs_deterministically(self) -> None:
+        serializer = JsonProjectSerializer()
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_conflict",
+            "name": "conflict",
+            "active_workspace_id": "ws_a",
+            "workspace_order": ["ws_a"],
+            "workspaces": [
+                {
+                    "workspace_id": "ws_a",
+                    "name": "Workspace",
+                    "active_view_id": "view_a",
+                    "views": [
+                        {
+                            "view_id": "view_a",
+                            "name": "V1",
+                            "zoom": 1.0,
+                            "pan_x": 0.0,
+                            "pan_y": 0.0,
+                        }
+                    ],
+                    "nodes": [
+                        {
+                            "node_id": "node_start",
+                            "type_id": "core.start",
+                            "title": "Start",
+                            "x": 0.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"exec_out": True, "trigger": True},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_logger",
+                            "type_id": "core.logger",
+                            "title": "Logger",
+                            "x": 160.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"exec_in": True, "message": True, "exec_out": True},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_end",
+                            "type_id": "core.end",
+                            "title": "End",
+                            "x": 320.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"exec_in": True},
+                            "parent_node_id": None,
+                        },
+                    ],
+                    "edges": [
+                        {
+                            "edge_id": "edge_a",
+                            "source_node_id": "node_start",
+                            "source_port_key": "exec_out",
+                            "target_node_id": "node_end",
+                            "target_port_key": "exec_in",
+                        },
+                        {
+                            "edge_id": "edge_z",
+                            "source_node_id": "node_logger",
+                            "source_port_key": "exec_out",
+                            "target_node_id": "node_end",
+                            "target_port_key": "exec_in",
+                        },
+                    ],
+                }
+            ],
+            "metadata": {},
+        }
+
+        project = serializer.from_document(payload)
+        workspace = project.workspaces["ws_a"]
+        self.assertEqual(set(workspace.edges), {"edge_a"})
+        edge = workspace.edges["edge_a"]
+        self.assertEqual(
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key),
+            ("node_start", "exec_out", "node_end", "exec_in"),
+        )
+
     def test_migrate_v0_fixture_adds_defaults_and_normalizes_workspace_and_view(self) -> None:
         serializer = JsonProjectSerializer()
         payload = json.loads((FIXTURES_DIR / "schema_v0_minimal.json").read_text(encoding="utf-8"))

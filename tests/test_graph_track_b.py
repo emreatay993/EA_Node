@@ -54,6 +54,29 @@ class GraphModelTrackBTests(unittest.TestCase):
         with self.assertRaises(KeyError):
             model.add_edge(workspace_id, node.node_id, "exec_out", "node_missing", "exec_in")
 
+    def test_add_edge_rejects_second_connection_to_same_input_port(self) -> None:
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        source_a = model.add_node(workspace_id, "core.start", "Start", 0.0, 0.0)
+        source_b = model.add_node(workspace_id, "core.logger", "Logger", 120.0, 0.0)
+        target = model.add_node(workspace_id, "core.end", "End", 240.0, 0.0)
+
+        model.add_edge(workspace_id, source_a.node_id, "exec_out", target.node_id, "exec_in")
+        with self.assertRaises(ValueError):
+            model.add_edge(workspace_id, source_b.node_id, "exec_out", target.node_id, "exec_in")
+
+    def test_set_node_title_updates_node_and_marks_workspace_dirty(self) -> None:
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        node = model.add_node(workspace_id, "core.start", "Start", 0.0, 0.0)
+        workspace = model.project.workspaces[workspace_id]
+        workspace.dirty = False
+
+        model.set_node_title(workspace_id, node.node_id, "Renamed Start")
+
+        self.assertEqual(workspace.nodes[node.node_id].title, "Renamed Start")
+        self.assertTrue(workspace.dirty)
+
 
 class GraphSceneTrackBTests(unittest.TestCase):
     @classmethod
