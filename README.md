@@ -1,0 +1,131 @@
+# EA Node Editor
+
+A visual node editor for building engineering dataflow pipelines. Connect nodes to
+read/write files, run calculations, monitor HPC cluster jobs, and automate
+multi-step engineering workflows -- all through a drag-and-drop canvas.
+
+## Quick Start
+
+```bash
+# 1. Create a virtual environment
+python -m venv venv
+venv\Scripts\activate        # Windows
+# source venv/bin/activate   # macOS / Linux
+
+# 2. Install the project and its dependencies
+pip install -e ".[all,dev]"
+
+# 3. Run the application
+python main.py
+```
+
+## Project Structure
+
+```
+ea_node_editor/
+  app.py                  # Application entry point
+  settings.py             # Paths, defaults, autosave interval
+
+  graph/                  # The data model and canvas
+    model.py              # ProjectData, WorkspaceData, NodeInstance, EdgeInstance
+    scene.py              # QGraphicsScene that binds model to the canvas
+    view.py               # Zoom, pan, viewport
+    items/                # Visual items for nodes and edges
+
+  nodes/                  # Node type system
+    types.py              # PortSpec, PropertySpec, NodeTypeSpec, NodePlugin protocol
+    registry.py           # Central registry of all available node types
+    decorators.py         # @node_type, in_port, out_port, prop_* helpers
+    bootstrap.py          # Registers built-in nodes at startup
+    plugin_loader.py      # Discovers and loads user plugins from disk
+    package_manager.py    # Import / export .eanp node packages
+    builtins/
+      core.py             # Start, End, Constant, Logger, Python Script
+      integrations.py     # Excel Read/Write, File Read/Write, Email, Process Run
+      hpc.py              # HPC Submit, Monitor, On Status, Fetch Results
+
+  execution/              # Workflow run engine
+    protocol.py           # Typed event and command definitions
+    worker.py             # Runs the workflow in a separate process
+    client.py             # UI-side client that talks to the worker process
+
+  persistence/
+    serializer.py         # Save / load .sfe project files (versioned JSON)
+
+  ui/                     # User interface (PyQt6 + QML)
+    main_window.py        # Top-level window shell
+    controllers/          # Focused controllers extracted from main_window
+      project_controller.py
+      execution_controller.py
+      inspector_controller.py
+    graph_interactions.py # Connect, delete, rename operations
+    panels/               # Console, inspector, node library, script editor
+    dialogs/              # Workflow settings dialog
+    theme/                # Dark theme tokens and stylesheets
+    editor/               # Code editor widget
+
+  ui_qml/                 # QML shell and Python-QML bridges
+  workspace/              # Workspace ordering and lifecycle
+  telemetry/              # CPU/RAM metrics, performance harness
+
+tests/                    # Unit and integration tests
+docs/specs/               # Requirements, ADRs, work packets
+```
+
+## Creating a Custom Node
+
+Drop a Python file into the plugins folder (`~/.ea_node_editor/plugins/` on
+Windows that is `%APPDATA%/EA_Node_Editor/plugins/`). The file should define one
+or more classes that follow the `NodePlugin` protocol:
+
+```python
+from ea_node_editor.nodes import node_type, in_port, out_port, prop_float
+from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+
+@node_type(
+    type_id="custom.multiply",
+    display_name="Multiply",
+    category="Math",
+    icon="calculate",
+    ports=(
+        in_port("a", data_type="float"),
+        in_port("b", data_type="float"),
+        out_port("result", data_type="float"),
+    ),
+    properties=(
+        prop_float("factor", 1.0, "Scale Factor"),
+    ),
+    description="Multiplies two numbers and applies a scale factor.",
+)
+class MultiplyNode:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        a = float(ctx.inputs.get("a", 0))
+        b = float(ctx.inputs.get("b", 0))
+        factor = float(ctx.properties.get("factor", 1.0))
+        return NodeResult(outputs={"result": a * b * factor})
+```
+
+Restart the application and the node will appear in the Node Library under the
+"Math" category.
+
+## Sharing Node Packages
+
+- **Export:** File > Export Node Package -- bundles selected nodes into a `.eanp` file
+- **Import:** File > Import Node Package -- installs a `.eanp` file into your plugins folder
+
+## Running Tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## Building a Windows Installer
+
+See [docs/PACKAGING_WINDOWS.md](docs/PACKAGING_WINDOWS.md) for PyInstaller
+packaging, installer creation, and code signing instructions.
+
+## Documentation
+
+- [Spec Pack Index](docs/specs/INDEX.md) -- requirements, ADRs, traceability
+- [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
+- [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments

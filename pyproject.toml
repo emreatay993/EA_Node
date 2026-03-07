@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "ea-node-editor"
+version = "0.1.0"
+description = "A visual node editor for engineering dataflow pipelines, HPC job monitoring, and calculation workflows."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.5",
+    "PyQt6-QmlIntegration>=6.5",
+]
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.1"]
+metrics = ["psutil>=5.9"]
+hpc = ["paramiko>=3.3"]
+all = [
+    "openpyxl>=3.1",
+    "psutil>=5.9",
+    "paramiko>=3.3",
+]
+dev = [
+    "pytest>=7.4",
+    "pyinstaller>=6.0",
+    "openpyxl>=3.1",
+    "psutil>=5.9",
+    "paramiko>=3.3",
+]
+
+[project.scripts]
+ea-node-editor = "ea_node_editor.app:run"
+
+[project.entry-points."ea_node_editor.plugins"]
+
+[tool.setuptools.packages.find]
+include = ["ea_node_editor*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
