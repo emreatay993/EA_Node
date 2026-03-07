@@ -16,7 +16,7 @@ from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel, NodeInstance, ProjectData
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import (
     AUTOSAVE_INTERVAL_MS,
@@ -338,6 +338,16 @@ class MainWindow(QMainWindow):
                 "category": spec.category,
                 "icon": spec.icon,
                 "description": spec.description,
+                "ports": [
+                    {
+                        "key": port.key,
+                        "direction": port.direction,
+                        "kind": port.kind,
+                        "data_type": port.data_type,
+                        "exposed": bool(port.exposed),
+                    }
+                    for port in spec.ports
+                ],
             }
             for spec in specs
         ]
@@ -360,6 +370,7 @@ class MainWindow(QMainWindow):
                         "display_name": node_item["display_name"],
                         "icon": node_item.get("icon", ""),
                         "description": node_item["description"],
+                        "ports": list(node_item.get("ports", [])),
                     }
                 )
         return payload
@@ -525,6 +536,37 @@ class MainWindow(QMainWindow):
     @pyqtSlot(str)
     def add_node_from_library(self, type_id: str) -> None:
         self._add_node_from_library(type_id)
+
+    @pyqtSlot(str, float, float, str, str, str, str, result=bool)
+    def drop_node_from_library(
+        self,
+        type_id: str,
+        scene_x: float,
+        scene_y: float,
+        target_mode: str,
+        target_node_id: str,
+        target_port_key: str,
+        target_edge_id: str,
+    ) -> bool:
+        created_node_id = self._insert_library_node(type_id, scene_x, scene_y)
+        if not created_node_id:
+            return False
+
+        mode = str(target_mode).strip().lower()
+        if mode == "port":
+            self._auto_connect_dropped_node_to_port(
+                created_node_id,
+                str(target_node_id).strip(),
+                str(target_port_key).strip(),
+            )
+        elif mode == "edge":
+            self._auto_connect_dropped_node_to_edge(
+                created_node_id,
+                str(target_edge_id).strip(),
+            )
+
+        self._refresh_workspace_tabs()
+        return True
 
     @pyqtSlot()
     def run_from_qml(self) -> None:
@@ -851,8 +893,263 @@ class MainWindow(QMainWindow):
 
     def _add_node_from_library(self, type_id: str) -> None:
         center = self.view.mapToScene(self.view.viewport().rect().center())
-        self.scene.add_node_from_type(type_id, x=center.x(), y=center.y())
-        self._refresh_workspace_tabs()
+        if self._insert_library_node(type_id, center.x(), center.y()):
+            self._refresh_workspace_tabs()
+
+    def _insert_library_node(self, type_id: str, x: float, y: float) -> str:
+        normalized_type = str(type_id).strip()
+        if not normalized_type:
+            return ""
+        try:
+            return self.scene.add_node_from_type(normalized_type, x=float(x), y=float(y))
+        except (KeyError, RuntimeError, ValueError):
+            return ""
+
+    def _active_workspace(self):
+        workspace_id = self.workspace_manager.active_workspace_id()
+        return self.model.project.workspaces.get(workspace_id)
+
+    @staticmethod
+    def _find_port(spec: NodeTypeSpec, port_key: str) -> PortSpec | None:
+        key = str(port_key).strip()
+        for port in spec.ports:
+            if port.key == key:
+                return port
+        return None
+
+    @staticmethod
+    def _is_flow_kind(kind: str) -> bool:
+        return kind in {"exec", "completed", "failed"}
+
+    @classmethod
+    def _are_port_kinds_compatible(cls, source_kind: str, target_kind: str) -> bool:
+        if not source_kind or not target_kind:
+            return False
+        if cls._is_flow_kind(source_kind) or cls._is_flow_kind(target_kind):
+            return source_kind == target_kind
+        return True
+
+    @staticmethod
+    def _are_data_types_compatible(source_data_type: str, target_data_type: str) -> bool:
+        source_value = str(source_data_type).strip().lower()
+        target_value = str(target_data_type).strip().lower()
+        if not source_value or not target_value:
+            return False
+        if source_value == "any" or target_value == "any":
+            return True
+        return source_value == target_value
+
+    @classmethod
+    def _ports_compatible(cls, source_port: PortSpec, target_port: PortSpec) -> bool:
+        return cls._are_port_kinds_compatible(source_port.kind, target_port.kind) and cls._are_data_types_compatible(
+            source_port.data_type,
+            target_port.data_type,
+        )
+
+    @staticmethod
+    def _is_port_exposed(node: NodeInstance, port: PortSpec) -> bool:
+        return bool(node.exposed_ports.get(port.key, port.exposed))
+
+    @staticmethod
+    def _input_port_is_available(workspace, node_id: str, port_key: str) -> bool:
+        for edge in workspace.edges.values():
+            if edge.target_node_id == node_id and edge.target_port_key == port_key:
+                return False
+        return True
+
+    def _prompt_connection_candidate(
+        self,
+        *,
+        title: str,
+        label: str,
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+
+        options = [str(candidate.get("label", "")).strip() or f"Option {index + 1}" for index, candidate in enumerate(candidates)]
+        selected, ok = QInputDialog.getItem(self, title, label, options, 0, False)
+        if not ok:
+            return None
+        selected_text = str(selected).strip()
+        for index, option in enumerate(options):
+            if option == selected_text:
+                return candidates[index]
+        return None
+
+    def _auto_connect_dropped_node_to_port(
+        self,
+        new_node_id: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> bool:
+        workspace = self._active_workspace()
+        if workspace is None:
+            return False
+
+        new_node = workspace.nodes.get(new_node_id)
+        target_node = workspace.nodes.get(target_node_id)
+        if new_node is None or target_node is None:
+            return False
+
+        new_spec = self.registry.get_spec(new_node.type_id)
+        target_spec = self.registry.get_spec(target_node.type_id)
+        target_port = self._find_port(target_spec, target_port_key)
+        if target_port is None:
+            return False
+
+        candidates: list[dict[str, Any]] = []
+        if target_port.direction == "in":
+            if not self._input_port_is_available(workspace, target_node.node_id, target_port.key):
+                return False
+            for port in new_spec.ports:
+                if port.direction != "out" or not self._is_port_exposed(new_node, port):
+                    continue
+                if not self._ports_compatible(port, target_port):
+                    continue
+                candidates.append(
+                    {
+                        "source_node_id": new_node.node_id,
+                        "source_port_key": port.key,
+                        "target_node_id": target_node.node_id,
+                        "target_port_key": target_port.key,
+                        "label": f"{new_spec.display_name}.{port.key} -> {target_spec.display_name}.{target_port.key}",
+                    }
+                )
+        elif target_port.direction == "out":
+            for port in new_spec.ports:
+                if port.direction != "in" or not self._is_port_exposed(new_node, port):
+                    continue
+                if not self._ports_compatible(target_port, port):
+                    continue
+                candidates.append(
+                    {
+                        "source_node_id": target_node.node_id,
+                        "source_port_key": target_port.key,
+                        "target_node_id": new_node.node_id,
+                        "target_port_key": port.key,
+                        "label": f"{target_spec.display_name}.{target_port.key} -> {new_spec.display_name}.{port.key}",
+                    }
+                )
+        else:
+            return False
+
+        selected = self._prompt_connection_candidate(
+            title="Auto-Connect Port",
+            label="Choose connection:",
+            candidates=candidates,
+        )
+        if selected is None:
+            return False
+
+        try:
+            self.scene.add_edge(
+                selected["source_node_id"],
+                selected["source_port_key"],
+                selected["target_node_id"],
+                selected["target_port_key"],
+            )
+            return True
+        except (KeyError, ValueError):
+            return False
+
+    def _auto_connect_dropped_node_to_edge(self, new_node_id: str, target_edge_id: str) -> bool:
+        workspace = self._active_workspace()
+        if workspace is None:
+            return False
+        edge = workspace.edges.get(target_edge_id)
+        new_node = workspace.nodes.get(new_node_id)
+        if edge is None or new_node is None:
+            return False
+
+        source_node = workspace.nodes.get(edge.source_node_id)
+        target_node = workspace.nodes.get(edge.target_node_id)
+        if source_node is None or target_node is None:
+            return False
+
+        source_spec = self.registry.get_spec(source_node.type_id)
+        target_spec = self.registry.get_spec(target_node.type_id)
+        new_spec = self.registry.get_spec(new_node.type_id)
+        source_port = self._find_port(source_spec, edge.source_port_key)
+        target_port = self._find_port(target_spec, edge.target_port_key)
+        if source_port is None or target_port is None:
+            return False
+
+        candidate_inputs = [
+            port
+            for port in new_spec.ports
+            if port.direction == "in" and self._is_port_exposed(new_node, port) and self._ports_compatible(source_port, port)
+        ]
+        candidate_outputs = [
+            port
+            for port in new_spec.ports
+            if port.direction == "out" and self._is_port_exposed(new_node, port) and self._ports_compatible(port, target_port)
+        ]
+
+        candidates: list[dict[str, Any]] = []
+        for input_port in candidate_inputs:
+            for output_port in candidate_outputs:
+                candidates.append(
+                    {
+                        "new_input_port": input_port.key,
+                        "new_output_port": output_port.key,
+                        "label": (
+                            f"{source_spec.display_name}.{source_port.key} -> {new_spec.display_name}.{input_port.key}, "
+                            f"{new_spec.display_name}.{output_port.key} -> {target_spec.display_name}.{target_port.key}"
+                        ),
+                    }
+                )
+
+        selected = self._prompt_connection_candidate(
+            title="Auto-Insert On Edge",
+            label="Choose inserted wiring:",
+            candidates=candidates,
+        )
+        if selected is None:
+            return False
+
+        original = {
+            "source_node_id": edge.source_node_id,
+            "source_port_key": edge.source_port_key,
+            "target_node_id": edge.target_node_id,
+            "target_port_key": edge.target_port_key,
+        }
+        created_edge_ids: list[str] = []
+        removed_original = False
+        try:
+            self.scene.remove_edge(target_edge_id)
+            removed_original = True
+            first_id = self.scene.add_edge(
+                original["source_node_id"],
+                original["source_port_key"],
+                new_node_id,
+                selected["new_input_port"],
+            )
+            created_edge_ids.append(first_id)
+            second_id = self.scene.add_edge(
+                new_node_id,
+                selected["new_output_port"],
+                original["target_node_id"],
+                original["target_port_key"],
+            )
+            created_edge_ids.append(second_id)
+            return True
+        except (KeyError, ValueError):
+            for edge_id in created_edge_ids:
+                self.scene.remove_edge(edge_id)
+            if removed_original:
+                try:
+                    self.scene.add_edge(
+                        original["source_node_id"],
+                        original["source_port_key"],
+                        original["target_node_id"],
+                        original["target_port_key"],
+                    )
+                except (KeyError, ValueError):
+                    pass
+            return False
 
     def _on_scene_node_selected(self, node_id: str) -> None:
         workspace = self.model.project.workspaces[self.workspace_manager.active_workspace_id()]

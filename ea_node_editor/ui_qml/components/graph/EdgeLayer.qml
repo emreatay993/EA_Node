@@ -9,6 +9,7 @@ Item {
     property var nodes: []
     property var dragOffsets: ({})
     property var selectedEdgeIds: []
+    property string previewEdgeId: ""
     property bool inputEnabled: true
 
     signal edgeClicked(string edgeId, bool additive)
@@ -271,6 +272,7 @@ Item {
                 var edge = edgesList[i];
                 var geometry = root._edgeGeometry(edge, nodeById);
                 var selected = root._isSelected(edge.edge_id);
+                var previewed = root.previewEdgeId && root.previewEdgeId === edge.edge_id;
 
                 ctx.beginPath();
                 if (geometry.route === "pipe") {
@@ -297,8 +299,10 @@ Item {
                         root.sceneToScreenY(geometry.ty)
                     );
                 }
-                ctx.strokeStyle = selected ? "#A7D8FF" : (edge.color || "#7AA8FF");
-                ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : 2.0) * zoom);
+                ctx.strokeStyle = selected
+                    ? "#A7D8FF"
+                    : (previewed ? "#FFD173" : (edge.color || "#7AA8FF"));
+                ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
                 ctx.stroke();
             }
 
@@ -332,6 +336,7 @@ Item {
     onNodesChanged: requestRedraw()
     onDragOffsetsChanged: requestRedraw()
     onSelectedEdgeIdsChanged: requestRedraw()
+    onPreviewEdgeIdChanged: requestRedraw()
 
     Connections {
         target: root.viewBridge

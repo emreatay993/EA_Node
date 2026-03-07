@@ -5,6 +5,7 @@ Rectangle {
     property var nodeData: null
     property real worldOffset: 0
     property var hoveredPort: null
+    property var previewPort: null
     property var pendingPort: null
 
     signal nodeClicked(string nodeId, bool additive)
@@ -60,10 +61,16 @@ Rectangle {
     }
 
     function isHoveredPort(direction, portKey) {
-        return !!card.hoveredPort
+        var hovered = !!card.hoveredPort
             && card.hoveredPort.node_id === card.nodeData.node_id
             && card.hoveredPort.port_key === portKey
             && card.hoveredPort.direction === direction;
+        if (hovered)
+            return true;
+        return !!card.previewPort
+            && card.previewPort.node_id === card.nodeData.node_id
+            && card.previewPort.port_key === portKey
+            && card.previewPort.direction === direction;
     }
 
     function isConnectedPort(portData) {

@@ -73,6 +73,10 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("remove_node_from_qml(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("rename_node_from_qml(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("delete_selected_graph_items(QVariantList)"), 0)
+        self.assertGreaterEqual(
+            meta.indexOfMethod("drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
+            0,
+        )
 
         with patch("ea_node_editor.ui.main_window.WorkflowSettingsDialog.exec", return_value=0):
             QMetaObject.invokeMethod(
@@ -227,6 +231,138 @@ class MainWindowShellTests(unittest.TestCase):
 
         created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "message")
         self.assertFalse(created)
+
+    def test_qml_drop_node_from_library_places_node_at_exact_scene_position(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        placed = self.window.drop_node_from_library(
+            "core.start",
+            123.5,
+            456.25,
+            "",
+            "",
+            "",
+            "",
+        )
+        self.assertTrue(placed)
+        self.app.processEvents()
+
+        node_id = self.window.scene.selected_node_id()
+        self.assertTrue(node_id)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        node = workspace.nodes[node_id]
+        self.assertAlmostEqual(node.x, 123.5, places=4)
+        self.assertAlmostEqual(node.y, 456.25, places=4)
+        self.assertEqual(len(workspace.edges), 0)
+
+    def test_qml_drop_node_from_library_port_target_autoconnects_single_candidate(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        target_id = self.window.scene.add_node_from_type("core.end", x=360.0, y=40.0)
+        self.app.processEvents()
+
+        created = self.window.drop_node_from_library(
+            "core.start",
+            120.0,
+            60.0,
+            "port",
+            target_id,
+            "exec_in",
+            "",
+        )
+        self.assertTrue(created)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.edges), 1)
+        new_node_id = self.window.scene.selected_node_id()
+        self.assertTrue(new_node_id)
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.source_node_id, new_node_id)
+        self.assertEqual(edge.source_port_key, "exec_out")
+        self.assertEqual(edge.target_node_id, target_id)
+        self.assertEqual(edge.target_port_key, "exec_in")
+
+    def test_qml_drop_node_from_library_port_target_ambiguous_uses_prompt_selection(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        target_id = self.window.scene.add_node_from_type("core.logger", x=360.0, y=40.0)
+        self.app.processEvents()
+
+        with patch(
+            "ea_node_editor.ui.main_window.QInputDialog.getItem",
+            return_value=("Constant.as_text -> Logger.message", True),
+        ):
+            created = self.window.drop_node_from_library(
+                "core.constant",
+                160.0,
+                90.0,
+                "port",
+                target_id,
+                "message",
+                "",
+            )
+        self.assertTrue(created)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.edges), 1)
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.target_node_id, target_id)
+        self.assertEqual(edge.target_port_key, "message")
+        self.assertEqual(edge.source_port_key, "as_text")
+
+    def test_qml_drop_node_from_library_edge_target_inserts_inline(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=380.0, y=20.0)
+        edge_id = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.app.processEvents()
+
+        created = self.window.drop_node_from_library(
+            "core.logger",
+            210.0,
+            90.0,
+            "edge",
+            "",
+            "",
+            edge_id,
+        )
+        self.assertTrue(created)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertNotIn(edge_id, workspace.edges)
+        self.assertEqual(len(workspace.edges), 2)
+        new_node_id = self.window.scene.selected_node_id()
+        self.assertTrue(new_node_id)
+
+        edge_tuples = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in workspace.edges.values()
+        }
+        self.assertIn((source_id, "exec_out", new_node_id, "exec_in"), edge_tuples)
+        self.assertIn((new_node_id, "exec_out", target_id, "exec_in"), edge_tuples)
+
+    def test_qml_drop_node_from_library_falls_back_to_node_only_when_no_valid_connection(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        target_id = self.window.scene.add_node_from_type("core.logger", x=320.0, y=20.0)
+        self.app.processEvents()
+
+        created = self.window.drop_node_from_library(
+            "core.start",
+            120.0,
+            140.0,
+            "port",
+            target_id,
+            "exec_out",
+            "",
+        )
+        self.assertTrue(created)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.edges), 0)
+        new_node_id = self.window.scene.selected_node_id()
+        self.assertTrue(new_node_id)
+        self.assertIn(new_node_id, workspace.nodes)
 
     def test_qml_remove_edge_from_qml_mutates_model(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

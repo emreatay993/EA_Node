@@ -10,6 +10,11 @@ Item {
     property var liveDragOffsets: ({})
     property var selectedEdgeIds: []
     property var hoveredPort: null
+    property var dropPreviewPort: null
+    property string dropPreviewEdgeId: ""
+    property var dropPreviewNodePayload: null
+    property real dropPreviewScreenX: -1
+    property real dropPreviewScreenY: -1
     property var pendingConnectionPort: null
     property bool edgeContextVisible: false
     property bool nodeContextVisible: false
@@ -31,6 +36,16 @@ Item {
     function screenToSceneY(screenY) {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         return (viewBridge ? viewBridge.center_y : 0.0) + (screenY - root.height * 0.5) / Math.max(0.1, zoom);
+    }
+
+    function sceneToScreenX(sceneX) {
+        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        return root.width * 0.5 + (sceneX - (viewBridge ? viewBridge.center_x : 0.0)) * zoom;
+    }
+
+    function sceneToScreenY(sceneY) {
+        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        return root.height * 0.5 + (sceneY - (viewBridge ? viewBridge.center_y : 0.0)) * zoom;
     }
 
     function _normalizeEdgeIds(values) {
@@ -196,6 +211,346 @@ Item {
             return false;
         }
         return true;
+    }
+
+    function _isFlowKind(kind) {
+        return kind === "exec" || kind === "completed" || kind === "failed";
+    }
+
+    function _areDataTypesCompatible(sourceType, targetType) {
+        var sourceValue = String(sourceType || "").trim().toLowerCase();
+        var targetValue = String(targetType || "").trim().toLowerCase();
+        if (!sourceValue || !targetValue)
+            return false;
+        if (sourceValue === "any" || targetValue === "any")
+            return true;
+        return sourceValue === targetValue;
+    }
+
+    function _areAutoConnectKindsCompatible(sourceKind, targetKind) {
+        var sourceValue = String(sourceKind || "").trim();
+        var targetValue = String(targetKind || "").trim();
+        if (!sourceValue || !targetValue)
+            return false;
+        if (_isFlowKind(sourceValue) || _isFlowKind(targetValue))
+            return sourceValue === targetValue;
+        return true;
+    }
+
+    function _portsCompatibleForAuto(sourcePort, targetPort) {
+        if (!sourcePort || !targetPort)
+            return false;
+        return _areAutoConnectKindsCompatible(sourcePort.kind, targetPort.kind)
+            && _areDataTypesCompatible(sourcePort.data_type, targetPort.data_type);
+    }
+
+    function _libraryPorts(payload) {
+        var ports = [];
+        if (!payload || !payload.ports)
+            return ports;
+        for (var i = 0; i < payload.ports.length; i++) {
+            var sourcePort = payload.ports[i];
+            if (!sourcePort)
+                continue;
+            ports.push(
+                {
+                    "key": String(sourcePort.key || ""),
+                    "direction": String(sourcePort.direction || ""),
+                    "kind": String(sourcePort.kind || ""),
+                    "data_type": String(sourcePort.data_type || ""),
+                    "exposed": sourcePort.exposed !== false
+                }
+            );
+        }
+        return ports;
+    }
+
+    function _scenePortData(nodeId, portKey) {
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (!node || node.node_id !== nodeId)
+                continue;
+            var ports = node.ports || [];
+            for (var j = 0; j < ports.length; j++) {
+                var port = ports[j];
+                if (port && port.key === portKey)
+                    return port;
+            }
+            return null;
+        }
+        return null;
+    }
+
+    function _scenePortPoint(node, port, inputRow, outputRow) {
+        if (!node || !port)
+            return {"x": 0.0, "y": 0.0};
+        if (node.collapsed) {
+            return {
+                "x": port.direction === "in" ? node.x : (node.x + node.width),
+                "y": node.y + 18.0
+            };
+        }
+        return {
+            "x": port.direction === "in"
+                ? node.x + 11.5
+                : node.x + node.width - 11.5,
+            "y": node.y + 36.0 + 18.0 * (port.direction === "in" ? inputRow : outputRow)
+        };
+    }
+
+    function _hasCompatiblePortForTarget(targetPort, nodePorts) {
+        if (!targetPort || !nodePorts || !nodePorts.length)
+            return false;
+        if (targetPort.direction === "in" && Number(targetPort.connection_count || 0) > 0)
+            return false;
+
+        for (var i = 0; i < nodePorts.length; i++) {
+            var nodePort = nodePorts[i];
+            if (!nodePort || nodePort.exposed === false)
+                continue;
+            if (targetPort.direction === "in") {
+                if (nodePort.direction !== "out")
+                    continue;
+                if (_portsCompatibleForAuto(nodePort, targetPort))
+                    return true;
+            } else {
+                if (nodePort.direction !== "in")
+                    continue;
+                if (_portsCompatibleForAuto(targetPort, nodePort))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    function _portDropTargetAtScreen(screenX, screenY, payload) {
+        var nodePorts = _libraryPorts(payload);
+        if (!nodePorts.length)
+            return null;
+
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var threshold = 12.0;
+        var best = null;
+        var bestDistance = Number.POSITIVE_INFINITY;
+
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (!node)
+                continue;
+            var ports = node.ports || [];
+            var inputRow = 0;
+            var outputRow = 0;
+            for (var j = 0; j < ports.length; j++) {
+                var port = ports[j];
+                if (!port)
+                    continue;
+                var point = _scenePortPoint(node, port, inputRow, outputRow);
+                if (port.direction === "in")
+                    inputRow += 1;
+                else
+                    outputRow += 1;
+                var dx = screenX - sceneToScreenX(point.x);
+                var dy = screenY - sceneToScreenY(point.y);
+                var distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > threshold || distance >= bestDistance)
+                    continue;
+                if (!_hasCompatiblePortForTarget(port, nodePorts))
+                    continue;
+                bestDistance = distance;
+                best = {
+                    "mode": "port",
+                    "node_id": node.node_id,
+                    "port_key": port.key,
+                    "direction": port.direction,
+                    "edge_id": ""
+                };
+            }
+        }
+        return best;
+    }
+
+    function _edgeSupportsDrop(edgeId, payload) {
+        if (!edgeId)
+            return false;
+        var edge = null;
+        var edges = root.edgePayload || [];
+        for (var i = 0; i < edges.length; i++) {
+            if (edges[i].edge_id === edgeId) {
+                edge = edges[i];
+                break;
+            }
+        }
+        if (!edge)
+            return false;
+        var sourcePort = _scenePortData(edge.source_node_id, edge.source_port_key);
+        var targetPort = _scenePortData(edge.target_node_id, edge.target_port_key);
+        if (!sourcePort || !targetPort)
+            return false;
+        var nodePorts = _libraryPorts(payload);
+        var hasInputCandidate = false;
+        var hasOutputCandidate = false;
+        for (var j = 0; j < nodePorts.length; j++) {
+            var nodePort = nodePorts[j];
+            if (!nodePort || nodePort.exposed === false)
+                continue;
+            if (!hasInputCandidate && nodePort.direction === "in" && _portsCompatibleForAuto(sourcePort, nodePort))
+                hasInputCandidate = true;
+            if (!hasOutputCandidate && nodePort.direction === "out" && _portsCompatibleForAuto(nodePort, targetPort))
+                hasOutputCandidate = true;
+            if (hasInputCandidate && hasOutputCandidate)
+                return true;
+        }
+        return false;
+    }
+
+    function _computeLibraryDropTarget(screenX, screenY, payload) {
+        var portTarget = _portDropTargetAtScreen(screenX, screenY, payload);
+        if (portTarget)
+            return portTarget;
+        var edgeId = edgeLayer.edgeAtScreen(screenX, screenY);
+        if (edgeId && _edgeSupportsDrop(edgeId, payload)) {
+            return {
+                "mode": "edge",
+                "node_id": "",
+                "port_key": "",
+                "direction": "",
+                "edge_id": edgeId
+            };
+        }
+        return {
+            "mode": "",
+            "node_id": "",
+            "port_key": "",
+            "direction": "",
+            "edge_id": ""
+        };
+    }
+
+    function _previewNodeMetrics(payload) {
+        if (!payload)
+            return {"portCount": 1, "worldWidth": 210.0, "worldHeight": 50.0};
+        var ports = _libraryPorts(payload);
+        var inputCount = 0;
+        var outputCount = 0;
+        for (var i = 0; i < ports.length; i++) {
+            var port = ports[i];
+            if (!port || port.exposed === false)
+                continue;
+            if (port.direction === "in")
+                inputCount += 1;
+            else if (port.direction === "out")
+                outputCount += 1;
+        }
+        var portCount = Math.max(inputCount, outputCount, 1);
+        return {
+            "portCount": portCount,
+            "worldWidth": 210.0,
+            "worldHeight": 24.0 + portCount * 18.0 + 8.0
+        };
+    }
+
+    function _previewVisiblePorts(payload, direction) {
+        var source = _libraryPorts(payload);
+        var output = [];
+        for (var i = 0; i < source.length; i++) {
+            var port = source[i];
+            if (!port || port.exposed === false || port.direction !== direction)
+                continue;
+            output.push(port);
+        }
+        return output;
+    }
+
+    function previewInputPorts() {
+        return _previewVisiblePorts(root.dropPreviewNodePayload, "in");
+    }
+
+    function previewOutputPorts() {
+        return _previewVisiblePorts(root.dropPreviewNodePayload, "out");
+    }
+
+    function previewPortColor(kind) {
+        if (kind === "exec")
+            return "#67D487";
+        if (kind === "completed")
+            return "#E4CE7D";
+        if (kind === "failed")
+            return "#D94F4F";
+        return "#7AA8FF";
+    }
+
+    function previewNodeScreenWidth() {
+        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
+        return metrics.worldWidth * zoom;
+    }
+
+    function previewNodeScreenHeight() {
+        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
+        return metrics.worldHeight * zoom;
+    }
+
+    function previewPortLabelsVisible() {
+        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        return zoom >= 0.95 && root.previewNodeScreenWidth() >= 155;
+    }
+
+    function clearLibraryDropPreview() {
+        root.dropPreviewPort = null;
+        root.dropPreviewEdgeId = "";
+        root.dropPreviewNodePayload = null;
+        root.dropPreviewScreenX = -1;
+        root.dropPreviewScreenY = -1;
+    }
+
+    function updateLibraryDropPreview(screenX, screenY, payload) {
+        if (!payload) {
+            clearLibraryDropPreview();
+            return;
+        }
+        root.dropPreviewNodePayload = payload;
+        root.dropPreviewScreenX = Number(screenX);
+        root.dropPreviewScreenY = Number(screenY);
+        var target = _computeLibraryDropTarget(screenX, screenY, payload);
+        root.dropPreviewPort = target.mode === "port"
+            ? {
+                "node_id": target.node_id,
+                "port_key": target.port_key,
+                "direction": target.direction
+            }
+            : null;
+        root.dropPreviewEdgeId = target.mode === "edge" ? target.edge_id : "";
+    }
+
+    function isPointInCanvas(screenX, screenY) {
+        return Number(screenX) >= 0
+            && Number(screenY) >= 0
+            && Number(screenX) <= root.width
+            && Number(screenY) <= root.height;
+    }
+
+    function performLibraryDrop(screenX, screenY, payload) {
+        if (!payload || !mainWindowBridge || !payload.type_id) {
+            clearLibraryDropPreview();
+            return;
+        }
+        root.forceActiveFocus();
+        root._closeContextMenus();
+        root.clearPendingConnection();
+        var target = root._computeLibraryDropTarget(screenX, screenY, payload);
+        mainWindowBridge.drop_node_from_library(
+            String(payload.type_id || ""),
+            root.screenToSceneX(screenX),
+            root.screenToSceneY(screenY),
+            target.mode || "",
+            target.node_id || "",
+            target.port_key || "",
+            target.edge_id || ""
+        );
+        root.clearEdgeSelection();
+        root.clearLibraryDropPreview();
     }
 
     function _samePort(a, b) {
@@ -398,6 +753,7 @@ Item {
         nodes: sceneBridge ? sceneBridge.nodes_model : []
         dragOffsets: root.liveDragOffsets
         selectedEdgeIds: root.selectedEdgeIds
+        previewEdgeId: root.dropPreviewEdgeId
         inputEnabled: !(root.edgeContextVisible || root.nodeContextVisible)
 
         onEdgeClicked: function(edgeId, additive) {
@@ -411,6 +767,145 @@ Item {
         }
         onEdgeContextRequested: function(edgeId, screenX, screenY) {
             root._openEdgeContext(edgeId, screenX, screenY);
+        }
+    }
+
+    Rectangle {
+        id: dragNodePreview
+        visible: !!root.dropPreviewNodePayload
+        z: 34
+        x: root.dropPreviewScreenX
+        y: root.dropPreviewScreenY
+        width: root.previewNodeScreenWidth()
+        height: root.previewNodeScreenHeight()
+        radius: Math.max(4, 6 * (viewBridge ? viewBridge.zoom_value : 1.0))
+        color: "#AA2A3340"
+        border.width: 1
+        border.color: "#80CFF5"
+        clip: true
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            height: Math.max(8, 4 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            color: "#66A4D8"
+        }
+
+        Rectangle {
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: Math.max(8, 4 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            height: Math.max(14, 24 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            color: "#7A2F3948"
+        }
+
+        Text {
+            anchors.left: parent.left
+            anchors.leftMargin: Math.max(4, 10 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            anchors.right: parent.right
+            anchors.rightMargin: Math.max(4, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            anchors.top: parent.top
+            anchors.topMargin: Math.max(10, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            text: root.dropPreviewNodePayload
+                ? String(root.dropPreviewNodePayload.display_name || root.dropPreviewNodePayload.type_id || "")
+                : ""
+            color: "#EAF3FF"
+            font.bold: true
+            font.pixelSize: Math.max(10, Math.min(16, 12 * (viewBridge ? viewBridge.zoom_value : 1.0)))
+            elide: Text.ElideRight
+        }
+
+        Item {
+            id: previewPortsLayer
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.topMargin: Math.max(10, 30 * (viewBridge ? viewBridge.zoom_value : 1.0))
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Math.max(2, 6 * (viewBridge ? viewBridge.zoom_value : 1.0))
+
+            Column {
+                id: previewInputColumn
+                anchors.left: parent.left
+                anchors.leftMargin: Math.max(4, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
+                anchors.top: parent.top
+                spacing: 0
+
+                Repeater {
+                    model: root.previewInputPorts()
+                    delegate: Item {
+                        width: Math.max(40, previewPortsLayer.width * 0.45)
+                        height: Math.max(8, 18 * (viewBridge ? viewBridge.zoom_value : 1.0))
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.leftMargin: 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.max(5, Math.min(10, 8 * (viewBridge ? viewBridge.zoom_value : 1.0)))
+                            height: width
+                            radius: width * 0.5
+                            color: "transparent"
+                            border.width: 1
+                            border.color: root.previewPortColor(modelData.kind)
+                        }
+
+                        Text {
+                            visible: root.previewPortLabelsVisible()
+                            anchors.left: parent.left
+                            anchors.leftMargin: Math.max(7, 12 * (viewBridge ? viewBridge.zoom_value : 1.0))
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: String(modelData.key || "")
+                            color: "#C6D1E1"
+                            font.pixelSize: Math.max(7, Math.min(11, 10 * (viewBridge ? viewBridge.zoom_value : 1.0)))
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+
+            Column {
+                id: previewOutputColumn
+                anchors.right: parent.right
+                anchors.rightMargin: Math.max(4, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
+                anchors.top: parent.top
+                spacing: 0
+
+                Repeater {
+                    model: root.previewOutputPorts()
+                    delegate: Item {
+                        width: Math.max(40, previewPortsLayer.width * 0.45)
+                        height: Math.max(8, 18 * (viewBridge ? viewBridge.zoom_value : 1.0))
+
+                        Rectangle {
+                            anchors.right: parent.right
+                            anchors.rightMargin: 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: Math.max(5, Math.min(10, 8 * (viewBridge ? viewBridge.zoom_value : 1.0)))
+                            height: width
+                            radius: width * 0.5
+                            color: "transparent"
+                            border.width: 1
+                            border.color: root.previewPortColor(modelData.kind)
+                        }
+
+                        Text {
+                            visible: root.previewPortLabelsVisible()
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.rightMargin: Math.max(7, 12 * (viewBridge ? viewBridge.zoom_value : 1.0))
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: String(modelData.key || "")
+                            color: "#C6D1E1"
+                            font.pixelSize: Math.max(7, Math.min(11, 10 * (viewBridge ? viewBridge.zoom_value : 1.0)))
+                            horizontalAlignment: Text.AlignRight
+                            elide: Text.ElideLeft
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -429,6 +924,7 @@ Item {
                 nodeData: modelData
                 worldOffset: root.worldOffset
                 hoveredPort: root.hoveredPort
+                previewPort: root.dropPreviewPort
                 pendingPort: root.pendingConnectionPort
 
                 onNodeClicked: function(nodeId, additive) {
@@ -771,6 +1267,7 @@ Item {
         root.liveDragOffsets = ({});
         root.pendingConnectionPort = null;
         root.hoveredPort = null;
+        root.clearLibraryDropPreview();
         root._syncEdgePayload();
     }
 

@@ -212,14 +212,41 @@ Rectangle {
                         model: mainWindow.grouped_node_library_items
                         spacing: 2
                         delegate: Rectangle {
+                            id: libraryRow
                             property bool isCategory: modelData.kind === "category"
                             property bool hiddenByCategory: !isCategory && !!libraryPane.collapsedCategories[modelData.category]
+                            property var dragPayload: isCategory ? null : {
+                                "type_id": String(modelData.type_id || ""),
+                                "display_name": String(modelData.display_name || ""),
+                                "ports": modelData.ports || []
+                            }
                             width: ListView.view.width
                             height: hiddenByCategory ? 0 : (isCategory ? 30 : 26)
                             color: hiddenByCategory ? "transparent"
                                 : (mouseArea.containsMouse ? "#31343D" : "transparent")
                             radius: 4
                             visible: !hiddenByCategory
+
+                            Item {
+                                id: dragProxy
+                                width: parent.width
+                                height: parent.height
+                                x: 0
+                                y: 0
+                                opacity: 0
+                                Drag.active: !libraryRow.isCategory && mouseArea.drag.active
+                                Drag.source: libraryRow
+                                Drag.keys: ["ea-node-library"]
+                                Drag.supportedActions: Qt.CopyAction
+                                Drag.hotSpot.x: mouseArea.mouseX
+                                Drag.hotSpot.y: mouseArea.mouseY
+                                Drag.mimeData: libraryRow.dragPayload
+                                    ? {
+                                        "application/x-ea-node-library":
+                                            JSON.stringify(libraryRow.dragPayload)
+                                    }
+                                    : ({})
+                            }
 
                             Row {
                                 anchors.verticalCenter: parent.verticalCenter
@@ -249,7 +276,57 @@ Rectangle {
                                 id: mouseArea
                                 anchors.fill: parent
                                 hoverEnabled: true
-                                onClicked: {
+                                preventStealing: true
+                                acceptedButtons: Qt.LeftButton
+                                drag.target: isCategory ? null : dragProxy
+                                drag.axis: Drag.XAndYAxis
+                                property real pressStartX: 0
+                                property real pressStartY: 0
+                                property bool movedState: false
+                                onPressed: {
+                                    if (mouse.button !== Qt.LeftButton)
+                                        return
+                                    dragProxy.x = 0
+                                    dragProxy.y = 0
+                                    graphCanvas.clearLibraryDropPreview()
+                                    pressStartX = mouse.x
+                                    pressStartY = mouse.y
+                                    movedState = false
+                                    mouse.accepted = true
+                                }
+                                onPositionChanged: {
+                                    if (!pressed)
+                                        return
+                                    if (Math.abs(mouse.x - pressStartX) >= 2 || Math.abs(mouse.y - pressStartY) >= 2)
+                                        movedState = true
+                                    if (!movedState || isCategory)
+                                        return
+                                    var canvasPoint = mouseArea.mapToItem(graphCanvas, mouse.x, mouse.y)
+                                    if (graphCanvas.isPointInCanvas(canvasPoint.x, canvasPoint.y))
+                                        graphCanvas.updateLibraryDropPreview(canvasPoint.x, canvasPoint.y, libraryRow.dragPayload)
+                                    else
+                                        graphCanvas.clearLibraryDropPreview()
+                                }
+                                onReleased: {
+                                    if (mouse.button !== Qt.LeftButton)
+                                        return
+                                    if (movedState) {
+                                        if (!isCategory) {
+                                            var canvasPoint = mouseArea.mapToItem(graphCanvas, mouse.x, mouse.y)
+                                            if (graphCanvas.isPointInCanvas(canvasPoint.x, canvasPoint.y))
+                                                graphCanvas.performLibraryDrop(canvasPoint.x, canvasPoint.y, libraryRow.dragPayload)
+                                            else
+                                                graphCanvas.clearLibraryDropPreview()
+                                        } else {
+                                            graphCanvas.clearLibraryDropPreview()
+                                        }
+                                        Qt.callLater(function() {
+                                            dragProxy.x = 0
+                                            dragProxy.y = 0
+                                        })
+                                        movedState = false
+                                        return
+                                    }
                                     if (isCategory) {
                                         var nextState = !libraryPane.collapsedCategories[modelData.category]
                                         var nextMap = {}
@@ -260,6 +337,14 @@ Rectangle {
                                     } else {
                                         mainWindow.add_node_from_library(modelData.type_id)
                                     }
+                                }
+                                onCanceled: {
+                                    movedState = false
+                                    graphCanvas.clearLibraryDropPreview()
+                                    Qt.callLater(function() {
+                                        dragProxy.x = 0
+                                        dragProxy.y = 0
+                                    })
                                 }
                             }
                         }

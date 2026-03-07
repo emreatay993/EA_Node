@@ -438,6 +438,7 @@ class QmlGraphScene(QObject):
                         "key": port.key,
                         "direction": port.direction,
                         "kind": port.kind,
+                        "data_type": port.data_type,
                         "exposed": exposed,
                         "connection_count": int(connection_count),
                         "connected": bool(connection_count),
