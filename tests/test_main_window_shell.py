@@ -146,6 +146,35 @@ class MainWindowShellTests(unittest.TestCase):
             self.app.processEvents()
             resume_run.assert_called_once_with("run_test")
 
+    def test_file_menu_new_project_resets_to_blank_project(self) -> None:
+        self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        self.window.workspace_manager.create_workspace("Second")
+        self.window._refresh_workspace_tabs()
+        self.window.project_path = str(Path(self._temp_dir.name) / "existing_project.sfe")
+        self.app.processEvents()
+
+        file_menu = None
+        for action in self.window.menuBar().actions():
+            if action.text() == "&File":
+                file_menu = action.menu()
+                break
+        self.assertIsNotNone(file_menu)
+        file_entries = [action.text() for action in file_menu.actions() if not action.isSeparator()]
+        self.assertIn("New Project", file_entries)
+        self.assertIn("Ctrl+N", _action_shortcuts(self.window.action_new_project))
+
+        self.window.action_new_project.trigger()
+        self.app.processEvents()
+
+        self.assertEqual(self.window.project_path, "")
+        self.assertEqual(self.window.project_display_name, "EA Node Editor - untitled.sfe")
+        self.assertEqual(len(self.window.model.project.workspaces), 1)
+        active_workspace_id = self.window.workspace_manager.active_workspace_id()
+        active_workspace = self.window.model.project.workspaces[active_workspace_id]
+        self.assertEqual(active_workspace.nodes, {})
+        self.assertEqual(active_workspace.edges, {})
+        self.assertFalse(active_workspace.dirty)
+
     def test_qml_connect_selected_supports_additive_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
