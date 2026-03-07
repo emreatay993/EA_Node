@@ -59,6 +59,7 @@ class MainWindowShellTests(unittest.TestCase):
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
         self.assertIs(self.window.centralWidget(), self.window.quick_widget)
+        self.assertIsNotNone(self.window.quick_widget.rootObject())
         self.assertIsNotNone(self.window.scene)
         self.assertIsNotNone(self.window.view)
         self.assertGreaterEqual(self.window.workspace_tabs.count(), 1)

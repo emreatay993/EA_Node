@@ -304,7 +304,7 @@ class ShellWindow(QMainWindow):
         context.setContextProperty("statusMetrics", self.status_metrics)
         context.setContextProperty("statusNotifications", self.status_notifications)
 
-        qml_path = Path(__file__).resolve().parents[1] / "ui_qml" / "MainShell.qml"
+        qml_path = Path(__file__).resolve().parents[2] / "ui_qml" / "MainShell.qml"
         self.quick_widget.setSource(QUrl.fromLocalFile(str(qml_path)))
         self.setCentralWidget(self.quick_widget)
 
