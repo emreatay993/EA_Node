@@ -11,7 +11,7 @@ from unittest import mock
 
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.builtins import integrations
+from ea_node_editor.nodes.builtins import integrations_email, integrations_spreadsheet
 from ea_node_editor.nodes.builtins.core import PythonScriptNodePlugin
 from ea_node_editor.nodes.builtins.integrations import (
     EmailSendNodePlugin,
@@ -68,7 +68,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             read_path = Path(temp_dir) / "input.xlsx"
             read_path.write_text("placeholder", encoding="utf-8")
             write_path = Path(temp_dir) / "output.xlsx"
-            with mock.patch.object(integrations, "openpyxl", None):
+            with mock.patch.object(integrations_spreadsheet, "openpyxl", None):
                 with self.assertRaises(RuntimeError) as read_error:
                     ExcelReadNodePlugin().execute(_context(properties={"path": str(read_path)}))
                 self.assertIn("openpyxl", str(read_error.exception).lower())
@@ -88,8 +88,8 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             read_path = Path(temp_dir) / "input.xlsx"
             read_path.write_text("placeholder", encoding="utf-8")
-            with mock.patch.object(integrations, "openpyxl", None), mock.patch.object(
-                integrations.sys,
+            with mock.patch.object(integrations_spreadsheet, "openpyxl", None), mock.patch.object(
+                integrations_spreadsheet.sys,
                 "frozen",
                 True,
                 create=True,
@@ -151,7 +151,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             def send_message(self, message) -> None:  # noqa: ANN001
                 self.messages.append(message)
 
-        with mock.patch.object(integrations.smtplib, "SMTP", FakeSMTP):
+        with mock.patch.object(integrations_email.smtplib, "SMTP", FakeSMTP):
             result = EmailSendNodePlugin().execute(
                 _context(
                     inputs={"subject": "subj", "body": "body"},
@@ -195,7 +195,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
             def send_message(self, _message) -> None:  # noqa: ANN001
                 raise smtplib.SMTPException("boom")
 
-        with mock.patch.object(integrations.smtplib, "SMTP", FailingSMTP):
+        with mock.patch.object(integrations_email.smtplib, "SMTP", FailingSMTP):
             with self.assertRaises(RuntimeError) as smtp_error:
                 EmailSendNodePlugin().execute(
                     _context(
