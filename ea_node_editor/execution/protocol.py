@@ -1,30 +1,28 @@
-"""Typed event and command definitions for the execution protocol.
-
-All communication between the UI process and the worker process goes through
-these structures. Using dataclasses instead of raw dicts means a misspelled
-field name causes an immediate error rather than silent data loss.
-"""
+"""Typed command/event protocol with queue-boundary dict adapters."""
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 EngineState = Literal["ready", "running", "paused", "error"]
 RunTransition = Literal["start", "pause", "resume", "stop", "complete", "fail"]
 EventType = Literal[
-    "run_started", "run_state", "run_completed", "run_failed", "run_stopped",
-    "node_started", "node_completed", "log", "protocol_error",
+    "run_started",
+    "run_state",
+    "run_completed",
+    "run_failed",
+    "run_stopped",
+    "node_started",
+    "node_completed",
+    "log",
+    "protocol_error",
 ]
 
 
-# ---------------------------------------------------------------------------
-# Commands (UI -> Worker)
-# ---------------------------------------------------------------------------
-
 @dataclass(frozen=True)
 class StartRunCommand:
-    type: str = "start_run"
+    type: Literal["start_run"] = "start_run"
     run_id: str = ""
     project_path: str = ""
     workspace_id: str = ""
@@ -34,81 +32,86 @@ class StartRunCommand:
 
 @dataclass(frozen=True)
 class StopRunCommand:
-    type: str = "stop_run"
+    type: Literal["stop_run"] = "stop_run"
     run_id: str = ""
     workspace_id: str = ""
 
 
 @dataclass(frozen=True)
 class PauseRunCommand:
-    type: str = "pause_run"
+    type: Literal["pause_run"] = "pause_run"
     run_id: str = ""
 
 
 @dataclass(frozen=True)
 class ResumeRunCommand:
-    type: str = "resume_run"
+    type: Literal["resume_run"] = "resume_run"
     run_id: str = ""
 
 
 @dataclass(frozen=True)
 class ShutdownCommand:
-    type: str = "shutdown"
+    type: Literal["shutdown"] = "shutdown"
 
 
-# ---------------------------------------------------------------------------
-# Events (Worker -> UI)
-# ---------------------------------------------------------------------------
+WorkerCommand: TypeAlias = (
+    StartRunCommand
+    | StopRunCommand
+    | PauseRunCommand
+    | ResumeRunCommand
+    | ShutdownCommand
+)
+
 
 @dataclass(frozen=True)
 class RunStartedEvent:
-    type: str = "run_started"
+    type: Literal["run_started"] = "run_started"
     run_id: str = ""
     workspace_id: str = ""
 
 
 @dataclass(frozen=True)
 class RunStateEvent:
-    type: str = "run_state"
+    type: Literal["run_state"] = "run_state"
     run_id: str = ""
     workspace_id: str = ""
-    state: str = "ready"
-    transition: str = ""
+    state: EngineState = "ready"
+    transition: RunTransition | str = ""
     reason: str = ""
 
 
 @dataclass(frozen=True)
 class RunCompletedEvent:
-    type: str = "run_completed"
+    type: Literal["run_completed"] = "run_completed"
     run_id: str = ""
     workspace_id: str = ""
-    state: str = "ready"
+    state: Literal["ready"] = "ready"
 
 
 @dataclass(frozen=True)
 class RunFailedEvent:
-    type: str = "run_failed"
+    type: Literal["run_failed"] = "run_failed"
     run_id: str = ""
     workspace_id: str = ""
     node_id: str = ""
     error: str = ""
     traceback: str = ""
-    state: str = "error"
+    state: Literal["error"] = "error"
     fatal: bool = False
 
 
 @dataclass(frozen=True)
 class RunStoppedEvent:
-    type: str = "run_stopped"
+    type: Literal["run_stopped"] = "run_stopped"
     run_id: str = ""
     workspace_id: str = ""
     reason: str = ""
-    state: str = "ready"
+    state: Literal["ready"] = "ready"
 
 
 @dataclass(frozen=True)
 class NodeStartedEvent:
-    type: str = "node_started"
+    type: Literal["node_started"] = "node_started"
     run_id: str = ""
     workspace_id: str = ""
     node_id: str = ""
@@ -116,7 +119,7 @@ class NodeStartedEvent:
 
 @dataclass(frozen=True)
 class NodeCompletedEvent:
-    type: str = "node_completed"
+    type: Literal["node_completed"] = "node_completed"
     run_id: str = ""
     workspace_id: str = ""
     node_id: str = ""
@@ -125,7 +128,7 @@ class NodeCompletedEvent:
 
 @dataclass(frozen=True)
 class LogEvent:
-    type: str = "log"
+    type: Literal["log"] = "log"
     run_id: str = ""
     workspace_id: str = ""
     node_id: str = ""
@@ -135,33 +138,124 @@ class LogEvent:
 
 @dataclass(frozen=True)
 class ProtocolErrorEvent:
-    type: str = "protocol_error"
+    type: Literal["protocol_error"] = "protocol_error"
     run_id: str = ""
     workspace_id: str = ""
     command: str = ""
     error: str = ""
 
 
-# ---------------------------------------------------------------------------
-# Serialization helpers
-# ---------------------------------------------------------------------------
+WorkerEvent: TypeAlias = (
+    RunStartedEvent
+    | RunStateEvent
+    | RunCompletedEvent
+    | RunFailedEvent
+    | RunStoppedEvent
+    | NodeStartedEvent
+    | NodeCompletedEvent
+    | LogEvent
+    | ProtocolErrorEvent
+)
 
-def event_to_dict(event: Any) -> dict[str, Any]:
-    """Convert a typed event dataclass to a plain dict for queue transport."""
+
+def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
+    return asdict(command)
+
+
+def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
     return asdict(event)
 
 
 def dict_to_event_type(payload: dict[str, Any]) -> str:
-    """Extract the event type string from a payload dict."""
     return str(payload.get("type", ""))
 
 
-# Backward-compatible TypedDict aliases for code that still uses raw dicts
-class WorkerCommand(dict):
-    """Legacy dict wrapper -- prefer the typed command dataclasses above."""
-    pass
+def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
+    command_type = str(payload.get("type", ""))
+    if command_type == "start_run":
+        project_doc = payload.get("project_doc")
+        return StartRunCommand(
+            run_id=str(payload.get("run_id", "")),
+            project_path=str(payload.get("project_path", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            trigger=dict(payload.get("trigger", {})) if isinstance(payload.get("trigger"), dict) else {},
+            project_doc=dict(project_doc) if isinstance(project_doc, dict) else {},
+        )
+    if command_type == "stop_run":
+        return StopRunCommand(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+        )
+    if command_type == "pause_run":
+        return PauseRunCommand(run_id=str(payload.get("run_id", "")))
+    if command_type == "resume_run":
+        return ResumeRunCommand(run_id=str(payload.get("run_id", "")))
+    if command_type == "shutdown":
+        return ShutdownCommand()
+    raise ValueError(f"Unknown command type: {command_type!r}")
 
 
-class WorkerEvent(dict):
-    """Legacy dict wrapper -- prefer the typed event dataclasses above."""
-    pass
+def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
+    event_type = str(payload.get("type", ""))
+    if event_type == "run_started":
+        return RunStartedEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+        )
+    if event_type == "run_state":
+        return RunStateEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            state=str(payload.get("state", "ready")),  # type: ignore[arg-type]
+            transition=str(payload.get("transition", "")),
+            reason=str(payload.get("reason", "")),
+        )
+    if event_type == "run_completed":
+        return RunCompletedEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+        )
+    if event_type == "run_failed":
+        return RunFailedEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            error=str(payload.get("error", "")),
+            traceback=str(payload.get("traceback", "")),
+            fatal=bool(payload.get("fatal", False)),
+        )
+    if event_type == "run_stopped":
+        return RunStoppedEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            reason=str(payload.get("reason", "")),
+        )
+    if event_type == "node_started":
+        return NodeStartedEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+        )
+    if event_type == "node_completed":
+        return NodeCompletedEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            outputs=dict(payload.get("outputs", {})) if isinstance(payload.get("outputs"), dict) else {},
+        )
+    if event_type == "log":
+        return LogEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            level=str(payload.get("level", "info")),
+            message=str(payload.get("message", "")),
+        )
+    if event_type == "protocol_error":
+        return ProtocolErrorEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            command=str(payload.get("command", "")),
+            error=str(payload.get("error", "")),
+        )
+    raise ValueError(f"Unknown event type: {event_type!r}")

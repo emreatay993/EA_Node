@@ -4,12 +4,31 @@ import asyncio
 import queue
 import time
 import traceback
-from collections.abc import Callable
 from collections import defaultdict, deque
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable
 from multiprocessing import Queue
 from typing import Any
 
+from ea_node_editor.execution.protocol import (
+    LogEvent,
+    NodeCompletedEvent,
+    NodeStartedEvent,
+    PauseRunCommand,
+    ProtocolErrorEvent,
+    ResumeRunCommand,
+    RunCompletedEvent,
+    RunFailedEvent,
+    RunStartedEvent,
+    RunStateEvent,
+    RunStoppedEvent,
+    ShutdownCommand,
+    StartRunCommand,
+    StopRunCommand,
+    WorkerCommand,
+    WorkerEvent,
+    dict_to_command,
+    event_to_dict,
+)
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -30,8 +49,8 @@ def _workspace_doc_from_project(project_doc: dict[str, Any], workspace_id: str) 
     raise KeyError(f"Workspace not found in project doc: {workspace_id}")
 
 
-def _emit(event_queue: Queue, payload: dict[str, Any]) -> None:
-    event_queue.put(payload)
+def _emit(event_queue: Queue, event: WorkerEvent) -> None:
+    event_queue.put(event_to_dict(event))
 
 
 def _emit_run_state(
@@ -45,14 +64,13 @@ def _emit_run_state(
 ) -> None:
     _emit(
         event_queue,
-        {
-            "type": "run_state",
-            "state": state,
-            "run_id": run_id,
-            "workspace_id": workspace_id,
-            "transition": transition,
-            "reason": reason,
-        },
+        RunStateEvent(
+            run_id=run_id,
+            workspace_id=workspace_id,
+            state=state,  # type: ignore[arg-type]
+            transition=transition,
+            reason=reason,
+        ),
     )
 
 
@@ -66,20 +84,19 @@ def _emit_protocol_error(
 ) -> None:
     _emit(
         event_queue,
-        {
-            "type": "protocol_error",
-            "run_id": run_id,
-            "workspace_id": workspace_id,
-            "command": command,
-            "error": message,
-        },
+        ProtocolErrorEvent(
+            run_id=run_id,
+            workspace_id=workspace_id,
+            command=command,
+            error=message,
+        ),
     )
 
 
-def _load_project_doc(command: dict[str, Any]) -> dict[str, Any]:
-    if "project_doc" in command:
-        return dict(command["project_doc"])
-    path = command.get("project_path", "")
+def _load_project_doc(command: StartRunCommand) -> dict[str, Any]:
+    if command.project_doc:
+        return dict(command.project_doc)
+    path = command.project_path
     if not path:
         raise ValueError("Missing project_path and project_doc")
     serializer = JsonProjectSerializer()
@@ -123,12 +140,12 @@ class _RunControl:
     def clear_cancel_callbacks(self) -> None:
         self._cancel_callbacks.clear()
 
-    def _handle_command(self, command: dict[str, Any]) -> None:
-        command_type = str(command.get("type", ""))
-        command_run_id = str(command.get("run_id", ""))
-        command_workspace_id = str(command.get("workspace_id", ""))
+    def _handle_command(self, command: WorkerCommand) -> None:
+        command_type = command.type
+        command_run_id = getattr(command, "run_id", "")
+        command_workspace_id = getattr(command, "workspace_id", "")
 
-        if command_type == "shutdown":
+        if isinstance(command, ShutdownCommand):
             self.shutdown_requested = True
             self.stop_requested = True
             self.stop_reason = "shutdown_requested"
@@ -145,7 +162,7 @@ class _RunControl:
             )
             return
 
-        if command_type == "pause_run":
+        if isinstance(command, PauseRunCommand):
             if not self.paused:
                 self.paused = True
                 _emit_run_state(
@@ -158,7 +175,7 @@ class _RunControl:
                 )
             return
 
-        if command_type == "resume_run":
+        if isinstance(command, ResumeRunCommand):
             if self.paused:
                 self.paused = False
                 _emit_run_state(
@@ -171,13 +188,13 @@ class _RunControl:
                 )
             return
 
-        if command_type == "stop_run":
+        if isinstance(command, StopRunCommand):
             self.stop_requested = True
             self.stop_reason = "stop_requested"
             self._invoke_cancel_callbacks()
             return
 
-        if command_type == "start_run":
+        if isinstance(command, StartRunCommand):
             _emit_protocol_error(
                 self._event_queue,
                 "Worker already has an active run.",
@@ -200,11 +217,16 @@ class _RunControl:
             return
         while True:
             try:
-                command = self._command_queue.get_nowait()
+                raw_command = self._command_queue.get_nowait()
             except queue.Empty:
                 return
-            if not isinstance(command, dict):
+            if not isinstance(raw_command, dict):
                 _emit_protocol_error(self._event_queue, "Command payload must be a dictionary.")
+                continue
+            try:
+                command = dict_to_command(dict(raw_command))
+            except ValueError as exc:
+                _emit_protocol_error(self._event_queue, f"Invalid command payload: {exc}")
                 continue
             self._handle_command(command)
 
@@ -218,13 +240,34 @@ class _RunControl:
         return self.stop_requested or self.shutdown_requested
 
 
-def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Queue | None = None) -> None:
-    run_id = str(command["run_id"])
-    workspace_id = str(command["workspace_id"])
-    trigger = dict(command.get("trigger", {}))
+def run_workflow(
+    command: StartRunCommand | dict[str, Any],
+    event_queue: Queue,
+    command_queue: Queue | None = None,
+) -> None:
+    if isinstance(command, dict):
+        if "type" in command:
+            typed_command = dict_to_command(command)
+            if not isinstance(typed_command, StartRunCommand):
+                raise ValueError("run_workflow requires a start_run command payload.")
+        else:
+            project_doc = command.get("project_doc")
+            typed_command = StartRunCommand(
+                run_id=str(command.get("run_id", "")),
+                project_path=str(command.get("project_path", "")),
+                workspace_id=str(command.get("workspace_id", "")),
+                trigger=dict(command.get("trigger", {})) if isinstance(command.get("trigger"), dict) else {},
+                project_doc=dict(project_doc) if isinstance(project_doc, dict) else {},
+            )
+    else:
+        typed_command = command
+
+    run_id = typed_command.run_id
+    workspace_id = typed_command.workspace_id
+    trigger = dict(typed_command.trigger)
     control = _RunControl(command_queue, event_queue, run_id=run_id, workspace_id=workspace_id)
     registry = build_default_registry()
-    project_doc = _load_project_doc(command)
+    project_doc = _load_project_doc(typed_command)
     workspace = _workspace_doc_from_project(project_doc, workspace_id)
 
     nodes = {node["node_id"]: node for node in workspace.get("nodes", [])}
@@ -257,14 +300,7 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
     else:
         ready = deque(sorted(node_id for node_id, count in exec_incoming_count.items() if count == 0))
 
-    _emit(
-        event_queue,
-        {
-            "type": "run_started",
-            "run_id": run_id,
-            "workspace_id": workspace_id,
-        },
-    )
+    _emit(event_queue, RunStartedEvent(run_id=run_id, workspace_id=workspace_id))
     _emit_run_state(
         event_queue,
         run_id=run_id,
@@ -277,13 +313,11 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
     def emit_stopped(reason: str) -> None:
         _emit(
             event_queue,
-            {
-                "type": "run_stopped",
-                "state": "ready",
-                "run_id": run_id,
-                "workspace_id": workspace_id,
-                "reason": reason,
-            },
+            RunStoppedEvent(
+                run_id=run_id,
+                workspace_id=workspace_id,
+                reason=reason,
+            ),
         )
         _emit_run_state(
             event_queue,
@@ -296,13 +330,12 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
 
     _emit(
         event_queue,
-        {
-            "type": "log",
-            "level": "info",
-            "message": "Workflow run started.",
-            "run_id": run_id,
-            "workspace_id": workspace_id,
-        },
+        LogEvent(
+            run_id=run_id,
+            workspace_id=workspace_id,
+            level="info",
+            message="Workflow run started.",
+        ),
     )
 
     def execute_node(node_id: str) -> str:
@@ -318,25 +351,23 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
 
         _emit(
             event_queue,
-            {
-                "type": "node_started",
-                "run_id": run_id,
-                "workspace_id": workspace_id,
-                "node_id": node_id,
-            },
+            NodeStartedEvent(
+                run_id=run_id,
+                workspace_id=workspace_id,
+                node_id=node_id,
+            ),
         )
 
         def _log(level: str, message: str) -> None:
             _emit(
                 event_queue,
-                {
-                    "type": "log",
-                    "run_id": run_id,
-                    "workspace_id": workspace_id,
-                    "node_id": node_id,
-                    "level": level,
-                    "message": message,
-                },
+                LogEvent(
+                    run_id=run_id,
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    level=level,
+                    message=message,
+                ),
             )
 
         ctx = ExecutionContext(
@@ -362,13 +393,12 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
             node_outputs[node_id] = dict(result.outputs)
             _emit(
                 event_queue,
-                {
-                    "type": "node_completed",
-                    "run_id": run_id,
-                    "workspace_id": workspace_id,
-                    "node_id": node_id,
-                    "outputs": dict(result.outputs),
-                },
+                NodeCompletedEvent(
+                    run_id=run_id,
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    outputs=dict(result.outputs),
+                ),
             )
         except InterruptedError:
             if control.should_stop():
@@ -383,28 +413,25 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
             if has_failure_edges:
                 _emit(
                     event_queue,
-                    {
-                        "type": "log",
-                        "run_id": run_id,
-                        "workspace_id": workspace_id,
-                        "node_id": node_id,
-                        "level": "warning",
-                        "message": f"Node failed but has failure handlers: {error_str}",
-                    },
+                    LogEvent(
+                        run_id=run_id,
+                        workspace_id=workspace_id,
+                        node_id=node_id,
+                        level="warning",
+                        message=f"Node failed but has failure handlers: {error_str}",
+                    ),
                 )
                 return "failed_handled"
 
             _emit(
                 event_queue,
-                {
-                    "type": "run_failed",
-                    "state": "error",
-                    "run_id": run_id,
-                    "workspace_id": workspace_id,
-                    "node_id": node_id,
-                    "error": error_str,
-                    "traceback": tb_str,
-                },
+                RunFailedEvent(
+                    run_id=run_id,
+                    workspace_id=workspace_id,
+                    node_id=node_id,
+                    error=error_str,
+                    traceback=tb_str,
+                ),
             )
             _emit_run_state(
                 event_queue,
@@ -475,12 +502,10 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
 
     _emit(
         event_queue,
-        {
-            "type": "run_completed",
-            "state": "ready",
-            "run_id": run_id,
-            "workspace_id": workspace_id,
-        },
+        RunCompletedEvent(
+            run_id=run_id,
+            workspace_id=workspace_id,
+        ),
     )
     _emit_run_state(
         event_queue,
@@ -494,60 +519,61 @@ def run_workflow(command: dict[str, Any], event_queue: Queue, command_queue: Que
 
 def worker_main(command_queue: Queue, event_queue: Queue) -> None:
     while True:
-        command = command_queue.get()
-        if not isinstance(command, dict):
+        raw_command = command_queue.get()
+        if not isinstance(raw_command, dict):
             _emit_protocol_error(event_queue, "Command payload must be a dictionary.")
             continue
 
-        command_type = command.get("type")
-        if command_type == "shutdown":
+        try:
+            command = dict_to_command(dict(raw_command))
+        except ValueError as exc:
+            _emit_protocol_error(event_queue, f"Invalid command payload: {exc}")
+            continue
+
+        if isinstance(command, ShutdownCommand):
             break
-        if command_type == "start_run":
+        if isinstance(command, StartRunCommand):
             try:
                 run_workflow(command, event_queue, command_queue=command_queue)
             except Exception as exc:  # noqa: BLE001
-                run_id = str(command.get("run_id", ""))
-                workspace_id = str(command.get("workspace_id", ""))
                 _emit(
                     event_queue,
-                    {
-                        "type": "run_failed",
-                        "state": "error",
-                        "run_id": run_id,
-                        "workspace_id": workspace_id,
-                        "error": str(exc),
-                        "traceback": traceback.format_exc(),
-                    },
+                    RunFailedEvent(
+                        run_id=command.run_id,
+                        workspace_id=command.workspace_id,
+                        error=str(exc),
+                        traceback=traceback.format_exc(),
+                    ),
                 )
                 _emit_run_state(
                     event_queue,
-                    run_id=run_id,
-                    workspace_id=workspace_id,
+                    run_id=command.run_id,
+                    workspace_id=command.workspace_id,
                     state="error",
                     transition="fail",
                     reason="worker_exception",
                 )
-        elif command_type == "stop_run":
+        elif isinstance(command, StopRunCommand):
             _emit_protocol_error(
                 event_queue,
                 "No active run to stop.",
-                run_id=str(command.get("run_id", "")),
-                workspace_id=str(command.get("workspace_id", "")),
-                command=command_type,
+                run_id=command.run_id,
+                workspace_id=command.workspace_id,
+                command=command.type,
             )
-        elif command_type in {"pause_run", "resume_run"}:
+        elif isinstance(command, (PauseRunCommand, ResumeRunCommand)):
             _emit_protocol_error(
                 event_queue,
                 "No active run for command.",
-                run_id=str(command.get("run_id", "")),
-                workspace_id=str(command.get("workspace_id", "")),
-                command=command_type,
+                run_id=command.run_id,
+                workspace_id="",
+                command=command.type,
             )
         else:
             _emit_protocol_error(
                 event_queue,
                 "Unknown command type.",
-                run_id=str(command.get("run_id", "")),
-                workspace_id=str(command.get("workspace_id", "")),
-                command=str(command_type),
+                run_id=getattr(command, "run_id", ""),
+                workspace_id=getattr(command, "workspace_id", ""),
+                command=getattr(command, "type", ""),
             )
