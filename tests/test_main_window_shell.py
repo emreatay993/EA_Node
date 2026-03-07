@@ -220,6 +220,14 @@ class MainWindowShellTests(unittest.TestCase):
         created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "exec_out")
         self.assertFalse(created)
 
+    def test_qml_connect_ports_rejects_exec_to_data_kind_mismatch(self) -> None:
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
+        self.app.processEvents()
+
+        created = self.window.connect_ports_from_qml(source_id, "exec_out", target_id, "message")
+        self.assertFalse(created)
+
     def test_qml_remove_edge_from_qml_mutates_model(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)

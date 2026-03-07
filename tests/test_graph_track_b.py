@@ -247,6 +247,13 @@ class GraphSceneTrackBTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.scene.connect_nodes(source_id, target_id)
 
+    def test_add_edge_rejects_exec_to_data_kind_mismatch(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        target_id = self.scene.add_node_from_type("core.logger", 320.0, 30.0)
+
+        with self.assertRaises(ValueError):
+            self.scene.add_edge(source_id, "exec_out", target_id, "message")
+
 
 class GraphViewPerformanceTrackBTests(unittest.TestCase):
     @classmethod
