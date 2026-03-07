@@ -26,6 +26,12 @@
 | REQ-NODE-004 | 40_NODE_SDK | `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/execution/worker.py`, `tests/test_inspector_reflection.py` |
 | REQ-NODE-005 | 40_NODE_SDK | `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/edge_routing.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `tests/test_graph_track_b.py` |
 | REQ-NODE-006 | 40_NODE_SDK | `ea_node_editor/nodes/types.py`, `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/integrations.py`, `ea_node_editor/nodes/builtins/integrations_*.py`, `tests/test_registry_validation.py` |
+| REQ-NODE-009 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/nodes/types.py` port kind declarations (`exec`, `completed`, `failed`, `data`), `tests/test_registry_validation.py` |
+| REQ-NODE-010 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/graph/rules.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py` connection validation, `tests/test_graph_track_b.py`, `tests/test_main_window_shell.py` |
+| REQ-NODE-011 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/execution/worker.py` data-edge propagation and dependency evaluation, `tests/test_execution_worker.py` |
+| REQ-NODE-012 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/execution/worker.py` exec scheduling/failure flow, `ea_node_editor/nodes/builtins/integrations_process.py`, `tests/test_process_run_node_rc2.py`, `tests/test_execution_worker.py` |
+| REQ-NODE-013 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/nodes/decorators.py`, `ea_node_editor/nodes/__init__.py`, `docs/specs/requirements/40_NODE_SDK.md`, `docs/specs/requirements/45_NODE_EXECUTION_MODEL.md` |
+| REQ-NODE-014 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/nodes/bootstrap.py`, `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/integrations.py`, `ea_node_editor/nodes/builtins/integrations_*.py`, `ea_node_editor/nodes/builtins/hpc.py` |
 | REQ-EXEC-001 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/client.py`, `worker.py` |
 | REQ-EXEC-002 | 50_EXECUTION_ENGINE | `ea_node_editor/execution/protocol.py` (typed dataclasses + queue boundary adapters), `ea_node_editor/execution/client.py`, `ea_node_editor/execution/worker.py`, `tests/test_execution_worker.py`, `tests/test_execution_client.py` |
 | REQ-EXEC-003 | 50_EXECUTION_ENGINE | `ea_node_editor/ui/shell/window.py` Qt queued `execution_event` path, `ea_node_editor/execution/client.py` listener thread, `tests/test_main_window_shell.py` |
@@ -65,6 +71,12 @@
 | AC-REQ-QA-001-01 | 90_QA_ACCEPTANCE | Full-suite run `venv\Scripts\python -m unittest discover -s tests -v`, summarized in `docs/specs/perf/QA_GATE_REPORT.md` |
 | AC-REQ-QA-004-01 | 90_QA_ACCEPTANCE | `tests/test_workspace_manager.py`, `tests/test_main_window_shell.py`, gate status in `docs/specs/perf/QA_GATE_REPORT.md` |
 | AC-REQ-QA-007-01 | 90_QA_ACCEPTANCE | `tests/test_main_window_shell.py` (`test_run_failed_event_centers_failed_node_and_reports_exception_details`), `docs/specs/perf/QA_GATE_REPORT.md` |
+| AC-REQ-NODE-009-01 | 45_NODE_EXECUTION_MODEL | `tests/test_registry_validation.py` port-kind declaration validation |
+| AC-REQ-NODE-010-01 | 45_NODE_EXECUTION_MODEL | `tests/test_main_window_shell.py` (`test_qml_connect_ports_rejects_exec_to_data_kind_mismatch`), `tests/test_graph_track_b.py` |
+| AC-REQ-NODE-011-01 | 45_NODE_EXECUTION_MODEL | `tests/test_execution_worker.py` data-edge propagation assertions |
+| AC-REQ-NODE-012-01 | 45_NODE_EXECUTION_MODEL | `tests/test_process_run_node_rc2.py`, `tests/test_execution_worker.py` execution/failure/cancel behavior |
+| AC-REQ-NODE-013-01 | 45_NODE_EXECUTION_MODEL | `docs/specs/requirements/40_NODE_SDK.md`, `docs/specs/requirements/45_NODE_EXECUTION_MODEL.md` authoring guidance |
+| AC-REQ-NODE-014-01 | 45_NODE_EXECUTION_MODEL | `ea_node_editor/nodes/bootstrap.py`, `tests/test_registry_filters.py` built-in catalog coverage |
 | AC-REQ-QA-001-02 | 90_QA_ACCEPTANCE | Windows RC packaging/release artifacts: `ea_node_editor.spec`, `scripts/build_windows_package.ps1`, build/smoke evidence in `docs/specs/perf/RC_PACKAGING_REPORT.md`, operator guide `docs/PACKAGING_WINDOWS.md`, `RELEASE_NOTES.md` |
 | AC-REQ-PERF-002-02 | 80_PERFORMANCE | Desktop/manual benchmark execution checklist in `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md` for real display/GPU validation |
 | AC-REQ-QA-001-03 | 90_QA_ACCEPTANCE | Packaged desktop pilot gate execution summary in `docs/specs/perf/PILOT_SIGNOFF.md` with run artifact `artifacts/pilot_signoff/20260301_211523/pilot_signoff_results.json` |

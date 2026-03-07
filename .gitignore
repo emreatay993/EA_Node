@@ -11,6 +11,7 @@ venv/
 # IDE
 .idea/
 .vscode/
+.codex/
 
 # Build and release artifacts
 artifacts/
@@ -25,4 +26,3 @@ dist/
 
 # Generated GUI preview extraction
 docs/specs/gui/_unzipped_preview/
-
