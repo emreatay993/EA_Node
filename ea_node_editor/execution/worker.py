@@ -29,6 +29,7 @@ from ea_node_editor.execution.protocol import (
     dict_to_command,
     event_to_dict,
 )
+from ea_node_editor.execution.compiler import compile_workspace_document
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -268,7 +269,7 @@ def run_workflow(
     registry = build_default_registry()
     serializer = JsonProjectSerializer(registry)
     project_doc = _load_project_doc(typed_command, serializer)
-    workspace = _workspace_doc_from_project(project_doc, workspace_id)
+    workspace = compile_workspace_document(_workspace_doc_from_project(project_doc, workspace_id))
 
     nodes = {node["node_id"]: node for node in workspace.get("nodes", [])}
     edges = list(workspace.get("edges", []))

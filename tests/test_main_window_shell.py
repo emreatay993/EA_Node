@@ -502,6 +502,37 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertAlmostEqual(self.window.view.center_x, bounds.center().x(), places=6)
         self.assertAlmostEqual(self.window.view.center_y, bounds.center().y(), places=6)
 
+    def test_run_failed_event_for_nested_node_opens_scope_and_focuses_inner_node(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=260.0, y=120.0)
+        nested_node_id = self.window.scene.add_node_from_type("core.python_script", x=120.0, y=90.0)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        workspace.nodes[nested_node_id].parent_node_id = shell_id
+        self.window.scene.refresh_workspace_from_model(workspace_id)
+        self.app.processEvents()
+
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+
+        with patch.object(QMessageBox, "critical") as critical:
+            self.window.execution_event.emit(
+                {
+                    "type": "run_failed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": nested_node_id,
+                    "error": "RuntimeError: nested failure",
+                    "traceback": "traceback: nested",
+                }
+            )
+            self.app.processEvents()
+
+        self.assertEqual(self.window.scene.active_scope_path, [shell_id])
+        self.assertEqual(self.window.scene.selected_node_id(), nested_node_id)
+        self.assertEqual(self.window._active_run_id, "")
+        critical.assert_called_once()
+
     def test_graph_search_keyboard_navigation_and_close_behavior(self) -> None:
         node_a_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=50.0)
         node_b_id = self.window.scene.add_node_from_type("core.start", x=250.0, y=50.0)
