@@ -289,6 +289,18 @@ class ShellWindow(QMainWindow):
         self.action_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
         self.action_redo.triggered.connect(self._redo)
 
+        self.action_copy_selection = QAction("Copy Selection", self)
+        self.action_copy_selection.setShortcut(QKeySequence.StandardKey.Copy)
+        self.action_copy_selection.triggered.connect(self._copy_selected_nodes_to_clipboard)
+
+        self.action_cut_selection = QAction("Cut Selection", self)
+        self.action_cut_selection.setShortcut(QKeySequence.StandardKey.Cut)
+        self.action_cut_selection.triggered.connect(self._cut_selected_nodes_to_clipboard)
+
+        self.action_paste_selection = QAction("Paste Selection", self)
+        self.action_paste_selection.setShortcut(QKeySequence.StandardKey.Paste)
+        self.action_paste_selection.triggered.connect(self._paste_nodes_from_clipboard)
+
         self.action_frame_all = QAction("Frame All", self)
         self.action_frame_all.setShortcut(QKeySequence("A"))
         self.action_frame_all.triggered.connect(self._frame_all)
@@ -347,6 +359,9 @@ class ShellWindow(QMainWindow):
             self.action_pause,
             self.action_undo,
             self.action_redo,
+            self.action_copy_selection,
+            self.action_cut_selection,
+            self.action_paste_selection,
             self.action_connect_selected,
             self.action_duplicate_selection,
             self.action_frame_all,
@@ -380,6 +395,10 @@ class ShellWindow(QMainWindow):
         edit_menu = menu_bar.addMenu("&Edit")
         edit_menu.addAction(self.action_undo)
         edit_menu.addAction(self.action_redo)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.action_copy_selection)
+        edit_menu.addAction(self.action_cut_selection)
+        edit_menu.addAction(self.action_paste_selection)
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_connect_selected)
         edit_menu.addAction(self.action_duplicate_selection)
@@ -860,6 +879,18 @@ class ShellWindow(QMainWindow):
         return bool(self._duplicate_selected_nodes())
 
     @pyqtSlot(result=bool)
+    def request_copy_selected_nodes(self) -> bool:
+        return bool(self._copy_selected_nodes_to_clipboard())
+
+    @pyqtSlot(result=bool)
+    def request_cut_selected_nodes(self) -> bool:
+        return bool(self._cut_selected_nodes_to_clipboard())
+
+    @pyqtSlot(result=bool)
+    def request_paste_selected_nodes(self) -> bool:
+        return bool(self._paste_nodes_from_clipboard())
+
+    @pyqtSlot(result=bool)
     def request_undo(self) -> bool:
         return bool(self._undo())
 
@@ -945,6 +976,9 @@ class ShellWindow(QMainWindow):
         "_on_node_collapse_changed": ("workspace_library_controller", "on_node_collapse_changed"),
         "_connect_selected_nodes": ("workspace_library_controller", "connect_selected_nodes"),
         "_duplicate_selected_nodes": ("workspace_library_controller", "duplicate_selected_nodes"),
+        "_copy_selected_nodes_to_clipboard": ("workspace_library_controller", "copy_selected_nodes_to_clipboard"),
+        "_cut_selected_nodes_to_clipboard": ("workspace_library_controller", "cut_selected_nodes_to_clipboard"),
+        "_paste_nodes_from_clipboard": ("workspace_library_controller", "paste_nodes_from_clipboard"),
         "_undo": ("workspace_library_controller", "undo"),
         "_redo": ("workspace_library_controller", "redo"),
         "_selected_node_context": ("workspace_library_controller", "selected_node_context"),

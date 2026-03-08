@@ -130,6 +130,9 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("request_rename_node(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_delete_selected_graph_items(QVariantList)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_duplicate_selected_nodes()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_copy_selected_nodes()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_cut_selected_nodes()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_paste_selected_nodes()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_undo()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_redo()"), 0)
         self.assertGreaterEqual(
@@ -191,6 +194,9 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+Y", _action_shortcuts(self.window.action_redo))
         self.assertIn("Ctrl+K", _action_shortcuts(self.window.action_graph_search))
         self.assertIn("Ctrl+D", _action_shortcuts(self.window.action_duplicate_selection))
+        self.assertIn("Ctrl+C", _action_shortcuts(self.window.action_copy_selection))
+        self.assertIn("Ctrl+X", _action_shortcuts(self.window.action_cut_selection))
+        self.assertIn("Ctrl+V", _action_shortcuts(self.window.action_paste_selection))
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
@@ -717,6 +723,166 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(self._workspace_state(), before_state)
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_undo_depth)
         self.assertEqual(len(workspace.nodes), 1)
+
+    def test_qml_request_copy_and_paste_selected_nodes_preserves_internal_edges_and_recenters_fragment(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=60.0, y=50.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=360.0, y=190.0)
+        external_id = self.window.scene.add_node_from_type("core.python_script", x=680.0, y=90.0)
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.window.scene.add_edge(source_id, "trigger", external_id, "payload")
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_nodes = len(workspace.nodes)
+        before_edges = len(workspace.edges)
+
+        source_node = workspace.nodes[source_id]
+        target_node = workspace.nodes[target_id]
+        relative_dx = float(target_node.x) - float(source_node.x)
+        relative_dy = float(target_node.y) - float(source_node.y)
+
+        self.window.scene.select_node(source_id, False)
+        self.window.scene.select_node(target_id, True)
+        self.window.view.set_zoom(0.75)
+        self.window.view.centerOn(980.0, -210.0)
+        self.app.processEvents()
+
+        copied = self.window.request_copy_selected_nodes()
+        self.assertTrue(copied)
+        pasted = self.window.request_paste_selected_nodes()
+        self.assertTrue(pasted)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.nodes), before_nodes + 2)
+        self.assertEqual(len(workspace.edges), before_edges + 1)
+
+        pasted_node_ids = {
+            item["node_id"]
+            for item in self.window.scene.nodes_model
+            if item["selected"]
+        }
+        self.assertEqual(len(pasted_node_ids), 2)
+        self.assertNotIn(source_id, pasted_node_ids)
+        self.assertNotIn(target_id, pasted_node_ids)
+
+        pasted_source = None
+        pasted_target = None
+        for node_id in pasted_node_ids:
+            node = workspace.nodes[node_id]
+            if node.type_id == "core.start":
+                pasted_source = node
+            elif node.type_id == "core.end":
+                pasted_target = node
+        self.assertIsNotNone(pasted_source)
+        self.assertIsNotNone(pasted_target)
+        self.assertAlmostEqual(float(pasted_target.x) - float(pasted_source.x), relative_dx, places=6)
+        self.assertAlmostEqual(float(pasted_target.y) - float(pasted_source.y), relative_dy, places=6)
+
+        internal_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == pasted_source.node_id
+            and edge.source_port_key == "exec_out"
+            and edge.target_node_id == pasted_target.node_id
+            and edge.target_port_key == "exec_in"
+        ]
+        self.assertEqual(len(internal_edges), 1)
+        external_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == pasted_source.node_id and edge.source_port_key == "trigger"
+        ]
+        self.assertEqual(external_edges, [])
+
+        selection_bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(selection_bounds)
+        viewport_center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
+        self.assertAlmostEqual(selection_bounds.center().x(), viewport_center.x(), places=5)
+        self.assertAlmostEqual(selection_bounds.center().y(), viewport_center.y(), places=5)
+
+    def test_qml_request_paste_selected_nodes_into_other_workspace_selects_pasted_nodes(self) -> None:
+        source_workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_a_id = self.window.scene.add_node_from_type("core.start", x=100.0, y=120.0)
+        source_b_id = self.window.scene.add_node_from_type("core.end", x=340.0, y=140.0)
+        self.window.scene.add_edge(source_a_id, "exec_out", source_b_id, "exec_in")
+        source_workspace = self.window.model.project.workspaces[source_workspace_id]
+        before_source_nodes = len(source_workspace.nodes)
+        before_source_edges = len(source_workspace.edges)
+        self.window.scene.select_node(source_a_id, False)
+        self.window.scene.select_node(source_b_id, True)
+        self.assertTrue(self.window.request_copy_selected_nodes())
+
+        target_workspace_id = self.window.workspace_manager.create_workspace("Clipboard Target")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(target_workspace_id)
+        self.window.view.centerOn(-430.0, 280.0)
+        target_workspace = self.window.model.project.workspaces[target_workspace_id]
+        before_target_nodes = len(target_workspace.nodes)
+        before_target_edges = len(target_workspace.edges)
+
+        pasted = self.window.request_paste_selected_nodes()
+        self.assertTrue(pasted)
+        self.app.processEvents()
+
+        target_workspace = self.window.model.project.workspaces[target_workspace_id]
+        self.assertEqual(len(target_workspace.nodes), before_target_nodes + 2)
+        self.assertEqual(len(target_workspace.edges), before_target_edges + 1)
+        selected_pasted_ids = {
+            item["node_id"]
+            for item in self.window.scene.nodes_model
+            if item["selected"]
+        }
+        self.assertEqual(len(selected_pasted_ids), 2)
+        self.assertEqual(self.window.workspace_manager.active_workspace_id(), target_workspace_id)
+
+        source_workspace = self.window.model.project.workspaces[source_workspace_id]
+        self.assertEqual(len(source_workspace.nodes), before_source_nodes)
+        self.assertEqual(len(source_workspace.edges), before_source_edges)
+
+    def test_qml_request_cut_selected_nodes_is_single_undoable_semantic_action(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=80.0, y=70.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=300.0, y=80.0)
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.window.scene.select_node(source_id, False)
+        self.window.scene.select_node(target_id, True)
+        before_state = self._workspace_state()
+        before_depth = self.window.runtime_history.undo_depth(workspace_id)
+        self.app.processEvents()
+
+        cut = self.window.request_cut_selected_nodes()
+        self.assertTrue(cut)
+        self.app.processEvents()
+        after_cut_state = self._workspace_state()
+        self.assertNotEqual(after_cut_state, before_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_depth + 1)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), before_state)
+
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), after_cut_state)
+
+    def test_qml_request_paste_selected_nodes_ignores_invalid_and_foreign_clipboard_payloads(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        self.window.scene.add_node_from_type("core.start", x=25.0, y=35.0)
+        before_state = self._workspace_state()
+        before_depth = self.window.runtime_history.undo_depth(workspace_id)
+        clipboard = self.app.clipboard()
+
+        clipboard.setText("{not valid json")
+        invalid_paste = self.window.request_paste_selected_nodes()
+        self.assertFalse(invalid_paste)
+        self.assertEqual(self._workspace_state(), before_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_depth)
+
+        clipboard.setText('{"kind":"foreign-fragment","version":1,"nodes":[],"edges":[]}')
+        foreign_paste = self.window.request_paste_selected_nodes()
+        self.assertFalse(foreign_paste)
+        self.assertEqual(self._workspace_state(), before_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_depth)
 
     def test_undo_redo_roundtrips_supported_graph_mutations(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

@@ -5,6 +5,7 @@ import unittest
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.ui.graph_interactions import GraphActionResult
+from ea_node_editor.ui.shell.controllers.result import ControllerResult
 from ea_node_editor.ui.shell.controllers.workspace_library_controller import WorkspaceLibraryController
 
 
@@ -67,6 +68,65 @@ class _UndoRedoHostStub:
         self.scene = _SceneStub()
 
 
+class _PointStub:
+    def __init__(self, x: float, y: float) -> None:
+        self._x = x
+        self._y = y
+
+    def x(self) -> float:
+        return self._x
+
+    def y(self) -> float:
+        return self._y
+
+
+class _RectStub:
+    def center(self) -> _PointStub:
+        return _PointStub(5.0, 9.0)
+
+
+class _ViewportStub:
+    def rect(self) -> _RectStub:
+        return _RectStub()
+
+
+class _ViewStub:
+    def viewport(self) -> _ViewportStub:
+        return _ViewportStub()
+
+    def mapToScene(self, point: object) -> _PointStub:  # noqa: ARG002
+        return _PointStub(120.0, 340.0)
+
+
+class _ClipboardSceneStub:
+    def __init__(self) -> None:
+        self.fragment_payload: dict[str, object] | None = None
+        self.paste_calls: list[tuple[dict[str, object], float, float]] = []
+
+    def serialize_selected_subgraph_fragment(self) -> dict[str, object] | None:
+        return self.fragment_payload
+
+    def paste_subgraph_fragment(self, payload: dict[str, object], center_x: float, center_y: float) -> bool:
+        self.paste_calls.append((payload, center_x, center_y))
+        return True
+
+
+class _SignalStub:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def emit(self) -> None:
+        self.calls += 1
+
+
+class _ClipboardHostStub:
+    def __init__(self) -> None:
+        self._graph_interactions = _GraphInteractionsStub()
+        self.scene = _ClipboardSceneStub()
+        self.view = _ViewStub()
+        self.selected_node_changed = _SignalStub()
+
+
 class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
     def test_request_connect_ports_delegates_and_wraps_result(self) -> None:
         host = _WorkspaceHostStub()
@@ -121,6 +181,61 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
         self.assertFalse(redone)
         self.assertEqual(host.runtime_history.redo_calls, [workspace_id])
         self.assertEqual(host.scene.refreshed_workspaces, [])
+        self.assertFalse(refreshed["value"])
+
+    def test_cut_selected_nodes_routes_through_delete_selected_path(self) -> None:
+        host = _ClipboardHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        delete_calls: list[list[object]] = []
+
+        controller.copy_selected_nodes_to_clipboard = lambda: True  # type: ignore[method-assign]
+
+        def _delete_selected(edge_ids: list[object]) -> ControllerResult[bool]:
+            delete_calls.append(list(edge_ids))
+            return ControllerResult(True, payload=True)
+
+        controller.request_delete_selected_graph_items = _delete_selected  # type: ignore[method-assign]
+
+        cut = controller.cut_selected_nodes_to_clipboard()
+
+        self.assertTrue(cut)
+        self.assertEqual(delete_calls, [[]])
+
+    def test_paste_nodes_from_clipboard_uses_viewport_center_and_refreshes(self) -> None:
+        host = _ClipboardHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        refreshed = {"value": False}
+
+        def _mark_refreshed() -> None:
+            refreshed["value"] = True
+
+        controller.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
+        payload = {"kind": "ea-node-editor/graph-fragment"}
+        controller._read_graph_fragment_from_clipboard = lambda: payload  # type: ignore[method-assign]
+
+        pasted = controller.paste_nodes_from_clipboard()
+
+        self.assertTrue(pasted)
+        self.assertEqual(host.scene.paste_calls, [(payload, 120.0, 340.0)])
+        self.assertEqual(host.selected_node_changed.calls, 1)
+        self.assertTrue(refreshed["value"])
+
+    def test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing(self) -> None:
+        host = _ClipboardHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        refreshed = {"value": False}
+
+        def _mark_refreshed() -> None:
+            refreshed["value"] = True
+
+        controller.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
+        controller._read_graph_fragment_from_clipboard = lambda: None  # type: ignore[method-assign]
+
+        pasted = controller.paste_nodes_from_clipboard()
+
+        self.assertFalse(pasted)
+        self.assertEqual(host.scene.paste_calls, [])
+        self.assertEqual(host.selected_node_changed.calls, 0)
         self.assertFalse(refreshed["value"])
 
 
