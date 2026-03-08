@@ -16,12 +16,15 @@ Item {
     property real dropPreviewScreenX: -1
     property real dropPreviewScreenY: -1
     property var pendingConnectionPort: null
+    property var wireDragState: null
+    property var wireDropCandidate: null
     property bool edgeContextVisible: false
     property bool nodeContextVisible: false
     property string edgeContextEdgeId: ""
     property string nodeContextNodeId: ""
     property real contextMenuX: 0
     property real contextMenuY: 0
+    readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
     readonly property real worldOffset: worldSize / 2
     focus: true
@@ -224,6 +227,23 @@ Item {
         return "";
     }
 
+    function _portDataType(nodeId, portKey) {
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (!node || node.node_id !== nodeId)
+                continue;
+            var ports = node.ports || [];
+            for (var j = 0; j < ports.length; j++) {
+                var port = ports[j];
+                if (port && port.key === portKey)
+                    return port.data_type || "any";
+            }
+            return "any";
+        }
+        return "any";
+    }
+
     function _arePortKindsCompatible(sourceKind, targetKind) {
         if (!sceneBridge)
             return false;
@@ -241,6 +261,10 @@ Item {
         var candidateKind = _portKind(candidate.node_id, candidate.port_key);
         if (!_arePortKindsCompatible(sourceKind, candidateKind))
             return false;
+        var sourceType = _portDataType(sourceDrag.node_id, sourceDrag.port_key);
+        var candidateType = _portDataType(candidate.node_id, candidate.port_key);
+        if (!_areDataTypesCompatible(sourceType, candidateType))
+            return false;
 
         var targetInput = _dropTargetInput(sourceDrag, candidate);
         var edges = root.edgePayload || [];
@@ -254,6 +278,55 @@ Item {
             return false;
         }
         return true;
+    }
+
+    function _nearestDropCandidateForWireDrag(screenX, screenY, sourceDrag, thresholdOverride) {
+        if (!sourceDrag)
+            return null;
+
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var threshold = Number(thresholdOverride);
+        if (!(threshold > 0.0))
+            threshold = 14.0;
+        var best = null;
+        var bestDistance = Number.POSITIVE_INFINITY;
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (!node)
+                continue;
+            var ports = node.ports || [];
+            var inputRow = 0;
+            var outputRow = 0;
+            for (var j = 0; j < ports.length; j++) {
+                var port = ports[j];
+                if (!port)
+                    continue;
+                var point = _scenePortPoint(node, port, inputRow, outputRow);
+                if (port.direction === "in")
+                    inputRow += 1;
+                else
+                    outputRow += 1;
+                var dx = screenX - sceneToScreenX(point.x);
+                var dy = screenY - sceneToScreenY(point.y);
+                var distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance > threshold || distance >= bestDistance)
+                    continue;
+                var candidate = {
+                    "node_id": node.node_id,
+                    "port_key": port.key,
+                    "direction": port.direction,
+                    "scene_x": point.x,
+                    "scene_y": point.y,
+                    "valid_drop": false
+                };
+                candidate.valid_drop = _isDropAllowed(sourceDrag, candidate);
+                if (!candidate.valid_drop)
+                    continue;
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        return best;
     }
 
     function _areDataTypesCompatible(sourceType, targetType) {
@@ -592,6 +665,213 @@ Item {
         edgeLayer.requestRedraw();
     }
 
+    function _wireDragSourceData(state) {
+        if (!state)
+            return null;
+        return {
+            "node_id": state.node_id,
+            "port_key": state.port_key,
+            "source_direction": state.source_direction,
+            "start_x": state.start_x,
+            "start_y": state.start_y,
+            "cursor_x": state.cursor_x,
+            "cursor_y": state.cursor_y
+        };
+    }
+
+    function wireDragSourcePort() {
+        var state = root.wireDragState;
+        if (!state || !state.active)
+            return null;
+        return {
+            "node_id": state.node_id,
+            "port_key": state.port_key,
+            "direction": state.source_direction
+        };
+    }
+
+    function wireDragPreviewConnection() {
+        var state = root.wireDragState;
+        if (!state || !state.active)
+            state = null;
+        if (state) {
+            var target = root.wireDropCandidate;
+            var endX = target ? target.scene_x : state.cursor_x;
+            var endY = target ? target.scene_y : state.cursor_y;
+            return {
+                "source_direction": state.source_direction,
+                "start_x": state.start_x,
+                "start_y": state.start_y,
+                "target_x": endX,
+                "target_y": endY,
+                "valid_drop": !!target
+            };
+        }
+
+        var pending = root.pendingConnectionPort;
+        var hovered = root.hoveredPort;
+        if (!pending || !hovered)
+            return null;
+        if (_samePort(pending, hovered))
+            return null;
+        var pendingSource = {
+            "node_id": pending.node_id,
+            "port_key": pending.port_key,
+            "source_direction": pending.direction,
+            "start_x": pending.scene_x,
+            "start_y": pending.scene_y,
+            "cursor_x": hovered.scene_x,
+            "cursor_y": hovered.scene_y
+        };
+        var pendingCandidate = {
+            "node_id": hovered.node_id,
+            "port_key": hovered.port_key,
+            "direction": hovered.direction,
+            "scene_x": hovered.scene_x,
+            "scene_y": hovered.scene_y,
+            "valid_drop": _isDropAllowed(pendingSource, hovered)
+        };
+        return {
+            "source_direction": pending.direction,
+            "start_x": pending.scene_x,
+            "start_y": pending.scene_y,
+            "target_x": pendingCandidate.scene_x,
+            "target_y": pendingCandidate.scene_y,
+            "valid_drop": pendingCandidate.valid_drop
+        };
+    }
+
+    function _updateWireDropCandidate(screenX, screenY, state) {
+        var sourceDrag = _wireDragSourceData(state);
+        var candidate = _nearestDropCandidateForWireDrag(screenX, screenY, sourceDrag);
+        root.wireDropCandidate = candidate;
+        root.hoveredPort = candidate ? candidate : null;
+    }
+
+    function _clearWireDragState() {
+        if (!root.wireDragState && !root.wireDropCandidate)
+            return;
+        root.wireDragState = null;
+        root.wireDropCandidate = null;
+        root.hoveredPort = root.pendingConnectionPort ? root.pendingConnectionPort : null;
+        edgeLayer.requestRedraw();
+    }
+
+    function beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) {
+        root.forceActiveFocus();
+        root._closeContextMenus();
+        root.wireDropCandidate = null;
+        root.wireDragState = {
+            "node_id": nodeId,
+            "port_key": portKey,
+            "source_direction": direction,
+            "start_x": sceneX,
+            "start_y": sceneY,
+            "cursor_x": sceneX,
+            "cursor_y": sceneY,
+            "press_screen_x": Number(screenX),
+            "press_screen_y": Number(screenY),
+            "active": false
+        };
+    }
+
+    function updatePortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
+        var state = root.wireDragState;
+        if (!state)
+            return;
+        if (state.node_id !== nodeId || state.port_key !== portKey || state.source_direction !== direction)
+            return;
+        var cursorSceneX = root.screenToSceneX(screenX);
+        var cursorSceneY = root.screenToSceneY(screenY);
+        var movedEnough = Boolean(dragActive)
+            || Math.abs(Number(screenX) - Number(state.press_screen_x)) >= root.wireDragThreshold
+            || Math.abs(Number(screenY) - Number(state.press_screen_y)) >= root.wireDragThreshold;
+        var becameActive = movedEnough && !state.active;
+        var next = {
+            "node_id": state.node_id,
+            "port_key": state.port_key,
+            "source_direction": state.source_direction,
+            "start_x": state.start_x,
+            "start_y": state.start_y,
+            "cursor_x": cursorSceneX,
+            "cursor_y": cursorSceneY,
+            "press_screen_x": state.press_screen_x,
+            "press_screen_y": state.press_screen_y,
+            "active": state.active || movedEnough
+        };
+        root.wireDragState = next;
+        if (!next.active)
+            return;
+        if (becameActive)
+            root.clearPendingConnection();
+        root._updateWireDropCandidate(screenX, screenY, next);
+        edgeLayer.requestRedraw();
+    }
+
+    function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
+        var state = root.wireDragState;
+        if (!state)
+            return;
+        if (state.node_id !== nodeId || state.port_key !== portKey || state.source_direction !== direction) {
+            root._clearWireDragState();
+            return;
+        }
+        var movedEnoughAtRelease = Math.abs(Number(screenX) - Number(state.press_screen_x)) >= root.wireDragThreshold
+            || Math.abs(Number(screenY) - Number(state.press_screen_y)) >= root.wireDragThreshold;
+        var wasActive = Boolean(state.active) || Boolean(dragActive) || movedEnoughAtRelease;
+        if (!wasActive) {
+            root.wireDragState = null;
+            root.wireDropCandidate = null;
+            return;
+        }
+
+        var finalState = {
+            "node_id": state.node_id,
+            "port_key": state.port_key,
+            "source_direction": state.source_direction,
+            "start_x": state.start_x,
+            "start_y": state.start_y,
+            "cursor_x": root.screenToSceneX(screenX),
+            "cursor_y": root.screenToSceneY(screenY),
+            "press_screen_x": state.press_screen_x,
+            "press_screen_y": state.press_screen_y,
+            "active": true
+        };
+        root.wireDragState = finalState;
+        root.clearPendingConnection();
+        root._updateWireDropCandidate(screenX, screenY, finalState);
+        if (!root.wireDropCandidate) {
+            var widened = _nearestDropCandidateForWireDrag(
+                Number(screenX),
+                Number(screenY),
+                _wireDragSourceData(finalState),
+                28.0
+            );
+            if (widened) {
+                root.wireDropCandidate = widened;
+                root.hoveredPort = widened;
+            }
+        }
+
+        var candidate = root.wireDropCandidate;
+        if (candidate && candidate.valid_drop && mainWindowBridge) {
+            mainWindowBridge.request_connect_ports(
+                finalState.node_id,
+                finalState.port_key,
+                candidate.node_id,
+                candidate.port_key
+            );
+        }
+        root._clearWireDragState();
+    }
+
+    function cancelWireDrag() {
+        if (!root.wireDragState)
+            return false;
+        root._clearWireDragState();
+        return true;
+    }
+
     function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) {
         root.forceActiveFocus();
         root._closeContextMenus();
@@ -779,6 +1059,7 @@ Item {
         dragOffsets: root.liveDragOffsets
         selectedEdgeIds: root.selectedEdgeIds
         previewEdgeId: root.dropPreviewEdgeId
+        dragConnection: root.wireDragPreviewConnection()
         inputEnabled: !(root.edgeContextVisible || root.nodeContextVisible)
 
         onEdgeClicked: function(edgeId, additive) {
@@ -949,9 +1230,11 @@ Item {
                 id: nodeCard
                 nodeData: modelData
                 worldOffset: root.worldOffset
+                canvasItem: root
                 hoveredPort: root.hoveredPort
                 previewPort: root.dropPreviewPort
                 pendingPort: root.pendingConnectionPort
+                dragSourcePort: root.wireDragSourcePort()
 
                 onNodeClicked: function(nodeId, additive) {
                     root.forceActiveFocus();
@@ -986,7 +1269,21 @@ Item {
                 onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
                     root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
                 }
+                onPortDragStarted: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) {
+                    root.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);
+                }
+                onPortDragMoved: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive) {
+                    root.updatePortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive);
+                }
+                onPortDragFinished: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive) {
+                    root.finishPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive);
+                }
+                onPortDragCanceled: function(_nodeId, _portKey, _direction) {
+                    root.cancelWireDrag();
+                }
                 onPortHoverChanged: function(nodeId, portKey, direction, sceneX, sceneY, hovered) {
+                    if (root.wireDragState && root.wireDragState.active)
+                        return;
                     if (hovered) {
                         root.hoveredPort = {
                             "node_id": nodeId,
@@ -996,6 +1293,7 @@ Item {
                             "scene_y": sceneY,
                             "valid_drop": false
                         };
+                        edgeLayer.requestRedraw();
                     } else if (
                         root.hoveredPort
                         && root.hoveredPort.node_id === nodeId
@@ -1003,6 +1301,7 @@ Item {
                         && root.hoveredPort.direction === direction
                     ) {
                         root.hoveredPort = null;
+                        edgeLayer.requestRedraw();
                     }
                 }
             }
@@ -1258,14 +1557,32 @@ Item {
         event.accepted = true;
     }
 
+    Keys.onEscapePressed: function(event) {
+        var handled = false;
+        if (root.cancelWireDrag())
+            handled = true;
+        if (root.pendingConnectionPort) {
+            root.clearPendingConnection();
+            handled = true;
+        }
+        if (root.edgeContextVisible || root.nodeContextVisible) {
+            root._closeContextMenus();
+            handled = true;
+        }
+        if (handled)
+            event.accepted = true;
+    }
+
     Connections {
         target: sceneBridge
         function onEdges_changed() {
             root.liveDragOffsets = ({});
+            root._clearWireDragState();
             root._syncEdgePayload();
         }
         function onNodes_changed() {
             root.liveDragOffsets = ({});
+            root._clearWireDragState();
             root._syncEdgePayload();
         }
     }
@@ -1286,6 +1603,8 @@ Item {
         root.liveDragOffsets = ({});
         root.pendingConnectionPort = null;
         root.hoveredPort = null;
+        root.wireDragState = null;
+        root.wireDropCandidate = null;
         root.clearLibraryDropPreview();
         root._syncEdgePayload();
     }

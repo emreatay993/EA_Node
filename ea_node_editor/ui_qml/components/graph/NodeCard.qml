@@ -4,9 +4,11 @@ Rectangle {
     id: card
     property var nodeData: null
     property real worldOffset: 0
+    property Item canvasItem: null
     property var hoveredPort: null
     property var previewPort: null
     property var pendingPort: null
+    property var dragSourcePort: null
 
     signal nodeClicked(string nodeId, bool additive)
     signal nodeContextRequested(string nodeId, real localX, real localY)
@@ -14,6 +16,36 @@ Rectangle {
     signal dragFinished(string nodeId, real finalX, real finalY, bool moved)
     signal dragCanceled(string nodeId)
     signal portClicked(string nodeId, string portKey, string direction, real sceneX, real sceneY)
+    signal portDragStarted(
+        string nodeId,
+        string portKey,
+        string direction,
+        real sceneX,
+        real sceneY,
+        real screenX,
+        real screenY
+    )
+    signal portDragMoved(
+        string nodeId,
+        string portKey,
+        string direction,
+        real sceneX,
+        real sceneY,
+        real screenX,
+        real screenY,
+        bool dragActive
+    )
+    signal portDragFinished(
+        string nodeId,
+        string portKey,
+        string direction,
+        real sceneX,
+        real sceneY,
+        real screenX,
+        real screenY,
+        bool dragActive
+    )
+    signal portDragCanceled(string nodeId, string portKey, string direction)
     signal portHoverChanged(
         string nodeId,
         string portKey,
@@ -28,6 +60,7 @@ Rectangle {
     readonly property real _portCenterOffset: 6
     readonly property real _portSideMargin: 8
     readonly property real _portDotRadius: 3.5
+    readonly property real _portDragThreshold: 2
 
     readonly property var inputPorts: {
         if (!card.nodeData || !card.nodeData.ports)
@@ -83,6 +116,20 @@ Rectangle {
             && card.pendingPort.node_id === card.nodeData.node_id
             && card.pendingPort.port_key === portKey
             && card.pendingPort.direction === direction;
+    }
+
+    function isDragSourcePort(direction, portKey) {
+        return !!card.nodeData
+            && !!card.dragSourcePort
+            && card.dragSourcePort.node_id === card.nodeData.node_id
+            && card.dragSourcePort.port_key === portKey
+            && card.dragSourcePort.direction === direction;
+    }
+
+    function _pointerInCanvas(mouseArea, mouse) {
+        if (!card.canvasItem)
+            return {"x": 0.0, "y": 0.0};
+        return mouseArea.mapToItem(card.canvasItem, mouse.x, mouse.y);
     }
 
     z: card.nodeData && card.nodeData.selected ? 30 : 20
@@ -149,7 +196,8 @@ Rectangle {
                         id: inputDot
                         property bool hoveredState: card.isHoveredPort("in", modelData.key)
                         property bool pendingState: card.isPendingPort("in", modelData.key)
-                        property bool interactiveState: hoveredState || pendingState
+                        property bool dragSourceState: card.isDragSourcePort("in", modelData.key)
+                        property bool interactiveState: hoveredState || pendingState || dragSourceState
                         property bool connectedState: card.isConnectedPort(modelData)
                         property color portColor: card.basePortColor(modelData.kind)
                         width: interactiveState ? 14 : 8
@@ -192,22 +240,59 @@ Rectangle {
                                 pressStartX = mouse.x;
                                 pressStartY = mouse.y;
                                 movedState = false;
+                                var scenePos = card.portScenePos("in", rowIndex);
+                                var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
+                                card.portDragStarted(
+                                    card.nodeData.node_id,
+                                    modelData.key,
+                                    "in",
+                                    scenePos.x,
+                                    scenePos.y,
+                                    pointerPos.x,
+                                    pointerPos.y
+                                );
                                 mouse.accepted = true;
                             }
                             onPositionChanged: {
                                 if (!pressed)
                                     return;
-                                if (Math.abs(mouse.x - pressStartX) >= 2 || Math.abs(mouse.y - pressStartY) >= 2)
+                                if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
+                                    || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
                                     movedState = true;
+                                }
+                                var scenePos = card.portScenePos("in", rowIndex);
+                                var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
+                                card.portDragMoved(
+                                    card.nodeData.node_id,
+                                    modelData.key,
+                                    "in",
+                                    scenePos.x,
+                                    scenePos.y,
+                                    pointerPos.x,
+                                    pointerPos.y,
+                                    movedState
+                                );
                             }
                             onReleased: {
+                                var scenePos = card.portScenePos("in", rowIndex);
+                                var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
+                                card.portDragFinished(
+                                    card.nodeData.node_id,
+                                    modelData.key,
+                                    "in",
+                                    scenePos.x,
+                                    scenePos.y,
+                                    pointerPos.x,
+                                    pointerPos.y,
+                                    movedState
+                                );
                                 if (!movedState) {
-                                    var clickPos = card.portScenePos("in", rowIndex);
-                                    card.portClicked(card.nodeData.node_id, modelData.key, "in", clickPos.x, clickPos.y);
+                                    card.portClicked(card.nodeData.node_id, modelData.key, "in", scenePos.x, scenePos.y);
                                 }
                                 movedState = false;
                             }
                             onCanceled: {
+                                card.portDragCanceled(card.nodeData.node_id, modelData.key, "in");
                                 movedState = false;
                             }
                             onEntered: {
@@ -253,7 +338,8 @@ Rectangle {
                         id: outputDot
                         property bool hoveredState: card.isHoveredPort("out", modelData.key)
                         property bool pendingState: card.isPendingPort("out", modelData.key)
-                        property bool interactiveState: hoveredState || pendingState
+                        property bool dragSourceState: card.isDragSourcePort("out", modelData.key)
+                        property bool interactiveState: hoveredState || pendingState || dragSourceState
                         property bool connectedState: card.isConnectedPort(modelData)
                         property color portColor: card.basePortColor(modelData.kind)
                         width: interactiveState ? 14 : 8
@@ -296,22 +382,59 @@ Rectangle {
                                 pressStartX = mouse.x;
                                 pressStartY = mouse.y;
                                 movedState = false;
+                                var scenePos = card.portScenePos("out", rowIndex);
+                                var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
+                                card.portDragStarted(
+                                    card.nodeData.node_id,
+                                    modelData.key,
+                                    "out",
+                                    scenePos.x,
+                                    scenePos.y,
+                                    pointerPos.x,
+                                    pointerPos.y
+                                );
                                 mouse.accepted = true;
                             }
                             onPositionChanged: {
                                 if (!pressed)
                                     return;
-                                if (Math.abs(mouse.x - pressStartX) >= 2 || Math.abs(mouse.y - pressStartY) >= 2)
+                                if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
+                                    || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
                                     movedState = true;
+                                }
+                                var scenePos = card.portScenePos("out", rowIndex);
+                                var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
+                                card.portDragMoved(
+                                    card.nodeData.node_id,
+                                    modelData.key,
+                                    "out",
+                                    scenePos.x,
+                                    scenePos.y,
+                                    pointerPos.x,
+                                    pointerPos.y,
+                                    movedState
+                                );
                             }
                             onReleased: {
+                                var scenePos = card.portScenePos("out", rowIndex);
+                                var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
+                                card.portDragFinished(
+                                    card.nodeData.node_id,
+                                    modelData.key,
+                                    "out",
+                                    scenePos.x,
+                                    scenePos.y,
+                                    pointerPos.x,
+                                    pointerPos.y,
+                                    movedState
+                                );
                                 if (!movedState) {
-                                    var clickPos = card.portScenePos("out", rowIndex);
-                                    card.portClicked(card.nodeData.node_id, modelData.key, "out", clickPos.x, clickPos.y);
+                                    card.portClicked(card.nodeData.node_id, modelData.key, "out", scenePos.x, scenePos.y);
                                 }
                                 movedState = false;
                             }
                             onCanceled: {
+                                card.portDragCanceled(card.nodeData.node_id, modelData.key, "out");
                                 movedState = false;
                             }
                             onEntered: {

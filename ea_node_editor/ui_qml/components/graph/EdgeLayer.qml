@@ -10,6 +10,7 @@ Item {
     property var dragOffsets: ({})
     property var selectedEdgeIds: []
     property string previewEdgeId: ""
+    property var dragConnection: null
     property bool inputEnabled: true
 
     signal edgeClicked(string edgeId, bool additive)
@@ -202,6 +203,30 @@ Item {
         };
     }
 
+    function _dragGeometry(connection) {
+        if (!connection)
+            return null;
+        var sourceX = Number(connection.start_x);
+        var sourceY = Number(connection.start_y);
+        var targetX = Number(connection.target_x);
+        var targetY = Number(connection.target_y);
+        var horizontalDistance = Math.abs(targetX - sourceX);
+        var handle = Math.max(42.0, Math.min(170.0, horizontalDistance * 0.42));
+        var sourceDirection = String(connection.source_direction || "out");
+        var sourceSign = sourceDirection === "in" ? -1.0 : 1.0;
+        var targetSign = sourceDirection === "in" ? 1.0 : -1.0;
+        return {
+            "sx": sourceX,
+            "sy": sourceY,
+            "tx": targetX,
+            "ty": targetY,
+            "c1x": sourceX + sourceSign * handle,
+            "c1y": sourceY,
+            "c2x": targetX + targetSign * handle,
+            "c2y": targetY
+        };
+    }
+
     function _isSelected(edgeId) {
         return (root.selectedEdgeIds || []).indexOf(edgeId) >= 0;
     }
@@ -306,6 +331,30 @@ Item {
                 ctx.stroke();
             }
 
+            var liveDrag = root.dragConnection;
+            if (liveDrag) {
+                var dragGeometry = root._dragGeometry(liveDrag);
+                if (dragGeometry) {
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(root.sceneToScreenX(dragGeometry.sx), root.sceneToScreenY(dragGeometry.sy));
+                    ctx.bezierCurveTo(
+                        root.sceneToScreenX(dragGeometry.c1x),
+                        root.sceneToScreenY(dragGeometry.c1y),
+                        root.sceneToScreenX(dragGeometry.c2x),
+                        root.sceneToScreenY(dragGeometry.c2y),
+                        root.sceneToScreenX(dragGeometry.tx),
+                        root.sceneToScreenY(dragGeometry.ty)
+                    );
+                    ctx.strokeStyle = liveDrag.valid_drop ? "#FFDA6B" : "#8FA2C7";
+                    ctx.lineWidth = Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom);
+                    ctx.setLineDash([Math.max(2.0, 6.0 * zoom), Math.max(1.0, 4.0 * zoom)]);
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+
         }
     }
 
@@ -337,6 +386,7 @@ Item {
     onDragOffsetsChanged: requestRedraw()
     onSelectedEdgeIdsChanged: requestRedraw()
     onPreviewEdgeIdChanged: requestRedraw()
+    onDragConnectionChanged: requestRedraw()
 
     Connections {
         target: root.viewBridge
