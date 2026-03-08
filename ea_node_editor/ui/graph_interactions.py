@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
-from typing import Any, Iterable, Protocol
+from typing import TYPE_CHECKING, Any, Iterable, Protocol
 
 from ea_node_editor.graph.model import WorkspaceData
 from ea_node_editor.graph.rules import are_port_kinds_compatible, port_kind
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 
 
 @dataclass(slots=True)
@@ -29,9 +34,15 @@ class _GraphSceneLike(Protocol):
 
 
 class GraphInteractions:
-    def __init__(self, scene: _GraphSceneLike, registry: NodeRegistry) -> None:
+    def __init__(
+        self,
+        scene: _GraphSceneLike,
+        registry: NodeRegistry,
+        history: RuntimeGraphHistory | None = None,
+    ) -> None:
         self._scene = scene
         self._registry = registry
+        self._history = history
 
     def connect_ports(
         self,
@@ -130,38 +141,46 @@ class GraphInteractions:
     def delete_selected_items(self, edge_ids: Iterable[Any]) -> GraphActionResult:
         workspace = self._scene.current_workspace()
         removed_any = False
+        history_group = nullcontext()
+        if self._history is not None:
+            history_group = self._history.grouped_action(
+                workspace.workspace_id,
+                ACTION_DELETE_SELECTED,
+                workspace,
+            )
 
-        requested_edge_ids: list[str] = []
-        seen_edge_ids: set[str] = set()
-        for value in edge_ids:
-            edge_id = str(value).strip()
-            if not edge_id or edge_id in seen_edge_ids:
-                continue
-            seen_edge_ids.add(edge_id)
-            requested_edge_ids.append(edge_id)
+        with history_group:
+            requested_edge_ids: list[str] = []
+            seen_edge_ids: set[str] = set()
+            for value in edge_ids:
+                edge_id = str(value).strip()
+                if not edge_id or edge_id in seen_edge_ids:
+                    continue
+                seen_edge_ids.add(edge_id)
+                requested_edge_ids.append(edge_id)
 
-        for edge_id in requested_edge_ids:
-            if edge_id not in workspace.edges:
-                continue
-            self._scene.remove_edge(edge_id)
-            removed_any = True
+            for edge_id in requested_edge_ids:
+                if edge_id not in workspace.edges:
+                    continue
+                self._scene.remove_edge(edge_id)
+                removed_any = True
 
-        selected_node_ids: list[str] = []
-        seen_node_ids: set[str] = set()
-        for item in self._scene.selectedItems():
-            node = getattr(item, "node", None)
-            node_id = getattr(node, "node_id", "")
-            normalized_node_id = str(node_id).strip()
-            if not normalized_node_id or normalized_node_id in seen_node_ids:
-                continue
-            seen_node_ids.add(normalized_node_id)
-            selected_node_ids.append(normalized_node_id)
+            selected_node_ids: list[str] = []
+            seen_node_ids: set[str] = set()
+            for item in self._scene.selectedItems():
+                node = getattr(item, "node", None)
+                node_id = getattr(node, "node_id", "")
+                normalized_node_id = str(node_id).strip()
+                if not normalized_node_id or normalized_node_id in seen_node_ids:
+                    continue
+                seen_node_ids.add(normalized_node_id)
+                selected_node_ids.append(normalized_node_id)
 
-        for node_id in selected_node_ids:
-            if node_id not in workspace.nodes:
-                continue
-            self._scene.remove_node(node_id)
-            removed_any = True
+            for node_id in selected_node_ids:
+                if node_id not in workspace.nodes:
+                    continue
+                self._scene.remove_node(node_id)
+                removed_any = True
 
         if not removed_any:
             return GraphActionResult(False, "No selected graph items to remove.")

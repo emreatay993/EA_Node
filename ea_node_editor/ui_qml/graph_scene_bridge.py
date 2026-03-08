@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -18,7 +18,23 @@ from ea_node_editor.graph.rules import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.ui.shell.runtime_history import (
+    ACTION_ADD_EDGE,
+    ACTION_ADD_NODE,
+    ACTION_EDIT_PROPERTY,
+    ACTION_MOVE_NODE,
+    ACTION_REMOVE_EDGE,
+    ACTION_REMOVE_NODE,
+    ACTION_RENAME_NODE,
+    ACTION_TOGGLE_COLLAPSED,
+    ACTION_TOGGLE_EXPOSED_PORT,
+)
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload, category_accent, node_size, port_scene_pos
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory, WorkspaceSnapshot
+
+_MISSING = object()
 
 
 @dataclass(slots=True)
@@ -49,6 +65,7 @@ class GraphSceneBridge(QObject):
         super().__init__(parent)
         self._model: GraphModel | None = None
         self._registry: NodeRegistry | None = None
+        self._history: RuntimeGraphHistory | None = None
         self._workspace_id = ""
         self._selected_node_ids: list[str] = []
         self._nodes_payload: list[dict[str, Any]] = []
@@ -71,6 +88,9 @@ class GraphSceneBridge(QObject):
         selected = self.selected_node_id()
         return selected or ""
 
+    def bind_runtime_history(self, history: RuntimeGraphHistory | None) -> None:
+        self._history = history
+
     def _require_bound(self) -> tuple[GraphModel, NodeRegistry]:
         if self._model is None or self._registry is None:
             raise RuntimeError("Scene is not bound")
@@ -90,6 +110,19 @@ class GraphSceneBridge(QObject):
         if self._model is None:
             raise RuntimeError("Scene has no graph model")
         return self._model.project.workspaces[self._workspace_id]
+
+    def refresh_workspace_from_model(self, workspace_id: str) -> None:
+        if self._model is None:
+            return
+        normalized_workspace_id = str(workspace_id).strip()
+        if not normalized_workspace_id or normalized_workspace_id != self._workspace_id:
+            return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        self._selected_node_ids = [node_id for node_id in self._selected_node_ids if node_id in workspace.nodes]
+        self._rebuild_models()
+        self.node_selected.emit(self.selected_node_id() or "")
 
     def selected_node_id(self) -> str | None:
         for node_id in reversed(self._selected_node_ids):
@@ -223,6 +256,7 @@ class GraphSceneBridge(QObject):
     @pyqtSlot(str, float, float, result=str)
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
         model, registry = self._require_bound()
+        history_before = self._capture_history_snapshot()
         spec = registry.get_spec(type_id)
         node = model.add_node(
             self._workspace_id,
@@ -236,6 +270,7 @@ class GraphSceneBridge(QObject):
         self._selected_node_ids = [node.node_id]
         self._rebuild_models()
         self.node_selected.emit(node.node_id)
+        self._record_history(ACTION_ADD_NODE, history_before)
         return node.node_id
 
     @pyqtSlot(str, str, str, str, result=bool)
@@ -267,6 +302,7 @@ class GraphSceneBridge(QObject):
 
     def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> str:
         model, registry = self._require_bound()
+        history_before = self._capture_history_snapshot()
         source_node = self._node_or_raise(source_node_id)
         target_node = self._node_or_raise(target_node_id)
         source_spec = registry.get_spec(source_node.type_id)
@@ -297,6 +333,7 @@ class GraphSceneBridge(QObject):
             target_port_key=target_port,
         )
         self._rebuild_models()
+        self._record_history(ACTION_ADD_EDGE, history_before)
         return edge.edge_id
 
     @pyqtSlot(str, str, result=str)
@@ -322,17 +359,27 @@ class GraphSceneBridge(QObject):
     def remove_edge(self, edge_id: str) -> None:
         if self._model is None:
             return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None or edge_id not in workspace.edges:
+            return
+        history_before = self._capture_history_snapshot()
         self._model.remove_edge(self._workspace_id, edge_id)
         self._rebuild_models()
+        self._record_history(ACTION_REMOVE_EDGE, history_before)
 
     def remove_node(self, node_id: str) -> None:
         if self._model is None:
             return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None or node_id not in workspace.nodes:
+            return
+        history_before = self._capture_history_snapshot()
         self._model.remove_node(self._workspace_id, node_id)
         self._selected_node_ids = [value for value in self._selected_node_ids if value != node_id]
         self._rebuild_models()
         if not self._selected_node_ids:
             self.node_selected.emit("")
+        self._record_history(ACTION_REMOVE_NODE, history_before)
 
     @pyqtSlot(str)
     def focus_node_slot(self, node_id: str) -> None:
@@ -350,8 +397,19 @@ class GraphSceneBridge(QObject):
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
         if self._model is None:
             return
-        self._model.set_node_collapsed(self._workspace_id, node_id, bool(collapsed))
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        normalized_collapsed = bool(collapsed)
+        if bool(node.collapsed) == normalized_collapsed:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_node_collapsed(self._workspace_id, node_id, normalized_collapsed)
         self._rebuild_models()
+        self._record_history(ACTION_TOGGLE_COLLAPSED, history_before)
 
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         if self._model is None or self._registry is None:
@@ -359,26 +417,50 @@ class GraphSceneBridge(QObject):
         workspace = self._model.project.workspaces[self._workspace_id]
         node = workspace.nodes[node_id]
         normalized = self._registry.normalize_property_value(node.type_id, key, value)
+        current_value = node.properties.get(key, _MISSING)
+        if current_value is not _MISSING and current_value == normalized:
+            return
+        history_before = self._capture_history_snapshot()
         self._model.set_node_property(self._workspace_id, node_id, key, normalized)
         self._rebuild_models()
+        self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
     def set_node_title(self, node_id: str, title: str) -> None:
         if self._model is None:
             return
-        if self._node(node_id) is None:
+        node = self._node(node_id)
+        if node is None:
             return
         normalized = str(title).strip()
         if not normalized:
             return
+        if node.title == normalized:
+            return
+        history_before = self._capture_history_snapshot()
         self._model.set_node_title(self._workspace_id, node_id, normalized)
         self._rebuild_models()
+        self._record_history(ACTION_RENAME_NODE, history_before)
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
         if self._model is None or self._registry is None:
             return
-        self._model.set_exposed_port(self._workspace_id, node_id, key, bool(exposed))
-        if not exposed:
-            workspace = self._model.project.workspaces[self._workspace_id]
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        spec = self._registry.get_spec(node.type_id)
+        port = find_port(spec, key)
+        if port is None:
+            return
+        normalized_exposed = bool(exposed)
+        current_exposed = bool(node.exposed_ports.get(key, port.exposed))
+        if current_exposed == normalized_exposed:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_exposed_port(self._workspace_id, node_id, key, normalized_exposed)
+        if not normalized_exposed:
             affected_edges = [
                 edge_id
                 for edge_id, edge in workspace.edges.items()
@@ -388,15 +470,23 @@ class GraphSceneBridge(QObject):
             for edge_id in affected_edges:
                 self._model.remove_edge(self._workspace_id, edge_id)
         self._rebuild_models()
+        self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
 
     @pyqtSlot(str, float, float)
     def move_node(self, node_id: str, x: float, y: float) -> None:
         if self._model is None:
             return
-        if self._node(node_id) is None:
+        node = self._node(node_id)
+        if node is None:
             return
-        self._model.set_node_position(self._workspace_id, node_id, float(x), float(y))
+        final_x = float(x)
+        final_y = float(y)
+        if float(node.x) == final_x and float(node.y) == final_y:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_node_position(self._workspace_id, node_id, final_x, final_y)
         self._rebuild_models()
+        self._record_history(ACTION_MOVE_NODE, history_before)
 
     def _node(self, node_id: str) -> NodeInstance | None:
         if self._model is None:
@@ -443,6 +533,22 @@ class GraphSceneBridge(QObject):
                 continue
             bounds = bounds.united(node_bounds)
         return bounds
+
+    def _capture_history_snapshot(self) -> WorkspaceSnapshot | None:
+        if self._history is None or self._model is None or not self._workspace_id:
+            return None
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return None
+        return self._history.capture_workspace(workspace)
+
+    def _record_history(self, action_type: str, before_snapshot: WorkspaceSnapshot | None) -> None:
+        if self._history is None or self._model is None or before_snapshot is None or not self._workspace_id:
+            return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        self._history.record_action(self._workspace_id, action_type, before_snapshot, workspace)
 
     def _rebuild_models(self) -> None:
         if self._model is None or self._registry is None or not self._workspace_id:

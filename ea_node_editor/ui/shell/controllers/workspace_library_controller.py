@@ -8,6 +8,7 @@ from PyQt6.QtCore import QRectF
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.graph.rules import find_port, is_port_exposed, ports_compatible
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE
 from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
 from ea_node_editor.ui.shell.library_flow import input_port_is_available, pick_connection_candidate
 from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
@@ -180,6 +181,7 @@ class WorkspaceLibraryController:
         if not ok:
             return
         workspace_id = self._host.workspace_manager.create_workspace(name=name or None)
+        self._host.runtime_history.clear_workspace(workspace_id)
         self.refresh_workspace_tabs()
         self.switch_workspace(workspace_id)
 
@@ -206,6 +208,7 @@ class WorkspaceLibraryController:
         if not workspace_id:
             return
         duplicated_id = self._host.workspace_manager.duplicate_workspace(workspace_id)
+        self._host.runtime_history.clear_workspace(duplicated_id)
         self.refresh_workspace_tabs()
         self.switch_workspace(duplicated_id)
 
@@ -242,6 +245,7 @@ class WorkspaceLibraryController:
         except ValueError:
             QMessageBox.warning(self._host, "Workspace", "Cannot close the last workspace.")
             return
+        self._host.runtime_history.clear_workspace(workspace_id)
         self.refresh_workspace_tabs()
         self.switch_workspace(self._host.workspace_manager.active_workspace_id())
 
@@ -495,6 +499,30 @@ class WorkspaceLibraryController:
             return
         self.refresh_workspace_tabs()
 
+    def undo(self) -> bool:
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        if workspace is None:
+            return False
+        entry = self._host.runtime_history.undo_workspace(workspace_id, workspace)
+        if entry is None:
+            return False
+        self._host.scene.refresh_workspace_from_model(workspace_id)
+        self.refresh_workspace_tabs()
+        return True
+
+    def redo(self) -> bool:
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        if workspace is None:
+            return False
+        entry = self._host.runtime_history.redo_workspace(workspace_id, workspace)
+        if entry is None:
+            return False
+        self._host.scene.refresh_workspace_from_model(workspace_id)
+        self.refresh_workspace_tabs()
+        return True
+
     def request_drop_node_from_library(
         self,
         type_id: str,
@@ -505,22 +533,31 @@ class WorkspaceLibraryController:
         target_port_key: str,
         target_edge_id: str,
     ) -> ControllerResult[bool]:
-        created_node_id = self.insert_library_node(type_id, scene_x, scene_y)
-        if not created_node_id:
-            return ControllerResult(False, "Node could not be created.", payload=False)
+        workspace = self.active_workspace()
+        if workspace is None:
+            return ControllerResult(False, "Workspace not found.", payload=False)
 
-        mode = str(target_mode).strip().lower()
-        if mode == "port":
-            self.auto_connect_dropped_node_to_port(
-                created_node_id,
-                str(target_node_id).strip(),
-                str(target_port_key).strip(),
-            )
-        elif mode == "edge":
-            self.auto_connect_dropped_node_to_edge(
-                created_node_id,
-                str(target_edge_id).strip(),
-            )
+        with self._host.runtime_history.grouped_action(
+            workspace.workspace_id,
+            ACTION_ADD_NODE,
+            workspace,
+        ):
+            created_node_id = self.insert_library_node(type_id, scene_x, scene_y)
+            if not created_node_id:
+                return ControllerResult(False, "Node could not be created.", payload=False)
+
+            mode = str(target_mode).strip().lower()
+            if mode == "port":
+                self.auto_connect_dropped_node_to_port(
+                    created_node_id,
+                    str(target_node_id).strip(),
+                    str(target_port_key).strip(),
+                )
+            elif mode == "edge":
+                self.auto_connect_dropped_node_to_edge(
+                    created_node_id,
+                    str(target_edge_id).strip(),
+                )
 
         self.refresh_workspace_tabs()
         return ControllerResult(True, payload=True)

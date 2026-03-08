@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
@@ -149,6 +150,54 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         self.scene.clear_selection()
         self.assertIsNone(self.scene.selection_bounds())
+
+
+class RuntimeGraphHistoryTrackBTests(unittest.TestCase):
+    def test_history_is_isolated_per_workspace_and_clears_redo_on_new_commit(self) -> None:
+        model = GraphModel()
+        history = RuntimeGraphHistory()
+        workspace_a_id = model.active_workspace.workspace_id
+        workspace_b_id = model.create_workspace(name="Secondary").workspace_id
+        workspace_a = model.project.workspaces[workspace_a_id]
+        workspace_b = model.project.workspaces[workspace_b_id]
+
+        before_a = history.capture_workspace(workspace_a)
+        model.add_node(workspace_a_id, "core.start", "Start A", 0.0, 0.0)
+        history.record_action(workspace_a_id, ACTION_ADD_NODE, before_a, workspace_a)
+
+        before_b = history.capture_workspace(workspace_b)
+        model.add_node(workspace_b_id, "core.end", "End B", 240.0, 100.0)
+        history.record_action(workspace_b_id, ACTION_ADD_NODE, before_b, workspace_b)
+
+        self.assertEqual(history.undo_depth(workspace_a_id), 1)
+        self.assertEqual(history.undo_depth(workspace_b_id), 1)
+
+        undone = history.undo_workspace(workspace_a_id, workspace_a)
+        self.assertIsNotNone(undone)
+        self.assertEqual(len(workspace_a.nodes), 0)
+        self.assertEqual(len(workspace_b.nodes), 1)
+        self.assertEqual(history.redo_depth(workspace_a_id), 1)
+        self.assertEqual(history.redo_depth(workspace_b_id), 0)
+
+        before_new = history.capture_workspace(workspace_a)
+        model.add_node(workspace_a_id, "core.logger", "Logger A", 80.0, 30.0)
+        history.record_action(workspace_a_id, ACTION_ADD_NODE, before_new, workspace_a)
+        self.assertEqual(history.redo_depth(workspace_a_id), 0)
+        self.assertEqual(history.undo_depth(workspace_a_id), 1)
+
+    def test_grouped_action_commits_single_history_entry(self) -> None:
+        model = GraphModel()
+        history = RuntimeGraphHistory()
+        workspace_id = model.active_workspace.workspace_id
+        workspace = model.project.workspaces[workspace_id]
+
+        with history.grouped_action(workspace_id, ACTION_ADD_NODE, workspace):
+            model.add_node(workspace_id, "core.start", "Start", 0.0, 0.0)
+            model.add_node(workspace_id, "core.end", "End", 280.0, 40.0)
+
+        self.assertEqual(history.undo_depth(workspace_id), 1)
+        history.undo_workspace(workspace_id, workspace)
+        self.assertEqual(len(workspace.nodes), 0)
 
 
 class ViewportBridgeTrackBTests(unittest.TestCase):
