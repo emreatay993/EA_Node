@@ -8,6 +8,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QRectF
 from PyQt6.QtWidgets import QApplication
 
+from ea_node_editor.graph.hierarchy import subtree_node_ids
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, RuntimeGraphHistory
@@ -531,6 +532,103 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         ]
         self.assertEqual(duplicated_external_edges, [])
 
+    def test_duplicate_selected_subgraph_treats_selected_subnode_shell_as_subtree_root(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        shell_id = self.scene.add_node_from_type("core.subnode", 120.0, 80.0)
+        nested_logger_id = self.scene.add_node_from_type("core.logger", 320.0, 120.0)
+        nested_constant_id = self.scene.add_node_from_type("core.constant", 80.0, 220.0)
+        deep_script_id = self.scene.add_node_from_type("core.python_script", 520.0, 260.0)
+        external_logger_id = self.scene.add_node_from_type("core.logger", 780.0, 140.0)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        workspace.nodes[nested_logger_id].parent_node_id = shell_id
+        workspace.nodes[nested_constant_id].parent_node_id = shell_id
+        workspace.nodes[deep_script_id].parent_node_id = nested_logger_id
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        self.model.add_edge(self.workspace_id, nested_constant_id, "as_text", nested_logger_id, "message")
+        self.model.add_edge(self.workspace_id, nested_logger_id, "exec_out", deep_script_id, "exec_in")
+        self.model.add_edge(self.workspace_id, nested_constant_id, "value", external_logger_id, "message")
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        original_subtree = subtree_node_ids(workspace, [shell_id])
+        original_subtree_set = set(original_subtree)
+        original_internal_edge_count = len(
+            [
+                edge
+                for edge in workspace.edges.values()
+                if edge.source_node_id in original_subtree_set and edge.target_node_id in original_subtree_set
+            ]
+        )
+
+        self.scene.select_node(shell_id, False)
+        history.clear_workspace(self.workspace_id)
+        duplicated = self.scene.duplicate_selected_subgraph()
+        self.assertTrue(duplicated)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        duplicated_shell_ids = [
+            node_id
+            for node_id, node in workspace.nodes.items()
+            if node.type_id == "core.subnode"
+            and node.parent_node_id is None
+            and node_id != shell_id
+            and abs(float(node.x) - (float(workspace.nodes[shell_id].x) + 40.0)) < 1e-6
+            and abs(float(node.y) - (float(workspace.nodes[shell_id].y) + 40.0)) < 1e-6
+        ]
+        self.assertEqual(len(duplicated_shell_ids), 1)
+        duplicated_shell_id = duplicated_shell_ids[0]
+
+        duplicated_subtree = subtree_node_ids(workspace, [duplicated_shell_id])
+        duplicated_subtree_set = set(duplicated_subtree)
+        self.assertEqual(len(duplicated_subtree), len(original_subtree))
+        self.assertEqual(original_subtree_set & duplicated_subtree_set, set())
+
+        duplicated_internal_edge_count = len(
+            [
+                edge
+                for edge in workspace.edges.values()
+                if edge.source_node_id in duplicated_subtree_set and edge.target_node_id in duplicated_subtree_set
+            ]
+        )
+        self.assertEqual(duplicated_internal_edge_count, original_internal_edge_count)
+
+        duplicated_external_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if (
+                edge.source_node_id in duplicated_subtree_set and edge.target_node_id not in duplicated_subtree_set
+            )
+            or (
+                edge.target_node_id in duplicated_subtree_set and edge.source_node_id not in duplicated_subtree_set
+            )
+        ]
+        self.assertEqual(duplicated_external_edges, [])
+
+    def test_focus_move_and_connect_are_restricted_to_active_scope(self) -> None:
+        shell_id = self.scene.add_node_from_type("core.subnode", 180.0, 120.0)
+        root_source_id = self.scene.add_node_from_type("core.start", 40.0, 40.0)
+        nested_logger_id = self.scene.add_node_from_type("core.logger", 120.0, 80.0)
+        nested_target_id = self.scene.add_node_from_type("core.python_script", 340.0, 100.0)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        workspace.nodes[nested_logger_id].parent_node_id = shell_id
+        workspace.nodes[nested_target_id].parent_node_id = shell_id
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        self.assertIsNone(self.scene.focus_node(nested_logger_id))
+        self.assertFalse(self.scene.move_nodes_by_delta([nested_logger_id], 40.0, 25.0))
+        self.assertAlmostEqual(workspace.nodes[nested_logger_id].x, 120.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[nested_logger_id].y, 80.0, places=6)
+
+        with self.assertRaises(ValueError):
+            self.scene.add_edge(root_source_id, "trigger", nested_logger_id, "message")
+
+        self.assertTrue(self.scene.open_scope_for_node(nested_logger_id))
+        focused_center = self.scene.focus_node(nested_logger_id)
+        self.assertIsNotNone(focused_center)
+        self.assertEqual(self.scene.active_scope_path, [shell_id])
+        self.assertTrue(self.scene.move_nodes_by_delta([nested_logger_id, nested_target_id], 15.0, -10.0))
+
     def test_group_selected_nodes_creates_subnode_pins_and_single_history_entry(self) -> None:
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
@@ -593,6 +691,41 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             if edge[0] == shell_id and edge[2] == external_script_id and edge[3] == "payload"
         ]
         self.assertEqual(len(outgoing_shell_script_edges), 1)
+
+    def test_group_selected_nodes_orders_outgoing_shell_ports_by_external_target_geometry(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        branch_id = self.scene.add_node_from_type("core.branch", 260.0, 80.0)
+        constant_id = self.scene.add_node_from_type("core.constant", 120.0, 120.0)
+        top_end_id = self.scene.add_node_from_type("core.end", 760.0, 20.0)
+        bottom_end_id = self.scene.add_node_from_type("core.end", 760.0, 340.0)
+        self.scene.add_edge(constant_id, "value", branch_id, "condition")
+        self.scene.add_edge(branch_id, "true_out", top_end_id, "exec_in")
+        self.scene.add_edge(branch_id, "false_out", bottom_end_id, "exec_in")
+        workspace = self.model.project.workspaces[self.workspace_id]
+
+        self.scene.select_node(branch_id, False)
+        self.scene.select_node(constant_id, True)
+        history.clear_workspace(self.workspace_id)
+        self.assertTrue(self.scene.group_selected_nodes())
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        shell_id = self.scene.selected_node_id()
+        self.assertIsNotNone(shell_id)
+        assert shell_id is not None
+        shell_payload = next(item for item in self.scene.nodes_model if item["node_id"] == shell_id)
+        shell_port_keys = [str(port["key"]) for port in shell_payload["ports"]]
+
+        target_y_by_port: dict[str, float] = {}
+        for edge in workspace.edges.values():
+            if edge.source_node_id != shell_id:
+                continue
+            if edge.source_port_key not in shell_port_keys:
+                continue
+            target_y_by_port[edge.source_port_key] = float(workspace.nodes[edge.target_node_id].y)
+
+        ordered_target_y = [target_y_by_port[port_key] for port_key in shell_port_keys]
+        self.assertEqual(ordered_target_y, sorted(ordered_target_y))
 
     def test_ungroup_selected_subnode_restores_wiring_and_single_history_entry(self) -> None:
         self.scene.bind_runtime_history(RuntimeGraphHistory())

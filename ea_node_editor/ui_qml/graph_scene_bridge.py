@@ -31,7 +31,12 @@ from ea_node_editor.graph.hierarchy import (
     subnode_scope_path,
 )
 from ea_node_editor.graph.model import GraphModel, NodeInstance, ViewState, WorkspaceData
-from ea_node_editor.graph.transforms import group_selection_into_subnode, ungroup_subnode
+from ea_node_editor.graph.transforms import (
+    build_subtree_fragment_payload_data,
+    group_selection_into_subnode,
+    insert_graph_fragment,
+    ungroup_subnode,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -337,8 +342,11 @@ class GraphSceneBridge(QObject):
         self.node_selected.emit(self.selected_node_id() or "")
 
     def selected_node_id(self) -> str | None:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return None
         for node_id in reversed(self._selected_node_ids):
-            if self._node(node_id) is not None:
+            if node_id in workspace.nodes and is_node_in_scope(workspace, node_id, self._scope_path):
                 return node_id
         return None
 
@@ -347,7 +355,7 @@ class GraphSceneBridge(QObject):
         selected: list[_SelectedNodeProxy] = []
         for node_id in self._selected_node_ids:
             node = workspace.nodes.get(node_id)
-            if node is not None:
+            if node is not None and is_node_in_scope(workspace, node_id, self._scope_path):
                 selected.append(_SelectedNodeProxy(node=node))
         return selected
 
@@ -394,9 +402,13 @@ class GraphSceneBridge(QObject):
         return self._rect_payload(self.workspace_scene_bounds_with_fallback())
 
     def selection_bounds(self) -> QRectF | None:
-        if not self._selected_node_ids:
+        workspace = self._workspace_or_none()
+        if workspace is None:
             return None
-        return self._bounds_for_node_ids(self._selected_node_ids)
+        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
+        if not selected_node_ids:
+            return None
+        return self._bounds_for_node_ids(selected_node_ids)
 
     def clearSelection(self) -> None:
         if not self._selected_node_ids:
@@ -493,6 +505,8 @@ class GraphSceneBridge(QObject):
             return None
         node = workspace.nodes.get(node_id)
         if node is None or self._registry is None:
+            return None
+        if not is_node_in_scope(workspace, node_id, self._scope_path):
             return None
         spec = self._registry.get_spec(node.type_id)
         return _NodeItemProxy(node=node, spec=spec, workspace_nodes=workspace.nodes)
@@ -596,6 +610,12 @@ class GraphSceneBridge(QObject):
         workspace = model.project.workspaces[self._workspace_id]
         source_node = self._node_or_raise(source_node_id)
         target_node = self._node_or_raise(target_node_id)
+        if not is_node_in_scope(workspace, source_node_id, self._scope_path) or not is_node_in_scope(
+            workspace,
+            target_node_id,
+            self._scope_path,
+        ):
+            raise ValueError("Connections are only allowed for nodes in the active scope.")
         source_spec = registry.get_spec(source_node.type_id)
         target_spec = registry.get_spec(target_node.type_id)
 
@@ -667,6 +687,12 @@ class GraphSceneBridge(QObject):
     def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
         model, registry = self._require_bound()
         workspace = model.project.workspaces[self._workspace_id]
+        if not is_node_in_scope(workspace, node_a_id, self._scope_path) or not is_node_in_scope(
+            workspace,
+            node_b_id,
+            self._scope_path,
+        ):
+            raise ValueError("Selected nodes must be in the active scope.")
         node_a = workspace.nodes[node_a_id]
         node_b = workspace.nodes[node_b_id]
         spec_a = registry.get_spec(node_a.type_id)
@@ -715,6 +741,13 @@ class GraphSceneBridge(QObject):
         workspace = self._model.project.workspaces.get(self._workspace_id)
         if workspace is None or edge_id not in workspace.edges:
             return
+        edge = workspace.edges.get(edge_id)
+        if edge is None:
+            return
+        if not is_node_in_scope(workspace, edge.source_node_id, self._scope_path):
+            return
+        if not is_node_in_scope(workspace, edge.target_node_id, self._scope_path):
+            return
         history_before = self._capture_history_snapshot()
         self._model.remove_edge(self._workspace_id, edge_id)
         self._rebuild_models()
@@ -725,6 +758,8 @@ class GraphSceneBridge(QObject):
             return
         workspace = self._model.project.workspaces.get(self._workspace_id)
         if workspace is None or node_id not in workspace.nodes:
+            return
+        if not is_node_in_scope(workspace, node_id, self._scope_path):
             return
         history_before = self._capture_history_snapshot()
         self._model.remove_node(self._workspace_id, node_id)
@@ -834,6 +869,11 @@ class GraphSceneBridge(QObject):
     def move_node(self, node_id: str, x: float, y: float) -> None:
         if self._model is None:
             return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        if not is_node_in_scope(workspace, node_id, self._scope_path):
+            return
         node = self._node(node_id)
         if node is None:
             return
@@ -859,6 +899,8 @@ class GraphSceneBridge(QObject):
         for value in node_ids:
             node_id = str(value).strip()
             if not node_id or node_id in seen_node_ids or node_id not in workspace.nodes:
+                continue
+            if not is_node_in_scope(workspace, node_id, self._scope_path):
                 continue
             seen_node_ids.add(node_id)
             unique_node_ids.append(node_id)
@@ -1223,41 +1265,16 @@ class GraphSceneBridge(QObject):
         workspace: WorkspaceData,
         node_ids: list[str],
     ) -> dict[str, Any] | None:
-        selected_node_set = set(node_ids)
-        nodes_payload: list[dict[str, Any]] = []
-        for node_id in node_ids:
-            node = workspace.nodes.get(node_id)
-            if node is None:
-                continue
-            nodes_payload.append(
-                {
-                    "ref_id": node.node_id,
-                    "type_id": node.type_id,
-                    "title": node.title,
-                    "x": float(node.x),
-                    "y": float(node.y),
-                    "collapsed": bool(node.collapsed),
-                    "properties": dict(node.properties),
-                    "exposed_ports": dict(node.exposed_ports),
-                    "parent_node_id": node.parent_node_id,
-                }
-            )
-        if not nodes_payload:
+        fragment_data = build_subtree_fragment_payload_data(
+            workspace=workspace,
+            selected_node_ids=node_ids,
+        )
+        if fragment_data is None:
             return None
-
-        edges_payload: list[dict[str, str]] = []
-        for edge in workspace.edges.values():
-            if edge.source_node_id not in selected_node_set or edge.target_node_id not in selected_node_set:
-                continue
-            edges_payload.append(
-                {
-                    "source_ref_id": edge.source_node_id,
-                    "source_port_key": edge.source_port_key,
-                    "target_ref_id": edge.target_node_id,
-                    "target_port_key": edge.target_port_key,
-                }
-            )
-        return build_graph_fragment_payload(nodes=nodes_payload, edges=edges_payload)
+        return build_graph_fragment_payload(
+            nodes=fragment_data["nodes"],
+            edges=fragment_data["edges"],
+        )
 
     def _fragment_bounds(self, nodes_payload: list[dict[str, Any]]) -> QRectF | None:
         if self._registry is None:
@@ -1369,9 +1386,6 @@ class GraphSceneBridge(QObject):
         if not self._fragment_types_and_ports_are_valid(fragment_payload):
             return []
 
-        node_id_map: dict[str, str] = {}
-        inserted_node_ids: list[str] = []
-
         history_group = nullcontext()
         if self._history is not None:
             history_group = self._history.grouped_action(
@@ -1381,59 +1395,13 @@ class GraphSceneBridge(QObject):
             )
 
         with history_group:
-            for node_payload in fragment_payload["nodes"]:
-                source_node_id = str(node_payload["ref_id"]).strip()
-                created = self._model.add_node(
-                    self._workspace_id,
-                    type_id=str(node_payload["type_id"]),
-                    title=str(node_payload["title"]),
-                    x=float(node_payload["x"]) + float(delta_x),
-                    y=float(node_payload["y"]) + float(delta_y),
-                    properties=dict(node_payload["properties"]),
-                    exposed_ports=dict(node_payload["exposed_ports"]),
-                )
-                created.collapsed = bool(node_payload["collapsed"])
-                node_id_map[source_node_id] = created.node_id
-                inserted_node_ids.append(created.node_id)
-
-            for node_payload in fragment_payload["nodes"]:
-                source_node_id = str(node_payload["ref_id"]).strip()
-                inserted_node_id = node_id_map.get(source_node_id)
-                if not inserted_node_id:
-                    continue
-                inserted_node = workspace.nodes.get(inserted_node_id)
-                if inserted_node is None:
-                    continue
-                source_parent_id = node_payload.get("parent_node_id")
-                if source_parent_id is None:
-                    inserted_node.parent_node_id = None
-                    continue
-                normalized_parent_id = str(source_parent_id).strip()
-                if not normalized_parent_id:
-                    inserted_node.parent_node_id = None
-                elif normalized_parent_id in node_id_map:
-                    inserted_node.parent_node_id = node_id_map[normalized_parent_id]
-                elif normalized_parent_id in workspace.nodes:
-                    inserted_node.parent_node_id = normalized_parent_id
-                else:
-                    inserted_node.parent_node_id = None
-
-            for edge_payload in fragment_payload["edges"]:
-                source_node_id = node_id_map.get(str(edge_payload["source_ref_id"]).strip())
-                target_node_id = node_id_map.get(str(edge_payload["target_ref_id"]).strip())
-                if not source_node_id or not target_node_id:
-                    continue
-                try:
-                    self._model.add_edge(
-                        self._workspace_id,
-                        source_node_id=source_node_id,
-                        source_port_key=str(edge_payload["source_port_key"]),
-                        target_node_id=target_node_id,
-                        target_port_key=str(edge_payload["target_port_key"]),
-                    )
-                except ValueError:
-                    continue
-        return inserted_node_ids
+            return insert_graph_fragment(
+                model=self._model,
+                workspace_id=self._workspace_id,
+                fragment_payload=fragment_payload,
+                delta_x=delta_x,
+                delta_y=delta_y,
+            )
 
     def _bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
         bounds: QRectF | None = None

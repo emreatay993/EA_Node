@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from ea_node_editor.graph.transforms import group_selection_into_subnode
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -156,6 +157,76 @@ class SerializerTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_round_trip_preserves_grouped_subnode_parenting_and_boundary_edges(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        start_a = model.add_node(workspace.workspace_id, "core.start", "Start A", 20.0, 20.0)
+        start_b = model.add_node(workspace.workspace_id, "core.start", "Start B", 20.0, 220.0)
+        logger_a = model.add_node(workspace.workspace_id, "core.logger", "Logger A", 280.0, 20.0)
+        logger_b = model.add_node(workspace.workspace_id, "core.logger", "Logger B", 280.0, 220.0)
+        end_a = model.add_node(workspace.workspace_id, "core.end", "End A", 640.0, 0.0)
+        end_b = model.add_node(workspace.workspace_id, "core.end", "End B", 640.0, 140.0)
+        end_c = model.add_node(workspace.workspace_id, "core.end", "End C", 640.0, 280.0)
+        end_d = model.add_node(workspace.workspace_id, "core.end", "End D", 640.0, 420.0)
+
+        model.add_edge(workspace.workspace_id, start_a.node_id, "exec_out", logger_a.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, start_b.node_id, "exec_out", logger_b.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, logger_a.node_id, "exec_out", end_a.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, logger_a.node_id, "exec_out", end_b.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, logger_b.node_id, "exec_out", end_c.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, logger_b.node_id, "exec_out", end_d.node_id, "exec_in")
+
+        grouped = group_selection_into_subnode(
+            model=model,
+            registry=registry,
+            workspace_id=workspace.workspace_id,
+            selected_node_ids=[logger_a.node_id, logger_b.node_id],
+            scope_path=[],
+            shell_x=280.0,
+            shell_y=120.0,
+        )
+        self.assertIsNotNone(grouped)
+        assert grouped is not None
+
+        shell_id = grouped.shell_node_id
+        edge_signature_before = {
+            (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge in workspace.edges.values()
+            if edge.source_node_id == shell_id or edge.target_node_id == shell_id
+        }
+        self.assertTrue(edge_signature_before)
+
+        serializer = JsonProjectSerializer(registry)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "project.sfe"
+            serializer.save(str(path), model.project)
+            loaded = serializer.load(str(path))
+
+        loaded_ws = loaded.workspaces[workspace.workspace_id]
+        self.assertIn(shell_id, loaded_ws.nodes)
+        expected_children = [logger_a.node_id, logger_b.node_id, *grouped.created_pin_node_ids]
+        for node_id in expected_children:
+            self.assertIn(node_id, loaded_ws.nodes)
+            self.assertEqual(loaded_ws.nodes[node_id].parent_node_id, shell_id)
+
+        edge_signature_after = {
+            (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge in loaded_ws.edges.values()
+            if edge.source_node_id == shell_id or edge.target_node_id == shell_id
+        }
+        self.assertEqual(edge_signature_after, edge_signature_before)
 
     def test_save_output_is_deterministic_and_uses_workspace_order(self) -> None:
         model = GraphModel()

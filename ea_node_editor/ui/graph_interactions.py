@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Protocol
 
 from ea_node_editor.graph.effective_ports import are_port_kinds_compatible, find_port
+from ea_node_editor.graph.hierarchy import root_node_ids_for_fragment, subtree_node_ids
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
@@ -176,10 +177,12 @@ class GraphInteractions:
                 seen_node_ids.add(normalized_node_id)
                 selected_node_ids.append(normalized_node_id)
 
-            for node_id in selected_node_ids:
-                if node_id not in workspace.nodes:
+            removable_roots = root_node_ids_for_fragment(workspace, selected_node_ids)
+            removable_ids = subtree_node_ids(workspace, removable_roots)
+            for removable_node_id in reversed(removable_ids):
+                if removable_node_id not in workspace.nodes:
                     continue
-                self._scene.remove_node(node_id)
+                self._scene.remove_node(removable_node_id)
                 removed_any = True
 
         if not removed_any:

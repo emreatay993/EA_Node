@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Any, Sequence
 
 from ea_node_editor.graph.effective_ports import find_port, is_subnode_pin_type
-from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id
+from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id, subtree_node_ids
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
@@ -44,6 +44,198 @@ class _BoundaryEdge:
     label: str
     kind: str
     data_type: str
+
+
+def expand_subtree_fragment_node_ids(
+    *,
+    workspace: WorkspaceData,
+    selected_node_ids: Sequence[object],
+) -> list[str]:
+    normalized_selected: list[str] = []
+    seen_selected: set[str] = set()
+    for value in selected_node_ids:
+        node_id = str(value).strip()
+        if not node_id or node_id in seen_selected:
+            continue
+        if node_id not in workspace.nodes:
+            continue
+        seen_selected.add(node_id)
+        normalized_selected.append(node_id)
+
+    expanded: list[str] = []
+    seen_expanded: set[str] = set()
+    for node_id in normalized_selected:
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            continue
+        fragment_ids = [node_id]
+        if node.type_id == SUBNODE_TYPE_ID:
+            fragment_ids = subtree_node_ids(workspace, [node_id])
+        for fragment_id in fragment_ids:
+            if fragment_id in seen_expanded or fragment_id not in workspace.nodes:
+                continue
+            seen_expanded.add(fragment_id)
+            expanded.append(fragment_id)
+    return expanded
+
+
+def build_subtree_fragment_payload_data(
+    *,
+    workspace: WorkspaceData,
+    selected_node_ids: Sequence[object],
+) -> dict[str, list[dict[str, Any]]] | None:
+    fragment_node_ids = expand_subtree_fragment_node_ids(
+        workspace=workspace,
+        selected_node_ids=selected_node_ids,
+    )
+    if not fragment_node_ids:
+        return None
+
+    selected_node_set = set(fragment_node_ids)
+    nodes_payload: list[dict[str, Any]] = []
+    for node_id in fragment_node_ids:
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            continue
+        nodes_payload.append(
+            {
+                "ref_id": node.node_id,
+                "type_id": node.type_id,
+                "title": node.title,
+                "x": float(node.x),
+                "y": float(node.y),
+                "collapsed": bool(node.collapsed),
+                "properties": dict(node.properties),
+                "exposed_ports": dict(node.exposed_ports),
+                "parent_node_id": node.parent_node_id,
+            }
+        )
+    if not nodes_payload:
+        return None
+
+    edges_payload: list[dict[str, str]] = []
+    workspace_edges = sorted(
+        workspace.edges.values(),
+        key=lambda edge: edge.edge_id,
+    )
+    for edge in workspace_edges:
+        if edge.source_node_id not in selected_node_set or edge.target_node_id not in selected_node_set:
+            continue
+        edges_payload.append(
+            {
+                "source_ref_id": edge.source_node_id,
+                "source_port_key": edge.source_port_key,
+                "target_ref_id": edge.target_node_id,
+                "target_port_key": edge.target_port_key,
+            }
+        )
+    return {
+        "nodes": nodes_payload,
+        "edges": edges_payload,
+    }
+
+
+def insert_graph_fragment(
+    *,
+    model: GraphModel,
+    workspace_id: str,
+    fragment_payload: dict[str, Any],
+    delta_x: float,
+    delta_y: float,
+) -> list[str]:
+    workspace = model.project.workspaces.get(str(workspace_id).strip())
+    if workspace is None:
+        return []
+
+    nodes_payload = fragment_payload.get("nodes")
+    edges_payload = fragment_payload.get("edges")
+    if not isinstance(nodes_payload, list) or not isinstance(edges_payload, list):
+        return []
+
+    node_id_map: dict[str, str] = {}
+    inserted_node_ids: list[str] = []
+
+    for node_payload in nodes_payload:
+        if not isinstance(node_payload, dict):
+            continue
+        source_node_id = str(node_payload.get("ref_id", "")).strip()
+        type_id = str(node_payload.get("type_id", "")).strip()
+        if not source_node_id or not type_id:
+            continue
+        created = model.add_node(
+            workspace.workspace_id,
+            type_id=type_id,
+            title=str(node_payload.get("title", "")),
+            x=float(node_payload.get("x", 0.0)) + float(delta_x),
+            y=float(node_payload.get("y", 0.0)) + float(delta_y),
+            properties=dict(node_payload.get("properties", {})),
+            exposed_ports=dict(node_payload.get("exposed_ports", {})),
+        )
+        created.collapsed = bool(node_payload.get("collapsed", False))
+        node_id_map[source_node_id] = created.node_id
+        inserted_node_ids.append(created.node_id)
+
+    if not inserted_node_ids:
+        return []
+
+    for node_payload in nodes_payload:
+        if not isinstance(node_payload, dict):
+            continue
+        source_node_id = str(node_payload.get("ref_id", "")).strip()
+        inserted_node_id = node_id_map.get(source_node_id)
+        if not inserted_node_id:
+            continue
+        inserted_node = workspace.nodes.get(inserted_node_id)
+        if inserted_node is None:
+            continue
+        inserted_node.parent_node_id = _remap_fragment_parent_id(
+            source_parent_id=node_payload.get("parent_node_id"),
+            node_id_map=node_id_map,
+            workspace=workspace,
+        )
+
+    for edge_payload in edges_payload:
+        if not isinstance(edge_payload, dict):
+            continue
+        source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
+        target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
+        source_port_key = str(edge_payload.get("source_port_key", "")).strip()
+        target_port_key = str(edge_payload.get("target_port_key", "")).strip()
+        if not source_ref_id or not target_ref_id or not source_port_key or not target_port_key:
+            continue
+        source_node_id = node_id_map.get(source_ref_id)
+        target_node_id = node_id_map.get(target_ref_id)
+        if not source_node_id or not target_node_id:
+            continue
+        try:
+            model.add_edge(
+                workspace.workspace_id,
+                source_node_id=source_node_id,
+                source_port_key=source_port_key,
+                target_node_id=target_node_id,
+                target_port_key=target_port_key,
+            )
+        except ValueError:
+            continue
+    return inserted_node_ids
+
+
+def _remap_fragment_parent_id(
+    *,
+    source_parent_id: object,
+    node_id_map: dict[str, str],
+    workspace: WorkspaceData,
+) -> str | None:
+    if source_parent_id is None:
+        return None
+    normalized_parent_id = str(source_parent_id).strip()
+    if not normalized_parent_id:
+        return None
+    if normalized_parent_id in node_id_map:
+        return node_id_map[normalized_parent_id]
+    if normalized_parent_id in workspace.nodes:
+        return normalized_parent_id
+    return None
 
 
 def group_selection_into_subnode(
@@ -343,24 +535,53 @@ def _boundary_edges(
         elif target_in and not source_in:
             incoming.append(edge)
     incoming.sort(
-        key=lambda edge: (
-            edge.target_node_id,
-            edge.target_port_key,
-            edge.source_node_id,
-            edge.source_port_key,
-            edge.edge_id,
-        )
+        key=lambda edge: _incoming_boundary_sort_key(workspace, edge),
     )
     outgoing.sort(
-        key=lambda edge: (
-            edge.source_node_id,
-            edge.source_port_key,
-            edge.target_node_id,
-            edge.target_port_key,
-            edge.edge_id,
-        )
+        key=lambda edge: _outgoing_boundary_sort_key(workspace, edge),
     )
     return incoming, outgoing
+
+
+def _incoming_boundary_sort_key(
+    workspace: WorkspaceData,
+    edge: EdgeInstance,
+) -> tuple[float, float, float, float, str, str, str]:
+    source_y, source_x = _node_sort_position(workspace, edge.source_node_id)
+    target_y, target_x = _node_sort_position(workspace, edge.target_node_id)
+    return (
+        source_y,
+        source_x,
+        target_y,
+        target_x,
+        edge.source_port_key,
+        edge.target_port_key,
+        edge.edge_id,
+    )
+
+
+def _outgoing_boundary_sort_key(
+    workspace: WorkspaceData,
+    edge: EdgeInstance,
+) -> tuple[float, float, float, float, str, str, str]:
+    source_y, source_x = _node_sort_position(workspace, edge.source_node_id)
+    target_y, target_x = _node_sort_position(workspace, edge.target_node_id)
+    return (
+        target_y,
+        target_x,
+        source_y,
+        source_x,
+        edge.target_port_key,
+        edge.source_port_key,
+        edge.edge_id,
+    )
+
+
+def _node_sort_position(workspace: WorkspaceData, node_id: str) -> tuple[float, float]:
+    node = workspace.nodes.get(node_id)
+    if node is None:
+        return (0.0, 0.0)
+    return (float(node.y), float(node.x))
 
 
 def _build_boundary_edge(
@@ -480,6 +701,9 @@ def _edge_sort_key(edge: EdgeInstance) -> tuple[str, str, str, str, str]:
 __all__ = [
     "GroupSubnodeResult",
     "UngroupSubnodeResult",
+    "build_subtree_fragment_payload_data",
+    "expand_subtree_fragment_node_ids",
     "group_selection_into_subnode",
+    "insert_graph_fragment",
     "ungroup_subnode",
 ]

@@ -252,6 +252,7 @@ class WorkspaceLibraryController:
             self.switch_workspace(normalized_workspace_id)
 
         self.reveal_parent_chain(normalized_workspace_id, normalized_node_id)
+        self._host.scene.open_scope_for_node(normalized_node_id)
         if self._host.scene.focus_node(normalized_node_id) is None:
             return False
         return self.center_on_selection()
@@ -723,7 +724,6 @@ class WorkspaceLibraryController:
             return False
         mime_data = QMimeData()
         mime_data.setData(GRAPH_FRAGMENT_MIME_TYPE, serialized.encode("utf-8"))
-        mime_data.setText(serialized)
         clipboard.setMimeData(mime_data)
         return True
 
@@ -910,6 +910,7 @@ class WorkspaceLibraryController:
 
         focused_node_id = ""
         for target_node_id in focus_candidates:
+            self._host.scene.open_scope_for_node(target_node_id)
             if self._host.scene.focus_node(target_node_id) is not None:
                 focused_node_id = target_node_id
                 break

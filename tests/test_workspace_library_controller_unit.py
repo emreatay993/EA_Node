@@ -127,6 +127,30 @@ class _ClipboardHostStub:
         self.selected_node_changed = _SignalStub()
 
 
+class _ScopeFocusSceneStub:
+    def __init__(self) -> None:
+        self.open_scope_calls: list[str] = []
+        self.focus_calls: list[str] = []
+        self.focus_results: dict[str, _PointStub | None] = {}
+
+    def open_scope_for_node(self, node_id: str) -> bool:
+        self.open_scope_calls.append(node_id)
+        return True
+
+    def focus_node(self, node_id: str):
+        self.focus_calls.append(node_id)
+        return self.focus_results.get(node_id, _PointStub(1.0, 2.0))
+
+
+class _ScopeFocusHostStub:
+    def __init__(self) -> None:
+        self._graph_interactions = _GraphInteractionsStub()
+        self.model = GraphModel()
+        workspace_id = self.model.active_workspace.workspace_id
+        self.workspace_manager = _WorkspaceManagerStub(workspace_id)
+        self.scene = _ScopeFocusSceneStub()
+
+
 class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
     @staticmethod
     def _valid_fragment_payload() -> dict[str, object]:
@@ -273,6 +297,46 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.scene.paste_calls, [])
         self.assertEqual(host.selected_node_changed.calls, 0)
         self.assertFalse(refreshed["value"])
+
+    def test_jump_to_graph_node_opens_scope_before_focus(self) -> None:
+        host = _ScopeFocusHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        workspace_id = host.workspace_manager.active_workspace_id()
+        node_id = host.model.add_node(
+            workspace_id,
+            type_id="core.logger",
+            title="Target",
+            x=20.0,
+            y=10.0,
+        ).node_id
+
+        controller.reveal_parent_chain = lambda _workspace_id, _node_id: []  # type: ignore[method-assign]
+        controller.center_on_selection = lambda: True  # type: ignore[method-assign]
+
+        jumped = controller.jump_to_graph_node(workspace_id, node_id)
+
+        self.assertTrue(jumped)
+        self.assertEqual(host.scene.open_scope_calls, [node_id])
+        self.assertEqual(host.scene.focus_calls, [node_id])
+
+    def test_focus_failed_node_opens_scope_for_each_focus_candidate(self) -> None:
+        host = _ScopeFocusHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        workspace_id = host.workspace_manager.active_workspace_id()
+
+        controller.reveal_parent_chain = lambda _workspace_id, _node_id: ["ancestor_a"]  # type: ignore[method-assign]
+        focused: list[str] = []
+        controller.center_on_node = lambda node_id: focused.append(node_id) or True  # type: ignore[method-assign]
+        host.scene.focus_results = {
+            "node_target": _PointStub(5.0, 7.0),
+            "ancestor_a": _PointStub(9.0, 3.0),
+        }
+
+        controller.focus_failed_node(workspace_id, "node_target", "")
+
+        self.assertEqual(host.scene.open_scope_calls, ["node_target"])
+        self.assertEqual(host.scene.focus_calls, ["node_target"])
+        self.assertEqual(focused, ["node_target"])
 
 
 if __name__ == "__main__":
