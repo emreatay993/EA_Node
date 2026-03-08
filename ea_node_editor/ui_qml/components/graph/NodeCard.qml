@@ -9,6 +9,8 @@ Rectangle {
     property var previewPort: null
     property var pendingPort: null
     property var dragSourcePort: null
+    property real liveDragDx: 0
+    property real liveDragDy: 0
 
     signal nodeClicked(string nodeId, bool additive)
     signal nodeContextRequested(string nodeId, real localX, real localY)
@@ -135,6 +137,10 @@ Rectangle {
     z: card.nodeData && card.nodeData.selected ? 30 : 20
     x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
     y: (card.nodeData ? card.nodeData.y : 0.0) + card.worldOffset
+    transform: Translate {
+        x: nodeDragArea.drag.active ? 0 : card.liveDragDx
+        y: nodeDragArea.drag.active ? 0 : card.liveDragDy
+    }
     width: card.nodeData ? card.nodeData.width : 0.0
     height: card.nodeData ? card.nodeData.height : 0.0
     color: "#262A31"

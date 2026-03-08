@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -39,6 +40,8 @@ _MINIMAP_EMPTY_BOUNDS = QRectF(-1600.0, -900.0, 3200.0, 1800.0)
 _MINIMAP_PADDING = 220.0
 _MINIMAP_MIN_WIDTH = 3200.0
 _MINIMAP_MIN_HEIGHT = 1800.0
+_DUPLICATE_OFFSET_X = 40.0
+_DUPLICATE_OFFSET_Y = 40.0
 
 
 @dataclass(slots=True)
@@ -531,6 +534,134 @@ class GraphSceneBridge(QObject):
         self._model.set_node_position(self._workspace_id, node_id, final_x, final_y)
         self._rebuild_models()
         self._record_history(ACTION_MOVE_NODE, history_before)
+
+    @pyqtSlot("QVariantList", float, float, result=bool)
+    def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:
+        if self._model is None:
+            return False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return False
+
+        unique_node_ids: list[str] = []
+        seen_node_ids: set[str] = set()
+        for value in node_ids:
+            node_id = str(value).strip()
+            if not node_id or node_id in seen_node_ids or node_id not in workspace.nodes:
+                continue
+            seen_node_ids.add(node_id)
+            unique_node_ids.append(node_id)
+        if not unique_node_ids:
+            return False
+
+        delta_x = float(dx)
+        delta_y = float(dy)
+        if abs(delta_x) < 0.01 and abs(delta_y) < 0.01:
+            return False
+
+        history_group = nullcontext()
+        if self._history is not None:
+            history_group = self._history.grouped_action(
+                self._workspace_id,
+                ACTION_MOVE_NODE,
+                workspace,
+            )
+
+        moved_any = False
+        with history_group:
+            for node_id in unique_node_ids:
+                node = workspace.nodes.get(node_id)
+                if node is None:
+                    continue
+                final_x = float(node.x) + delta_x
+                final_y = float(node.y) + delta_y
+                if float(node.x) == final_x and float(node.y) == final_y:
+                    continue
+                self._model.set_node_position(self._workspace_id, node_id, final_x, final_y)
+                moved_any = True
+
+        if not moved_any:
+            return False
+        self._rebuild_models()
+        return True
+
+    @pyqtSlot(result=bool)
+    def duplicate_selected_subgraph(self) -> bool:
+        if self._model is None:
+            return False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return False
+
+        selected_node_ids: list[str] = []
+        selected_node_set: set[str] = set()
+        for node_id in self._selected_node_ids:
+            if node_id not in workspace.nodes or node_id in selected_node_set:
+                continue
+            selected_node_set.add(node_id)
+            selected_node_ids.append(node_id)
+        if not selected_node_ids:
+            return False
+
+        source_edges = list(workspace.edges.values())
+        node_id_map: dict[str, str] = {}
+        duplicated_node_ids: list[str] = []
+
+        history_group = nullcontext()
+        if self._history is not None:
+            history_group = self._history.grouped_action(
+                self._workspace_id,
+                ACTION_ADD_NODE,
+                workspace,
+            )
+
+        with history_group:
+            for source_node_id in selected_node_ids:
+                source_node = workspace.nodes.get(source_node_id)
+                if source_node is None:
+                    continue
+                duplicate_node = self._model.add_node(
+                    self._workspace_id,
+                    type_id=source_node.type_id,
+                    title=source_node.title,
+                    x=float(source_node.x) + _DUPLICATE_OFFSET_X,
+                    y=float(source_node.y) + _DUPLICATE_OFFSET_Y,
+                    properties=dict(source_node.properties),
+                    exposed_ports=dict(source_node.exposed_ports),
+                )
+                duplicate_node.collapsed = bool(source_node.collapsed)
+                duplicate_node.parent_node_id = source_node.parent_node_id
+                node_id_map[source_node_id] = duplicate_node.node_id
+                duplicated_node_ids.append(duplicate_node.node_id)
+
+            for source_node_id, duplicate_node_id in node_id_map.items():
+                source_node = workspace.nodes.get(source_node_id)
+                duplicate_node = workspace.nodes.get(duplicate_node_id)
+                if source_node is None or duplicate_node is None:
+                    continue
+                parent_id = source_node.parent_node_id
+                if parent_id and parent_id in node_id_map:
+                    duplicate_node.parent_node_id = node_id_map[parent_id]
+
+            for edge in source_edges:
+                source_duplicate = node_id_map.get(edge.source_node_id)
+                target_duplicate = node_id_map.get(edge.target_node_id)
+                if not source_duplicate or not target_duplicate:
+                    continue
+                self._model.add_edge(
+                    self._workspace_id,
+                    source_node_id=source_duplicate,
+                    source_port_key=edge.source_port_key,
+                    target_node_id=target_duplicate,
+                    target_port_key=edge.target_port_key,
+                )
+
+        if not duplicated_node_ids:
+            return False
+        self._selected_node_ids = duplicated_node_ids
+        self._rebuild_models()
+        self.node_selected.emit(self.selected_node_id() or "")
+        return True
 
     def _node(self, node_id: str) -> NodeInstance | None:
         if self._model is None:

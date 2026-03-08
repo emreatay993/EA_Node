@@ -129,6 +129,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("request_remove_node(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_rename_node(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_delete_selected_graph_items(QVariantList)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_duplicate_selected_nodes()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_undo()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_redo()"), 0)
         self.assertGreaterEqual(
@@ -189,6 +190,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+Shift+Z", _action_shortcuts(self.window.action_redo))
         self.assertIn("Ctrl+Y", _action_shortcuts(self.window.action_redo))
         self.assertIn("Ctrl+K", _action_shortcuts(self.window.action_graph_search))
+        self.assertIn("Ctrl+D", _action_shortcuts(self.window.action_duplicate_selection))
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
@@ -620,6 +622,102 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertNotIn(edge_id, workspace.edges)
         self.assertNotIn(removable_node_id, workspace.nodes)
 
+    def test_qml_request_duplicate_selected_nodes_duplicates_internal_edges_and_selects_result(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
+        external_id = self.window.scene.add_node_from_type("core.python_script", x=520.0, y=90.0)
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.window.scene.add_edge(source_id, "trigger", external_id, "payload")
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_nodes = len(workspace.nodes)
+        before_edges = len(workspace.edges)
+
+        workspace_b_id = self.window.workspace_manager.create_workspace("Secondary")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(workspace_b_id)
+        self.window.scene.add_node_from_type("core.logger", x=80.0, y=80.0)
+        self.window._switch_workspace(workspace_id)
+        self.app.processEvents()
+
+        self.window.scene.select_node(source_id, False)
+        self.window.scene.select_node(target_id, True)
+
+        duplicated = self.window.request_duplicate_selected_nodes()
+        self.assertTrue(duplicated)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.nodes), before_nodes + 2)
+        self.assertEqual(len(workspace.edges), before_edges + 1)
+        secondary_workspace = self.window.model.project.workspaces[workspace_b_id]
+        self.assertEqual(len(secondary_workspace.nodes), 1)
+        self.assertEqual(len(secondary_workspace.edges), 0)
+
+        selected_duplicate_ids = {
+            item["node_id"]
+            for item in self.window.scene.nodes_model
+            if item["selected"]
+        }
+        self.assertEqual(len(selected_duplicate_ids), 2)
+        self.assertNotIn(source_id, selected_duplicate_ids)
+        self.assertNotIn(target_id, selected_duplicate_ids)
+
+        source_node = workspace.nodes[source_id]
+        target_node = workspace.nodes[target_id]
+        duplicate_source_id = ""
+        duplicate_target_id = ""
+        for node_id in selected_duplicate_ids:
+            node = workspace.nodes[node_id]
+            if (
+                node.type_id == source_node.type_id
+                and node.title == source_node.title
+                and abs(node.x - (source_node.x + 40.0)) < 1e-6
+                and abs(node.y - (source_node.y + 40.0)) < 1e-6
+            ):
+                duplicate_source_id = node_id
+            if (
+                node.type_id == target_node.type_id
+                and node.title == target_node.title
+                and abs(node.x - (target_node.x + 40.0)) < 1e-6
+                and abs(node.y - (target_node.y + 40.0)) < 1e-6
+            ):
+                duplicate_target_id = node_id
+        self.assertTrue(duplicate_source_id)
+        self.assertTrue(duplicate_target_id)
+
+        duplicated_internal_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == duplicate_source_id
+            and edge.source_port_key == "exec_out"
+            and edge.target_node_id == duplicate_target_id
+            and edge.target_port_key == "exec_in"
+        ]
+        self.assertEqual(len(duplicated_internal_edges), 1)
+        duplicated_external_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == duplicate_source_id and edge.source_port_key == "trigger"
+        ]
+        self.assertEqual(duplicated_external_edges, [])
+
+    def test_qml_request_duplicate_selected_nodes_is_safe_noop_without_selection(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        self.window.scene.clear_selection()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_state = self._workspace_state()
+        before_undo_depth = self.window.runtime_history.undo_depth(workspace_id)
+
+        duplicated = self.window.request_duplicate_selected_nodes()
+        self.assertFalse(duplicated)
+        self.app.processEvents()
+
+        self.assertEqual(self._workspace_state(), before_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_undo_depth)
+        self.assertEqual(len(workspace.nodes), 1)
+
     def test_undo_redo_roundtrips_supported_graph_mutations(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
 
@@ -706,6 +804,20 @@ class MainWindowShellTests(unittest.TestCase):
             self.window.scene.move_node(source_id, source_node.x + 130.0, source_node.y + 75.0)
 
         assert_roundtrip(move_node, "node move")
+
+        def move_group_nodes() -> None:
+            self.window.scene.select_node(source_id, False)
+            self.window.scene.select_node(logger_id, True)
+            self.window.scene.move_nodes_by_delta([source_id, logger_id], 90.0, 35.0)
+
+        assert_roundtrip(move_group_nodes, "group node move")
+
+        def duplicate_selection() -> None:
+            self.window.scene.select_node(source_id, False)
+            self.window.scene.select_node(target_id, True)
+            self.window.request_duplicate_selected_nodes()
+
+        assert_roundtrip(duplicate_selection, "duplicate-selection")
 
         assert_roundtrip(lambda: self.window.request_remove_node(target_id), "remove node")
 

@@ -277,6 +277,10 @@ class ShellWindow(QMainWindow):
         self.action_connect_selected.setShortcut(QKeySequence("Ctrl+L"))
         self.action_connect_selected.triggered.connect(self._connect_selected_nodes)
 
+        self.action_duplicate_selection = QAction("Duplicate Selection", self)
+        self.action_duplicate_selection.setShortcut(QKeySequence("Ctrl+D"))
+        self.action_duplicate_selection.triggered.connect(self._duplicate_selected_nodes)
+
         self.action_undo = QAction("Undo", self)
         self.action_undo.setShortcut(QKeySequence("Ctrl+Z"))
         self.action_undo.triggered.connect(self._undo)
@@ -344,6 +348,7 @@ class ShellWindow(QMainWindow):
             self.action_undo,
             self.action_redo,
             self.action_connect_selected,
+            self.action_duplicate_selection,
             self.action_frame_all,
             self.action_frame_selection,
             self.action_center_selection,
@@ -377,6 +382,7 @@ class ShellWindow(QMainWindow):
         edit_menu.addAction(self.action_redo)
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_connect_selected)
+        edit_menu.addAction(self.action_duplicate_selection)
         edit_menu.addAction(self.action_graph_search)
 
         view_menu = menu_bar.addMenu("&View")
@@ -850,6 +856,10 @@ class ShellWindow(QMainWindow):
         self._connect_selected_nodes()
 
     @pyqtSlot(result=bool)
+    def request_duplicate_selected_nodes(self) -> bool:
+        return bool(self._duplicate_selected_nodes())
+
+    @pyqtSlot(result=bool)
     def request_undo(self) -> bool:
         return bool(self._undo())
 
@@ -934,6 +944,7 @@ class ShellWindow(QMainWindow):
         "_on_port_exposed_changed": ("workspace_library_controller", "on_port_exposed_changed"),
         "_on_node_collapse_changed": ("workspace_library_controller", "on_node_collapse_changed"),
         "_connect_selected_nodes": ("workspace_library_controller", "connect_selected_nodes"),
+        "_duplicate_selected_nodes": ("workspace_library_controller", "duplicate_selected_nodes"),
         "_undo": ("workspace_library_controller", "undo"),
         "_redo": ("workspace_library_controller", "redo"),
         "_selected_node_context": ("workspace_library_controller", "selected_node_context"),
