@@ -17,6 +17,11 @@ from ea_node_editor.nodes.builtins.hpc import (
     HPCOnStatusNodePlugin,
     HPCSubmitNodePlugin,
 )
+from ea_node_editor.nodes.builtins.subnode import (
+    SubnodeInputNodePlugin,
+    SubnodeNodePlugin,
+    SubnodeOutputNodePlugin,
+)
 from ea_node_editor.nodes.builtins.integrations_email import EmailSendNodePlugin
 from ea_node_editor.nodes.builtins.integrations_file_io import FileReadNodePlugin, FileWriteNodePlugin
 from ea_node_editor.nodes.builtins.integrations_process import ProcessRunNodePlugin
@@ -46,6 +51,9 @@ def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeR
     registry.register(HPCMonitorNodePlugin)
     registry.register(HPCOnStatusNodePlugin)
     registry.register(HPCFetchResultNodePlugin)
+    registry.register(SubnodeNodePlugin)
+    registry.register(SubnodeInputNodePlugin)
+    registry.register(SubnodeOutputNodePlugin)
 
     from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
 

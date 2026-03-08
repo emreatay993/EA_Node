@@ -6,7 +6,7 @@ from pathlib import Path
 APP_NAME = "EA Node Editor"
 APP_ID = "com.ea.node_editor"
 PROJECT_EXTENSION = ".sfe"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 AUTOSAVE_INTERVAL_MS = 30_000
 
 DEFAULT_WORKFLOW_SETTINGS = {

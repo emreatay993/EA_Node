@@ -124,6 +124,102 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.scene.add_edge(source_id, "exec_out", target_id, "message")
 
+    def test_subnode_shell_ports_follow_direct_pin_sort_and_pin_properties(self) -> None:
+        shell_id = self.scene.add_node_from_type("core.subnode", 200.0, 120.0)
+        pin_in_exec = self.scene.add_node_from_type("core.subnode_input", 30.0, 10.0)
+        pin_in_data = self.scene.add_node_from_type("core.subnode_input", 30.0, 10.0)
+        pin_out_data = self.scene.add_node_from_type("core.subnode_output", 90.0, 10.0)
+        pin_out_failed = self.scene.add_node_from_type("core.subnode_output", 20.0, 50.0)
+        non_pin_child = self.scene.add_node_from_type("core.logger", 60.0, 15.0)
+        nested_pin = self.scene.add_node_from_type("core.subnode_input", 15.0, 5.0)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        workspace.nodes[pin_in_exec].parent_node_id = shell_id
+        workspace.nodes[pin_in_data].parent_node_id = shell_id
+        workspace.nodes[pin_out_data].parent_node_id = shell_id
+        workspace.nodes[pin_out_failed].parent_node_id = shell_id
+        workspace.nodes[non_pin_child].parent_node_id = shell_id
+        workspace.nodes[nested_pin].parent_node_id = non_pin_child
+
+        self.scene.set_node_property(pin_in_exec, "label", "Exec In")
+        self.scene.set_node_property(pin_in_exec, "kind", "exec")
+        self.scene.set_node_property(pin_in_exec, "data_type", "str")
+        self.scene.set_node_property(pin_in_data, "label", "Flag In")
+        self.scene.set_node_property(pin_in_data, "kind", "data")
+        self.scene.set_node_property(pin_in_data, "data_type", "bool")
+        self.scene.set_node_property(pin_out_data, "label", "Result Out")
+        self.scene.set_node_property(pin_out_data, "kind", "data")
+        self.scene.set_node_property(pin_out_data, "data_type", "float")
+        self.scene.set_node_property(pin_out_failed, "label", "Failure Out")
+        self.scene.set_node_property(pin_out_failed, "kind", "failed")
+        self.scene.set_node_property(pin_out_failed, "data_type", "str")
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        shell_ports = payload[shell_id]["ports"]
+        direct_pins = [pin_in_exec, pin_in_data, pin_out_data, pin_out_failed]
+        expected_order = sorted(
+            direct_pins,
+            key=lambda node_id: (
+                float(workspace.nodes[node_id].y),
+                float(workspace.nodes[node_id].x),
+                node_id,
+            ),
+        )
+        self.assertEqual([port["key"] for port in shell_ports], expected_order)
+        self.assertEqual(len(shell_ports), 4)
+
+        shell_port_by_key = {port["key"]: port for port in shell_ports}
+        self.assertEqual(shell_port_by_key[pin_in_exec]["label"], "Exec In")
+        self.assertEqual(shell_port_by_key[pin_in_exec]["direction"], "in")
+        self.assertEqual(shell_port_by_key[pin_in_exec]["kind"], "exec")
+        self.assertEqual(shell_port_by_key[pin_in_exec]["data_type"], "any")
+        self.assertEqual(shell_port_by_key[pin_in_data]["label"], "Flag In")
+        self.assertEqual(shell_port_by_key[pin_in_data]["direction"], "in")
+        self.assertEqual(shell_port_by_key[pin_in_data]["data_type"], "bool")
+        self.assertEqual(shell_port_by_key[pin_out_data]["label"], "Result Out")
+        self.assertEqual(shell_port_by_key[pin_out_data]["direction"], "out")
+        self.assertEqual(shell_port_by_key[pin_out_data]["data_type"], "float")
+        self.assertEqual(shell_port_by_key[pin_out_failed]["label"], "Failure Out")
+        self.assertEqual(shell_port_by_key[pin_out_failed]["direction"], "out")
+        self.assertEqual(shell_port_by_key[pin_out_failed]["kind"], "failed")
+        self.assertEqual(shell_port_by_key[pin_out_failed]["data_type"], "any")
+
+        pin_payload = payload[pin_in_exec]["ports"]
+        self.assertEqual(len(pin_payload), 1)
+        self.assertEqual(pin_payload[0]["key"], "pin")
+        self.assertEqual(pin_payload[0]["label"], "Exec In")
+        self.assertEqual(pin_payload[0]["kind"], "exec")
+        self.assertEqual(pin_payload[0]["data_type"], "any")
+
+    def test_connect_nodes_uses_dynamic_subnode_default_ports(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 20.0, 30.0)
+        shell_id = self.scene.add_node_from_type("core.subnode", 260.0, 30.0)
+        target_id = self.scene.add_node_from_type("core.end", 520.0, 30.0)
+        pin_in = self.scene.add_node_from_type("core.subnode_input", 40.0, 40.0)
+        pin_out = self.scene.add_node_from_type("core.subnode_output", 80.0, 40.0)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        workspace.nodes[pin_in].parent_node_id = shell_id
+        workspace.nodes[pin_out].parent_node_id = shell_id
+        self.scene.set_node_property(pin_in, "kind", "exec")
+        self.scene.set_node_property(pin_out, "kind", "exec")
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        edge_into_shell_id = self.scene.connect_nodes(source_id, shell_id)
+        edge_out_of_shell_id = self.scene.connect_nodes(shell_id, target_id)
+
+        edge_into_shell = workspace.edges[edge_into_shell_id]
+        edge_out_of_shell = workspace.edges[edge_out_of_shell_id]
+        self.assertEqual(edge_into_shell.source_node_id, source_id)
+        self.assertEqual(edge_into_shell.source_port_key, "exec_out")
+        self.assertEqual(edge_into_shell.target_node_id, shell_id)
+        self.assertEqual(edge_into_shell.target_port_key, pin_in)
+        self.assertEqual(edge_out_of_shell.source_node_id, shell_id)
+        self.assertEqual(edge_out_of_shell.source_port_key, pin_out)
+        self.assertEqual(edge_out_of_shell.target_node_id, target_id)
+        self.assertEqual(edge_out_of_shell.target_port_key, "exec_in")
+
     def test_workspace_and_selection_bounds_helpers(self) -> None:
         node_a = self.scene.add_node_from_type("core.start", 10.0, 20.0)
         node_b = self.scene.add_node_from_type("core.end", 340.0, 160.0)

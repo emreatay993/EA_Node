@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ea_node_editor.graph.hierarchy import normalize_scope_path
 from ea_node_editor.graph.model import (
     EdgeInstance,
     NodeInstance,
@@ -51,6 +52,7 @@ class JsonProjectCodec:
                             "zoom": view.zoom,
                             "pan_x": view.pan_x,
                             "pan_y": view.pan_y,
+                            "scope_path": list(normalize_scope_path(workspace, view.scope_path)),
                         }
                         for view in sorted(
                             workspace.views.values(), key=lambda item: item.view_id
@@ -129,6 +131,11 @@ class JsonProjectCodec:
                     zoom=float(view_doc.get("zoom", 1.0)),
                     pan_x=float(view_doc.get("pan_x", 0.0)),
                     pan_y=float(view_doc.get("pan_y", 0.0)),
+                    scope_path=[
+                        str(item).strip()
+                        for item in view_doc.get("scope_path", [])
+                        if str(item).strip()
+                    ],
                 )
                 workspace.views[view.view_id] = view
             workspace.ensure_default_view()
@@ -177,6 +184,8 @@ class JsonProjectCodec:
                     target_port_key=str(target_port_key),
                 )
                 workspace.edges[edge.edge_id] = edge
+            for view in workspace.views.values():
+                view.scope_path = list(normalize_scope_path(workspace, view.scope_path))
             project.workspaces[workspace.workspace_id] = workspace
         project.ensure_default_workspace()
         workspace_order = payload.get("workspace_order")
