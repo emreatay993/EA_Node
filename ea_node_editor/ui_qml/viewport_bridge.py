@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject, QPointF, QRect, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QPointF, QRect, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
+
+MIN_ZOOM = 0.1
+MAX_ZOOM = 3.0
+FRAME_PADDING_PX = 80.0
 
 
 class ViewportBridge(QObject):
@@ -30,8 +34,11 @@ class ViewportBridge(QObject):
     def center_y(self) -> float:
         return self._center_y
 
+    def _clamp_zoom(self, zoom: float) -> float:
+        return max(MIN_ZOOM, min(float(zoom), MAX_ZOOM))
+
     def set_zoom(self, zoom: float) -> None:
-        clamped = max(0.1, min(float(zoom), 3.0))
+        clamped = self._clamp_zoom(float(zoom))
         if abs(self._zoom - clamped) < 1e-6:
             return
         self._zoom = clamped
@@ -70,6 +77,44 @@ class ViewportBridge(QObject):
 
     def rect(self) -> QRect:
         return QRect(self._viewport_rect)
+
+    def visible_scene_rect(self) -> QRectF:
+        zoom = max(MIN_ZOOM, self._zoom)
+        scene_width = float(self._viewport_rect.width()) / zoom
+        scene_height = float(self._viewport_rect.height()) / zoom
+        return QRectF(
+            self._center_x - (scene_width * 0.5),
+            self._center_y - (scene_height * 0.5),
+            scene_width,
+            scene_height,
+        )
+
+    def fit_zoom_for_scene_rect(self, scene_rect: QRectF, padding_px: float = FRAME_PADDING_PX) -> float:
+        normalized = QRectF(scene_rect).normalized()
+        width = max(1e-6, float(normalized.width()))
+        height = max(1e-6, float(normalized.height()))
+        padding = max(0.0, float(padding_px))
+        viewport_width = max(1.0, float(self._viewport_rect.width()) - (padding * 2.0))
+        viewport_height = max(1.0, float(self._viewport_rect.height()) - (padding * 2.0))
+        fitted = min(viewport_width / width, viewport_height / height)
+        return self._clamp_zoom(fitted)
+
+    def center_on_scene_rect(self, scene_rect: QRectF) -> bool:
+        normalized = QRectF(scene_rect).normalized()
+        if not normalized.isValid():
+            return False
+        self.centerOn(normalized.center())
+        return True
+
+    def frame_scene_rect(self, scene_rect: QRectF, padding_px: float = FRAME_PADDING_PX) -> bool:
+        normalized = QRectF(scene_rect).normalized()
+        if not normalized.isValid():
+            return False
+        if normalized.width() <= 0.0 or normalized.height() <= 0.0:
+            return False
+        self.set_zoom(self.fit_zoom_for_scene_rect(normalized, padding_px=padding_px))
+        self.centerOn(normalized.center())
+        return True
 
     @pyqtSlot(float, float)
     def set_viewport_size(self, width: float, height: float) -> None:

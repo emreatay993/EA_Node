@@ -264,6 +264,18 @@ class ShellWindow(QMainWindow):
         self.action_connect_selected.setShortcut(QKeySequence("Ctrl+L"))
         self.action_connect_selected.triggered.connect(self._connect_selected_nodes)
 
+        self.action_frame_all = QAction("Frame All", self)
+        self.action_frame_all.setShortcut(QKeySequence("A"))
+        self.action_frame_all.triggered.connect(self._frame_all)
+
+        self.action_frame_selection = QAction("Frame Selection", self)
+        self.action_frame_selection.setShortcut(QKeySequence("F"))
+        self.action_frame_selection.triggered.connect(self._frame_selection)
+
+        self.action_center_selection = QAction("Center Selection", self)
+        self.action_center_selection.setShortcut(QKeySequence("Shift+F"))
+        self.action_center_selection.triggered.connect(self._center_on_selection)
+
         self.action_new_view = QAction("New View", self)
         self.action_new_view.setShortcut(QKeySequence("Ctrl+Shift+V"))
         self.action_new_view.triggered.connect(self._create_view)
@@ -305,6 +317,9 @@ class ShellWindow(QMainWindow):
             self.action_stop,
             self.action_pause,
             self.action_connect_selected,
+            self.action_frame_all,
+            self.action_frame_selection,
+            self.action_center_selection,
             self.action_new_view,
             self.action_duplicate_workspace,
             self.action_rename_workspace,
@@ -334,6 +349,10 @@ class ShellWindow(QMainWindow):
 
         view_menu = menu_bar.addMenu("&View")
         view_menu.addAction(self.action_toggle_script_editor)
+        view_menu.addSeparator()
+        view_menu.addAction(self.action_frame_all)
+        view_menu.addAction(self.action_frame_selection)
+        view_menu.addAction(self.action_center_selection)
 
         run_menu = menu_bar.addMenu("&Run")
         run_menu.addAction(self.action_run)
@@ -726,6 +745,13 @@ class ShellWindow(QMainWindow):
         "_switch_workspace": ("workspace_library_controller", "switch_workspace"),
         "_save_active_view_state": ("workspace_library_controller", "save_active_view_state"),
         "_restore_active_view_state": ("workspace_library_controller", "restore_active_view_state"),
+        "_visible_scene_rect": ("workspace_library_controller", "visible_scene_rect"),
+        "_current_workspace_scene_bounds": ("workspace_library_controller", "current_workspace_scene_bounds"),
+        "_selection_bounds": ("workspace_library_controller", "selection_bounds"),
+        "_frame_all": ("workspace_library_controller", "frame_all"),
+        "_frame_selection": ("workspace_library_controller", "frame_selection"),
+        "_center_on_node": ("workspace_library_controller", "center_on_node"),
+        "_center_on_selection": ("workspace_library_controller", "center_on_selection"),
         "_create_view": ("workspace_library_controller", "create_view"),
         "_switch_view": ("workspace_library_controller", "switch_view"),
         "_create_workspace": ("workspace_library_controller", "create_workspace"),

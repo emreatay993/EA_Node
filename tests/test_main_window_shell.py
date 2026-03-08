@@ -78,7 +78,7 @@ class MainWindowShellTests(unittest.TestCase):
             0,
         )
 
-        with patch("ea_node_editor.ui.shell.window.WorkflowSettingsDialog.exec", return_value=0):
+        with patch("ea_node_editor.ui.dialogs.workflow_settings_dialog.WorkflowSettingsDialog.exec", return_value=0):
             QMetaObject.invokeMethod(
                 self.window,
                 "show_workflow_settings_dialog",
@@ -124,6 +124,9 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+PgDown", _action_shortcuts(self.window.action_next_workspace))
         self.assertIn("Ctrl+Shift+Tab", _action_shortcuts(self.window.action_prev_workspace))
         self.assertIn("Ctrl+PgUp", _action_shortcuts(self.window.action_prev_workspace))
+        self.assertIn("A", _action_shortcuts(self.window.action_frame_all))
+        self.assertIn("F", _action_shortcuts(self.window.action_frame_selection))
+        self.assertIn("Shift+F", _action_shortcuts(self.window.action_center_selection))
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
@@ -287,7 +290,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.app.processEvents()
 
         with patch(
-            "ea_node_editor.ui.shell.window.QInputDialog.getItem",
+            "PyQt6.QtWidgets.QInputDialog.getItem",
             return_value=("Constant.as_text -> Logger.message", True),
         ):
             created = self.window.request_drop_node_from_library(
@@ -393,7 +396,7 @@ class MainWindowShellTests(unittest.TestCase):
         node_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         self.app.processEvents()
 
-        with patch("ea_node_editor.ui.shell.window.QInputDialog.getText", return_value=("Renamed Node", True)):
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Renamed Node", True)):
             renamed = self.window.request_rename_node(node_id)
         self.assertTrue(renamed)
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
@@ -548,6 +551,71 @@ class MainWindowShellTests(unittest.TestCase):
         updated_ports = {port["key"] for port in updated_payload["ports"]}
         self.assertEqual(updated_ports, {"trigger"})
 
+    def test_viewport_commands_frame_all_frame_selection_and_center_selection(self) -> None:
+        node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)
+        self.window.scene.add_node_from_type("core.end", x=540.0, y=260.0)
+        self.app.processEvents()
+
+        workspace_bounds = self.window.scene.workspace_scene_bounds()
+        self.assertIsNotNone(workspace_bounds)
+        self.window.view.set_zoom(0.6)
+        self.window.view.centerOn(-220.0, -140.0)
+
+        self.window.action_frame_all.trigger()
+        self.app.processEvents()
+
+        expected_all_zoom = self.window.view.fit_zoom_for_scene_rect(workspace_bounds)
+        self.assertAlmostEqual(self.window.view.zoom, expected_all_zoom, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, workspace_bounds.center().x(), places=6)
+        self.assertAlmostEqual(self.window.view.center_y, workspace_bounds.center().y(), places=6)
+
+        self.window.scene.select_node(node_a)
+        selection_bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(selection_bounds)
+
+        self.window.action_frame_selection.trigger()
+        self.app.processEvents()
+
+        expected_selection_zoom = self.window.view.fit_zoom_for_scene_rect(selection_bounds)
+        self.assertAlmostEqual(self.window.view.zoom, expected_selection_zoom, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, selection_bounds.center().x(), places=6)
+        self.assertAlmostEqual(self.window.view.center_y, selection_bounds.center().y(), places=6)
+
+        self.window.view.set_zoom(1.3)
+        self.window.view.centerOn(900.0, -400.0)
+        self.window.action_center_selection.trigger()
+        self.app.processEvents()
+
+        self.assertAlmostEqual(self.window.view.zoom, 1.3, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, selection_bounds.center().x(), places=6)
+        self.assertAlmostEqual(self.window.view.center_y, selection_bounds.center().y(), places=6)
+
+    def test_viewport_commands_are_noops_for_empty_graph_or_empty_selection(self) -> None:
+        self.window.view.set_zoom(1.2)
+        self.window.view.centerOn(55.0, -75.0)
+        self.window.action_frame_all.trigger()
+        self.app.processEvents()
+        self.assertAlmostEqual(self.window.view.zoom, 1.2, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, 55.0, places=6)
+        self.assertAlmostEqual(self.window.view.center_y, -75.0, places=6)
+
+        self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        self.window.scene.clear_selection()
+        self.window.view.set_zoom(0.9)
+        self.window.view.centerOn(-25.0, 45.0)
+
+        self.window.action_frame_selection.trigger()
+        self.app.processEvents()
+        self.assertAlmostEqual(self.window.view.zoom, 0.9, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, -25.0, places=6)
+        self.assertAlmostEqual(self.window.view.center_y, 45.0, places=6)
+
+        self.window.action_center_selection.trigger()
+        self.app.processEvents()
+        self.assertAlmostEqual(self.window.view.zoom, 0.9, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, -25.0, places=6)
+        self.assertAlmostEqual(self.window.view.center_y, 45.0, places=6)
+
 
     def test_script_editor_action_focuses_editor_when_script_node_selected(self) -> None:
         script_node_id = self.window.scene.add_node_from_type("core.python_script", x=80.0, y=60.0)
@@ -607,7 +675,7 @@ class MainWindowShellTests(unittest.TestCase):
         initial_view_count = len(workspace.views)
         original_active_view_id = workspace.active_view_id
 
-        with patch("ea_node_editor.ui.shell.window.QInputDialog.getText", return_value=("Inspection", True)):
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Inspection", True)):
             self.window.request_create_view()
         self.app.processEvents()
 

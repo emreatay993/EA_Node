@@ -106,6 +106,19 @@ class GraphSceneBridge(QObject):
                 selected.append(_SelectedNodeProxy(node=node))
         return selected
 
+    def workspace_scene_bounds(self) -> QRectF | None:
+        if self._model is None or not self._workspace_id:
+            return None
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None or not workspace.nodes:
+            return None
+        return self._bounds_for_node_ids(list(workspace.nodes))
+
+    def selection_bounds(self) -> QRectF | None:
+        if not self._selected_node_ids:
+            return None
+        return self._bounds_for_node_ids(self._selected_node_ids)
+
     def clearSelection(self) -> None:
         if not self._selected_node_ids:
             return
@@ -187,6 +200,12 @@ class GraphSceneBridge(QObject):
             return None
         spec = self._registry.get_spec(node.type_id)
         return _NodeItemProxy(node=node, spec=spec)
+
+    def node_bounds(self, node_id: str) -> QRectF | None:
+        item = self.node_item(node_id)
+        if item is None:
+            return None
+        return QRectF(item.sceneBoundingRect())
 
     def edge_item(self, edge_id: str) -> dict[str, Any] | None:
         workspace = self.current_workspace()
@@ -412,6 +431,18 @@ class GraphSceneBridge(QObject):
             ):
                 return edge.edge_id
         return None
+
+    def _bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
+        bounds: QRectF | None = None
+        for node_id in node_ids:
+            node_bounds = self.node_bounds(node_id)
+            if node_bounds is None:
+                continue
+            if bounds is None:
+                bounds = QRectF(node_bounds)
+                continue
+            bounds = bounds.united(node_bounds)
+        return bounds
 
     def _rebuild_models(self) -> None:
         if self._model is None or self._registry is None or not self._workspace_id:

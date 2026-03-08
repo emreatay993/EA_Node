@@ -5,6 +5,7 @@ import unittest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import QRectF
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
@@ -122,6 +123,33 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.scene.add_edge(source_id, "exec_out", target_id, "message")
 
+    def test_workspace_and_selection_bounds_helpers(self) -> None:
+        node_a = self.scene.add_node_from_type("core.start", 10.0, 20.0)
+        node_b = self.scene.add_node_from_type("core.end", 340.0, 160.0)
+
+        workspace_bounds = self.scene.workspace_scene_bounds()
+        self.assertIsNotNone(workspace_bounds)
+        node_a_bounds = self.scene.node_bounds(node_a)
+        node_b_bounds = self.scene.node_bounds(node_b)
+        self.assertIsNotNone(node_a_bounds)
+        self.assertIsNotNone(node_b_bounds)
+        expected_workspace_bounds = node_a_bounds.united(node_b_bounds)
+        self.assertAlmostEqual(workspace_bounds.x(), expected_workspace_bounds.x(), places=6)
+        self.assertAlmostEqual(workspace_bounds.y(), expected_workspace_bounds.y(), places=6)
+        self.assertAlmostEqual(workspace_bounds.width(), expected_workspace_bounds.width(), places=6)
+        self.assertAlmostEqual(workspace_bounds.height(), expected_workspace_bounds.height(), places=6)
+
+        self.scene.select_node(node_b)
+        selection_bounds = self.scene.selection_bounds()
+        self.assertIsNotNone(selection_bounds)
+        self.assertAlmostEqual(selection_bounds.x(), node_b_bounds.x(), places=6)
+        self.assertAlmostEqual(selection_bounds.y(), node_b_bounds.y(), places=6)
+        self.assertAlmostEqual(selection_bounds.width(), node_b_bounds.width(), places=6)
+        self.assertAlmostEqual(selection_bounds.height(), node_b_bounds.height(), places=6)
+
+        self.scene.clear_selection()
+        self.assertIsNone(self.scene.selection_bounds())
+
 
 class ViewportBridgeTrackBTests(unittest.TestCase):
     def test_viewport_applies_zoom_and_center_updates(self) -> None:
@@ -136,6 +164,41 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
         view.pan_by(5.0, -3.0)
         self.assertAlmostEqual(view.center_x, 17.0, places=6)
         self.assertAlmostEqual(view.center_y, 15.0, places=6)
+
+    def test_visible_scene_rect_reflects_viewport_center_and_zoom(self) -> None:
+        view = ViewportBridge()
+        view.set_viewport_size(1000.0, 500.0)
+        view.set_zoom(2.0)
+        view.centerOn(10.0, 20.0)
+
+        rect = view.visible_scene_rect()
+        self.assertAlmostEqual(rect.x(), -240.0, places=6)
+        self.assertAlmostEqual(rect.y(), -105.0, places=6)
+        self.assertAlmostEqual(rect.width(), 500.0, places=6)
+        self.assertAlmostEqual(rect.height(), 250.0, places=6)
+
+    def test_frame_scene_rect_applies_padding_and_respects_zoom_clamp(self) -> None:
+        view = ViewportBridge()
+        view.set_viewport_size(1280.0, 720.0)
+
+        self.assertTrue(view.frame_scene_rect(QRectF(100.0, 50.0, 400.0, 200.0)))
+        self.assertAlmostEqual(view.zoom, 2.8, places=6)
+        self.assertAlmostEqual(view.center_x, 300.0, places=6)
+        self.assertAlmostEqual(view.center_y, 150.0, places=6)
+
+        self.assertTrue(view.frame_scene_rect(QRectF(-10.0, -10.0, 20.0, 20.0)))
+        self.assertAlmostEqual(view.zoom, 3.0, places=6)
+
+    def test_frame_scene_rect_rejects_empty_bounds(self) -> None:
+        view = ViewportBridge()
+        view.set_viewport_size(1280.0, 720.0)
+        view.set_zoom(1.5)
+        view.centerOn(11.0, -9.0)
+
+        self.assertFalse(view.frame_scene_rect(QRectF()))
+        self.assertAlmostEqual(view.zoom, 1.5, places=6)
+        self.assertAlmostEqual(view.center_x, 11.0, places=6)
+        self.assertAlmostEqual(view.center_y, -9.0, places=6)
 
 
 if __name__ == "__main__":
