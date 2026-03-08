@@ -117,15 +117,6 @@ Rectangle {
                 spacing: 6
 
                 ShellButton {
-                    text: "Open"
-                    onClicked: mainWindow.request_open_project()
-                }
-                ShellButton {
-                    text: "Save"
-                    onClicked: mainWindow.request_save_project()
-                }
-                Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
-                ShellButton {
                     text: "Run"
                     onClicked: mainWindow.request_run_workflow()
                 }
@@ -137,9 +128,11 @@ Rectangle {
                     text: "Stop"
                     onClicked: mainWindow.request_stop_workflow()
                 }
-                ShellButton {
-                    text: "Connect"
-                    onClicked: mainWindow.request_connect_selected_nodes()
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: "Zoom: " + Math.round(viewBridge.zoom_value * 100) + "%"
+                    color: "#BDC4D2"
+                    font.pixelSize: 12
                 }
                 Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
                 ShellButton {
@@ -148,13 +141,8 @@ Rectangle {
                 }
                 ShellButton {
                     text: scriptEditorBridge.visible ? "Hide Script" : "Script"
+                    selectedStyle: scriptEditorBridge.visible
                     onClicked: mainWindow.set_script_editor_panel_visible()
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text: "Zoom: " + Math.round(viewBridge.zoom_value * 100) + "%"
-                    color: "#BDC4D2"
-                    font.pixelSize: 12
                 }
             }
         }
