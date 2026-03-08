@@ -102,6 +102,32 @@ def node_scope_path(workspace: WorkspaceData, node_id: str) -> ScopePath:
     return tuple(ancestor_chain(workspace, node_id))
 
 
+def subnode_scope_path(workspace: WorkspaceData, node_id: object) -> ScopePath:
+    normalized_node_id = str(node_id).strip()
+    if not normalized_node_id:
+        return ()
+    if normalized_node_id not in workspace.nodes:
+        return ()
+    parent_scope = node_scope_path(workspace, normalized_node_id)
+    return (*parent_scope, normalized_node_id)
+
+
+def breadcrumb_scope_path(
+    workspace: WorkspaceData,
+    scope_path: Sequence[object] | None,
+    node_id: object,
+) -> ScopePath:
+    normalized_scope = normalize_scope_path(workspace, scope_path)
+    target_id = str(node_id).strip()
+    if not target_id:
+        return ()
+    try:
+        target_index = normalized_scope.index(target_id)
+    except ValueError:
+        return normalized_scope
+    return normalized_scope[: target_index + 1]
+
+
 def is_node_in_scope(workspace: WorkspaceData, node_id: str, scope_path: Sequence[object] | None) -> bool:
     node = workspace.nodes.get(str(node_id).strip())
     if node is None:
@@ -200,6 +226,7 @@ def scope_breadcrumb_payload(workspace: WorkspaceData, scope_path: Sequence[obje
 __all__ = [
     "ScopePath",
     "ancestor_chain",
+    "breadcrumb_scope_path",
     "descendant_node_ids",
     "direct_child_node_ids",
     "direct_child_nodes",
@@ -213,6 +240,7 @@ __all__ = [
     "scope_edges",
     "scope_node_ids",
     "scope_parent_id",
+    "subnode_scope_path",
     "subtree_edges",
     "subtree_node_ids",
 ]

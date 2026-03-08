@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QAction, QKeySequence
@@ -117,6 +117,7 @@ class ShellWindow(QMainWindow):
         self._graph_search_highlight_index = -1
         self._graph_hint_message = ""
         self._snap_to_grid_enabled = False
+        self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
         self.project_session_controller = ProjectSessionController(self)
@@ -345,6 +346,14 @@ class ShellWindow(QMainWindow):
         self.action_center_selection.setShortcut(QKeySequence("Shift+F"))
         self.action_center_selection.triggered.connect(self._center_on_selection)
 
+        self.action_scope_parent = QAction("Scope Parent", self)
+        self.action_scope_parent.setShortcut(QKeySequence("Alt+Left"))
+        self.action_scope_parent.triggered.connect(self.request_navigate_scope_parent)
+
+        self.action_scope_root = QAction("Scope Root", self)
+        self.action_scope_root.setShortcut(QKeySequence("Alt+Home"))
+        self.action_scope_root.triggered.connect(self.request_navigate_scope_root)
+
         self.action_graph_search = QAction("Graph Search", self)
         self.action_graph_search.setShortcut(QKeySequence("Ctrl+K"))
         self.action_graph_search.triggered.connect(self.request_open_graph_search)
@@ -406,6 +415,8 @@ class ShellWindow(QMainWindow):
             self.action_frame_all,
             self.action_frame_selection,
             self.action_center_selection,
+            self.action_scope_parent,
+            self.action_scope_root,
             self.action_graph_search,
             self.action_new_view,
             self.action_duplicate_workspace,
@@ -459,6 +470,9 @@ class ShellWindow(QMainWindow):
         view_menu.addAction(self.action_frame_all)
         view_menu.addAction(self.action_frame_selection)
         view_menu.addAction(self.action_center_selection)
+        view_menu.addSeparator()
+        view_menu.addAction(self.action_scope_parent)
+        view_menu.addAction(self.action_scope_root)
 
         run_menu = menu_bar.addMenu("&Run")
         run_menu.addAction(self.action_run)
@@ -480,6 +494,7 @@ class ShellWindow(QMainWindow):
 
     def _wire_signals(self) -> None:
         self.scene.node_selected.connect(self._on_scene_node_selected)
+        self.scene.scope_changed.connect(self._on_scene_scope_changed)
         self.script_editor.script_apply_requested.connect(self._on_node_property_changed)
         self.workspace_tabs.current_index_changed.connect(self._on_workspace_tab_changed)
 
@@ -654,6 +669,10 @@ class ShellWindow(QMainWindow):
             )
         return items
 
+    @pyqtProperty("QVariantList", notify=workspace_state_changed)
+    def active_scope_breadcrumb_items(self) -> list[dict[str, str]]:
+        return list(self.scene.scope_breadcrumb_model)
+
     @pyqtProperty(str, notify=selected_node_changed)
     def selected_node_summary(self) -> str:
         selected = self._selected_node_context()
@@ -757,6 +776,52 @@ class ShellWindow(QMainWindow):
         ranked = self._search_graph_nodes(normalized_query, limit=self._GRAPH_SEARCH_LIMIT)
         highlight = 0 if ranked else -1
         self._set_graph_search_state(query=normalized_query, results=ranked, highlight_index=highlight)
+
+    def _active_scope_camera_key(self, scope_path: tuple[str, ...] | None = None) -> tuple[str, str, tuple[str, ...]] | None:
+        workspace_id = self.workspace_manager.active_workspace_id()
+        workspace = self.model.project.workspaces.get(workspace_id)
+        if workspace is None:
+            return None
+        workspace.ensure_default_view()
+        view_id = workspace.active_view_id
+        if not view_id:
+            return None
+        if scope_path is None:
+            scope_path = tuple(str(value) for value in self.scene.active_scope_path)
+        return workspace_id, view_id, tuple(scope_path)
+
+    def _remember_scope_camera(self, scope_path: tuple[str, ...] | None = None) -> None:
+        key = self._active_scope_camera_key(scope_path)
+        if key is None:
+            return
+        center = self.view.mapToScene(self.view.viewport().rect().center())
+        self._runtime_scope_camera[key] = (float(self.view.zoom), float(center.x()), float(center.y()))
+
+    def _restore_scope_camera(self, scope_path: tuple[str, ...] | None = None) -> bool:
+        key = self._active_scope_camera_key(scope_path)
+        if key is None:
+            return False
+        state = self._runtime_scope_camera.get(key)
+        if state is None:
+            return False
+        zoom, pan_x, pan_y = state
+        self.view.set_zoom(max(0.1, min(3.0, float(zoom))))
+        self.view.centerOn(float(pan_x), float(pan_y))
+        return True
+
+    def _navigate_scope(self, navigate_fn: Callable[[], bool]) -> bool:
+        self._remember_scope_camera()
+        changed = bool(navigate_fn())
+        if not changed:
+            return False
+        if not self._restore_scope_camera():
+            self._frame_all()
+        self.workspace_state_changed.emit()
+        return True
+
+    def _on_scene_scope_changed(self) -> None:
+        self.workspace_state_changed.emit()
+        self.selected_node_changed.emit()
 
     @pyqtSlot(str)
     def set_library_query(self, query: str) -> None:
@@ -950,7 +1015,30 @@ class ShellWindow(QMainWindow):
             return
         if workspace.active_view_id == target_id:
             return
+        self._remember_scope_camera()
         self._switch_view(target_id)
+        self.scene.sync_scope_with_active_view()
+        self._restore_scope_camera()
+
+    @pyqtSlot(str, result=bool)
+    def request_open_subnode_scope(self, node_id: str) -> bool:
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return False
+        return bool(self._navigate_scope(lambda: self.scene.open_subnode_scope(normalized_node_id)))
+
+    @pyqtSlot(str, result=bool)
+    def request_open_scope_breadcrumb(self, node_id: str) -> bool:
+        normalized_node_id = str(node_id).strip()
+        return bool(self._navigate_scope(lambda: self.scene.navigate_scope_to(normalized_node_id)))
+
+    @pyqtSlot(result=bool)
+    def request_navigate_scope_parent(self) -> bool:
+        return bool(self._navigate_scope(self.scene.navigate_scope_parent))
+
+    @pyqtSlot(result=bool)
+    def request_navigate_scope_root(self) -> bool:
+        return bool(self._navigate_scope(self.scene.navigate_scope_root))
 
     @pyqtSlot()
     def request_save_project(self) -> None:

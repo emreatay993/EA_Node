@@ -142,6 +142,10 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("request_distribute_selection_horizontally()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_distribute_selection_vertically()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_toggle_snap_to_grid()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_open_subnode_scope(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_open_scope_breadcrumb(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_navigate_scope_parent()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_navigate_scope_root()"), 0)
         self.assertGreaterEqual(
             meta.indexOfMethod("request_drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
             0,
@@ -204,6 +208,8 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+C", _action_shortcuts(self.window.action_copy_selection))
         self.assertIn("Ctrl+X", _action_shortcuts(self.window.action_cut_selection))
         self.assertIn("Ctrl+V", _action_shortcuts(self.window.action_paste_selection))
+        self.assertIn("Alt+Left", _action_shortcuts(self.window.action_scope_parent))
+        self.assertIn("Alt+Home", _action_shortcuts(self.window.action_scope_root))
         self.assertTrue(self.window.action_snap_to_grid.isCheckable())
         self.assertFalse(self.window.snap_to_grid_enabled)
         self.assertFalse(self.window.action_snap_to_grid.isChecked())
@@ -1448,6 +1454,63 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertAlmostEqual(self.window.view.zoom, 1.4, places=2)
         self.assertAlmostEqual(self.window.view.center_x, 110.0, delta=5.0)
         self.assertAlmostEqual(self.window.view.center_y, 210.0, delta=5.0)
+
+    def test_scope_navigation_updates_breadcrumbs_persists_scope_path_per_view_and_restores_runtime_camera(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        primary_view_id = workspace.active_view_id
+
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+        nested_node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=90.0)
+        workspace.nodes[nested_node_id].parent_node_id = shell_id
+        self.window.scene.refresh_workspace_from_model(workspace_id)
+        self.app.processEvents()
+
+        breadcrumbs = self.window.active_scope_breadcrumb_items
+        self.assertEqual(len(breadcrumbs), 1)
+        self.assertEqual(breadcrumbs[0]["node_id"], "")
+        self.assertEqual(self.window.scene.active_scope_path, [])
+
+        self.window.view.set_zoom(1.25)
+        self.window.view.centerOn(150.0, -40.0)
+        self.assertTrue(self.window.request_open_subnode_scope(shell_id))
+        self.app.processEvents()
+
+        self.assertEqual(self.window.scene.active_scope_path, [shell_id])
+        self.assertEqual(workspace.views[primary_view_id].scope_path, [shell_id])
+        scoped_nodes = {item["node_id"] for item in self.window.scene.nodes_model}
+        self.assertIn(nested_node_id, scoped_nodes)
+        self.assertNotIn(shell_id, scoped_nodes)
+
+        self.window.view.set_zoom(0.65)
+        self.window.view.centerOn(880.0, 460.0)
+        self.assertTrue(self.window.request_open_scope_breadcrumb(""))
+        self.app.processEvents()
+
+        self.assertEqual(self.window.scene.active_scope_path, [])
+        self.assertEqual(workspace.views[primary_view_id].scope_path, [])
+        self.assertAlmostEqual(self.window.view.zoom, 1.25, places=2)
+        self.assertAlmostEqual(self.window.view.center_x, 150.0, delta=5.0)
+        self.assertAlmostEqual(self.window.view.center_y, -40.0, delta=5.0)
+
+        self.assertTrue(self.window.request_open_subnode_scope(shell_id))
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_scope_path, [shell_id])
+        self.assertAlmostEqual(self.window.view.zoom, 0.65, places=2)
+        self.assertAlmostEqual(self.window.view.center_x, 880.0, delta=5.0)
+        self.assertAlmostEqual(self.window.view.center_y, 460.0, delta=5.0)
+
+        secondary_view_id = self.window.workspace_manager.create_view(workspace_id, name="V2")
+        self.window.workspace_manager.set_active_view(workspace_id, primary_view_id)
+        self.window.request_switch_view(secondary_view_id)
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_scope_path, [])
+        self.assertEqual(workspace.views[secondary_view_id].scope_path, [])
+
+        self.window.request_switch_view(primary_view_id)
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_scope_path, [shell_id])
+        self.assertEqual(workspace.views[primary_view_id].scope_path, [shell_id])
 
     def test_qml_create_view_updates_active_view_items_and_allows_switching(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
