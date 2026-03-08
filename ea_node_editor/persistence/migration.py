@@ -4,6 +4,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
+from ea_node_editor.graph.effective_ports import find_port as find_effective_port
+from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
@@ -137,13 +139,6 @@ class JsonProjectMigration:
             return list(value)
         return []
 
-    @staticmethod
-    def _port_spec(spec: NodeTypeSpec, key: str):
-        for port in spec.ports:
-            if port.key == key:
-                return port
-        return None
-
     def _normalize_workspace_order(self, doc: dict[str, Any], workspace_ids: set[str]) -> list[str]:
         order: list[str] = []
         for source in (
@@ -270,6 +265,21 @@ class JsonProjectMigration:
             if parent_id not in nodes_by_id or parent_id == node_id:
                 node["parent_node_id"] = None
 
+        workspace_nodes_for_ports: dict[str, NodeInstance] = {
+            node_id: NodeInstance(
+                node_id=node_id,
+                type_id=str(node["type_id"]),
+                title=str(node["title"]),
+                x=float(node["x"]),
+                y=float(node["y"]),
+                collapsed=bool(node["collapsed"]),
+                properties=dict(node["properties"]),
+                exposed_ports=dict(node["exposed_ports"]),
+                parent_node_id=node["parent_node_id"],
+            )
+            for node_id, node in nodes_by_id.items()
+        }
+
         candidate_edges: list[dict[str, str]] = []
         for edge_doc in self.as_list(workspace_doc.get("edges", [])):
             if not isinstance(edge_doc, Mapping):
@@ -292,14 +302,26 @@ class JsonProjectMigration:
 
             source_spec = node_specs[source_node_id]
             target_spec = node_specs[target_node_id]
-            source_port = self._port_spec(source_spec, source_port_key)
-            target_port = self._port_spec(target_spec, target_port_key)
+            source_node = workspace_nodes_for_ports[source_node_id]
+            target_node = workspace_nodes_for_ports[target_node_id]
+            source_port = find_effective_port(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace_nodes_for_ports,
+                port_key=source_port_key,
+            )
+            target_port = find_effective_port(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace_nodes_for_ports,
+                port_key=target_port_key,
+            )
             if source_port is None or target_port is None:
                 continue
             if source_port.direction != "out" or target_port.direction != "in":
                 continue
-            source_exposed = nodes_by_id[source_node_id]["exposed_ports"].get(source_port_key, source_port.exposed)
-            target_exposed = nodes_by_id[target_node_id]["exposed_ports"].get(target_port_key, target_port.exposed)
+            source_exposed = bool(source_port.exposed)
+            target_exposed = bool(target_port.exposed)
             if not source_exposed or not target_exposed:
                 continue
 

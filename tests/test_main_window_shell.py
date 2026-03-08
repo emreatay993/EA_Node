@@ -452,6 +452,56 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(self.window.graph_search_query, "")
         self.assertEqual(self.window.graph_search_results, [])
 
+    def test_graph_search_jump_opens_subnode_scope_for_nested_match(self) -> None:
+        source_workspace_id = self.window.workspace_manager.active_workspace_id()
+        target_workspace_id = self.window.workspace_manager.create_workspace("Scoped Search Target")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(target_workspace_id)
+
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=260.0, y=150.0)
+        nested_node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=100.0)
+        target_workspace = self.window.model.project.workspaces[target_workspace_id]
+        target_workspace.nodes[nested_node_id].parent_node_id = shell_id
+        self.window.scene.refresh_workspace_from_model(target_workspace_id)
+        self.window.scene.set_node_title(nested_node_id, "Nested Needle Result")
+        self.app.processEvents()
+
+        self.window._switch_workspace(source_workspace_id)
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("nested needle")
+        self.app.processEvents()
+
+        jumped = self.window.request_graph_search_accept()
+        self.assertTrue(jumped)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.workspace_manager.active_workspace_id(), target_workspace_id)
+        self.assertEqual(self.window.scene.active_scope_path, [shell_id])
+        self.assertEqual(self.window.scene.selected_node_id(), nested_node_id)
+        visible_node_ids = {item["node_id"] for item in self.window.scene.nodes_model}
+        self.assertIn(nested_node_id, visible_node_ids)
+        self.assertNotIn(shell_id, visible_node_ids)
+
+    def test_failure_focus_opens_scope_for_nested_node(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=110.0)
+        nested_node_id = self.window.scene.add_node_from_type("core.python_script", x=120.0, y=90.0)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        workspace.nodes[nested_node_id].parent_node_id = shell_id
+        self.window.scene.refresh_workspace_from_model(workspace_id)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.scene.active_scope_path, [])
+        self.window.workspace_library_controller.focus_failed_node(workspace_id, nested_node_id, "")
+        self.app.processEvents()
+
+        self.assertEqual(self.window.scene.active_scope_path, [shell_id])
+        self.assertEqual(self.window.scene.selected_node_id(), nested_node_id)
+        bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(bounds)
+        self.assertAlmostEqual(self.window.view.center_x, bounds.center().x(), places=6)
+        self.assertAlmostEqual(self.window.view.center_y, bounds.center().y(), places=6)
+
     def test_graph_search_keyboard_navigation_and_close_behavior(self) -> None:
         node_a_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=50.0)
         node_b_id = self.window.scene.add_node_from_type("core.start", x=250.0, y=50.0)
