@@ -64,6 +64,7 @@ Rectangle {
     readonly property real _portSideMargin: 8
     readonly property real _portDotRadius: 3.5
     readonly property real _portDragThreshold: 2
+    readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
 
     readonly property var inputPorts: {
         if (!card.nodeData || !card.nodeData.ports)
@@ -170,11 +171,34 @@ Rectangle {
         Text {
             anchors.left: parent.left
             anchors.leftMargin: 10
+            anchors.right: parent.right
+            anchors.rightMargin: card.canEnterScope ? 66 : 10
             anchors.verticalCenter: parent.verticalCenter
             text: card.nodeData ? card.nodeData.title : ""
             color: "#F5F8FF"
             font.pixelSize: 12
             font.bold: true
+            elide: Text.ElideRight
+        }
+
+        Rectangle {
+            visible: card.canEnterScope
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            width: 48
+            height: 16
+            radius: 8
+            color: "#2B4B61"
+            border.color: "#5FADD9"
+
+            Text {
+                anchors.centerIn: parent
+                text: "OPEN"
+                color: "#D8F1FF"
+                font.pixelSize: 9
+                font.bold: true
+            }
         }
     }
 

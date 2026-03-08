@@ -151,6 +151,37 @@ class _ScopeFocusHostStub:
         self.scene = _ScopeFocusSceneStub()
 
 
+class _PinPropertySceneStub:
+    def __init__(self) -> None:
+        self.property_calls: list[tuple[str, str, object]] = []
+        self.refreshed_workspaces: list[str] = []
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> None:
+        self.property_calls.append((node_id, key, value))
+
+    def refresh_workspace_from_model(self, workspace_id: str) -> None:
+        self.refreshed_workspaces.append(workspace_id)
+
+
+class _ScriptEditorStub:
+    def __init__(self) -> None:
+        self.current_node_id = ""
+
+    def set_node(self, _node: object) -> None:
+        return
+
+
+class _PinPropertyHostStub:
+    def __init__(self) -> None:
+        self._graph_interactions = _GraphInteractionsStub()
+        self.model = GraphModel()
+        workspace_id = self.model.active_workspace.workspace_id
+        self.workspace_manager = _WorkspaceManagerStub(workspace_id)
+        self.scene = _PinPropertySceneStub()
+        self.script_editor = _ScriptEditorStub()
+        self.selected_node_changed = _SignalStub()
+
+
 class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
     @staticmethod
     def _valid_fragment_payload() -> dict[str, object]:
@@ -337,6 +368,57 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.scene.open_scope_calls, ["node_target"])
         self.assertEqual(host.scene.focus_calls, ["node_target"])
         self.assertEqual(focused, ["node_target"])
+
+    def test_on_node_property_changed_refreshes_shell_payload_for_direct_child_pin(self) -> None:
+        host = _PinPropertyHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        refreshed = {"value": False}
+
+        def _mark_refreshed() -> None:
+            refreshed["value"] = True
+
+        controller.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
+        workspace_id = host.workspace_manager.active_workspace_id()
+        shell_node = host.model.add_node(
+            workspace_id,
+            type_id="core.subnode",
+            title="Subnode",
+            x=40.0,
+            y=50.0,
+        )
+        pin_node = host.model.add_node(
+            workspace_id,
+            type_id="core.subnode_input",
+            title="Subnode Input",
+            x=80.0,
+            y=120.0,
+        )
+        pin_node.parent_node_id = shell_node.node_id
+
+        controller.on_node_property_changed(pin_node.node_id, "label", "Data In")
+
+        self.assertEqual(host.scene.property_calls, [(pin_node.node_id, "label", "Data In")])
+        self.assertEqual(host.scene.refreshed_workspaces, [workspace_id])
+        self.assertEqual(host.selected_node_changed.calls, 1)
+        self.assertTrue(refreshed["value"])
+
+    def test_on_node_property_changed_skips_shell_refresh_for_non_pin_nodes(self) -> None:
+        host = _PinPropertyHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        controller.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
+        workspace_id = host.workspace_manager.active_workspace_id()
+        logger_node = host.model.add_node(
+            workspace_id,
+            type_id="core.logger",
+            title="Logger",
+            x=20.0,
+            y=20.0,
+        )
+
+        controller.on_node_property_changed(logger_node.node_id, "message", "hello")
+
+        self.assertEqual(host.scene.property_calls, [(logger_node.node_id, "message", "hello")])
+        self.assertEqual(host.scene.refreshed_workspaces, [])
 
 
 if __name__ == "__main__":

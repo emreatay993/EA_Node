@@ -1418,6 +1418,26 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("io.excel_write", type_ids)
         self.assertNotIn("core.logger", type_ids)
 
+    def test_qml_subnode_library_category_contains_pin_nodes(self) -> None:
+        self.window.set_library_query("")
+        self.window.set_library_category("Subnode")
+        self.window.set_library_direction("")
+        self.window.set_library_data_type("")
+        self.app.processEvents()
+
+        library_items = {
+            item["type_id"]: item
+            for item in self.window.filtered_node_library_items
+        }
+        self.assertIn("core.subnode_input", library_items)
+        self.assertIn("core.subnode_output", library_items)
+        self.assertEqual(library_items["core.subnode_input"]["category"], "Subnode")
+        self.assertEqual(library_items["core.subnode_output"]["category"], "Subnode")
+        pin_types = self.window.pin_data_type_options
+        self.assertIn("any", pin_types)
+        self.assertIn("json", pin_types)
+        self.assertIn("str", pin_types)
+
     def test_qml_selected_node_inspector_mutations_update_graph_model(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
@@ -1439,6 +1459,46 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(node.properties["message"], "updated in qml inspector")
         self.assertFalse(node.exposed_ports["exec_in"])
         self.assertTrue(node.collapsed)
+
+    def test_qml_pin_inspector_updates_parent_shell_ports(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        custom_data_type = "pressure_tensor"
+
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+        self.assertTrue(self.window.request_open_subnode_scope(shell_id))
+        pin_id = self.window.scene.add_node_from_type("core.subnode_input", x=40.0, y=40.0)
+        self.window.scene.focus_node(pin_id)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.selected_node_is_subnode_pin)
+        self.assertEqual(
+            [item["key"] for item in self.window.selected_node_property_items],
+            ["label", "kind", "data_type"],
+        )
+        self.assertEqual(self.window.selected_node_port_items, [])
+
+        self.window.set_selected_node_property("label", "Payload In")
+        self.window.set_selected_node_property("kind", "data")
+        self.window.set_selected_node_property("data_type", custom_data_type)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.request_navigate_scope_parent())
+        self.window.scene.focus_node(shell_id)
+        self.app.processEvents()
+
+        shell_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == shell_id)
+        shell_ports = {port["key"]: port for port in shell_payload["ports"]}
+        self.assertIn(pin_id, shell_ports)
+        self.assertEqual(shell_ports[pin_id]["label"], "Payload In")
+        self.assertEqual(shell_ports[pin_id]["kind"], "data")
+        self.assertEqual(shell_ports[pin_id]["data_type"], custom_data_type)
+
+        shell_port_items = {item["key"]: item for item in self.window.selected_node_port_items}
+        self.assertIn(pin_id, shell_port_items)
+        self.assertEqual(shell_port_items[pin_id]["label"], "Payload In")
+        self.assertEqual(workspace.nodes[pin_id].parent_node_id, shell_id)
+        self.assertIn(custom_data_type, self.window.pin_data_type_options)
 
     def test_qml_node_payload_port_list_tracks_exposed_ports(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.start", x=0.0, y=0.0)

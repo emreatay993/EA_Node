@@ -11,7 +11,13 @@ from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QMainWindow
 
 from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel, ProjectData
+from ea_node_editor.nodes.builtins.subnode import (
+    SUBNODE_INPUT_TYPE_ID,
+    SUBNODE_OUTPUT_TYPE_ID,
+    SUBNODE_PIN_DATA_TYPE_PROPERTY,
+)
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -77,6 +83,10 @@ class ShellWindow(QMainWindow):
     }
     _GRAPH_SEARCH_LIMIT = 10
     _SNAP_GRID_SIZE = 20.0
+    _SUBNODE_PIN_TYPE_IDS = {
+        SUBNODE_INPUT_TYPE_ID,
+        SUBNODE_OUTPUT_TYPE_ID,
+    }
 
     def __init__(self) -> None:
         super().__init__()
@@ -609,6 +619,29 @@ class ShellWindow(QMainWindow):
             {"label": data_type, "value": data_type} for data_type in data_types
         ]
 
+    @pyqtProperty("QVariantList", notify=workspace_state_changed)
+    def pin_data_type_options(self) -> list[str]:
+        suggested = {"any", "str", "int", "float", "bool", "json", "path"}
+        suggested.update(
+            str(port.data_type).strip().lower()
+            for spec in self.registry.all_specs()
+            for port in spec.ports
+            if str(port.data_type).strip()
+        )
+        for workspace in self.model.project.workspaces.values():
+            for node in workspace.nodes.values():
+                if node.type_id not in self._SUBNODE_PIN_TYPE_IDS:
+                    continue
+                value = str(node.properties.get(SUBNODE_PIN_DATA_TYPE_PROPERTY, "")).strip().lower()
+                if value:
+                    suggested.add(value)
+        ordered: list[str] = []
+        if "any" in suggested:
+            ordered.append("any")
+            suggested.remove("any")
+        ordered.extend(sorted(suggested))
+        return ordered
+
     @pyqtProperty(bool, notify=graph_search_changed)
     def graph_search_open(self) -> bool:
         return bool(self._graph_search_open)
@@ -713,12 +746,25 @@ class ShellWindow(QMainWindow):
         node, _spec = selected
         return bool(node.collapsed)
 
+    @pyqtProperty(bool, notify=selected_node_changed)
+    def selected_node_is_subnode_pin(self) -> bool:
+        selected = self._selected_node_context()
+        if selected is None:
+            return False
+        node, _spec = selected
+        return node.type_id in self._SUBNODE_PIN_TYPE_IDS
+
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_property_items(self) -> list[dict[str, Any]]:
         selected = self._selected_node_context()
         if selected is None:
             return []
         node, spec = selected
+        if node.type_id in self._SUBNODE_PIN_TYPE_IDS:
+            ordered_keys = ("label", "kind", "data_type")
+            ordered_properties = [prop for key in ordered_keys for prop in spec.properties if prop.key == key]
+        else:
+            ordered_properties = list(spec.properties)
         return [
             {
                 "key": prop.key,
@@ -727,7 +773,7 @@ class ShellWindow(QMainWindow):
                 "value": node.properties.get(prop.key, prop.default),
                 "enum_values": list(prop.enum_values),
             }
-            for prop in spec.properties
+            for prop in ordered_properties
         ]
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
@@ -735,17 +781,23 @@ class ShellWindow(QMainWindow):
         selected = self._selected_node_context()
         if selected is None:
             return []
+        if self.selected_node_is_subnode_pin:
+            return []
         node, spec = selected
+        workspace = self.model.project.workspaces.get(self.active_workspace_id)
+        if workspace is None:
+            return []
         return [
             {
                 "key": port.key,
+                "label": port.label,
                 "direction": port.direction,
                 "kind": port.kind,
                 "data_type": port.data_type,
                 "required": bool(port.required),
-                "exposed": bool(node.exposed_ports.get(port.key, port.exposed)),
+                "exposed": bool(port.exposed),
             }
-            for port in spec.ports
+            for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace.nodes)
         ]
 
     def _set_graph_search_state(
