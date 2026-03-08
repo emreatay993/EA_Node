@@ -3,11 +3,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 from pathlib import Path
 
-from PyQt6.QtCore import QRectF
+from PyQt6.QtCore import QMimeData, QRectF
 
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.graph.rules import find_port, is_port_exposed, ports_compatible
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.ui.shell.runtime_clipboard import (
+    GRAPH_FRAGMENT_MIME_TYPE,
+    parse_graph_fragment_payload,
+    serialize_graph_fragment_payload,
+)
 from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE
 from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
 from ea_node_editor.ui.shell.library_flow import input_port_is_available, pick_connection_candidate
@@ -596,6 +601,68 @@ class WorkspaceLibraryController:
     def duplicate_selected_nodes(self) -> bool:
         duplicated = bool(self._host.scene.duplicate_selected_subgraph())
         if not duplicated:
+            return False
+        self._host.selected_node_changed.emit()
+        self.refresh_workspace_tabs()
+        return True
+
+    def _clipboard(self):
+        from PyQt6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is None:
+            return None
+        return app.clipboard()
+
+    def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
+        serialized = serialize_graph_fragment_payload(fragment_payload)
+        if serialized is None:
+            return False
+        clipboard = self._clipboard()
+        if clipboard is None:
+            return False
+        mime_data = QMimeData()
+        mime_data.setData(GRAPH_FRAGMENT_MIME_TYPE, serialized.encode("utf-8"))
+        mime_data.setText(serialized)
+        clipboard.setMimeData(mime_data)
+        return True
+
+    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
+        clipboard = self._clipboard()
+        if clipboard is None:
+            return None
+        mime_data = clipboard.mimeData()
+        if mime_data is None:
+            return None
+        if mime_data.hasFormat(GRAPH_FRAGMENT_MIME_TYPE):
+            raw_data = bytes(mime_data.data(GRAPH_FRAGMENT_MIME_TYPE))
+            try:
+                serialized = raw_data.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+            payload = parse_graph_fragment_payload(serialized)
+            if payload is not None:
+                return payload
+        return parse_graph_fragment_payload(mime_data.text())
+
+    def copy_selected_nodes_to_clipboard(self) -> bool:
+        fragment_payload = self._host.scene.serialize_selected_subgraph_fragment()
+        if fragment_payload is None:
+            return False
+        return self._write_graph_fragment_to_clipboard(fragment_payload)
+
+    def cut_selected_nodes_to_clipboard(self) -> bool:
+        if not self.copy_selected_nodes_to_clipboard():
+            return False
+        return bool(self.request_delete_selected_graph_items([]).payload)
+
+    def paste_nodes_from_clipboard(self) -> bool:
+        fragment_payload = self._read_graph_fragment_from_clipboard()
+        if fragment_payload is None:
+            return False
+        center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
+        pasted = bool(self._host.scene.paste_subgraph_fragment(fragment_payload, center.x(), center.y()))
+        if not pasted:
             return False
         self._host.selected_node_changed.emit()
         self.refresh_workspace_tabs()
