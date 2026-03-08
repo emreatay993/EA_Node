@@ -47,6 +47,7 @@ class ViewState:
     zoom: float = 1.0
     pan_x: float = 0.0
     pan_y: float = 0.0
+    scope_path: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

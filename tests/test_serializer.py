@@ -90,6 +90,73 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(loaded.workspaces[second].views[second_v2.view_id].pan_x, 300.0)
         self.assertEqual(loaded.workspaces[second].views[second_v2.view_id].pan_y, 99.0)
 
+    def test_round_trip_preserves_scope_path_and_normalized_custom_workflows(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        parent = model.add_node(workspace.workspace_id, "core.logger", "Group", 40.0, 60.0)
+        child = model.add_node(workspace.workspace_id, "core.end", "End", 120.0, 160.0)
+        child.parent_node_id = parent.node_id
+        view = workspace.views[workspace.active_view_id]
+        view.scope_path = [parent.node_id]
+        model.project.metadata["custom_workflows"] = [
+            {
+                "workflow_id": "wf_valid",
+                "name": "Valid Workflow",
+                "description": "kept",
+                "revision": 2,
+                "ports": [
+                    {
+                        "key": "exec_in",
+                        "label": "Exec In",
+                        "direction": "in",
+                        "kind": "exec",
+                        "data_type": "any",
+                    }
+                ],
+                "fragment": {"root_node_id": parent.node_id},
+            },
+            {
+                "workflow_id": "wf_valid",
+                "name": "Duplicate",
+                "fragment": {"root_node_id": child.node_id},
+            },
+            {
+                "workflow_id": "wf_missing_fragment",
+                "name": "Invalid",
+                "fragment": [],
+            },
+        ]
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "project.sfe"
+            serializer.save(str(path), model.project)
+            loaded = serializer.load(str(path))
+
+        loaded_view = loaded.workspaces[workspace.workspace_id].views[workspace.active_view_id]
+        self.assertEqual(loaded_view.scope_path, [parent.node_id])
+        self.assertEqual(
+            loaded.metadata.get("custom_workflows"),
+            [
+                {
+                    "workflow_id": "wf_valid",
+                    "name": "Valid Workflow",
+                    "description": "kept",
+                    "revision": 2,
+                    "ports": [
+                        {
+                            "key": "exec_in",
+                            "label": "Exec In",
+                            "direction": "in",
+                            "kind": "exec",
+                            "data_type": "any",
+                        }
+                    ],
+                    "fragment": {"root_node_id": parent.node_id},
+                }
+            ],
+        )
+
     def test_save_output_is_deterministic_and_uses_workspace_order(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)
@@ -217,7 +284,10 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(project.schema_version, SCHEMA_VERSION)
         self.assertEqual(project.active_workspace_id, "ws_a")
         self.assertEqual(project.metadata.get("workspace_order"), ["ws_a", "ws_b"])
+        self.assertEqual(project.metadata.get("custom_workflows"), [])
         self.assertEqual(project.workspaces["ws_b"].active_view_id, "view_b1")
+        self.assertEqual(project.workspaces["ws_a"].views["view_a1"].scope_path, [])
+        self.assertEqual(project.workspaces["ws_b"].views["view_b1"].scope_path, [])
 
     def test_migrate_v0_fixture_repairs_invalid_hidden_and_duplicate_edges(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())

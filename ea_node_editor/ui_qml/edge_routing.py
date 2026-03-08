@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from PyQt6.QtCore import QPointF, QRectF
 
+from ea_node_editor.graph.effective_ports import (
+    are_data_types_compatible,
+    find_port,
+    port_data_type,
+    port_direction,
+    visible_ports,
+)
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
-from ea_node_editor.graph.rules import are_data_types_compatible, port_data_type, port_direction, visible_ports
 from ea_node_editor.nodes.types import NodeTypeSpec
 
 NODE_HEADER_HEIGHT = 24.0
@@ -27,8 +34,13 @@ EDGE_PIPE_STUB_MAX = 72.0
 EDGE_PIPE_MIDDLE_MARGIN = 10.0
 
 
-def node_size(node: NodeInstance, spec: NodeTypeSpec) -> tuple[float, float]:
-    in_ports, out_ports = visible_ports(node, spec)
+def node_size(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+) -> tuple[float, float]:
+    scoped_nodes = workspace_nodes or {node.node_id: node}
+    in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
     if node.collapsed:
         return NODE_COLLAPSED_WIDTH, NODE_COLLAPSED_HEIGHT
     port_count = max(len(in_ports), len(out_ports), 1)
@@ -36,10 +48,16 @@ def node_size(node: NodeInstance, spec: NodeTypeSpec) -> tuple[float, float]:
     return NODE_WIDTH, height
 
 
-def port_scene_pos(node: NodeInstance, spec: NodeTypeSpec, port_key: str) -> QPointF:
-    in_ports, out_ports = visible_ports(node, spec)
-    direction = port_direction(spec, port_key)
-    width, _height = node_size(node, spec)
+def port_scene_pos(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    port_key: str,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+) -> QPointF:
+    scoped_nodes = workspace_nodes or {node.node_id: node}
+    in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
+    direction = port_direction(node=node, spec=spec, workspace_nodes=scoped_nodes, port_key=port_key)
+    width, _height = node_size(node, spec, scoped_nodes)
 
     if node.collapsed:
         if direction == "in":
@@ -58,10 +76,20 @@ def port_scene_pos(node: NodeInstance, spec: NodeTypeSpec, port_key: str) -> QPo
     return QPointF(node.x + width - NODE_PORT_SIDE_MARGIN - NODE_PORT_DOT_RADIUS, y)
 
 
-def edge_color(spec: NodeTypeSpec, source_port_key: str, data_type_warning: bool = False) -> str:
-    for port in spec.ports:
-        if port.key != source_port_key:
-            continue
+def edge_color(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    source_port_key: str,
+    workspace_nodes: Mapping[str, NodeInstance],
+    data_type_warning: bool = False,
+) -> str:
+    port = find_port(
+        node=node,
+        spec=spec,
+        workspace_nodes=workspace_nodes,
+        port_key=source_port_key,
+    )
+    if port is not None:
         if port.kind == "exec":
             return "#67D487"
         if port.kind == "completed":
@@ -234,10 +262,20 @@ def build_edge_payload(
         target_spec = node_specs.get(edge.target_node_id)
         if source_node is None or target_node is None or source_spec is None or target_spec is None:
             continue
-        source = port_scene_pos(source_node, source_spec, edge.source_port_key)
-        target = port_scene_pos(target_node, target_spec, edge.target_port_key)
-        source_width, source_height = node_size(source_node, source_spec)
-        target_width, target_height = node_size(target_node, target_spec)
+        source = port_scene_pos(
+            source_node,
+            source_spec,
+            edge.source_port_key,
+            workspace_nodes,
+        )
+        target = port_scene_pos(
+            target_node,
+            target_spec,
+            edge.target_port_key,
+            workspace_nodes,
+        )
+        source_width, source_height = node_size(source_node, source_spec, workspace_nodes)
+        target_width, target_height = node_size(target_node, target_spec, workspace_nodes)
         source_bounds = QRectF(source_node.x, source_node.y, source_width, source_height)
         target_bounds = QRectF(target_node.x, target_node.y, target_width, target_height)
         pair_lane = pair_lane_offsets.get(edge.edge_id, 0.0)
@@ -272,10 +310,26 @@ def build_edge_payload(
                 source_fan=source_fan,
                 target_fan=target_fan,
             )
-        src_dt = port_data_type(source_spec, edge.source_port_key)
-        tgt_dt = port_data_type(target_spec, edge.target_port_key)
+        src_dt = port_data_type(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace_nodes,
+            port_key=edge.source_port_key,
+        )
+        tgt_dt = port_data_type(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace_nodes,
+            port_key=edge.target_port_key,
+        )
         dt_warning = not are_data_types_compatible(src_dt, tgt_dt)
-        color = edge_color(source_spec, edge.source_port_key, data_type_warning=dt_warning)
+        color = edge_color(
+            source_node,
+            source_spec,
+            edge.source_port_key,
+            workspace_nodes,
+            data_type_warning=dt_warning,
+        )
         edges_payload.append(
             {
                 "edge_id": edge.edge_id,

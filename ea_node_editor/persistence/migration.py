@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
@@ -31,6 +32,9 @@ class JsonProjectMigration:
             elif version == 1:
                 doc = self._migrate_v1_to_v2(doc)
                 version = 2
+            elif version == 2:
+                doc = self._migrate_v2_to_v3(doc)
+                version = 3
             else:
                 raise ValueError(f"Unsupported schema version: {version}")
         return self._normalize_document(doc)
@@ -56,6 +60,19 @@ class JsonProjectMigration:
             merged["workflow_settings"] = {}
         migrated["metadata"] = merged
         migrated["schema_version"] = 2
+        return migrated
+
+    @staticmethod
+    def _migrate_v2_to_v3(doc: dict[str, Any]) -> dict[str, Any]:
+        migrated = dict(doc)
+        metadata = migrated.get("metadata")
+        if not isinstance(metadata, Mapping):
+            metadata = {}
+        merged = dict(metadata)
+        if "custom_workflows" not in merged:
+            merged["custom_workflows"] = []
+        migrated["metadata"] = merged
+        migrated["schema_version"] = 3
         return migrated
 
     @staticmethod
@@ -151,6 +168,7 @@ class JsonProjectMigration:
             metadata.get("workflow_settings"),
             DEFAULT_WORKFLOW_SETTINGS,
         )
+        metadata["custom_workflows"] = normalize_custom_workflow_metadata(metadata.get("custom_workflows"))
         return metadata
 
     def _normalize_document(self, doc: dict[str, Any]) -> dict[str, Any]:
@@ -194,6 +212,11 @@ class JsonProjectMigration:
                 "zoom": self._coerce_float(view_doc.get("zoom"), 1.0),
                 "pan_x": self._coerce_float(view_doc.get("pan_x"), 0.0),
                 "pan_y": self._coerce_float(view_doc.get("pan_y"), 0.0),
+                "scope_path": [
+                    self._coerce_str(item)
+                    for item in self.as_list(view_doc.get("scope_path"))
+                    if self._coerce_str(item)
+                ],
             }
 
         if not views_by_id:
@@ -204,6 +227,7 @@ class JsonProjectMigration:
                 "zoom": 1.0,
                 "pan_x": 0.0,
                 "pan_y": 0.0,
+                "scope_path": [],
             }
 
         active_view_id = self._coerce_str(workspace_doc.get("active_view_id"))

@@ -4,8 +4,8 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Protocol
 
-from ea_node_editor.graph.model import WorkspaceData
-from ea_node_editor.graph.rules import are_port_kinds_compatible, port_kind
+from ea_node_editor.graph.effective_ports import are_port_kinds_compatible, find_port
+from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
 
@@ -64,16 +64,16 @@ class GraphInteractions:
         if node_a is None or node_b is None:
             return GraphActionResult(False, "One or more nodes are missing.")
 
-        direction_a = self._port_direction(node_a.type_id, source_port_key)
-        direction_b = self._port_direction(node_b.type_id, target_port_key)
-        if direction_a is None or direction_b is None:
+        port_a = self._port(workspace, node_a, source_port_key)
+        port_b = self._port(workspace, node_b, target_port_key)
+        if port_a is None or port_b is None:
             return GraphActionResult(False, "One or more ports are missing.")
+        direction_a = port_a.direction
+        direction_b = port_b.direction
         if direction_a == direction_b:
             return GraphActionResult(False, "Ports must have opposite directions.")
-        kind_a = self._port_kind(node_a.type_id, source_port_key)
-        kind_b = self._port_kind(node_b.type_id, target_port_key)
-        if kind_a is None or kind_b is None:
-            return GraphActionResult(False, "One or more ports are missing.")
+        kind_a = port_a.kind
+        kind_b = port_b.kind
         if not self._are_port_kinds_compatible(kind_a, kind_b):
             return GraphActionResult(
                 False,
@@ -186,25 +186,17 @@ class GraphInteractions:
             return GraphActionResult(False, "No selected graph items to remove.")
         return GraphActionResult(True)
 
-    def _port_direction(self, type_id: str, port_key: str) -> str | None:
+    def _port(self, workspace: WorkspaceData, node: NodeInstance, port_key: str):
         try:
-            spec = self._registry.get_spec(type_id)
+            spec = self._registry.get_spec(node.type_id)
         except KeyError:
             return None
-        for port in spec.ports:
-            if port.key == port_key:
-                return port.direction
-        return None
-
-    def _port_kind(self, type_id: str, port_key: str) -> str | None:
-        try:
-            spec = self._registry.get_spec(type_id)
-        except KeyError:
-            return None
-        try:
-            return port_kind(spec, port_key)
-        except KeyError:
-            return None
+        return find_port(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_key=port_key,
+        )
 
     @staticmethod
     def _are_port_kinds_compatible(source_kind: str, target_kind: str) -> bool:

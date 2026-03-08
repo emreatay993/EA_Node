@@ -7,17 +7,18 @@ from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
 
-from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
-from ea_node_editor.graph.rules import (
+from ea_node_editor.graph.effective_ports import (
     are_data_types_compatible,
     are_port_kinds_compatible,
     default_port,
+    effective_ports,
     find_port,
     is_port_exposed,
     port_data_type,
     port_direction,
     port_kind,
 )
+from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -81,16 +82,22 @@ class _LayoutNodeMetrics:
 
 
 class _NodeItemProxy:
-    def __init__(self, node: NodeInstance, spec: NodeTypeSpec) -> None:
+    def __init__(
+        self,
+        node: NodeInstance,
+        spec: NodeTypeSpec,
+        workspace_nodes: dict[str, NodeInstance],
+    ) -> None:
         self.node = node
         self.spec = spec
+        self.workspace_nodes = workspace_nodes
 
     def sceneBoundingRect(self) -> QRectF:
-        width, height = node_size(self.node, self.spec)
+        width, height = node_size(self.node, self.spec, self.workspace_nodes)
         return QRectF(self.node.x, self.node.y, width, height)
 
     def port_scene_pos(self, port_key: str) -> QPointF:
-        return port_scene_pos(self.node, self.spec, port_key)
+        return port_scene_pos(self.node, self.spec, port_key, self.workspace_nodes)
 
 
 class GraphSceneBridge(QObject):
@@ -281,7 +288,7 @@ class GraphSceneBridge(QObject):
         hit_ids: list[str] = []
         for node_id, node in workspace.nodes.items():
             spec = self._registry.get_spec(node.type_id)
-            width, height = node_size(node, spec)
+            width, height = node_size(node, spec, workspace.nodes)
             node_min_x = float(node.x)
             node_max_x = node_min_x + width
             node_min_y = float(node.y)
@@ -306,11 +313,16 @@ class GraphSceneBridge(QObject):
         self.node_selected.emit(self.selected_node_id() or "")
 
     def node_item(self, node_id: str) -> _NodeItemProxy | None:
-        node = self._node(node_id)
+        if self._model is None:
+            return None
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return None
+        node = workspace.nodes.get(node_id)
         if node is None or self._registry is None:
             return None
         spec = self._registry.get_spec(node.type_id)
-        return _NodeItemProxy(node=node, spec=spec)
+        return _NodeItemProxy(node=node, spec=spec, workspace_nodes=workspace.nodes)
 
     def node_bounds(self, node_id: str) -> QRectF | None:
         item = self.node_item(node_id)
@@ -353,7 +365,10 @@ class GraphSceneBridge(QObject):
 
     @pyqtSlot(str, str, str, str, result=bool)
     def are_ports_compatible(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> bool:
-        if self._registry is None:
+        if self._registry is None or self._model is None:
+            return False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
             return False
         source_node = self._node(source_node_id)
         target_node = self._node(target_node_id)
@@ -362,10 +377,30 @@ class GraphSceneBridge(QObject):
         source_spec = self._registry.get_spec(source_node.type_id)
         target_spec = self._registry.get_spec(target_node.type_id)
         try:
-            source_kind = port_kind(source_spec, source_port)
-            target_kind = port_kind(target_spec, target_port)
-            source_dt = port_data_type(source_spec, source_port)
-            target_dt = port_data_type(target_spec, target_port)
+            source_kind = port_kind(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=source_port,
+            )
+            target_kind = port_kind(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=target_port,
+            )
+            source_dt = port_data_type(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=source_port,
+            )
+            target_dt = port_data_type(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=target_port,
+            )
         except KeyError:
             return False
         return are_port_kinds_compatible(source_kind, target_kind) and are_data_types_compatible(source_dt, target_dt)
@@ -381,22 +416,59 @@ class GraphSceneBridge(QObject):
     def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> str:
         model, registry = self._require_bound()
         history_before = self._capture_history_snapshot()
+        workspace = model.project.workspaces[self._workspace_id]
         source_node = self._node_or_raise(source_node_id)
         target_node = self._node_or_raise(target_node_id)
         source_spec = registry.get_spec(source_node.type_id)
         target_spec = registry.get_spec(target_node.type_id)
 
-        if port_direction(source_spec, source_port) != "out":
+        if (
+            port_direction(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=source_port,
+            )
+            != "out"
+        ):
             raise ValueError(f"Source port must be an output: {source_node_id}.{source_port}")
-        if port_direction(target_spec, target_port) != "in":
+        if (
+            port_direction(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=target_port,
+            )
+            != "in"
+        ):
             raise ValueError(f"Target port must be an input: {target_node_id}.{target_port}")
-        source_kind = port_kind(source_spec, source_port)
-        target_kind = port_kind(target_spec, target_port)
+        source_kind = port_kind(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=source_port,
+        )
+        target_kind = port_kind(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=target_port,
+        )
         if not are_port_kinds_compatible(source_kind, target_kind):
             raise ValueError(f"Incompatible port kinds: {source_kind} -> {target_kind}.")
-        if not is_port_exposed(source_node, source_spec, source_port):
+        if not is_port_exposed(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=source_port,
+        ):
             raise ValueError(f"Source port is hidden: {source_node_id}.{source_port}")
-        if not is_port_exposed(target_node, target_spec, target_port):
+        if not is_port_exposed(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=target_port,
+        ):
             raise ValueError(f"Target port is hidden: {target_node_id}.{target_port}")
 
         existing = self._find_model_edge_id(source_node_id, source_port, target_node_id, target_port)
@@ -423,8 +495,34 @@ class GraphSceneBridge(QObject):
         spec_a = registry.get_spec(node_a.type_id)
         spec_b = registry.get_spec(node_b.type_id)
 
-        a_to_b = (default_port(node_a, spec_a, "out"), default_port(node_b, spec_b, "in"))
-        b_to_a = (default_port(node_b, spec_b, "out"), default_port(node_a, spec_a, "in"))
+        a_to_b = (
+            default_port(
+                node=node_a,
+                spec=spec_a,
+                workspace_nodes=workspace.nodes,
+                direction="out",
+            ),
+            default_port(
+                node=node_b,
+                spec=spec_b,
+                workspace_nodes=workspace.nodes,
+                direction="in",
+            ),
+        )
+        b_to_a = (
+            default_port(
+                node=node_b,
+                spec=spec_b,
+                workspace_nodes=workspace.nodes,
+                direction="out",
+            ),
+            default_port(
+                node=node_a,
+                spec=spec_a,
+                workspace_nodes=workspace.nodes,
+                direction="in",
+            ),
+        )
 
         can_a_to_b = all(a_to_b)
         can_b_to_a = all(b_to_a)
@@ -529,11 +627,16 @@ class GraphSceneBridge(QObject):
         if node is None:
             return
         spec = self._registry.get_spec(node.type_id)
-        port = find_port(spec, key)
+        port = find_port(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_key=key,
+        )
         if port is None:
             return
         normalized_exposed = bool(exposed)
-        current_exposed = bool(node.exposed_ports.get(key, port.exposed))
+        current_exposed = bool(port.exposed)
         if current_exposed == normalized_exposed:
             return
         history_before = self._capture_history_snapshot()
@@ -792,7 +895,7 @@ class GraphSceneBridge(QObject):
             if node is None:
                 continue
             spec = self._registry.get_spec(node.type_id)
-            width, height = node_size(node, spec)
+            width, height = node_size(node, spec, workspace.nodes)
             layout_nodes.append(
                 _LayoutNodeMetrics(
                     node_id=node_id,
@@ -900,24 +1003,34 @@ class GraphSceneBridge(QObject):
     def _fragment_bounds(self, nodes_payload: list[dict[str, Any]]) -> QRectF | None:
         if self._registry is None:
             return None
-        bounds: QRectF | None = None
+        fragment_nodes: dict[str, NodeInstance] = {}
+        node_specs: dict[str, NodeTypeSpec] = {}
         for node_payload in nodes_payload:
+            ref_id = str(node_payload.get("ref_id", "")).strip()
             type_id = str(node_payload.get("type_id", "")).strip()
-            if not type_id:
+            if not ref_id or not type_id:
                 return None
             try:
-                spec = self._registry.get_spec(type_id)
+                node_specs[ref_id] = self._registry.get_spec(type_id)
             except KeyError:
                 return None
             node = NodeInstance(
-                node_id=str(node_payload.get("ref_id", "")),
+                node_id=ref_id,
                 type_id=type_id,
                 title=str(node_payload.get("title", "")),
                 x=float(node_payload.get("x", 0.0)),
                 y=float(node_payload.get("y", 0.0)),
                 collapsed=bool(node_payload.get("collapsed", False)),
+                properties=dict(node_payload.get("properties", {})),
+                exposed_ports=dict(node_payload.get("exposed_ports", {})),
+                parent_node_id=node_payload.get("parent_node_id"),
             )
-            width, height = node_size(node, spec)
+            fragment_nodes[ref_id] = node
+
+        bounds: QRectF | None = None
+        for node_id, node in fragment_nodes.items():
+            spec = node_specs[node_id]
+            width, height = node_size(node, spec, fragment_nodes)
             node_rect = QRectF(float(node.x), float(node.y), float(width), float(height))
             if bounds is None:
                 bounds = QRectF(node_rect)
@@ -930,6 +1043,7 @@ class GraphSceneBridge(QObject):
             return False
 
         node_specs: dict[str, NodeTypeSpec] = {}
+        fragment_nodes: dict[str, NodeInstance] = {}
         for node_payload in fragment_payload["nodes"]:
             ref_id = str(node_payload.get("ref_id", "")).strip()
             type_id = str(node_payload.get("type_id", "")).strip()
@@ -939,18 +1053,41 @@ class GraphSceneBridge(QObject):
                 node_specs[ref_id] = self._registry.get_spec(type_id)
             except KeyError:
                 return False
+            fragment_nodes[ref_id] = NodeInstance(
+                node_id=ref_id,
+                type_id=type_id,
+                title=str(node_payload.get("title", "")),
+                x=float(node_payload.get("x", 0.0)),
+                y=float(node_payload.get("y", 0.0)),
+                collapsed=bool(node_payload.get("collapsed", False)),
+                properties=dict(node_payload.get("properties", {})),
+                exposed_ports=dict(node_payload.get("exposed_ports", {})),
+                parent_node_id=node_payload.get("parent_node_id"),
+            )
 
         for edge_payload in fragment_payload["edges"]:
             source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
             target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
             source_port_key = str(edge_payload.get("source_port_key", "")).strip()
             target_port_key = str(edge_payload.get("target_port_key", "")).strip()
+            source_node = fragment_nodes.get(source_ref_id)
+            target_node = fragment_nodes.get(target_ref_id)
             source_spec = node_specs.get(source_ref_id)
             target_spec = node_specs.get(target_ref_id)
-            if source_spec is None or target_spec is None:
+            if source_node is None or target_node is None or source_spec is None or target_spec is None:
                 return False
-            source_port = find_port(source_spec, source_port_key)
-            target_port = find_port(target_spec, target_port_key)
+            source_port = find_port(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=fragment_nodes,
+                port_key=source_port_key,
+            )
+            target_port = find_port(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=fragment_nodes,
+                port_key=target_port_key,
+            )
             if source_port is None or target_port is None:
                 return False
             if source_port.direction != "out" or target_port.direction != "in":
@@ -1092,20 +1229,25 @@ class GraphSceneBridge(QObject):
         for node_id, node in workspace.nodes.items():
             spec = self._registry.get_spec(node.type_id)
             node_specs[node_id] = spec
-            width, height = node_size(node, spec)
+            width, height = node_size(node, spec, workspace.nodes)
+            resolved_ports = effective_ports(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace.nodes,
+            )
             ports_payload: list[dict[str, Any]] = []
-            for port in spec.ports:
-                exposed = bool(node.exposed_ports.get(port.key, port.exposed))
-                if not exposed:
+            for port in resolved_ports:
+                if not port.exposed:
                     continue
                 connection_count = port_connection_counts.get((node.node_id, port.key), 0)
                 ports_payload.append(
                     {
                         "key": port.key,
+                        "label": port.label,
                         "direction": port.direction,
                         "kind": port.kind,
                         "data_type": port.data_type,
-                        "exposed": exposed,
+                        "exposed": bool(port.exposed),
                         "connection_count": int(connection_count),
                         "connected": bool(connection_count),
                     }
