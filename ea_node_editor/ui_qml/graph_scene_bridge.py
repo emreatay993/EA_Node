@@ -18,7 +18,19 @@ from ea_node_editor.graph.effective_ports import (
     port_direction,
     port_kind,
 )
-from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
+from ea_node_editor.graph.hierarchy import (
+    ScopePath,
+    breadcrumb_scope_path,
+    is_node_in_scope,
+    node_scope_path,
+    normalize_scope_path,
+    scope_breadcrumb_payload,
+    scope_edges,
+    scope_node_ids,
+    scope_parent_id,
+    subnode_scope_path,
+)
+from ea_node_editor.graph.model import GraphModel, NodeInstance, ViewState, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -103,6 +115,7 @@ class _NodeItemProxy:
 class GraphSceneBridge(QObject):
     node_selected = pyqtSignal(str)
     workspace_changed = pyqtSignal(str)
+    scope_changed = pyqtSignal()
     nodes_changed = pyqtSignal()
     edges_changed = pyqtSignal()
 
@@ -112,6 +125,7 @@ class GraphSceneBridge(QObject):
         self._registry: NodeRegistry | None = None
         self._history: RuntimeGraphHistory | None = None
         self._workspace_id = ""
+        self._scope_path: ScopePath = ()
         self._selected_node_ids: list[str] = []
         self._nodes_payload: list[dict[str, Any]] = []
         self._minimap_nodes_payload: list[dict[str, Any]] = []
@@ -142,6 +156,134 @@ class GraphSceneBridge(QObject):
         selected = self.selected_node_id()
         return selected or ""
 
+    @pyqtProperty("QVariantList", notify=scope_changed)
+    def active_scope_path(self) -> list[str]:
+        return list(self._scope_path)
+
+    @pyqtProperty("QVariantList", notify=scope_changed)
+    def scope_breadcrumb_model(self) -> list[dict[str, str]]:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return []
+        return scope_breadcrumb_payload(workspace, self._scope_path)
+
+    @pyqtProperty(bool, notify=scope_changed)
+    def can_navigate_scope_parent(self) -> bool:
+        return bool(self._scope_path)
+
+    def _workspace_or_none(self) -> WorkspaceData | None:
+        if self._model is None or not self._workspace_id:
+            return None
+        return self._model.project.workspaces.get(self._workspace_id)
+
+    def _active_view_state(self, workspace: WorkspaceData) -> ViewState | None:
+        workspace.ensure_default_view()
+        if not workspace.active_view_id:
+            return None
+        return workspace.views.get(workspace.active_view_id)
+
+    def _apply_scope_path(
+        self,
+        workspace: WorkspaceData,
+        scope_path: ScopePath,
+        *,
+        persist: bool = True,
+        emit_scope_changed: bool = True,
+        emit_selection_changed: bool = True,
+    ) -> bool:
+        normalized_scope = normalize_scope_path(workspace, scope_path)
+        changed = normalized_scope != self._scope_path
+        self._scope_path = normalized_scope
+        if persist:
+            view_state = self._active_view_state(workspace)
+            if view_state is not None:
+                view_state.scope_path = list(normalized_scope)
+        selected_before = self.selected_node_id() or ""
+        self._selected_node_ids = [node_id for node_id in self._selected_node_ids if is_node_in_scope(workspace, node_id, normalized_scope)]
+        selected_after = self.selected_node_id() or ""
+        if changed:
+            self._rebuild_models()
+            if emit_scope_changed:
+                self.scope_changed.emit()
+        elif selected_before != selected_after:
+            self._rebuild_models()
+        if emit_selection_changed and (changed or selected_before != selected_after):
+            self.node_selected.emit(selected_after)
+        return changed
+
+    def _restore_scope_path_from_view(self, workspace: WorkspaceData) -> None:
+        view_state = self._active_view_state(workspace)
+        scope_path = ()
+        if view_state is not None:
+            scope_path = normalize_scope_path(workspace, view_state.scope_path)
+            if list(scope_path) != view_state.scope_path:
+                view_state.scope_path = list(scope_path)
+        self._scope_path = scope_path
+
+    @pyqtSlot(result=bool)
+    def sync_scope_with_active_view(self) -> bool:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return False
+        view_state = self._active_view_state(workspace)
+        target_scope: ScopePath = ()
+        if view_state is not None:
+            target_scope = normalize_scope_path(workspace, view_state.scope_path)
+        return self._apply_scope_path(workspace, target_scope)
+
+    @pyqtSlot(str, result=bool)
+    def open_subnode_scope(self, node_id: str) -> bool:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return False
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return False
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return False
+        if node.type_id != "core.subnode":
+            return False
+        if not is_node_in_scope(workspace, normalized_node_id, self._scope_path):
+            return False
+        return self._apply_scope_path(workspace, subnode_scope_path(workspace, normalized_node_id))
+
+    @pyqtSlot(str, result=bool)
+    def open_scope_for_node(self, node_id: str) -> bool:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return False
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id or normalized_node_id not in workspace.nodes:
+            return False
+        return self._apply_scope_path(workspace, node_scope_path(workspace, normalized_node_id))
+
+    @pyqtSlot(result=bool)
+    def navigate_scope_parent(self) -> bool:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return False
+        if not self._scope_path:
+            return False
+        return self._apply_scope_path(workspace, self._scope_path[:-1])
+
+    @pyqtSlot(result=bool)
+    def navigate_scope_root(self) -> bool:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return False
+        if not self._scope_path:
+            return False
+        return self._apply_scope_path(workspace, ())
+
+    @pyqtSlot(str, result=bool)
+    def navigate_scope_to(self, node_id: str) -> bool:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return False
+        next_scope = breadcrumb_scope_path(workspace, self._scope_path, node_id)
+        return self._apply_scope_path(workspace, next_scope)
+
     def bind_runtime_history(self, history: RuntimeGraphHistory | None) -> None:
         self._history = history
 
@@ -155,9 +297,12 @@ class GraphSceneBridge(QObject):
         self._registry = registry
         self._workspace_id = workspace_id
         self._selected_node_ids = []
+        workspace = self._model.project.workspaces[self._workspace_id]
+        self._restore_scope_path_from_view(workspace)
 
         self._rebuild_models()
         self.workspace_changed.emit(workspace_id)
+        self.scope_changed.emit()
         self.node_selected.emit("")
 
     def current_workspace(self) -> WorkspaceData:
@@ -174,8 +319,20 @@ class GraphSceneBridge(QObject):
         workspace = self._model.project.workspaces.get(self._workspace_id)
         if workspace is None:
             return
-        self._selected_node_ids = [node_id for node_id in self._selected_node_ids if node_id in workspace.nodes]
-        self._rebuild_models()
+        normalized_scope = normalize_scope_path(workspace, self._scope_path)
+        if normalized_scope != self._scope_path:
+            self._apply_scope_path(
+                workspace,
+                normalized_scope,
+                persist=True,
+                emit_scope_changed=False,
+                emit_selection_changed=False,
+            )
+            self.scope_changed.emit()
+        else:
+            self._selected_node_ids = [node_id for node_id in self._selected_node_ids if node_id in workspace.nodes]
+            self._selected_node_ids = [node_id for node_id in self._selected_node_ids if is_node_in_scope(workspace, node_id, self._scope_path)]
+            self._rebuild_models()
         self.node_selected.emit(self.selected_node_id() or "")
 
     def selected_node_id(self) -> str | None:
@@ -197,9 +354,12 @@ class GraphSceneBridge(QObject):
         if self._model is None or not self._workspace_id:
             return None
         workspace = self._model.project.workspaces.get(self._workspace_id)
-        if workspace is None or not workspace.nodes:
+        if workspace is None:
             return None
-        return self._bounds_for_node_ids(list(workspace.nodes))
+        visible_node_ids = scope_node_ids(workspace, self._scope_path)
+        if not visible_node_ids:
+            return None
+        return self._bounds_for_node_ids(visible_node_ids)
 
     def workspace_scene_bounds_with_fallback(self) -> QRectF:
         bounds = self.workspace_scene_bounds()
@@ -254,7 +414,12 @@ class GraphSceneBridge(QObject):
         if not node_id:
             self.clearSelection()
             return
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return
         if self._node(node_id) is None:
+            return
+        if not is_node_in_scope(workspace, node_id, self._scope_path):
             return
         if additive:
             if node_id in self._selected_node_ids:
@@ -280,6 +445,7 @@ class GraphSceneBridge(QObject):
             return
 
         workspace = self.current_workspace()
+        visible_node_ids = set(scope_node_ids(workspace, self._scope_path))
         min_x = min(float(x1), float(x2))
         max_x = max(float(x1), float(x2))
         min_y = min(float(y1), float(y2))
@@ -287,6 +453,8 @@ class GraphSceneBridge(QObject):
 
         hit_ids: list[str] = []
         for node_id, node in workspace.nodes.items():
+            if node_id not in visible_node_ids:
+                continue
             spec = self._registry.get_spec(node.type_id)
             width, height = node_size(node, spec, workspace.nodes)
             node_min_x = float(node.x)
@@ -298,7 +466,11 @@ class GraphSceneBridge(QObject):
             hit_ids.append(node_id)
 
         if additive:
-            next_selected = [node_id for node_id in self._selected_node_ids if node_id in workspace.nodes]
+            next_selected = [
+                node_id
+                for node_id in self._selected_node_ids
+                if node_id in workspace.nodes and node_id in visible_node_ids
+            ]
             for node_id in hit_ids:
                 if node_id not in next_selected:
                     next_selected.append(node_id)
@@ -335,6 +507,9 @@ class GraphSceneBridge(QObject):
         edge = workspace.edges.get(edge_id)
         if edge is None:
             return None
+        visible_node_ids = set(scope_node_ids(workspace, self._scope_path))
+        if edge.source_node_id not in visible_node_ids or edge.target_node_id not in visible_node_ids:
+            return None
         return {
             "edge_id": edge.edge_id,
             "source_node_id": edge.source_node_id,
@@ -357,6 +532,7 @@ class GraphSceneBridge(QObject):
             properties=registry.default_properties(type_id),
             exposed_ports={port.key: port.exposed for port in spec.ports},
         )
+        node.parent_node_id = scope_parent_id(self._scope_path)
         self._selected_node_ids = [node.node_id]
         self._rebuild_models()
         self.node_selected.emit(node.node_id)
@@ -876,6 +1052,8 @@ class GraphSceneBridge(QObject):
         for node_id in self._selected_node_ids:
             if node_id not in workspace.nodes or node_id in selected_node_set:
                 continue
+            if not is_node_in_scope(workspace, node_id, self._scope_path):
+                continue
             selected_node_set.add(node_id)
             selected_node_ids.append(node_id)
         return selected_node_ids
@@ -1214,7 +1392,9 @@ class GraphSceneBridge(QObject):
             return
 
         workspace = self._model.project.workspaces[self._workspace_id]
-        workspace_edges = list(workspace.edges.values())
+        visible_node_ids = scope_node_ids(workspace, self._scope_path)
+        visible_nodes = {node_id: workspace.nodes[node_id] for node_id in visible_node_ids}
+        workspace_edges = scope_edges(workspace, self._scope_path)
         port_connection_counts: dict[tuple[str, str], int] = {}
         for edge in workspace_edges:
             source_key = (edge.source_node_id, edge.source_port_key)
@@ -1226,7 +1406,8 @@ class GraphSceneBridge(QObject):
         minimap_nodes_payload: list[dict[str, Any]] = []
         node_specs: dict[str, NodeTypeSpec] = {}
 
-        for node_id, node in workspace.nodes.items():
+        for node_id in visible_node_ids:
+            node = workspace.nodes[node_id]
             spec = self._registry.get_spec(node.type_id)
             node_specs[node_id] = spec
             width, height = node_size(node, spec, workspace.nodes)
@@ -1264,6 +1445,7 @@ class GraphSceneBridge(QObject):
                     "accent": category_accent(spec.category),
                     "collapsed": bool(node.collapsed),
                     "selected": node.node_id in self._selected_node_ids,
+                    "can_enter_scope": node.type_id == "core.subnode",
                     "ports": ports_payload,
                 }
             )

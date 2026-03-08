@@ -13,6 +13,7 @@ Rectangle {
     property real liveDragDy: 0
 
     signal nodeClicked(string nodeId, bool additive)
+    signal nodeOpenRequested(string nodeId)
     signal nodeContextRequested(string nodeId, real localX, real localY)
     signal dragOffsetChanged(string nodeId, real dx, real dy)
     signal dragFinished(string nodeId, real finalX, real finalY, bool moved)
@@ -483,6 +484,11 @@ Rectangle {
                 return;
             var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
             card.nodeClicked(card.nodeData.node_id, additive);
+        }
+        onDoubleClicked: {
+            if (mouse.button !== Qt.LeftButton)
+                return;
+            card.nodeOpenRequested(card.nodeData.node_id);
         }
         onPositionChanged: {
             if (!drag.active)

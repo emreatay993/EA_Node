@@ -217,6 +217,30 @@ Item {
         return null;
     }
 
+    function _nodeCanEnterScope(nodeId) {
+        var payload = _sceneNodePayload(nodeId);
+        if (!payload)
+            return false;
+        if (payload.can_enter_scope !== undefined)
+            return Boolean(payload.can_enter_scope);
+        return String(payload.type_id || "") === "core.subnode";
+    }
+
+    function requestOpenSubnodeScope(nodeId) {
+        if (!mainWindowBridge)
+            return false;
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return false;
+        var opened = mainWindowBridge.request_open_subnode_scope(normalized);
+        if (!opened)
+            return false;
+        root.clearEdgeSelection();
+        root.clearPendingConnection();
+        root._closeContextMenus();
+        return true;
+    }
+
     function selectedNodeIds() {
         var nodes = sceneBridge ? sceneBridge.nodes_model : [];
         var selected = [];
@@ -1066,7 +1090,8 @@ Item {
         if (!nodeId)
             return;
         root.forceActiveFocus();
-        var position = _clampMenuPosition(x, y, 170, 72);
+        var menuHeight = _nodeCanEnterScope(nodeId) ? 108 : 72;
+        var position = _clampMenuPosition(x, y, 170, menuHeight);
         _closeContextMenus();
         root.nodeContextNodeId = nodeId;
         root.contextMenuX = position.x;
@@ -1345,6 +1370,9 @@ Item {
                 onNodeContextRequested: function(nodeId, localX, localY) {
                     var point = nodeCard.mapToItem(root, localX, localY);
                     root._openNodeContext(nodeId, point.x, point.y);
+                }
+                onNodeOpenRequested: function(nodeId) {
+                    root.requestOpenSubnodeScope(nodeId);
                 }
                 onDragOffsetChanged: function(nodeId, dx, dy) {
                     var snappedDelta = root.snappedDragDelta(nodeId, dx, dy);
@@ -1850,17 +1878,52 @@ Item {
         x: root.contextMenuX
         y: root.contextMenuY
         width: 170
-        height: 72
+        property bool canEnterScope: root._nodeCanEnterScope(root.nodeContextNodeId)
+        property int rowHeight: 36
+        property int rowCount: canEnterScope ? 3 : 2
+        height: rowHeight * rowCount
         radius: 4
         color: "#2B2F37"
         border.width: 1
         border.color: "#4A4E58"
 
         Rectangle {
+            visible: nodeContextPopup.canEnterScope
             x: 0
             y: 0
             width: parent.width
-            height: 36
+            height: nodeContextPopup.rowHeight
+            color: openSubnodeMouse.containsMouse ? "#39404C" : "transparent"
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: 10
+                text: "Enter Subnode"
+                color: "#D8DEEA"
+                font.pixelSize: 12
+            }
+
+            MouseArea {
+                id: openSubnodeMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                preventStealing: true
+                acceptedButtons: Qt.LeftButton
+                onPressed: {
+                    if (!root.nodeContextNodeId)
+                        return;
+                    if (root.requestOpenSubnodeScope(root.nodeContextNodeId))
+                        mouse.accepted = true;
+                }
+            }
+        }
+
+        Rectangle {
+            x: 0
+            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight : 0
+            width: parent.width
+            height: nodeContextPopup.rowHeight
             color: renameNodeMouse.containsMouse ? "#39404C" : "transparent"
 
             Text {
@@ -1890,9 +1953,9 @@ Item {
 
         Rectangle {
             x: 0
-            y: 36
+            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 2 : nodeContextPopup.rowHeight
             width: parent.width
-            height: 36
+            height: nodeContextPopup.rowHeight
             color: removeNodeMouse.containsMouse ? "#39404C" : "transparent"
 
             Text {
@@ -1929,6 +1992,26 @@ Item {
         root.clearPendingConnection();
         root._closeContextMenus();
         event.accepted = true;
+    }
+
+    Keys.onPressed: function(event) {
+        if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Left) {
+            if (mainWindowBridge && mainWindowBridge.request_navigate_scope_parent()) {
+                root.clearEdgeSelection();
+                root.clearPendingConnection();
+                root._closeContextMenus();
+            }
+            event.accepted = true;
+            return;
+        }
+        if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Home) {
+            if (mainWindowBridge && mainWindowBridge.request_navigate_scope_root()) {
+                root.clearEdgeSelection();
+                root.clearPendingConnection();
+                root._closeContextMenus();
+            }
+            event.accepted = true;
+        }
     }
 
     Keys.onEscapePressed: function(event) {

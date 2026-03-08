@@ -344,45 +344,86 @@ Rectangle {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 34
+                        Layout.preferredHeight: 58
                         color: "#2B2D33"
                         border.color: "#3D414A"
 
-                        RowLayout {
+                        ColumnLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 8
                             anchors.rightMargin: 8
-                            spacing: 8
+                            spacing: 2
 
-                            Text {
-                                text: "Workspace: " + mainWindow.active_workspace_name
-                                color: "#D9DFEA"
-                                font.pixelSize: 12
-                                font.bold: true
-                            }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 28
+                                spacing: 8
 
-                            Item { Layout.fillWidth: true }
+                                Text {
+                                    text: "Workspace: " + mainWindow.active_workspace_name
+                                    color: "#D9DFEA"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                }
 
-                            Row {
-                                spacing: 4
-                                Repeater {
-                                    model: mainWindow.active_view_items
-                                    delegate: ShellButton {
-                                        text: modelData.label
-                                        selectedStyle: !!modelData.active
-                                        onClicked: mainWindow.request_switch_view(modelData.view_id)
+                                Item { Layout.fillWidth: true }
+
+                                Row {
+                                    spacing: 4
+                                    Repeater {
+                                        model: mainWindow.active_view_items
+                                        delegate: ShellButton {
+                                            text: modelData.label
+                                            selectedStyle: !!modelData.active
+                                            onClicked: mainWindow.request_switch_view(modelData.view_id)
+                                        }
                                     }
                                 }
-                            }
-                            ShellButton {
-                                text: "+ View"
-                                onClicked: mainWindow.request_create_view()
+                                ShellButton {
+                                    text: "+ View"
+                                    onClicked: mainWindow.request_create_view()
+                                }
+
+                                Text {
+                                    text: mainWindow.active_view_name ? ("Active: " + mainWindow.active_view_name) : ""
+                                    color: "#AFB7C8"
+                                    font.pixelSize: 11
+                                }
                             }
 
-                            Text {
-                                text: mainWindow.active_view_name ? ("Active: " + mainWindow.active_view_name) : ""
-                                color: "#AFB7C8"
-                                font.pixelSize: 11
+                            Row {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 24
+                                spacing: 2
+
+                                Text {
+                                    text: "Scope:"
+                                    color: "#9EA8BB"
+                                    font.pixelSize: 11
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+
+                                Repeater {
+                                    model: mainWindow.active_scope_breadcrumb_items
+                                    delegate: Row {
+                                        spacing: 2
+
+                                        Text {
+                                            visible: index > 0
+                                            text: "›"
+                                            color: "#7F8BA0"
+                                            font.pixelSize: 11
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+
+                                        ShellButton {
+                                            text: String(modelData.label || "")
+                                            implicitHeight: 22
+                                            selectedStyle: index === mainWindow.active_scope_breadcrumb_items.length - 1
+                                            onClicked: mainWindow.request_open_scope_breadcrumb(String(modelData.node_id || ""))
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
