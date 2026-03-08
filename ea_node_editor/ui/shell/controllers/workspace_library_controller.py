@@ -593,6 +593,14 @@ class WorkspaceLibraryController:
             return
         self.refresh_workspace_tabs()
 
+    def duplicate_selected_nodes(self) -> bool:
+        duplicated = bool(self._host.scene.duplicate_selected_subgraph())
+        if not duplicated:
+            return False
+        self._host.selected_node_changed.emit()
+        self.refresh_workspace_tabs()
+        return True
+
     def undo(self) -> bool:
         workspace_id = self._host.workspace_manager.active_workspace_id()
         workspace = self._host.model.project.workspaces.get(workspace_id)

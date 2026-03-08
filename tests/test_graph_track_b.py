@@ -185,6 +185,108 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertGreaterEqual(workspace_bounds["width"], 3200.0)
         self.assertGreaterEqual(workspace_bounds["height"], 1800.0)
 
+    def test_move_nodes_by_delta_moves_group_with_single_history_entry(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        node_a = self.scene.add_node_from_type("core.start", 20.0, 30.0)
+        node_b = self.scene.add_node_from_type("core.end", 360.0, 170.0)
+        history.clear_workspace(self.workspace_id)
+        workspace = self.model.project.workspaces[self.workspace_id]
+
+        before_dx = workspace.nodes[node_b].x - workspace.nodes[node_a].x
+        before_dy = workspace.nodes[node_b].y - workspace.nodes[node_a].y
+
+        moved = self.scene.move_nodes_by_delta([node_a, node_b], 55.0, -25.0)
+        self.assertTrue(moved)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertAlmostEqual(workspace.nodes[node_a].x, 75.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_a].y, 5.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].x, 415.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].y, 145.0, places=6)
+
+        after_dx = workspace.nodes[node_b].x - workspace.nodes[node_a].x
+        after_dy = workspace.nodes[node_b].y - workspace.nodes[node_a].y
+        self.assertAlmostEqual(before_dx, after_dx, places=6)
+        self.assertAlmostEqual(before_dy, after_dy, places=6)
+
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertAlmostEqual(workspace.nodes[node_a].x, 20.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_a].y, 30.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].x, 360.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].y, 170.0, places=6)
+
+        self.assertIsNotNone(history.redo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertAlmostEqual(workspace.nodes[node_a].x, 75.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_a].y, 5.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].x, 415.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].y, 145.0, places=6)
+
+    def test_duplicate_selected_subgraph_offsets_nodes_and_internal_edges_only(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        source_id = self.scene.add_node_from_type("core.start", 10.0, 20.0)
+        target_id = self.scene.add_node_from_type("core.end", 280.0, 40.0)
+        external_id = self.scene.add_node_from_type("core.python_script", 520.0, 80.0)
+        self.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.scene.add_edge(source_id, "trigger", external_id, "payload")
+        self.scene.select_node(source_id, False)
+        self.scene.select_node(target_id, True)
+        history.clear_workspace(self.workspace_id)
+
+        duplicated = self.scene.duplicate_selected_subgraph()
+        self.assertTrue(duplicated)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.assertEqual(len(workspace.nodes), 5)
+        self.assertEqual(len(workspace.edges), 3)
+
+        duplicated_ids = [item.node.node_id for item in self.scene.selectedItems()]
+        self.assertEqual(len(duplicated_ids), 2)
+        self.assertNotIn(source_id, duplicated_ids)
+        self.assertNotIn(target_id, duplicated_ids)
+
+        source_node = workspace.nodes[source_id]
+        target_node = workspace.nodes[target_id]
+        duplicated_source_id = ""
+        duplicated_target_id = ""
+        for node_id in duplicated_ids:
+            node = workspace.nodes[node_id]
+            if (
+                node.type_id == source_node.type_id
+                and node.title == source_node.title
+                and abs(node.x - (source_node.x + 40.0)) < 1e-6
+                and abs(node.y - (source_node.y + 40.0)) < 1e-6
+            ):
+                duplicated_source_id = node_id
+            if (
+                node.type_id == target_node.type_id
+                and node.title == target_node.title
+                and abs(node.x - (target_node.x + 40.0)) < 1e-6
+                and abs(node.y - (target_node.y + 40.0)) < 1e-6
+            ):
+                duplicated_target_id = node_id
+        self.assertTrue(duplicated_source_id)
+        self.assertTrue(duplicated_target_id)
+
+        duplicated_internal_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == duplicated_source_id
+            and edge.target_node_id == duplicated_target_id
+            and edge.source_port_key == "exec_out"
+            and edge.target_port_key == "exec_in"
+        ]
+        self.assertEqual(len(duplicated_internal_edges), 1)
+        duplicated_external_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == duplicated_source_id and edge.source_port_key == "trigger"
+        ]
+        self.assertEqual(duplicated_external_edges, [])
+
 
 class RuntimeGraphHistoryTrackBTests(unittest.TestCase):
     def test_history_is_isolated_per_workspace_and_clears_redo_on_new_commit(self) -> None:

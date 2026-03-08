@@ -160,38 +160,72 @@ Item {
         root.selectedEdgeIds = edgeId ? [edgeId] : [];
     }
 
-    function updateLiveDragOffset(nodeId, dx, dy) {
-        if (!nodeId)
-            return;
-        var next = {};
-        var current = root.liveDragOffsets || {};
-        for (var key in current)
-            next[key] = current[key];
+    function _sceneNodePayload(nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return null;
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (node && node.node_id === normalized)
+                return node;
+        }
+        return null;
+    }
 
-        if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
-            if (next[nodeId] === undefined)
-                return;
-            delete next[nodeId];
-        } else {
-            next[nodeId] = {"dx": dx, "dy": dy};
+    function selectedNodeIds() {
+        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var selected = [];
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            if (node && node.selected)
+                selected.push(node.node_id);
+        }
+        return selected;
+    }
+
+    function dragNodeIdsForAnchor(nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return [];
+        var selected = root.selectedNodeIds();
+        if (selected.length > 1 && selected.indexOf(normalized) >= 0)
+            return selected;
+        return [normalized];
+    }
+
+    function setLiveDragOffsets(nodeIds, dx, dy) {
+        var next = {};
+        if (Math.abs(dx) >= 0.01 || Math.abs(dy) >= 0.01) {
+            var source = nodeIds || [];
+            for (var i = 0; i < source.length; i++) {
+                var nodeId = String(source[i] || "").trim();
+                if (!nodeId)
+                    continue;
+                next[nodeId] = {"dx": dx, "dy": dy};
+            }
         }
         root.liveDragOffsets = next;
         edgeLayer.requestRedraw();
     }
 
-    function clearLiveDragOffset(nodeId) {
-        if (!nodeId)
+    function clearLiveDragOffsets() {
+        if (!root.liveDragOffsets || Object.keys(root.liveDragOffsets).length === 0)
             return;
-        var current = root.liveDragOffsets || {};
-        if (current[nodeId] === undefined)
-            return;
-        var next = {};
-        for (var key in current) {
-            if (key !== nodeId)
-                next[key] = current[key];
-        }
-        root.liveDragOffsets = next;
+        root.liveDragOffsets = ({});
         edgeLayer.requestRedraw();
+    }
+
+    function liveDragDxForNode(nodeId) {
+        var entry = root.liveDragOffsets ? root.liveDragOffsets[String(nodeId || "").trim()] : null;
+        var value = entry ? Number(entry.dx) : 0.0;
+        return isFinite(value) ? value : 0.0;
+    }
+
+    function liveDragDyForNode(nodeId) {
+        var entry = root.liveDragOffsets ? root.liveDragOffsets[String(nodeId || "").trim()] : null;
+        var value = entry ? Number(entry.dy) : 0.0;
+        return isFinite(value) ? value : 0.0;
     }
 
     function _dropTargetInput(sourceDrag, candidate) {
@@ -1245,6 +1279,8 @@ Item {
                 previewPort: root.dropPreviewPort
                 pendingPort: root.pendingConnectionPort
                 dragSourcePort: root.wireDragSourcePort()
+                liveDragDx: root.liveDragDxForNode(modelData.node_id)
+                liveDragDy: root.liveDragDyForNode(modelData.node_id)
 
                 onNodeClicked: function(nodeId, additive) {
                     root.forceActiveFocus();
@@ -1261,20 +1297,38 @@ Item {
                     root._openNodeContext(nodeId, point.x, point.y);
                 }
                 onDragOffsetChanged: function(nodeId, dx, dy) {
-                    root.updateLiveDragOffset(nodeId, dx, dy);
+                    root.setLiveDragOffsets(root.dragNodeIdsForAnchor(nodeId), dx, dy);
                 }
                 onDragFinished: function(nodeId, finalX, finalY, moved) {
-                    root.clearLiveDragOffset(nodeId);
-                    if (sceneBridge) {
-                        sceneBridge.move_node(nodeId, finalX, finalY);
-                        if (moved) {
+                    var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
+                    var anchorPayload = root._sceneNodePayload(nodeId);
+                    var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
+                    var anchorY = anchorPayload ? Number(anchorPayload.y) : Number(finalY);
+                    if (!isFinite(anchorX))
+                        anchorX = Number(finalX);
+                    if (!isFinite(anchorY))
+                        anchorY = Number(finalY);
+                    var deltaX = Number(finalX) - anchorX;
+                    var deltaY = Number(finalY) - anchorY;
+
+                    root.clearLiveDragOffsets();
+                    if (!sceneBridge)
+                        return;
+                    if (dragNodeIds.length > 1) {
+                        sceneBridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY);
+                        if (moved)
                             root.clearEdgeSelection();
-                            sceneBridge.select_node(nodeId, false);
-                        }
+                        return;
+                    }
+
+                    sceneBridge.move_node(nodeId, finalX, finalY);
+                    if (moved) {
+                        root.clearEdgeSelection();
+                        sceneBridge.select_node(nodeId, false);
                     }
                 }
-                onDragCanceled: function(nodeId) {
-                    root.clearLiveDragOffset(nodeId);
+                onDragCanceled: function(_nodeId) {
+                    root.clearLiveDragOffsets();
                 }
                 onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
                     root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
