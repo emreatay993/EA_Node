@@ -839,6 +839,33 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(len(source_workspace.nodes), before_source_nodes)
         self.assertEqual(len(source_workspace.edges), before_source_edges)
 
+    def test_qml_request_paste_selected_nodes_offsets_repeated_paste_from_same_clipboard(self) -> None:
+        source_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=60.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=240.0, y=110.0)
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.window.scene.select_node(source_id, False)
+        self.window.scene.select_node(target_id, True)
+        self.window.view.centerOn(300.0, -120.0)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.request_copy_selected_nodes())
+
+        self.assertTrue(self.window.request_paste_selected_nodes())
+        self.app.processEvents()
+        first_bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(first_bounds)
+
+        self.assertTrue(self.window.request_paste_selected_nodes())
+        self.app.processEvents()
+        second_bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(second_bounds)
+
+        viewport_center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
+        self.assertAlmostEqual(first_bounds.center().x(), viewport_center.x(), places=5)
+        self.assertAlmostEqual(first_bounds.center().y(), viewport_center.y(), places=5)
+        self.assertAlmostEqual(second_bounds.center().x(), viewport_center.x() + 40.0, places=5)
+        self.assertAlmostEqual(second_bounds.center().y(), viewport_center.y() + 40.0, places=5)
+
     def test_qml_request_cut_selected_nodes_is_single_undoable_semantic_action(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=80.0, y=70.0)

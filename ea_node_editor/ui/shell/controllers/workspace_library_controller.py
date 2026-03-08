@@ -24,11 +24,15 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 _GRAPH_SEARCH_LIMIT = 10
+_PASTE_CASCADE_OFFSET_X = 40.0
+_PASTE_CASCADE_OFFSET_Y = 40.0
 
 
 class WorkspaceLibraryController:
     def __init__(self, host: ShellWindow) -> None:
         self._host = host
+        self._last_clipboard_fragment_signature = ""
+        self._clipboard_paste_count = 0
 
     def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
         node_id = self._host.scene.selected_node_id()
@@ -649,7 +653,14 @@ class WorkspaceLibraryController:
         fragment_payload = self._host.scene.serialize_selected_subgraph_fragment()
         if fragment_payload is None:
             return False
-        return self._write_graph_fragment_to_clipboard(fragment_payload)
+        copied = self._write_graph_fragment_to_clipboard(fragment_payload)
+        if not copied:
+            return False
+        self._last_clipboard_fragment_signature = (
+            serialize_graph_fragment_payload(fragment_payload) or ""
+        )
+        self._clipboard_paste_count = 0
+        return True
 
     def cut_selected_nodes_to_clipboard(self) -> bool:
         if not self.copy_selected_nodes_to_clipboard():
@@ -660,10 +671,25 @@ class WorkspaceLibraryController:
         fragment_payload = self._read_graph_fragment_from_clipboard()
         if fragment_payload is None:
             return False
+        fragment_signature = serialize_graph_fragment_payload(fragment_payload)
+        if fragment_signature is None:
+            return False
+        if fragment_signature != self._last_clipboard_fragment_signature:
+            self._last_clipboard_fragment_signature = fragment_signature
+            self._clipboard_paste_count = 0
+        cascade_x = float(self._clipboard_paste_count) * _PASTE_CASCADE_OFFSET_X
+        cascade_y = float(self._clipboard_paste_count) * _PASTE_CASCADE_OFFSET_Y
         center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
-        pasted = bool(self._host.scene.paste_subgraph_fragment(fragment_payload, center.x(), center.y()))
+        pasted = bool(
+            self._host.scene.paste_subgraph_fragment(
+                fragment_payload,
+                center.x() + cascade_x,
+                center.y() + cascade_y,
+            )
+        )
         if not pasted:
             return False
+        self._clipboard_paste_count += 1
         self._host.selected_node_changed.emit()
         self.refresh_workspace_tabs()
         return True

@@ -128,6 +128,27 @@ class _ClipboardHostStub:
 
 
 class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
+    @staticmethod
+    def _valid_fragment_payload() -> dict[str, object]:
+        return {
+            "kind": "ea-node-editor/graph-fragment",
+            "version": 1,
+            "nodes": [
+                {
+                    "ref_id": "node_a",
+                    "type_id": "core.start",
+                    "title": "Start",
+                    "x": 10.0,
+                    "y": 20.0,
+                    "collapsed": False,
+                    "properties": {},
+                    "exposed_ports": {"exec_out": True},
+                    "parent_node_id": None,
+                }
+            ],
+            "edges": [],
+        }
+
     def test_request_connect_ports_delegates_and_wraps_result(self) -> None:
         host = _WorkspaceHostStub()
         controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
@@ -210,7 +231,7 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
             refreshed["value"] = True
 
         controller.refresh_workspace_tabs = _mark_refreshed  # type: ignore[method-assign]
-        payload = {"kind": "ea-node-editor/graph-fragment"}
+        payload = self._valid_fragment_payload()
         controller._read_graph_fragment_from_clipboard = lambda: payload  # type: ignore[method-assign]
 
         pasted = controller.paste_nodes_from_clipboard()
@@ -219,6 +240,21 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.scene.paste_calls, [(payload, 120.0, 340.0)])
         self.assertEqual(host.selected_node_changed.calls, 1)
         self.assertTrue(refreshed["value"])
+
+    def test_paste_nodes_from_clipboard_offsets_consecutive_pastes(self) -> None:
+        host = _ClipboardHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        payload = self._valid_fragment_payload()
+        controller._read_graph_fragment_from_clipboard = lambda: payload  # type: ignore[method-assign]
+        controller.refresh_workspace_tabs = lambda: None  # type: ignore[method-assign]
+
+        first = controller.paste_nodes_from_clipboard()
+        second = controller.paste_nodes_from_clipboard()
+
+        self.assertTrue(first)
+        self.assertTrue(second)
+        self.assertEqual(host.scene.paste_calls[0], (payload, 120.0, 340.0))
+        self.assertEqual(host.scene.paste_calls[1], (payload, 160.0, 380.0))
 
     def test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing(self) -> None:
         host = _ClipboardHostStub()
