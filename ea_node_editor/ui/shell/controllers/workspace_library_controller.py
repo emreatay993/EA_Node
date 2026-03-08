@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 from pathlib import Path
 
+from PyQt6.QtCore import QRectF
+
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.graph.rules import find_port, is_port_exposed, ports_compatible
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -10,6 +12,7 @@ from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
 from ea_node_editor.ui.shell.library_flow import input_port_is_available, pick_connection_candidate
 from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
+from ea_node_editor.ui_qml.viewport_bridge import FRAME_PADDING_PX
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -111,9 +114,43 @@ class WorkspaceLibraryController:
         view_state = workspace.views.get(workspace.active_view_id)
         if view_state is None:
             workspace.active_view_id = next(iter(workspace.views))
-            view_state = workspace.views[workspace.active_view_id]
+        view_state = workspace.views[workspace.active_view_id]
         self._host.view.set_zoom(max(0.1, min(3.0, view_state.zoom)))
         self._host.view.centerOn(view_state.pan_x, view_state.pan_y)
+
+    def visible_scene_rect(self) -> QRectF:
+        return self._host.view.visible_scene_rect()
+
+    def current_workspace_scene_bounds(self) -> QRectF | None:
+        return self._host.scene.workspace_scene_bounds()
+
+    def selection_bounds(self) -> QRectF | None:
+        return self._host.scene.selection_bounds()
+
+    def frame_all(self) -> bool:
+        return self._frame_scene_bounds(self.current_workspace_scene_bounds())
+
+    def frame_selection(self) -> bool:
+        return self._frame_scene_bounds(self.selection_bounds())
+
+    def center_on_node(self, node_id: str) -> bool:
+        bounds = self._host.scene.node_bounds(str(node_id).strip())
+        if bounds is None:
+            return False
+        return self._host.view.center_on_scene_rect(bounds)
+
+    def center_on_selection(self) -> bool:
+        bounds = self.selection_bounds()
+        if bounds is None:
+            return False
+        return self._host.view.center_on_scene_rect(bounds)
+
+    def _frame_scene_bounds(self, bounds: QRectF | None) -> bool:
+        if bounds is None:
+            return False
+        if bounds.width() <= 0.0 or bounds.height() <= 0.0:
+            return False
+        return self._host.view.frame_scene_rect(bounds, padding_px=FRAME_PADDING_PX)
 
     def create_view(self) -> None:
         from PyQt6.QtWidgets import QInputDialog
@@ -543,13 +580,13 @@ class WorkspaceLibraryController:
             focus_candidates.append(node_id)
         focus_candidates.extend(self.reveal_parent_chain(workspace_id, node_id))
 
-        center = None
+        focused_node_id = ""
         for target_node_id in focus_candidates:
-            center = self._host.scene.focus_node(target_node_id)
-            if center is not None:
+            if self._host.scene.focus_node(target_node_id) is not None:
+                focused_node_id = target_node_id
                 break
-        if center is not None:
-            self._host.view.centerOn(center)
+        if focused_node_id:
+            self.center_on_node(focused_node_id)
         if error:
             QMessageBox.critical(self._host, "Workflow Error", error)
 
