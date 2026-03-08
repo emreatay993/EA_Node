@@ -18,6 +18,8 @@ from ea_node_editor.ui_qml.viewport_bridge import FRAME_PADDING_PX
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
+_GRAPH_SEARCH_LIMIT = 10
+
 
 class WorkspaceLibraryController:
     def __init__(self, host: ShellWindow) -> None:
@@ -134,6 +136,9 @@ class WorkspaceLibraryController:
     def frame_selection(self) -> bool:
         return self._frame_scene_bounds(self.selection_bounds())
 
+    def frame_node(self, node_id: str) -> bool:
+        return self._frame_scene_bounds(self._host.scene.node_bounds(str(node_id).strip()))
+
     def center_on_node(self, node_id: str) -> bool:
         bounds = self._host.scene.node_bounds(str(node_id).strip())
         if bounds is None:
@@ -152,6 +157,95 @@ class WorkspaceLibraryController:
         if bounds.width() <= 0.0 or bounds.height() <= 0.0:
             return False
         return self._host.view.frame_scene_rect(bounds, padding_px=FRAME_PADDING_PX)
+
+    @staticmethod
+    def _graph_search_rank(
+        query: str,
+        *,
+        title: str,
+        display_name: str,
+        type_id: str,
+        node_id: str,
+    ) -> int | None:
+        if not query:
+            return None
+        if title.startswith(query) or display_name.startswith(query):
+            return 0
+        if query in title or query in display_name:
+            return 1
+        if query in type_id:
+            return 2
+        if query in node_id:
+            return 3
+        return None
+
+    def search_graph_nodes(self, query: str, limit: int = _GRAPH_SEARCH_LIMIT) -> list[dict[str, Any]]:
+        normalized_query = str(query).strip().lower()
+        if not normalized_query:
+            return []
+
+        max_results = max(0, int(limit))
+        ranked: list[tuple[int, str, str, dict[str, Any]]] = []
+        for workspace_ref in self._host.workspace_manager.list_workspaces():
+            workspace = self._host.model.project.workspaces.get(workspace_ref.workspace_id)
+            if workspace is None:
+                continue
+            workspace_name_lower = workspace.name.lower()
+            for node in workspace.nodes.values():
+                spec = self._host.registry.get_spec(node.type_id)
+                node_title = str(node.title)
+                node_title_lower = node_title.lower()
+                display_name = str(spec.display_name)
+                display_name_lower = display_name.lower()
+                type_id = str(node.type_id)
+                type_id_lower = type_id.lower()
+                node_id = str(node.node_id)
+                node_id_lower = node_id.lower()
+                rank = self._graph_search_rank(
+                    normalized_query,
+                    title=node_title_lower,
+                    display_name=display_name_lower,
+                    type_id=type_id_lower,
+                    node_id=node_id_lower,
+                )
+                if rank is None:
+                    continue
+                ranked.append(
+                    (
+                        rank,
+                        workspace_name_lower,
+                        node_title_lower,
+                        {
+                            "workspace_id": workspace.workspace_id,
+                            "workspace_name": workspace.name,
+                            "node_id": node_id,
+                            "node_title": node_title,
+                            "display_name": display_name,
+                            "type_id": type_id,
+                        },
+                    )
+                )
+
+        ranked.sort(key=lambda item: (item[0], item[1], item[2]))
+        return [item[3] for item in ranked[:max_results]]
+
+    def jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool:
+        normalized_workspace_id = str(workspace_id).strip()
+        normalized_node_id = str(node_id).strip()
+        if not normalized_workspace_id or not normalized_node_id:
+            return False
+
+        workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
+        if workspace is None or normalized_node_id not in workspace.nodes:
+            return False
+
+        if normalized_workspace_id != self._host.workspace_manager.active_workspace_id():
+            self.switch_workspace(normalized_workspace_id)
+
+        self.reveal_parent_chain(normalized_workspace_id, normalized_node_id)
+        if self._host.scene.focus_node(normalized_node_id) is None:
+            return False
+        return self.center_on_selection()
 
     def create_view(self) -> None:
         from PyQt6.QtWidgets import QInputDialog
