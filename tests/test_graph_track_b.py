@@ -531,6 +531,139 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         ]
         self.assertEqual(duplicated_external_edges, [])
 
+    def test_group_selected_nodes_creates_subnode_pins_and_single_history_entry(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        source_id = self.scene.add_node_from_type("core.start", 20.0, 40.0)
+        grouped_logger_id = self.scene.add_node_from_type("core.logger", 320.0, 60.0)
+        grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
+        target_id = self.scene.add_node_from_type("core.end", 640.0, 90.0)
+        external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+
+        self.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
+        self.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
+        self.scene.add_edge(grouped_logger_id, "exec_out", target_id, "exec_in")
+        self.scene.add_edge(grouped_constant_id, "value", external_script_id, "payload")
+        workspace = self.model.project.workspaces[self.workspace_id]
+
+        self.scene.select_node(grouped_logger_id, False)
+        self.scene.select_node(grouped_constant_id, True)
+        history.clear_workspace(self.workspace_id)
+
+        grouped = self.scene.group_selected_nodes()
+        self.assertTrue(grouped)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        shell_id = self.scene.selected_node_id()
+        self.assertIsNotNone(shell_id)
+        assert shell_id is not None
+        shell_node = workspace.nodes[shell_id]
+        self.assertEqual(shell_node.type_id, "core.subnode")
+        self.assertIsNone(shell_node.parent_node_id)
+        self.assertEqual(workspace.nodes[grouped_logger_id].parent_node_id, shell_id)
+        self.assertEqual(workspace.nodes[grouped_constant_id].parent_node_id, shell_id)
+
+        pin_ids = [
+            node_id
+            for node_id, node in workspace.nodes.items()
+            if node.parent_node_id == shell_id and node.type_id in {"core.subnode_input", "core.subnode_output"}
+        ]
+        self.assertEqual(len(pin_ids), 3)
+        shell_payload = next(item for item in self.scene.nodes_model if item["node_id"] == shell_id)
+        shell_port_labels = {str(port.get("label", "")) for port in shell_payload["ports"]}
+        self.assertEqual(shell_port_labels, {"exec_in", "exec_out", "value"})
+
+        grouped_ids = {grouped_logger_id, grouped_constant_id}
+        outer_ids = {source_id, target_id, external_script_id}
+        for edge in workspace.edges.values():
+            self.assertFalse(edge.source_node_id in outer_ids and edge.target_node_id in grouped_ids)
+            self.assertFalse(edge.source_node_id in grouped_ids and edge.target_node_id in outer_ids)
+
+        edge_tuples = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in workspace.edges.values()
+        }
+        incoming_shell_edges = [edge for edge in edge_tuples if edge[0] == source_id and edge[2] == shell_id]
+        self.assertEqual(len(incoming_shell_edges), 1)
+        outgoing_shell_target_edges = [edge for edge in edge_tuples if edge[0] == shell_id and edge[2] == target_id]
+        self.assertEqual(len(outgoing_shell_target_edges), 1)
+        outgoing_shell_script_edges = [
+            edge
+            for edge in edge_tuples
+            if edge[0] == shell_id and edge[2] == external_script_id and edge[3] == "payload"
+        ]
+        self.assertEqual(len(outgoing_shell_script_edges), 1)
+
+    def test_ungroup_selected_subnode_restores_wiring_and_single_history_entry(self) -> None:
+        self.scene.bind_runtime_history(RuntimeGraphHistory())
+        source_id = self.scene.add_node_from_type("core.start", 20.0, 40.0)
+        grouped_logger_id = self.scene.add_node_from_type("core.logger", 320.0, 60.0)
+        grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
+        target_id = self.scene.add_node_from_type("core.end", 640.0, 90.0)
+        external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+
+        self.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
+        self.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
+        self.scene.add_edge(grouped_logger_id, "exec_out", target_id, "exec_in")
+        self.scene.add_edge(grouped_constant_id, "value", external_script_id, "payload")
+        workspace = self.model.project.workspaces[self.workspace_id]
+        expected_edges = {
+            (source_id, "exec_out", grouped_logger_id, "exec_in"),
+            (grouped_constant_id, "as_text", grouped_logger_id, "message"),
+            (grouped_logger_id, "exec_out", target_id, "exec_in"),
+            (grouped_constant_id, "value", external_script_id, "payload"),
+        }
+
+        self.scene.select_node(grouped_logger_id, False)
+        self.scene.select_node(grouped_constant_id, True)
+        self.assertTrue(self.scene.group_selected_nodes())
+
+        shell_id = self.scene.selected_node_id()
+        self.assertIsNotNone(shell_id)
+        assert shell_id is not None
+        pin_ids_before = {
+            node_id
+            for node_id, node in workspace.nodes.items()
+            if node.parent_node_id == shell_id and node.type_id in {"core.subnode_input", "core.subnode_output"}
+        }
+        self.assertTrue(pin_ids_before)
+
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.select_node(shell_id, False)
+        ungrouped = self.scene.ungroup_selected_subnode()
+        self.assertTrue(ungrouped)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        self.assertNotIn(shell_id, workspace.nodes)
+        for pin_id in pin_ids_before:
+            self.assertNotIn(pin_id, workspace.nodes)
+        self.assertEqual(workspace.nodes[grouped_logger_id].parent_node_id, None)
+        self.assertEqual(workspace.nodes[grouped_constant_id].parent_node_id, None)
+
+        edge_tuples = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in workspace.edges.values()
+        }
+        self.assertEqual(edge_tuples, expected_edges)
+
+    def test_group_selected_nodes_rejects_mixed_scope_selection(self) -> None:
+        root_node_id = self.scene.add_node_from_type("core.start", 40.0, 40.0)
+        shell_id = self.scene.add_node_from_type("core.subnode", 260.0, 120.0)
+        nested_node_id = self.scene.add_node_from_type("core.logger", 280.0, 180.0)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        workspace.nodes[nested_node_id].parent_node_id = shell_id
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        self.scene._selected_node_ids = [root_node_id, nested_node_id]
+        self.assertFalse(self.scene.group_selected_nodes())
+        self.assertEqual(
+            len([node for node in workspace.nodes.values() if node.type_id == "core.subnode"]),
+            1,
+        )
+
 
 class RuntimeGraphHistoryTrackBTests(unittest.TestCase):
     def test_history_is_isolated_per_workspace_and_clears_redo_on_new_commit(self) -> None:

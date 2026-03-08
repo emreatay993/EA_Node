@@ -610,6 +610,22 @@ class WorkspaceLibraryController:
         self.refresh_workspace_tabs()
         return True
 
+    def group_selected_nodes(self) -> bool:
+        grouped = bool(self._host.scene.group_selected_nodes())
+        if not grouped:
+            return False
+        self._host.selected_node_changed.emit()
+        self.refresh_workspace_tabs()
+        return True
+
+    def ungroup_selected_nodes(self) -> bool:
+        ungrouped = bool(self._host.scene.ungroup_selected_subnode())
+        if not ungrouped:
+            return False
+        self._host.selected_node_changed.emit()
+        self.refresh_workspace_tabs()
+        return True
+
     def _run_layout_action(self, action: str | None = None, orientation: str | None = None) -> bool:
         before_overlap_pairs = 0
         normalized_action = str(action).strip().lower() if action is not None else None

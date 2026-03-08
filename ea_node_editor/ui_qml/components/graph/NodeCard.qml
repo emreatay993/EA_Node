@@ -314,7 +314,7 @@ Rectangle {
                     }
 
                     Text {
-                        text: modelData.key
+                        text: modelData.label || modelData.key
                         color: "#CAD1DF"
                         font.pixelSize: 10
                     }
@@ -336,7 +336,7 @@ Rectangle {
                     spacing: 6
 
                     Text {
-                        text: modelData.key
+                        text: modelData.label || modelData.key
                         color: "#CAD1DF"
                         font.pixelSize: 10
                     }

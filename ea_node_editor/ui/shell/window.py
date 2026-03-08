@@ -291,6 +291,14 @@ class ShellWindow(QMainWindow):
         self.action_duplicate_selection.setShortcut(QKeySequence("Ctrl+D"))
         self.action_duplicate_selection.triggered.connect(self._duplicate_selected_nodes)
 
+        self.action_group_selection = QAction("Group Selection", self)
+        self.action_group_selection.setShortcut(QKeySequence("Ctrl+G"))
+        self.action_group_selection.triggered.connect(self._group_selected_nodes)
+
+        self.action_ungroup_selection = QAction("Ungroup Selection", self)
+        self.action_ungroup_selection.setShortcut(QKeySequence("Ctrl+Shift+G"))
+        self.action_ungroup_selection.triggered.connect(self._ungroup_selected_nodes)
+
         self.action_align_left = QAction("Align Left", self)
         self.action_align_left.triggered.connect(self._align_selection_left)
 
@@ -405,6 +413,8 @@ class ShellWindow(QMainWindow):
             self.action_paste_selection,
             self.action_connect_selected,
             self.action_duplicate_selection,
+            self.action_group_selection,
+            self.action_ungroup_selection,
             self.action_align_left,
             self.action_align_right,
             self.action_align_top,
@@ -452,6 +462,8 @@ class ShellWindow(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_connect_selected)
         edit_menu.addAction(self.action_duplicate_selection)
+        edit_menu.addAction(self.action_group_selection)
+        edit_menu.addAction(self.action_ungroup_selection)
         layout_menu = edit_menu.addMenu("Layout")
         layout_menu.addAction(self.action_align_left)
         layout_menu.addAction(self.action_align_right)
@@ -1098,6 +1110,14 @@ class ShellWindow(QMainWindow):
         return bool(self._duplicate_selected_nodes())
 
     @pyqtSlot(result=bool)
+    def request_group_selected_nodes(self) -> bool:
+        return bool(self._group_selected_nodes())
+
+    @pyqtSlot(result=bool)
+    def request_ungroup_selected_nodes(self) -> bool:
+        return bool(self._ungroup_selected_nodes())
+
+    @pyqtSlot(result=bool)
     def request_copy_selected_nodes(self) -> bool:
         return bool(self._copy_selected_nodes_to_clipboard())
 
@@ -1195,6 +1215,8 @@ class ShellWindow(QMainWindow):
         "_on_node_collapse_changed": ("workspace_library_controller", "on_node_collapse_changed"),
         "_connect_selected_nodes": ("workspace_library_controller", "connect_selected_nodes"),
         "_duplicate_selected_nodes": ("workspace_library_controller", "duplicate_selected_nodes"),
+        "_group_selected_nodes": ("workspace_library_controller", "group_selected_nodes"),
+        "_ungroup_selected_nodes": ("workspace_library_controller", "ungroup_selected_nodes"),
         "_align_selection_left": ("workspace_library_controller", "align_selection_left"),
         "_align_selection_right": ("workspace_library_controller", "align_selection_right"),
         "_align_selection_top": ("workspace_library_controller", "align_selection_top"),
