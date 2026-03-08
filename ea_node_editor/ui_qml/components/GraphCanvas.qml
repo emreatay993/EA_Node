@@ -106,6 +106,50 @@ Item {
         return root.height * 0.5 + (sceneY - (viewBridge ? viewBridge.center_y : 0.0)) * zoom;
     }
 
+    function snapToGridEnabled() {
+        return mainWindowBridge ? Boolean(mainWindowBridge.snap_to_grid_enabled) : false;
+    }
+
+    function snapGridSize() {
+        var size = Number(mainWindowBridge ? mainWindowBridge.snap_grid_size : 20.0);
+        if (!(size > 0.0))
+            size = 20.0;
+        return size;
+    }
+
+    function snapToGridValue(value) {
+        var size = snapGridSize();
+        return Math.round(Number(value) / size) * size;
+    }
+
+    function snappedDragDelta(nodeId, rawDx, rawDy) {
+        var deltaX = Number(rawDx);
+        var deltaY = Number(rawDy);
+        if (!isFinite(deltaX))
+            deltaX = 0.0;
+        if (!isFinite(deltaY))
+            deltaY = 0.0;
+        if (!root.snapToGridEnabled()) {
+            return {"dx": deltaX, "dy": deltaY};
+        }
+        var anchorPayload = root._sceneNodePayload(nodeId);
+        if (!anchorPayload) {
+            return {"dx": deltaX, "dy": deltaY};
+        }
+        var anchorX = Number(anchorPayload.x);
+        var anchorY = Number(anchorPayload.y);
+        if (!isFinite(anchorX))
+            anchorX = 0.0;
+        if (!isFinite(anchorY))
+            anchorY = 0.0;
+        var snappedX = root.snapToGridValue(anchorX + deltaX);
+        var snappedY = root.snapToGridValue(anchorY + deltaY);
+        return {
+            "dx": snappedX - anchorX,
+            "dy": snappedY - anchorY
+        };
+    }
+
     function _normalizeEdgeIds(values) {
         var normalized = [];
         var seen = {};
@@ -189,8 +233,14 @@ Item {
         if (!normalized)
             return [];
         var selected = root.selectedNodeIds();
-        if (selected.length > 1 && selected.indexOf(normalized) >= 0)
-            return selected;
+        if (selected.length > 1 && selected.indexOf(normalized) >= 0) {
+            var ordered = [normalized];
+            for (var i = 0; i < selected.length; i++) {
+                if (selected[i] !== normalized)
+                    ordered.push(selected[i]);
+            }
+            return ordered;
+        }
         return [normalized];
     }
 
@@ -1297,9 +1347,14 @@ Item {
                     root._openNodeContext(nodeId, point.x, point.y);
                 }
                 onDragOffsetChanged: function(nodeId, dx, dy) {
-                    root.setLiveDragOffsets(root.dragNodeIdsForAnchor(nodeId), dx, dy);
+                    var snappedDelta = root.snappedDragDelta(nodeId, dx, dy);
+                    root.setLiveDragOffsets(
+                        root.dragNodeIdsForAnchor(nodeId),
+                        snappedDelta.dx,
+                        snappedDelta.dy
+                    );
                 }
-                onDragFinished: function(nodeId, finalX, finalY, moved) {
+                onDragFinished: function(nodeId, finalX, finalY, _moved) {
                     var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
                     var anchorPayload = root._sceneNodePayload(nodeId);
                     var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
@@ -1308,21 +1363,31 @@ Item {
                         anchorX = Number(finalX);
                     if (!isFinite(anchorY))
                         anchorY = Number(finalY);
-                    var deltaX = Number(finalX) - anchorX;
-                    var deltaY = Number(finalY) - anchorY;
+                    var rawDeltaX = Number(finalX) - anchorX;
+                    var rawDeltaY = Number(finalY) - anchorY;
+                    var snappedDelta = root.snappedDragDelta(nodeId, rawDeltaX, rawDeltaY);
+                    var deltaX = Number(snappedDelta.dx);
+                    var deltaY = Number(snappedDelta.dy);
+                    if (!isFinite(deltaX))
+                        deltaX = 0.0;
+                    if (!isFinite(deltaY))
+                        deltaY = 0.0;
+                    var finalSnappedX = anchorX + deltaX;
+                    var finalSnappedY = anchorY + deltaY;
+                    var movedByCommit = Math.abs(deltaX) >= 0.01 || Math.abs(deltaY) >= 0.01;
 
                     root.clearLiveDragOffsets();
                     if (!sceneBridge)
                         return;
                     if (dragNodeIds.length > 1) {
-                        sceneBridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY);
-                        if (moved)
+                        movedByCommit = sceneBridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY);
+                        if (movedByCommit)
                             root.clearEdgeSelection();
                         return;
                     }
 
-                    sceneBridge.move_node(nodeId, finalX, finalY);
-                    if (moved) {
+                    sceneBridge.move_node(nodeId, finalSnappedX, finalSnappedY);
+                    if (movedByCommit) {
                         root.clearEdgeSelection();
                         sceneBridge.select_node(nodeId, false);
                     }

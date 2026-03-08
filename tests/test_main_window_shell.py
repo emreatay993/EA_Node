@@ -135,6 +135,13 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("request_paste_selected_nodes()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_undo()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_redo()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_align_selection_left()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_align_selection_right()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_align_selection_top()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_align_selection_bottom()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_distribute_selection_horizontally()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_distribute_selection_vertically()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_toggle_snap_to_grid()"), 0)
         self.assertGreaterEqual(
             meta.indexOfMethod("request_drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
             0,
@@ -197,6 +204,9 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+C", _action_shortcuts(self.window.action_copy_selection))
         self.assertIn("Ctrl+X", _action_shortcuts(self.window.action_cut_selection))
         self.assertIn("Ctrl+V", _action_shortcuts(self.window.action_paste_selection))
+        self.assertTrue(self.window.action_snap_to_grid.isCheckable())
+        self.assertFalse(self.window.snap_to_grid_enabled)
+        self.assertFalse(self.window.action_snap_to_grid.isChecked())
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
@@ -222,6 +232,103 @@ class MainWindowShellTests(unittest.TestCase):
             self.window.action_pause.trigger()
             self.app.processEvents()
             resume_run.assert_called_once_with("run_test")
+
+    def test_layout_actions_and_snap_toggle_are_undoable(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=40.0)
+        node_b = self.window.scene.add_node_from_type("core.end", x=320.0, y=180.0)
+        node_c = self.window.scene.add_node_from_type("core.logger", x=640.0, y=80.0)
+        self.window.scene.select_node(node_a, False)
+        self.window.scene.select_node(node_b, True)
+        self.window.scene.select_node(node_c, True)
+        self.window.runtime_history.clear_workspace(workspace_id)
+        before_state = self._workspace_state()
+
+        self.window.action_distribute_horizontally.trigger()
+        self.app.processEvents()
+        after_distribute = self._workspace_state()
+        self.assertNotEqual(after_distribute, before_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+        distributed_bounds = sorted(
+            (self.window.scene.node_bounds(node_id) for node_id in (node_a, node_b, node_c)),
+            key=lambda bounds: float(bounds.x()) if bounds is not None else 0.0,
+        )
+        self.assertTrue(all(bounds is not None for bounds in distributed_bounds))
+        gap_01 = distributed_bounds[1].x() - (distributed_bounds[0].x() + distributed_bounds[0].width())
+        gap_12 = distributed_bounds[2].x() - (distributed_bounds[1].x() + distributed_bounds[1].width())
+        self.assertAlmostEqual(gap_01, gap_12, places=6)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), before_state)
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), after_distribute)
+
+        self.window.scene.move_node(node_a, 13.0, 17.0)
+        self.window.scene.move_node(node_b, 171.0, 83.0)
+        self.window.scene.select_node(node_a, False)
+        self.window.scene.select_node(node_b, True)
+        self.window.runtime_history.clear_workspace(workspace_id)
+
+        self.assertFalse(self.window.snap_to_grid_enabled)
+        self.window.action_snap_to_grid.trigger()
+        self.assertTrue(self.window.snap_to_grid_enabled)
+        self.assertTrue(self.window.action_snap_to_grid.isChecked())
+
+        before_snap_layout = self._workspace_state()
+        self.window.action_align_top.trigger()
+        self.app.processEvents()
+        after_snap_layout = self._workspace_state()
+        self.assertNotEqual(after_snap_layout, before_snap_layout)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+        for node_id in (node_a, node_b):
+            node = workspace.nodes[node_id]
+            self.assertAlmostEqual(float(node.x) / 20.0, round(float(node.x) / 20.0), places=6)
+            self.assertAlmostEqual(float(node.y) / 20.0, round(float(node.y) / 20.0), places=6)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), before_snap_layout)
+
+        self.window.action_snap_to_grid.trigger()
+        self.assertFalse(self.window.snap_to_grid_enabled)
+        self.assertFalse(self.window.action_snap_to_grid.isChecked())
+
+    def test_align_overlap_posts_tidy_hint(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        _workspace = self.window.model.project.workspaces[workspace_id]
+        node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=60.0)
+        node_b = self.window.scene.add_node_from_type("core.end", x=340.0, y=60.0)
+        node_c = self.window.scene.add_node_from_type("core.logger", x=680.0, y=60.0)
+        self.window.scene.select_node(node_a, False)
+        self.window.scene.select_node(node_b, True)
+        self.window.scene.select_node(node_c, True)
+        self.window.clear_graph_hint()
+        self.assertFalse(self.window.graph_hint_visible)
+
+        aligned = self.window.request_align_selection_right()
+        self.assertTrue(aligned)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.graph_hint_visible)
+        self.assertEqual(
+            self.window.graph_hint_message,
+            "3 overlaps created. Press Distribute Vertically to tidy.",
+        )
+
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        graph_hint_overlay = root_object.findChild(QObject, "graphHintOverlay")
+        self.assertIsNotNone(graph_hint_overlay)
+        self.assertTrue(bool(graph_hint_overlay.property("visible")))
+
+        self.window.clear_graph_hint()
+        self.app.processEvents()
+        self.assertFalse(self.window.graph_hint_visible)
 
     def test_graph_search_ranking_prefers_title_matches_and_limits_to_ten_results(self) -> None:
         workspace_a_id = self.window.workspace_manager.active_workspace_id()

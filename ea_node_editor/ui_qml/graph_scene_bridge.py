@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from dataclasses import dataclass
+import math
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
@@ -46,11 +47,37 @@ _MINIMAP_MIN_WIDTH = 3200.0
 _MINIMAP_MIN_HEIGHT = 1800.0
 _DUPLICATE_OFFSET_X = 40.0
 _DUPLICATE_OFFSET_Y = 40.0
+_SNAP_GRID_SIZE = 20.0
 
 
 @dataclass(slots=True)
 class _SelectedNodeProxy:
     node: NodeInstance
+
+
+@dataclass(slots=True)
+class _LayoutNodeMetrics:
+    node_id: str
+    x: float
+    y: float
+    width: float
+    height: float
+
+    @property
+    def left(self) -> float:
+        return self.x
+
+    @property
+    def right(self) -> float:
+        return self.x + self.width
+
+    @property
+    def top(self) -> float:
+        return self.y
+
+    @property
+    def bottom(self) -> float:
+        return self.y + self.height
 
 
 class _NodeItemProxy:
@@ -589,6 +616,68 @@ class GraphSceneBridge(QObject):
         self._rebuild_models()
         return True
 
+    def align_selected_nodes(self, alignment: str, *, snap_to_grid: bool = False, grid_size: float = _SNAP_GRID_SIZE) -> bool:
+        normalized_alignment = str(alignment).strip().lower()
+        if normalized_alignment not in {"left", "right", "top", "bottom"}:
+            return False
+        workspace, selected = self._selected_layout_metrics()
+        if workspace is None or len(selected) < 2:
+            return False
+
+        updates: dict[str, tuple[float, float]] = {}
+        if normalized_alignment == "left":
+            target_left = min(node.left for node in selected)
+            for node in selected:
+                updates[node.node_id] = (target_left, node.y)
+        elif normalized_alignment == "right":
+            target_right = max(node.right for node in selected)
+            for node in selected:
+                updates[node.node_id] = (target_right - node.width, node.y)
+        elif normalized_alignment == "top":
+            target_top = min(node.top for node in selected)
+            for node in selected:
+                updates[node.node_id] = (node.x, target_top)
+        else:
+            target_bottom = max(node.bottom for node in selected)
+            for node in selected:
+                updates[node.node_id] = (node.x, target_bottom - node.height)
+        return self._apply_layout_updates(workspace, updates, snap_to_grid=snap_to_grid, grid_size=grid_size)
+
+    def distribute_selected_nodes(
+        self,
+        orientation: str,
+        *,
+        snap_to_grid: bool = False,
+        grid_size: float = _SNAP_GRID_SIZE,
+    ) -> bool:
+        normalized_orientation = str(orientation).strip().lower()
+        if normalized_orientation not in {"horizontal", "vertical"}:
+            return False
+        workspace, selected = self._selected_layout_metrics()
+        if workspace is None or len(selected) < 3:
+            return False
+
+        updates: dict[str, tuple[float, float]] = {}
+        if normalized_orientation == "horizontal":
+            ordered = sorted(selected, key=lambda node: (node.left, node.top, node.node_id))
+            total_span = ordered[-1].right - ordered[0].left
+            total_size = sum(node.width for node in ordered)
+            gap = (total_span - total_size) / float(len(ordered) - 1)
+            cursor = ordered[0].right + gap
+            for node in ordered[1:-1]:
+                updates[node.node_id] = (cursor, node.y)
+                cursor += node.width + gap
+        else:
+            ordered = sorted(selected, key=lambda node: (node.top, node.left, node.node_id))
+            total_span = ordered[-1].bottom - ordered[0].top
+            total_size = sum(node.height for node in ordered)
+            gap = (total_span - total_size) / float(len(ordered) - 1)
+            cursor = ordered[0].bottom + gap
+            for node in ordered[1:-1]:
+                updates[node.node_id] = (node.x, cursor)
+                cursor += node.height + gap
+        return self._apply_layout_updates(workspace, updates, snap_to_grid=snap_to_grid, grid_size=grid_size)
+
     @pyqtSlot(result=bool)
     def duplicate_selected_subgraph(self) -> bool:
         fragment_payload = self.serialize_selected_subgraph_fragment()
@@ -687,6 +776,85 @@ class GraphSceneBridge(QObject):
             selected_node_set.add(node_id)
             selected_node_ids.append(node_id)
         return selected_node_ids
+
+    def _selected_layout_metrics(self) -> tuple[WorkspaceData | None, list[_LayoutNodeMetrics]]:
+        if self._model is None or self._registry is None:
+            return None, []
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return None, []
+        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
+        if not selected_node_ids:
+            return workspace, []
+        layout_nodes: list[_LayoutNodeMetrics] = []
+        for node_id in selected_node_ids:
+            node = workspace.nodes.get(node_id)
+            if node is None:
+                continue
+            spec = self._registry.get_spec(node.type_id)
+            width, height = node_size(node, spec)
+            layout_nodes.append(
+                _LayoutNodeMetrics(
+                    node_id=node_id,
+                    x=float(node.x),
+                    y=float(node.y),
+                    width=float(width),
+                    height=float(height),
+                )
+            )
+        return workspace, layout_nodes
+
+    @staticmethod
+    def _snap_coordinate(value: float, grid_size: float) -> float:
+        step = float(grid_size)
+        if not math.isfinite(step) or step <= 0.0:
+            step = _SNAP_GRID_SIZE
+        target = float(value)
+        if not math.isfinite(target):
+            return 0.0
+        return round(target / step) * step
+
+    def _apply_layout_updates(
+        self,
+        workspace: WorkspaceData,
+        updates: dict[str, tuple[float, float]],
+        *,
+        snap_to_grid: bool,
+        grid_size: float,
+    ) -> bool:
+        if self._model is None or not updates:
+            return False
+
+        final_positions: dict[str, tuple[float, float]] = {}
+        for node_id, (x_value, y_value) in updates.items():
+            node = workspace.nodes.get(node_id)
+            if node is None:
+                continue
+            final_x = float(x_value)
+            final_y = float(y_value)
+            if snap_to_grid:
+                final_x = self._snap_coordinate(final_x, grid_size)
+                final_y = self._snap_coordinate(final_y, grid_size)
+            if float(node.x) == final_x and float(node.y) == final_y:
+                continue
+            final_positions[node_id] = (final_x, final_y)
+
+        if not final_positions:
+            return False
+
+        history_group = nullcontext()
+        if self._history is not None:
+            history_group = self._history.grouped_action(
+                self._workspace_id,
+                ACTION_MOVE_NODE,
+                workspace,
+            )
+
+        with history_group:
+            for node_id, (final_x, final_y) in final_positions.items():
+                self._model.set_node_position(self._workspace_id, node_id, final_x, final_y)
+        self._rebuild_models()
+        return True
 
     def _build_subgraph_fragment_payload(
         self,

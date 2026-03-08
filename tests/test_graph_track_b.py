@@ -223,6 +223,107 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertAlmostEqual(workspace.nodes[node_b].x, 415.0, places=6)
         self.assertAlmostEqual(workspace.nodes[node_b].y, 145.0, places=6)
 
+    def test_layout_actions_align_and_distribute_selected_nodes_with_grouped_history(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        node_a = self.scene.add_node_from_type("core.start", 40.0, 20.0)
+        node_b = self.scene.add_node_from_type("core.end", 320.0, 210.0)
+        node_c = self.scene.add_node_from_type("core.logger", 640.0, 80.0)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.scene.select_node(node_a, False)
+        self.scene.select_node(node_b, True)
+        self.scene.select_node(node_c, True)
+        history.clear_workspace(self.workspace_id)
+
+        moved = self.scene.align_selected_nodes("left")
+        self.assertTrue(moved)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        left_edges = []
+        for node_id in (node_a, node_b, node_c):
+            bounds = self.scene.node_bounds(node_id)
+            self.assertIsNotNone(bounds)
+            left_edges.append(bounds.x())
+        for left in left_edges[1:]:
+            self.assertAlmostEqual(left, left_edges[0], places=6)
+
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertAlmostEqual(workspace.nodes[node_a].x, 40.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].x, 320.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_c].x, 640.0, places=6)
+
+        self.assertIsNotNone(history.redo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertAlmostEqual(workspace.nodes[node_a].x, 40.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].x, 40.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_c].x, 40.0, places=6)
+
+        self.model.set_node_position(self.workspace_id, node_a, 10.0, 30.0)
+        self.model.set_node_position(self.workspace_id, node_b, 290.0, 120.0)
+        self.model.set_node_position(self.workspace_id, node_c, 700.0, 260.0)
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        history.clear_workspace(self.workspace_id)
+
+        before_sorted = sorted(
+            (self.scene.node_bounds(node_id) for node_id in (node_a, node_b, node_c)),
+            key=lambda bounds: float(bounds.x()) if bounds is not None else 0.0,
+        )
+        self.assertTrue(all(bounds is not None for bounds in before_sorted))
+        moved = self.scene.distribute_selected_nodes("horizontal")
+        self.assertTrue(moved)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        after_sorted = sorted(
+            (self.scene.node_bounds(node_id) for node_id in (node_a, node_b, node_c)),
+            key=lambda bounds: float(bounds.x()) if bounds is not None else 0.0,
+        )
+        self.assertTrue(all(bounds is not None for bounds in after_sorted))
+        first_before = before_sorted[0]
+        last_before = before_sorted[-1]
+        first_after = after_sorted[0]
+        last_after = after_sorted[-1]
+        self.assertIsNotNone(first_before)
+        self.assertIsNotNone(last_before)
+        self.assertIsNotNone(first_after)
+        self.assertIsNotNone(last_after)
+        self.assertAlmostEqual(first_after.x(), first_before.x(), places=6)
+        self.assertAlmostEqual(last_after.x(), last_before.x(), places=6)
+
+        gap_01 = after_sorted[1].x() - (after_sorted[0].x() + after_sorted[0].width())
+        gap_12 = after_sorted[2].x() - (after_sorted[1].x() + after_sorted[1].width())
+        self.assertAlmostEqual(gap_01, gap_12, places=6)
+
+    def test_layout_actions_snap_to_grid_and_small_selections_are_safe_noops(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        node_a = self.scene.add_node_from_type("core.start", 13.0, 17.0)
+        node_b = self.scene.add_node_from_type("core.end", 171.0, 83.0)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.select_node(node_a, False)
+        self.assertFalse(self.scene.align_selected_nodes("left"))
+        self.assertFalse(self.scene.distribute_selected_nodes("horizontal"))
+        self.assertEqual(history.undo_depth(self.workspace_id), 0)
+
+        self.scene.select_node(node_b, True)
+        moved = self.scene.align_selected_nodes("top", snap_to_grid=True)
+        self.assertTrue(moved)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        for node_id in (node_a, node_b):
+            node = workspace.nodes[node_id]
+            self.assertAlmostEqual(float(node.x) / 20.0, round(float(node.x) / 20.0), places=6)
+            self.assertAlmostEqual(float(node.y) / 20.0, round(float(node.y) / 20.0), places=6)
+
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertAlmostEqual(workspace.nodes[node_a].x, 13.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_a].y, 17.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].x, 171.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[node_b].y, 83.0, places=6)
+
     def test_duplicate_selected_subgraph_offsets_nodes_and_internal_edges_only(self) -> None:
         history = RuntimeGraphHistory()
         self.scene.bind_runtime_history(history)
