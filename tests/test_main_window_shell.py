@@ -55,6 +55,35 @@ class MainWindowShellTests(unittest.TestCase):
         self._autosave_patch.stop()
         self._temp_dir.cleanup()
 
+    def _active_workspace(self):
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        return workspace_id, self.window.model.project.workspaces[workspace_id]
+
+    def _workspace_state(self) -> dict[str, object]:
+        _workspace_id, workspace = self._active_workspace()
+        nodes = {
+            node_id: {
+                "type_id": node.type_id,
+                "title": node.title,
+                "x": float(node.x),
+                "y": float(node.y),
+                "collapsed": bool(node.collapsed),
+                "properties": dict(node.properties),
+                "exposed_ports": dict(node.exposed_ports),
+            }
+            for node_id, node in workspace.nodes.items()
+        }
+        edges = {
+            edge_id: (
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
+            )
+            for edge_id, edge in workspace.edges.items()
+        }
+        return {"nodes": nodes, "edges": edges}
+
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
         self.assertIs(self.window.centralWidget(), self.window.quick_widget)
@@ -73,6 +102,8 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("request_remove_node(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_rename_node(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_delete_selected_graph_items(QVariantList)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_undo()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_redo()"), 0)
         self.assertGreaterEqual(
             meta.indexOfMethod("request_drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
             0,
@@ -127,6 +158,9 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("A", _action_shortcuts(self.window.action_frame_all))
         self.assertIn("F", _action_shortcuts(self.window.action_frame_selection))
         self.assertIn("Shift+F", _action_shortcuts(self.window.action_center_selection))
+        self.assertIn("Ctrl+Z", _action_shortcuts(self.window.action_undo))
+        self.assertIn("Ctrl+Shift+Z", _action_shortcuts(self.window.action_redo))
+        self.assertIn("Ctrl+Y", _action_shortcuts(self.window.action_redo))
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
@@ -416,6 +450,171 @@ class MainWindowShellTests(unittest.TestCase):
         workspace = self.window.model.project.workspaces[workspace_id]
         self.assertNotIn(edge_id, workspace.edges)
         self.assertNotIn(removable_node_id, workspace.nodes)
+
+    def test_undo_redo_roundtrips_supported_graph_mutations(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+
+        def assert_roundtrip(mutate, label: str) -> None:  # noqa: ANN001
+            before_state = self._workspace_state()
+            before_depth = self.window.runtime_history.undo_depth(workspace_id)
+            mutate()
+            self.app.processEvents()
+            after_state = self._workspace_state()
+            self.assertNotEqual(before_state, after_state, label)
+            self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_depth + 1, label)
+
+            self.window.action_undo.trigger()
+            self.app.processEvents()
+            self.assertEqual(self._workspace_state(), before_state, f"{label}: undo")
+
+            self.window.action_redo.trigger()
+            self.app.processEvents()
+            self.assertEqual(self._workspace_state(), after_state, f"{label}: redo")
+
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=280.0, y=40.0)
+        logger_id = self.window.scene.add_node_from_type("core.logger", x=520.0, y=120.0)
+        self.app.processEvents()
+
+        assert_roundtrip(
+            lambda: self.window.scene.add_node_from_type("core.python_script", x=620.0, y=80.0),
+            "add node",
+        )
+
+        edge_holder: dict[str, str] = {}
+
+        def add_edge() -> None:
+            edge_holder["edge_id"] = self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+
+        assert_roundtrip(add_edge, "add edge")
+        primary_edge_id = edge_holder["edge_id"]
+
+        assert_roundtrip(lambda: self.window.request_remove_edge(primary_edge_id), "remove edge")
+
+        def rename_node() -> None:
+            current_title = self.window.model.project.workspaces[workspace_id].nodes[source_id].title
+            with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=(f"{current_title} (renamed)", True)):
+                self.window.request_rename_node(source_id)
+
+        assert_roundtrip(rename_node, "rename node")
+
+        def toggle_collapse() -> None:
+            self.window.scene.focus_node(source_id)
+            self.window.set_selected_node_collapsed(not self.window.selected_node_collapsed)
+
+        assert_roundtrip(toggle_collapse, "collapse toggle")
+
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.app.processEvents()
+
+        def toggle_exposed_port() -> None:
+            workspace = self.window.model.project.workspaces[workspace_id]
+            source_node = workspace.nodes[source_id]
+            current = bool(source_node.exposed_ports.get("exec_out", True))
+            self.window.scene.focus_node(source_id)
+            self.window.set_selected_port_exposed("exec_out", not current)
+
+        assert_roundtrip(toggle_exposed_port, "exposed-port toggle")
+
+        def edit_property() -> None:
+            self.window.scene.focus_node(logger_id)
+            self.window.set_selected_node_property("message", "updated through undo/redo roundtrip")
+
+        assert_roundtrip(edit_property, "property edit")
+
+        delete_node_id = self.window.scene.add_node_from_type("core.python_script", x=680.0, y=150.0)
+        delete_edge_id = self.window.scene.add_edge(source_id, "trigger", delete_node_id, "payload")
+        self.window.scene.select_node(delete_node_id, False)
+        self.app.processEvents()
+        assert_roundtrip(
+            lambda: self.window.request_delete_selected_graph_items([delete_edge_id]),
+            "delete-selected",
+        )
+
+        def move_node() -> None:
+            workspace = self.window.model.project.workspaces[workspace_id]
+            source_node = workspace.nodes[source_id]
+            self.window.scene.move_node(source_id, source_node.x + 130.0, source_node.y + 75.0)
+
+        assert_roundtrip(move_node, "node move")
+
+        assert_roundtrip(lambda: self.window.request_remove_node(target_id), "remove node")
+
+    def test_undo_redo_isolated_per_workspace_and_redo_clears_after_new_mutation(self) -> None:
+        workspace_a_id = self.window.workspace_manager.active_workspace_id()
+        node_a_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        self.app.processEvents()
+
+        workspace_b_id = self.window.workspace_manager.create_workspace("Secondary")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(workspace_b_id)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_b_id), 0)
+        node_b_id = self.window.scene.add_node_from_type("core.end", x=40.0, y=40.0)
+        self.app.processEvents()
+        self.assertIn(node_b_id, self.window.model.project.workspaces[workspace_b_id].nodes)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertNotIn(node_b_id, self.window.model.project.workspaces[workspace_b_id].nodes)
+        self.assertIn(node_a_id, self.window.model.project.workspaces[workspace_a_id].nodes)
+
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+        self.assertIn(node_b_id, self.window.model.project.workspaces[workspace_b_id].nodes)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self.window.runtime_history.redo_depth(workspace_b_id), 1)
+
+        replacement_node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=50.0)
+        self.app.processEvents()
+        self.assertIn(replacement_node_id, self.window.model.project.workspaces[workspace_b_id].nodes)
+        self.assertEqual(self.window.runtime_history.redo_depth(workspace_b_id), 0)
+
+        before_failed_redo = self._workspace_state()
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), before_failed_redo)
+
+        self.window._switch_workspace(workspace_a_id)
+        self.app.processEvents()
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertNotIn(node_a_id, self.window.model.project.workspaces[workspace_a_id].nodes)
+        self.assertIn(replacement_node_id, self.window.model.project.workspaces[workspace_b_id].nodes)
+
+    def test_new_and_duplicated_workspaces_start_with_empty_history(self) -> None:
+        workspace_a_id = self.window.workspace_manager.active_workspace_id()
+        self.window.scene.add_node_from_type("core.start", x=10.0, y=10.0)
+        self.app.processEvents()
+        self.assertGreater(self.window.runtime_history.undo_depth(workspace_a_id), 0)
+
+        workspace_b_id = self.window.workspace_manager.create_workspace("New Workspace")
+        self.window._refresh_workspace_tabs()
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_b_id), 0)
+        self.assertEqual(self.window.runtime_history.redo_depth(workspace_b_id), 0)
+
+        self.window._switch_workspace(workspace_a_id)
+        self.app.processEvents()
+        duplicated_id = self.window.workspace_manager.duplicate_workspace(workspace_a_id)
+        self.window._refresh_workspace_tabs()
+        self.assertEqual(self.window.runtime_history.undo_depth(duplicated_id), 0)
+        self.assertEqual(self.window.runtime_history.redo_depth(duplicated_id), 0)
+
+    def test_new_project_clears_runtime_history_stacks(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        self.window.scene.add_node_from_type("core.start", x=0.0, y=0.0)
+        self.app.processEvents()
+        self.assertGreater(self.window.runtime_history.undo_depth(workspace_id), 0)
+
+        self.window.action_new_project.trigger()
+        self.app.processEvents()
+
+        new_workspace_id = self.window.workspace_manager.active_workspace_id()
+        self.assertEqual(self.window.runtime_history.undo_depth(new_workspace_id), 0)
+        self.assertEqual(self.window.runtime_history.redo_depth(new_workspace_id), 0)
 
     def test_qml_rect_selection_supports_replace_and_additive_modes(self) -> None:
         node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)

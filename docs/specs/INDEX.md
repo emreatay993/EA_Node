@@ -22,6 +22,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 14. [RC2 Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc2/RC2_STATUS.md)
 15. [RC3 Work Packet Manifest](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc3/RC3_MANIFEST.md)
 16. [RC3 Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/rc3/RC3_STATUS.md)
+17. [Graph UX Work Packet Manifest](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_ux/GRAPH_UX_MANIFEST.md)
+18. [Graph UX Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_ux/GRAPH_UX_STATUS.md)
 
 ## ADRs
 

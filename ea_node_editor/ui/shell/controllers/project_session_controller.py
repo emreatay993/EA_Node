@@ -82,6 +82,7 @@ class ProjectSessionController:
         normalize_project_for_registry(project, self._host.registry)
         self._host.model = GraphModel(project)
         self._host.workspace_manager = WorkspaceManager(self._host.model)
+        self._host.runtime_history.clear_all()
         self._host.project_path = project_path
 
     def save_project(self) -> None:

@@ -28,6 +28,7 @@ from ea_node_editor.ui.shell.controllers import (
     RunController,
     WorkspaceLibraryController,
 )
+from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -87,10 +88,16 @@ class ShellWindow(QMainWindow):
         )
         self.model = GraphModel(ProjectData(project_id="proj_local", name="untitled"))
         self.workspace_manager = WorkspaceManager(self.model)
+        self.runtime_history = RuntimeGraphHistory()
 
         self.scene = GraphSceneBridge(self)
+        self.scene.bind_runtime_history(self.runtime_history)
         self.view = ViewportBridge(self)
-        self._graph_interactions = GraphInteractions(scene=self.scene, registry=self.registry)
+        self._graph_interactions = GraphInteractions(
+            scene=self.scene,
+            registry=self.registry,
+            history=self.runtime_history,
+        )
         self.console_panel = ConsoleModel(self)
         self.script_editor = ScriptEditorModel(self)
         self.script_highlighter = QmlScriptSyntaxBridge(self)
@@ -264,6 +271,14 @@ class ShellWindow(QMainWindow):
         self.action_connect_selected.setShortcut(QKeySequence("Ctrl+L"))
         self.action_connect_selected.triggered.connect(self._connect_selected_nodes)
 
+        self.action_undo = QAction("Undo", self)
+        self.action_undo.setShortcut(QKeySequence("Ctrl+Z"))
+        self.action_undo.triggered.connect(self._undo)
+
+        self.action_redo = QAction("Redo", self)
+        self.action_redo.setShortcuts([QKeySequence("Ctrl+Shift+Z"), QKeySequence("Ctrl+Y")])
+        self.action_redo.triggered.connect(self._redo)
+
         self.action_frame_all = QAction("Frame All", self)
         self.action_frame_all.setShortcut(QKeySequence("A"))
         self.action_frame_all.triggered.connect(self._frame_all)
@@ -316,6 +331,8 @@ class ShellWindow(QMainWindow):
             self.action_run,
             self.action_stop,
             self.action_pause,
+            self.action_undo,
+            self.action_redo,
             self.action_connect_selected,
             self.action_frame_all,
             self.action_frame_selection,
@@ -345,6 +362,9 @@ class ShellWindow(QMainWindow):
         file_menu.addAction(self.action_export_node_package)
 
         edit_menu = menu_bar.addMenu("&Edit")
+        edit_menu.addAction(self.action_undo)
+        edit_menu.addAction(self.action_redo)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.action_connect_selected)
 
         view_menu = menu_bar.addMenu("&View")
@@ -697,6 +717,14 @@ class ShellWindow(QMainWindow):
     def request_connect_selected_nodes(self) -> None:
         self._connect_selected_nodes()
 
+    @pyqtSlot(result=bool)
+    def request_undo(self) -> bool:
+        return bool(self._undo())
+
+    @pyqtSlot(result=bool)
+    def request_redo(self) -> bool:
+        return bool(self._redo())
+
     @pyqtSlot(str, str, str, str, result=bool)
     def request_connect_ports(
         self,
@@ -771,6 +799,8 @@ class ShellWindow(QMainWindow):
         "_on_port_exposed_changed": ("workspace_library_controller", "on_port_exposed_changed"),
         "_on_node_collapse_changed": ("workspace_library_controller", "on_node_collapse_changed"),
         "_connect_selected_nodes": ("workspace_library_controller", "connect_selected_nodes"),
+        "_undo": ("workspace_library_controller", "undo"),
+        "_redo": ("workspace_library_controller", "redo"),
         "_selected_node_context": ("workspace_library_controller", "selected_node_context"),
         "_focus_failed_node": ("workspace_library_controller", "focus_failed_node"),
         "_reveal_parent_chain": ("workspace_library_controller", "reveal_parent_chain"),
