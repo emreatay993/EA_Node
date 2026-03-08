@@ -62,6 +62,8 @@ class ShellWindow(QMainWindow):
     selected_node_changed = pyqtSignal()
     project_meta_changed = pyqtSignal()
     graph_search_changed = pyqtSignal()
+    graph_hint_changed = pyqtSignal()
+    snap_to_grid_changed = pyqtSignal()
 
     _RUN_SCOPED_EVENT_TYPES = {
         "run_started",
@@ -74,6 +76,7 @@ class ShellWindow(QMainWindow):
         "log",
     }
     _GRAPH_SEARCH_LIMIT = 10
+    _SNAP_GRID_SIZE = 20.0
 
     def __init__(self) -> None:
         super().__init__()
@@ -112,6 +115,8 @@ class ShellWindow(QMainWindow):
         self._graph_search_query = ""
         self._graph_search_results: list[dict[str, Any]] = []
         self._graph_search_highlight_index = -1
+        self._graph_hint_message = ""
+        self._snap_to_grid_enabled = False
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
         self.project_session_controller = ProjectSessionController(self)
@@ -135,6 +140,10 @@ class ShellWindow(QMainWindow):
         self.metrics_timer.setInterval(1000)
         self.metrics_timer.timeout.connect(self._update_metrics)
         self.metrics_timer.start()
+
+        self.graph_hint_timer = QTimer(self)
+        self.graph_hint_timer.setSingleShot(True)
+        self.graph_hint_timer.timeout.connect(self.clear_graph_hint)
 
         self.autosave_timer = QTimer(self)
         self.autosave_timer.setInterval(AUTOSAVE_INTERVAL_MS)
@@ -281,6 +290,29 @@ class ShellWindow(QMainWindow):
         self.action_duplicate_selection.setShortcut(QKeySequence("Ctrl+D"))
         self.action_duplicate_selection.triggered.connect(self._duplicate_selected_nodes)
 
+        self.action_align_left = QAction("Align Left", self)
+        self.action_align_left.triggered.connect(self._align_selection_left)
+
+        self.action_align_right = QAction("Align Right", self)
+        self.action_align_right.triggered.connect(self._align_selection_right)
+
+        self.action_align_top = QAction("Align Top", self)
+        self.action_align_top.triggered.connect(self._align_selection_top)
+
+        self.action_align_bottom = QAction("Align Bottom", self)
+        self.action_align_bottom.triggered.connect(self._align_selection_bottom)
+
+        self.action_distribute_horizontally = QAction("Distribute Horizontally", self)
+        self.action_distribute_horizontally.triggered.connect(self._distribute_selection_horizontally)
+
+        self.action_distribute_vertically = QAction("Distribute Vertically", self)
+        self.action_distribute_vertically.triggered.connect(self._distribute_selection_vertically)
+
+        self.action_snap_to_grid = QAction("Snap to Grid", self)
+        self.action_snap_to_grid.setCheckable(True)
+        self.action_snap_to_grid.setChecked(False)
+        self.action_snap_to_grid.toggled.connect(self.set_snap_to_grid_enabled)
+
         self.action_undo = QAction("Undo", self)
         self.action_undo.setShortcut(QKeySequence("Ctrl+Z"))
         self.action_undo.triggered.connect(self._undo)
@@ -364,6 +396,13 @@ class ShellWindow(QMainWindow):
             self.action_paste_selection,
             self.action_connect_selected,
             self.action_duplicate_selection,
+            self.action_align_left,
+            self.action_align_right,
+            self.action_align_top,
+            self.action_align_bottom,
+            self.action_distribute_horizontally,
+            self.action_distribute_vertically,
+            self.action_snap_to_grid,
             self.action_frame_all,
             self.action_frame_selection,
             self.action_center_selection,
@@ -402,6 +441,16 @@ class ShellWindow(QMainWindow):
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_connect_selected)
         edit_menu.addAction(self.action_duplicate_selection)
+        layout_menu = edit_menu.addMenu("Layout")
+        layout_menu.addAction(self.action_align_left)
+        layout_menu.addAction(self.action_align_right)
+        layout_menu.addAction(self.action_align_top)
+        layout_menu.addAction(self.action_align_bottom)
+        layout_menu.addSeparator()
+        layout_menu.addAction(self.action_distribute_horizontally)
+        layout_menu.addAction(self.action_distribute_vertically)
+        edit_menu.addAction(self.action_snap_to_grid)
+        edit_menu.addSeparator()
         edit_menu.addAction(self.action_graph_search)
 
         view_menu = menu_bar.addMenu("&View")
@@ -548,6 +597,22 @@ class ShellWindow(QMainWindow):
     @pyqtProperty(int, notify=graph_search_changed)
     def graph_search_highlight_index(self) -> int:
         return int(self._graph_search_highlight_index)
+
+    @pyqtProperty(str, notify=graph_hint_changed)
+    def graph_hint_message(self) -> str:
+        return str(self._graph_hint_message)
+
+    @pyqtProperty(bool, notify=graph_hint_changed)
+    def graph_hint_visible(self) -> bool:
+        return bool(self._graph_hint_message.strip())
+
+    @pyqtProperty(bool, notify=snap_to_grid_changed)
+    def snap_to_grid_enabled(self) -> bool:
+        return bool(self._snap_to_grid_enabled)
+
+    @pyqtProperty(float, constant=True)
+    def snap_grid_size(self) -> float:
+        return float(self._SNAP_GRID_SIZE)
 
     @pyqtProperty(str, notify=workspace_state_changed)
     def active_workspace_id(self) -> str:
@@ -727,6 +792,43 @@ class ShellWindow(QMainWindow):
         self._library_direction = normalized
         self.node_library_changed.emit()
 
+    @pyqtSlot(bool)
+    def set_snap_to_grid_enabled(self, enabled: bool) -> None:
+        normalized = bool(enabled)
+        if self._snap_to_grid_enabled == normalized:
+            if self.action_snap_to_grid.isChecked() != normalized:
+                blocked = self.action_snap_to_grid.blockSignals(True)
+                self.action_snap_to_grid.setChecked(normalized)
+                self.action_snap_to_grid.blockSignals(blocked)
+            return
+        self._snap_to_grid_enabled = normalized
+        if self.action_snap_to_grid.isChecked() != normalized:
+            blocked = self.action_snap_to_grid.blockSignals(True)
+            self.action_snap_to_grid.setChecked(normalized)
+            self.action_snap_to_grid.blockSignals(blocked)
+        self.snap_to_grid_changed.emit()
+
+    @pyqtSlot(str)
+    @pyqtSlot(str, int)
+    def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
+        normalized = str(message).strip()
+        if not normalized:
+            self.clear_graph_hint()
+            return
+        self._graph_hint_message = normalized
+        self.graph_hint_changed.emit()
+        timeout_value = max(250, int(timeout_ms))
+        self.graph_hint_timer.start(timeout_value)
+
+    @pyqtSlot()
+    def clear_graph_hint(self) -> None:
+        if self.graph_hint_timer.isActive():
+            self.graph_hint_timer.stop()
+        if not self._graph_hint_message:
+            return
+        self._graph_hint_message = ""
+        self.graph_hint_changed.emit()
+
     @pyqtSlot()
     def request_open_graph_search(self) -> None:
         self._set_graph_search_state(open_=True, query="", results=[], highlight_index=-1)
@@ -870,6 +972,35 @@ class ShellWindow(QMainWindow):
     def request_close_workspace(self) -> None:
         self._close_active_workspace()
 
+    @pyqtSlot(result=bool)
+    def request_align_selection_left(self) -> bool:
+        return bool(self._align_selection_left())
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_right(self) -> bool:
+        return bool(self._align_selection_right())
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_top(self) -> bool:
+        return bool(self._align_selection_top())
+
+    @pyqtSlot(result=bool)
+    def request_align_selection_bottom(self) -> bool:
+        return bool(self._align_selection_bottom())
+
+    @pyqtSlot(result=bool)
+    def request_distribute_selection_horizontally(self) -> bool:
+        return bool(self._distribute_selection_horizontally())
+
+    @pyqtSlot(result=bool)
+    def request_distribute_selection_vertically(self) -> bool:
+        return bool(self._distribute_selection_vertically())
+
+    @pyqtSlot(result=bool)
+    def request_toggle_snap_to_grid(self) -> bool:
+        self.set_snap_to_grid_enabled(not self._snap_to_grid_enabled)
+        return bool(self._snap_to_grid_enabled)
+
     @pyqtSlot()
     def request_connect_selected_nodes(self) -> None:
         self._connect_selected_nodes()
@@ -976,6 +1107,12 @@ class ShellWindow(QMainWindow):
         "_on_node_collapse_changed": ("workspace_library_controller", "on_node_collapse_changed"),
         "_connect_selected_nodes": ("workspace_library_controller", "connect_selected_nodes"),
         "_duplicate_selected_nodes": ("workspace_library_controller", "duplicate_selected_nodes"),
+        "_align_selection_left": ("workspace_library_controller", "align_selection_left"),
+        "_align_selection_right": ("workspace_library_controller", "align_selection_right"),
+        "_align_selection_top": ("workspace_library_controller", "align_selection_top"),
+        "_align_selection_bottom": ("workspace_library_controller", "align_selection_bottom"),
+        "_distribute_selection_horizontally": ("workspace_library_controller", "distribute_selection_horizontally"),
+        "_distribute_selection_vertically": ("workspace_library_controller", "distribute_selection_vertically"),
         "_copy_selected_nodes_to_clipboard": ("workspace_library_controller", "copy_selected_nodes_to_clipboard"),
         "_cut_selected_nodes_to_clipboard": ("workspace_library_controller", "cut_selected_nodes_to_clipboard"),
         "_paste_nodes_from_clipboard": ("workspace_library_controller", "paste_nodes_from_clipboard"),

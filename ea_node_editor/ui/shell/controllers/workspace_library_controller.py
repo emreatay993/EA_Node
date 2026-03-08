@@ -610,6 +610,86 @@ class WorkspaceLibraryController:
         self.refresh_workspace_tabs()
         return True
 
+    def _run_layout_action(self, action: str | None = None, orientation: str | None = None) -> bool:
+        before_overlap_pairs = 0
+        normalized_action = str(action).strip().lower() if action is not None else None
+        if normalized_action is not None:
+            before_overlap_pairs = self._count_overlap_pairs(self._selected_node_bounds_payload())
+
+        snap_enabled = bool(self._host.snap_to_grid_enabled)
+        if normalized_action is not None:
+            moved = bool(self._host.scene.align_selected_nodes(normalized_action, snap_to_grid=snap_enabled))
+        else:
+            moved = bool(self._host.scene.distribute_selected_nodes(orientation, snap_to_grid=snap_enabled))
+        if not moved:
+            return False
+
+        if normalized_action is not None:
+            after_overlap_pairs = self._count_overlap_pairs(self._selected_node_bounds_payload())
+            created_overlap_pairs = max(0, after_overlap_pairs - before_overlap_pairs)
+            if created_overlap_pairs > 0:
+                tidy_action = "Distribute Vertically" if normalized_action in {"left", "right"} else "Distribute Horizontally"
+                overlap_word = "overlap" if created_overlap_pairs == 1 else "overlaps"
+                self._host.show_graph_hint(
+                    f"{created_overlap_pairs} {overlap_word} created. Press {tidy_action} to tidy."
+                )
+
+        self._host.selected_node_changed.emit()
+        self.refresh_workspace_tabs()
+        return True
+
+    def _selected_node_bounds_payload(self) -> list[tuple[float, float, float, float]]:
+        bounds_payload: list[tuple[float, float, float, float]] = []
+        for node_payload in self._host.scene.nodes_model:
+            if not bool(node_payload.get("selected", False)):
+                continue
+            width = float(node_payload.get("width", 0.0))
+            height = float(node_payload.get("height", 0.0))
+            if width <= 0.0 or height <= 0.0:
+                continue
+            x = float(node_payload.get("x", 0.0))
+            y = float(node_payload.get("y", 0.0))
+            bounds_payload.append((x, y, x + width, y + height))
+        return bounds_payload
+
+    @staticmethod
+    def _rectangles_overlap(
+        first: tuple[float, float, float, float],
+        second: tuple[float, float, float, float],
+    ) -> bool:
+        return (
+            first[0] < second[2]
+            and first[2] > second[0]
+            and first[1] < second[3]
+            and first[3] > second[1]
+        )
+
+    def _count_overlap_pairs(self, bounds_payload: list[tuple[float, float, float, float]]) -> int:
+        overlap_pairs = 0
+        for left_index in range(len(bounds_payload)):
+            for right_index in range(left_index + 1, len(bounds_payload)):
+                if self._rectangles_overlap(bounds_payload[left_index], bounds_payload[right_index]):
+                    overlap_pairs += 1
+        return overlap_pairs
+
+    def align_selection_left(self) -> bool:
+        return self._run_layout_action("left")
+
+    def align_selection_right(self) -> bool:
+        return self._run_layout_action("right")
+
+    def align_selection_top(self) -> bool:
+        return self._run_layout_action("top")
+
+    def align_selection_bottom(self) -> bool:
+        return self._run_layout_action("bottom")
+
+    def distribute_selection_horizontally(self) -> bool:
+        return self._run_layout_action(orientation="horizontal")
+
+    def distribute_selection_vertically(self) -> bool:
+        return self._run_layout_action(orientation="vertical")
+
     def _clipboard(self):
         from PyQt6.QtWidgets import QApplication
 
