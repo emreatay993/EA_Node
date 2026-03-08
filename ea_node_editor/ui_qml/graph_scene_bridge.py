@@ -31,6 +31,7 @@ from ea_node_editor.graph.hierarchy import (
     subnode_scope_path,
 )
 from ea_node_editor.graph.model import GraphModel, NodeInstance, ViewState, WorkspaceData
+from ea_node_editor.graph.transforms import group_selection_into_subnode, ungroup_subnode
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -956,6 +957,86 @@ class GraphSceneBridge(QObject):
                 updates[node.node_id] = (node.x, cursor)
                 cursor += node.height + gap
         return self._apply_layout_updates(workspace, updates, snap_to_grid=snap_to_grid, grid_size=grid_size)
+
+    @pyqtSlot(result=bool)
+    def group_selected_nodes(self) -> bool:
+        if self._model is None or self._registry is None:
+            return False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return False
+        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
+        if len(selected_node_ids) < 2:
+            return False
+        selection_bounds = self._bounds_for_node_ids(selected_node_ids)
+        if selection_bounds is None:
+            return False
+
+        history_group = nullcontext()
+        if self._history is not None:
+            history_group = self._history.grouped_action(
+                self._workspace_id,
+                ACTION_ADD_NODE,
+                workspace,
+            )
+
+        grouped = None
+        with history_group:
+            grouped = group_selection_into_subnode(
+                model=self._model,
+                registry=self._registry,
+                workspace_id=self._workspace_id,
+                selected_node_ids=selected_node_ids,
+                scope_path=self._scope_path,
+                shell_x=selection_bounds.x(),
+                shell_y=selection_bounds.y(),
+            )
+        if grouped is None:
+            return False
+
+        self._selected_node_ids = [grouped.shell_node_id]
+        self._rebuild_models()
+        self.node_selected.emit(grouped.shell_node_id)
+        return True
+
+    @pyqtSlot(result=bool)
+    def ungroup_selected_subnode(self) -> bool:
+        if self._model is None:
+            return False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return False
+        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
+        if len(selected_node_ids) != 1:
+            return False
+        shell_node_id = selected_node_ids[0]
+
+        history_group = nullcontext()
+        if self._history is not None:
+            history_group = self._history.grouped_action(
+                self._workspace_id,
+                ACTION_REMOVE_NODE,
+                workspace,
+            )
+
+        ungrouped = None
+        with history_group:
+            ungrouped = ungroup_subnode(
+                model=self._model,
+                workspace_id=self._workspace_id,
+                shell_node_id=shell_node_id,
+            )
+        if ungrouped is None:
+            return False
+
+        self._selected_node_ids = [
+            node_id
+            for node_id in ungrouped.moved_node_ids
+            if node_id in workspace.nodes and is_node_in_scope(workspace, node_id, self._scope_path)
+        ]
+        self._rebuild_models()
+        self.node_selected.emit(self.selected_node_id() or "")
+        return True
 
     @pyqtSlot(result=bool)
     def duplicate_selected_subgraph(self) -> bool:

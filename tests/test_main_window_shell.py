@@ -130,6 +130,8 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertGreaterEqual(meta.indexOfMethod("request_rename_node(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_delete_selected_graph_items(QVariantList)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_duplicate_selected_nodes()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_group_selected_nodes()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_ungroup_selected_nodes()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_copy_selected_nodes()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_cut_selected_nodes()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_paste_selected_nodes()"), 0)
@@ -205,6 +207,8 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+Y", _action_shortcuts(self.window.action_redo))
         self.assertIn("Ctrl+K", _action_shortcuts(self.window.action_graph_search))
         self.assertIn("Ctrl+D", _action_shortcuts(self.window.action_duplicate_selection))
+        self.assertIn("Ctrl+G", _action_shortcuts(self.window.action_group_selection))
+        self.assertIn("Ctrl+Shift+G", _action_shortcuts(self.window.action_ungroup_selection))
         self.assertIn("Ctrl+C", _action_shortcuts(self.window.action_copy_selection))
         self.assertIn("Ctrl+X", _action_shortcuts(self.window.action_cut_selection))
         self.assertIn("Ctrl+V", _action_shortcuts(self.window.action_paste_selection))
@@ -836,6 +840,73 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(self._workspace_state(), before_state)
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_undo_depth)
         self.assertEqual(len(workspace.nodes), 1)
+
+    def test_qml_request_group_and_ungroup_selected_nodes_are_single_undoable_actions(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=40.0)
+        grouped_logger_id = self.window.scene.add_node_from_type("core.logger", x=320.0, y=60.0)
+        grouped_constant_id = self.window.scene.add_node_from_type("core.constant", x=220.0, y=190.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=640.0, y=90.0)
+        external_script_id = self.window.scene.add_node_from_type("core.python_script", x=700.0, y=230.0)
+        self.window.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
+        self.window.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
+        self.window.scene.add_edge(grouped_logger_id, "exec_out", target_id, "exec_in")
+        self.window.scene.add_edge(grouped_constant_id, "value", external_script_id, "payload")
+        self.app.processEvents()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        initial_edge_signature = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in workspace.edges.values()
+        }
+
+        self.window.scene.select_node(grouped_logger_id, False)
+        self.window.scene.select_node(grouped_constant_id, True)
+        initial_state = self._workspace_state()
+        self.window.runtime_history.clear_workspace(workspace_id)
+
+        grouped = self.window.request_group_selected_nodes()
+        self.assertTrue(grouped)
+        grouped_state = self._workspace_state()
+        self.assertNotEqual(grouped_state, initial_state)
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), initial_state)
+
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), grouped_state)
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        shell_ids = [
+            node_id
+            for node_id, node in workspace.nodes.items()
+            if node.type_id == "core.subnode" and node.parent_node_id is None
+        ]
+        self.assertEqual(len(shell_ids), 1)
+        shell_id = shell_ids[0]
+
+        self.window.scene.select_node(shell_id, False)
+        self.window.runtime_history.clear_workspace(workspace_id)
+        ungrouped = self.window.request_ungroup_selected_nodes()
+        self.assertTrue(ungrouped)
+        ungrouped_edge_signature = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in workspace.edges.values()
+        }
+        self.assertEqual(ungrouped_edge_signature, initial_edge_signature)
+        self.assertEqual(workspace.nodes[grouped_logger_id].parent_node_id, None)
+        self.assertEqual(workspace.nodes[grouped_constant_id].parent_node_id, None)
+        remaining_subnode_types = {
+            node.type_id for node in workspace.nodes.values() if node.type_id.startswith("core.subnode")
+        }
+        self.assertEqual(remaining_subnode_types, set())
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+        self.assertEqual(self._workspace_state(), grouped_state)
 
     def test_qml_request_copy_and_paste_selected_nodes_preserves_internal_edges_and_recenters_fragment(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

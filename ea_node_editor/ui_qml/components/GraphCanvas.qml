@@ -1282,7 +1282,7 @@ Item {
                             anchors.leftMargin: Math.max(7, 12 * (viewBridge ? viewBridge.zoom_value : 1.0))
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            text: String(modelData.key || "")
+                            text: String(modelData.label || modelData.key || "")
                             color: "#C6D1E1"
                             font.pixelSize: Math.max(7, Math.min(11, 10 * (viewBridge ? viewBridge.zoom_value : 1.0)))
                             elide: Text.ElideRight
@@ -1322,7 +1322,7 @@ Item {
                             anchors.right: parent.right
                             anchors.rightMargin: Math.max(7, 12 * (viewBridge ? viewBridge.zoom_value : 1.0))
                             anchors.verticalCenter: parent.verticalCenter
-                            text: String(modelData.key || "")
+                            text: String(modelData.label || modelData.key || "")
                             color: "#C6D1E1"
                             font.pixelSize: Math.max(7, Math.min(11, 10 * (viewBridge ? viewBridge.zoom_value : 1.0)))
                             horizontalAlignment: Text.AlignRight
