@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QMetaObject, Qt, Q_ARG
+from PyQt6.QtCore import QObject, QMetaObject, Qt, Q_ARG
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
@@ -84,6 +84,13 @@ class MainWindowShellTests(unittest.TestCase):
         }
         return {"nodes": nodes, "edges": edges}
 
+    def _graph_canvas_item(self) -> QObject:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        graph_canvas = root_object.findChild(QObject, "graphCanvas")
+        self.assertIsNotNone(graph_canvas)
+        return graph_canvas
+
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
         self.assertIs(self.window.centralWidget(), self.window.quick_widget)
@@ -91,6 +98,26 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIsNotNone(self.window.scene)
         self.assertIsNotNone(self.window.view)
         self.assertGreaterEqual(self.window.workspace_tabs.count(), 1)
+
+    def test_qml_minimap_defaults_expanded_and_toggleable(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
+
+        QMetaObject.invokeMethod(
+            graph_canvas,
+            "toggleMinimapExpanded",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+        self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
+
+        QMetaObject.invokeMethod(
+            graph_canvas,
+            "toggleMinimapExpanded",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+        self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
 
     def test_qml_invokable_slots_exist_for_shell_buttons(self) -> None:
         meta = self.window.metaObject()
