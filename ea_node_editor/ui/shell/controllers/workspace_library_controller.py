@@ -5,8 +5,15 @@ from pathlib import Path
 
 from PyQt6.QtCore import QMimeData, QRectF
 
+from ea_node_editor.graph.effective_ports import is_subnode_pin_type
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.graph.rules import find_port, is_port_exposed, ports_compatible
+from ea_node_editor.nodes.builtins.subnode import (
+    SUBNODE_PIN_DATA_TYPE_PROPERTY,
+    SUBNODE_PIN_KIND_PROPERTY,
+    SUBNODE_PIN_LABEL_PROPERTY,
+    SUBNODE_TYPE_ID,
+)
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
     GRAPH_FRAGMENT_MIME_TYPE,
@@ -26,6 +33,11 @@ if TYPE_CHECKING:
 _GRAPH_SEARCH_LIMIT = 10
 _PASTE_CASCADE_OFFSET_X = 40.0
 _PASTE_CASCADE_OFFSET_Y = 40.0
+_PIN_REFRESH_PROPERTIES = {
+    SUBNODE_PIN_LABEL_PROPERTY,
+    SUBNODE_PIN_KIND_PROPERTY,
+    SUBNODE_PIN_DATA_TYPE_PROPERTY,
+}
 
 
 class WorkspaceLibraryController:
@@ -571,11 +583,34 @@ class WorkspaceLibraryController:
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         self._host.scene.set_node_property(node_id, key, value)
+        workspace = self.active_workspace()
+        should_refresh_shell_payload = (
+            workspace is not None
+            and str(key) in _PIN_REFRESH_PROPERTIES
+            and self._is_direct_child_pin_node(workspace.nodes.get(node_id), workspace.nodes)
+        )
+        if should_refresh_shell_payload and workspace is not None:
+            self._host.scene.refresh_workspace_from_model(workspace.workspace_id)
         if key == "script" and self._host.script_editor.current_node_id == node_id:
             workspace = self._host.model.project.workspaces[self._host.workspace_manager.active_workspace_id()]
             self._host.script_editor.set_node(workspace.nodes.get(node_id))
         self._host.selected_node_changed.emit()
         self.refresh_workspace_tabs()
+
+    @staticmethod
+    def _is_direct_child_pin_node(
+        node: NodeInstance | None,
+        workspace_nodes: dict[str, NodeInstance],
+    ) -> bool:
+        if node is None or not is_subnode_pin_type(node.type_id):
+            return False
+        parent_node_id = str(node.parent_node_id or "").strip()
+        if not parent_node_id:
+            return False
+        parent_node = workspace_nodes.get(parent_node_id)
+        if parent_node is None:
+            return False
+        return parent_node.type_id == SUBNODE_TYPE_ID
 
     def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None:
         self._host.scene.set_exposed_port(node_id, key, exposed)
