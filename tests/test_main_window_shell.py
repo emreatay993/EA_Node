@@ -161,6 +161,7 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIn("Ctrl+Z", _action_shortcuts(self.window.action_undo))
         self.assertIn("Ctrl+Shift+Z", _action_shortcuts(self.window.action_redo))
         self.assertIn("Ctrl+Y", _action_shortcuts(self.window.action_redo))
+        self.assertIn("Ctrl+K", _action_shortcuts(self.window.action_graph_search))
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
@@ -186,6 +187,147 @@ class MainWindowShellTests(unittest.TestCase):
             self.window.action_pause.trigger()
             self.app.processEvents()
             resume_run.assert_called_once_with("run_test")
+
+    def test_graph_search_ranking_prefers_title_matches_and_limits_to_ten_results(self) -> None:
+        workspace_a_id = self.window.workspace_manager.active_workspace_id()
+        self.window.workspace_manager.rename_workspace(workspace_a_id, "Alpha Space")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(workspace_a_id)
+
+        prefix_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        self.window.scene.set_node_title(prefix_id, "core. prefix title")
+        substring_id = self.window.scene.add_node_from_type("core.start", x=220.0, y=20.0)
+        self.window.scene.set_node_title(substring_id, "alpha core. substring")
+        type_alpha_id = self.window.scene.add_node_from_type("core.start", x=420.0, y=20.0)
+        self.window.scene.set_node_title(type_alpha_id, "Alpha")
+        type_zulu_id = self.window.scene.add_node_from_type("core.start", x=620.0, y=20.0)
+        self.window.scene.set_node_title(type_zulu_id, "Zulu")
+
+        workspace_b_id = self.window.workspace_manager.create_workspace("Beta Space")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(workspace_b_id)
+        for index in range(12):
+            node_id = self.window.scene.add_node_from_type("core.start", x=20.0 * index, y=120.0)
+            self.window.scene.set_node_title(node_id, f"Node {index:02d}")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("CORE.")
+        self.app.processEvents()
+
+        results = self.window.graph_search_results
+        self.assertEqual(len(results), 10)
+        self.assertEqual(results[0]["node_id"], prefix_id)
+        self.assertEqual(results[1]["node_id"], substring_id)
+
+        tail_keys = [(item["workspace_name"], item["node_title"]) for item in results[2:]]
+        self.assertEqual(
+            tail_keys,
+            sorted(tail_keys, key=lambda value: (value[0].lower(), value[1].lower())),
+        )
+
+    def test_graph_search_matches_node_id_and_empty_or_missing_queries_are_safe_noops(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.start", x=30.0, y=30.0)
+        self.window.scene.set_node_title(node_id, "Plain Title")
+        display_name_id = self.window.scene.add_node_from_type("core.python_script", x=260.0, y=40.0)
+        self.window.scene.set_node_title(display_name_id, "Custom Script Title")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query(node_id[-6:].upper())
+        self.app.processEvents()
+
+        results = self.window.graph_search_results
+        self.assertGreaterEqual(len(results), 1)
+        self.assertEqual(results[0]["node_id"], node_id)
+
+        self.window.set_graph_search_query("PyThOn ScRiPt")
+        self.app.processEvents()
+        self.assertIn(display_name_id, {item["node_id"] for item in self.window.graph_search_results})
+
+        self.window.set_graph_search_query("")
+        self.assertEqual(self.window.graph_search_results, [])
+        self.assertFalse(self.window.request_graph_search_accept())
+
+        before_workspace_id = self.window.workspace_manager.active_workspace_id()
+        before_selected_id = self.window.scene.selected_node_id()
+        self.window.set_graph_search_query("zzzzz_missing_node_query")
+        self.assertEqual(self.window.graph_search_results, [])
+        self.assertFalse(self.window.request_graph_search_accept())
+        self.assertEqual(self.window.workspace_manager.active_workspace_id(), before_workspace_id)
+        self.assertEqual(self.window.scene.selected_node_id(), before_selected_id)
+
+    def test_graph_search_jump_switches_workspace_reveals_parent_chain_and_centers_selection(self) -> None:
+        source_workspace_id = self.window.workspace_manager.active_workspace_id()
+        target_workspace_id = self.window.workspace_manager.create_workspace("Target Space")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(target_workspace_id)
+
+        parent_id = self.window.scene.add_node_from_type("core.start", x=140.0, y=80.0)
+        child_id = self.window.scene.add_node_from_type("core.logger", x=640.0, y=360.0)
+        target_workspace = self.window.model.project.workspaces[target_workspace_id]
+        target_workspace.nodes[child_id].parent_node_id = parent_id
+        self.window.scene.set_node_collapsed(parent_id, True)
+        self.window.scene.set_node_title(child_id, "Needle Jump Node")
+        self.app.processEvents()
+
+        self.window._switch_workspace(source_workspace_id)
+        self.window.view.set_zoom(0.65)
+        self.window.view.centerOn(-420.0, -260.0)
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("needle jump")
+        self.app.processEvents()
+        self.assertEqual(self.window.graph_search_highlight_index, 0)
+
+        jumped = self.window.request_graph_search_accept()
+        self.assertTrue(jumped)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.workspace_manager.active_workspace_id(), target_workspace_id)
+        self.assertFalse(target_workspace.nodes[parent_id].collapsed)
+        self.assertEqual(self.window.scene.selected_node_id(), child_id)
+
+        bounds = self.window.scene.node_bounds(child_id)
+        self.assertIsNotNone(bounds)
+        target_workspace.ensure_default_view()
+        target_view = target_workspace.views[target_workspace.active_view_id]
+        self.assertAlmostEqual(self.window.view.zoom, target_view.zoom, places=6)
+        self.assertAlmostEqual(self.window.view.center_x, bounds.center().x(), places=6)
+        self.assertAlmostEqual(self.window.view.center_y, bounds.center().y(), places=6)
+
+        self.assertFalse(self.window.graph_search_open)
+        self.assertEqual(self.window.graph_search_query, "")
+        self.assertEqual(self.window.graph_search_results, [])
+
+    def test_graph_search_keyboard_navigation_and_close_behavior(self) -> None:
+        node_a_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=50.0)
+        node_b_id = self.window.scene.add_node_from_type("core.start", x=250.0, y=50.0)
+        self.window.scene.set_node_title(node_a_id, "Search Candidate A")
+        self.window.scene.set_node_title(node_b_id, "Search Candidate B")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.assertTrue(self.window.graph_search_open)
+        self.window.set_graph_search_query("search candidate")
+        self.app.processEvents()
+        self.assertGreaterEqual(len(self.window.graph_search_results), 2)
+        self.assertEqual(self.window.graph_search_highlight_index, 0)
+
+        self.window.request_graph_search_move(1)
+        self.assertEqual(self.window.graph_search_highlight_index, 1)
+        self.window.request_graph_search_move(1)
+        self.assertEqual(self.window.graph_search_highlight_index, 1)
+        self.window.request_graph_search_move(-1)
+        self.assertEqual(self.window.graph_search_highlight_index, 0)
+        self.window.request_graph_search_move(-1)
+        self.assertEqual(self.window.graph_search_highlight_index, 0)
+
+        self.window.request_close_graph_search()
+        self.assertFalse(self.window.graph_search_open)
+        self.assertEqual(self.window.graph_search_query, "")
+        self.assertEqual(self.window.graph_search_results, [])
+        self.assertEqual(self.window.graph_search_highlight_index, -1)
 
     def test_file_menu_new_project_resets_to_blank_project(self) -> None:
         self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)

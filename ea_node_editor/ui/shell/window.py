@@ -61,6 +61,7 @@ class ShellWindow(QMainWindow):
     workspace_state_changed = pyqtSignal()
     selected_node_changed = pyqtSignal()
     project_meta_changed = pyqtSignal()
+    graph_search_changed = pyqtSignal()
 
     _RUN_SCOPED_EVENT_TYPES = {
         "run_started",
@@ -72,6 +73,7 @@ class ShellWindow(QMainWindow):
         "node_completed",
         "log",
     }
+    _GRAPH_SEARCH_LIMIT = 10
 
     def __init__(self) -> None:
         super().__init__()
@@ -106,6 +108,10 @@ class ShellWindow(QMainWindow):
         self.status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", self)
         self.status_metrics = StatusItemModel("M", "CPU:0% RAM:0/0 GB", self)
         self.status_notifications = StatusItemModel("N", "W:0 E:0", self)
+        self._graph_search_open = False
+        self._graph_search_query = ""
+        self._graph_search_results: list[dict[str, Any]] = []
+        self._graph_search_highlight_index = -1
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
         self.project_session_controller = ProjectSessionController(self)
@@ -291,6 +297,10 @@ class ShellWindow(QMainWindow):
         self.action_center_selection.setShortcut(QKeySequence("Shift+F"))
         self.action_center_selection.triggered.connect(self._center_on_selection)
 
+        self.action_graph_search = QAction("Graph Search", self)
+        self.action_graph_search.setShortcut(QKeySequence("Ctrl+K"))
+        self.action_graph_search.triggered.connect(self.request_open_graph_search)
+
         self.action_new_view = QAction("New View", self)
         self.action_new_view.setShortcut(QKeySequence("Ctrl+Shift+V"))
         self.action_new_view.triggered.connect(self._create_view)
@@ -337,6 +347,7 @@ class ShellWindow(QMainWindow):
             self.action_frame_all,
             self.action_frame_selection,
             self.action_center_selection,
+            self.action_graph_search,
             self.action_new_view,
             self.action_duplicate_workspace,
             self.action_rename_workspace,
@@ -366,6 +377,7 @@ class ShellWindow(QMainWindow):
         edit_menu.addAction(self.action_redo)
         edit_menu.addSeparator()
         edit_menu.addAction(self.action_connect_selected)
+        edit_menu.addAction(self.action_graph_search)
 
         view_menu = menu_bar.addMenu("&View")
         view_menu.addAction(self.action_toggle_script_editor)
@@ -496,6 +508,22 @@ class ShellWindow(QMainWindow):
             {"label": data_type, "value": data_type} for data_type in data_types
         ]
 
+    @pyqtProperty(bool, notify=graph_search_changed)
+    def graph_search_open(self) -> bool:
+        return bool(self._graph_search_open)
+
+    @pyqtProperty(str, notify=graph_search_changed)
+    def graph_search_query(self) -> str:
+        return self._graph_search_query
+
+    @pyqtProperty("QVariantList", notify=graph_search_changed)
+    def graph_search_results(self) -> list[dict[str, Any]]:
+        return list(self._graph_search_results)
+
+    @pyqtProperty(int, notify=graph_search_changed)
+    def graph_search_highlight_index(self) -> int:
+        return int(self._graph_search_highlight_index)
+
     @pyqtProperty(str, notify=workspace_state_changed)
     def active_workspace_id(self) -> str:
         try:
@@ -599,6 +627,47 @@ class ShellWindow(QMainWindow):
             for port in spec.ports
         ]
 
+    def _set_graph_search_state(
+        self,
+        *,
+        open_: bool | None = None,
+        query: str | None = None,
+        results: list[dict[str, Any]] | None = None,
+        highlight_index: int | None = None,
+    ) -> None:
+        changed = False
+        if open_ is not None:
+            normalized_open = bool(open_)
+            if normalized_open != self._graph_search_open:
+                self._graph_search_open = normalized_open
+                changed = True
+        if query is not None:
+            normalized_query = str(query)
+            if normalized_query != self._graph_search_query:
+                self._graph_search_query = normalized_query
+                changed = True
+        if results is not None:
+            normalized_results = list(results)
+            if normalized_results != self._graph_search_results:
+                self._graph_search_results = normalized_results
+                changed = True
+        if highlight_index is not None:
+            normalized_index = int(highlight_index)
+            if normalized_index != self._graph_search_highlight_index:
+                self._graph_search_highlight_index = normalized_index
+                changed = True
+        if changed:
+            self.graph_search_changed.emit()
+
+    def _refresh_graph_search_results(self, query: str) -> None:
+        normalized_query = str(query).strip()
+        if not normalized_query:
+            self._set_graph_search_state(query="", results=[], highlight_index=-1)
+            return
+        ranked = self._search_graph_nodes(normalized_query, limit=self._GRAPH_SEARCH_LIMIT)
+        highlight = 0 if ranked else -1
+        self._set_graph_search_state(query=normalized_query, results=ranked, highlight_index=highlight)
+
     @pyqtSlot(str)
     def set_library_query(self, query: str) -> None:
         normalized = str(query).strip()
@@ -632,6 +701,69 @@ class ShellWindow(QMainWindow):
             return
         self._library_direction = normalized
         self.node_library_changed.emit()
+
+    @pyqtSlot()
+    def request_open_graph_search(self) -> None:
+        self._set_graph_search_state(open_=True, query="", results=[], highlight_index=-1)
+
+    @pyqtSlot()
+    def request_close_graph_search(self) -> None:
+        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+
+    @pyqtSlot(str)
+    def set_graph_search_query(self, query: str) -> None:
+        if not self._graph_search_open:
+            return
+        self._refresh_graph_search_results(query)
+
+    @pyqtSlot(int)
+    def request_graph_search_move(self, delta: int) -> None:
+        if not self._graph_search_open or not self._graph_search_results:
+            return
+        step = 1 if int(delta) > 0 else -1 if int(delta) < 0 else 0
+        if step == 0:
+            return
+        count = len(self._graph_search_results)
+        current = self._graph_search_highlight_index
+        if current < 0 or current >= count:
+            next_index = 0 if step > 0 else count - 1
+        else:
+            next_index = max(0, min(count - 1, current + step))
+        self._set_graph_search_state(highlight_index=next_index)
+
+    @pyqtSlot(int)
+    def request_graph_search_highlight(self, index: int) -> None:
+        if not self._graph_search_open:
+            return
+        normalized = int(index)
+        if normalized < 0 or normalized >= len(self._graph_search_results):
+            return
+        self._set_graph_search_state(highlight_index=normalized)
+
+    @pyqtSlot(result=bool)
+    def request_graph_search_accept(self) -> bool:
+        if not self._graph_search_open:
+            return False
+        if not self._graph_search_query.strip():
+            return False
+        if not self._graph_search_results:
+            return False
+        index = self._graph_search_highlight_index
+        if index < 0 or index >= len(self._graph_search_results):
+            index = 0
+        result = self._graph_search_results[index]
+        jumped = self._jump_to_graph_node(result["workspace_id"], result["node_id"])
+        if jumped:
+            self.request_close_graph_search()
+        return bool(jumped)
+
+    @pyqtSlot(int, result=bool)
+    def request_graph_search_jump(self, index: int) -> bool:
+        normalized = int(index)
+        if normalized < 0 or normalized >= len(self._graph_search_results):
+            return False
+        self._set_graph_search_state(highlight_index=normalized)
+        return bool(self.request_graph_search_accept())
 
     @pyqtSlot(str)
     def request_add_node_from_library(self, type_id: str) -> None:
@@ -778,8 +910,11 @@ class ShellWindow(QMainWindow):
         "_selection_bounds": ("workspace_library_controller", "selection_bounds"),
         "_frame_all": ("workspace_library_controller", "frame_all"),
         "_frame_selection": ("workspace_library_controller", "frame_selection"),
+        "_frame_node": ("workspace_library_controller", "frame_node"),
         "_center_on_node": ("workspace_library_controller", "center_on_node"),
         "_center_on_selection": ("workspace_library_controller", "center_on_selection"),
+        "_search_graph_nodes": ("workspace_library_controller", "search_graph_nodes"),
+        "_jump_to_graph_node": ("workspace_library_controller", "jump_to_graph_node"),
         "_create_view": ("workspace_library_controller", "create_view"),
         "_switch_view": ("workspace_library_controller", "switch_view"),
         "_create_workspace": ("workspace_library_controller", "create_workspace"),
