@@ -35,6 +35,10 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory, WorkspaceSnapshot
 
 _MISSING = object()
+_MINIMAP_EMPTY_BOUNDS = QRectF(-1600.0, -900.0, 3200.0, 1800.0)
+_MINIMAP_PADDING = 220.0
+_MINIMAP_MIN_WIDTH = 3200.0
+_MINIMAP_MIN_HEIGHT = 1800.0
 
 
 @dataclass(slots=True)
@@ -69,6 +73,7 @@ class GraphSceneBridge(QObject):
         self._workspace_id = ""
         self._selected_node_ids: list[str] = []
         self._nodes_payload: list[dict[str, Any]] = []
+        self._minimap_nodes_payload: list[dict[str, Any]] = []
         self._edges_payload: list[dict[str, Any]] = []
 
     @property
@@ -82,6 +87,14 @@ class GraphSceneBridge(QObject):
     @pyqtProperty("QVariantList", notify=edges_changed)
     def edges_model(self) -> list[dict[str, Any]]:
         return self._edges_payload
+
+    @pyqtProperty("QVariantList", notify=nodes_changed)
+    def minimap_nodes_model(self) -> list[dict[str, Any]]:
+        return self._minimap_nodes_payload
+
+    @pyqtProperty("QVariantMap", notify=nodes_changed)
+    def workspace_scene_bounds_payload(self) -> dict[str, float]:
+        return self._rect_payload(self.workspace_scene_bounds_with_fallback())
 
     @pyqtProperty(str, notify=node_selected)
     def selected_node_id_value(self) -> str:
@@ -146,6 +159,37 @@ class GraphSceneBridge(QObject):
         if workspace is None or not workspace.nodes:
             return None
         return self._bounds_for_node_ids(list(workspace.nodes))
+
+    def workspace_scene_bounds_with_fallback(self) -> QRectF:
+        bounds = self.workspace_scene_bounds()
+        if bounds is None:
+            return QRectF(_MINIMAP_EMPTY_BOUNDS)
+        normalized = QRectF(bounds).normalized()
+        if not normalized.isValid() or normalized.width() <= 0.0 or normalized.height() <= 0.0:
+            return QRectF(_MINIMAP_EMPTY_BOUNDS)
+        padded = normalized.adjusted(-_MINIMAP_PADDING, -_MINIMAP_PADDING, _MINIMAP_PADDING, _MINIMAP_PADDING)
+        width = max(float(padded.width()), _MINIMAP_MIN_WIDTH)
+        height = max(float(padded.height()), _MINIMAP_MIN_HEIGHT)
+        center = padded.center()
+        return QRectF(
+            float(center.x()) - (width * 0.5),
+            float(center.y()) - (height * 0.5),
+            width,
+            height,
+        )
+
+    def _rect_payload(self, rect: QRectF) -> dict[str, float]:
+        normalized = QRectF(rect).normalized()
+        return {
+            "x": float(normalized.x()),
+            "y": float(normalized.y()),
+            "width": float(max(0.0, normalized.width())),
+            "height": float(max(0.0, normalized.height())),
+        }
+
+    @pyqtSlot(result="QVariantMap")
+    def workspace_scene_bounds_map(self) -> dict[str, float]:
+        return self._rect_payload(self.workspace_scene_bounds_with_fallback())
 
     def selection_bounds(self) -> QRectF | None:
         if not self._selected_node_ids:
@@ -553,6 +597,7 @@ class GraphSceneBridge(QObject):
     def _rebuild_models(self) -> None:
         if self._model is None or self._registry is None or not self._workspace_id:
             self._nodes_payload = []
+            self._minimap_nodes_payload = []
             self._edges_payload = []
             self.nodes_changed.emit()
             self.edges_changed.emit()
@@ -568,6 +613,7 @@ class GraphSceneBridge(QObject):
             port_connection_counts[target_key] = port_connection_counts.get(target_key, 0) + 1
 
         nodes_payload: list[dict[str, Any]] = []
+        minimap_nodes_payload: list[dict[str, Any]] = []
         node_specs: dict[str, NodeTypeSpec] = {}
 
         for node_id, node in workspace.nodes.items():
@@ -606,6 +652,16 @@ class GraphSceneBridge(QObject):
                     "ports": ports_payload,
                 }
             )
+            minimap_nodes_payload.append(
+                {
+                    "node_id": node.node_id,
+                    "x": float(node.x),
+                    "y": float(node.y),
+                    "width": float(width),
+                    "height": float(height),
+                    "selected": node.node_id in self._selected_node_ids,
+                }
+            )
 
         edges_payload = build_edge_payload(
             workspace_edges=workspace_edges,
@@ -614,6 +670,7 @@ class GraphSceneBridge(QObject):
         )
 
         self._nodes_payload = nodes_payload
+        self._minimap_nodes_payload = minimap_nodes_payload
         self._edges_payload = edges_payload
         self.nodes_changed.emit()
         self.edges_changed.emit()

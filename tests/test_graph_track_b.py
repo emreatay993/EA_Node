@@ -151,6 +151,40 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.clear_selection()
         self.assertIsNone(self.scene.selection_bounds())
 
+    def test_minimap_payload_tracks_selection_and_fallback_bounds(self) -> None:
+        empty_bounds = self.scene.workspace_scene_bounds_payload
+        self.assertAlmostEqual(empty_bounds["x"], -1600.0, places=6)
+        self.assertAlmostEqual(empty_bounds["y"], -900.0, places=6)
+        self.assertAlmostEqual(empty_bounds["width"], 3200.0, places=6)
+        self.assertAlmostEqual(empty_bounds["height"], 1800.0, places=6)
+        self.assertEqual(self.scene.minimap_nodes_model, [])
+
+        node_a = self.scene.add_node_from_type("core.start", 30.0, 40.0)
+        node_b = self.scene.add_node_from_type("core.end", 390.0, 200.0)
+        self.scene.select_node(node_b)
+
+        minimap_payload = {item["node_id"]: item for item in self.scene.minimap_nodes_model}
+        self.assertIn(node_a, minimap_payload)
+        self.assertIn(node_b, minimap_payload)
+        self.assertFalse(minimap_payload[node_a]["selected"])
+        self.assertTrue(minimap_payload[node_b]["selected"])
+
+        workspace_bounds = self.scene.workspace_scene_bounds_payload
+        node_a_bounds = self.scene.node_bounds(node_a)
+        node_b_bounds = self.scene.node_bounds(node_b)
+        self.assertIsNotNone(node_a_bounds)
+        self.assertIsNotNone(node_b_bounds)
+        expected_workspace_bounds = node_a_bounds.united(node_b_bounds)
+        self.assertLessEqual(workspace_bounds["x"], expected_workspace_bounds.x())
+        self.assertLessEqual(workspace_bounds["y"], expected_workspace_bounds.y())
+        self.assertGreaterEqual(workspace_bounds["x"] + workspace_bounds["width"], expected_workspace_bounds.x() + expected_workspace_bounds.width())
+        self.assertGreaterEqual(
+            workspace_bounds["y"] + workspace_bounds["height"],
+            expected_workspace_bounds.y() + expected_workspace_bounds.height(),
+        )
+        self.assertGreaterEqual(workspace_bounds["width"], 3200.0)
+        self.assertGreaterEqual(workspace_bounds["height"], 1800.0)
+
 
 class RuntimeGraphHistoryTrackBTests(unittest.TestCase):
     def test_history_is_isolated_per_workspace_and_clears_redo_on_new_commit(self) -> None:
@@ -248,6 +282,25 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
         self.assertAlmostEqual(view.zoom, 1.5, places=6)
         self.assertAlmostEqual(view.center_x, 11.0, places=6)
         self.assertAlmostEqual(view.center_y, -9.0, places=6)
+
+    def test_visible_scene_rect_payload_and_center_helper(self) -> None:
+        view = ViewportBridge()
+        view.set_viewport_size(800.0, 600.0)
+        view.set_zoom(2.0)
+        view.centerOn(100.0, -50.0)
+
+        payload = view.visible_scene_rect_payload
+        self.assertAlmostEqual(payload["x"], -100.0, places=6)
+        self.assertAlmostEqual(payload["y"], -200.0, places=6)
+        self.assertAlmostEqual(payload["width"], 400.0, places=6)
+        self.assertAlmostEqual(payload["height"], 300.0, places=6)
+
+        payload_from_slot = view.visible_scene_rect_map()
+        self.assertEqual(payload_from_slot, payload)
+
+        view.center_on_scene_point(240.0, 120.0)
+        self.assertAlmostEqual(view.center_x, 240.0, places=6)
+        self.assertAlmostEqual(view.center_y, 120.0, places=6)
 
 
 if __name__ == "__main__":

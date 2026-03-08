@@ -10,6 +10,7 @@ FRAME_PADDING_PX = 80.0
 class ViewportBridge(QObject):
     zoom_changed = pyqtSignal(float)
     center_changed = pyqtSignal(float, float)
+    view_state_changed = pyqtSignal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -34,6 +35,10 @@ class ViewportBridge(QObject):
     def center_y(self) -> float:
         return self._center_y
 
+    @pyqtProperty("QVariantMap", notify=view_state_changed)
+    def visible_scene_rect_payload(self) -> dict[str, float]:
+        return self._rect_payload(self.visible_scene_rect())
+
     def _clamp_zoom(self, zoom: float) -> float:
         return max(MIN_ZOOM, min(float(zoom), MAX_ZOOM))
 
@@ -43,6 +48,7 @@ class ViewportBridge(QObject):
             return
         self._zoom = clamped
         self.zoom_changed.emit(self._zoom)
+        self.view_state_changed.emit()
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
@@ -64,6 +70,7 @@ class ViewportBridge(QObject):
         self._center_x = cx
         self._center_y = cy
         self.center_changed.emit(self._center_x, self._center_y)
+        self.view_state_changed.emit()
 
     @pyqtSlot(float, float)
     def pan_by(self, delta_x: float, delta_y: float) -> None:
@@ -88,6 +95,23 @@ class ViewportBridge(QObject):
             scene_width,
             scene_height,
         )
+
+    def _rect_payload(self, rect: QRectF) -> dict[str, float]:
+        normalized = QRectF(rect).normalized()
+        return {
+            "x": float(normalized.x()),
+            "y": float(normalized.y()),
+            "width": float(max(0.0, normalized.width())),
+            "height": float(max(0.0, normalized.height())),
+        }
+
+    @pyqtSlot(result="QVariantMap")
+    def visible_scene_rect_map(self) -> dict[str, float]:
+        return self._rect_payload(self.visible_scene_rect())
+
+    @pyqtSlot(float, float)
+    def center_on_scene_point(self, x: float, y: float) -> None:
+        self.centerOn(float(x), float(y))
 
     def fit_zoom_for_scene_rect(self, scene_rect: QRectF, padding_px: float = FRAME_PADDING_PX) -> float:
         normalized = QRectF(scene_rect).normalized()
@@ -123,6 +147,7 @@ class ViewportBridge(QObject):
         if self._viewport_rect.width() == w and self._viewport_rect.height() == h:
             return
         self._viewport_rect = QRect(0, 0, w, h)
+        self.view_state_changed.emit()
 
 
 __all__ = ["ViewportBridge"]
