@@ -9,9 +9,7 @@ from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QMainWindow
 
-from ea_node_editor.custom_workflows import CUSTOM_WORKFLOW_LIBRARY_CATEGORY
 from ea_node_editor.execution.client import ProcessExecutionClient
-from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
@@ -38,6 +36,19 @@ from ea_node_editor.ui.shell.controllers import (
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
+from ea_node_editor.ui.shell.window_library_inspector import (
+    build_combined_library_items,
+    build_filtered_library_items,
+    build_grouped_library_items,
+    build_library_category_options,
+    build_library_data_type_options,
+    build_library_direction_options,
+    build_pin_data_type_options,
+    build_registry_library_items,
+    build_selected_node_port_items,
+    build_selected_node_property_items,
+    library_item_matches_filters,
+)
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
@@ -297,40 +308,13 @@ class ShellWindow(QMainWindow):
         return f"EA Node Editor - {filename}"
 
     def _registry_library_items(self) -> list[dict[str, Any]]:
-        return [
-            {
-                "type_id": spec.type_id,
-                "display_name": spec.display_name,
-                "category": spec.category,
-                "icon": spec.icon,
-                "description": spec.description,
-                "library_source": "node_registry",
-                "ports": [
-                    {
-                        "key": port.key,
-                        "label": port.key,
-                        "direction": port.direction,
-                        "kind": port.kind,
-                        "data_type": port.data_type,
-                        "exposed": bool(port.exposed),
-                    }
-                    for port in spec.ports
-                ],
-            }
-            for spec in self.registry.all_specs()
-        ]
+        return build_registry_library_items(registry_specs=self.registry.all_specs())
 
     def _combined_library_items(self) -> list[dict[str, Any]]:
-        items = self._registry_library_items()
-        items.extend(self.workspace_library_controller.custom_workflow_library_items())
-        items.sort(
-            key=lambda item: (
-                str(item.get("category", "")).lower(),
-                str(item.get("display_name", "")).lower(),
-                str(item.get("type_id", "")).lower(),
-            )
+        return build_combined_library_items(
+            registry_items=self._registry_library_items(),
+            custom_workflow_items=self.workspace_library_controller.custom_workflow_library_items(),
         )
-        return items
 
     @staticmethod
     def _library_item_matches_filters(
@@ -341,151 +325,54 @@ class ShellWindow(QMainWindow):
         data_type: str,
         direction: str,
     ) -> bool:
-        item_category = str(item.get("category", "")).strip().lower()
-        if category and item_category != category:
-            return False
-
-        ports = item.get("ports", [])
-        normalized_ports = ports if isinstance(ports, list) else []
-
-        if data_type or direction:
-            matches_port = False
-            for port in normalized_ports:
-                if not isinstance(port, dict):
-                    continue
-                port_direction = str(port.get("direction", "")).strip().lower()
-                port_data_type = str(port.get("data_type", "")).strip().lower()
-                if direction and port_direction != direction:
-                    continue
-                if data_type and port_data_type != data_type:
-                    continue
-                matches_port = True
-                break
-            if not matches_port:
-                return False
-
-        if not query:
-            return True
-        text_haystack = " ".join(
-            [
-                str(item.get("type_id", "")),
-                str(item.get("display_name", "")),
-                str(item.get("category", "")),
-                str(item.get("description", "")),
-                " ".join(str(port.get("key", "")) for port in normalized_ports if isinstance(port, dict)),
-            ]
-        ).lower()
-        return query in text_haystack
+        return library_item_matches_filters(
+            item,
+            query=query,
+            category=category,
+            data_type=data_type,
+            direction=direction,
+        )
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def filtered_node_library_items(self) -> list[dict[str, Any]]:
-        normalized_query = str(self._library_query).strip().lower()
-        normalized_category = str(self._library_category).strip().lower()
-        normalized_data_type = str(self._library_data_type).strip().lower()
-        normalized_direction = str(self._library_direction).strip().lower()
-        return [
-            item
-            for item in self._combined_library_items()
-            if self._library_item_matches_filters(
-                item,
-                query=normalized_query,
-                category=normalized_category,
-                data_type=normalized_data_type,
-                direction=normalized_direction,
-            )
-        ]
+        return build_filtered_library_items(
+            combined_items=self._combined_library_items(),
+            query=self._library_query,
+            category=self._library_category,
+            data_type=self._library_data_type,
+            direction=self._library_direction,
+        )
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def grouped_node_library_items(self) -> list[dict[str, Any]]:
-        groups: dict[str, list[dict[str, Any]]] = {}
-        for item in self.filtered_node_library_items:
-            category = str(item.get("category", "Other"))
-            groups.setdefault(category, []).append(item)
-        payload: list[dict[str, Any]] = []
-        for category in sorted(groups):
-            payload.append({"kind": "category", "category": category, "label": category})
-            for node_item in groups[category]:
-                payload.append(
-                    {
-                        "kind": "node",
-                        "category": category,
-                        "type_id": node_item["type_id"],
-                        "display_name": node_item["display_name"],
-                        "icon": node_item.get("icon", ""),
-                        "description": node_item["description"],
-                        "ports": list(node_item.get("ports", [])),
-                        "library_source": node_item.get("library_source", "node_registry"),
-                        "workflow_id": node_item.get("workflow_id", ""),
-                        "revision": node_item.get("revision", 1),
-                    }
-                )
-        return payload
+        return build_grouped_library_items(filtered_items=self.filtered_node_library_items)
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_category_options(self) -> list[dict[str, str]]:
-        categories = {
-            str(item.get("category", "")).strip()
-            for item in self._combined_library_items()
-            if str(item.get("category", "")).strip()
-        }
-        categories.update(self.registry.categories())
-        categories.add(CUSTOM_WORKFLOW_LIBRARY_CATEGORY)
-        return [{"label": "All Categories", "value": ""}] + [
-            {"label": category, "value": category} for category in sorted(categories)
-        ]
+        return build_library_category_options(
+            combined_items=self._combined_library_items(),
+            registry_categories=self.registry.categories(),
+        )
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_direction_options(self) -> list[dict[str, str]]:
-        return [
-            {"label": "Any Port Direction", "value": ""},
-            {"label": "Input", "value": "in"},
-            {"label": "Output", "value": "out"},
-        ]
+        return build_library_direction_options()
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_data_type_options(self) -> list[dict[str, str]]:
-        data_types = {
-            str(port.data_type).strip().lower()
-            for spec in self.registry.all_specs()
-            for port in spec.ports
-            if str(port.data_type).strip()
-        }
-        for item in self.workspace_library_controller.custom_workflow_library_items():
-            ports = item.get("ports", [])
-            if not isinstance(ports, list):
-                continue
-            for port in ports:
-                if not isinstance(port, dict):
-                    continue
-                data_type = str(port.get("data_type", "")).strip().lower()
-                if data_type:
-                    data_types.add(data_type)
-        return [{"label": "Any Data Type", "value": ""}] + [
-            {"label": data_type, "value": data_type} for data_type in sorted(data_types)
-        ]
+        return build_library_data_type_options(
+            registry_specs=self.registry.all_specs(),
+            custom_workflow_items=self.workspace_library_controller.custom_workflow_library_items(),
+        )
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def pin_data_type_options(self) -> list[str]:
-        suggested = {"any", "str", "int", "float", "bool", "json", "path"}
-        suggested.update(
-            str(port.data_type).strip().lower()
-            for spec in self.registry.all_specs()
-            for port in spec.ports
-            if str(port.data_type).strip()
+        return build_pin_data_type_options(
+            registry_specs=self.registry.all_specs(),
+            workspaces=self.model.project.workspaces.values(),
+            subnode_pin_type_ids=self._SUBNODE_PIN_TYPE_IDS,
+            subnode_pin_data_type_property=SUBNODE_PIN_DATA_TYPE_PROPERTY,
         )
-        for workspace in self.model.project.workspaces.values():
-            for node in workspace.nodes.values():
-                if node.type_id not in self._SUBNODE_PIN_TYPE_IDS:
-                    continue
-                value = str(node.properties.get(SUBNODE_PIN_DATA_TYPE_PROPERTY, "")).strip().lower()
-                if value:
-                    suggested.add(value)
-        ordered: list[str] = []
-        if "any" in suggested:
-            ordered.append("any")
-            suggested.remove("any")
-        ordered.extend(sorted(suggested))
-        return ordered
 
     @pyqtProperty(bool, notify=graph_search_changed)
     def graph_search_open(self) -> bool:
@@ -617,21 +504,11 @@ class ShellWindow(QMainWindow):
         if selected is None:
             return []
         node, spec = selected
-        if node.type_id in self._SUBNODE_PIN_TYPE_IDS:
-            ordered_keys = ("label", "kind", "data_type")
-            ordered_properties = [prop for key in ordered_keys for prop in spec.properties if prop.key == key]
-        else:
-            ordered_properties = list(spec.properties)
-        return [
-            {
-                "key": prop.key,
-                "label": prop.label,
-                "type": prop.type,
-                "value": node.properties.get(prop.key, prop.default),
-                "enum_values": list(prop.enum_values),
-            }
-            for prop in ordered_properties
-        ]
+        return build_selected_node_property_items(
+            node=node,
+            spec=spec,
+            subnode_pin_type_ids=self._SUBNODE_PIN_TYPE_IDS,
+        )
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_port_items(self) -> list[dict[str, Any]]:
@@ -644,18 +521,11 @@ class ShellWindow(QMainWindow):
         workspace = self.model.project.workspaces.get(self.active_workspace_id)
         if workspace is None:
             return []
-        return [
-            {
-                "key": port.key,
-                "label": port.label,
-                "direction": port.direction,
-                "kind": port.kind,
-                "data_type": port.data_type,
-                "required": bool(port.required),
-                "exposed": bool(port.exposed),
-            }
-            for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace.nodes)
-        ]
+        return build_selected_node_port_items(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+        )
 
     def _set_graph_search_state(
         self,
