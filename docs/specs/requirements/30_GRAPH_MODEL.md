@@ -9,6 +9,8 @@
 - `REQ-GRAPH-004`: Model shall support add/remove/move node operations.
 - `REQ-GRAPH-005`: Model shall support add/remove edge operations.
 - `REQ-GRAPH-006`: Model shall support workspace and view lifecycle operations.
+- `REQ-GRAPH-010`: Graph model and scene operations shall support hierarchical node parenting with scope-aware navigation and transforms for nested subnodes.
+- `REQ-GRAPH-011`: Graph operations (duplicate, clipboard, search/focus, and layout-sensitive rewiring) shall preserve valid parent chains and boundary-edge semantics across nested scopes.
 
 ## Rendering
 - `REQ-GRAPH-007`: Custom graphics items shall represent nodes and edges.
@@ -20,3 +22,5 @@
 - `AC-REQ-GRAPH-005-01`: Edge creation appears in scene and serialized graph.
 - `AC-REQ-GRAPH-008-01`: Collapsing a node updates geometry and edge paths.
 - `AC-REQ-GRAPH-009-01`: Zooming out simplifies labels/details while preserving connection semantics and interaction performance.
+- `AC-REQ-GRAPH-010-01`: Group/ungroup and scope navigation retain valid hierarchy relationships and scoped editing behavior after save/load.
+- `AC-REQ-GRAPH-011-01`: Hierarchy-aware duplicate/copy/paste/search/focus flows preserve rewired boundary edges and avoid cross-scope corruption.

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
+from ea_node_editor.custom_workflows import export_custom_workflow_file, import_custom_workflow_file
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.graph_interactions import GraphActionResult
@@ -532,6 +536,127 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
         self.assertEqual(definition["name"], "Scoped Shell")
         self.assertEqual(definition["revision"], 2)
         self.assertEqual(definition["ports"][0]["label"], "Payload B")
+
+    def test_export_custom_workflow_writes_eawf_payload(self) -> None:
+        host = _PublishHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        definitions = [
+            {
+                "workflow_id": "wf_export",
+                "name": "Workflow Export",
+                "description": "Export test",
+                "revision": 3,
+                "ports": [
+                    {
+                        "key": "exec_out",
+                        "label": "Exec Out",
+                        "direction": "out",
+                        "kind": "exec",
+                        "data_type": "any",
+                    }
+                ],
+                "fragment": {
+                    "kind": "ea-node-editor/graph-fragment",
+                    "version": 1,
+                    "nodes": [],
+                    "edges": [],
+                },
+            }
+        ]
+        host.model.project.metadata["custom_workflows"] = definitions
+        controller._prompt_custom_workflow_export_definition = lambda items: items[0]  # type: ignore[method-assign]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            target_path = Path(temp_dir) / "workflow_export"
+            with (
+                patch(
+                    "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+                    return_value=(str(target_path), "Custom Workflow (*.eawf)"),
+                ),
+                patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
+                patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
+            ):
+                controller.export_custom_workflow()
+
+            saved_path = target_path.with_suffix(".eawf")
+            self.assertTrue(saved_path.exists())
+            imported = import_custom_workflow_file(saved_path)
+
+        self.assertEqual(imported["workflow_id"], "wf_export")
+        self.assertEqual(imported["name"], "Workflow Export")
+        self.assertEqual(imported["revision"], 3)
+        self.assertEqual(imported["ports"][0]["label"], "Exec Out")
+        self.assertEqual(info_mock.call_count, 1)
+        self.assertEqual(warning_mock.call_count, 0)
+
+    def test_custom_workflow_export_label_hides_internal_workflow_id(self) -> None:
+        label = WorkspaceLibraryController._custom_workflow_export_label(
+            {
+                "workflow_id": "wf_export",
+                "name": "Workflow Export",
+                "revision": 3,
+            }
+        )
+        self.assertEqual(label, "Workflow Export (rev 3)")
+        self.assertNotIn("wf_export", label)
+
+    def test_import_custom_workflow_replaces_existing_definition_and_emits_signals(self) -> None:
+        host = _PublishHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        host.model.project.metadata["custom_workflows"] = [
+            {
+                "workflow_id": "wf_sync",
+                "name": "Old Name",
+                "description": "old",
+                "revision": 1,
+                "ports": [
+                    {
+                        "key": "exec_out",
+                        "label": "Old",
+                        "direction": "out",
+                        "kind": "exec",
+                        "data_type": "any",
+                    }
+                ],
+                "fragment": {"kind": "ea-node-editor/graph-fragment", "version": 1, "nodes": [], "edges": []},
+            }
+        ]
+        imported_definition = {
+            "workflow_id": "wf_sync",
+            "name": "Imported Name",
+            "description": "new",
+            "revision": 7,
+            "ports": [
+                {
+                    "key": "payload",
+                    "label": "Payload",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "json",
+                }
+            ],
+            "fragment": {"kind": "ea-node-editor/graph-fragment", "version": 1, "nodes": [], "edges": []},
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            import_path = export_custom_workflow_file(imported_definition, Path(temp_dir) / "import_target")
+            with (
+                patch(
+                    "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
+                    return_value=(str(import_path), "Custom Workflow (*.eawf)"),
+                ),
+                patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
+                patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
+            ):
+                controller.import_custom_workflow()
+
+        definitions = host.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(len(definitions), 1)
+        self.assertEqual(definitions[0], imported_definition)
+        self.assertEqual(host.project_meta_changed.calls, 1)
+        self.assertEqual(host.node_library_changed.calls, 1)
+        self.assertEqual(info_mock.call_count, 1)
+        self.assertEqual(warning_mock.call_count, 0)
 
 
 if __name__ == "__main__":

@@ -20,6 +20,7 @@
 - `REQ-NODE-012`: Side-effect and ordered-action nodes shall execute only through an exec/event trigger path and may expose failure paths.
 - `REQ-NODE-013`: The SDK and docs shall provide explicit author guidance for selecting pure/action/flow/event/hybrid patterns.
 - `REQ-NODE-014`: Built-in node catalog shall preserve representative coverage of pure, action/hybrid, and flow/event-oriented nodes.
+- `REQ-NODE-015`: Execution preparation shall compile nested subnode shells/pins into a flat runtime graph while preserving node IDs used for diagnostics and UI focus.
 
 ## Authoring Guidance
 - Use data-only ports when evaluation is deterministic and externally invisible.
@@ -34,3 +35,4 @@
 - `AC-REQ-NODE-012-01`: Process/action execution tests verify exec-triggered behavior, completion, and failure/cancel handling.
 - `AC-REQ-NODE-013-01`: SDK docs expose plugin author contract and examples for node definition.
 - `AC-REQ-NODE-014-01`: Bootstrap registry includes built-in node families that exercise pure, hybrid/action, and flow/event usage.
+- `AC-REQ-NODE-015-01`: Nested subnode workflows execute through the existing worker engine, and runtime failures map back to authored node IDs for scope-aware focus.

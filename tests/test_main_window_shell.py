@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from ea_node_editor.app import APP_STYLESHEET
+from ea_node_editor.custom_workflows import import_custom_workflow_file
 from ea_node_editor.ui.shell.window import ShellWindow
 
 
@@ -927,6 +929,100 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertEqual(_output_pin_label(second_shell_id), "Exec A")
         self.assertNotEqual(first_shell_id, source_shell_id)
         self.assertNotEqual(second_shell_id, source_shell_id)
+
+    def test_qml_custom_workflow_export_import_round_trip_preserves_snapshot_fidelity(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Exportable Scope",
+            output_label="Exec Export",
+        )
+        self.window.scene.focus_node(source_shell_id)
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        definitions = self.window.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(len(definitions), 1)
+        original_definition = copy.deepcopy(definitions[0])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            export_target = Path(temp_dir) / "exported_custom_workflow"
+            self.window.workspace_library_controller._prompt_custom_workflow_export_definition = (  # type: ignore[method-assign]
+                lambda definitions: definitions[0]
+            )
+            with (
+                patch(
+                    "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+                    return_value=(str(export_target), "Custom Workflow (*.eawf)"),
+                ),
+                patch("PyQt6.QtWidgets.QMessageBox.information"),
+                patch("PyQt6.QtWidgets.QMessageBox.warning"),
+            ):
+                self.window._export_custom_workflow()
+            self.app.processEvents()
+
+            export_path = export_target.with_suffix(".eawf")
+            self.assertTrue(export_path.exists())
+            self.assertEqual(import_custom_workflow_file(export_path), original_definition)
+
+            self.window.model.project.metadata["custom_workflows"] = []
+            self.window.project_meta_changed.emit()
+            self.window.node_library_changed.emit()
+            self.app.processEvents()
+            self.assertFalse(
+                [
+                    item
+                    for item in self.window.filtered_node_library_items
+                    if item.get("category") == "Custom Workflows"
+                ]
+            )
+
+            with (
+                patch(
+                    "PyQt6.QtWidgets.QFileDialog.getOpenFileName",
+                    return_value=(str(export_path), "Custom Workflow (*.eawf)"),
+                ),
+                patch("PyQt6.QtWidgets.QMessageBox.information"),
+                patch("PyQt6.QtWidgets.QMessageBox.warning"),
+            ):
+                self.window._import_custom_workflow()
+            self.app.processEvents()
+
+        imported_definitions = self.window.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(imported_definitions, [original_definition])
+
+        custom_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows"
+        )
+        existing_ids = set(workspace.nodes)
+        self.assertTrue(
+            self.window.request_drop_node_from_library(
+                custom_item["type_id"],
+                780.0,
+                260.0,
+                "",
+                "",
+                "",
+                "",
+            )
+        )
+        self.app.processEvents()
+
+        inserted_ids = set(workspace.nodes).difference(existing_ids)
+        inserted_shell_id = next(
+            node_id
+            for node_id in sorted(inserted_ids)
+            if workspace.nodes[node_id].type_id == "core.subnode"
+            and workspace.nodes[node_id].parent_node_id not in inserted_ids
+        )
+        inserted_output = next(
+            node
+            for node in workspace.nodes.values()
+            if node.parent_node_id == inserted_shell_id and node.type_id == "core.subnode_output"
+        )
+        self.assertEqual(str(inserted_output.properties.get("label", "")), "Exec Export")
 
     def test_qml_install_project_emits_library_refresh_for_restored_custom_workflows(self) -> None:
         source_shell_id, _source_pin_id = self._create_publishable_subnode(
