@@ -84,6 +84,9 @@ class ProjectSessionController:
         self._host.workspace_manager = WorkspaceManager(self._host.model)
         self._host.runtime_history.clear_all()
         self._host.project_path = project_path
+        self._host.library_pane_reset_requested.emit()
+        # Refresh library-bound QML models immediately after project swap.
+        self._host.node_library_changed.emit()
 
     def save_project(self) -> None:
         from PyQt6.QtWidgets import QFileDialog

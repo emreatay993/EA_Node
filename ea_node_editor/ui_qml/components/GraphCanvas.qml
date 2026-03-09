@@ -1,4 +1,4 @@
-﻿import QtQuick 2.15
+import QtQuick 2.15
 import "graph" as GraphComponents
 
 Item {
@@ -1090,7 +1090,7 @@ Item {
         if (!nodeId)
             return;
         root.forceActiveFocus();
-        var menuHeight = _nodeCanEnterScope(nodeId) ? 108 : 72;
+        var menuHeight = _nodeCanEnterScope(nodeId) ? 144 : 72;
         var position = _clampMenuPosition(x, y, 170, menuHeight);
         _closeContextMenus();
         root.nodeContextNodeId = nodeId;
@@ -1880,7 +1880,7 @@ Item {
         width: 170
         property bool canEnterScope: root._nodeCanEnterScope(root.nodeContextNodeId)
         property int rowHeight: 36
-        property int rowCount: canEnterScope ? 3 : 2
+        property int rowCount: canEnterScope ? 4 : 2
         height: rowHeight * rowCount
         radius: 4
         color: "#2B2F37"
@@ -1920,8 +1920,41 @@ Item {
         }
 
         Rectangle {
+            visible: nodeContextPopup.canEnterScope
             x: 0
-            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight : 0
+            y: nodeContextPopup.rowHeight
+            width: parent.width
+            height: nodeContextPopup.rowHeight
+            color: addToWorkflowsMouse.containsMouse ? "#39404C" : "transparent"
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: 10
+                text: "Add to Workflows"
+                color: "#D8DEEA"
+                font.pixelSize: 12
+            }
+
+            MouseArea {
+                id: addToWorkflowsMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                preventStealing: true
+                acceptedButtons: Qt.LeftButton
+                onPressed: {
+                    if (!mainWindowBridge || !root.nodeContextNodeId)
+                        return;
+                    mainWindowBridge.request_publish_custom_workflow_from_node(root.nodeContextNodeId);
+                    root._closeContextMenus();
+                    mouse.accepted = true;
+                }
+            }
+        }
+
+        Rectangle {
+            x: 0
+            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 2 : 0
             width: parent.width
             height: nodeContextPopup.rowHeight
             color: renameNodeMouse.containsMouse ? "#39404C" : "transparent"
@@ -1953,7 +1986,7 @@ Item {
 
         Rectangle {
             x: 0
-            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 2 : nodeContextPopup.rowHeight
+            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 3 : nodeContextPopup.rowHeight
             width: parent.width
             height: nodeContextPopup.rowHeight
             color: removeNodeMouse.containsMouse ? "#39404C" : "transparent"

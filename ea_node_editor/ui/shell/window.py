@@ -10,6 +10,7 @@ from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QMainWindow
 
+from ea_node_editor.custom_workflows import CUSTOM_WORKFLOW_LIBRARY_CATEGORY
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel, ProjectData
@@ -17,6 +18,7 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
+    SUBNODE_TYPE_ID,
 )
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -64,6 +66,7 @@ _configure_qtquick_backend()
 class ShellWindow(QMainWindow):
     execution_event = pyqtSignal(dict)
     node_library_changed = pyqtSignal()
+    library_pane_reset_requested = pyqtSignal(name="libraryPaneResetRequested")
     workspace_state_changed = pyqtSignal()
     selected_node_changed = pyqtSignal()
     project_meta_changed = pyqtSignal()
@@ -546,14 +549,7 @@ class ShellWindow(QMainWindow):
         filename = Path(self.project_path).name if self.project_path else "untitled.sfe"
         return f"EA Node Editor - {filename}"
 
-    @pyqtProperty("QVariantList", notify=node_library_changed)
-    def filtered_node_library_items(self) -> list[dict[str, Any]]:
-        specs = self.registry.filter_nodes(
-            query=self._library_query,
-            category=self._library_category,
-            data_type=self._library_data_type,
-            direction=self._library_direction,
-        )
+    def _registry_library_items(self) -> list[dict[str, Any]]:
         return [
             {
                 "type_id": spec.type_id,
@@ -561,9 +557,11 @@ class ShellWindow(QMainWindow):
                 "category": spec.category,
                 "icon": spec.icon,
                 "description": spec.description,
+                "library_source": "node_registry",
                 "ports": [
                     {
                         "key": port.key,
+                        "label": port.key,
                         "direction": port.direction,
                         "kind": port.kind,
                         "data_type": port.data_type,
@@ -572,7 +570,82 @@ class ShellWindow(QMainWindow):
                     for port in spec.ports
                 ],
             }
-            for spec in specs
+            for spec in self.registry.all_specs()
+        ]
+
+    def _combined_library_items(self) -> list[dict[str, Any]]:
+        items = self._registry_library_items()
+        items.extend(self.workspace_library_controller.custom_workflow_library_items())
+        items.sort(
+            key=lambda item: (
+                str(item.get("category", "")).lower(),
+                str(item.get("display_name", "")).lower(),
+                str(item.get("type_id", "")).lower(),
+            )
+        )
+        return items
+
+    @staticmethod
+    def _library_item_matches_filters(
+        item: dict[str, Any],
+        *,
+        query: str,
+        category: str,
+        data_type: str,
+        direction: str,
+    ) -> bool:
+        item_category = str(item.get("category", "")).strip().lower()
+        if category and item_category != category:
+            return False
+
+        ports = item.get("ports", [])
+        normalized_ports = ports if isinstance(ports, list) else []
+
+        if data_type or direction:
+            matches_port = False
+            for port in normalized_ports:
+                if not isinstance(port, dict):
+                    continue
+                port_direction = str(port.get("direction", "")).strip().lower()
+                port_data_type = str(port.get("data_type", "")).strip().lower()
+                if direction and port_direction != direction:
+                    continue
+                if data_type and port_data_type != data_type:
+                    continue
+                matches_port = True
+                break
+            if not matches_port:
+                return False
+
+        if not query:
+            return True
+        text_haystack = " ".join(
+            [
+                str(item.get("type_id", "")),
+                str(item.get("display_name", "")),
+                str(item.get("category", "")),
+                str(item.get("description", "")),
+                " ".join(str(port.get("key", "")) for port in normalized_ports if isinstance(port, dict)),
+            ]
+        ).lower()
+        return query in text_haystack
+
+    @pyqtProperty("QVariantList", notify=node_library_changed)
+    def filtered_node_library_items(self) -> list[dict[str, Any]]:
+        normalized_query = str(self._library_query).strip().lower()
+        normalized_category = str(self._library_category).strip().lower()
+        normalized_data_type = str(self._library_data_type).strip().lower()
+        normalized_direction = str(self._library_direction).strip().lower()
+        return [
+            item
+            for item in self._combined_library_items()
+            if self._library_item_matches_filters(
+                item,
+                query=normalized_query,
+                category=normalized_category,
+                data_type=normalized_data_type,
+                direction=normalized_direction,
+            )
         ]
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
@@ -594,14 +667,24 @@ class ShellWindow(QMainWindow):
                         "icon": node_item.get("icon", ""),
                         "description": node_item["description"],
                         "ports": list(node_item.get("ports", [])),
+                        "library_source": node_item.get("library_source", "node_registry"),
+                        "workflow_id": node_item.get("workflow_id", ""),
+                        "revision": node_item.get("revision", 1),
                     }
                 )
         return payload
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_category_options(self) -> list[dict[str, str]]:
+        categories = {
+            str(item.get("category", "")).strip()
+            for item in self._combined_library_items()
+            if str(item.get("category", "")).strip()
+        }
+        categories.update(self.registry.categories())
+        categories.add(CUSTOM_WORKFLOW_LIBRARY_CATEGORY)
         return [{"label": "All Categories", "value": ""}] + [
-            {"label": category, "value": category} for category in self.registry.categories()
+            {"label": category, "value": category} for category in sorted(categories)
         ]
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
@@ -614,9 +697,24 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_data_type_options(self) -> list[dict[str, str]]:
-        data_types = sorted({port.data_type for spec in self.registry.all_specs() for port in spec.ports})
+        data_types = {
+            str(port.data_type).strip().lower()
+            for spec in self.registry.all_specs()
+            for port in spec.ports
+            if str(port.data_type).strip()
+        }
+        for item in self.workspace_library_controller.custom_workflow_library_items():
+            ports = item.get("ports", [])
+            if not isinstance(ports, list):
+                continue
+            for port in ports:
+                if not isinstance(port, dict):
+                    continue
+                data_type = str(port.get("data_type", "")).strip().lower()
+                if data_type:
+                    data_types.add(data_type)
         return [{"label": "Any Data Type", "value": ""}] + [
-            {"label": data_type, "value": data_type} for data_type in data_types
+            {"label": data_type, "value": data_type} for data_type in sorted(data_types)
         ]
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
@@ -753,6 +851,18 @@ class ShellWindow(QMainWindow):
             return False
         node, _spec = selected
         return node.type_id in self._SUBNODE_PIN_TYPE_IDS
+
+    @pyqtProperty(bool, notify=selected_node_changed)
+    def selected_node_is_subnode_shell(self) -> bool:
+        selected = self._selected_node_context()
+        if selected is None:
+            return False
+        node, _spec = selected
+        return node.type_id == SUBNODE_TYPE_ID
+
+    @pyqtProperty(bool, notify=workspace_state_changed)
+    def can_publish_custom_workflow_from_scope(self) -> bool:
+        return bool(self.scene.active_scope_path)
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_property_items(self) -> list[dict[str, Any]]:
@@ -1024,6 +1134,21 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(str)
     def request_add_node_from_library(self, type_id: str) -> None:
         self._add_node_from_library(type_id)
+
+    @pyqtSlot(result=bool)
+    def request_publish_custom_workflow_from_selected(self) -> bool:
+        result = self.workspace_library_controller.publish_custom_workflow_from_selected_subnode()
+        return bool(result.payload)
+
+    @pyqtSlot(result=bool)
+    def request_publish_custom_workflow_from_scope(self) -> bool:
+        result = self.workspace_library_controller.publish_custom_workflow_from_current_scope()
+        return bool(result.payload)
+
+    @pyqtSlot(str, result=bool)
+    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
+        result = self.workspace_library_controller.publish_custom_workflow_from_node(node_id)
+        return bool(result.payload)
 
     @pyqtSlot(str, float, float, str, str, str, str, result=bool)
     def request_drop_node_from_library(

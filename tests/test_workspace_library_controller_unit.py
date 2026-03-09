@@ -4,6 +4,7 @@ from contextlib import nullcontext
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.graph_interactions import GraphActionResult
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
 from ea_node_editor.ui.shell.controllers.workspace_library_controller import WorkspaceLibraryController
@@ -180,6 +181,28 @@ class _PinPropertyHostStub:
         self.scene = _PinPropertySceneStub()
         self.script_editor = _ScriptEditorStub()
         self.selected_node_changed = _SignalStub()
+
+
+class _PublishSceneStub:
+    def __init__(self) -> None:
+        self._selected_node_id = ""
+        self.active_scope_path: list[str] = []
+
+    def selected_node_id(self) -> str:
+        return self._selected_node_id
+
+
+class _PublishHostStub:
+    def __init__(self) -> None:
+        self._graph_interactions = _GraphInteractionsStub()
+        self.model = GraphModel()
+        self.registry = build_default_registry()
+        workspace_id = self.model.active_workspace.workspace_id
+        self.workspace_manager = _WorkspaceManagerStub(workspace_id)
+        self.active_workspace_id = workspace_id
+        self.scene = _PublishSceneStub()
+        self.node_library_changed = _SignalStub()
+        self.project_meta_changed = _SignalStub()
 
 
 class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
@@ -419,6 +442,96 @@ class WorkspaceLibraryControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.scene.property_calls, [(logger_node.node_id, "message", "hello")])
         self.assertEqual(host.scene.refreshed_workspaces, [])
+
+    def test_publish_custom_workflow_from_selected_subnode_persists_snapshot(self) -> None:
+        host = _PublishHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        workspace_id = host.workspace_manager.active_workspace_id()
+
+        shell = host.model.add_node(
+            workspace_id,
+            type_id="core.subnode",
+            title="Reusable Shell",
+            x=120.0,
+            y=80.0,
+            properties=host.registry.default_properties("core.subnode"),
+            exposed_ports={},
+        )
+        pin = host.model.add_node(
+            workspace_id,
+            type_id="core.subnode_output",
+            title="Subnode Output",
+            x=260.0,
+            y=120.0,
+            properties=host.registry.default_properties("core.subnode_output"),
+            exposed_ports={"pin": True},
+        )
+        pin.parent_node_id = shell.node_id
+        pin.properties["label"] = "Exec Out"
+        pin.properties["kind"] = "exec"
+        pin.properties["data_type"] = "any"
+        shell.exposed_ports[pin.node_id] = True
+        host.scene._selected_node_id = shell.node_id
+
+        published = controller.publish_custom_workflow_from_selected_subnode()
+
+        self.assertTrue(published.ok)
+        self.assertTrue(published.payload)
+        definitions = host.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(len(definitions), 1)
+        definition = definitions[0]
+        self.assertEqual(definition["name"], "Reusable Shell")
+        self.assertEqual(definition["revision"], 1)
+        self.assertEqual(definition["ports"][0]["direction"], "out")
+        self.assertEqual(definition["ports"][0]["kind"], "exec")
+        self.assertEqual(definition["fragment"]["kind"], "ea-node-editor/graph-fragment")
+        self.assertEqual(host.project_meta_changed.calls, 1)
+        self.assertEqual(host.node_library_changed.calls, 1)
+        library_items = controller.custom_workflow_library_items()
+        self.assertEqual(len(library_items), 1)
+        self.assertTrue(str(library_items[0]["type_id"]).startswith("custom_workflow:"))
+
+    def test_publish_custom_workflow_from_current_scope_updates_revision(self) -> None:
+        host = _PublishHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        workspace_id = host.workspace_manager.active_workspace_id()
+
+        shell = host.model.add_node(
+            workspace_id,
+            type_id="core.subnode",
+            title="Scoped Shell",
+            x=80.0,
+            y=40.0,
+            properties=host.registry.default_properties("core.subnode"),
+            exposed_ports={},
+        )
+        pin = host.model.add_node(
+            workspace_id,
+            type_id="core.subnode_input",
+            title="Subnode Input",
+            x=30.0,
+            y=100.0,
+            properties=host.registry.default_properties("core.subnode_input"),
+            exposed_ports={"pin": True},
+        )
+        pin.parent_node_id = shell.node_id
+        pin.properties["label"] = "Payload A"
+        shell.exposed_ports[pin.node_id] = True
+        host.scene.active_scope_path = [shell.node_id]
+
+        first_publish = controller.publish_custom_workflow_from_current_scope()
+        self.assertTrue(first_publish.ok)
+
+        pin.properties["label"] = "Payload B"
+        second_publish = controller.publish_custom_workflow_from_current_scope()
+        self.assertTrue(second_publish.ok)
+
+        definitions = host.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(len(definitions), 1)
+        definition = definitions[0]
+        self.assertEqual(definition["name"], "Scoped Shell")
+        self.assertEqual(definition["revision"], 2)
+        self.assertEqual(definition["ports"][0]["label"], "Payload B")
 
 
 if __name__ == "__main__":

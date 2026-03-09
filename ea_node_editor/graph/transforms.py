@@ -3,7 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Sequence
 
-from ea_node_editor.graph.effective_ports import find_port, is_subnode_pin_type
+from ea_node_editor.graph.effective_ports import (
+    effective_ports as resolve_effective_ports,
+    find_port,
+    is_subnode_pin_type,
+)
 from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id, subtree_node_ids
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import (
@@ -21,6 +25,7 @@ from ea_node_editor.nodes.registry import NodeRegistry
 _PIN_OFFSET_X = 220.0
 _PIN_ROW_STEP = 70.0
 _FLOW_KINDS = frozenset({"exec", "completed", "failed"})
+_FRAGMENT_EXTERNAL_PARENT_PREFIX = "__ea_external_parent__:"
 
 
 @dataclass(slots=True, frozen=True)
@@ -44,6 +49,13 @@ class _BoundaryEdge:
     label: str
     kind: str
     data_type: str
+
+
+def encode_fragment_external_parent_id(parent_node_id: object) -> str | None:
+    normalized_parent_id = str(parent_node_id).strip()
+    if not normalized_parent_id:
+        return None
+    return f"{_FRAGMENT_EXTERNAL_PARENT_PREFIX}{normalized_parent_id}"
 
 
 def expand_subtree_fragment_node_ids(
@@ -135,6 +147,53 @@ def build_subtree_fragment_payload_data(
     }
 
 
+def build_subnode_custom_workflow_snapshot_data(
+    *,
+    workspace: WorkspaceData,
+    registry: NodeRegistry,
+    shell_node_id: object,
+) -> dict[str, Any] | None:
+    normalized_shell_node_id = str(shell_node_id).strip()
+    if not normalized_shell_node_id:
+        return None
+    shell_node = workspace.nodes.get(normalized_shell_node_id)
+    if shell_node is None or shell_node.type_id != SUBNODE_TYPE_ID:
+        return None
+    try:
+        shell_spec = registry.get_spec(shell_node.type_id)
+    except KeyError:
+        return None
+
+    fragment_payload = build_subtree_fragment_payload_data(
+        workspace=workspace,
+        selected_node_ids=[normalized_shell_node_id],
+    )
+    if fragment_payload is None:
+        return None
+
+    ports_payload: list[dict[str, Any]] = []
+    for port in resolve_effective_ports(
+        node=shell_node,
+        spec=shell_spec,
+        workspace_nodes=workspace.nodes,
+    ):
+        ports_payload.append(
+            {
+                "key": port.key,
+                "label": port.label,
+                "direction": port.direction,
+                "kind": port.kind,
+                "data_type": port.data_type,
+                "exposed": bool(port.exposed),
+            }
+        )
+
+    return {
+        "ports": ports_payload,
+        "fragment": fragment_payload,
+    }
+
+
 def insert_graph_fragment(
     *,
     model: GraphModel,
@@ -207,6 +266,18 @@ def insert_graph_fragment(
         target_node_id = node_id_map.get(target_ref_id)
         if not source_node_id or not target_node_id:
             continue
+        source_port_key = _remap_fragment_edge_port_key(
+            workspace=workspace,
+            node_id_map=node_id_map,
+            endpoint_node_id=source_node_id,
+            port_key=source_port_key,
+        )
+        target_port_key = _remap_fragment_edge_port_key(
+            workspace=workspace,
+            node_id_map=node_id_map,
+            endpoint_node_id=target_node_id,
+            port_key=target_port_key,
+        )
         try:
             model.add_edge(
                 workspace.workspace_id,
@@ -231,11 +302,39 @@ def _remap_fragment_parent_id(
     normalized_parent_id = str(source_parent_id).strip()
     if not normalized_parent_id:
         return None
+    external_parent_id = _decode_fragment_external_parent_id(normalized_parent_id)
+    if external_parent_id is not None:
+        if external_parent_id in workspace.nodes:
+            return external_parent_id
+        return None
     if normalized_parent_id in node_id_map:
         return node_id_map[normalized_parent_id]
     if normalized_parent_id in workspace.nodes:
         return normalized_parent_id
     return None
+
+
+def _decode_fragment_external_parent_id(encoded_parent_id: str) -> str | None:
+    if not encoded_parent_id.startswith(_FRAGMENT_EXTERNAL_PARENT_PREFIX):
+        return None
+    normalized_parent_id = encoded_parent_id[len(_FRAGMENT_EXTERNAL_PARENT_PREFIX) :].strip()
+    return normalized_parent_id or None
+
+
+def _remap_fragment_edge_port_key(
+    *,
+    workspace: WorkspaceData,
+    node_id_map: dict[str, str],
+    endpoint_node_id: str,
+    port_key: str,
+) -> str:
+    endpoint_node = workspace.nodes.get(endpoint_node_id)
+    if endpoint_node is None:
+        return port_key
+    # Subnode shell edge port keys are child pin node ids; remap those ids with the fragment map.
+    if endpoint_node.type_id != SUBNODE_TYPE_ID:
+        return port_key
+    return node_id_map.get(port_key, port_key)
 
 
 def group_selection_into_subnode(
@@ -701,7 +800,9 @@ def _edge_sort_key(edge: EdgeInstance) -> tuple[str, str, str, str, str]:
 __all__ = [
     "GroupSubnodeResult",
     "UngroupSubnodeResult",
+    "build_subnode_custom_workflow_snapshot_data",
     "build_subtree_fragment_payload_data",
+    "encode_fragment_external_parent_id",
     "expand_subtree_fragment_node_ids",
     "group_selection_into_subnode",
     "insert_graph_fragment",
