@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from ea_node_editor.custom_workflows import export_custom_workflow_file, import_custom_workflow_file
 from ea_node_editor.graph.transforms import group_selection_into_subnode
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -157,6 +158,50 @@ class SerializerTests(unittest.TestCase):
                 }
             ],
         )
+
+    def test_custom_workflow_eawf_round_trip_preserves_snapshot_fidelity(self) -> None:
+        definition = {
+            "workflow_id": "wf_roundtrip",
+            "name": "Roundtrip Workflow",
+            "description": "portable snapshot",
+            "revision": 5,
+            "ports": [
+                {
+                    "key": "exec_in",
+                    "label": "Exec In",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "any",
+                },
+                {
+                    "key": "payload",
+                    "label": "Payload",
+                    "direction": "out",
+                    "kind": "data",
+                    "data_type": "json",
+                },
+            ],
+            "fragment": {
+                "kind": "ea-node-editor/graph-fragment",
+                "version": 1,
+                "nodes": [],
+                "edges": [],
+            },
+            "source_shell_ref_id": "node_shell",
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "workflow_export"
+            saved_path = export_custom_workflow_file(definition, path)
+            self.assertEqual(saved_path.suffix, ".eawf")
+
+            payload = json.loads(saved_path.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("kind"), "ea-node-editor/custom-workflow")
+            self.assertEqual(payload.get("version"), 1)
+
+            imported = import_custom_workflow_file(saved_path)
+
+        self.assertEqual(imported, definition)
 
     def test_round_trip_preserves_grouped_subnode_parenting_and_boundary_edges(self) -> None:
         registry = build_default_registry()

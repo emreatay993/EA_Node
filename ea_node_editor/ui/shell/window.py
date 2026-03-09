@@ -409,6 +409,12 @@ class ShellWindow(QMainWindow):
         self.action_export_node_package = QAction("Export Node Package...", self)
         self.action_export_node_package.triggered.connect(self._export_node_package)
 
+        self.action_import_custom_workflow = QAction("Import Custom Workflow...", self)
+        self.action_import_custom_workflow.triggered.connect(self._import_custom_workflow)
+
+        self.action_export_custom_workflow = QAction("Export Custom Workflow...", self)
+        self.action_export_custom_workflow.triggered.connect(self._export_custom_workflow)
+
         for action in (
             self.action_new_project,
             self.action_new_workspace,
@@ -447,6 +453,8 @@ class ShellWindow(QMainWindow):
             self.action_close_workspace,
             self.action_next_workspace,
             self.action_prev_workspace,
+            self.action_import_custom_workflow,
+            self.action_export_custom_workflow,
             self.action_import_node_package,
             self.action_export_node_package,
         ):
@@ -461,6 +469,9 @@ class ShellWindow(QMainWindow):
         file_menu.addAction(self.action_new_project)
         file_menu.addAction(self.action_open_project)
         file_menu.addAction(self.action_save_project)
+        file_menu.addSeparator()
+        file_menu.addAction(self.action_import_custom_workflow)
+        file_menu.addAction(self.action_export_custom_workflow)
         file_menu.addSeparator()
         file_menu.addAction(self.action_import_node_package)
         file_menu.addAction(self.action_export_node_package)
@@ -1408,6 +1419,8 @@ class ShellWindow(QMainWindow):
         "_selected_node_context": ("workspace_library_controller", "selected_node_context"),
         "_focus_failed_node": ("workspace_library_controller", "focus_failed_node"),
         "_reveal_parent_chain": ("workspace_library_controller", "reveal_parent_chain"),
+        "_import_custom_workflow": ("workspace_library_controller", "import_custom_workflow"),
+        "_export_custom_workflow": ("workspace_library_controller", "export_custom_workflow"),
         "_import_node_package": ("workspace_library_controller", "import_node_package"),
         "_export_node_package": ("workspace_library_controller", "export_node_package"),
         "_run_workflow": ("run_controller", "run_workflow"),
