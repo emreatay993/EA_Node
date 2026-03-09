@@ -49,6 +49,7 @@ from ea_node_editor.ui.shell.window_library_inspector import (
     build_selected_node_property_items,
     library_item_matches_filters,
 )
+from ea_node_editor.ui.shell import window_search_scope_state
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
@@ -535,80 +536,28 @@ class ShellWindow(QMainWindow):
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
     ) -> None:
-        changed = False
-        if open_ is not None:
-            normalized_open = bool(open_)
-            if normalized_open != self._graph_search_open:
-                self._graph_search_open = normalized_open
-                changed = True
-        if query is not None:
-            normalized_query = str(query)
-            if normalized_query != self._graph_search_query:
-                self._graph_search_query = normalized_query
-                changed = True
-        if results is not None:
-            normalized_results = list(results)
-            if normalized_results != self._graph_search_results:
-                self._graph_search_results = normalized_results
-                changed = True
-        if highlight_index is not None:
-            normalized_index = int(highlight_index)
-            if normalized_index != self._graph_search_highlight_index:
-                self._graph_search_highlight_index = normalized_index
-                changed = True
-        if changed:
-            self.graph_search_changed.emit()
+        window_search_scope_state.set_graph_search_state(
+            self,
+            open_=open_,
+            query=query,
+            results=results,
+            highlight_index=highlight_index,
+        )
 
     def _refresh_graph_search_results(self, query: str) -> None:
-        normalized_query = str(query).strip()
-        if not normalized_query:
-            self._set_graph_search_state(query="", results=[], highlight_index=-1)
-            return
-        ranked = self._search_graph_nodes(normalized_query, limit=self._GRAPH_SEARCH_LIMIT)
-        highlight = 0 if ranked else -1
-        self._set_graph_search_state(query=normalized_query, results=ranked, highlight_index=highlight)
+        window_search_scope_state.refresh_graph_search_results(self, query)
 
     def _active_scope_camera_key(self, scope_path: tuple[str, ...] | None = None) -> tuple[str, str, tuple[str, ...]] | None:
-        workspace_id = self.workspace_manager.active_workspace_id()
-        workspace = self.model.project.workspaces.get(workspace_id)
-        if workspace is None:
-            return None
-        workspace.ensure_default_view()
-        view_id = workspace.active_view_id
-        if not view_id:
-            return None
-        if scope_path is None:
-            scope_path = tuple(str(value) for value in self.scene.active_scope_path)
-        return workspace_id, view_id, tuple(scope_path)
+        return window_search_scope_state.active_scope_camera_key(self, scope_path)
 
     def _remember_scope_camera(self, scope_path: tuple[str, ...] | None = None) -> None:
-        key = self._active_scope_camera_key(scope_path)
-        if key is None:
-            return
-        center = self.view.mapToScene(self.view.viewport().rect().center())
-        self._runtime_scope_camera[key] = (float(self.view.zoom), float(center.x()), float(center.y()))
+        window_search_scope_state.remember_scope_camera(self, scope_path)
 
     def _restore_scope_camera(self, scope_path: tuple[str, ...] | None = None) -> bool:
-        key = self._active_scope_camera_key(scope_path)
-        if key is None:
-            return False
-        state = self._runtime_scope_camera.get(key)
-        if state is None:
-            return False
-        zoom, pan_x, pan_y = state
-        self.view.set_zoom(max(0.1, min(3.0, float(zoom))))
-        self.view.centerOn(float(pan_x), float(pan_y))
-        return True
+        return bool(window_search_scope_state.restore_scope_camera(self, scope_path))
 
     def _navigate_scope(self, navigate_fn: Callable[[], bool]) -> bool:
-        self._remember_scope_camera()
-        changed = bool(navigate_fn())
-        if not changed:
-            return False
-        if not self._restore_scope_camera():
-            self._frame_all()
-        self.workspace_state_changed.emit()
-        return True
+        return bool(window_search_scope_state.navigate_scope(self, navigate_fn))
 
     def _on_scene_scope_changed(self) -> None:
         self.workspace_state_changed.emit()
@@ -650,40 +599,16 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(bool)
     def set_snap_to_grid_enabled(self, enabled: bool) -> None:
-        normalized = bool(enabled)
-        if self._snap_to_grid_enabled == normalized:
-            if self.action_snap_to_grid.isChecked() != normalized:
-                blocked = self.action_snap_to_grid.blockSignals(True)
-                self.action_snap_to_grid.setChecked(normalized)
-                self.action_snap_to_grid.blockSignals(blocked)
-            return
-        self._snap_to_grid_enabled = normalized
-        if self.action_snap_to_grid.isChecked() != normalized:
-            blocked = self.action_snap_to_grid.blockSignals(True)
-            self.action_snap_to_grid.setChecked(normalized)
-            self.action_snap_to_grid.blockSignals(blocked)
-        self.snap_to_grid_changed.emit()
+        window_search_scope_state.set_snap_to_grid_enabled(self, enabled)
 
     @pyqtSlot(str)
     @pyqtSlot(str, int)
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
-        normalized = str(message).strip()
-        if not normalized:
-            self.clear_graph_hint()
-            return
-        self._graph_hint_message = normalized
-        self.graph_hint_changed.emit()
-        timeout_value = max(250, int(timeout_ms))
-        self.graph_hint_timer.start(timeout_value)
+        window_search_scope_state.show_graph_hint(self, message, timeout_ms)
 
     @pyqtSlot()
     def clear_graph_hint(self) -> None:
-        if self.graph_hint_timer.isActive():
-            self.graph_hint_timer.stop()
-        if not self._graph_hint_message:
-            return
-        self._graph_hint_message = ""
-        self.graph_hint_changed.emit()
+        window_search_scope_state.clear_graph_hint(self)
 
     @pyqtSlot()
     def request_open_graph_search(self) -> None:
@@ -701,52 +626,19 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(int)
     def request_graph_search_move(self, delta: int) -> None:
-        if not self._graph_search_open or not self._graph_search_results:
-            return
-        step = 1 if int(delta) > 0 else -1 if int(delta) < 0 else 0
-        if step == 0:
-            return
-        count = len(self._graph_search_results)
-        current = self._graph_search_highlight_index
-        if current < 0 or current >= count:
-            next_index = 0 if step > 0 else count - 1
-        else:
-            next_index = max(0, min(count - 1, current + step))
-        self._set_graph_search_state(highlight_index=next_index)
+        window_search_scope_state.request_graph_search_move(self, delta)
 
     @pyqtSlot(int)
     def request_graph_search_highlight(self, index: int) -> None:
-        if not self._graph_search_open:
-            return
-        normalized = int(index)
-        if normalized < 0 or normalized >= len(self._graph_search_results):
-            return
-        self._set_graph_search_state(highlight_index=normalized)
+        window_search_scope_state.request_graph_search_highlight(self, index)
 
     @pyqtSlot(result=bool)
     def request_graph_search_accept(self) -> bool:
-        if not self._graph_search_open:
-            return False
-        if not self._graph_search_query.strip():
-            return False
-        if not self._graph_search_results:
-            return False
-        index = self._graph_search_highlight_index
-        if index < 0 or index >= len(self._graph_search_results):
-            index = 0
-        result = self._graph_search_results[index]
-        jumped = self._jump_to_graph_node(result["workspace_id"], result["node_id"])
-        if jumped:
-            self.request_close_graph_search()
-        return bool(jumped)
+        return bool(window_search_scope_state.request_graph_search_accept(self))
 
     @pyqtSlot(int, result=bool)
     def request_graph_search_jump(self, index: int) -> bool:
-        normalized = int(index)
-        if normalized < 0 or normalized >= len(self._graph_search_results):
-            return False
-        self._set_graph_search_state(highlight_index=normalized)
-        return bool(self.request_graph_search_accept())
+        return bool(window_search_scope_state.request_graph_search_jump(self, index))
 
     @pyqtSlot(str)
     def request_add_node_from_library(self, type_id: str) -> None:
