@@ -1,0 +1,16 @@
+# SHELL_MOD Status Ledger
+
+- Updated: `2026-03-09`
+- Environment note: packet set bootstrapped; implementation progress tracked per packet.
+
+| Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
+|---|---|---|---|---|---|---|---|
+| P00 Bootstrap | `codex/shell-mod/p00-bootstrap` | PASS | `n/a` | create `docs/specs/work_packets/shell_mod/*`; add manifest, status ledger, and packet contract/prompt files for `P00` through `P08`; update `docs/specs/INDEX.md`; run `SHELL_MOD_P00_FILE_GATE_PASS` verification command from `SHELL_MOD_P00_bootstrap.md` | PASS (`1/1`): file/index gate returned `SHELL_MOD_P00_FILE_GATE_PASS` | `docs/specs/work_packets/shell_mod/*`, `docs/specs/INDEX.md` | none |
+| P01 Window Delegate Cleanup | `codex/shell-mod/p01-window-delegate-cleanup` | PASS | `n/a` | remove dynamic `_DELEGATED_METHODS` + `__getattr__` from `ea_node_editor/ui/shell/window.py`; add explicit static delegation wrappers for project-session/workspace-library/run controller call surfaces; rerun verification after fixing QAction signal compatibility by using explicit wrapper signatures | PASS (`1/1`): `venv/Scripts/python.exe -m unittest tests.test_main_window_shell tests.test_shell_run_controller tests.test_shell_project_session_controller -v` (`Ran 73 tests in 19.235s`, `OK`) | `ea_node_editor/ui/shell/window.py`, `docs/specs/work_packets/shell_mod/SHELL_MOD_STATUS.md` | none |
+| P02 Window Actions Menus | `codex/shell-mod/p02-window-actions-menus` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
+| P03 Window Library Inspector | `codex/shell-mod/p03-window-library-inspector` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
+| P04 Window Search Scope State | `codex/shell-mod/p04-window-search-scope-state` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
+| P05 Workspace View Nav | `codex/shell-mod/p05-workspace-view-nav` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
+| P06 Workspace Drop Connect | `codex/shell-mod/p06-workspace-drop-connect` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
+| P07 Workspace Edit Ops | `codex/shell-mod/p07-workspace-edit-ops` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
+| P08 Workspace IO Tests | `codex/shell-mod/p08-workspace-io-tests` | PENDING | `n/a` | n/a | n/a | n/a | n/a |
