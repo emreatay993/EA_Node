@@ -1363,92 +1363,255 @@ class ShellWindow(QMainWindow):
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
         self.workspace_library_controller.set_selected_node_collapsed(collapsed)
 
-    _DELEGATED_METHODS: dict[str, tuple[str, str]] = {
-        "_ensure_project_metadata_defaults": ("project_session_controller", "ensure_project_metadata_defaults"),
-        "_workflow_settings_payload": ("project_session_controller", "workflow_settings_payload"),
-        "_persist_script_editor_state": ("project_session_controller", "persist_script_editor_state"),
-        "_restore_script_editor_state": ("project_session_controller", "restore_script_editor_state"),
-        "_switch_workspace_by_offset": ("workspace_library_controller", "switch_workspace_by_offset"),
-        "_refresh_workspace_tabs": ("workspace_library_controller", "refresh_workspace_tabs"),
-        "_switch_workspace": ("workspace_library_controller", "switch_workspace"),
-        "_save_active_view_state": ("workspace_library_controller", "save_active_view_state"),
-        "_restore_active_view_state": ("workspace_library_controller", "restore_active_view_state"),
-        "_visible_scene_rect": ("workspace_library_controller", "visible_scene_rect"),
-        "_current_workspace_scene_bounds": ("workspace_library_controller", "current_workspace_scene_bounds"),
-        "_selection_bounds": ("workspace_library_controller", "selection_bounds"),
-        "_frame_all": ("workspace_library_controller", "frame_all"),
-        "_frame_selection": ("workspace_library_controller", "frame_selection"),
-        "_frame_node": ("workspace_library_controller", "frame_node"),
-        "_center_on_node": ("workspace_library_controller", "center_on_node"),
-        "_center_on_selection": ("workspace_library_controller", "center_on_selection"),
-        "_search_graph_nodes": ("workspace_library_controller", "search_graph_nodes"),
-        "_jump_to_graph_node": ("workspace_library_controller", "jump_to_graph_node"),
-        "_create_view": ("workspace_library_controller", "create_view"),
-        "_switch_view": ("workspace_library_controller", "switch_view"),
-        "_create_workspace": ("workspace_library_controller", "create_workspace"),
-        "_rename_active_workspace": ("workspace_library_controller", "rename_active_workspace"),
-        "_duplicate_active_workspace": ("workspace_library_controller", "duplicate_active_workspace"),
-        "_close_active_workspace": ("workspace_library_controller", "close_active_workspace"),
-        "_on_workspace_tab_changed": ("workspace_library_controller", "on_workspace_tab_changed"),
-        "_on_workspace_tab_close": ("workspace_library_controller", "on_workspace_tab_close"),
-        "_add_node_from_library": ("workspace_library_controller", "add_node_from_library"),
-        "_insert_library_node": ("workspace_library_controller", "insert_library_node"),
-        "_active_workspace": ("workspace_library_controller", "active_workspace"),
-        "_prompt_connection_candidate": ("workspace_library_controller", "prompt_connection_candidate"),
-        "_auto_connect_dropped_node_to_port": ("workspace_library_controller", "auto_connect_dropped_node_to_port"),
-        "_auto_connect_dropped_node_to_edge": ("workspace_library_controller", "auto_connect_dropped_node_to_edge"),
-        "_on_scene_node_selected": ("workspace_library_controller", "on_scene_node_selected"),
-        "_on_node_property_changed": ("workspace_library_controller", "on_node_property_changed"),
-        "_on_port_exposed_changed": ("workspace_library_controller", "on_port_exposed_changed"),
-        "_on_node_collapse_changed": ("workspace_library_controller", "on_node_collapse_changed"),
-        "_connect_selected_nodes": ("workspace_library_controller", "connect_selected_nodes"),
-        "_duplicate_selected_nodes": ("workspace_library_controller", "duplicate_selected_nodes"),
-        "_group_selected_nodes": ("workspace_library_controller", "group_selected_nodes"),
-        "_ungroup_selected_nodes": ("workspace_library_controller", "ungroup_selected_nodes"),
-        "_align_selection_left": ("workspace_library_controller", "align_selection_left"),
-        "_align_selection_right": ("workspace_library_controller", "align_selection_right"),
-        "_align_selection_top": ("workspace_library_controller", "align_selection_top"),
-        "_align_selection_bottom": ("workspace_library_controller", "align_selection_bottom"),
-        "_distribute_selection_horizontally": ("workspace_library_controller", "distribute_selection_horizontally"),
-        "_distribute_selection_vertically": ("workspace_library_controller", "distribute_selection_vertically"),
-        "_copy_selected_nodes_to_clipboard": ("workspace_library_controller", "copy_selected_nodes_to_clipboard"),
-        "_cut_selected_nodes_to_clipboard": ("workspace_library_controller", "cut_selected_nodes_to_clipboard"),
-        "_paste_nodes_from_clipboard": ("workspace_library_controller", "paste_nodes_from_clipboard"),
-        "_undo": ("workspace_library_controller", "undo"),
-        "_redo": ("workspace_library_controller", "redo"),
-        "_selected_node_context": ("workspace_library_controller", "selected_node_context"),
-        "_focus_failed_node": ("workspace_library_controller", "focus_failed_node"),
-        "_reveal_parent_chain": ("workspace_library_controller", "reveal_parent_chain"),
-        "_import_custom_workflow": ("workspace_library_controller", "import_custom_workflow"),
-        "_export_custom_workflow": ("workspace_library_controller", "export_custom_workflow"),
-        "_import_node_package": ("workspace_library_controller", "import_node_package"),
-        "_export_node_package": ("workspace_library_controller", "export_node_package"),
-        "_run_workflow": ("run_controller", "run_workflow"),
-        "_toggle_pause_resume": ("run_controller", "toggle_pause_resume"),
-        "_pause_workflow": ("run_controller", "pause_workflow"),
-        "_resume_workflow": ("run_controller", "resume_workflow"),
-        "_stop_workflow": ("run_controller", "stop_workflow"),
-        "_handle_execution_event": ("run_controller", "handle_execution_event"),
-        "_clear_active_run": ("run_controller", "clear_active_run"),
-        "_set_run_ui_state": ("run_controller", "set_run_ui_state"),
-        "_update_run_actions": ("run_controller", "update_run_actions"),
-        "_save_project": ("project_session_controller", "save_project"),
-        "_new_project": ("project_session_controller", "new_project"),
-        "_open_project": ("project_session_controller", "open_project"),
-        "_restore_session": ("project_session_controller", "restore_session"),
-        "_discard_autosave_snapshot": ("project_session_controller", "discard_autosave_snapshot"),
-        "_recover_autosave_if_newer": ("project_session_controller", "recover_autosave_if_newer"),
-        "_process_deferred_autosave_recovery": ("project_session_controller", "process_deferred_autosave_recovery"),
-        "_autosave_tick": ("project_session_controller", "autosave_tick"),
-        "_persist_session": ("project_session_controller", "persist_session"),
-    }
+    # Explicit project session controller delegation
+    def _ensure_project_metadata_defaults(self):
+        return self.project_session_controller.ensure_project_metadata_defaults()
 
-    def __getattr__(self, name: str):
-        delegate = self._DELEGATED_METHODS.get(name)
-        if delegate is None:
-            raise AttributeError(name)
-        controller_name, method_name = delegate
-        return getattr(getattr(self, controller_name), method_name)
+    def _workflow_settings_payload(self):
+        return self.project_session_controller.workflow_settings_payload()
+
+    def _persist_script_editor_state(self):
+        return self.project_session_controller.persist_script_editor_state()
+
+    def _restore_script_editor_state(self):
+        return self.project_session_controller.restore_script_editor_state()
+
+    def _save_project(self):
+        return self.project_session_controller.save_project()
+
+    def _new_project(self):
+        return self.project_session_controller.new_project()
+
+    def _open_project(self):
+        return self.project_session_controller.open_project()
+
+    def _restore_session(self):
+        return self.project_session_controller.restore_session()
+
+    def _discard_autosave_snapshot(self):
+        return self.project_session_controller.discard_autosave_snapshot()
+
+    def _recover_autosave_if_newer(self):
+        return self.project_session_controller.recover_autosave_if_newer()
+
+    def _process_deferred_autosave_recovery(self):
+        return self.project_session_controller.process_deferred_autosave_recovery()
+
+    def _autosave_tick(self):
+        return self.project_session_controller.autosave_tick()
+
+    def _persist_session(self, project_doc=None):
+        return self.project_session_controller.persist_session(project_doc)
+
+    # Explicit workspace library controller delegation
+    def _switch_workspace_by_offset(self, offset):
+        return self.workspace_library_controller.switch_workspace_by_offset(offset)
+
+    def _refresh_workspace_tabs(self):
+        return self.workspace_library_controller.refresh_workspace_tabs()
+
+    def _switch_workspace(self, workspace_id):
+        return self.workspace_library_controller.switch_workspace(workspace_id)
+
+    def _save_active_view_state(self):
+        return self.workspace_library_controller.save_active_view_state()
+
+    def _restore_active_view_state(self):
+        return self.workspace_library_controller.restore_active_view_state()
+
+    def _visible_scene_rect(self):
+        return self.workspace_library_controller.visible_scene_rect()
+
+    def _current_workspace_scene_bounds(self):
+        return self.workspace_library_controller.current_workspace_scene_bounds()
+
+    def _selection_bounds(self):
+        return self.workspace_library_controller.selection_bounds()
+
+    def _frame_all(self):
+        return self.workspace_library_controller.frame_all()
+
+    def _frame_selection(self):
+        return self.workspace_library_controller.frame_selection()
+
+    def _frame_node(self, node_id):
+        return self.workspace_library_controller.frame_node(node_id)
+
+    def _center_on_node(self, node_id):
+        return self.workspace_library_controller.center_on_node(node_id)
+
+    def _center_on_selection(self):
+        return self.workspace_library_controller.center_on_selection()
+
+    def _search_graph_nodes(self, query, limit=_GRAPH_SEARCH_LIMIT):
+        return self.workspace_library_controller.search_graph_nodes(query, limit)
+
+    def _jump_to_graph_node(self, workspace_id, node_id):
+        return self.workspace_library_controller.jump_to_graph_node(workspace_id, node_id)
+
+    def _create_view(self):
+        return self.workspace_library_controller.create_view()
+
+    def _switch_view(self, view_id):
+        return self.workspace_library_controller.switch_view(view_id)
+
+    def _create_workspace(self):
+        return self.workspace_library_controller.create_workspace()
+
+    def _rename_active_workspace(self):
+        return self.workspace_library_controller.rename_active_workspace()
+
+    def _duplicate_active_workspace(self):
+        return self.workspace_library_controller.duplicate_active_workspace()
+
+    def _close_active_workspace(self):
+        return self.workspace_library_controller.close_active_workspace()
+
+    def _on_workspace_tab_changed(self, index):
+        return self.workspace_library_controller.on_workspace_tab_changed(index)
+
+    def _on_workspace_tab_close(self, index):
+        return self.workspace_library_controller.on_workspace_tab_close(index)
+
+    def _add_node_from_library(self, type_id):
+        return self.workspace_library_controller.add_node_from_library(type_id)
+
+    def _insert_library_node(self, type_id, x, y):
+        return self.workspace_library_controller.insert_library_node(type_id, x, y)
+
+    def _active_workspace(self):
+        return self.workspace_library_controller.active_workspace()
+
+    def _prompt_connection_candidate(self, *, title, label, candidates):
+        return self.workspace_library_controller.prompt_connection_candidate(
+            title=title,
+            label=label,
+            candidates=candidates,
+        )
+
+    def _auto_connect_dropped_node_to_port(self, new_node_id, target_node_id, target_port_key):
+        return self.workspace_library_controller.auto_connect_dropped_node_to_port(
+            new_node_id,
+            target_node_id,
+            target_port_key,
+        )
+
+    def _auto_connect_dropped_node_to_edge(self, new_node_id, target_edge_id):
+        return self.workspace_library_controller.auto_connect_dropped_node_to_edge(new_node_id, target_edge_id)
+
+    def _on_scene_node_selected(self, node_id):
+        return self.workspace_library_controller.on_scene_node_selected(node_id)
+
+    def _on_node_property_changed(self, node_id, key, value):
+        return self.workspace_library_controller.on_node_property_changed(node_id, key, value)
+
+    def _on_port_exposed_changed(self, node_id, key, exposed):
+        return self.workspace_library_controller.on_port_exposed_changed(node_id, key, exposed)
+
+    def _on_node_collapse_changed(self, node_id, collapsed):
+        return self.workspace_library_controller.on_node_collapse_changed(node_id, collapsed)
+
+    def _connect_selected_nodes(self):
+        return self.workspace_library_controller.connect_selected_nodes()
+
+    def _duplicate_selected_nodes(self):
+        return self.workspace_library_controller.duplicate_selected_nodes()
+
+    def _group_selected_nodes(self):
+        return self.workspace_library_controller.group_selected_nodes()
+
+    def _ungroup_selected_nodes(self):
+        return self.workspace_library_controller.ungroup_selected_nodes()
+
+    def _align_selection_left(self):
+        return self.workspace_library_controller.align_selection_left()
+
+    def _align_selection_right(self):
+        return self.workspace_library_controller.align_selection_right()
+
+    def _align_selection_top(self):
+        return self.workspace_library_controller.align_selection_top()
+
+    def _align_selection_bottom(self):
+        return self.workspace_library_controller.align_selection_bottom()
+
+    def _distribute_selection_horizontally(self):
+        return self.workspace_library_controller.distribute_selection_horizontally()
+
+    def _distribute_selection_vertically(self):
+        return self.workspace_library_controller.distribute_selection_vertically()
+
+    def _copy_selected_nodes_to_clipboard(self):
+        return self.workspace_library_controller.copy_selected_nodes_to_clipboard()
+
+    def _cut_selected_nodes_to_clipboard(self):
+        return self.workspace_library_controller.cut_selected_nodes_to_clipboard()
+
+    def _paste_nodes_from_clipboard(self):
+        return self.workspace_library_controller.paste_nodes_from_clipboard()
+
+    def _undo(self):
+        return self.workspace_library_controller.undo()
+
+    def _redo(self):
+        return self.workspace_library_controller.redo()
+
+    def _selected_node_context(self):
+        return self.workspace_library_controller.selected_node_context()
+
+    def _focus_failed_node(self, workspace_id, node_id, error):
+        return self.workspace_library_controller.focus_failed_node(workspace_id, node_id, error)
+
+    def _reveal_parent_chain(self, workspace_id, node_id):
+        return self.workspace_library_controller.reveal_parent_chain(workspace_id, node_id)
+
+    def _import_custom_workflow(self):
+        return self.workspace_library_controller.import_custom_workflow()
+
+    def _export_custom_workflow(self):
+        return self.workspace_library_controller.export_custom_workflow()
+
+    def _import_node_package(self):
+        return self.workspace_library_controller.import_node_package()
+
+    def _export_node_package(self):
+        return self.workspace_library_controller.export_node_package()
+
+    # Explicit run controller delegation
+    def _run_workflow(self):
+        return self.run_controller.run_workflow()
+
+    def _toggle_pause_resume(self):
+        return self.run_controller.toggle_pause_resume()
+
+    def _pause_workflow(self):
+        return self.run_controller.pause_workflow()
+
+    def _resume_workflow(self):
+        return self.run_controller.resume_workflow()
+
+    def _stop_workflow(self):
+        return self.run_controller.stop_workflow()
+
+    def _handle_execution_event(self, event):
+        return self.run_controller.handle_execution_event(event)
+
+    def _clear_active_run(self):
+        return self.run_controller.clear_active_run()
+
+    def _set_run_ui_state(self, state, details, running, queued, done, failed, *, clear_run=False):
+        return self.run_controller.set_run_ui_state(
+            state,
+            details,
+            running,
+            queued,
+            done,
+            failed,
+            clear_run=clear_run,
+        )
+
+    def _update_run_actions(self):
+        return self.run_controller.update_run_actions()
 
     @pyqtSlot()
     @pyqtSlot(bool)
