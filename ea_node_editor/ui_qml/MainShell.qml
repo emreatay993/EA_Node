@@ -154,11 +154,55 @@ Rectangle {
 
             Rectangle {
                 id: libraryPane
+                objectName: "libraryPane"
                 Layout.preferredWidth: 260
                 Layout.fillHeight: true
                 color: "#24262D"
                 border.color: "#3D4048"
                 property var collapsedCategories: ({})
+                function isCategoryCollapsed(category) {
+                    var normalizedCategory = String(category || "")
+                    if (!normalizedCategory.length)
+                        return true
+                    var value = collapsedCategories[normalizedCategory]
+                    if (value === undefined)
+                        return true
+                    return !!value
+                }
+                function setCategoryCollapsed(category, collapsed) {
+                    var normalizedCategory = String(category || "")
+                    if (!normalizedCategory.length)
+                        return
+                    var nextMap = {}
+                    for (var key in collapsedCategories)
+                        nextMap[key] = collapsedCategories[key]
+                    nextMap[normalizedCategory] = !!collapsed
+                    collapsedCategories = nextMap
+                }
+                function ensureCollapsedDefaults(rows) {
+                    if (!rows || rows.length === undefined)
+                        return
+                    var nextMap = {}
+                    for (var key in collapsedCategories)
+                        nextMap[key] = collapsedCategories[key]
+                    var changed = false
+                    for (var index = 0; index < rows.length; ++index) {
+                        var row = rows[index]
+                        if (!row || row.kind !== "category")
+                            continue
+                        var category = String(row.category || "")
+                        if (!category.length || nextMap[category] !== undefined)
+                            continue
+                        nextMap[category] = true
+                        changed = true
+                    }
+                    if (changed)
+                        collapsedCategories = nextMap
+                }
+                function resetCollapsedState() {
+                    collapsedCategories = ({})
+                    ensureCollapsedDefaults(libraryListView.model)
+                }
 
                 ColumnLayout {
                     anchors.fill: parent
@@ -186,22 +230,28 @@ Rectangle {
                     }
 
                     ListView {
+                        id: libraryListView
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         clip: true
                         model: mainWindow.grouped_node_library_items
-                        spacing: 2
+                        spacing: 0
+                        Component.onCompleted: libraryPane.ensureCollapsedDefaults(model)
+                        onModelChanged: libraryPane.ensureCollapsedDefaults(model)
                         delegate: Rectangle {
                             id: libraryRow
                             property bool isCategory: modelData.kind === "category"
-                            property bool hiddenByCategory: !isCategory && !!libraryPane.collapsedCategories[modelData.category]
+                            property bool hiddenByCategory: !isCategory && libraryPane.isCategoryCollapsed(modelData.category)
                             property var dragPayload: isCategory ? null : {
                                 "type_id": String(modelData.type_id || ""),
                                 "display_name": String(modelData.display_name || ""),
-                                "ports": modelData.ports || []
+                                "ports": modelData.ports || [],
+                                "library_source": String(modelData.library_source || ""),
+                                "workflow_id": String(modelData.workflow_id || ""),
+                                "revision": Number(modelData.revision || 1)
                             }
                             width: ListView.view.width
-                            height: hiddenByCategory ? 0 : (isCategory ? 30 : 26)
+                            height: hiddenByCategory ? 0 : (isCategory ? 32 : 28)
                             color: hiddenByCategory ? "transparent"
                                 : (mouseArea.containsMouse ? "#31343D" : "transparent")
                             radius: 4
@@ -244,7 +294,7 @@ Rectangle {
 
                                 Text {
                                     text: isCategory
-                                        ? ((libraryPane.collapsedCategories[modelData.category] ? "▸ " : "▾ ") + modelData.label)
+                                        ? ((libraryPane.isCategoryCollapsed(modelData.category) ? "▸ " : "▾ ") + modelData.label)
                                         : modelData.display_name
                                     color: isCategory ? "#CFD6E3" : "#D7DDE9"
                                     font.pixelSize: isCategory ? 12 : 11
@@ -308,12 +358,10 @@ Rectangle {
                                         return
                                     }
                                     if (isCategory) {
-                                        var nextState = !libraryPane.collapsedCategories[modelData.category]
-                                        var nextMap = {}
-                                        for (var key in libraryPane.collapsedCategories)
-                                            nextMap[key] = libraryPane.collapsedCategories[key]
-                                        nextMap[modelData.category] = nextState
-                                        libraryPane.collapsedCategories = nextMap
+                                        libraryPane.setCategoryCollapsed(
+                                            modelData.category,
+                                            !libraryPane.isCategoryCollapsed(modelData.category)
+                                        )
                                     } else {
                                         mainWindow.request_add_node_from_library(modelData.type_id)
                                     }
@@ -328,6 +376,13 @@ Rectangle {
                                 }
                             }
                         }
+                    }
+                }
+
+                Connections {
+                    target: mainWindow
+                    function onLibraryPaneResetRequested() {
+                        libraryPane.resetCollapsedState()
                     }
                 }
             }
@@ -424,6 +479,7 @@ Rectangle {
                                         }
                                     }
                                 }
+
                             }
                         }
                     }
@@ -593,6 +649,12 @@ Rectangle {
                         text: mainWindow.selected_node_collapsed ? "Expand Node" : "Collapse Node"
                         enabled: mainWindow.has_selected_node && mainWindow.selected_node_collapsible
                         onClicked: mainWindow.set_selected_node_collapsed(!mainWindow.selected_node_collapsed)
+                    }
+
+                    ToolButton {
+                        text: "Publish Selected Subnode"
+                        enabled: mainWindow.selected_node_is_subnode_shell
+                        onClicked: mainWindow.request_publish_custom_workflow_from_selected()
                     }
 
                     Rectangle {

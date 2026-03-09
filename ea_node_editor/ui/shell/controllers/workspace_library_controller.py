@@ -1,13 +1,30 @@
 from __future__ import annotations
 
+import copy
 from typing import TYPE_CHECKING, Any
 from pathlib import Path
 
 from PyQt6.QtCore import QMimeData, QRectF
 
-from ea_node_editor.graph.effective_ports import is_subnode_pin_type
+from ea_node_editor.custom_workflows import (
+    custom_workflow_library_items,
+    find_custom_workflow_definition,
+    normalize_custom_workflow_metadata,
+    parse_custom_workflow_type_id,
+    upsert_custom_workflow_definition,
+)
+from ea_node_editor.graph.effective_ports import (
+    effective_ports,
+    find_port,
+    is_subnode_pin_type,
+    ports_compatible,
+)
+from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.model import NodeInstance
-from ea_node_editor.graph.rules import find_port, is_port_exposed, ports_compatible
+from ea_node_editor.graph.transforms import (
+    build_subnode_custom_workflow_snapshot_data,
+    encode_fragment_external_parent_id,
+)
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_PIN_KIND_PROPERTY,
@@ -17,6 +34,8 @@ from ea_node_editor.nodes.builtins.subnode import (
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
     GRAPH_FRAGMENT_MIME_TYPE,
+    build_graph_fragment_payload,
+    normalize_graph_fragment_payload,
     parse_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
@@ -38,6 +57,7 @@ _PIN_REFRESH_PROPERTIES = {
     SUBNODE_PIN_KIND_PROPERTY,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
 }
+_CUSTOM_WORKFLOW_DESCRIPTION = "Project-local custom workflow snapshot."
 
 
 class WorkspaceLibraryController:
@@ -45,6 +65,95 @@ class WorkspaceLibraryController:
         self._host = host
         self._last_clipboard_fragment_signature = ""
         self._clipboard_paste_count = 0
+
+    def _project_metadata(self) -> dict[str, Any]:
+        metadata = self._host.model.project.metadata
+        if isinstance(metadata, dict):
+            return metadata
+        self._host.model.project.metadata = {}
+        return self._host.model.project.metadata
+
+    def _custom_workflow_definitions(self) -> list[dict[str, Any]]:
+        metadata = self._project_metadata()
+        normalized = normalize_custom_workflow_metadata(metadata.get("custom_workflows"))
+        if metadata.get("custom_workflows") != normalized:
+            metadata["custom_workflows"] = normalized
+            self._host.model.project.metadata = metadata
+        return normalized
+
+    def _set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None:
+        metadata = self._project_metadata()
+        metadata["custom_workflows"] = normalize_custom_workflow_metadata(definitions)
+        self._host.model.project.metadata = metadata
+
+    def custom_workflow_library_items(self) -> list[dict[str, Any]]:
+        return custom_workflow_library_items(self._custom_workflow_definitions())
+
+    def publish_custom_workflow_from_selected_subnode(self) -> ControllerResult[bool]:
+        selected = self.selected_node_context()
+        if selected is None:
+            return ControllerResult(False, "Select a subnode shell to publish.", payload=False)
+        node, _spec = selected
+        if node.type_id != SUBNODE_TYPE_ID:
+            return ControllerResult(False, "Selected node is not a subnode shell.", payload=False)
+        return self._publish_custom_workflow_from_shell(node.node_id)
+
+    def publish_custom_workflow_from_current_scope(self) -> ControllerResult[bool]:
+        scope_shell_id = scope_parent_id(self._host.scene.active_scope_path)
+        if not scope_shell_id:
+            return ControllerResult(False, "Open a subnode scope to publish.", payload=False)
+        return self._publish_custom_workflow_from_shell(scope_shell_id)
+
+    def publish_custom_workflow_from_node(self, node_id: str) -> ControllerResult[bool]:
+        node_id = str(node_id or "").strip()
+        if not node_id:
+            return ControllerResult(False, "No node ID provided.", payload=False)
+        return self._publish_custom_workflow_from_shell(node_id)
+
+    def _publish_custom_workflow_from_shell(self, shell_node_id: str) -> ControllerResult[bool]:
+        workspace = self.active_workspace()
+        if workspace is None:
+            return ControllerResult(False, "Workspace not found.", payload=False)
+        shell_node = workspace.nodes.get(str(shell_node_id).strip())
+        if shell_node is None or shell_node.type_id != SUBNODE_TYPE_ID:
+            return ControllerResult(False, "Subnode shell not found in workspace.", payload=False)
+
+        snapshot = build_subnode_custom_workflow_snapshot_data(
+            workspace=workspace,
+            registry=self._host.registry,
+            shell_node_id=shell_node.node_id,
+        )
+        if snapshot is None:
+            return ControllerResult(False, "Could not build subnode snapshot.", payload=False)
+
+        fragment = snapshot.get("fragment")
+        if not isinstance(fragment, dict):
+            return ControllerResult(False, "Subnode snapshot fragment is invalid.", payload=False)
+        nodes_payload = fragment.get("nodes")
+        edges_payload = fragment.get("edges")
+        if not isinstance(nodes_payload, list) or not isinstance(edges_payload, list):
+            return ControllerResult(False, "Subnode snapshot fragment is invalid.", payload=False)
+
+        graph_fragment_payload = build_graph_fragment_payload(
+            nodes=copy.deepcopy(nodes_payload),
+            edges=copy.deepcopy(edges_payload),
+        )
+        normalized_fragment = normalize_graph_fragment_payload(graph_fragment_payload)
+        if normalized_fragment is None:
+            return ControllerResult(False, "Subnode snapshot fragment is invalid.", payload=False)
+
+        updated_definitions, _saved_definition = upsert_custom_workflow_definition(
+            self._custom_workflow_definitions(),
+            name=shell_node.title,
+            description=_CUSTOM_WORKFLOW_DESCRIPTION,
+            ports=copy.deepcopy(snapshot.get("ports", [])),
+            fragment=normalized_fragment,
+            source_shell_ref_id=shell_node.node_id,
+        )
+        self._set_custom_workflow_definitions(updated_definitions)
+        self._host.project_meta_changed.emit()
+        self._host.node_library_changed.emit()
+        return ControllerResult(True, payload=True)
 
     def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
         node_id = self._host.scene.selected_node_id()
@@ -374,10 +483,109 @@ class WorkspaceLibraryController:
         normalized_type = str(type_id).strip()
         if not normalized_type:
             return ""
+        custom_workflow_id = parse_custom_workflow_type_id(normalized_type)
+        if custom_workflow_id:
+            return self._insert_custom_workflow_snapshot(custom_workflow_id, float(x), float(y))
         try:
             return self._host.scene.add_node_from_type(normalized_type, x=float(x), y=float(y))
         except (KeyError, RuntimeError, ValueError):
             return ""
+
+    def _insert_custom_workflow_snapshot(self, workflow_id: str, x: float, y: float) -> str:
+        workspace = self.active_workspace()
+        if workspace is None:
+            return ""
+        definition = find_custom_workflow_definition(self._custom_workflow_definitions(), workflow_id)
+        if definition is None:
+            return ""
+        fragment_payload = self._normalize_custom_workflow_fragment_payload(definition.get("fragment"))
+        if fragment_payload is None:
+            return ""
+
+        target_parent_id = scope_parent_id(self._host.scene.active_scope_path)
+        scoped_fragment_payload = self._retarget_fragment_roots(
+            fragment_payload,
+            target_parent_id=target_parent_id,
+        )
+
+        before_node_ids = set(workspace.nodes)
+        if not self._host.scene.paste_subgraph_fragment(scoped_fragment_payload, float(x), float(y)):
+            return ""
+        inserted_node_ids = set(workspace.nodes).difference(before_node_ids)
+        if not inserted_node_ids:
+            return ""
+
+        shell_node_id = self._find_inserted_root_subnode_shell_id(workspace.nodes, inserted_node_ids)
+        if shell_node_id:
+            return shell_node_id
+        selected_node_id = self._host.scene.selected_node_id() or ""
+        if selected_node_id in inserted_node_ids:
+            return selected_node_id
+        return sorted(inserted_node_ids)[0]
+
+    @staticmethod
+    def _normalize_custom_workflow_fragment_payload(fragment_payload: Any) -> dict[str, Any] | None:
+        if not isinstance(fragment_payload, dict):
+            return None
+        normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
+        if normalized_fragment is not None:
+            return normalized_fragment
+        nodes_payload = fragment_payload.get("nodes")
+        edges_payload = fragment_payload.get("edges")
+        if not isinstance(nodes_payload, list) or not isinstance(edges_payload, list):
+            return None
+        return normalize_graph_fragment_payload(
+            build_graph_fragment_payload(
+                nodes=copy.deepcopy(nodes_payload),
+                edges=copy.deepcopy(edges_payload),
+            )
+        )
+
+    @staticmethod
+    def _retarget_fragment_roots(
+        fragment_payload: dict[str, Any],
+        *,
+        target_parent_id: str | None,
+    ) -> dict[str, Any]:
+        rewritten = copy.deepcopy(fragment_payload)
+        nodes_payload = rewritten.get("nodes")
+        if not isinstance(nodes_payload, list):
+            return rewritten
+        fragment_node_ids = {
+            str(node_payload.get("ref_id", "")).strip()
+            for node_payload in nodes_payload
+            if isinstance(node_payload, dict)
+        }
+        for node_payload in nodes_payload:
+            if not isinstance(node_payload, dict):
+                continue
+            normalized_parent = str(node_payload.get("parent_node_id", "")).strip()
+            if normalized_parent and normalized_parent in fragment_node_ids:
+                continue
+            if target_parent_id and target_parent_id in fragment_node_ids:
+                node_payload["parent_node_id"] = encode_fragment_external_parent_id(target_parent_id)
+            else:
+                node_payload["parent_node_id"] = target_parent_id
+        return rewritten
+
+    @staticmethod
+    def _find_inserted_root_subnode_shell_id(
+        workspace_nodes: dict[str, NodeInstance],
+        inserted_node_ids: set[str],
+    ) -> str:
+        shell_candidates: list[NodeInstance] = []
+        for node_id in inserted_node_ids:
+            node = workspace_nodes.get(node_id)
+            if node is None or node.type_id != SUBNODE_TYPE_ID:
+                continue
+            parent_id = str(node.parent_node_id).strip() if node.parent_node_id is not None else ""
+            if parent_id and parent_id in inserted_node_ids:
+                continue
+            shell_candidates.append(node)
+        if not shell_candidates:
+            return ""
+        shell_candidates.sort(key=lambda node: (float(node.y), float(node.x), node.node_id))
+        return shell_candidates[0].node_id
 
     def active_workspace(self):
         workspace_id = self._host.workspace_manager.active_workspace_id()
@@ -414,16 +622,30 @@ class WorkspaceLibraryController:
 
         new_spec = self._host.registry.get_spec(new_node.type_id)
         target_spec = self._host.registry.get_spec(target_node.type_id)
-        target_port = find_port(target_spec, str(target_port_key).strip())
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(target_port_key).strip(),
+        )
         if target_port is None:
             return False
 
+        new_ports = [
+            port
+            for port in effective_ports(
+                node=new_node,
+                spec=new_spec,
+                workspace_nodes=workspace.nodes,
+            )
+            if port.exposed
+        ]
         candidates: list[dict[str, Any]] = []
         if target_port.direction == "in":
             if not input_port_is_available(workspace, target_node.node_id, target_port.key):
                 return False
-            for port in new_spec.ports:
-                if port.direction != "out" or not is_port_exposed(new_node, new_spec, port.key):
+            for port in new_ports:
+                if port.direction != "out":
                     continue
                 if not ports_compatible(port, target_port):
                     continue
@@ -433,12 +655,15 @@ class WorkspaceLibraryController:
                         "source_port_key": port.key,
                         "target_node_id": target_node.node_id,
                         "target_port_key": target_port.key,
-                        "label": f"{new_spec.display_name}.{port.key} -> {target_spec.display_name}.{target_port.key}",
+                        "label": (
+                            f"{new_spec.display_name}.{port.label or port.key} -> "
+                            f"{target_spec.display_name}.{target_port.label or target_port.key}"
+                        ),
                     }
                 )
         elif target_port.direction == "out":
-            for port in new_spec.ports:
-                if port.direction != "in" or not is_port_exposed(new_node, new_spec, port.key):
+            for port in new_ports:
+                if port.direction != "in":
                     continue
                 if not ports_compatible(target_port, port):
                     continue
@@ -448,7 +673,10 @@ class WorkspaceLibraryController:
                         "source_port_key": target_port.key,
                         "target_node_id": new_node.node_id,
                         "target_port_key": port.key,
-                        "label": f"{target_spec.display_name}.{target_port.key} -> {new_spec.display_name}.{port.key}",
+                        "label": (
+                            f"{target_spec.display_name}.{target_port.label or target_port.key} -> "
+                            f"{new_spec.display_name}.{port.label or port.key}"
+                        ),
                     }
                 )
         else:
@@ -490,23 +718,40 @@ class WorkspaceLibraryController:
         source_spec = self._host.registry.get_spec(source_node.type_id)
         target_spec = self._host.registry.get_spec(target_node.type_id)
         new_spec = self._host.registry.get_spec(new_node.type_id)
-        source_port = find_port(source_spec, str(edge.source_port_key).strip())
-        target_port = find_port(target_spec, str(edge.target_port_key).strip())
+        source_port = find_port(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(edge.source_port_key).strip(),
+        )
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=str(edge.target_port_key).strip(),
+        )
         if source_port is None or target_port is None:
             return False
 
+        new_ports = [
+            port
+            for port in effective_ports(
+                node=new_node,
+                spec=new_spec,
+                workspace_nodes=workspace.nodes,
+            )
+            if port.exposed
+        ]
         candidate_inputs = [
             port
-            for port in new_spec.ports
+            for port in new_ports
             if port.direction == "in"
-            and is_port_exposed(new_node, new_spec, port.key)
             and ports_compatible(source_port, port)
         ]
         candidate_outputs = [
             port
-            for port in new_spec.ports
+            for port in new_ports
             if port.direction == "out"
-            and is_port_exposed(new_node, new_spec, port.key)
             and ports_compatible(port, target_port)
         ]
 
@@ -518,8 +763,10 @@ class WorkspaceLibraryController:
                         "new_input_port": input_port.key,
                         "new_output_port": output_port.key,
                         "label": (
-                            f"{source_spec.display_name}.{source_port.key} -> {new_spec.display_name}.{input_port.key}, "
-                            f"{new_spec.display_name}.{output_port.key} -> {target_spec.display_name}.{target_port.key}"
+                            f"{source_spec.display_name}.{source_port.label or source_port.key} -> "
+                            f"{new_spec.display_name}.{input_port.label or input_port.key}, "
+                            f"{new_spec.display_name}.{output_port.label or output_port.key} -> "
+                            f"{target_spec.display_name}.{target_port.label or target_port.key}"
                         ),
                     }
                 )

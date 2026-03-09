@@ -91,6 +91,68 @@ class MainWindowShellTests(unittest.TestCase):
         self.assertIsNotNone(graph_canvas)
         return graph_canvas
 
+    def _library_pane_item(self) -> QObject:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        library_pane = root_object.findChild(QObject, "libraryPane")
+        self.assertIsNotNone(library_pane)
+        return library_pane
+
+    def _create_publishable_subnode(self, *, shell_title: str, output_label: str) -> tuple[str, str]:
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+        self.window.scene.set_node_title(shell_id, shell_title)
+        self.assertTrue(self.window.request_open_subnode_scope(shell_id))
+        output_pin_id = self.window.scene.add_node_from_type("core.subnode_output", x=180.0, y=90.0)
+        self.window.scene.set_node_property(output_pin_id, "label", output_label)
+        self.window.scene.set_node_property(output_pin_id, "kind", "exec")
+        self.window.scene.set_node_property(output_pin_id, "data_type", "any")
+        self.assertTrue(self.window.request_navigate_scope_parent())
+        self.window.scene.focus_node(shell_id)
+        self.app.processEvents()
+        return shell_id, output_pin_id
+
+    def _create_nested_outer_inner_subnodes(self) -> tuple[str, str]:
+        outer_id = self.window.scene.add_node_from_type("core.subnode", x=120.0, y=100.0)
+        self.window.scene.set_node_title(outer_id, "Outer")
+        self.assertTrue(self.window.request_open_subnode_scope(outer_id))
+
+        outer_input_id = self.window.scene.add_node_from_type("core.subnode_input", x=20.0, y=80.0)
+        self.window.scene.set_node_property(outer_input_id, "label", "Outer In")
+        self.window.scene.set_node_property(outer_input_id, "kind", "exec")
+        self.window.scene.set_node_property(outer_input_id, "data_type", "any")
+
+        outer_output_id = self.window.scene.add_node_from_type("core.subnode_output", x=420.0, y=80.0)
+        self.window.scene.set_node_property(outer_output_id, "label", "Outer Out")
+        self.window.scene.set_node_property(outer_output_id, "kind", "exec")
+        self.window.scene.set_node_property(outer_output_id, "data_type", "any")
+
+        inner_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=160.0)
+        self.window.scene.set_node_title(inner_id, "Inner")
+
+        self.assertTrue(self.window.request_open_subnode_scope(inner_id))
+        inner_input_id = self.window.scene.add_node_from_type("core.subnode_input", x=20.0, y=80.0)
+        self.window.scene.set_node_property(inner_input_id, "label", "Inner In")
+        self.window.scene.set_node_property(inner_input_id, "kind", "exec")
+        self.window.scene.set_node_property(inner_input_id, "data_type", "any")
+
+        inner_output_id = self.window.scene.add_node_from_type("core.subnode_output", x=420.0, y=80.0)
+        self.window.scene.set_node_property(inner_output_id, "label", "Inner Out")
+        self.window.scene.set_node_property(inner_output_id, "kind", "exec")
+        self.window.scene.set_node_property(inner_output_id, "data_type", "any")
+
+        logger_id = self.window.scene.add_node_from_type("core.logger", x=220.0, y=160.0)
+        self.window.scene.add_edge(inner_input_id, "pin", logger_id, "exec_in")
+        self.window.scene.add_edge(logger_id, "exec_out", inner_output_id, "pin")
+
+        self.assertTrue(self.window.request_navigate_scope_parent())
+        self.window.scene.add_edge(outer_input_id, "pin", inner_id, inner_input_id)
+        self.window.scene.add_edge(inner_id, inner_output_id, outer_output_id, "pin")
+
+        self.assertTrue(self.window.request_navigate_scope_parent())
+        self.window.scene.focus_node(outer_id)
+        self.app.processEvents()
+        return outer_id, inner_id
+
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
         self.assertIs(self.window.centralWidget(), self.window.quick_widget)
@@ -152,6 +214,8 @@ class MainWindowShellTests(unittest.TestCase):
             meta.indexOfMethod("request_drop_node_from_library(QString,double,double,QString,QString,QString,QString)"),
             0,
         )
+        self.assertGreaterEqual(meta.indexOfMethod("request_publish_custom_workflow_from_selected()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_publish_custom_workflow_from_scope()"), 0)
 
         with patch("ea_node_editor.ui.dialogs.workflow_settings_dialog.WorkflowSettingsDialog.exec", return_value=0):
             QMetaObject.invokeMethod(
@@ -775,6 +839,394 @@ class MainWindowShellTests(unittest.TestCase):
         new_node_id = self.window.scene.selected_node_id()
         self.assertTrue(new_node_id)
         self.assertIn(new_node_id, workspace.nodes)
+
+    def test_qml_custom_workflow_publish_appears_in_library_and_places_independent_snapshots(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Reusable Scope",
+            output_label="Exec A",
+        )
+
+        published = self.window.request_publish_custom_workflow_from_selected()
+        self.assertTrue(published)
+        self.app.processEvents()
+
+        self.window.set_library_query("")
+        self.window.set_library_category("Custom Workflows")
+        self.window.set_library_direction("")
+        self.window.set_library_data_type("")
+        self.app.processEvents()
+
+        custom_items = [
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows"
+        ]
+        self.assertEqual(len(custom_items), 1)
+        custom_item = custom_items[0]
+        self.assertTrue(str(custom_item["type_id"]).startswith("custom_workflow:"))
+        self.assertEqual(custom_item["ports"][0]["kind"], "exec")
+
+        def _inserted_root_shell(inserted_ids: set[str]) -> str:
+            for node_id in sorted(inserted_ids):
+                node = workspace.nodes[node_id]
+                if node.type_id != "core.subnode":
+                    continue
+                if node.parent_node_id in inserted_ids:
+                    continue
+                return node_id
+            return ""
+
+        baseline_node_ids = set(workspace.nodes)
+        placed_once = self.window.request_drop_node_from_library(
+            custom_item["type_id"],
+            560.0,
+            180.0,
+            "",
+            "",
+            "",
+            "",
+        )
+        self.assertTrue(placed_once)
+        self.app.processEvents()
+        after_first_ids = set(workspace.nodes)
+        first_inserted_ids = after_first_ids.difference(baseline_node_ids)
+        self.assertTrue(first_inserted_ids)
+        first_shell_id = _inserted_root_shell(first_inserted_ids)
+        self.assertTrue(first_shell_id)
+
+        placed_twice = self.window.request_drop_node_from_library(
+            custom_item["type_id"],
+            820.0,
+            240.0,
+            "",
+            "",
+            "",
+            "",
+        )
+        self.assertTrue(placed_twice)
+        self.app.processEvents()
+        after_second_ids = set(workspace.nodes)
+        second_inserted_ids = after_second_ids.difference(after_first_ids)
+        self.assertTrue(second_inserted_ids)
+        self.assertTrue(first_inserted_ids.isdisjoint(second_inserted_ids))
+        second_shell_id = _inserted_root_shell(second_inserted_ids)
+        self.assertTrue(second_shell_id)
+
+        def _output_pin_label(shell_id: str) -> str:
+            output_pins = [
+                node
+                for node in workspace.nodes.values()
+                if node.parent_node_id == shell_id and node.type_id == "core.subnode_output"
+            ]
+            self.assertEqual(len(output_pins), 1)
+            return str(output_pins[0].properties.get("label", ""))
+
+        self.assertEqual(_output_pin_label(first_shell_id), "Exec A")
+        self.assertEqual(_output_pin_label(second_shell_id), "Exec A")
+        self.assertNotEqual(first_shell_id, source_shell_id)
+        self.assertNotEqual(second_shell_id, source_shell_id)
+
+    def test_qml_install_project_emits_library_refresh_for_restored_custom_workflows(self) -> None:
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Restored Custom Workflow",
+            output_label="Exec A",
+        )
+        self.window.scene.focus_node(source_shell_id)
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        restored_project = self.window.serializer.from_document(
+            self.window.serializer.to_document(self.window.model.project)
+        )
+        library_changed = {"count": 0}
+
+        def _mark_library_changed() -> None:
+            library_changed["count"] += 1
+
+        self.window.node_library_changed.connect(_mark_library_changed)
+        self.window.project_session_controller._install_project(restored_project, project_path="restored.sfe")
+        self.window.workspace_library_controller.refresh_workspace_tabs()
+        self.window.workspace_library_controller.switch_workspace(self.window.workspace_manager.active_workspace_id())
+        self.app.processEvents()
+
+        self.assertGreaterEqual(library_changed["count"], 1)
+
+        custom_category_rows = [
+            row
+            for row in self.window.grouped_node_library_items
+            if row.get("kind") == "category" and row.get("category") == "Custom Workflows"
+        ]
+        self.assertTrue(custom_category_rows)
+
+    def test_qml_library_categories_start_collapsed_on_project_install(self) -> None:
+        library_pane = self._library_pane_item()
+        self.app.processEvents()
+
+        def _collapsed_map() -> dict[str, bool]:
+            raw_value = library_pane.property("collapsedCategories")
+            if hasattr(raw_value, "toVariant"):
+                raw_value = raw_value.toVariant()
+            if not isinstance(raw_value, dict):
+                return {}
+            return {str(key): bool(value) for key, value in raw_value.items()}
+
+        for category in {
+            row["category"] for row in self.window.grouped_node_library_items if row.get("kind") == "category"
+        }:
+            self.assertTrue(_collapsed_map().get(category, False))
+
+        library_pane.setProperty("collapsedCategories", {"Flow Control": False, "Custom Workflows": False})
+        self.app.processEvents()
+
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Collapsed Restore Workflow",
+            output_label="Exec A",
+        )
+        self.window.scene.focus_node(source_shell_id)
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        restored_project = self.window.serializer.from_document(
+            self.window.serializer.to_document(self.window.model.project)
+        )
+        self.window.project_session_controller._install_project(restored_project, project_path="collapsed-reset.sfe")
+        self.window.workspace_library_controller.refresh_workspace_tabs()
+        self.window.workspace_library_controller.switch_workspace(self.window.workspace_manager.active_workspace_id())
+        self.app.processEvents()
+
+        collapsed_categories = _collapsed_map()
+        restored_categories = {
+            row["category"] for row in self.window.grouped_node_library_items if row.get("kind") == "category"
+        }
+        self.assertIn("Custom Workflows", restored_categories)
+        for category in restored_categories:
+            self.assertTrue(bool(collapsed_categories.get(category, False)))
+
+    def test_qml_custom_workflow_update_changes_future_placements_only(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        source_shell_id, source_pin_id = self._create_publishable_subnode(
+            shell_title="Updatable Scope",
+            output_label="Exec A",
+        )
+
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+        custom_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows"
+        )
+
+        target_a = self.window.scene.add_node_from_type("core.end", x=940.0, y=40.0)
+        baseline_node_ids = set(workspace.nodes)
+        placed_first = self.window.request_drop_node_from_library(
+            custom_item["type_id"],
+            520.0,
+            120.0,
+            "port",
+            target_a,
+            "exec_in",
+            "",
+        )
+        self.assertTrue(placed_first)
+        self.app.processEvents()
+        after_first_ids = set(workspace.nodes)
+        first_inserted_ids = after_first_ids.difference(baseline_node_ids)
+        first_shell_id = next(
+            node_id
+            for node_id in sorted(first_inserted_ids)
+            if workspace.nodes[node_id].type_id == "core.subnode" and workspace.nodes[node_id].parent_node_id not in first_inserted_ids
+        )
+
+        self.assertTrue(self.window.request_open_subnode_scope(source_shell_id))
+        self.window.scene.set_node_property(source_pin_id, "label", "Exec B")
+        self.assertTrue(self.window.request_navigate_scope_parent())
+        self.window.scene.focus_node(source_shell_id)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        metadata_definitions = self.window.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(len(metadata_definitions), 1)
+        self.assertEqual(metadata_definitions[0]["revision"], 2)
+
+        target_b = self.window.scene.add_node_from_type("core.end", x=980.0, y=220.0)
+        placed_second = self.window.request_drop_node_from_library(
+            custom_item["type_id"],
+            760.0,
+            260.0,
+            "port",
+            target_b,
+            "exec_in",
+            "",
+        )
+        self.assertTrue(placed_second)
+        self.app.processEvents()
+        after_second_ids = set(workspace.nodes)
+        second_inserted_ids = after_second_ids.difference(after_first_ids)
+        second_shell_id = next(
+            node_id
+            for node_id in sorted(second_inserted_ids)
+            if workspace.nodes[node_id].type_id == "core.subnode" and workspace.nodes[node_id].parent_node_id not in second_inserted_ids
+        )
+
+        def _output_pin_label(shell_id: str) -> str:
+            output_pin = next(
+                node
+                for node in workspace.nodes.values()
+                if node.parent_node_id == shell_id and node.type_id == "core.subnode_output"
+            )
+            return str(output_pin.properties.get("label", ""))
+
+        self.assertEqual(_output_pin_label(first_shell_id), "Exec A")
+        self.assertEqual(_output_pin_label(second_shell_id), "Exec B")
+
+        first_auto_edge_exists = any(
+            edge.source_node_id == first_shell_id
+            and edge.target_node_id == target_a
+            and edge.target_port_key == "exec_in"
+            for edge in workspace.edges.values()
+        )
+        second_auto_edge_exists = any(
+            edge.source_node_id == second_shell_id
+            and edge.target_node_id == target_b
+            and edge.target_port_key == "exec_in"
+            for edge in workspace.edges.values()
+        )
+        self.assertTrue(first_auto_edge_exists)
+        self.assertTrue(second_auto_edge_exists)
+
+    def test_qml_custom_workflow_publish_from_scope_and_reinsert_in_same_scope_preserves_parent_on_reload(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Subnode1",
+            output_label="Exec A",
+        )
+
+        self.assertTrue(self.window.request_open_subnode_scope(source_shell_id))
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_scope_path, [source_shell_id])
+        self.assertTrue(self.window.request_publish_custom_workflow_from_scope())
+        self.app.processEvents()
+
+        custom_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows" and item.get("display_name") == "Subnode1"
+        )
+        existing_ids = set(workspace.nodes)
+        self.assertTrue(
+            self.window.request_drop_node_from_library(
+                custom_item["type_id"],
+                620.0,
+                300.0,
+                "",
+                "",
+                "",
+                "",
+            )
+        )
+        self.app.processEvents()
+
+        inserted_ids = set(workspace.nodes).difference(existing_ids)
+        inserted_shell_id = next(
+            node_id
+            for node_id in sorted(inserted_ids)
+            if workspace.nodes[node_id].type_id == "core.subnode" and node_id != source_shell_id
+        )
+        self.assertEqual(workspace.nodes[inserted_shell_id].parent_node_id, source_shell_id)
+        self.assertNotEqual(workspace.nodes[inserted_shell_id].parent_node_id, inserted_shell_id)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "scope_reinsert_custom_workflow.sfe"
+            self.window.serializer.save(str(path), self.window.model.project)
+            loaded = self.window.serializer.load(str(path))
+
+        loaded_workspace = loaded.workspaces[workspace_id]
+        self.assertIn(inserted_shell_id, loaded_workspace.nodes)
+        self.assertEqual(loaded_workspace.nodes[inserted_shell_id].parent_node_id, source_shell_id)
+
+    def test_qml_nested_custom_workflow_drop_opens_without_crash_and_survives_save_load(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        outer_id, _inner_id = self._create_nested_outer_inner_subnodes()
+
+        self.window.scene.focus_node(outer_id)
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        custom_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows" and item.get("display_name") == "Outer"
+        )
+        existing_ids = set(workspace.nodes)
+        self.assertTrue(
+            self.window.request_drop_node_from_library(
+                custom_item["type_id"],
+                880.0,
+                360.0,
+                "",
+                "",
+                "",
+                "",
+            )
+        )
+        self.app.processEvents()
+
+        inserted_ids = set(workspace.nodes).difference(existing_ids)
+        dropped_outer_id = next(
+            node_id
+            for node_id in sorted(inserted_ids)
+            if workspace.nodes[node_id].type_id == "core.subnode"
+            and workspace.nodes[node_id].parent_node_id not in inserted_ids
+        )
+        self.assertTrue(self.window.request_open_subnode_scope(dropped_outer_id))
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_scope_path, [dropped_outer_id])
+
+        dropped_inner_id = next(
+            node_id
+            for node_id in inserted_ids
+            if workspace.nodes[node_id].type_id == "core.subnode"
+            and workspace.nodes[node_id].parent_node_id == dropped_outer_id
+        )
+        self.assertTrue(self.window.request_open_subnode_scope(dropped_inner_id))
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_scope_path, [dropped_outer_id, dropped_inner_id])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "nested_custom_workflow.sfe"
+            self.window.serializer.save(str(path), self.window.model.project)
+            loaded = self.window.serializer.load(str(path))
+
+        loaded_workspace = loaded.workspaces[workspace_id]
+        self.assertIn(dropped_outer_id, loaded_workspace.nodes)
+        self.assertIn(dropped_inner_id, loaded_workspace.nodes)
+        self.assertEqual(loaded_workspace.nodes[dropped_inner_id].parent_node_id, dropped_outer_id)
+
+        loaded_outer_children = {
+            node.node_id
+            for node in loaded_workspace.nodes.values()
+            if node.parent_node_id == dropped_outer_id
+        }
+        self.assertIn(dropped_inner_id, loaded_outer_children)
+
+        loaded_edge_tuples = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in loaded_workspace.edges.values()
+        }
+        bridging_edges = [
+            edge
+            for edge in loaded_edge_tuples
+            if edge[0] == dropped_inner_id or edge[2] == dropped_inner_id
+        ]
+        self.assertTrue(bridging_edges)
 
     def test_qml_request_remove_edge_mutates_model(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
