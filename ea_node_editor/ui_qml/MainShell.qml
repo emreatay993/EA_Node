@@ -134,76 +134,14 @@ Rectangle {
         anchors.fill: parent
         spacing: 0
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 32
-            color: "#1F2024"
-            border.color: "#383838"
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 8
-                spacing: 8
-
-                Text {
-                    text: "Engineering"
-                    color: "#C7D2E2"
-                    font.pixelSize: 13
-                    font.bold: true
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Text {
-                    text: mainWindow.project_display_name
-                    color: "#9AA1B0"
-                    font.pixelSize: 11
-                }
-            }
+        ShellTitleBar {
+            mainWindowRef: mainWindow
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 38
-            color: "#2B2D33"
-            border.color: "#3A3D44"
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 6
-
-                ShellButton {
-                    text: "Run"
-                    onClicked: mainWindow.request_run_workflow()
-                }
-                ShellButton {
-                    text: "Pause"
-                    onClicked: mainWindow.request_toggle_run_pause()
-                }
-                ShellButton {
-                    text: "Stop"
-                    onClicked: mainWindow.request_stop_workflow()
-                }
-                Item { Layout.fillWidth: true }
-                Text {
-                    text: "Zoom: " + Math.round(viewBridge.zoom_value * 100) + "%"
-                    color: "#BDC4D2"
-                    font.pixelSize: 12
-                }
-                Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
-                ShellButton {
-                    text: "Settings"
-                    onClicked: mainWindow.show_workflow_settings_dialog()
-                }
-                ShellButton {
-                    text: scriptEditorBridge.visible ? "Hide Script" : "Script"
-                    selectedStyle: scriptEditorBridge.visible
-                    onClicked: mainWindow.set_script_editor_panel_visible()
-                }
-            }
+        ShellRunToolbar {
+            mainWindowRef: mainWindow
+            viewBridgeRef: viewBridge
+            scriptEditorBridgeRef: scriptEditorBridge
         }
 
         RowLayout {
@@ -916,24 +854,11 @@ Rectangle {
             }
         }
 
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 24
-            color: "#0D88C9"
-            border.color: "#55B8E7"
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 10
-
-                Text { text: statusEngine.icon_value + " " + statusEngine.text_value; color: "#00131D"; font.pixelSize: 11; font.bold: true }
-                Text { text: statusJobs.icon_value + " " + statusJobs.text_value; color: "#022234"; font.pixelSize: 11 }
-                Text { text: statusMetrics.icon_value + " " + statusMetrics.text_value; color: "#022234"; font.pixelSize: 11 }
-                Item { Layout.fillWidth: true }
-                Text { text: statusNotifications.icon_value + " " + statusNotifications.text_value; color: "#022234"; font.pixelSize: 11 }
-            }
+        ShellStatusStrip {
+            statusEngineRef: statusEngine
+            statusJobsRef: statusJobs
+            statusMetricsRef: statusMetrics
+            statusNotificationsRef: statusNotifications
         }
     }
 
