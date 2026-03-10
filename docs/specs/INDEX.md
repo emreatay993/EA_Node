@@ -28,6 +28,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 20. [Subnode Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/subnode/SUBNODE_STATUS.md)
 21. [SHELL_MOD Work Packet Manifest](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/shell_mod/SHELL_MOD_MANIFEST.md)
 22. [SHELL_MOD Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/shell_mod/SHELL_MOD_STATUS.md)
+23. [QML_SURFACE_MOD Work Packet Manifest](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/qml_surface_mod/QML_SURFACE_MOD_MANIFEST.md)
+24. [QML_SURFACE_MOD Status Ledger](/c:/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/qml_surface_mod/QML_SURFACE_MOD_STATUS.md)
 
 ## ADRs
 
