@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "graph" as GraphComponents
+import "graph_canvas/GraphCanvasLogic.js" as GraphCanvasLogic
 
 Item {
     id: root
@@ -42,26 +43,25 @@ Item {
     }
 
     function screenToSceneX(screenX) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        return (viewBridge ? viewBridge.center_x : 0.0) + (screenX - root.width * 0.5) / Math.max(0.1, zoom);
+        return GraphCanvasLogic.screenToSceneX(
+            screenX,
+            (viewBridge ? viewBridge.center_x : 0.0),
+            root.width,
+            (viewBridge ? viewBridge.zoom_value : 1.0)
+        );
     }
 
     function screenToSceneY(screenY) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        return (viewBridge ? viewBridge.center_y : 0.0) + (screenY - root.height * 0.5) / Math.max(0.1, zoom);
+        return GraphCanvasLogic.screenToSceneY(
+            screenY,
+            (viewBridge ? viewBridge.center_y : 0.0),
+            root.height,
+            (viewBridge ? viewBridge.zoom_value : 1.0)
+        );
     }
 
     function _wheelDeltaY(eventObj) {
-        if (!eventObj)
-            return 0.0;
-        var delta = 0.0;
-        if (eventObj.angleDelta && Number(eventObj.angleDelta.y) !== 0)
-            delta = Number(eventObj.angleDelta.y);
-        else if (eventObj.pixelDelta && Number(eventObj.pixelDelta.y) !== 0)
-            delta = Number(eventObj.pixelDelta.y) * 0.5;
-        if (eventObj.inverted)
-            delta = -delta;
-        return delta;
+        return GraphCanvasLogic.wheelDeltaY(eventObj);
     }
 
     function applyWheelZoom(eventObj) {
@@ -97,13 +97,21 @@ Item {
     }
 
     function sceneToScreenX(sceneX) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        return root.width * 0.5 + (sceneX - (viewBridge ? viewBridge.center_x : 0.0)) * zoom;
+        return GraphCanvasLogic.sceneToScreenX(
+            sceneX,
+            (viewBridge ? viewBridge.center_x : 0.0),
+            root.width,
+            (viewBridge ? viewBridge.zoom_value : 1.0)
+        );
     }
 
     function sceneToScreenY(sceneY) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        return root.height * 0.5 + (sceneY - (viewBridge ? viewBridge.center_y : 0.0)) * zoom;
+        return GraphCanvasLogic.sceneToScreenY(
+            sceneY,
+            (viewBridge ? viewBridge.center_y : 0.0),
+            root.height,
+            (viewBridge ? viewBridge.zoom_value : 1.0)
+        );
     }
 
     function snapToGridEnabled() {
@@ -111,77 +119,33 @@ Item {
     }
 
     function snapGridSize() {
-        var size = Number(mainWindowBridge ? mainWindowBridge.snap_grid_size : 20.0);
-        if (!(size > 0.0))
-            size = 20.0;
-        return size;
+        return GraphCanvasLogic.normalizeSnapGridSize(mainWindowBridge ? mainWindowBridge.snap_grid_size : 20.0);
     }
 
     function snapToGridValue(value) {
-        var size = snapGridSize();
-        return Math.round(Number(value) / size) * size;
+        return GraphCanvasLogic.snapToGridValue(value, root.snapGridSize());
     }
 
     function snappedDragDelta(nodeId, rawDx, rawDy) {
-        var deltaX = Number(rawDx);
-        var deltaY = Number(rawDy);
-        if (!isFinite(deltaX))
-            deltaX = 0.0;
-        if (!isFinite(deltaY))
-            deltaY = 0.0;
-        if (!root.snapToGridEnabled()) {
-            return {"dx": deltaX, "dy": deltaY};
-        }
-        var anchorPayload = root._sceneNodePayload(nodeId);
-        if (!anchorPayload) {
-            return {"dx": deltaX, "dy": deltaY};
-        }
-        var anchorX = Number(anchorPayload.x);
-        var anchorY = Number(anchorPayload.y);
-        if (!isFinite(anchorX))
-            anchorX = 0.0;
-        if (!isFinite(anchorY))
-            anchorY = 0.0;
-        var snappedX = root.snapToGridValue(anchorX + deltaX);
-        var snappedY = root.snapToGridValue(anchorY + deltaY);
-        return {
-            "dx": snappedX - anchorX,
-            "dy": snappedY - anchorY
-        };
+        return GraphCanvasLogic.snappedDragDelta(
+            rawDx,
+            rawDy,
+            root.snapToGridEnabled(),
+            root._sceneNodePayload(nodeId),
+            root.snapGridSize()
+        );
     }
 
     function _normalizeEdgeIds(values) {
-        var normalized = [];
-        var seen = {};
-        var sourceValues = values || [];
-        for (var i = 0; i < sourceValues.length; i++) {
-            var id = String(sourceValues[i] || "").trim();
-            if (!id || seen[id])
-                continue;
-            seen[id] = true;
-            normalized.push(id);
-        }
-        return normalized;
+        return GraphCanvasLogic.normalizeEdgeIds(values);
     }
 
     function _availableEdgeIdSet() {
-        var ids = {};
-        var edges = root.edgePayload || [];
-        for (var i = 0; i < edges.length; i++) {
-            ids[edges[i].edge_id] = true;
-        }
-        return ids;
+        return GraphCanvasLogic.availableEdgeIdSet(root.edgePayload);
     }
 
     function pruneSelectedEdges() {
-        var idSet = _availableEdgeIdSet();
-        var next = [];
-        for (var i = 0; i < root.selectedEdgeIds.length; i++) {
-            var edgeId = root.selectedEdgeIds[i];
-            if (idSet[edgeId])
-                next.push(edgeId);
-        }
-        root.selectedEdgeIds = next;
+        root.selectedEdgeIds = GraphCanvasLogic.pruneSelectedEdgeIds(root.selectedEdgeIds, _availableEdgeIdSet());
     }
 
     function clearEdgeSelection() {
@@ -303,29 +267,11 @@ Item {
     }
 
     function _dropTargetInput(sourceDrag, candidate) {
-        if (sourceDrag.source_direction === "out") {
-            return {
-                "node_id": candidate.node_id,
-                "port_key": candidate.port_key
-            };
-        }
-        return {
-            "node_id": sourceDrag.node_id,
-            "port_key": sourceDrag.port_key
-        };
+        return GraphCanvasLogic.dropTargetInput(sourceDrag, candidate);
     }
 
     function _isExactDuplicate(sourceDrag, candidate, edge) {
-        if (sourceDrag.source_direction === "out") {
-            return edge.source_node_id === sourceDrag.node_id
-                && edge.source_port_key === sourceDrag.port_key
-                && edge.target_node_id === candidate.node_id
-                && edge.target_port_key === candidate.port_key;
-        }
-        return edge.source_node_id === candidate.node_id
-            && edge.source_port_key === candidate.port_key
-            && edge.target_node_id === sourceDrag.node_id
-            && edge.target_port_key === sourceDrag.port_key;
+        return GraphCanvasLogic.isExactDuplicate(sourceDrag, candidate, edge);
     }
 
     function _portKind(nodeId, portKey) {
@@ -371,31 +317,19 @@ Item {
     function _isDropAllowed(sourceDrag, candidate) {
         if (!sourceDrag || !candidate)
             return false;
-        if (candidate.node_id === sourceDrag.node_id && candidate.port_key === sourceDrag.port_key)
-            return false;
-        if (candidate.direction === sourceDrag.source_direction)
-            return false;
         var sourceKind = _portKind(sourceDrag.node_id, sourceDrag.port_key);
         var candidateKind = _portKind(candidate.node_id, candidate.port_key);
-        if (!_arePortKindsCompatible(sourceKind, candidateKind))
-            return false;
+        var kindsCompatible = _arePortKindsCompatible(sourceKind, candidateKind);
         var sourceType = _portDataType(sourceDrag.node_id, sourceDrag.port_key);
         var candidateType = _portDataType(candidate.node_id, candidate.port_key);
-        if (!_areDataTypesCompatible(sourceType, candidateType))
-            return false;
-
-        var targetInput = _dropTargetInput(sourceDrag, candidate);
-        var edges = root.edgePayload || [];
-        for (var i = 0; i < edges.length; i++) {
-            var edge = edges[i];
-            var sameTargetInput = edge.target_node_id === targetInput.node_id && edge.target_port_key === targetInput.port_key;
-            if (!sameTargetInput)
-                continue;
-            if (_isExactDuplicate(sourceDrag, candidate, edge))
-                continue;
-            return false;
-        }
-        return true;
+        var typesCompatible = _areDataTypesCompatible(sourceType, candidateType);
+        return GraphCanvasLogic.isDropAllowedWithCompatibility(
+            sourceDrag,
+            candidate,
+            root.edgePayload,
+            kindsCompatible,
+            typesCompatible
+        );
     }
 
     function _nearestDropCandidateForWireDrag(screenX, screenY, sourceDrag, thresholdOverride) {
@@ -454,31 +388,16 @@ Item {
     }
 
     function _portsCompatibleForAuto(sourcePort, targetPort) {
-        if (!sourcePort || !targetPort)
-            return false;
-        return _arePortKindsCompatible(sourcePort.kind, targetPort.kind)
-            && _areDataTypesCompatible(sourcePort.data_type, targetPort.data_type);
+        return GraphCanvasLogic.portsCompatibleForAuto(
+            sourcePort,
+            targetPort,
+            _arePortKindsCompatible(sourcePort ? sourcePort.kind : "", targetPort ? targetPort.kind : ""),
+            _areDataTypesCompatible(sourcePort ? sourcePort.data_type : "", targetPort ? targetPort.data_type : "")
+        );
     }
 
     function _libraryPorts(payload) {
-        var ports = [];
-        if (!payload || !payload.ports)
-            return ports;
-        for (var i = 0; i < payload.ports.length; i++) {
-            var sourcePort = payload.ports[i];
-            if (!sourcePort)
-                continue;
-            ports.push(
-                {
-                    "key": String(sourcePort.key || ""),
-                    "direction": String(sourcePort.direction || ""),
-                    "kind": String(sourcePort.kind || ""),
-                    "data_type": String(sourcePort.data_type || ""),
-                    "exposed": sourcePort.exposed !== false
-                }
-            );
-        }
-        return ports;
+        return GraphCanvasLogic.libraryPorts(payload);
     }
 
     function _scenePortData(nodeId, portKey) {
@@ -499,20 +418,7 @@ Item {
     }
 
     function _scenePortPoint(node, port, inputRow, outputRow) {
-        if (!node || !port)
-            return {"x": 0.0, "y": 0.0};
-        if (node.collapsed) {
-            return {
-                "x": port.direction === "in" ? node.x : (node.x + node.width),
-                "y": node.y + 18.0
-            };
-        }
-        return {
-            "x": port.direction === "in"
-                ? node.x + 11.5
-                : node.x + node.width - 11.5,
-            "y": node.y + 36.0 + 18.0 * (port.direction === "in" ? inputRow : outputRow)
-        };
+        return GraphCanvasLogic.scenePortPoint(node, port, inputRow, outputRow);
     }
 
     function _hasCompatiblePortForTarget(targetPort, nodePorts) {
@@ -644,38 +550,11 @@ Item {
     }
 
     function _previewNodeMetrics(payload) {
-        if (!payload)
-            return {"portCount": 1, "worldWidth": 210.0, "worldHeight": 50.0};
-        var ports = _libraryPorts(payload);
-        var inputCount = 0;
-        var outputCount = 0;
-        for (var i = 0; i < ports.length; i++) {
-            var port = ports[i];
-            if (!port || port.exposed === false)
-                continue;
-            if (port.direction === "in")
-                inputCount += 1;
-            else if (port.direction === "out")
-                outputCount += 1;
-        }
-        var portCount = Math.max(inputCount, outputCount, 1);
-        return {
-            "portCount": portCount,
-            "worldWidth": 210.0,
-            "worldHeight": 24.0 + portCount * 18.0 + 8.0
-        };
+        return GraphCanvasLogic.previewNodeMetrics(payload);
     }
 
     function _previewVisiblePorts(payload, direction) {
-        var source = _libraryPorts(payload);
-        var output = [];
-        for (var i = 0; i < source.length; i++) {
-            var port = source[i];
-            if (!port || port.exposed === false || port.direction !== direction)
-                continue;
-            output.push(port);
-        }
-        return output;
+        return GraphCanvasLogic.previewVisiblePorts(payload, direction);
     }
 
     function previewInputPorts() {
@@ -687,30 +566,24 @@ Item {
     }
 
     function previewPortColor(kind) {
-        if (kind === "exec")
-            return "#67D487";
-        if (kind === "completed")
-            return "#E4CE7D";
-        if (kind === "failed")
-            return "#D94F4F";
-        return "#7AA8FF";
+        return GraphCanvasLogic.previewPortColor(kind);
     }
 
     function previewNodeScreenWidth() {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
-        return metrics.worldWidth * zoom;
+        return GraphCanvasLogic.previewNodeScreenExtent(metrics.worldWidth, zoom);
     }
 
     function previewNodeScreenHeight() {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
-        return metrics.worldHeight * zoom;
+        return GraphCanvasLogic.previewNodeScreenExtent(metrics.worldHeight, zoom);
     }
 
     function previewPortLabelsVisible() {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        return zoom >= 0.95 && root.previewNodeScreenWidth() >= 155;
+        return GraphCanvasLogic.previewPortLabelsVisible(zoom, root.previewNodeScreenWidth());
     }
 
     function clearLibraryDropPreview() {
@@ -741,10 +614,7 @@ Item {
     }
 
     function isPointInCanvas(screenX, screenY) {
-        return Number(screenX) >= 0
-            && Number(screenY) >= 0
-            && Number(screenX) <= root.width
-            && Number(screenY) <= root.height;
+        return GraphCanvasLogic.pointInCanvas(screenX, screenY, root.width, root.height);
     }
 
     function performLibraryDrop(screenX, screenY, payload) {
@@ -1068,10 +938,15 @@ Item {
     }
 
     function _clampMenuPosition(x, y, menuWidth, menuHeight) {
-        return {
-            "x": Math.max(4, Math.min(x, root.width - menuWidth - 4)),
-            "y": Math.max(4, Math.min(y, root.height - menuHeight - 4))
-        };
+        return GraphCanvasLogic.clampMenuPosition(
+            x,
+            y,
+            menuWidth,
+            menuHeight,
+            root.width,
+            root.height,
+            4
+        );
     }
 
     function _openEdgeContext(edgeId, x, y) {
@@ -1124,17 +999,10 @@ Item {
             var centerX = viewBridge ? viewBridge.center_x : 0.0;
             var centerY = viewBridge ? viewBridge.center_y : 0.0;
 
-            function normalizedOffset(period, anchor) {
-                var raw = anchor % period;
-                if (raw < 0)
-                    raw += period;
-                return raw;
-            }
-
-            var minorStartX = normalizedOffset(step, width * 0.5 - centerX * zoom);
-            var minorStartY = normalizedOffset(step, height * 0.5 - centerY * zoom);
-            var majorStartX = normalizedOffset(major, width * 0.5 - centerX * zoom);
-            var majorStartY = normalizedOffset(major, height * 0.5 - centerY * zoom);
+            var minorStartX = GraphCanvasLogic.normalizedOffset(step, width * 0.5 - centerX * zoom);
+            var minorStartY = GraphCanvasLogic.normalizedOffset(step, height * 0.5 - centerY * zoom);
+            var majorStartX = GraphCanvasLogic.normalizedOffset(major, width * 0.5 - centerX * zoom);
+            var majorStartY = GraphCanvasLogic.normalizedOffset(major, height * 0.5 - centerY * zoom);
 
             ctx.lineWidth = 1;
             ctx.strokeStyle = "#2A2E37";
@@ -1541,24 +1409,13 @@ Item {
             property real contentPadding: 7
 
             function _normalizeRectPayload(payload, fallbackX, fallbackY, fallbackWidth, fallbackHeight) {
-                var x = Number(payload && payload.x);
-                var y = Number(payload && payload.y);
-                var width = Number(payload && payload.width);
-                var height = Number(payload && payload.height);
-                if (!isFinite(x))
-                    x = Number(fallbackX);
-                if (!isFinite(y))
-                    y = Number(fallbackY);
-                if (!(width > 0.0))
-                    width = Number(fallbackWidth);
-                if (!(height > 0.0))
-                    height = Number(fallbackHeight);
-                return {
-                    "x": x,
-                    "y": y,
-                    "width": Math.max(1.0, width),
-                    "height": Math.max(1.0, height)
-                };
+                return GraphCanvasLogic.normalizeRectPayload(
+                    payload,
+                    fallbackX,
+                    fallbackY,
+                    fallbackWidth,
+                    fallbackHeight
+                );
             }
 
             function sceneRect() {
