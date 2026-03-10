@@ -2,17 +2,19 @@ sequenceDiagram
     participant User
     participant QML as QML Shell
     participant SW as ShellWindow
+    participant RC as RunController
     participant EC as ProcessExecutionClient
     participant W as Worker (run_workflow)
     participant R as NodeRegistry
     participant P as NodePlugin
+    participant WLC as WorkspaceLibraryController
 
     User->>QML: Click Run
     QML->>SW: request_run_workflow()
-    SW->>SW: serializer.to_document() + build trigger
-    SW->>EC: start_run(project_path, workspace_id, trigger)
+    SW->>RC: run_workflow()
+    RC->>RC: serializer.to_document() + workflow_settings_payload()
+    RC->>EC: start_run(project_path, workspace_id, trigger)
     EC->>W: StartRunCommand (queue)
-    W->>W: load project_doc + build edge topology
     W->>EC: run_started + run_state(running)
 
     loop per ready node
@@ -25,14 +27,19 @@ sequenceDiagram
 
     alt run failed
         W->>EC: run_failed + run_state(error)
-        EC->>SW: event callback
-        SW->>SW: _focus_failed_node() + UI error state
+        EC->>RC: event callback
+        RC->>WLC: focus_failed_node(workspace_id, node_id, error)
     else run stopped
         W->>EC: run_stopped + run_state(ready)
-        EC->>SW: event callback
-        SW->>SW: clear active run + update actions
+        EC->>RC: event callback
+        RC->>RC: clear active run + update actions
     else run completed
         W->>EC: run_completed + run_state(ready)
-        EC->>SW: event callback
-        SW->>SW: completed state + counters
+        EC->>RC: event callback
+        RC->>RC: completed counters + clear active run
+    end
+
+    opt protocol problem
+        EC->>RC: protocol_error
+        RC->>SW: append error log + notification count
     end

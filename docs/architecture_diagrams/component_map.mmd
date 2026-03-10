@@ -1,34 +1,51 @@
 flowchart LR
     U[User] --> QML[MainShell.qml + GraphCanvas]
-    QML --> SW[ShellWindow]
+    QML --> SW[ShellWindow facade]
+
+    SW --> RUN[RunController]
+    SW --> PSC[ProjectSessionController]
+    SW --> WLC[WorkspaceLibraryController]
+    SW --> SEARCH[window_search_scope_state]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
-    SW --> CM[ConsoleModel + StatusItemModel + ScriptEditorModel]
-    SW --> GI[GraphInteractions]
-    GS --> GR[(GraphModel)]
-    GI --> GR
-    GS --> ER[edge_routing helpers]
+    SW --> MODELS[ConsoleModel + StatusItemModel + ScriptEditorModel + WorkspaceTabsModel]
 
-    SW --> WM[WorkspaceManager]
+    GS --> GR[(GraphModel)]
+    GS --> HIER[graph.hierarchy]
+    GS --> XFORM[graph.transforms]
+    GS --> HIST[(RuntimeGraphHistory)]
+
+    WLC --> NAV[WorkspaceViewNavOps]
+    WLC --> EDIT[WorkspaceEditOps]
+    WLC --> DROP[WorkspaceDropConnectOps]
+    WLC --> IO[WorkspaceIOOps]
+    WLC --> GI[GraphInteractions]
+
+    EDIT --> GS
+    GI --> GS
+    NAV --> WM[WorkspaceManager]
     WM --> GR
+
+    WLC --> CWF[custom_workflows codec]
+
+    RUN --> SER[JsonProjectSerializer]
+    PSC --> SER
+    PSC --> SESS[SessionAutosaveStore]
+
+    SER --> MIG[JsonProjectMigration]
+    SER --> CODEC[JsonProjectCodec]
+    SER --> SFE[(.sfe project files)]
+    SESS --> LAST[(last_session.json)]
+    SESS --> AUTO[(autosave.sfe)]
 
     SW --> REG[NodeRegistry]
     REG --> BUILTINS[nodes.builtins.*]
     REG --> PLUG[plugin_loader]
-    PLUG --> PLUGDIR[(%APPDATA%/EA_Node_Editor/plugins)]
+    PLUG --> PLUGDIR[(APPDATA/EA_Node_Editor/plugins)]
     PLUG --> ENTRYPTS[(Python entry points)]
 
-    SW --> SER[JsonProjectSerializer]
-    SER --> MIG[JsonProjectMigration]
-    SER --> CODEC[JsonProjectCodec]
-    SER --> SFE[(.sfe project files)]
-
-    SW --> SESS[SessionAutosaveStore]
-    SESS --> LAST[(last_session.json)]
-    SESS --> AUTO[(autosave.sfe)]
-
-    SW --> EXEC[ProcessExecutionClient]
+    RUN --> EXEC[ProcessExecutionClient]
     EXEC -->|commands| CMDQ[(command_queue)]
     CMDQ --> WORKER[worker_main / run_workflow]
     WORKER -->|events| EVTQ[(event_queue)]
