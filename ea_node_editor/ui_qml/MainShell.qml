@@ -2,6 +2,8 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 import "components"
+import "components/shell"
+import "components/shell/MainShellUtils.js" as MainShellUtils
 
 Rectangle {
     id: root
@@ -10,41 +12,6 @@ Rectangle {
     property var viewBridgeRef: viewBridge
     property string libraryContextWorkflowId: ""
     property string libraryContextWorkflowScope: "local"
-
-    function toEditorText(item) {
-        if (!item)
-            return ""
-        if (item.type === "json") {
-            try {
-                return JSON.stringify(item.value)
-            } catch (error) {
-                return ""
-            }
-        }
-        if (item.value === undefined || item.value === null)
-            return ""
-        return String(item.value)
-    }
-
-    function comboOptionValue(model, index) {
-        if (!model || index < 0 || index >= model.length)
-            return ""
-        var entry = model[index]
-        if (!entry || entry.value === undefined || entry.value === null)
-            return ""
-        return String(entry.value)
-    }
-
-    function lineNumbersText(lineCount) {
-        var count = Math.max(1, Number(lineCount) || 1)
-        var lines = ""
-        for (var i = 1; i <= count; i++) {
-            lines += i
-            if (i < count)
-                lines += "\n"
-        }
-        return lines
-    }
 
     function openLibraryWorkflowContextPopup(workflowId, workflowScope, positionX, positionY) {
         libraryContextWorkflowId = String(workflowId || "")
@@ -64,33 +31,6 @@ Rectangle {
     onHeightChanged: {
         if (libraryContextPopup.visible)
             libraryContextPopup.close()
-    }
-
-    component ShellButton: ToolButton {
-        id: control
-        property bool selectedStyle: false
-        implicitHeight: 24
-        implicitWidth: Math.max(64, label.implicitWidth + 16)
-        padding: 0
-        hoverEnabled: true
-
-        contentItem: Text {
-            id: label
-            text: control.text
-            color: control.selectedStyle ? "#DFF2FF" : "#D8DEEA"
-            font.pixelSize: 11
-            font.bold: control.selectedStyle
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-
-        background: Rectangle {
-            radius: 2
-            border.color: control.down ? "#5A606B" : "#4A4E58"
-            color: control.selectedStyle
-                ? "#2A4F68"
-                : (control.down ? "#3A3E46" : (control.hovered ? "#343943" : "#2B2F37"))
-        }
     }
 
     Popup {
@@ -916,7 +856,7 @@ Rectangle {
                                                 && !(modelData.type === "str"
                                                     && modelData.key === "data_type"
                                                     && mainWindow.selected_node_is_subnode_pin)
-                                            text: root.toEditorText(modelData)
+                                            text: MainShellUtils.toEditorText(modelData)
                                             selectByMouse: true
                                             color: "#E6EDF8"
                                             background: Rectangle {
@@ -1236,7 +1176,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.rightMargin: 8
                         y: (scriptEditorScroll.contentItem ? -scriptEditorScroll.contentItem.contentY : 0) + 6
-                        text: root.lineNumbersText(scriptEditorArea.lineCount)
+                        text: MainShellUtils.lineNumbersText(scriptEditorArea.lineCount)
                         color: "#6F7B90"
                         font.family: "Consolas"
                         font.pixelSize: 12
