@@ -4,7 +4,7 @@ import copy
 from typing import TYPE_CHECKING, Any
 from pathlib import Path
 
-from PyQt6.QtCore import QMimeData, QRectF, Qt
+from PyQt6.QtCore import QRectF, Qt
 
 from ea_node_editor.custom_workflows import (
     CUSTOM_WORKFLOW_FILE_EXTENSION,
@@ -14,28 +14,21 @@ from ea_node_editor.custom_workflows import (
     normalize_custom_workflow_metadata,
     upsert_custom_workflow_definition,
 )
-from ea_node_editor.graph.effective_ports import is_subnode_pin_type
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.graph.transforms import (
     build_subnode_custom_workflow_snapshot_data,
 )
 from ea_node_editor.nodes.builtins.subnode import (
-    SUBNODE_PIN_DATA_TYPE_PROPERTY,
-    SUBNODE_PIN_KIND_PROPERTY,
-    SUBNODE_PIN_LABEL_PROPERTY,
     SUBNODE_TYPE_ID,
 )
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
-    GRAPH_FRAGMENT_MIME_TYPE,
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
-    parse_graph_fragment_payload,
-    serialize_graph_fragment_payload,
 )
-from ea_node_editor.ui.shell.inspector_flow import coerce_editor_input_value
 from ea_node_editor.ui.shell.library_flow import pick_connection_candidate
+from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
 from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import WorkspaceDropConnectOps
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
 from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import WorkspaceViewNavOps
@@ -44,13 +37,6 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 _GRAPH_SEARCH_LIMIT = 10
-_PASTE_CASCADE_OFFSET_X = 40.0
-_PASTE_CASCADE_OFFSET_Y = 40.0
-_PIN_REFRESH_PROPERTIES = {
-    SUBNODE_PIN_LABEL_PROPERTY,
-    SUBNODE_PIN_KIND_PROPERTY,
-    SUBNODE_PIN_DATA_TYPE_PROPERTY,
-}
 _CUSTOM_WORKFLOW_DESCRIPTION = "Project-local custom workflow snapshot."
 
 
@@ -59,6 +45,7 @@ class WorkspaceLibraryController:
         self._host = host
         self._view_nav_ops = WorkspaceViewNavOps(host, self)
         self._drop_connect_ops = WorkspaceDropConnectOps(host, self)
+        self._edit_ops = WorkspaceEditOps(host, self)
         self._last_clipboard_fragment_signature = ""
         self._clipboard_paste_count = 0
 
@@ -165,31 +152,13 @@ class WorkspaceLibraryController:
         return node, spec
 
     def set_selected_node_property(self, key: str, value: Any) -> None:
-        selected = self.selected_node_context()
-        if selected is None:
-            return
-        node, spec = selected
-        property_spec = next((prop for prop in spec.properties if prop.key == key), None)
-        if property_spec is None:
-            return
-        coerced = coerce_editor_input_value(property_spec.type, value, property_spec.default)
-        self.on_node_property_changed(node.node_id, property_spec.key, coerced)
+        self._edit_ops.set_selected_node_property(key, value)
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
-        selected = self.selected_node_context()
-        if selected is None:
-            return
-        node, _spec = selected
-        self.on_port_exposed_changed(node.node_id, str(key), bool(exposed))
+        self._edit_ops.set_selected_port_exposed(key, exposed)
 
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
-        selected = self.selected_node_context()
-        if selected is None:
-            return
-        node, spec = selected
-        if not spec.collapsible:
-            return
-        self.on_node_collapse_changed(node.node_id, bool(collapsed))
+        self._edit_ops.set_selected_node_collapsed(collapsed)
 
     def switch_workspace_by_offset(self, offset: int) -> None:
         self._view_nav_ops.switch_workspace_by_offset(offset)
@@ -374,6 +343,18 @@ class WorkspaceLibraryController:
         workspace_id = self._host.workspace_manager.active_workspace_id()
         return self._host.model.project.workspaces.get(workspace_id)
 
+    def clipboard_fragment_signature(self) -> str:
+        return self._last_clipboard_fragment_signature
+
+    def set_clipboard_fragment_signature(self, signature: str) -> None:
+        self._last_clipboard_fragment_signature = str(signature or "")
+
+    def clipboard_paste_count(self) -> int:
+        return int(self._clipboard_paste_count)
+
+    def set_clipboard_paste_count(self, count: int) -> None:
+        self._clipboard_paste_count = max(0, int(count))
+
     def prompt_connection_candidate(
         self,
         *,
@@ -412,272 +393,90 @@ class WorkspaceLibraryController:
         self._host.selected_node_changed.emit()
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
-        self._host.scene.set_node_property(node_id, key, value)
-        workspace = self.active_workspace()
-        should_refresh_shell_payload = (
-            workspace is not None
-            and str(key) in _PIN_REFRESH_PROPERTIES
-            and self._is_direct_child_pin_node(workspace.nodes.get(node_id), workspace.nodes)
-        )
-        if should_refresh_shell_payload and workspace is not None:
-            self._host.scene.refresh_workspace_from_model(workspace.workspace_id)
-        if key == "script" and self._host.script_editor.current_node_id == node_id:
-            workspace = self._host.model.project.workspaces[self._host.workspace_manager.active_workspace_id()]
-            self._host.script_editor.set_node(workspace.nodes.get(node_id))
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
+        self._edit_ops.on_node_property_changed(node_id, key, value)
 
     @staticmethod
     def _is_direct_child_pin_node(
         node: NodeInstance | None,
         workspace_nodes: dict[str, NodeInstance],
     ) -> bool:
-        if node is None or not is_subnode_pin_type(node.type_id):
-            return False
-        parent_node_id = str(node.parent_node_id or "").strip()
-        if not parent_node_id:
-            return False
-        parent_node = workspace_nodes.get(parent_node_id)
-        if parent_node is None:
-            return False
-        return parent_node.type_id == SUBNODE_TYPE_ID
+        return WorkspaceEditOps._is_direct_child_pin_node(node, workspace_nodes)
 
     def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None:
-        self._host.scene.set_exposed_port(node_id, key, exposed)
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
+        self._edit_ops.on_port_exposed_changed(node_id, key, exposed)
 
     def on_node_collapse_changed(self, node_id: str, collapsed: bool) -> None:
-        self._host.scene.set_node_collapsed(node_id, collapsed)
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
+        self._edit_ops.on_node_collapse_changed(node_id, collapsed)
 
     def connect_selected_nodes(self) -> None:
-        from PyQt6.QtWidgets import QMessageBox
-
-        selected = [item for item in self._host.scene.selectedItems() if hasattr(item, "node")]
-        if len(selected) != 2:
-            QMessageBox.information(self._host, "Connect", "Select exactly two nodes to connect.")
-            return
-        first_item = selected[0]
-        second_item = selected[1]
-        try:
-            self._host.scene.connect_nodes(first_item.node.node_id, second_item.node.node_id)
-        except (KeyError, ValueError):
-            QMessageBox.warning(self._host, "Connect", "No compatible ports found on selected nodes.")
-            return
-        self.refresh_workspace_tabs()
+        self._edit_ops.connect_selected_nodes()
 
     def duplicate_selected_nodes(self) -> bool:
-        duplicated = bool(self._host.scene.duplicate_selected_subgraph())
-        if not duplicated:
-            return False
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.duplicate_selected_nodes()
 
     def group_selected_nodes(self) -> bool:
-        grouped = bool(self._host.scene.group_selected_nodes())
-        if not grouped:
-            return False
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.group_selected_nodes()
 
     def ungroup_selected_nodes(self) -> bool:
-        ungrouped = bool(self._host.scene.ungroup_selected_subnode())
-        if not ungrouped:
-            return False
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.ungroup_selected_nodes()
 
     def _run_layout_action(self, action: str | None = None, orientation: str | None = None) -> bool:
-        before_overlap_pairs = 0
-        normalized_action = str(action).strip().lower() if action is not None else None
-        if normalized_action is not None:
-            before_overlap_pairs = self._count_overlap_pairs(self._selected_node_bounds_payload())
-
-        snap_enabled = bool(self._host.snap_to_grid_enabled)
-        if normalized_action is not None:
-            moved = bool(self._host.scene.align_selected_nodes(normalized_action, snap_to_grid=snap_enabled))
-        else:
-            moved = bool(self._host.scene.distribute_selected_nodes(orientation, snap_to_grid=snap_enabled))
-        if not moved:
-            return False
-
-        if normalized_action is not None:
-            after_overlap_pairs = self._count_overlap_pairs(self._selected_node_bounds_payload())
-            created_overlap_pairs = max(0, after_overlap_pairs - before_overlap_pairs)
-            if created_overlap_pairs > 0:
-                tidy_action = "Distribute Vertically" if normalized_action in {"left", "right"} else "Distribute Horizontally"
-                overlap_word = "overlap" if created_overlap_pairs == 1 else "overlaps"
-                self._host.show_graph_hint(
-                    f"{created_overlap_pairs} {overlap_word} created. Press {tidy_action} to tidy."
-                )
-
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.run_layout_action(action, orientation)
 
     def _selected_node_bounds_payload(self) -> list[tuple[float, float, float, float]]:
-        bounds_payload: list[tuple[float, float, float, float]] = []
-        for node_payload in self._host.scene.nodes_model:
-            if not bool(node_payload.get("selected", False)):
-                continue
-            width = float(node_payload.get("width", 0.0))
-            height = float(node_payload.get("height", 0.0))
-            if width <= 0.0 or height <= 0.0:
-                continue
-            x = float(node_payload.get("x", 0.0))
-            y = float(node_payload.get("y", 0.0))
-            bounds_payload.append((x, y, x + width, y + height))
-        return bounds_payload
+        return self._edit_ops.selected_node_bounds_payload()
 
     @staticmethod
     def _rectangles_overlap(
         first: tuple[float, float, float, float],
         second: tuple[float, float, float, float],
     ) -> bool:
-        return (
-            first[0] < second[2]
-            and first[2] > second[0]
-            and first[1] < second[3]
-            and first[3] > second[1]
-        )
+        return WorkspaceEditOps.rectangles_overlap(first, second)
 
     def _count_overlap_pairs(self, bounds_payload: list[tuple[float, float, float, float]]) -> int:
-        overlap_pairs = 0
-        for left_index in range(len(bounds_payload)):
-            for right_index in range(left_index + 1, len(bounds_payload)):
-                if self._rectangles_overlap(bounds_payload[left_index], bounds_payload[right_index]):
-                    overlap_pairs += 1
-        return overlap_pairs
+        return self._edit_ops.count_overlap_pairs(bounds_payload)
 
     def align_selection_left(self) -> bool:
-        return self._run_layout_action("left")
+        return self._edit_ops.align_selection_left()
 
     def align_selection_right(self) -> bool:
-        return self._run_layout_action("right")
+        return self._edit_ops.align_selection_right()
 
     def align_selection_top(self) -> bool:
-        return self._run_layout_action("top")
+        return self._edit_ops.align_selection_top()
 
     def align_selection_bottom(self) -> bool:
-        return self._run_layout_action("bottom")
+        return self._edit_ops.align_selection_bottom()
 
     def distribute_selection_horizontally(self) -> bool:
-        return self._run_layout_action(orientation="horizontal")
+        return self._edit_ops.distribute_selection_horizontally()
 
     def distribute_selection_vertically(self) -> bool:
-        return self._run_layout_action(orientation="vertical")
+        return self._edit_ops.distribute_selection_vertically()
 
     def _clipboard(self):
-        from PyQt6.QtWidgets import QApplication
-
-        app = QApplication.instance()
-        if app is None:
-            return None
-        return app.clipboard()
+        return self._edit_ops.clipboard()
 
     def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
-        serialized = serialize_graph_fragment_payload(fragment_payload)
-        if serialized is None:
-            return False
-        clipboard = self._clipboard()
-        if clipboard is None:
-            return False
-        mime_data = QMimeData()
-        mime_data.setData(GRAPH_FRAGMENT_MIME_TYPE, serialized.encode("utf-8"))
-        clipboard.setMimeData(mime_data)
-        return True
+        return self._edit_ops.write_graph_fragment_to_clipboard(fragment_payload)
 
     def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
-        clipboard = self._clipboard()
-        if clipboard is None:
-            return None
-        mime_data = clipboard.mimeData()
-        if mime_data is None:
-            return None
-        if mime_data.hasFormat(GRAPH_FRAGMENT_MIME_TYPE):
-            raw_data = bytes(mime_data.data(GRAPH_FRAGMENT_MIME_TYPE))
-            try:
-                serialized = raw_data.decode("utf-8")
-            except UnicodeDecodeError:
-                return None
-            payload = parse_graph_fragment_payload(serialized)
-            if payload is not None:
-                return payload
-        return parse_graph_fragment_payload(mime_data.text())
+        return self._edit_ops.read_graph_fragment_from_clipboard()
 
     def copy_selected_nodes_to_clipboard(self) -> bool:
-        fragment_payload = self._host.scene.serialize_selected_subgraph_fragment()
-        if fragment_payload is None:
-            return False
-        copied = self._write_graph_fragment_to_clipboard(fragment_payload)
-        if not copied:
-            return False
-        self._last_clipboard_fragment_signature = (
-            serialize_graph_fragment_payload(fragment_payload) or ""
-        )
-        self._clipboard_paste_count = 0
-        return True
+        return self._edit_ops.copy_selected_nodes_to_clipboard()
 
     def cut_selected_nodes_to_clipboard(self) -> bool:
-        if not self.copy_selected_nodes_to_clipboard():
-            return False
-        return bool(self.request_delete_selected_graph_items([]).payload)
+        return self._edit_ops.cut_selected_nodes_to_clipboard()
 
     def paste_nodes_from_clipboard(self) -> bool:
-        fragment_payload = self._read_graph_fragment_from_clipboard()
-        if fragment_payload is None:
-            return False
-        fragment_signature = serialize_graph_fragment_payload(fragment_payload)
-        if fragment_signature is None:
-            return False
-        if fragment_signature != self._last_clipboard_fragment_signature:
-            self._last_clipboard_fragment_signature = fragment_signature
-            self._clipboard_paste_count = 0
-        cascade_x = float(self._clipboard_paste_count) * _PASTE_CASCADE_OFFSET_X
-        cascade_y = float(self._clipboard_paste_count) * _PASTE_CASCADE_OFFSET_Y
-        center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
-        pasted = bool(
-            self._host.scene.paste_subgraph_fragment(
-                fragment_payload,
-                center.x() + cascade_x,
-                center.y() + cascade_y,
-            )
-        )
-        if not pasted:
-            return False
-        self._clipboard_paste_count += 1
-        self._host.selected_node_changed.emit()
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.paste_nodes_from_clipboard()
 
     def undo(self) -> bool:
-        workspace_id = self._host.workspace_manager.active_workspace_id()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        if workspace is None:
-            return False
-        entry = self._host.runtime_history.undo_workspace(workspace_id, workspace)
-        if entry is None:
-            return False
-        self._host.scene.refresh_workspace_from_model(workspace_id)
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.undo()
 
     def redo(self) -> bool:
-        workspace_id = self._host.workspace_manager.active_workspace_id()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        if workspace is None:
-            return False
-        entry = self._host.runtime_history.redo_workspace(workspace_id, workspace)
-        if entry is None:
-            return False
-        self._host.scene.refresh_workspace_from_model(workspace_id)
-        self.refresh_workspace_tabs()
-        return True
+        return self._edit_ops.redo()
 
     def request_drop_node_from_library(
         self,
@@ -700,48 +499,19 @@ class WorkspaceLibraryController:
         )
 
     def request_connect_ports(self, node_a_id: str, port_a: str, node_b_id: str, port_b: str) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.connect_ports(node_a_id, port_a, node_b_id, port_b)
-        if result.ok:
-            self.refresh_workspace_tabs()
-        return ControllerResult(result.ok, result.message, payload=result.ok)
+        return self._edit_ops.request_connect_ports(node_a_id, port_a, node_b_id, port_b)
 
     def request_remove_edge(self, edge_id: str) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.remove_edge(edge_id)
-        if result.ok:
-            self.refresh_workspace_tabs()
-        return ControllerResult(result.ok, result.message, payload=result.ok)
+        return self._edit_ops.request_remove_edge(edge_id)
 
     def request_remove_node(self, node_id: str) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.remove_node(node_id)
-        if result.ok:
-            self._host.selected_node_changed.emit()
-            self.refresh_workspace_tabs()
-        return ControllerResult(result.ok, result.message, payload=result.ok)
+        return self._edit_ops.request_remove_node(node_id)
 
     def request_rename_node(self, node_id: str) -> ControllerResult[bool]:
-        from PyQt6.QtWidgets import QInputDialog
-
-        workspace = self._host.model.project.workspaces.get(self._host.workspace_manager.active_workspace_id())
-        if workspace is None:
-            return ControllerResult(False, payload=False)
-        node = workspace.nodes.get(str(node_id).strip())
-        if node is None:
-            return ControllerResult(False, payload=False)
-        new_title, ok = QInputDialog.getText(self._host, "Rename Node", "New name:", text=node.title)
-        if not ok:
-            return ControllerResult(False, payload=False)
-        result = self._host._graph_interactions.rename_node(node.node_id, new_title)
-        if result.ok:
-            self._host.selected_node_changed.emit()
-            self.refresh_workspace_tabs()
-        return ControllerResult(result.ok, result.message, payload=result.ok)
+        return self._edit_ops.request_rename_node(node_id)
 
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.delete_selected_items(edge_ids)
-        if result.ok:
-            self._host.selected_node_changed.emit()
-            self.refresh_workspace_tabs()
-        return ControllerResult(result.ok, result.message, payload=result.ok)
+        return self._edit_ops.request_delete_selected_graph_items(edge_ids)
 
     def focus_failed_node(self, workspace_id: str, node_id: str, error: str) -> None:
         self._view_nav_ops.focus_failed_node(workspace_id, node_id, error)
