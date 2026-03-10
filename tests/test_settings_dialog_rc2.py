@@ -39,9 +39,13 @@ class WorkflowSettingsRc2Tests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             session_path = Path(temp_dir) / "last_session.json"
             autosave_path = Path(temp_dir) / "autosave.sfe"
+            global_custom_workflows_path = Path(temp_dir) / "custom_workflows_global.json"
             with patch("ea_node_editor.ui.shell.window.recent_session_path", return_value=session_path), patch(
                 "ea_node_editor.ui.shell.window.autosave_project_path",
                 return_value=autosave_path,
+            ), patch(
+                "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+                return_value=global_custom_workflows_path,
             ):
                 window = ShellWindow()
                 window.show()
@@ -87,4 +91,3 @@ class WorkflowSettingsRc2Tests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal
 from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
-from PyQt6.QtWidgets import QMainWindow
+from PyQt6.QtWidgets import QMainWindow, QMessageBox
 
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel, ProjectData
@@ -301,6 +301,11 @@ class ShellWindow(QMainWindow):
 
         qml_path = Path(__file__).resolve().parents[2] / "ui_qml" / "MainShell.qml"
         self.quick_widget.setSource(QUrl.fromLocalFile(str(qml_path)))
+        if self.quick_widget.status() == QQuickWidget.Status.Error:
+            formatted_errors = "\n".join(error.toString() for error in self.quick_widget.errors()).strip()
+            message = formatted_errors or "Unknown QML load error."
+            self.console_panel.append_log("error", f"Failed to load MainShell.qml.\n{message}")
+            QMessageBox.critical(self, "UI Load Error", f"Could not load the main UI.\n\n{message}")
         self.setCentralWidget(self.quick_widget)
 
     @pyqtProperty(str, notify=project_meta_changed)
@@ -657,6 +662,17 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(str, result=bool)
     def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
         result = self.workspace_library_controller.publish_custom_workflow_from_node(node_id)
+        return bool(result.payload)
+
+    @pyqtSlot(str, result=bool)
+    @pyqtSlot(str, str, result=bool)
+    def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
+        result = self.workspace_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
+        return bool(result.payload)
+
+    @pyqtSlot(str, str, result=bool)
+    def request_set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> bool:
+        result = self.workspace_library_controller.set_custom_workflow_scope(workflow_id, workflow_scope)
         return bool(result.payload)
 
     @pyqtSlot(str, float, float, str, str, str, str, result=bool)

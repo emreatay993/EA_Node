@@ -8,6 +8,8 @@ Rectangle {
     color: "#202020"
     property var sceneBridgeRef: sceneBridge
     property var viewBridgeRef: viewBridge
+    property string libraryContextWorkflowId: ""
+    property string libraryContextWorkflowScope: "local"
 
     function toEditorText(item) {
         if (!item)
@@ -44,6 +46,26 @@ Rectangle {
         return lines
     }
 
+    function openLibraryWorkflowContextPopup(workflowId, workflowScope, positionX, positionY) {
+        libraryContextWorkflowId = String(workflowId || "")
+        libraryContextWorkflowScope = String(workflowScope || "local")
+        var popupWidth = Math.max(1, Number(libraryContextPopup.implicitWidth) || 168)
+        var popupHeight = Math.max(1, Number(libraryContextPopup.implicitHeight) || 58)
+        libraryContextPopup.x = Math.max(0, Math.min(root.width - popupWidth, Math.round(Number(positionX) || 0)))
+        libraryContextPopup.y = Math.max(0, Math.min(root.height - popupHeight, Math.round(Number(positionY) || 0)))
+        libraryContextPopup.open()
+    }
+
+    onWidthChanged: {
+        if (libraryContextPopup.visible)
+            libraryContextPopup.close()
+    }
+
+    onHeightChanged: {
+        if (libraryContextPopup.visible)
+            libraryContextPopup.close()
+    }
+
     component ShellButton: ToolButton {
         id: control
         property bool selectedStyle: false
@@ -68,6 +90,103 @@ Rectangle {
             color: control.selectedStyle
                 ? "#2A4F68"
                 : (control.down ? "#3A3E46" : (control.hovered ? "#343943" : "#2B2F37"))
+        }
+    }
+
+    Popup {
+        id: libraryContextPopup
+        parent: root
+        modal: false
+        focus: true
+        padding: 0
+        closePolicy: Popup.CloseOnEscape
+        implicitWidth: 168
+        implicitHeight: 58
+        z: 1000
+
+        background: Rectangle {
+            color: "#2B2F37"
+            border.color: "#4A4E58"
+            radius: 3
+        }
+
+        contentItem: Column {
+            spacing: 0
+
+            Rectangle {
+                width: libraryContextPopup.implicitWidth
+                height: 29
+                color: scopeMouseArea.containsMouse ? "#343943" : "transparent"
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    color: "#D7DDE9"
+                    font.pixelSize: 11
+                    text: root.libraryContextWorkflowScope === "global" ? "Make Project-Only" : "Make Global"
+                }
+
+                MouseArea {
+                    id: scopeMouseArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: {
+                        var nextScope = root.libraryContextWorkflowScope === "global" ? "local" : "global"
+                        mainWindow.request_set_custom_workflow_scope(root.libraryContextWorkflowId, nextScope)
+                        libraryContextPopup.close()
+                    }
+                }
+            }
+
+            Rectangle {
+                width: libraryContextPopup.implicitWidth
+                height: 29
+                color: deleteMouseArea.containsMouse ? "#343943" : "transparent"
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    anchors.leftMargin: 10
+                    color: "#D7DDE9"
+                    font.pixelSize: 11
+                    text: "Delete"
+                }
+
+                MouseArea {
+                    id: deleteMouseArea
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    onClicked: {
+                        mainWindow.request_delete_custom_workflow_from_library(
+                            root.libraryContextWorkflowId,
+                            root.libraryContextWorkflowScope
+                        )
+                        libraryContextPopup.close()
+                    }
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: libraryContextBackdrop
+        anchors.fill: parent
+        color: "transparent"
+        visible: libraryContextPopup.visible
+        z: 999
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+            onPressed: {
+                libraryContextPopup.close()
+                mouse.accepted = true
+            }
+            onWheel: function(wheel) {
+                libraryContextPopup.close()
+                wheel.accepted = true
+            }
         }
     }
 
@@ -241,6 +360,8 @@ Rectangle {
                         delegate: Rectangle {
                             id: libraryRow
                             property bool isCategory: modelData.kind === "category"
+                            property bool isCustomWorkflow: !isCategory && String(modelData.library_source || "") === "custom_workflow"
+                            property string workflowScope: String(modelData.workflow_scope || "local")
                             property bool hiddenByCategory: !isCategory && libraryPane.isCategoryCollapsed(modelData.category)
                             property var dragPayload: isCategory ? null : {
                                 "type_id": String(modelData.type_id || ""),
@@ -248,7 +369,8 @@ Rectangle {
                                 "ports": modelData.ports || [],
                                 "library_source": String(modelData.library_source || ""),
                                 "workflow_id": String(modelData.workflow_id || ""),
-                                "revision": Number(modelData.revision || 1)
+                                "revision": Number(modelData.revision || 1),
+                                "workflow_scope": String(modelData.workflow_scope || "local")
                             }
                             width: ListView.view.width
                             height: hiddenByCategory ? 0 : (isCategory ? 32 : 28)
@@ -289,7 +411,9 @@ Rectangle {
                                     height: isCategory ? 0 : 8
                                     radius: 4
                                     visible: !isCategory
-                                    color: "#60CDFF"
+                                    border.color: "#60CDFF"
+                                    border.width: libraryRow.isCustomWorkflow && libraryRow.workflowScope === "local" ? 1.5 : 0
+                                    color: libraryRow.isCustomWorkflow && libraryRow.workflowScope === "local" ? "transparent" : "#60CDFF"
                                 }
 
                                 Text {
@@ -307,13 +431,26 @@ Rectangle {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 preventStealing: true
-                                acceptedButtons: Qt.LeftButton
-                                drag.target: isCategory ? null : dragProxy
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                drag.target: (isCategory || !(pressedButtons & Qt.LeftButton)) ? null : dragProxy
                                 drag.axis: Drag.XAndYAxis
                                 property real pressStartX: 0
                                 property real pressStartY: 0
                                 property bool movedState: false
                                 onPressed: {
+                                    if (mouse.button === Qt.RightButton) {
+                                        if (libraryRow.isCustomWorkflow) {
+                                            var pointInRoot = libraryRow.mapToItem(root, mouse.x, mouse.y)
+                                            root.openLibraryWorkflowContextPopup(
+                                                String(modelData.workflow_id || ""),
+                                                libraryRow.workflowScope,
+                                                pointInRoot.x,
+                                                pointInRoot.y
+                                            )
+                                        }
+                                        mouse.accepted = true
+                                        return
+                                    }
                                     if (mouse.button !== Qt.LeftButton)
                                         return
                                     dragProxy.x = 0

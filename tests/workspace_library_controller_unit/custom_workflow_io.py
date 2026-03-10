@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from ea_node_editor.custom_workflows.global_store import (
+    load_global_custom_workflow_definitions,
+    save_global_custom_workflow_definitions,
+)
 from tests.workspace_library_controller_unit.support import *  # noqa: F401,F403
 
 
@@ -215,3 +219,149 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
         self.assertEqual(info_mock.call_count, 1)
         self.assertEqual(warning_mock.call_count, 0)
 
+    def test_delete_custom_workflow_removes_definition_and_emits_signals(self) -> None:
+        host = _PublishHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        host.model.project.metadata["custom_workflows"] = [
+            {
+                "workflow_id": "wf_keep",
+                "name": "Keep Me",
+                "description": "",
+                "revision": 1,
+                "ports": [],
+                "fragment": {"kind": "ea-node-editor/graph-fragment", "version": 1, "nodes": [], "edges": []},
+            },
+            {
+                "workflow_id": "wf_delete",
+                "name": "Delete Me",
+                "description": "",
+                "revision": 1,
+                "ports": [],
+                "fragment": {"kind": "ea-node-editor/graph-fragment", "version": 1, "nodes": [], "edges": []},
+            },
+        ]
+
+        deleted = controller.delete_custom_workflow("wf_delete")
+
+        self.assertTrue(deleted.ok)
+        self.assertTrue(deleted.payload)
+        definitions = host.model.project.metadata.get("custom_workflows", [])
+        self.assertEqual(len(definitions), 1)
+        self.assertEqual(definitions[0]["workflow_id"], "wf_keep")
+        self.assertEqual(host.project_meta_changed.calls, 1)
+        self.assertEqual(host.node_library_changed.calls, 1)
+
+    def test_delete_custom_workflow_returns_false_when_definition_does_not_exist(self) -> None:
+        host = _PublishHostStub()
+        controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+        host.model.project.metadata["custom_workflows"] = []
+
+        deleted = controller.delete_custom_workflow("wf_missing")
+
+        self.assertFalse(deleted.ok)
+        self.assertFalse(deleted.payload)
+        self.assertEqual(host.project_meta_changed.calls, 0)
+        self.assertEqual(host.node_library_changed.calls, 0)
+
+    def test_set_custom_workflow_scope_local_to_global_persists_across_controllers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            global_store_path = Path(temp_dir) / "custom_workflows_global.json"
+            with patch(
+                "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+                return_value=global_store_path,
+            ):
+                host = _PublishHostStub()
+                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+                host.model.project.metadata["custom_workflows"] = [
+                    {
+                        "workflow_id": "wf_shared",
+                        "name": "Shared",
+                        "description": "",
+                        "revision": 2,
+                        "ports": [],
+                        "fragment": {"kind": "ea-node-editor/graph-fragment", "version": 1, "nodes": [], "edges": []},
+                    }
+                ]
+
+                moved = controller.set_custom_workflow_scope("wf_shared", "global")
+                self.assertTrue(moved.ok)
+                self.assertTrue(moved.payload)
+                self.assertEqual(host.model.project.metadata.get("custom_workflows", []), [])
+                self.assertEqual(host.project_meta_changed.calls, 1)
+                self.assertEqual(host.node_library_changed.calls, 1)
+                self.assertEqual(len(load_global_custom_workflow_definitions()), 1)
+
+                other_host = _PublishHostStub()
+                other_controller = WorkspaceLibraryController(other_host)  # type: ignore[arg-type]
+                shared_items = [
+                    item
+                    for item in other_controller.custom_workflow_library_items()
+                    if item.get("workflow_id") == "wf_shared"
+                ]
+                self.assertEqual(len(shared_items), 1)
+                self.assertEqual(shared_items[0].get("workflow_scope"), "global")
+
+    def test_set_custom_workflow_scope_global_to_local_moves_back_to_project_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            global_store_path = Path(temp_dir) / "custom_workflows_global.json"
+            global_definition = {
+                "workflow_id": "wf_global",
+                "name": "Global",
+                "description": "",
+                "revision": 1,
+                "ports": [],
+                "fragment": {"kind": "ea-node-editor/graph-fragment", "version": 1, "nodes": [], "edges": []},
+            }
+
+            with patch(
+                "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+                return_value=global_store_path,
+            ):
+                save_global_custom_workflow_definitions([global_definition])
+                host = _PublishHostStub()
+                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+
+                moved = controller.set_custom_workflow_scope("wf_global", "local")
+                self.assertTrue(moved.ok)
+                self.assertTrue(moved.payload)
+                definitions = host.model.project.metadata.get("custom_workflows", [])
+                self.assertEqual(len(definitions), 1)
+                self.assertEqual(definitions[0]["workflow_id"], "wf_global")
+                self.assertEqual(host.project_meta_changed.calls, 1)
+                self.assertEqual(host.node_library_changed.calls, 1)
+                self.assertEqual(load_global_custom_workflow_definitions(), [])
+
+    def test_delete_custom_workflow_with_global_scope_removes_from_global_store_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            global_store_path = Path(temp_dir) / "custom_workflows_global.json"
+            with patch(
+                "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+                return_value=global_store_path,
+            ):
+                save_global_custom_workflow_definitions(
+                    [
+                        {
+                            "workflow_id": "wf_global_delete",
+                            "name": "Global Delete",
+                            "description": "",
+                            "revision": 1,
+                            "ports": [],
+                            "fragment": {
+                                "kind": "ea-node-editor/graph-fragment",
+                                "version": 1,
+                                "nodes": [],
+                                "edges": [],
+                            },
+                        }
+                    ]
+                )
+                host = _PublishHostStub()
+                controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
+
+                deleted = controller.delete_custom_workflow("wf_global_delete", "global")
+
+                self.assertTrue(deleted.ok)
+                self.assertTrue(deleted.payload)
+                self.assertEqual(load_global_custom_workflow_definitions(), [])
+                self.assertEqual(host.project_meta_changed.calls, 0)
+                self.assertEqual(host.node_library_changed.calls, 1)

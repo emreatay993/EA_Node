@@ -307,6 +307,66 @@ class MainWindowShellDropConnectAndWorkflowIOTests(MainWindowShellTestBase):
         self.assertNotEqual(first_shell_id, source_shell_id)
         self.assertNotEqual(second_shell_id, source_shell_id)
 
+    def test_qml_delete_custom_workflow_removes_item_from_library_and_metadata(self) -> None:
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Delete Target",
+            output_label="Exec Out",
+        )
+        self.window.scene.focus_node(source_shell_id)
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        custom_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows"
+        )
+        workflow_id = str(custom_item.get("workflow_id", ""))
+        self.assertTrue(workflow_id)
+
+        deleted = self.window.request_delete_custom_workflow_from_library(workflow_id)
+        self.assertTrue(deleted)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.model.project.metadata.get("custom_workflows", []), [])
+        self.assertFalse(
+            [
+                item
+                for item in self.window.filtered_node_library_items
+                if item.get("category") == "Custom Workflows"
+            ]
+        )
+
+    def test_qml_set_custom_workflow_scope_moves_local_item_to_global(self) -> None:
+        source_shell_id, _source_pin_id = self._create_publishable_subnode(
+            shell_title="Scope Switch",
+            output_label="Exec Out",
+        )
+        self.window.scene.focus_node(source_shell_id)
+        self.assertTrue(self.window.request_publish_custom_workflow_from_selected())
+        self.app.processEvents()
+
+        custom_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows" and item.get("display_name") == "Scope Switch"
+        )
+        workflow_id = str(custom_item.get("workflow_id", ""))
+        self.assertTrue(workflow_id)
+        self.assertEqual(custom_item.get("workflow_scope"), "local")
+
+        switched = self.window.request_set_custom_workflow_scope(workflow_id, "global")
+        self.assertTrue(switched)
+        self.app.processEvents()
+        self.assertEqual(self.window.model.project.metadata.get("custom_workflows", []), [])
+
+        updated_item = next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("category") == "Custom Workflows" and item.get("workflow_id") == workflow_id
+        )
+        self.assertEqual(updated_item.get("workflow_scope"), "global")
+
     def test_qml_custom_workflow_export_import_round_trip_preserves_snapshot_fidelity(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]

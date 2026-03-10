@@ -68,6 +68,9 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
         )
         self.assertGreaterEqual(meta.indexOfMethod("request_publish_custom_workflow_from_selected()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_publish_custom_workflow_from_scope()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_delete_custom_workflow_from_library(QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_delete_custom_workflow_from_library(QString,QString)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("request_set_custom_workflow_scope(QString,QString)"), 0)
 
         with patch("ea_node_editor.ui.dialogs.workflow_settings_dialog.WorkflowSettingsDialog.exec", return_value=0):
             QMetaObject.invokeMethod(

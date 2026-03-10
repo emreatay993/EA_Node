@@ -35,6 +35,7 @@ class MainWindowShellTestBase(unittest.TestCase):
         self._temp_dir = tempfile.TemporaryDirectory()
         self._session_path = Path(self._temp_dir.name) / "last_session.json"
         self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
+        self._global_custom_workflows_path = Path(self._temp_dir.name) / "custom_workflows_global.json"
         self._session_patch = patch(
             "ea_node_editor.ui.shell.window.recent_session_path",
             return_value=self._session_path,
@@ -43,8 +44,13 @@ class MainWindowShellTestBase(unittest.TestCase):
             "ea_node_editor.ui.shell.window.autosave_project_path",
             return_value=self._autosave_path,
         )
+        self._global_custom_workflows_patch = patch(
+            "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+            return_value=self._global_custom_workflows_path,
+        )
         self._session_patch.start()
         self._autosave_patch.start()
+        self._global_custom_workflows_patch.start()
         self.window = ShellWindow()
         self.window.resize(1200, 800)
         self.window.show()
@@ -55,6 +61,7 @@ class MainWindowShellTestBase(unittest.TestCase):
         self.app.processEvents()
         self._session_patch.stop()
         self._autosave_patch.stop()
+        self._global_custom_workflows_patch.stop()
         self._temp_dir.cleanup()
 
     def _active_workspace(self):
@@ -154,4 +161,3 @@ class MainWindowShellTestBase(unittest.TestCase):
         self.window.scene.focus_node(outer_id)
         self.app.processEvents()
         return outer_id, inner_id
-

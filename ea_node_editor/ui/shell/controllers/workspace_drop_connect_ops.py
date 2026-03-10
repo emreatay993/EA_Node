@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any, Protocol
 
-from ea_node_editor.custom_workflows import find_custom_workflow_definition, parse_custom_workflow_type_id
+from ea_node_editor.custom_workflows import parse_custom_workflow_type_id
 from ea_node_editor.graph.effective_ports import effective_ports, find_port, ports_compatible
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 class _WorkspaceDropConnectControllerProtocol(Protocol):
-    def _custom_workflow_definitions(self) -> list[dict[str, Any]]: ...
+    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None: ...
 
     def active_workspace(self) -> WorkspaceData | None: ...
 
@@ -62,7 +62,7 @@ class WorkspaceDropConnectOps:
         workspace = self._controller.active_workspace()
         if workspace is None:
             return ""
-        definition = find_custom_workflow_definition(self._controller._custom_workflow_definitions(), workflow_id)
+        definition = self._controller.resolve_custom_workflow_definition(workflow_id)
         if definition is None:
             return ""
         fragment_payload = self._normalize_custom_workflow_fragment_payload(definition.get("fragment"))

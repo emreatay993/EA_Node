@@ -25,6 +25,7 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
         self._temp_dir = tempfile.TemporaryDirectory()
         self._session_path = Path(self._temp_dir.name) / "last_session.json"
         self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
+        self._global_custom_workflows_path = Path(self._temp_dir.name) / "custom_workflows_global.json"
         self._session_patch = patch(
             "ea_node_editor.ui.shell.window.recent_session_path",
             return_value=self._session_path,
@@ -33,8 +34,13 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
             "ea_node_editor.ui.shell.window.autosave_project_path",
             return_value=self._autosave_path,
         )
+        self._global_custom_workflows_patch = patch(
+            "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
+            return_value=self._global_custom_workflows_path,
+        )
         self._session_patch.start()
         self._autosave_patch.start()
+        self._global_custom_workflows_patch.start()
         self.window = ShellWindow()
         self.window.resize(1200, 800)
         self.window.show()
@@ -45,6 +51,7 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
         self.app.processEvents()
         self._session_patch.stop()
         self._autosave_patch.stop()
+        self._global_custom_workflows_patch.stop()
         self._temp_dir.cleanup()
 
     def test_session_restore_recovers_workspace_order_active_workspace_and_view_camera(self) -> None:

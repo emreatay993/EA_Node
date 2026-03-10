@@ -140,6 +140,7 @@ def build_grouped_library_items(*, filtered_items: Iterable[dict[str, Any]]) -> 
                     "library_source": node_item.get("library_source", "node_registry"),
                     "workflow_id": node_item.get("workflow_id", ""),
                     "revision": node_item.get("revision", 1),
+                    "workflow_scope": node_item.get("workflow_scope", "local"),
                 }
             )
     return payload
@@ -266,4 +267,3 @@ def build_selected_node_port_items(
         }
         for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes)
     ]
-
