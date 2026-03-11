@@ -21,83 +21,125 @@ python main.py
 
 ## Project Structure
 
-```
+Core source layout (package `__init__.py` files omitted for brevity):
+
+```text
 ea_node_editor/
-  app.py                  # Application entry point
-  settings.py             # Paths, defaults, autosave interval
-
-  graph/                  # Graph domain model + graph rules
-    model.py              # ProjectData, WorkspaceData, NodeInstance, EdgeInstance
-    rules.py              # Canonical port/data compatibility and exposure helpers
-
-  nodes/                  # Node type system
-    types.py              # PortSpec, PropertySpec, NodeTypeSpec, NodePlugin protocol
-    registry.py           # Central registry of all available node types
-    decorators.py         # @node_type, in_port, out_port, prop_* helpers
-    bootstrap.py          # Registers built-in nodes at startup
-    plugin_loader.py      # Discovers and loads user plugins from disk
-    package_manager.py    # Import / export .eanp node packages
+  app.py
+  settings.py
+  custom_workflows/
+    codec.py
+    file_codec.py
+    global_store.py
+  execution/
+    client.py
+    compiler.py
+    protocol.py
+    worker.py
+  graph/
+    effective_ports.py
+    hierarchy.py
+    model.py
+    normalization.py
+    rules.py
+    transforms.py
+  nodes/
+    bootstrap.py
+    decorators.py
+    package_manager.py
+    plugin_loader.py
+    registry.py
+    types.py
     builtins/
-      core.py             # Start, End, Constant, Logger, Python Script
-      integrations.py     # Compatibility facade (re-exports integration plugins)
-      integrations_spreadsheet.py
-      integrations_file_io.py
+      core.py
+      hpc.py
+      integrations.py
+      integrations_common.py
       integrations_email.py
+      integrations_file_io.py
       integrations_process.py
-      hpc.py              # HPC Submit, Monitor, On Status, Fetch Results
-
-  execution/              # Workflow run engine
-    protocol.py           # Typed event/command protocol + queue adapters
-    worker.py             # Runs the workflow in a separate process
-    client.py             # UI-side client that talks to the worker process
-
+      integrations_spreadsheet.py
+      subnode.py
   persistence/
-    serializer.py         # Backward-compatible facade for load/save/to/from/migrate
-    migration.py          # Schema migration + normalization
-    project_codec.py      # ProjectData <-> document codec
-    session_store.py      # Session/autosave storage + recovery helpers
-
-  ui/                     # User interface shell orchestration
+    migration.py
+    project_codec.py
+    serializer.py
+    session_store.py
+    utils.py
+  telemetry/
+    performance_harness.py
+    system_metrics.py
+  ui/
+    graph_interactions.py
+    dialogs/
+      workflow_settings_dialog.py
+    editor/
+      code_editor.py
     shell/
-      window.py           # ShellWindow (QMainWindow host + QML bridge delegation)
-      state.py            # Mutable shell/runtime state container
+      state.py
+      run_flow.py
+      workspace_flow.py
+      inspector_flow.py
+      library_flow.py
+      runtime_history.py
+      runtime_clipboard.py
+      window.py
+      window_actions.py
+      window_library_inspector.py
+      window_search_scope_state.py
       controllers/
         run_controller.py
         project_session_controller.py
         workspace_library_controller.py
-      run_flow.py         # Run lifecycle helpers (event scoping + action-state derivation)
-      workspace_flow.py   # Workspace/view tab helpers
-      inspector_flow.py   # Inspector property coercion helpers
-      library_flow.py     # Library drop/autowire helper selection
-    graph_interactions.py # Connect, delete, rename operations
-    dialogs/              # Workflow settings dialog
-    theme/                # Dark theme tokens and stylesheets
-    editor/               # Code editor widget
-
-  ui_qml/                 # QML shell + bridge/state models
-    MainShell.qml         # Main shell composition root
-    components/
-      GraphCanvas.qml     # Canvas orchestration surface
-      graph/              # Node cards + edge layer
-      graph_canvas/       # Modular canvas layers/overlays/helpers
-        GraphCanvasBackground.qml
-        GraphCanvasDropPreview.qml
-        GraphCanvasMinimapOverlay.qml
-        GraphCanvasInputLayers.qml
-        GraphCanvasContextMenus.qml
-        GraphCanvasLogic.js
-    graph_scene_bridge.py # GraphSceneBridge (nodes/edges/selection)
-    viewport_bridge.py    # ViewportBridge (zoom/pan/camera)
-    edge_routing.py       # Edge geometry and payload routing helpers
+        workspace_view_nav_ops.py
+        workspace_edit_ops.py
+        workspace_drop_connect_ops.py
+        workspace_io_ops.py
+        result.py
+    theme/
+      styles.py
+      tokens.py
+  ui_qml/
+    MainShell.qml
+    graph_scene_bridge.py
+    viewport_bridge.py
+    edge_routing.py
     console_model.py
     script_editor_model.py
     status_model.py
+    syntax_bridge.py
     workspace_tabs_model.py
-  workspace/              # Workspace ordering and lifecycle
-  telemetry/              # CPU/RAM metrics, performance harness
+    components/
+      GraphCanvas.qml
+      graph/
+        EdgeLayer.qml
+        EdgeMath.js
+        NodeCard.qml
+      graph_canvas/
+        GraphCanvasBackground.qml
+        GraphCanvasContextMenus.qml
+        GraphCanvasDropPreview.qml
+        GraphCanvasInputLayers.qml
+        GraphCanvasLogic.js
+        GraphCanvasMinimapOverlay.qml
+      shell/
+        GraphHintOverlay.qml
+        GraphSearchOverlay.qml
+        InspectorPane.qml
+        LibraryWorkflowContextPopup.qml
+        MainShellUtils.js
+        NodeLibraryPane.qml
+        ScriptEditorOverlay.qml
+        ShellButton.qml
+        ShellRunToolbar.qml
+        ShellStatusStrip.qml
+        ShellTitleBar.qml
+        WorkspaceCenterPane.qml
+  workspace/
+    manager.py
 
-tests/                    # Unit and integration tests
-docs/specs/               # Requirements, ADRs, work packets
+tests/
+docs/specs/
 ```
 
 ## Creating a Custom Node

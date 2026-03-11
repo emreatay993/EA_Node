@@ -296,7 +296,10 @@ sequenceDiagram
 - `ea_node_editor/ui/shell/window.py`: QMainWindow/QML facade and slot surface.
 - `ea_node_editor/ui/shell/controllers/`: run/project-session/workspace-library orchestration + ops.
 - `ea_node_editor/ui/shell/window_search_scope_state.py`: graph search/scope camera/snap state helpers.
-- `ea_node_editor/ui_qml/`: QML shell/canvas UI, Python bridge/state models, and canvas helper modules.
+- `ea_node_editor/ui_qml/`: QML shell/canvas UI and Python bridge/state models.
+- `ea_node_editor/ui_qml/components/shell/`: modular shell composition components extracted from `MainShell.qml`.
+- `ea_node_editor/ui_qml/components/graph_canvas/`: modular GraphCanvas layers/overlays/helpers.
+- `ea_node_editor/ui_qml/components/graph/`: node cards and edge rendering delegates.
 - `ea_node_editor/graph/`: graph datamodel, hierarchy helpers, transforms, and wiring rules.
 - `ea_node_editor/nodes/`: SDK, registry, built-ins, plugin/package support.
 - `ea_node_editor/execution/`: client/worker protocol and run engine.
@@ -315,6 +318,7 @@ sequenceDiagram
 - Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py`.
 - Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.
+- Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.
 - Change custom workflow metadata/file format: `ea_node_editor/custom_workflows/codec.py` and `file_codec.py`.
 - Change persistence schema normalization/migration: `ea_node_editor/persistence/migration.py`.
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ui_qml/components/graph_canvas/*`, and `ui_qml/graph_scene_bridge.py`.
