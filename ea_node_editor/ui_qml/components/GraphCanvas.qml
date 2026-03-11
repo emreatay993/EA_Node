@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "graph" as GraphComponents
+import "graph_canvas" as GraphCanvasComponents
 import "graph_canvas/GraphCanvasLogic.js" as GraphCanvasLogic
 
 Item {
@@ -974,65 +975,10 @@ Item {
         root.nodeContextVisible = true;
     }
 
-    Rectangle {
+    GraphCanvasComponents.GraphCanvasBackground {
+        id: backgroundLayer
         anchors.fill: parent
-        gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1D1F24" }
-            GradientStop { position: 1.0; color: "#1A1C20" }
-        }
-    }
-
-    Canvas {
-        id: gridCanvas
-        anchors.fill: parent
-        onPaint: {
-            var ctx = getContext("2d");
-            ctx.reset();
-            ctx.fillStyle = "#1D1F24";
-            ctx.fillRect(0, 0, width, height);
-
-            var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-            var step = 20 * zoom;
-            if (step < 10)
-                step = 10;
-            var major = step * 5;
-            var centerX = viewBridge ? viewBridge.center_x : 0.0;
-            var centerY = viewBridge ? viewBridge.center_y : 0.0;
-
-            var minorStartX = GraphCanvasLogic.normalizedOffset(step, width * 0.5 - centerX * zoom);
-            var minorStartY = GraphCanvasLogic.normalizedOffset(step, height * 0.5 - centerY * zoom);
-            var majorStartX = GraphCanvasLogic.normalizedOffset(major, width * 0.5 - centerX * zoom);
-            var majorStartY = GraphCanvasLogic.normalizedOffset(major, height * 0.5 - centerY * zoom);
-
-            ctx.lineWidth = 1;
-            ctx.strokeStyle = "#2A2E37";
-            for (var x = minorStartX; x <= width; x += step) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-                ctx.stroke();
-            }
-            for (var y = minorStartY; y <= height; y += step) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-            }
-
-            ctx.strokeStyle = "#323746";
-            for (x = majorStartX; x <= width; x += major) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, height);
-                ctx.stroke();
-            }
-            for (y = majorStartY; y <= height; y += major) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(width, y);
-                ctx.stroke();
-            }
-        }
+        viewBridge: root.viewBridge
     }
 
     GraphComponents.EdgeLayer {
@@ -1063,143 +1009,10 @@ Item {
         }
     }
 
-    Rectangle {
+    GraphCanvasComponents.GraphCanvasDropPreview {
         id: dragNodePreview
-        visible: !!root.dropPreviewNodePayload
-        z: 34
-        x: root.dropPreviewScreenX
-        y: root.dropPreviewScreenY
-        width: root.previewNodeScreenWidth()
-        height: root.previewNodeScreenHeight()
-        radius: Math.max(4, 6 * (viewBridge ? viewBridge.zoom_value : 1.0))
-        color: "#AA2A3340"
-        border.width: 1
-        border.color: "#80CFF5"
-        clip: true
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: Math.max(8, 4 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            color: "#66A4D8"
-        }
-
-        Rectangle {
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: Math.max(8, 4 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            height: Math.max(14, 24 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            color: "#7A2F3948"
-        }
-
-        Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Math.max(4, 10 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            anchors.right: parent.right
-            anchors.rightMargin: Math.max(4, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            anchors.top: parent.top
-            anchors.topMargin: Math.max(10, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            text: root.dropPreviewNodePayload
-                ? String(root.dropPreviewNodePayload.display_name || root.dropPreviewNodePayload.type_id || "")
-                : ""
-            color: "#EAF3FF"
-            font.bold: true
-            font.pixelSize: Math.max(10, Math.min(16, 12 * (viewBridge ? viewBridge.zoom_value : 1.0)))
-            elide: Text.ElideRight
-        }
-
-        Item {
-            id: previewPortsLayer
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.topMargin: Math.max(10, 30 * (viewBridge ? viewBridge.zoom_value : 1.0))
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: Math.max(2, 6 * (viewBridge ? viewBridge.zoom_value : 1.0))
-
-            Column {
-                id: previewInputColumn
-                anchors.left: parent.left
-                anchors.leftMargin: Math.max(4, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
-                anchors.top: parent.top
-                spacing: 0
-
-                Repeater {
-                    model: root.previewInputPorts()
-                    delegate: Item {
-                        width: Math.max(40, previewPortsLayer.width * 0.45)
-                        height: Math.max(8, 18 * (viewBridge ? viewBridge.zoom_value : 1.0))
-
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: 0
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(5, Math.min(10, 8 * (viewBridge ? viewBridge.zoom_value : 1.0)))
-                            height: width
-                            radius: width * 0.5
-                            color: "transparent"
-                            border.width: 1
-                            border.color: root.previewPortColor(modelData.kind)
-                        }
-
-                        Text {
-                            visible: root.previewPortLabelsVisible()
-                            anchors.left: parent.left
-                            anchors.leftMargin: Math.max(7, 12 * (viewBridge ? viewBridge.zoom_value : 1.0))
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: String(modelData.label || modelData.key || "")
-                            color: "#C6D1E1"
-                            font.pixelSize: Math.max(7, Math.min(11, 10 * (viewBridge ? viewBridge.zoom_value : 1.0)))
-                            elide: Text.ElideRight
-                        }
-                    }
-                }
-            }
-
-            Column {
-                id: previewOutputColumn
-                anchors.right: parent.right
-                anchors.rightMargin: Math.max(4, 8 * (viewBridge ? viewBridge.zoom_value : 1.0))
-                anchors.top: parent.top
-                spacing: 0
-
-                Repeater {
-                    model: root.previewOutputPorts()
-                    delegate: Item {
-                        width: Math.max(40, previewPortsLayer.width * 0.45)
-                        height: Math.max(8, 18 * (viewBridge ? viewBridge.zoom_value : 1.0))
-
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.rightMargin: 0
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.max(5, Math.min(10, 8 * (viewBridge ? viewBridge.zoom_value : 1.0)))
-                            height: width
-                            radius: width * 0.5
-                            color: "transparent"
-                            border.width: 1
-                            border.color: root.previewPortColor(modelData.kind)
-                        }
-
-                        Text {
-                            visible: root.previewPortLabelsVisible()
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.rightMargin: Math.max(7, 12 * (viewBridge ? viewBridge.zoom_value : 1.0))
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: String(modelData.label || modelData.key || "")
-                            color: "#C6D1E1"
-                            font.pixelSize: Math.max(7, Math.min(11, 10 * (viewBridge ? viewBridge.zoom_value : 1.0)))
-                            horizontalAlignment: Text.AlignRight
-                            elide: Text.ElideLeft
-                        }
-                    }
-                }
-            }
-        }
+        canvasItem: root
+        viewBridge: root.viewBridge
     }
 
     Item {
@@ -1937,11 +1750,11 @@ Item {
     Connections {
         target: viewBridge
         function onZoom_changed() {
-            gridCanvas.requestPaint();
+            backgroundLayer.requestGridRedraw();
             edgeLayer.requestRedraw();
         }
         function onCenter_changed() {
-            gridCanvas.requestPaint();
+            backgroundLayer.requestGridRedraw();
             edgeLayer.requestRedraw();
         }
     }
