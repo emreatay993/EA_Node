@@ -75,6 +75,17 @@ ea_node_editor/
     editor/               # Code editor widget
 
   ui_qml/                 # QML shell + bridge/state models
+    MainShell.qml         # Main shell composition root
+    components/
+      GraphCanvas.qml     # Canvas orchestration surface
+      graph/              # Node cards + edge layer
+      graph_canvas/       # Modular canvas layers/overlays/helpers
+        GraphCanvasBackground.qml
+        GraphCanvasDropPreview.qml
+        GraphCanvasMinimapOverlay.qml
+        GraphCanvasInputLayers.qml
+        GraphCanvasContextMenus.qml
+        GraphCanvasLogic.js
     graph_scene_bridge.py # GraphSceneBridge (nodes/edges/selection)
     viewport_bridge.py    # ViewportBridge (zoom/pan/camera)
     edge_routing.py       # Edge geometry and payload routing helpers
@@ -143,6 +154,14 @@ packaging, installer creation, and code signing instructions.
 
 ## Documentation
 
+- [Architecture Guide](ARCHITECTURE.md) -- runtime/component architecture and flow maps
+- [Architecture Diagrams](docs/architecture_diagrams/) -- generated Mermaid exports (`.mmd`, `.svg`, `.png`)
 - [Spec Pack Index](docs/specs/INDEX.md) -- requirements, ADRs, traceability
 - [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
+
+Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
+
+```bash
+python3 scripts/export_architecture_diagrams.py
+```
