@@ -1,6 +1,20 @@
 flowchart LR
-    U[User] --> QML[MainShell.qml + GraphCanvas]
-    QML --> SW[ShellWindow facade]
+    U[User] --> MS[MainShell.qml]
+    MS --> GC[GraphCanvas.qml orchestrator]
+    MS --> SW[ShellWindow facade]
+
+    GC --> GCBG[GraphCanvasBackground]
+    GC --> GCDP[GraphCanvasDropPreview]
+    GC --> GCMINI[GraphCanvasMinimapOverlay]
+    GC --> GCINPUT[GraphCanvasInputLayers]
+    GC --> GCCM[GraphCanvasContextMenus]
+    GC --> GCLOGIC[GraphCanvasLogic.js]
+    GC --> EDGE[EdgeLayer]
+    GC --> NODECARD[NodeCard]
+
+    GC --> GS
+    GC --> VP
+    GC --> SW
 
     SW --> RUN[RunController]
     SW --> PSC[ProjectSessionController]
