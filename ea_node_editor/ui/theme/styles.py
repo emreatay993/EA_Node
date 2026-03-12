@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from ea_node_editor.ui.theme.tokens import STITCH_DARK_V1, ThemeTokens
+from ea_node_editor.ui.theme.registry import DEFAULT_THEME_ID, resolve_theme_tokens
+from ea_node_editor.ui.theme.tokens import ThemeTokens
 
 
-def build_app_stylesheet(tokens: ThemeTokens = STITCH_DARK_V1) -> str:
+def build_app_stylesheet(tokens: ThemeTokens) -> str:
     return f"""
 QMainWindow {{
     background: {tokens.app_bg};
@@ -78,7 +79,7 @@ QPushButton#viewButton {{
     padding: 4px 10px;
 }}
 QLabel#zoomLabel {{
-    color: #d0d5de;
+    color: {tokens.muted_fg};
     padding-left: 4px;
 }}
 QLineEdit,
@@ -106,10 +107,10 @@ QGroupBox::title {{
     subcontrol-origin: margin;
     left: 8px;
     padding: 0 2px;
-    color: #bdc5d3;
+    color: {tokens.group_title_fg};
 }}
 QLabel#panelTitle {{
-    color: #f0f4fb;
+    color: {tokens.panel_title_fg};
     font-weight: 700;
     letter-spacing: 0.4px;
 }}
@@ -118,21 +119,21 @@ QWidget#inspectorPanel {{
     background: {tokens.panel_bg};
 }}
 QWidget#workspaceTabStrip {{
-    background: #1b1d22;
+    background: {tokens.panel_bg};
     border-top: 1px solid {tokens.border};
     border-bottom: 1px solid {tokens.border};
 }}
 QTabBar::tab {{
-    background: #2a2d34;
-    color: #d8deea;
+    background: {tokens.tab_bg};
+    color: {tokens.tab_fg};
     padding: 5px 11px;
     border: 1px solid {tokens.border};
     border-bottom: 0;
     margin-right: 2px;
 }}
 QTabBar::tab:selected {{
-    background: #2f343e;
-    color: #f2f4f8;
+    background: {tokens.tab_selected_bg};
+    color: {tokens.tab_selected_fg};
     border-top: 2px solid {tokens.accent};
 }}
 QTabBar::tab:hover {{
@@ -142,14 +143,14 @@ QTabWidget::pane {{
     border-top: 1px solid {tokens.border};
 }}
 QWidget#consolePanel {{
-    background: #15181d;
+    background: {tokens.console_bg};
     border-top: 1px solid {tokens.border};
 }}
 QSplitter::handle {{
-    background: #272b33;
+    background: {tokens.splitter_handle};
 }}
 QSplitter::handle:hover {{
-    background: #323742;
+    background: {tokens.splitter_handle_hover};
 }}
 QStatusBar#mainStatusBar {{
     background: {tokens.status_bg};
@@ -164,7 +165,7 @@ QStatusBar#mainStatusBar > QWidget {{
     color: {tokens.status_fg};
 }}
 QStatusBar#mainStatusBar > QWidget[clickable="true"]:hover {{
-    background: rgba(255, 255, 255, 0.13);
+    background: {tokens.status_hover_bg};
     border-radius: 3px;
 }}
 QDockWidget {{
@@ -182,7 +183,7 @@ QScrollBar:vertical {{
     width: 10px;
 }}
 QScrollBar::handle:vertical {{
-    background: #4d5361;
+    background: {tokens.scrollbar_handle};
     min-height: 20px;
     border-radius: 4px;
 }}
@@ -191,9 +192,12 @@ QScrollBar:horizontal {{
     height: 10px;
 }}
 QScrollBar::handle:horizontal {{
-    background: #4d5361;
+    background: {tokens.scrollbar_handle};
     min-width: 20px;
     border-radius: 4px;
 }}
 """
 
+
+def build_theme_stylesheet(theme_id: object = DEFAULT_THEME_ID) -> str:
+    return build_app_stylesheet(resolve_theme_tokens(theme_id))

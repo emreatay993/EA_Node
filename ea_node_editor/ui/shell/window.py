@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal
 from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
-from PyQt6.QtWidgets import QMainWindow, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.execution.client import ProcessExecutionClient
@@ -40,6 +40,7 @@ from ea_node_editor.ui.shell.controllers import (
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
+from ea_node_editor.ui.theme import build_theme_stylesheet
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_connection_quick_insert_items,
     build_combined_library_items,
@@ -61,6 +62,7 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
+from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -164,6 +166,7 @@ class ShellWindow(QMainWindow):
         self._graphics_minimap_expanded = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"])
         self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
         self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
+        self.theme_bridge = ThemeBridge(self, theme_id=self._active_theme_id)
         self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
@@ -358,6 +361,7 @@ class ShellWindow(QMainWindow):
         context.setContextProperty("consoleBridge", self.console_panel)
         context.setContextProperty("scriptEditorBridge", self.script_editor)
         context.setContextProperty("scriptHighlighterBridge", self.script_highlighter)
+        context.setContextProperty("themeBridge", self.theme_bridge)
         context.setContextProperty("workspaceTabsBridge", self.workspace_tabs)
         context.setContextProperty("uiIcons", self.ui_icons)
         context.setContextProperty("statusEngine", self.status_engine)
@@ -880,6 +884,13 @@ class ShellWindow(QMainWindow):
     def clear_graph_hint(self) -> None:
         window_search_scope_state.clear_graph_hint(self)
 
+    def _apply_theme(self, theme_id: Any) -> str:
+        resolved_theme_id = self.theme_bridge.apply_theme(theme_id)
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(build_theme_stylesheet(resolved_theme_id))
+        return resolved_theme_id
+
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
         canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
         interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
@@ -889,7 +900,7 @@ class ShellWindow(QMainWindow):
         show_grid = bool(canvas.get("show_grid", self._graphics_show_grid))
         show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
         minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
-        active_theme_id = str(theme.get("theme_id", self._active_theme_id))
+        active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
 
         if self._graphics_show_grid != show_grid:
             self._graphics_show_grid = show_grid
