@@ -29,6 +29,7 @@ from ea_node_editor.settings import (
 )
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.graph_interactions import GraphInteractions
+from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
 from ea_node_editor.ui.shell.controllers import (
     ProjectSessionController,
     RunController,
@@ -138,6 +139,8 @@ class ShellWindow(QMainWindow):
         self.script_editor = ScriptEditorModel(self)
         self.script_highlighter = QmlScriptSyntaxBridge(self)
         self.workspace_tabs = WorkspaceTabsModel(self)
+        self.ui_icons = UiIconRegistryBridge(self)
+        self._ui_icon_image_provider = UiIconImageProvider()
         self.status_engine = StatusItemModel("E", "Ready", self)
         self.status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", self)
         self.status_metrics = StatusItemModel("M", "CPU:0% RAM:0/0 GB", self)
@@ -297,6 +300,7 @@ class ShellWindow(QMainWindow):
         self.quick_widget = QQuickWidget(self)
         self.quick_widget.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
 
+        self.quick_widget.engine().addImageProvider(UI_ICON_PROVIDER_ID, self._ui_icon_image_provider)
         context = self.quick_widget.rootContext()
         context.setContextProperty("mainWindow", self)
         context.setContextProperty("sceneBridge", self.scene)
@@ -305,6 +309,7 @@ class ShellWindow(QMainWindow):
         context.setContextProperty("scriptEditorBridge", self.script_editor)
         context.setContextProperty("scriptHighlighterBridge", self.script_highlighter)
         context.setContextProperty("workspaceTabsBridge", self.workspace_tabs)
+        context.setContextProperty("uiIcons", self.ui_icons)
         context.setContextProperty("statusEngine", self.status_engine)
         context.setContextProperty("statusJobs", self.status_jobs)
         context.setContextProperty("statusMetrics", self.status_metrics)

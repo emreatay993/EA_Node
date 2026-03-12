@@ -9,8 +9,12 @@ hiddenimports += [
     "PyQt6.QtQuick",
     "PyQt6.QtQuickWidgets",
     "PyQt6.QtQuickControls2",
+    "PyQt6.QtSvg",
 ]
-datas = collect_data_files("ea_node_editor.ui_qml", includes=["*.qml", "**/*.qml"])
+datas = collect_data_files(
+    "ea_node_editor.ui_qml",
+    includes=["*.qml", "**/*.qml", "*.js", "**/*.js", "*.svg", "**/*.svg"],
+)
 
 a = Analysis(
     ["main.py"],

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from ea_node_editor.ui.icon_registry import qicon
 from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_action_state
 
 if TYPE_CHECKING:
@@ -161,3 +162,5 @@ class RunController:
         self._host.action_stop.setEnabled(True)
         self._host.action_pause.setEnabled(can_pause)
         self._host.action_pause.setText(pause_label)
+        if hasattr(self._host.action_pause, "setIcon"):
+            self._host.action_pause.setIcon(qicon("resume" if pause_label == "Resume" else "pause"))

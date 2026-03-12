@@ -39,5 +39,13 @@ ea-node-editor = "ea_node_editor.app:run"
 [tool.setuptools.packages.find]
 include = ["ea_node_editor*"]
 
+[tool.setuptools.package-data]
+ea_node_editor = [
+    "ui_qml/*.qml",
+    "ui_qml/**/*.qml",
+    "ui_qml/**/*.js",
+    "ui_qml/**/*.svg",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

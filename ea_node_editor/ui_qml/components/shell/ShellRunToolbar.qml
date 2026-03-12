@@ -19,15 +19,16 @@ Rectangle {
         spacing: 6
 
         ShellButton {
-            text: "Run"
+            iconName: "run"
             onClicked: root.mainWindowRef.request_run_workflow()
         }
         ShellButton {
-            text: "Pause"
+            iconName: "pause"
+            tooltipText: "Pause / Resume"
             onClicked: root.mainWindowRef.request_toggle_run_pause()
         }
         ShellButton {
-            text: "Stop"
+            iconName: "stop"
             onClicked: root.mainWindowRef.request_stop_workflow()
         }
         Item { Layout.fillWidth: true }

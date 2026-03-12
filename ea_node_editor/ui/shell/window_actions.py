@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
 
+from ea_node_editor.ui.icon_registry import qicon
+
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
@@ -36,14 +38,17 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_toggle_script_editor.triggered.connect(window.set_script_editor_panel_visible)
 
     window.action_run = QAction("Run", window)
+    window.action_run.setIcon(qicon("run"))
     window.action_run.setShortcut(QKeySequence("F5"))
     window.action_run.triggered.connect(window._run_workflow)
 
     window.action_stop = QAction("Stop", window)
+    window.action_stop.setIcon(qicon("stop"))
     window.action_stop.setShortcut(QKeySequence("Shift+F5"))
     window.action_stop.triggered.connect(window._stop_workflow)
 
     window.action_pause = QAction("Pause", window)
+    window.action_pause.setIcon(qicon("pause"))
     window.action_pause.setShortcut(QKeySequence("F6"))
     window.action_pause.triggered.connect(window._toggle_pause_resume)
 
