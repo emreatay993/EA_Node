@@ -8,6 +8,8 @@ APP_ID = "com.ea.node_editor"
 PROJECT_EXTENSION = ".sfe"
 SCHEMA_VERSION = 3
 AUTOSAVE_INTERVAL_MS = 30_000
+APP_PREFERENCES_KIND = "ea-node-editor/app-preferences"
+APP_PREFERENCES_VERSION = 1
 
 DEFAULT_WORKFLOW_SETTINGS = {
     "general": {
@@ -40,6 +42,26 @@ DEFAULT_UI_STATE = {
     },
 }
 
+DEFAULT_GRAPHICS_SETTINGS = {
+    "canvas": {
+        "show_grid": True,
+        "show_minimap": True,
+        "minimap_expanded": True,
+    },
+    "interaction": {
+        "snap_to_grid": False,
+    },
+    "theme": {
+        "theme_id": "stitch_dark",
+    },
+}
+
+DEFAULT_APP_PREFERENCES = {
+    "kind": APP_PREFERENCES_KIND,
+    "version": APP_PREFERENCES_VERSION,
+    "graphics": DEFAULT_GRAPHICS_SETTINGS,
+}
+
 
 def user_data_dir() -> Path:
     app_data = os.environ.get("APPDATA")
@@ -54,6 +76,10 @@ def user_data_dir() -> Path:
 
 def recent_session_path() -> Path:
     return user_data_dir() / "last_session.json"
+
+
+def app_preferences_path() -> Path:
+    return user_data_dir() / "app_preferences.json"
 
 
 def autosave_project_path() -> Path:
