@@ -867,6 +867,10 @@ class ShellWindow(QMainWindow):
     def set_snap_to_grid_enabled(self, enabled: bool) -> None:
         window_search_scope_state.set_snap_to_grid_enabled(self, enabled)
 
+    @pyqtSlot(bool)
+    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
+        window_search_scope_state.set_graphics_minimap_expanded(self, expanded)
+
     @pyqtSlot(str)
     @pyqtSlot(str, int)
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
@@ -900,7 +904,11 @@ class ShellWindow(QMainWindow):
             self._active_theme_id = active_theme_id
             changed = True
 
-        self.set_snap_to_grid_enabled(bool(interaction.get("snap_to_grid", self._snap_to_grid_enabled)))
+        window_search_scope_state.set_snap_to_grid_enabled(
+            self,
+            bool(interaction.get("snap_to_grid", self._snap_to_grid_enabled)),
+            persist=False,
+        )
         if changed:
             self.graphics_preferences_changed.emit()
 

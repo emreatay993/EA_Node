@@ -8,6 +8,8 @@ Rectangle {
     property var viewBridge: null
 
     z: 140
+    visible: root.canvasItem ? root.canvasItem.minimapVisible : true
+    enabled: visible
     anchors.right: parent.right
     anchors.bottom: parent.bottom
     anchors.rightMargin: 12

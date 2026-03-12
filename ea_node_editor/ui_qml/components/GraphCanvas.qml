@@ -28,7 +28,9 @@ Item {
     property string nodeContextNodeId: ""
     property real contextMenuX: 0
     property real contextMenuY: 0
-    property bool minimapExpanded: true
+    property bool minimapExpanded: mainWindowBridge ? Boolean(mainWindowBridge.graphics_minimap_expanded) : true
+    readonly property bool showGrid: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true
+    readonly property bool minimapVisible: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
     readonly property real worldOffset: worldSize / 2
@@ -42,7 +44,12 @@ Item {
     clip: true
 
     function toggleMinimapExpanded() {
-        root.minimapExpanded = !root.minimapExpanded;
+        var nextExpanded = !root.minimapExpanded;
+        if (mainWindowBridge && mainWindowBridge.set_graphics_minimap_expanded) {
+            mainWindowBridge.set_graphics_minimap_expanded(nextExpanded);
+            return;
+        }
+        root.minimapExpanded = nextExpanded;
     }
 
     function screenToSceneX(screenX) {
@@ -993,8 +1000,10 @@ Item {
 
     GraphCanvasComponents.GraphCanvasBackground {
         id: backgroundLayer
+        objectName: "graphCanvasBackground"
         anchors.fill: parent
         viewBridge: root.viewBridge
+        showGrid: root.showGrid
     }
 
     GraphComponents.EdgeLayer {
@@ -1174,6 +1183,7 @@ Item {
 
     GraphCanvasComponents.GraphCanvasMinimapOverlay {
         id: minimapOverlay
+        objectName: "graphCanvasMinimapOverlay"
         canvasItem: root
         sceneBridge: root.sceneBridge
         viewBridge: root.viewBridge

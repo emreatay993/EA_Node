@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import os
 import unittest
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QRectF
+from PyQt6.QtCore import QObject, QRectF, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.hierarchy import subtree_node_ids
@@ -14,6 +16,148 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+_GRAPH_CANVAS_QML_PATH = (
+    Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml"
+)
+
+
+class _GraphCanvasPreferenceBridge(QObject):
+    graphics_preferences_changed = pyqtSignal()
+    snap_to_grid_changed = pyqtSignal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._graphics_show_grid = True
+        self._graphics_show_minimap = True
+        self._graphics_minimap_expanded = True
+        self._snap_to_grid_enabled = False
+        self.minimap_update_history: list[bool] = []
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_grid(self) -> bool:
+        return bool(self._graphics_show_grid)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_minimap(self) -> bool:
+        return bool(self._graphics_show_minimap)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_minimap_expanded(self) -> bool:
+        return bool(self._graphics_minimap_expanded)
+
+    @pyqtProperty(bool, notify=snap_to_grid_changed)
+    def snap_to_grid_enabled(self) -> bool:
+        return bool(self._snap_to_grid_enabled)
+
+    @pyqtProperty(float, constant=True)
+    def snap_grid_size(self) -> float:
+        return 20.0
+
+    def set_graphics_show_grid_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_show_grid == normalized:
+            return
+        self._graphics_show_grid = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_show_minimap_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_show_minimap == normalized:
+            return
+        self._graphics_show_minimap = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_minimap_expanded_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_minimap_expanded == normalized:
+            return
+        self._graphics_minimap_expanded = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_snap_to_grid_enabled_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._snap_to_grid_enabled == normalized:
+            return
+        self._snap_to_grid_enabled = normalized
+        self.snap_to_grid_changed.emit()
+
+    @pyqtSlot(bool)
+    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
+        normalized = bool(expanded)
+        self.minimap_update_history.append(normalized)
+        if self._graphics_minimap_expanded == normalized:
+            return
+        self._graphics_minimap_expanded = normalized
+        self.graphics_preferences_changed.emit()
+
+
+class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+
+    def setUp(self) -> None:
+        self.engine = QQmlEngine()
+        self.component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_GRAPH_CANVAS_QML_PATH)))
+        if self.component.status() != QQmlComponent.Status.Ready:
+            errors = "\n".join(str(error) for error in self.component.errors())
+            self.fail(f"Failed to load GraphCanvas.qml:\n{errors}")
+        self.bridge = _GraphCanvasPreferenceBridge()
+        self.view = ViewportBridge()
+        self.view.set_viewport_size(1280.0, 720.0)
+        initial_properties = {
+            "mainWindowBridge": self.bridge,
+            "viewBridge": self.view,
+            "width": 1280.0,
+            "height": 720.0,
+        }
+        if hasattr(self.component, "createWithInitialProperties"):
+            self.canvas = self.component.createWithInitialProperties(initial_properties)
+        else:
+            self.canvas = self.component.create()
+            for key, value in initial_properties.items():
+                self.canvas.setProperty(key, value)
+        if self.canvas is None:
+            errors = "\n".join(str(error) for error in self.component.errors())
+            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
+        self.app.processEvents()
+
+    def tearDown(self) -> None:
+        if self.canvas is not None:
+            self.canvas.deleteLater()
+        self.app.processEvents()
+        self.engine.deleteLater()
+        self.app.processEvents()
+
+    def test_graph_canvas_properties_follow_runtime_preference_updates(self) -> None:
+        self.assertTrue(bool(self.canvas.property("showGrid")))
+        self.assertTrue(bool(self.canvas.property("minimapVisible")))
+        self.assertTrue(bool(self.canvas.property("minimapExpanded")))
+
+        self.bridge.set_graphics_show_grid_value(False)
+        self.bridge.set_graphics_show_minimap_value(False)
+        self.bridge.set_graphics_minimap_expanded_value(False)
+        self.app.processEvents()
+
+        self.assertFalse(bool(self.canvas.property("showGrid")))
+        self.assertFalse(bool(self.canvas.property("minimapVisible")))
+        self.assertFalse(bool(self.canvas.property("minimapExpanded")))
+
+    def test_toggle_minimap_expanded_routes_through_bridge_slot(self) -> None:
+        self.assertEqual(self.bridge.minimap_update_history, [])
+        self.assertTrue(bool(self.canvas.property("minimapExpanded")))
+
+        QMetaObject.invokeMethod(
+            self.canvas,
+            "toggleMinimapExpanded",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+
+        self.assertEqual(self.bridge.minimap_update_history, [False])
+        self.assertFalse(self.bridge.graphics_minimap_expanded)
+        self.assertFalse(bool(self.canvas.property("minimapExpanded")))
 
 
 class GraphModelTrackBTests(unittest.TestCase):
