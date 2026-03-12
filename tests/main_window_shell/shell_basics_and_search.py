@@ -297,7 +297,7 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
             sorted(tail_keys, key=lambda value: (value[0].lower(), value[1].lower())),
         )
 
-    def test_graph_search_matches_node_id_and_empty_or_missing_queries_are_safe_noops(self) -> None:
+    def test_graph_search_ignores_internal_node_ids_and_empty_or_missing_queries_are_safe_noops(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.start", x=30.0, y=30.0)
         self.window.scene.set_node_title(node_id, "Plain Title")
         display_name_id = self.window.scene.add_node_from_type("core.python_script", x=260.0, y=40.0)
@@ -308,9 +308,8 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
         self.window.set_graph_search_query(node_id[-6:].upper())
         self.app.processEvents()
 
-        results = self.window.graph_search_results
-        self.assertGreaterEqual(len(results), 1)
-        self.assertEqual(results[0]["node_id"], node_id)
+        self.assertEqual(self.window.graph_search_results, [])
+        self.assertFalse(self.window.request_graph_search_accept())
 
         self.window.set_graph_search_query("PyThOn ScRiPt")
         self.app.processEvents()

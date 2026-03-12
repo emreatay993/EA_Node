@@ -140,6 +140,24 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
         self.assertFalse(node.exposed_ports["exec_in"])
         self.assertTrue(node.collapsed)
 
+    def test_qml_selected_node_header_metadata_exposes_clean_fields(self) -> None:
+        first_node_id = self.window.scene.add_node_from_type("core.start", x=0.0, y=0.0)
+        second_node_id = self.window.scene.add_node_from_type("core.start", x=120.0, y=0.0)
+        self.window.scene.focus_node(second_node_id)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.selected_node_title, "Start")
+        self.assertEqual(self.window.selected_node_subtitle, "Entry point for DAG execution.")
+        self.assertNotIn("\\n", self.window.selected_node_summary)
+        self.assertIn("\n", self.window.selected_node_summary)
+        self.assertNotIn(second_node_id, self.window.selected_node_summary)
+
+        metadata = {item["label"]: item["value"] for item in self.window.selected_node_header_items}
+        self.assertEqual(metadata["Category"], "Core")
+        self.assertEqual(metadata["Type"], "core.start")
+        self.assertEqual(metadata["ID"], "2")
+        self.assertNotEqual(first_node_id, second_node_id)
+
     def test_qml_pin_inspector_updates_parent_shell_ports(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]

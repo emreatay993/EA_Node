@@ -24,24 +24,109 @@ Rectangle {
             font.bold: true
         }
 
-        Text {
+        Rectangle {
             Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-            text: root.mainWindowRef.selected_node_summary
-            color: "#D8DEEA"
-            font.pixelSize: 12
-        }
+            visible: root.mainWindowRef.has_selected_node
+            color: "#1E232D"
+            border.color: "#364154"
+            radius: 10
+            implicitHeight: heroContent.implicitHeight + 26
 
-        ToolButton {
-            text: root.mainWindowRef.selected_node_collapsed ? "Expand Node" : "Collapse Node"
-            enabled: root.mainWindowRef.has_selected_node && root.mainWindowRef.selected_node_collapsible
-            onClicked: root.mainWindowRef.set_selected_node_collapsed(!root.mainWindowRef.selected_node_collapsed)
-        }
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.leftMargin: 1
+                anchors.rightMargin: 1
+                anchors.topMargin: 1
+                height: 4
+                radius: 10
+                color: "#60CDFF"
+            }
 
-        ToolButton {
-            text: "Publish Selected Subnode"
-            enabled: root.mainWindowRef.selected_node_is_subnode_shell
-            onClicked: root.mainWindowRef.request_publish_custom_workflow_from_selected()
+            ColumnLayout {
+                id: heroContent
+                anchors.fill: parent
+                anchors.margins: 12
+                anchors.topMargin: 16
+                spacing: 10
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.mainWindowRef.selected_node_title
+                            color: "#F3F7FF"
+                            font.pixelSize: 18
+                            font.bold: true
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            visible: text.length > 0
+                            text: root.mainWindowRef.selected_node_subtitle
+                            wrapMode: Text.WordWrap
+                            color: "#9DABC0"
+                            font.pixelSize: 11
+                        }
+                    }
+
+                    ShellButton {
+                        visible: root.mainWindowRef.selected_node_collapsible
+                        text: root.mainWindowRef.selected_node_collapsed ? "Expand Node" : "Collapse Node"
+                        selectedStyle: root.mainWindowRef.selected_node_collapsed
+                        tooltipText: root.mainWindowRef.selected_node_collapsed
+                            ? "Expand the selected node body"
+                            : "Collapse the selected node body"
+                        onClicked: root.mainWindowRef.set_selected_node_collapsed(!root.mainWindowRef.selected_node_collapsed)
+                    }
+                }
+
+                Flow {
+                    Layout.fillWidth: true
+                    width: parent.width
+                    spacing: 6
+                    visible: root.mainWindowRef.selected_node_header_items.length > 0
+
+                    Repeater {
+                        model: root.mainWindowRef.selected_node_header_items
+
+                        delegate: Rectangle {
+                            height: 28
+                            width: chipRow.implicitWidth + 18
+                            radius: 14
+                            color: "#273244"
+                            border.color: "#41536C"
+
+                            Row {
+                                id: chipRow
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Text {
+                                    text: modelData.label
+                                    color: "#93C7E6"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                }
+
+                                Text {
+                                    text: modelData.value
+                                    color: "#E7EEF9"
+                                    font.pixelSize: 10
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Rectangle {
@@ -49,7 +134,7 @@ Rectangle {
             Layout.fillHeight: true
             color: "#1E2128"
             border.color: "#353942"
-            radius: 4
+            radius: 8
 
             ScrollView {
                 id: inspectorScroll
@@ -70,14 +155,6 @@ Rectangle {
                         text: "Select a node to edit properties and port exposure."
                         color: "#8E98AC"
                         font.pixelSize: 12
-                    }
-
-                    Text {
-                        visible: root.mainWindowRef.has_selected_node
-                        text: "Properties"
-                        color: "#9DA7BC"
-                        font.pixelSize: 11
-                        font.bold: true
                     }
 
                     Text {

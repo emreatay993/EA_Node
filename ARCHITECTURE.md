@@ -32,6 +32,7 @@ Design intent:
 - `GraphCanvas.qml` composes focused canvas modules (`GraphCanvasBackground`, `GraphCanvasDropPreview`, `GraphCanvasMinimapOverlay`, `GraphCanvasInputLayers`, `GraphCanvasContextMenus`) plus `GraphCanvasLogic.js`.
 - shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
 - `ShellWindow` is a thin facade that delegates to controllers and bridge helpers.
+- User-facing shell surfaces prefer node titles and per-type sequential IDs; raw internal `node_id` values stay as internal references.
 - `GraphModel` remains the canonical mutable graph state.
 - Hierarchy is explicit via `NodeInstance.parent_node_id` and per-view `scope_path`.
 - Undo/redo is managed by `RuntimeGraphHistory` snapshots.
@@ -54,9 +55,9 @@ flowchart LR
     U[User] --> MS[MainShell.qml]
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
-    MS --> GSO[GraphSearchOverlay]
+    MS --> GSO[GraphSearchOverlay title/type search]
     MS --> CQI[ConnectionQuickInsertOverlay]
-    MS --> INS[InspectorPane]
+    MS --> INS[InspectorPane user-facing IDs]
 
     GC --> GCBG[GraphCanvasBackground]
     GC --> GCDP[GraphCanvasDropPreview]
@@ -79,7 +80,7 @@ flowchart LR
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
-    SW --> INSPECTOR_HELPERS[window_library_inspector]
+    SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
@@ -140,9 +141,9 @@ flowchart TD
     D --> E[Load MainShell + GraphCanvas composition components]
     E --> F[Restore session and optional autosave recovery]
     F --> G[Switch workspace and restore view and scope camera]
-    G --> H[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs]
+    G --> H[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, and user-facing node labels]
 
-    H --> I[User edits graph, searches, or navigates scope]
+    H --> I[User edits graph, searches by title or type, or navigates scope]
     I --> J[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
     J --> K[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
     J --> KQ[Optional dangling wire release opens quick insert]
@@ -254,10 +255,11 @@ sequenceDiagram
 - `PropertySpec.inline_editor` declares whether a property can render inside `NodeCard`.
 - `GraphSceneBridge` includes lightweight `inline_properties` in each node payload.
 - `NodeCard` renders a fast subset of editors inline and routes commits back through the same selected-node property path used by `InspectorPane`.
-- The inspector remains the complete editing surface for richer editors such as multiline/script/json/path properties.
+- The inspector remains the complete editing surface for richer editors such as multiline/script/json/path properties and resolves user-facing metadata such as per-type sequential IDs instead of exposing raw internal node references.
 
 ### 2) Search and scope navigation
 - Graph search is orchestrated in `window_search_scope_state`.
+- Search is intentionally user-facing: matching is limited to node titles, display names, and type IDs; internal `node_id` values remain navigation-only implementation details.
 - Search results can jump across workspaces, reveal collapsed parent chains, and focus/center selected nodes.
 - Scope camera (zoom/pan) is remembered per workspace/view/scope tuple.
 
@@ -291,6 +293,8 @@ sequenceDiagram
 - `NodeTypeSpec`, `PortSpec`, `PropertySpec`, `ExecutionContext`, `NodeResult`.
 - `PropertySpec.inline_editor` controls whether a property participates in inline node-card editing.
 - QML scene payloads can include `inline_properties` for node-card rendering and fast property updates.
+- Internal identity versus presentation identity:
+- `NodeInstance.node_id` is the canonical reference for persistence, execution, and navigation, while shell presentation derives user-facing titles and per-type sequential IDs for inspector/script surfaces.
 - Execution protocol contracts:
 - commands (`StartRunCommand`, `StopRunCommand`, `PauseRunCommand`, `ResumeRunCommand`, `ShutdownCommand`),
 - events (`RunStartedEvent`, `RunStateEvent`, `NodeStartedEvent`, `NodeCompletedEvent`, `RunCompletedEvent`, `RunFailedEvent`, `RunStoppedEvent`, `LogEvent`, `ProtocolErrorEvent`).

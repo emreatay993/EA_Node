@@ -5,9 +5,9 @@ flowchart TD
     D --> E[Load MainShell + GraphCanvas composition components]
     E --> F[Restore session and optional autosave recovery]
     F --> G[Switch workspace and restore view and scope camera]
-    G --> H[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs]
+    G --> H[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, and user-facing node labels]
 
-    H --> I[User edits graph, searches, or navigates scope]
+    H --> I[User edits graph, searches by title or type, or navigates scope]
     I --> J[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
     J --> K[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
     J --> KQ[Optional dangling wire release opens quick insert]

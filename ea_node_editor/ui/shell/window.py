@@ -48,6 +48,7 @@ from ea_node_editor.ui.shell.window_library_inspector import (
     build_library_direction_options,
     build_pin_data_type_options,
     build_registry_library_items,
+    build_selected_node_header_data,
     build_selected_node_port_items,
     build_selected_node_property_items,
     library_item_matches_filters,
@@ -511,13 +512,45 @@ class ShellWindow(QMainWindow):
     def active_scope_breadcrumb_items(self) -> list[dict[str, str]]:
         return list(self.scene.scope_breadcrumb_model)
 
-    @pyqtProperty(str, notify=selected_node_changed)
-    def selected_node_summary(self) -> str:
+    def _selected_node_header_data(self) -> dict[str, Any]:
         selected = self._selected_node_context()
         if selected is None:
-            return "No node selected"
+            return {}
         node, spec = selected
-        return f"{spec.display_name}\\nID: {node.node_id}\\nType: {node.type_id}"
+        workspace = self.model.project.workspaces.get(self.active_workspace_id)
+        workflow_nodes = workspace.nodes if workspace is not None else {}
+        return build_selected_node_header_data(
+            node=node,
+            spec=spec,
+            workflow_nodes=workflow_nodes,
+        )
+
+    @pyqtProperty(str, notify=selected_node_changed)
+    def selected_node_title(self) -> str:
+        return str(self._selected_node_header_data().get("title", ""))
+
+    @pyqtProperty(str, notify=selected_node_changed)
+    def selected_node_subtitle(self) -> str:
+        return str(self._selected_node_header_data().get("subtitle", ""))
+
+    @pyqtProperty("QVariantList", notify=selected_node_changed)
+    def selected_node_header_items(self) -> list[dict[str, str]]:
+        header_data = self._selected_node_header_data()
+        items = header_data.get("metadata_items", [])
+        return list(items) if isinstance(items, list) else []
+
+    @pyqtProperty(str, notify=selected_node_changed)
+    def selected_node_summary(self) -> str:
+        header_data = self._selected_node_header_data()
+        if not header_data:
+            return "No node selected"
+        lines = [str(header_data.get("title", "")).strip()]
+        for item in self.selected_node_header_items:
+            label = str(item.get("label", "")).strip()
+            value = str(item.get("value", "")).strip()
+            if label and value:
+                lines.append(f"{label}: {value}")
+        return "\n".join(line for line in lines if line)
 
     @pyqtProperty(bool, notify=selected_node_changed)
     def has_selected_node(self) -> bool:

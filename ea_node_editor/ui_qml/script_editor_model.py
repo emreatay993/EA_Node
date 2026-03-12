@@ -19,6 +19,7 @@ class ScriptEditorModel(QObject):
         self._visible = False
         self._floating = False
         self._current_node_id = ""
+        self._current_node_label = ""
         self._base_script = ""
         self._script_text = ""
         self._dirty = False
@@ -36,6 +37,10 @@ class ScriptEditorModel(QObject):
     @pyqtProperty(str, notify=node_changed)
     def current_node_id(self) -> str:
         return self._current_node_id
+
+    @pyqtProperty(str, notify=node_changed)
+    def current_node_label(self) -> str:
+        return self._current_node_label
 
     @pyqtProperty(str, notify=content_changed)
     def script_text(self) -> str:
@@ -73,6 +78,7 @@ class ScriptEditorModel(QObject):
     def set_node(self, node: Any | None) -> None:
         if node is None or getattr(node, "type_id", "") != "core.python_script":
             self._current_node_id = ""
+            self._current_node_label = ""
             self._base_script = ""
             self._set_script_text_internal("")
             self._set_dirty(False)
@@ -82,6 +88,7 @@ class ScriptEditorModel(QObject):
 
         script = str(getattr(node, "properties", {}).get("script", ""))
         self._current_node_id = str(getattr(node, "node_id", ""))
+        self._current_node_label = str(getattr(node, "title", "")).strip() or "Python Script"
         self._base_script = script
         self._set_script_text_internal(script)
         self._set_dirty(False)

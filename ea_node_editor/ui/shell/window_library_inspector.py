@@ -231,6 +231,44 @@ def build_pin_data_type_options(
     return ordered
 
 
+def build_selected_node_header_data(
+    *,
+    node: Any,
+    spec: Any,
+    workflow_nodes: Mapping[str, Any],
+) -> dict[str, Any]:
+    title = str(getattr(node, "title", "")).strip() or str(getattr(spec, "display_name", "")).strip()
+    display_name = str(getattr(spec, "display_name", "")).strip()
+    description = str(getattr(spec, "description", "")).strip()
+    subtitle = display_name if title != display_name and display_name else description
+
+    instance_number = 1
+    node_type_id = str(getattr(node, "type_id", "")).strip()
+    node_id = str(getattr(node, "node_id", "")).strip()
+    if node_type_id and node_id:
+        matching_count = 0
+        for workflow_node in workflow_nodes.values():
+            if str(getattr(workflow_node, "type_id", "")).strip() != node_type_id:
+                continue
+            matching_count += 1
+            if str(getattr(workflow_node, "node_id", "")).strip() == node_id:
+                instance_number = matching_count
+                break
+
+    metadata_items: list[dict[str, str]] = []
+    category = str(getattr(spec, "category", "")).strip()
+    if category:
+        metadata_items.append({"label": "Category", "value": category})
+    metadata_items.append({"label": "Type", "value": node_type_id})
+    metadata_items.append({"label": "ID", "value": str(instance_number)})
+
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "metadata_items": metadata_items,
+    }
+
+
 def build_selected_node_property_items(
     *,
     node: Any,

@@ -360,14 +360,12 @@ class WorkspaceLibraryController:
         title: str,
         display_name: str,
         type_id: str,
-        node_id: str,
     ) -> int | None:
         return WorkspaceViewNavOps.graph_search_rank(
             query,
             title=title,
             display_name=display_name,
             type_id=type_id,
-            node_id=node_id,
         )
 
     def search_graph_nodes(self, query: str, limit: int = _GRAPH_SEARCH_LIMIT) -> list[dict[str, Any]]:

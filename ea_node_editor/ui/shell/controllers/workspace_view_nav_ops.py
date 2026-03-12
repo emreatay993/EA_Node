@@ -136,7 +136,6 @@ class WorkspaceViewNavOps:
         title: str,
         display_name: str,
         type_id: str,
-        node_id: str,
     ) -> int | None:
         if not query:
             return None
@@ -146,8 +145,6 @@ class WorkspaceViewNavOps:
             return 1
         if query in type_id:
             return 2
-        if query in node_id:
-            return 3
         return None
 
     def search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]:
@@ -171,13 +168,11 @@ class WorkspaceViewNavOps:
                 type_id = str(node.type_id)
                 type_id_lower = type_id.lower()
                 node_id = str(node.node_id)
-                node_id_lower = node_id.lower()
                 rank = self.graph_search_rank(
                     normalized_query,
                     title=node_title_lower,
                     display_name=display_name_lower,
                     type_id=type_id_lower,
-                    node_id=node_id_lower,
                 )
                 if rank is None:
                     continue

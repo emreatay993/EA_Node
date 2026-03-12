@@ -9,6 +9,7 @@ Recent UI/UX architecture highlights:
 - Connection-aware quick insert from a dangling wire drag
 - Inline node controls for fast editing of selected property types
 - Python-side compatibility filtering so quick insert follows the same effective-port rules as graph connections
+- Inspector and script editing surfaces now use user-facing node labels and sequential IDs instead of exposing internal `node_*` references
 
 ## Quick Start
 
@@ -201,6 +202,8 @@ python -m pytest tests/ -v
 - Drag from a port to empty canvas space to open the connection-aware quick insert overlay.
 - Quick insert only shows node types that can auto-connect to the dragged source port using the same compatibility rules as normal graph connections.
 - Some node types expose inline property controls directly in the node card for faster editing, while the inspector remains the full editing surface.
+- Graph Search is intentionally user-facing: it matches node titles and node types, not internal runtime IDs.
+- Inspector header metadata uses sequential per-type IDs for orientation, while internal node IDs stay implementation-only.
 
 ## Building a Windows Installer
 

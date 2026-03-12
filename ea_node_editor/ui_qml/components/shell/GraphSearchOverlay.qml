@@ -68,7 +68,7 @@ Rectangle {
         TextField {
             id: graphSearchField
             width: parent.width
-            placeholderText: "Search title, type, type_id, or node_id"
+            placeholderText: "Search title or node type"
             text: root.mainWindowRef.graph_search_query
             selectByMouse: true
             color: "#E7EEF9"

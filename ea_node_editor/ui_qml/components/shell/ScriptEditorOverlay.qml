@@ -33,8 +33,8 @@ Rectangle {
                 anchors.leftMargin: 10
                 anchors.rightMargin: 10
                 Text {
-                    text: root.scriptEditorBridgeRef.current_node_id
-                        ? "Python Script: " + root.scriptEditorBridgeRef.current_node_id
+                    text: root.scriptEditorBridgeRef.current_node_label
+                        ? "Python Script: " + root.scriptEditorBridgeRef.current_node_label
                         : "Python Script Editor"
                     color: "#E6ECF8"
                     font.pixelSize: 12

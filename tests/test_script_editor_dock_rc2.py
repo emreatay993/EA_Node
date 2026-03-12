@@ -62,6 +62,8 @@ class ScriptEditorDockRc2Tests(unittest.TestCase):
         self.window.set_script_editor_panel_visible(True)
         self.app.processEvents()
         self.assertEqual(self.window.script_editor.current_node_id, script_node_id)
+        self.assertEqual(self.window.script_editor.current_node_label, workspace.nodes[script_node_id].title)
+        self.assertNotIn(script_node_id, self.window.script_editor.current_node_label)
         self.assertIn("output_data = 42", self.window.script_editor.script_text)
 
         self.window.script_editor.set_script_text("output_data = input_data\nx = 7\n")

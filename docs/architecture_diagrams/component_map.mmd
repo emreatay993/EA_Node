@@ -2,9 +2,9 @@ flowchart LR
     U[User] --> MS[MainShell.qml]
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
-    MS --> GSO[GraphSearchOverlay]
+    MS --> GSO[GraphSearchOverlay title/type search]
     MS --> CQI[ConnectionQuickInsertOverlay]
-    MS --> INS[InspectorPane]
+    MS --> INS[InspectorPane user-facing IDs]
 
     GC --> GCBG[GraphCanvasBackground]
     GC --> GCDP[GraphCanvasDropPreview]
@@ -27,7 +27,7 @@ flowchart LR
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
-    SW --> INSPECTOR_HELPERS[window_library_inspector]
+    SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
