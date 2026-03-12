@@ -151,7 +151,11 @@ def navigate_scope(window: ShellWindow, navigate_fn: Callable[[], bool]) -> bool
     return True
 
 
-def set_snap_to_grid_enabled(window: ShellWindow, enabled: bool) -> None:
+def _persist_graphics_updates(window: ShellWindow, updates: dict[str, Any]) -> None:
+    window.app_preferences_controller.update_graphics_settings(updates)
+
+
+def set_snap_to_grid_enabled(window: ShellWindow, enabled: bool, *, persist: bool = True) -> None:
     normalized = bool(enabled)
     if window._snap_to_grid_enabled == normalized:
         if window.action_snap_to_grid.isChecked() != normalized:
@@ -165,6 +169,32 @@ def set_snap_to_grid_enabled(window: ShellWindow, enabled: bool) -> None:
         window.action_snap_to_grid.setChecked(normalized)
         window.action_snap_to_grid.blockSignals(blocked)
     window.snap_to_grid_changed.emit()
+    if persist:
+        _persist_graphics_updates(
+            window,
+            {
+                "interaction": {
+                    "snap_to_grid": normalized,
+                },
+            },
+        )
+
+
+def set_graphics_minimap_expanded(window: ShellWindow, expanded: bool, *, persist: bool = True) -> None:
+    normalized = bool(expanded)
+    if window._graphics_minimap_expanded == normalized:
+        return
+    window._graphics_minimap_expanded = normalized
+    window.graphics_preferences_changed.emit()
+    if persist:
+        _persist_graphics_updates(
+            window,
+            {
+                "canvas": {
+                    "minimap_expanded": normalized,
+                },
+            },
+        )
 
 
 def show_graph_hint(window: ShellWindow, message: str, timeout_ms: int = 3600) -> None:

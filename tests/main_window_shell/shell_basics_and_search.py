@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import json
+
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
 
 
 class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
+    def _reopen_window(self) -> None:
+        self.window.close()
+        self.app.processEvents()
+        self.window = ShellWindow()
+        self.window.resize(1200, 800)
+        self.window.show()
+        self.app.processEvents()
+
     def test_menu_bar_exposes_settings_menu_for_workflow_preferences(self) -> None:
         menu_actions = {
             action.text(): action.menu()
@@ -43,7 +53,47 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
         self.assertIsNotNone(self.window.view)
         self.assertGreaterEqual(self.window.workspace_tabs.count(), 1)
 
-    def test_qml_minimap_defaults_expanded_and_toggleable(self) -> None:
+    def test_qml_canvas_runtime_preferences_follow_shell_state(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        background = graph_canvas.findChild(QObject, "graphCanvasBackground")
+        minimap_overlay = graph_canvas.findChild(QObject, "graphCanvasMinimapOverlay")
+        self.assertIsNotNone(background)
+        self.assertIsNotNone(minimap_overlay)
+
+        self.assertTrue(bool(graph_canvas.property("showGrid")))
+        self.assertTrue(bool(background.property("showGrid")))
+        self.assertTrue(bool(graph_canvas.property("minimapVisible")))
+        self.assertTrue(bool(minimap_overlay.property("visible")))
+        self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
+
+        self.window.app_preferences_controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": False,
+                    "show_minimap": False,
+                    "minimap_expanded": False,
+                },
+                "interaction": {
+                    "snap_to_grid": False,
+                },
+                "theme": {
+                    "theme_id": "stitch_dark",
+                },
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertFalse(self.window.graphics_show_grid)
+        self.assertFalse(self.window.graphics_show_minimap)
+        self.assertFalse(self.window.graphics_minimap_expanded)
+        self.assertFalse(bool(graph_canvas.property("showGrid")))
+        self.assertFalse(bool(background.property("showGrid")))
+        self.assertFalse(bool(graph_canvas.property("minimapVisible")))
+        self.assertFalse(bool(minimap_overlay.property("visible")))
+        self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
+
+    def test_qml_minimap_expansion_persists_across_window_restart(self) -> None:
         graph_canvas = self._graph_canvas_item()
         self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
 
@@ -53,20 +103,23 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
             Qt.ConnectionType.DirectConnection,
         )
         self.app.processEvents()
-        self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
 
-        QMetaObject.invokeMethod(
-            graph_canvas,
-            "toggleMinimapExpanded",
-            Qt.ConnectionType.DirectConnection,
-        )
-        self.app.processEvents()
-        self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
+        self.assertFalse(self.window.graphics_minimap_expanded)
+        self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertFalse(persisted["graphics"]["canvas"]["minimap_expanded"])
+
+        self._reopen_window()
+
+        graph_canvas = self._graph_canvas_item()
+        self.assertFalse(self.window.graphics_minimap_expanded)
+        self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
 
     def test_qml_invokable_slots_exist_for_shell_buttons(self) -> None:
         meta = self.window.metaObject()
         self.assertGreaterEqual(meta.indexOfMethod("show_workflow_settings_dialog()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("show_graphics_settings_dialog()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("set_graphics_minimap_expanded(bool)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible(bool)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_connect_ports(QString,QString,QString,QString)"), 0)
@@ -263,6 +316,23 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
         self.window.action_snap_to_grid.trigger()
         self.assertFalse(self.window.snap_to_grid_enabled)
         self.assertFalse(self.window.action_snap_to_grid.isChecked())
+
+    def test_snap_to_grid_setting_persists_across_window_restart(self) -> None:
+        self.assertFalse(self.window.snap_to_grid_enabled)
+        self.assertFalse(self.window.action_snap_to_grid.isChecked())
+
+        self.window.set_snap_to_grid_enabled(True)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.snap_to_grid_enabled)
+        self.assertTrue(self.window.action_snap_to_grid.isChecked())
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertTrue(persisted["graphics"]["interaction"]["snap_to_grid"])
+
+        self._reopen_window()
+
+        self.assertTrue(self.window.snap_to_grid_enabled)
+        self.assertTrue(self.window.action_snap_to_grid.isChecked())
 
     def test_align_overlap_posts_tidy_hint(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

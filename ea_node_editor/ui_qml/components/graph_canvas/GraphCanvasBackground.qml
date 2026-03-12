@@ -4,10 +4,13 @@ import "GraphCanvasLogic.js" as GraphCanvasLogic
 Item {
     id: root
     property var viewBridge: null
+    property bool showGrid: true
 
     function requestGridRedraw() {
         gridCanvas.requestPaint();
     }
+
+    onShowGridChanged: requestGridRedraw()
 
     Rectangle {
         anchors.fill: parent
@@ -25,6 +28,8 @@ Item {
             ctx.reset();
             ctx.fillStyle = "#1D1F24";
             ctx.fillRect(0, 0, width, height);
+            if (!root.showGrid)
+                return;
 
             var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
             var step = 20 * zoom;
