@@ -28,5 +28,9 @@ dist/
 # Generated GUI preview extraction
 docs/specs/gui/_unzipped_preview/
 
+# Local-only specs and tests
+docs/specs/
+tests/
+
 # Benchmark reference assets
 docs/Benchmark_Programs/

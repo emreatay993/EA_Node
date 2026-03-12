@@ -14,11 +14,10 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     app_preferences_path,
 )
+from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
-
-_ALLOWED_THEME_IDS = frozenset({"stitch_dark", "stitch_light"})
 
 
 def default_app_preferences_document() -> dict[str, Any]:
@@ -165,9 +164,11 @@ def _normalize_bool(value: Any, default: bool) -> bool:
 
 def _normalize_theme_id(value: Any, default: str) -> str:
     normalized = str(value).strip()
-    if normalized in _ALLOWED_THEME_IDS:
+    if is_known_theme_id(normalized):
         return normalized
-    return default
+    if is_known_theme_id(default):
+        return default
+    return DEFAULT_THEME_ID
 
 
 __all__ = [

@@ -7,11 +7,7 @@ from PyQt6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
 
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
-
-_THEME_CHOICES = (
-    ("stitch_dark", "Stitch Dark"),
-    ("stitch_light", "Stitch Light"),
-)
+from ea_node_editor.ui.theme import resolve_theme_id, theme_choices
 
 
 class GraphicsSettingsDialog(SectionedSettingsDialog):
@@ -59,7 +55,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         page = QWidget(self)
         form = QFormLayout(page)
         self.theme_combo = QComboBox(page)
-        for theme_id, label in _THEME_CHOICES:
+        for theme_id, label in theme_choices():
             self.theme_combo.addItem(label, theme_id)
         form.addRow("Theme", self.theme_combo)
         return page
@@ -83,9 +79,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
         theme = initial_settings.get("theme")
         if isinstance(theme, dict):
-            theme_id = str(theme.get("theme_id", "")).strip()
-            if any(theme_id == allowed_id for allowed_id, _label in _THEME_CHOICES):
-                normalized["theme"]["theme_id"] = theme_id
+            normalized["theme"]["theme_id"] = resolve_theme_id(theme.get("theme_id"))
 
         return normalized
 
@@ -116,4 +110,3 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
             }
         )
-
