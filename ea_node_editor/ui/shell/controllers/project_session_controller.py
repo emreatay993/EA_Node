@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Iterable
 
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
@@ -16,8 +16,64 @@ if TYPE_CHECKING:
 
 
 class ProjectSessionController:
+    _RECENT_PROJECT_LIMIT = 10
+
     def __init__(self, host: ShellWindow) -> None:
         self._host = host
+
+    @classmethod
+    def _normalize_project_path(cls, path: str | Path | object) -> str:
+        raw_path = str(path).strip()
+        if not raw_path:
+            return ""
+        try:
+            return str(Path(raw_path).expanduser().with_suffix(".sfe"))
+        except ValueError:
+            return ""
+
+    @classmethod
+    def _normalized_recent_project_paths(cls, paths: Iterable[object]) -> list[str]:
+        normalized_paths: list[str] = []
+        seen_paths: set[str] = set()
+        for path in paths:
+            normalized_path = cls._normalize_project_path(path)
+            if not normalized_path or normalized_path in seen_paths:
+                continue
+            seen_paths.add(normalized_path)
+            normalized_paths.append(normalized_path)
+            if len(normalized_paths) >= cls._RECENT_PROJECT_LIMIT:
+                break
+        return normalized_paths
+
+    def _refresh_recent_projects_menu(self) -> None:
+        refresh_menu = getattr(self._host, "_refresh_recent_projects_menu", None)
+        if callable(refresh_menu):
+            refresh_menu()
+
+    def set_recent_project_paths(self, paths: Iterable[object], *, persist: bool = True) -> list[str]:
+        normalized_paths = self._normalized_recent_project_paths(paths)
+        self._host.recent_project_paths = normalized_paths
+        self._refresh_recent_projects_menu()
+        if persist:
+            self.persist_session()
+        return normalized_paths
+
+    def add_recent_project_path(self, path: str | Path, *, persist: bool = True) -> list[str]:
+        normalized_path = self._normalize_project_path(path)
+        if not normalized_path:
+            return list(self._host.recent_project_paths)
+        existing_paths = list(self._host.recent_project_paths)
+        return self.set_recent_project_paths([normalized_path, *existing_paths], persist=persist)
+
+    def remove_recent_project_path(self, path: str | Path, *, persist: bool = True) -> list[str]:
+        normalized_path = self._normalize_project_path(path)
+        if not normalized_path:
+            return list(self._host.recent_project_paths)
+        filtered_paths = [item for item in self._host.recent_project_paths if item != normalized_path]
+        return self.set_recent_project_paths(filtered_paths, persist=persist)
+
+    def clear_recent_projects(self) -> None:
+        self.set_recent_project_paths([], persist=True)
 
     def ensure_project_metadata_defaults(self) -> None:
         metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
@@ -88,6 +144,25 @@ class ProjectSessionController:
         # Refresh library-bound QML models immediately after project swap.
         self._host.node_library_changed.emit()
 
+    def _finalize_loaded_project(self, project: ProjectData, *, project_path: str) -> None:
+        resolved_path = Path(project_path)
+        self._install_project(project, project_path=str(resolved_path))
+        self.ensure_project_metadata_defaults()
+        try:
+            self._host._last_manual_save_ts = resolved_path.stat().st_mtime
+        except OSError:
+            self._host._last_manual_save_ts = time.time()
+        self.discard_autosave_snapshot()
+        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+            self._host.serializer.to_document(self._host.model.project)
+        )
+        self.add_recent_project_path(str(resolved_path), persist=False)
+        self._host.workspace_library_controller.refresh_workspace_tabs()
+        self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        self.restore_script_editor_state()
+        self.persist_session()
+        self._host.project_meta_changed.emit()
+
     def save_project(self) -> None:
         from PyQt6.QtWidgets import QFileDialog
 
@@ -111,6 +186,7 @@ class ProjectSessionController:
         self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
+        self.add_recent_project_path(str(saved_path), persist=False)
         self.persist_session()
         self._host.project_meta_changed.emit()
 
@@ -130,37 +206,40 @@ class ProjectSessionController:
         self._host.project_meta_changed.emit()
 
     def open_project(self) -> None:
-        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        from PyQt6.QtWidgets import QFileDialog
 
         path, _ = QFileDialog.getOpenFileName(self._host, "Open Project", "", "EA Project (*.sfe)")
         if not path:
             return
+        self.open_project_path(path, show_errors=True)
+
+    def open_project_path(self, path: str | Path, *, show_errors: bool = True) -> bool:
+        from PyQt6.QtWidgets import QMessageBox
+
+        normalized_path = self._normalize_project_path(path)
+        if not normalized_path:
+            return False
+        resolved_path = Path(normalized_path)
+        if not resolved_path.exists():
+            self.remove_recent_project_path(normalized_path, persist=False)
+            self.persist_session()
+            if show_errors:
+                QMessageBox.warning(self._host, "Open Project", f"Project file not found.\n{resolved_path}")
+            return False
         try:
-            project = self._host.serializer.load(path)
+            project = self._host.serializer.load(str(resolved_path))
         except Exception as exc:  # noqa: BLE001
-            QMessageBox.warning(self._host, "Open Project", f"Could not open project file.\\n{exc}")
-            return
-        resolved_path = Path(path).with_suffix(".sfe")
-        self._install_project(project, project_path=str(resolved_path))
-        self.ensure_project_metadata_defaults()
-        try:
-            self._host._last_manual_save_ts = resolved_path.stat().st_mtime
-        except OSError:
-            self._host._last_manual_save_ts = time.time()
-        self.discard_autosave_snapshot()
-        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
-            self._host.serializer.to_document(self._host.model.project)
-        )
-        self._host.workspace_library_controller.refresh_workspace_tabs()
-        self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
-        self.restore_script_editor_state()
-        self.persist_session()
-        self._host.project_meta_changed.emit()
+            if show_errors:
+                QMessageBox.warning(self._host, "Open Project", f"Could not open project file.\n{exc}")
+            return False
+        self._finalize_loaded_project(project, project_path=str(resolved_path))
+        return True
 
     def restore_session(self) -> None:
         session = self._host._session_store.load_session_payload()
         session_project_path = str(session.get("project_path", "")).strip()
         self._host._last_manual_save_ts = SessionAutosaveStore.coerce_timestamp(session.get("last_manual_save_ts", 0.0))
+        self.set_recent_project_paths(session.get("recent_project_paths", []), persist=False)
 
         restored = False
         if session_project_path and Path(session_project_path).exists():
@@ -197,9 +276,12 @@ class ProjectSessionController:
             self._host.project_path = ""
 
         self.ensure_project_metadata_defaults()
+        if self._host.project_path:
+            self.add_recent_project_path(self._host.project_path, persist=False)
         self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
+        self._refresh_recent_projects_menu()
         self._host.project_meta_changed.emit()
 
     def discard_autosave_snapshot(self) -> None:
@@ -280,6 +362,7 @@ class ProjectSessionController:
                 project_path=self._host.project_path,
                 last_manual_save_ts=self._host._last_manual_save_ts,
                 project_doc=document,
+                recent_project_paths=list(self._host.recent_project_paths),
             )
         except Exception:  # noqa: BLE001
             return

@@ -203,6 +203,14 @@ class ShellWindow(QMainWindow):
         self.state.project_path = str(value)
 
     @property
+    def recent_project_paths(self) -> list[str]:
+        return list(self.state.recent_project_paths)
+
+    @recent_project_paths.setter
+    def recent_project_paths(self, value: list[str]) -> None:
+        self.state.recent_project_paths = [str(path) for path in value]
+
+    @property
     def _library_query(self) -> str:
         return self.state.library_query
 
@@ -290,6 +298,38 @@ class ShellWindow(QMainWindow):
 
     def _build_menu_bar(self) -> None:
         build_window_menu_bar(self)
+
+    @staticmethod
+    def _format_recent_project_menu_label(index: int, project_path: str) -> str:
+        path = Path(project_path)
+        parent = str(path.parent)
+        if not parent or parent == ".":
+            return f"{index}. {path.name}"
+        return f"{index}. {path.name} [{parent}]"
+
+    def _refresh_recent_projects_menu(self) -> None:
+        menu = getattr(self, "menu_recent_projects", None)
+        if menu is None:
+            return
+        menu.clear()
+        recent_paths = list(self.recent_project_paths)
+        if not recent_paths:
+            empty_action = menu.addAction("No Recent Files")
+            empty_action.setEnabled(False)
+            return
+
+        current_project_path = self.project_session_controller._normalize_project_path(self.project_path)
+        for index, project_path in enumerate(recent_paths, start=1):
+            action = menu.addAction(self._format_recent_project_menu_label(index, project_path))
+            action.setToolTip(project_path)
+            action.setStatusTip(project_path)
+            action.triggered.connect(
+                lambda _checked=False, selected_path=project_path: self._open_project_path(selected_path)
+            )
+            if current_project_path and project_path == current_project_path:
+                action.setEnabled(False)
+        menu.addSeparator()
+        menu.addAction(self.action_clear_recent_projects)
 
     def _wire_signals(self) -> None:
         self.scene.node_selected.connect(self._on_scene_node_selected)
@@ -1208,6 +1248,12 @@ class ShellWindow(QMainWindow):
 
     def _open_project(self):
         return self.project_session_controller.open_project()
+
+    def _open_project_path(self, path):
+        return self.project_session_controller.open_project_path(path)
+
+    def _clear_recent_projects(self):
+        return self.project_session_controller.clear_recent_projects()
 
     def _restore_session(self):
         return self.project_session_controller.restore_session()
