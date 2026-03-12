@@ -1008,6 +1008,7 @@ Item {
 
     GraphComponents.EdgeLayer {
         id: edgeLayer
+        objectName: "graphCanvasEdgeLayer"
         anchors.fill: parent
         z: 8
         viewBridge: root.viewBridge
@@ -1036,6 +1037,7 @@ Item {
 
     GraphCanvasComponents.GraphCanvasDropPreview {
         id: dragNodePreview
+        objectName: "graphCanvasDropPreview"
         canvasItem: root
         viewBridge: root.viewBridge
     }
@@ -1191,6 +1193,7 @@ Item {
 
     GraphCanvasComponents.GraphCanvasInputLayers {
         id: inputLayers
+        objectName: "graphCanvasInputLayers"
         canvasItem: root
         mainWindowBridge: root.mainWindowBridge
         sceneBridge: root.sceneBridge
@@ -1199,6 +1202,7 @@ Item {
 
     GraphCanvasComponents.GraphCanvasContextMenus {
         id: contextMenus
+        objectName: "graphCanvasContextMenus"
         canvasItem: root
         mainWindowBridge: root.mainWindowBridge
     }

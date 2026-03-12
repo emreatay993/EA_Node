@@ -5,18 +5,25 @@ Item {
     id: root
     property var viewBridge: null
     property bool showGrid: true
+    readonly property var themePalette: themeBridge.palette
+    readonly property color backgroundTopColor: themePalette.canvas_bg
+    readonly property color backgroundBottomColor: themePalette.panel_bg
+    readonly property color backgroundFillColor: themePalette.canvas_bg
+    readonly property color minorGridColor: themePalette.canvas_minor_grid
+    readonly property color majorGridColor: themePalette.canvas_major_grid
 
     function requestGridRedraw() {
         gridCanvas.requestPaint();
     }
 
     onShowGridChanged: requestGridRedraw()
+    onThemePaletteChanged: requestGridRedraw()
 
     Rectangle {
         anchors.fill: parent
         gradient: Gradient {
-            GradientStop { position: 0.0; color: "#1D1F24" }
-            GradientStop { position: 1.0; color: "#1A1C20" }
+            GradientStop { position: 0.0; color: root.backgroundTopColor }
+            GradientStop { position: 1.0; color: root.backgroundBottomColor }
         }
     }
 
@@ -26,7 +33,7 @@ Item {
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
-            ctx.fillStyle = "#1D1F24";
+            ctx.fillStyle = root.backgroundFillColor;
             ctx.fillRect(0, 0, width, height);
             if (!root.showGrid)
                 return;
@@ -45,7 +52,7 @@ Item {
             var majorStartY = GraphCanvasLogic.normalizedOffset(major, height * 0.5 - centerY * zoom);
 
             ctx.lineWidth = 1;
-            ctx.strokeStyle = "#2A2E37";
+            ctx.strokeStyle = root.minorGridColor;
             for (var x = minorStartX; x <= width; x += step) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);
@@ -59,7 +66,7 @@ Item {
                 ctx.stroke();
             }
 
-            ctx.strokeStyle = "#323746";
+            ctx.strokeStyle = root.majorGridColor;
             for (x = majorStartX; x <= width; x += major) {
                 ctx.beginPath();
                 ctx.moveTo(x, 0);

@@ -2,8 +2,16 @@ import QtQuick 2.15
 
 Rectangle {
     id: root
+    objectName: "graphCanvasDropPreview"
     property Item canvasItem: null
     property var viewBridge: null
+    readonly property var themePalette: themeBridge.palette
+    readonly property color previewChromeColor: Qt.alpha(themePalette.panel_bg, 0.66)
+    readonly property color previewBorderColor: themePalette.accent
+    readonly property color previewAccentColor: themePalette.accent
+    readonly property color previewHeaderColor: Qt.alpha(themePalette.toolbar_bg, 0.86)
+    readonly property color previewTitleColor: themePalette.panel_title_fg
+    readonly property color previewLabelColor: themePalette.muted_fg
 
     visible: !!root.canvasItem && !!root.canvasItem.dropPreviewNodePayload
     z: 34
@@ -12,9 +20,9 @@ Rectangle {
     width: root.canvasItem ? root.canvasItem.previewNodeScreenWidth() : 0
     height: root.canvasItem ? root.canvasItem.previewNodeScreenHeight() : 0
     radius: Math.max(4, 6 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0))
-    color: "#AA2A3340"
+    color: root.previewChromeColor
     border.width: 1
-    border.color: "#80CFF5"
+    border.color: root.previewBorderColor
     clip: true
 
     Rectangle {
@@ -22,7 +30,7 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         height: Math.max(8, 4 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0))
-        color: "#66A4D8"
+        color: root.previewAccentColor
     }
 
     Rectangle {
@@ -31,7 +39,7 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: Math.max(8, 4 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0))
         height: Math.max(14, 24 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0))
-        color: "#7A2F3948"
+        color: root.previewHeaderColor
     }
 
     Text {
@@ -44,7 +52,7 @@ Rectangle {
         text: root.canvasItem && root.canvasItem.dropPreviewNodePayload
             ? String(root.canvasItem.dropPreviewNodePayload.display_name || root.canvasItem.dropPreviewNodePayload.type_id || "")
             : ""
-        color: "#EAF3FF"
+        color: root.previewTitleColor
         font.bold: true
         font.pixelSize: Math.max(10, Math.min(16, 12 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0)))
         elide: Text.ElideRight
@@ -81,7 +89,9 @@ Rectangle {
                         radius: width * 0.5
                         color: "transparent"
                         border.width: 1
-                        border.color: root.canvasItem ? root.canvasItem.previewPortColor(modelData.kind) : "#C6D1E1"
+                        border.color: root.canvasItem
+                            ? root.canvasItem.previewPortColor(modelData.kind)
+                            : root.previewLabelColor
                     }
 
                     Text {
@@ -91,7 +101,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(modelData.label || modelData.key || "")
-                        color: "#C6D1E1"
+                        color: root.previewLabelColor
                         font.pixelSize: Math.max(7, Math.min(11, 10 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0)))
                         elide: Text.ElideRight
                     }
@@ -121,7 +131,9 @@ Rectangle {
                         radius: width * 0.5
                         color: "transparent"
                         border.width: 1
-                        border.color: root.canvasItem ? root.canvasItem.previewPortColor(modelData.kind) : "#C6D1E1"
+                        border.color: root.canvasItem
+                            ? root.canvasItem.previewPortColor(modelData.kind)
+                            : root.previewLabelColor
                     }
 
                     Text {
@@ -131,7 +143,7 @@ Rectangle {
                         anchors.rightMargin: Math.max(7, 12 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0))
                         anchors.verticalCenter: parent.verticalCenter
                         text: String(modelData.label || modelData.key || "")
-                        color: "#C6D1E1"
+                        color: root.previewLabelColor
                         font.pixelSize: Math.max(7, Math.min(11, 10 * (root.viewBridge ? root.viewBridge.zoom_value : 1.0)))
                         horizontalAlignment: Text.AlignRight
                         elide: Text.ElideLeft

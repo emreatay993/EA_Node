@@ -3,6 +3,7 @@ import "EdgeMath.js" as EdgeMath
 
 Item {
     id: root
+    readonly property var themePalette: themeBridge.palette
     property var viewBridge: null
     property var sceneBridge: null
     property var edges: []
@@ -12,6 +13,10 @@ Item {
     property string previewEdgeId: ""
     property var dragConnection: null
     property bool inputEnabled: true
+    readonly property color selectedStrokeColor: themePalette.panel_title_fg
+    readonly property color previewStrokeColor: themePalette.accent
+    readonly property color validDragStrokeColor: themePalette.accent
+    readonly property color invalidDragStrokeColor: themePalette.muted_fg
 
     signal edgeClicked(string edgeId, bool additive)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
@@ -325,8 +330,8 @@ Item {
                     );
                 }
                 ctx.strokeStyle = selected
-                    ? "#A7D8FF"
-                    : (previewed ? "#FFD173" : (edge.color || "#7AA8FF"));
+                    ? root.selectedStrokeColor
+                    : (previewed ? root.previewStrokeColor : (edge.color || "#7AA8FF"));
                 ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
                 ctx.stroke();
             }
@@ -346,7 +351,7 @@ Item {
                         root.sceneToScreenX(dragGeometry.tx),
                         root.sceneToScreenY(dragGeometry.ty)
                     );
-                    ctx.strokeStyle = liveDrag.valid_drop ? "#FFDA6B" : "#8FA2C7";
+                    ctx.strokeStyle = liveDrag.valid_drop ? root.validDragStrokeColor : root.invalidDragStrokeColor;
                     ctx.lineWidth = Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom);
                     ctx.setLineDash([Math.max(2.0, 6.0 * zoom), Math.max(1.0, 4.0 * zoom)]);
                     ctx.lineCap = "round";
@@ -387,6 +392,7 @@ Item {
     onSelectedEdgeIdsChanged: requestRedraw()
     onPreviewEdgeIdChanged: requestRedraw()
     onDragConnectionChanged: requestRedraw()
+    onThemePaletteChanged: requestRedraw()
 
     Connections {
         target: root.viewBridge

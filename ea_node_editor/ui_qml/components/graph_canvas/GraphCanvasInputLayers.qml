@@ -2,10 +2,12 @@ import QtQuick 2.15
 
 Item {
     id: root
+    objectName: "graphCanvasInputLayers"
     property Item canvasItem: null
     property var mainWindowBridge: null
     property var sceneBridge: null
     property var viewBridge: null
+    readonly property var themePalette: themeBridge.palette
 
     Keys.onDeletePressed: function(event) {
         if (root.mainWindowBridge && root.canvasItem)
@@ -130,6 +132,7 @@ Item {
     }
 
     Rectangle {
+        objectName: "graphCanvasMarqueeRect"
         parent: root.canvasItem
         visible: marqueeArea.selecting
             && (Math.abs(marqueeArea.currentX - marqueeArea.startX) >= 2
@@ -139,9 +142,9 @@ Item {
         y: Math.min(marqueeArea.startY, marqueeArea.currentY)
         width: Math.abs(marqueeArea.currentX - marqueeArea.startX)
         height: Math.abs(marqueeArea.currentY - marqueeArea.startY)
-        color: "#3360CDFF"
+        color: Qt.alpha(root.themePalette.accent, 0.2)
         border.width: 1
-        border.color: "#60CDFF"
+        border.color: root.themePalette.accent
     }
 
     MouseArea {
