@@ -2,6 +2,7 @@ flowchart LR
     U[User] --> MS[MainShell.qml]
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
+    MS --> GSD[GraphicsSettingsDialog]
     MS --> GSO[GraphSearchOverlay title/type search]
     MS --> CQI[ConnectionQuickInsertOverlay]
     MS --> INS[InspectorPane user-facing IDs]
@@ -14,20 +15,25 @@ flowchart LR
     GC --> GCLOGIC[GraphCanvasLogic.js]
     GC --> EDGE[EdgeLayer]
     GC --> NODECARD[NodeCard]
+    GC --> TBRIDGE[ThemeBridge palette]
     NODECARD --> INS
     NODECARD --> SW
 
     GC --> GS
     GC --> VP
     GC --> SW
+    GSD --> SW
     GSO --> SW
     CQI --> SW
 
+    SW --> APC[AppPreferencesController]
     SW --> RUN[RunController]
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
+    SW --> TBRIDGE
+    SW --> THEME[theme registry and stylesheet builder]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
@@ -51,6 +57,9 @@ flowchart LR
     WM --> GR
 
     WLC --> CWF[custom_workflows codec]
+
+    APC --> APPPREF[(app_preferences.json)]
+    THEME --> TOKENS[stitch_dark and stitch_light tokens]
 
     RUN --> SER[JsonProjectSerializer]
     PSC --> SER

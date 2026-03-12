@@ -17,29 +17,34 @@
 4. Launch app:
    `.\artifacts\releases\EA_Node_Editor_RC1_2026-03-01\dist\EA_Node_Editor\EA_Node_Editor.exe`
 5. Wait for main window and verify the status bar initializes to an idle/ready state.
+6. Open `Settings > Graphics Settings` and confirm the dialog shows controls for grid, minimap, snap-to-grid, and theme selection.
 
 ## Smoke Workflows
 
-1. Workspace and graph setup
+1. Graphics settings and theme behavior
+   - Open `Settings > Graphics Settings`.
+   - Switch to `Stitch Light`, disable grid, disable minimap, enable snap-to-grid, and accept the dialog.
+   - Pass criteria: shell and graph canvas restyle immediately, the canvas hides the grid/minimap, and subsequent node moves snap to the grid.
+2. Workspace and graph setup
    - Create a new workspace and a new view.
    - Add `Start`, `Logger`, `End` nodes.
    - Connect `Start -> Logger -> End`.
    - Pass criteria: nodes and edges appear correctly; no error dialog.
-2. Simple execution flow
+3. Simple execution flow
    - Run `Start -> Logger -> End`.
    - Pass criteria: execution completes and status returns to `Ready (Completed)`.
-3. File pipeline flow
+4. File pipeline flow
    - Build `File Read -> Python Script -> File Write`.
    - Use small text input and script transform (for example uppercase).
    - Pass criteria: output file is written and output content matches expected transform.
-4. Controlled failure UX
+5. Controlled failure UX
    - In `Python Script`, intentionally raise an error.
    - Run flow and observe UI.
    - Pass criteria: `Workflow Error` dialog appears; failed node is focused/inspectable.
-5. Save, reopen, recovery behavior
+6. Save, reopen, recovery behavior
    - Save project as `.sfe`, close app, relaunch app.
    - Accept recovery prompt when prompted.
-   - Pass criteria: prior tabs/views restore and unsaved recovery graph is restored after acceptance.
+   - Pass criteria: prior tabs/views restore, unsaved recovery graph is restored after acceptance, and the last accepted graphics settings remain active after relaunch.
 
 ## Failure Reporting Template
 
@@ -51,7 +56,7 @@ Date/Time (UTC): <YYYY-MM-DDTHH:MM:SSZ>
 Operator: <name>
 Build Label: EA_Node_Editor_RC1_2026-03-01
 Executable Path: artifacts/releases/EA_Node_Editor_RC1_2026-03-01/dist/EA_Node_Editor/EA_Node_Editor.exe
-Workflow: <1-5 from runbook>
+Workflow: <1-6 from runbook>
 Expected Result: <expected behavior>
 Actual Result: <observed behavior>
 Repro Steps:

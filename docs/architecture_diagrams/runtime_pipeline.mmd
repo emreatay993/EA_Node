@@ -1,36 +1,43 @@
 flowchart TD
-    A[App start main.py to app.run] --> B[ShellWindow init]
-    B --> C[Build registry, serializer, session store, graph model, runtime history]
-    C --> D[Build controllers and QML bridges/models]
-    D --> E[Load MainShell + GraphCanvas composition components]
-    E --> F[Restore session and optional autosave recovery]
-    F --> G[Switch workspace and restore view and scope camera]
-    G --> H[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, and user-facing node labels]
+    A[App start main.py to app.run] --> B[Read startup theme id from app_preferences.json]
+    B --> C[Create QApplication with active theme stylesheet]
+    C --> D[ShellWindow init]
+    D --> E[Build registry, serializer, session store, graph model, runtime history, and app preferences controller]
+    E --> F[Build theme bridge plus other controllers and QML bridges/models]
+    F --> G[Load graphics preferences into shell state]
+    G --> H[Load MainShell + GraphCanvas composition components]
+    H --> I[Restore session and optional autosave recovery]
+    I --> J[Switch workspace and restore view and scope camera]
+    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, and theme palette surfaces]
 
-    H --> I[User edits graph, searches by title or type, or navigates scope]
-    I --> J[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
-    J --> K[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
-    J --> KQ[Optional dangling wire release opens quick insert]
-    KQ --> K
-    K --> L[GraphSceneBridge or GraphInteractions mutate GraphModel]
-    L --> M[RuntimeGraphHistory records undo/redo snapshots]
-    M --> N[Scene rebuild publishes nodes, edges, minimap payloads]
-    N --> H
+    K --> L[User edits graph, searches by title or type, navigates scope, or opens Graphics Settings]
+    L --> M[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
+    M --> N[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
+    M --> NQ[Optional dangling wire release opens quick insert]
+    NQ --> N
+    N --> O[GraphSceneBridge or GraphInteractions mutate GraphModel]
+    O --> P[RuntimeGraphHistory records undo/redo snapshots]
+    P --> Q[Scene rebuild publishes nodes, edges, minimap payloads]
+    Q --> K
 
-    H --> IQ[Inline property payloads rendered in NodeCard]
-    IQ --> K
+    K --> KP[Graphics Settings dialog updates app_preferences.json]
+    KP --> KR[ShellWindow reapplies graphics flags plus theme bridge and stylesheet]
+    KR --> K
 
-    H --> O[Optional publish subnode as custom workflow]
-    O --> P[Snapshot fragment stored in metadata.custom_workflows]
-    P --> Q[Node library refresh includes custom workflow entries]
+    K --> R[Inline property payloads rendered in NodeCard]
+    R --> N
 
-    H --> R[User clicks Run]
-    R --> S[RunController builds trigger with workflow settings and project_doc]
-    S --> T[Execution client starts worker run]
-    T --> U[Worker compiles workspace document and executes nodes]
-    U --> V[Run events and logs stream to RunController]
-    V --> W[Status, console, failed-node focus, and actions updated]
+    K --> S[Optional publish subnode as custom workflow]
+    S --> T[Snapshot fragment stored in metadata.custom_workflows]
+    T --> U[Node library refresh includes custom workflow entries]
 
-    H --> X[Autosave tick or manual save]
-    X --> Y[ProjectSessionController persists view and script editor state]
-    Y --> Z[Serializer and session store write project, session, autosave files]
+    K --> V[User clicks Run]
+    V --> W[RunController builds trigger with workflow settings and project_doc]
+    W --> X[Execution client starts worker run]
+    X --> Y[Worker compiles workspace document and executes nodes]
+    Y --> Z[Run events and logs stream to RunController]
+    Z --> ZA[Status, console, failed-node focus, and actions updated]
+
+    K --> ZB[Autosave tick or manual save]
+    ZB --> ZC[ProjectSessionController persists view and script editor state]
+    ZC --> ZD[Serializer and session store write project, session, autosave files]

@@ -10,6 +10,7 @@ EA Node Editor is a desktop visual workflow editor that:
 - supports nested subnode scopes (graph hierarchy),
 - executes workflows in a separate worker process,
 - persists projects as versioned `.sfe` JSON,
+- persists app-wide graphics/theme preferences as versioned `app_preferences.json`,
 - supports plugin-based custom node types,
 - publishes/imports reusable custom workflow snapshots,
 - restores sessions/autosaves and reports runtime status/metrics.
@@ -18,7 +19,8 @@ EA Node Editor is a desktop visual workflow editor that:
 The app is split into clear parts:
 
 - `ea_node_editor/ui` + `ea_node_editor/ui_qml`: shell window, QML shell/canvas composition, bridges, and UI models.
-- `ea_node_editor/ui/shell/controllers`: orchestration split into run, project/session, and workspace/library controllers.
+- `ea_node_editor/ui/shell/controllers`: orchestration split into app-preferences, run, project/session, and workspace/library controllers.
+- `ea_node_editor/ui/theme`: shared theme registry, token sets, QWidget stylesheet generation, and QML palette bridge inputs.
 - `ea_node_editor/graph`: in-memory graph domain (`ProjectData`, `WorkspaceData`, nodes, edges, views), hierarchy helpers, and graph transforms.
 - `ea_node_editor/nodes`: node SDK contracts, registry, built-ins, plugin discovery, and package import/export.
 - `ea_node_editor/execution`: UI client + worker process + typed command/event protocol.
@@ -32,6 +34,8 @@ Design intent:
 - `GraphCanvas.qml` composes focused canvas modules (`GraphCanvasBackground`, `GraphCanvasDropPreview`, `GraphCanvasMinimapOverlay`, `GraphCanvasInputLayers`, `GraphCanvasContextMenus`) plus `GraphCanvasLogic.js`.
 - shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
 - `ShellWindow` is a thin facade that delegates to controllers and bridge helpers.
+- App-wide graphics settings live in `app_preferences.json` through `AppPreferencesController`, not in project `.sfe` metadata or `last_session.json`.
+- Shared theme resolution feeds both the QApplication stylesheet and QML `ThemeBridge.palette`, so shell and canvas surfaces switch themes together at runtime.
 - User-facing shell surfaces prefer node titles and per-type sequential IDs; raw internal `node_id` values stay as internal references.
 - `GraphModel` remains the canonical mutable graph state.
 - Hierarchy is explicit via `NodeInstance.parent_node_id` and per-view `scope_path`.
@@ -55,6 +59,7 @@ flowchart LR
     U[User] --> MS[MainShell.qml]
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
+    MS --> GSD[GraphicsSettingsDialog]
     MS --> GSO[GraphSearchOverlay title/type search]
     MS --> CQI[ConnectionQuickInsertOverlay]
     MS --> INS[InspectorPane user-facing IDs]
@@ -67,20 +72,25 @@ flowchart LR
     GC --> GCLOGIC[GraphCanvasLogic.js]
     GC --> EDGE[EdgeLayer]
     GC --> NODECARD[NodeCard]
+    GC --> TBRIDGE[ThemeBridge palette]
     NODECARD --> INS
     NODECARD --> SW
 
     GC --> GS
     GC --> VP
     GC --> SW
+    GSD --> SW
     GSO --> SW
     CQI --> SW
 
+    SW --> APC[AppPreferencesController]
     SW --> RUN[RunController]
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
     SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
+    SW --> TBRIDGE
+    SW --> THEME[theme registry and stylesheet builder]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
@@ -104,6 +114,9 @@ flowchart LR
     WM --> GR
 
     WLC --> CWF[custom_workflows codec]
+
+    APC --> APPPREF[(app_preferences.json)]
+    THEME --> TOKENS[stitch_dark and stitch_light tokens]
 
     RUN --> SER[JsonProjectSerializer]
     PSC --> SER
@@ -135,41 +148,48 @@ flowchart LR
 ### 2) Runtime pipeline (startup, edit, run, persist)
 ```mermaid
 flowchart TD
-    A[App start main.py to app.run] --> B[ShellWindow init]
-    B --> C[Build registry, serializer, session store, graph model, runtime history]
-    C --> D[Build controllers and QML bridges/models]
-    D --> E[Load MainShell + GraphCanvas composition components]
-    E --> F[Restore session and optional autosave recovery]
-    F --> G[Switch workspace and restore view and scope camera]
-    G --> H[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, and user-facing node labels]
+    A[App start main.py to app.run] --> B[Read startup theme id from app_preferences.json]
+    B --> C[Create QApplication with active theme stylesheet]
+    C --> D[ShellWindow init]
+    D --> E[Build registry, serializer, session store, graph model, runtime history, and app preferences controller]
+    E --> F[Build theme bridge plus other controllers and QML bridges/models]
+    F --> G[Load graphics preferences into shell state]
+    G --> H[Load MainShell + GraphCanvas composition components]
+    H --> I[Restore session and optional autosave recovery]
+    I --> J[Switch workspace and restore view and scope camera]
+    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, and theme palette surfaces]
 
-    H --> I[User edits graph, searches by title or type, or navigates scope]
-    I --> J[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
-    J --> K[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
-    J --> KQ[Optional dangling wire release opens quick insert]
-    KQ --> K
-    K --> L[GraphSceneBridge or GraphInteractions mutate GraphModel]
-    L --> M[RuntimeGraphHistory records undo/redo snapshots]
-    M --> N[Scene rebuild publishes nodes, edges, minimap payloads]
-    N --> H
+    K --> L[User edits graph, searches by title or type, navigates scope, or opens Graphics Settings]
+    L --> M[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
+    M --> N[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
+    M --> NQ[Optional dangling wire release opens quick insert]
+    NQ --> N
+    N --> O[GraphSceneBridge or GraphInteractions mutate GraphModel]
+    O --> P[RuntimeGraphHistory records undo/redo snapshots]
+    P --> Q[Scene rebuild publishes nodes, edges, minimap payloads]
+    Q --> K
 
-    H --> IQ[Inline property payloads rendered in NodeCard]
-    IQ --> K
+    K --> KP[Graphics Settings dialog updates app_preferences.json]
+    KP --> KR[ShellWindow reapplies graphics flags plus theme bridge and stylesheet]
+    KR --> K
 
-    H --> O[Optional publish subnode as custom workflow]
-    O --> P[Snapshot fragment stored in metadata.custom_workflows]
-    P --> Q[Node library refresh includes custom workflow entries]
+    K --> R[Inline property payloads rendered in NodeCard]
+    R --> N
 
-    H --> R[User clicks Run]
-    R --> S[RunController builds trigger with workflow settings and project_doc]
-    S --> T[Execution client starts worker run]
-    T --> U[Worker compiles workspace document and executes nodes]
-    U --> V[Run events and logs stream to RunController]
-    V --> W[Status, console, failed-node focus, and actions updated]
+    K --> S[Optional publish subnode as custom workflow]
+    S --> T[Snapshot fragment stored in metadata.custom_workflows]
+    T --> U[Node library refresh includes custom workflow entries]
 
-    H --> X[Autosave tick or manual save]
-    X --> Y[ProjectSessionController persists view and script editor state]
-    Y --> Z[Serializer and session store write project, session, autosave files]
+    K --> V[User clicks Run]
+    V --> W[RunController builds trigger with workflow settings and project_doc]
+    W --> X[Execution client starts worker run]
+    X --> Y[Worker compiles workspace document and executes nodes]
+    Y --> Z[Run events and logs stream to RunController]
+    Z --> ZA[Status, console, failed-node focus, and actions updated]
+
+    K --> ZB[Autosave tick or manual save]
+    ZB --> ZC[ProjectSessionController persists view and script editor state]
+    ZC --> ZD[Serializer and session store write project, session, autosave files]
 ```
 
 ### 3) One workflow run as a sequence
@@ -223,17 +243,18 @@ sequenceDiagram
 
 ## Startup flow
 1. `main.py` calls `ea_node_editor.app.run()`.
-2. `run()` creates `QApplication`, applies theme stylesheet, instantiates `ShellWindow`.
+2. `run()` loads the startup theme from `app_preferences.json`, creates `QApplication`, applies the resolved stylesheet, and instantiates `ShellWindow`.
 3. `ShellWindow` builds:
 - `NodeRegistry` via `build_default_registry()` (built-ins + discovered plugins),
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
-- controller layer (`WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
-- QML bridges/models (`GraphSceneBridge`, `ViewportBridge`, console/status/script/workspace models),
+- controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
+- QML bridges/models (`ThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, console/status/script/workspace models),
 - execution client (`ProcessExecutionClient`) and event subscription.
-4. QML shell is loaded (`ui_qml/MainShell.qml`) with context properties and a composed `GraphCanvas` surface.
-5. `GraphCanvas` composes dedicated background/minimap/input/context/drop-preview modules.
-6. Session restore + optional autosave recovery runs, then active workspace/view/scope are bound.
+4. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap/theme state before the shell is shown.
+5. QML shell is loaded (`ui_qml/MainShell.qml`) with context properties and a composed `GraphCanvas` surface.
+6. `GraphCanvas` composes dedicated background/minimap/input/context/drop-preview modules.
+7. Session restore + optional autosave recovery runs, then active workspace/view/scope are bound.
 
 ## Main runtime flows
 ### 1) Graph editing, hierarchy, and view sync
@@ -263,12 +284,18 @@ sequenceDiagram
 - Search results can jump across workspaces, reveal collapsed parent chains, and focus/center selected nodes.
 - Scope camera (zoom/pan) is remembered per workspace/view/scope tuple.
 
-### 3) Custom workflow lifecycle
+### 3) Graphics settings and live theme application
+- `GraphicsSettingsDialog` is opened from `Settings > Graphics Settings` through `ShellWindow.show_graphics_settings_dialog()`.
+- `AppPreferencesController` normalizes and persists grid, minimap, snap-to-grid, and theme choices into versioned `app_preferences.json`.
+- `ShellWindow.apply_graphics_preferences()` updates graph-canvas behavior flags and reapplies the shared theme to both QApplication stylesheet and `ThemeBridge`.
+- QML shell/canvas surfaces bind to `themeBridge.palette`, while QWidget surfaces use the same resolved theme tokens through generated stylesheets.
+
+### 4) Custom workflow lifecycle
 - Subnode scopes can be published into `metadata.custom_workflows` as reusable fragment snapshots.
 - Custom workflows appear in the node library and can be dropped like node types.
 - `.eawf` import/export is handled in `custom_workflows.file_codec` + workspace IO ops.
 
-### 4) Workflow execution
+### 5) Workflow execution
 - `RunController.run_workflow()` serializes a project snapshot and starts `ProcessExecutionClient`.
 - Client sends typed commands through multiprocessing queues.
 - Worker executes `run_workflow()`:
@@ -278,11 +305,12 @@ sequenceDiagram
 - emits typed events (`run_state`, `node_started`, `node_completed`, `log`, terminal events).
 - On failure, UI focuses the failed node path and updates run state/counters.
 
-### 5) Persistence and recovery
+### 6) Persistence and recovery
 - Save path uses `JsonProjectSerializer.save()` (deterministic ordering + schema normalization).
 - Autosave/session persistence is periodic via `SessionAutosaveStore`.
 - Startup restore can recover a newer autosave snapshot.
 - View state and script editor UI state are persisted in project metadata.
+- App-wide graphics/theme preferences persist separately in `app_preferences.json`.
 
 ## Data contracts that keep modules decoupled
 - Graph domain dataclasses:
@@ -300,10 +328,14 @@ sequenceDiagram
 - events (`RunStartedEvent`, `RunStateEvent`, `NodeStartedEvent`, `NodeCompletedEvent`, `RunCompletedEvent`, `RunFailedEvent`, `RunStoppedEvent`, `LogEvent`, `ProtocolErrorEvent`).
 - Persistence contract:
 - schema-versioned `.sfe` JSON (`SCHEMA_VERSION = 3`) migrated before model construction.
+- App preferences contract:
+- versioned `app_preferences.json` (`kind = "ea-node-editor/app-preferences"`, `version = 1`) containing graphics defaults separate from project/session persistence.
 - Custom workflow contract:
 - `metadata.custom_workflows` plus `.eawf` import/export document format.
 - QML canvas composition contract:
 - `GraphCanvas.qml` remains the orchestration surface exposing `toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, and `performLibraryDrop()`.
+- Theme bridge contract:
+- `ThemeBridge.palette` exposes shared resolved theme tokens to QML shell/canvas surfaces while QApplication uses the same theme registry for QWidget styling.
 
 ## Key architecture rules currently enforced
 1. UI responsiveness through process isolation
@@ -318,17 +350,23 @@ sequenceDiagram
 4. Queue-boundary protocol typing
 - Dataclasses are canonical in runtime; queues carry dict payloads only at boundaries.
 
-5. Deterministic persistence with migration
+5. App-wide preferences stay outside project/session files
+- Graphics/theme preferences persist in `app_preferences.json`; `.sfe` and `last_session.json` stay focused on project/session state only.
+
+6. Shared theme tokens drive both QWidget and QML surfaces
+- Theme changes must resolve through the common registry so shell and graph canvas remain visually aligned at runtime.
+
+7. Deterministic persistence with migration
 - Documents are normalized/migrated before decode; save output is stable and diff-friendly.
 
-6. Workspace-local undo/redo snapshots
+8. Workspace-local undo/redo snapshots
 - `RuntimeGraphHistory` tracks undo/redo stacks per workspace.
 
 ## Folder map
 - `main.py`: launcher.
 - `ea_node_editor/app.py`: Qt app bootstrap.
 - `ea_node_editor/ui/shell/window.py`: QMainWindow/QML facade and slot surface.
-- `ea_node_editor/ui/shell/controllers/`: run/project-session/workspace-library orchestration + ops.
+- `ea_node_editor/ui/shell/controllers/`: app-preferences, run, project-session, and workspace-library orchestration + ops.
 - `ea_node_editor/ui/shell/window_search_scope_state.py`: graph search/scope camera/snap state helpers.
 - `ea_node_editor/ui_qml/`: QML shell/canvas UI and Python bridge/state models.
 - `ea_node_editor/ui_qml/components/shell/`: modular shell composition components extracted from `MainShell.qml`.
@@ -360,7 +398,7 @@ sequenceDiagram
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ui_qml/components/graph_canvas/*`, and `ui_qml/graph_scene_bridge.py`.
 
 ## Practical summary
-EA Node Editor uses a QML-first UI with a Python shell facade, controller-based orchestration, scoped graph hierarchy, and a process-isolated execution engine.
+EA Node Editor uses a QML-first UI with a Python shell facade, controller-based orchestration, shared app-wide graphics/theme preferences, scoped graph hierarchy, and a process-isolated execution engine.
 This split keeps concerns clear:
 - interaction/rendering in QML and bridges,
 - canonical project state in `GraphModel`,

@@ -6,6 +6,9 @@ multi-step engineering workflows -- all through a drag-and-drop canvas.
 
 Recent UI/UX architecture highlights:
 
+- App-wide Graphics Settings modal for grid, minimap, snap-to-grid default, and live theme selection
+- Shared `stitch_dark` and `stitch_light` theme application across both QWidget and QML shell/canvas surfaces
+- Graphics preferences now persist in `app_preferences.json` separately from project `.sfe` files and `last_session.json`
 - Connection-aware quick insert from a dangling wire drag
 - Inline node controls for fast editing of selected property types
 - Python-side compatibility filtering so quick insert follows the same effective-port rules as graph connections
@@ -79,6 +82,8 @@ ea_node_editor/
   ui/
     graph_interactions.py
     dialogs/
+      graphics_settings_dialog.py
+      sectioned_settings_dialog.py
       workflow_settings_dialog.py
     editor/
       code_editor.py
@@ -95,6 +100,7 @@ ea_node_editor/
       window_library_inspector.py
       window_search_scope_state.py
       controllers/
+        app_preferences_controller.py
         run_controller.py
         project_session_controller.py
         workspace_library_controller.py
@@ -104,6 +110,7 @@ ea_node_editor/
         workspace_io_ops.py
         result.py
     theme/
+      registry.py
       styles.py
       tokens.py
   ui_qml/
@@ -115,6 +122,7 @@ ea_node_editor/
     script_editor_model.py
     status_model.py
     syntax_bridge.py
+    theme_bridge.py
     workspace_tabs_model.py
     components/
       GraphCanvas.qml
@@ -191,6 +199,12 @@ Restart the application and the node will appear in the Node Library under the
 - **Export:** File > Export Node Package -- bundles selected nodes into a `.eanp` file
 - **Import:** File > Import Node Package -- installs a `.eanp` file into your plugins folder
 
+## Graphics Settings
+
+- Open `Settings > Graphics Settings` to configure the grid overlay, minimap visibility/default expansion, snap-to-grid default, and the active shell/canvas theme.
+- Theme changes apply live to both the QWidget shell styling and the QML shell/canvas surfaces.
+- App-wide graphics preferences persist in `%APPDATA%\EA_Node_Editor\app_preferences.json` and stay separate from project `.sfe` files and `last_session.json`.
+
 ## Running Tests
 
 ```bash
@@ -199,6 +213,7 @@ python -m pytest tests/ -v
 
 ## Interaction Notes
 
+- Graphics settings are app-wide rather than project-local, so reopening the app restores the last saved grid/minimap/snap/theme choices.
 - Drag from a port to empty canvas space to open the connection-aware quick insert overlay.
 - Quick insert only shows node types that can auto-connect to the dragged source port using the same compatibility rules as normal graph connections.
 - Some node types expose inline property controls directly in the node card for faster editing, while the inspector remains the full editing surface.
