@@ -30,6 +30,7 @@ The app is split into clear parts:
 Design intent:
 - QML renders and captures interaction.
 - `GraphCanvas.qml` composes focused canvas modules (`GraphCanvasBackground`, `GraphCanvasDropPreview`, `GraphCanvasMinimapOverlay`, `GraphCanvasInputLayers`, `GraphCanvasContextMenus`) plus `GraphCanvasLogic.js`.
+- shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
 - `ShellWindow` is a thin facade that delegates to controllers and bridge helpers.
 - `GraphModel` remains the canonical mutable graph state.
 - Hierarchy is explicit via `NodeInstance.parent_node_id` and per-view `scope_path`.
@@ -53,6 +54,9 @@ flowchart LR
     U[User] --> MS[MainShell.qml]
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
+    MS --> GSO[GraphSearchOverlay]
+    MS --> CQI[ConnectionQuickInsertOverlay]
+    MS --> INS[InspectorPane]
 
     GC --> GCBG[GraphCanvasBackground]
     GC --> GCDP[GraphCanvasDropPreview]
@@ -62,15 +66,20 @@ flowchart LR
     GC --> GCLOGIC[GraphCanvasLogic.js]
     GC --> EDGE[EdgeLayer]
     GC --> NODECARD[NodeCard]
+    NODECARD --> INS
+    NODECARD --> SW
 
     GC --> GS
     GC --> VP
     GC --> SW
+    GSO --> SW
+    CQI --> SW
 
     SW --> RUN[RunController]
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
+    SW --> INSPECTOR_HELPERS[window_library_inspector]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
@@ -86,6 +95,7 @@ flowchart LR
     WLC --> DROP[WorkspaceDropConnectOps]
     WLC --> IO[WorkspaceIOOps]
     WLC --> GI[GraphInteractions]
+    INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
     EDIT --> GS
     GI --> GS
@@ -135,10 +145,15 @@ flowchart TD
     H --> I[User edits graph, searches, or navigates scope]
     I --> J[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
     J --> K[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
+    J --> KQ[Optional dangling wire release opens quick insert]
+    KQ --> K
     K --> L[GraphSceneBridge or GraphInteractions mutate GraphModel]
     L --> M[RuntimeGraphHistory records undo/redo snapshots]
     M --> N[Scene rebuild publishes nodes, edges, minimap payloads]
     N --> H
+
+    H --> IQ[Inline property payloads rendered in NodeCard]
+    IQ --> K
 
     H --> O[Optional publish subnode as custom workflow]
     O --> P[Snapshot fragment stored in metadata.custom_workflows]
@@ -228,6 +243,19 @@ sequenceDiagram
 - `RuntimeGraphHistory` records snapshots for undo/redo.
 - `GraphCanvasBackground`, `GraphCanvasDropPreview`, and `GraphCanvasMinimapOverlay` repaint from bridge payloads.
 
+### 1a) Connection-aware quick insert
+- A port drag begins and ends entirely in `NodeCard` plus `GraphCanvas`.
+- If a drag is released over a valid compatible port, normal `request_connect_ports()` flow runs.
+- If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `ShellWindow`.
+- `ShellWindow` builds source-port context using effective port resolution and asks `window_library_inspector.py` for compatible node-library results.
+- Quick insert acceptance reuses `request_drop_node_from_library(..., target_mode="port", ...)`, so insertion and auto-connect still flow through `WorkspaceDropConnectOps`.
+
+### 1b) Inline node controls
+- `PropertySpec.inline_editor` declares whether a property can render inside `NodeCard`.
+- `GraphSceneBridge` includes lightweight `inline_properties` in each node payload.
+- `NodeCard` renders a fast subset of editors inline and routes commits back through the same selected-node property path used by `InspectorPane`.
+- The inspector remains the complete editing surface for richer editors such as multiline/script/json/path properties.
+
 ### 2) Search and scope navigation
 - Graph search is orchestrated in `window_search_scope_state`.
 - Search results can jump across workspaces, reveal collapsed parent chains, and focus/center selected nodes.
@@ -261,6 +289,8 @@ sequenceDiagram
 - `NodeInstance.parent_node_id`, `ViewState.scope_path`.
 - Node SDK contracts:
 - `NodeTypeSpec`, `PortSpec`, `PropertySpec`, `ExecutionContext`, `NodeResult`.
+- `PropertySpec.inline_editor` controls whether a property participates in inline node-card editing.
+- QML scene payloads can include `inline_properties` for node-card rendering and fast property updates.
 - Execution protocol contracts:
 - commands (`StartRunCommand`, `StopRunCommand`, `PauseRunCommand`, `ResumeRunCommand`, `ShutdownCommand`),
 - events (`RunStartedEvent`, `RunStateEvent`, `NodeStartedEvent`, `NodeCompletedEvent`, `RunCompletedEvent`, `RunFailedEvent`, `RunStoppedEvent`, `LogEvent`, `ProtocolErrorEvent`).
@@ -298,6 +328,7 @@ sequenceDiagram
 - `ea_node_editor/ui/shell/window_search_scope_state.py`: graph search/scope camera/snap state helpers.
 - `ea_node_editor/ui_qml/`: QML shell/canvas UI and Python bridge/state models.
 - `ea_node_editor/ui_qml/components/shell/`: modular shell composition components extracted from `MainShell.qml`.
+- `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`: compatibility-aware quick insert overlay.
 - `ea_node_editor/ui_qml/components/graph_canvas/`: modular GraphCanvas layers/overlays/helpers.
 - `ea_node_editor/ui_qml/components/graph/`: node cards and edge rendering delegates.
 - `ea_node_editor/graph/`: graph datamodel, hierarchy helpers, transforms, and wiring rules.
@@ -319,6 +350,7 @@ sequenceDiagram
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py`.
 - Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.
 - Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.
+- Change quick insert result ranking/filtering or inline property payload generation: `ea_node_editor/ui/shell/window.py` and `ea_node_editor/ui/shell/window_library_inspector.py`.
 - Change custom workflow metadata/file format: `ea_node_editor/custom_workflows/codec.py` and `file_codec.py`.
 - Change persistence schema normalization/migration: `ea_node_editor/persistence/migration.py`.
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ui_qml/components/graph_canvas/*`, and `ui_qml/graph_scene_bridge.py`.

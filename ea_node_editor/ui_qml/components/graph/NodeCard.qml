@@ -1,4 +1,6 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
+import QtQuick.Layouts 1.15
 
 Rectangle {
     id: card
@@ -49,6 +51,7 @@ Rectangle {
         bool dragActive
     )
     signal portDragCanceled(string nodeId, string portKey, string direction)
+    signal inlinePropertyCommitted(string nodeId, string key, var value)
     signal portHoverChanged(
         string nodeId,
         string portKey,
@@ -59,7 +62,22 @@ Rectangle {
     )
 
     readonly property real _portHeight: 18
-    readonly property real _portTop: 30
+    readonly property real _inlineRowHeight: 26
+    readonly property real _inlineRowSpacing: 4
+    readonly property real _inlineSectionPadding: 8
+    readonly property var inlineProperties: {
+        if (!card.nodeData || !card.nodeData.inline_properties)
+            return [];
+        return card.nodeData.inline_properties;
+    }
+    readonly property real inlineBodyHeight: {
+        if (!card.inlineProperties.length)
+            return 0;
+        return card._inlineSectionPadding
+            + card.inlineProperties.length * card._inlineRowHeight
+            + Math.max(0, card.inlineProperties.length - 1) * card._inlineRowSpacing;
+    }
+    readonly property real _portTop: 30 + inlineBodyHeight
     readonly property real _portCenterOffset: 6
     readonly property real _portSideMargin: 8
     readonly property real _portDotRadius: 3.5
@@ -128,6 +146,15 @@ Rectangle {
             && card.dragSourcePort.node_id === card.nodeData.node_id
             && card.dragSourcePort.port_key === portKey
             && card.dragSourcePort.direction === direction;
+    }
+
+    function inlineEditorText(propertyData) {
+        if (!propertyData)
+            return "";
+        var value = propertyData.value;
+        if (value === undefined || value === null)
+            return "";
+        return String(value);
     }
 
     function _pointerInCanvas(mouseArea, mouse) {
@@ -213,8 +240,95 @@ Rectangle {
         visible: card.nodeData ? !card.nodeData.collapsed : false
 
         Column {
+            id: inlineControlsColumn
             anchors.left: parent.left
+            anchors.right: parent.right
             anchors.top: parent.top
+            spacing: card._inlineRowSpacing
+            visible: card.inlineProperties.length > 0
+
+            Repeater {
+                model: card.inlineProperties
+                delegate: Rectangle {
+                    width: inlineControlsColumn.width
+                    height: card._inlineRowHeight
+                    radius: 4
+                    color: "#20242B"
+                    border.color: "#39414D"
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 6
+                        anchors.rightMargin: 6
+                        spacing: 6
+
+                        Text {
+                            Layout.preferredWidth: 78
+                            text: String(modelData.label || modelData.key || "")
+                            color: "#C8D0E0"
+                            font.pixelSize: 10
+                            elide: Text.ElideRight
+                        }
+
+                        CheckBox {
+                            visible: modelData.inline_editor === "toggle"
+                            enabled: !modelData.overridden_by_input
+                            checked: !!modelData.value
+                            onClicked: card.inlinePropertyCommitted(card.nodeData.node_id, modelData.key, checked)
+                        }
+
+                        ComboBox {
+                            visible: modelData.inline_editor === "enum"
+                            Layout.fillWidth: true
+                            enabled: !modelData.overridden_by_input
+                            model: modelData.enum_values || []
+                            currentIndex: {
+                                var values = modelData.enum_values || [];
+                                var value = String(modelData.value || "");
+                                var matchIndex = values.indexOf(value);
+                                return matchIndex >= 0 ? matchIndex : 0;
+                            }
+                            onActivated: {
+                                var values = modelData.enum_values || [];
+                                if (currentIndex < 0 || currentIndex >= values.length)
+                                    return;
+                                card.inlinePropertyCommitted(card.nodeData.node_id, modelData.key, String(values[currentIndex]));
+                            }
+                        }
+
+                        TextField {
+                            visible: modelData.inline_editor === "text" || modelData.inline_editor === "number"
+                            Layout.fillWidth: true
+                            enabled: !modelData.overridden_by_input
+                            text: card.inlineEditorText(modelData)
+                            selectByMouse: true
+                            color: "#E6EDF8"
+                            background: Rectangle {
+                                color: "#272B33"
+                                border.color: "#434955"
+                                radius: 3
+                            }
+                            onAccepted: card.inlinePropertyCommitted(card.nodeData.node_id, modelData.key, text)
+                            onEditingFinished: card.inlinePropertyCommitted(card.nodeData.node_id, modelData.key, text)
+                        }
+
+                        Text {
+                            visible: modelData.overridden_by_input
+                            Layout.fillWidth: true
+                            text: "Driven by " + String(modelData.input_port_label || "input")
+                            color: "#8FB8D8"
+                            font.pixelSize: 9
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
+            }
+        }
+
+        Column {
+            anchors.left: parent.left
+            anchors.top: inlineControlsColumn.visible ? inlineControlsColumn.bottom : parent.top
+            anchors.topMargin: inlineControlsColumn.visible ? card._inlineSectionPadding : 0
             spacing: 4
 
             Repeater {
@@ -349,7 +463,8 @@ Rectangle {
         Column {
             id: outputPortsColumn
             anchors.right: parent.right
-            anchors.top: parent.top
+            anchors.top: inlineControlsColumn.visible ? inlineControlsColumn.bottom : parent.top
+            anchors.topMargin: inlineControlsColumn.visible ? card._inlineSectionPadding : 0
             spacing: 4
 
             Repeater {

@@ -2,6 +2,9 @@ flowchart LR
     U[User] --> MS[MainShell.qml]
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
+    MS --> GSO[GraphSearchOverlay]
+    MS --> CQI[ConnectionQuickInsertOverlay]
+    MS --> INS[InspectorPane]
 
     GC --> GCBG[GraphCanvasBackground]
     GC --> GCDP[GraphCanvasDropPreview]
@@ -11,15 +14,20 @@ flowchart LR
     GC --> GCLOGIC[GraphCanvasLogic.js]
     GC --> EDGE[EdgeLayer]
     GC --> NODECARD[NodeCard]
+    NODECARD --> INS
+    NODECARD --> SW
 
     GC --> GS
     GC --> VP
     GC --> SW
+    GSO --> SW
+    CQI --> SW
 
     SW --> RUN[RunController]
     SW --> PSC[ProjectSessionController]
     SW --> WLC[WorkspaceLibraryController]
     SW --> SEARCH[window_search_scope_state]
+    SW --> INSPECTOR_HELPERS[window_library_inspector]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
@@ -35,6 +43,7 @@ flowchart LR
     WLC --> DROP[WorkspaceDropConnectOps]
     WLC --> IO[WorkspaceIOOps]
     WLC --> GI[GraphInteractions]
+    INSPECTOR_HELPERS --> EFFECTIVE[graph.effective_ports]
 
     EDIT --> GS
     GI --> GS

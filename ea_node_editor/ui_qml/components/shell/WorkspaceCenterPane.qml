@@ -10,6 +10,7 @@ Rectangle {
     property var viewBridgeRef
     property var workspaceTabsBridgeRef
     property var consoleBridgeRef
+    property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
 
     Layout.fillWidth: true
@@ -118,6 +119,7 @@ Rectangle {
             mainWindowBridge: root.mainWindowRef
             sceneBridge: root.sceneBridgeRef
             viewBridge: root.viewBridgeRef
+            overlayHostItem: root.overlayHostItem
         }
 
         Rectangle {

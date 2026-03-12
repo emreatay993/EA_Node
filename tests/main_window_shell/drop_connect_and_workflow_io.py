@@ -219,6 +219,68 @@ class MainWindowShellDropConnectAndWorkflowIOTests(MainWindowShellTestBase):
         self.assertTrue(new_node_id)
         self.assertIn(new_node_id, workspace.nodes)
 
+    def test_qml_connection_quick_insert_filters_results_and_accepts_choice(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        source_id = self.window.scene.add_node_from_type("core.start", x=60.0, y=40.0)
+        self.app.processEvents()
+
+        opened = self.window.request_open_connection_quick_insert(
+            source_id,
+            "exec_out",
+            220.0,
+            80.0,
+            340.0,
+            180.0,
+        )
+        self.assertTrue(opened)
+        self.assertTrue(self.window.connection_quick_insert_open)
+        self.assertGreater(len(self.window.connection_quick_insert_results), 0)
+
+        self.window.set_connection_quick_insert_query("end")
+        self.app.processEvents()
+
+        results = self.window.connection_quick_insert_results
+        self.assertTrue(results)
+        self.assertTrue(all("end" in str(item["display_name"]).lower() for item in results))
+
+        chosen_index = next(
+            index
+            for index, item in enumerate(results)
+            if item.get("type_id") == "core.end"
+        )
+        created = self.window.request_connection_quick_insert_choose(chosen_index)
+        self.assertTrue(created)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertFalse(self.window.connection_quick_insert_open)
+        self.assertEqual(len(workspace.edges), 1)
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.source_node_id, source_id)
+        self.assertEqual(edge.source_port_key, "exec_out")
+        new_node_id = self.window.scene.selected_node_id()
+        self.assertTrue(new_node_id)
+        self.assertEqual(edge.target_node_id, new_node_id)
+        self.assertEqual(edge.target_port_key, "exec_in")
+
+    def test_qml_connection_quick_insert_rejects_already_connected_input(self) -> None:
+        source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.end", x=320.0, y=40.0)
+        self.window.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        self.app.processEvents()
+
+        opened = self.window.request_open_connection_quick_insert(
+            target_id,
+            "exec_in",
+            220.0,
+            40.0,
+            240.0,
+            140.0,
+        )
+        self.assertFalse(opened)
+        self.assertFalse(self.window.connection_quick_insert_open)
+        self.assertEqual(self.window.connection_quick_insert_results, [])
+
     def test_qml_custom_workflow_publish_appears_in_library_and_places_independent_snapshots(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]

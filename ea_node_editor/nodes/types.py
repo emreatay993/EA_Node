@@ -7,6 +7,7 @@ from typing import Any, Callable, Literal, Protocol
 PortDirection = Literal["in", "out"]
 PortKind = Literal["exec", "completed", "failed", "data"]
 PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
+InlineEditorType = Literal["", "text", "number", "toggle", "enum"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -27,6 +28,7 @@ class PropertySpec:
     label: str
     expose_port_toggle: bool = False
     enum_values: tuple[str, ...] = ()
+    inline_editor: InlineEditorType = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -89,3 +91,15 @@ class AsyncNodePlugin(NodePlugin, Protocol):
 
     async def async_execute(self, ctx: ExecutionContext) -> NodeResult:
         ...
+
+
+def property_has_inline_editor(property_spec: PropertySpec) -> bool:
+    return bool(str(property_spec.inline_editor).strip())
+
+
+def inline_property_specs(spec: NodeTypeSpec) -> tuple[PropertySpec, ...]:
+    return tuple(
+        property_spec
+        for property_spec in spec.properties
+        if property_has_inline_editor(property_spec)
+    )

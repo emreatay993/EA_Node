@@ -10,10 +10,15 @@ flowchart TD
     H --> I[User edits graph, searches, or navigates scope]
     I --> J[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
     J --> K[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
+    J --> KQ[Optional dangling wire release opens quick insert]
+    KQ --> K
     K --> L[GraphSceneBridge or GraphInteractions mutate GraphModel]
     L --> M[RuntimeGraphHistory records undo/redo snapshots]
     M --> N[Scene rebuild publishes nodes, edges, minimap payloads]
     N --> H
+
+    H --> IQ[Inline property payloads rendered in NodeCard]
+    IQ --> K
 
     H --> O[Optional publish subnode as custom workflow]
     O --> P[Snapshot fragment stored in metadata.custom_workflows]

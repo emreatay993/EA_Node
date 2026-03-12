@@ -90,8 +90,15 @@ class LoggerNodePlugin:
                 PortSpec("exec_out", "out", "exec", "exec", exposed=True),
             ),
             properties=(
-                PropertySpec("message", "str", "log message", "Message"),
-                PropertySpec("level", "enum", "info", "Level", enum_values=("info", "warning", "error")),
+                PropertySpec("message", "str", "log message", "Message", inline_editor="text"),
+                PropertySpec(
+                    "level",
+                    "enum",
+                    "info",
+                    "Level",
+                    enum_values=("info", "warning", "error"),
+                    inline_editor="enum",
+                ),
             ),
         )
 
@@ -197,7 +204,7 @@ class OnFailureNodePlugin:
         out_port("false_out", kind="exec", data_type="exec"),
     ),
     properties=(
-        prop_bool("default_condition", True, "Default Condition"),
+        prop_bool("default_condition", True, "Default Condition", inline_editor="toggle"),
     ),
 )
 class BranchNodePlugin:

@@ -198,6 +198,32 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
         updated_ports = {port["key"] for port in updated_payload["ports"]}
         self.assertEqual(updated_ports, {"trigger"})
 
+    def test_qml_node_payload_exposes_inline_property_metadata_for_supported_nodes(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
+        inline_items = {item["key"]: item for item in payload["inline_properties"]}
+        self.assertEqual(set(inline_items), {"message", "level"})
+        self.assertEqual(inline_items["message"]["inline_editor"], "text")
+        self.assertEqual(inline_items["level"]["inline_editor"], "enum")
+        self.assertGreater(payload["height"], 60.0)
+
+    def test_qml_inline_property_payload_tracks_value_changes_and_input_override(self) -> None:
+        logger_id = self.window.scene.add_node_from_type("core.logger", x=260.0, y=120.0)
+        constant_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=120.0)
+        self.window.scene.focus_node(logger_id)
+        self.window.set_selected_node_property("message", "inline update")
+        self.window.request_connect_ports(constant_id, "as_text", logger_id, "message")
+        self.app.processEvents()
+
+        payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == logger_id)
+        inline_items = {item["key"]: item for item in payload["inline_properties"]}
+        self.assertEqual(inline_items["message"]["value"], "inline update")
+        self.assertTrue(inline_items["message"]["overridden_by_input"])
+        self.assertEqual(inline_items["message"]["input_port_label"], "message")
+
     def test_viewport_commands_frame_all_frame_selection_and_center_selection(self) -> None:
         node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)
         self.window.scene.add_node_from_type("core.end", x=540.0, y=260.0)

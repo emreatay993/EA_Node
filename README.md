@@ -4,6 +4,12 @@ A visual node editor for building engineering dataflow pipelines. Connect nodes 
 read/write files, run calculations, monitor HPC cluster jobs, and automate
 multi-step engineering workflows -- all through a drag-and-drop canvas.
 
+Recent UI/UX architecture highlights:
+
+- Connection-aware quick insert from a dangling wire drag
+- Inline node controls for fast editing of selected property types
+- Python-side compatibility filtering so quick insert follows the same effective-port rules as graph connections
+
 ## Quick Start
 
 ```bash
@@ -123,6 +129,7 @@ ea_node_editor/
         GraphCanvasLogic.js
         GraphCanvasMinimapOverlay.qml
       shell/
+        ConnectionQuickInsertOverlay.qml
         GraphHintOverlay.qml
         GraphSearchOverlay.qml
         InspectorPane.qml
@@ -188,6 +195,12 @@ Restart the application and the node will appear in the Node Library under the
 ```bash
 python -m pytest tests/ -v
 ```
+
+## Interaction Notes
+
+- Drag from a port to empty canvas space to open the connection-aware quick insert overlay.
+- Quick insert only shows node types that can auto-connect to the dragged source port using the same compatibility rules as normal graph connections.
+- Some node types expose inline property controls directly in the node card for faster editing, while the inspector remains the full editing surface.
 
 ## Building a Windows Installer
 

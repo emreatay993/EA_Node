@@ -9,6 +9,7 @@ Item {
     property var mainWindowBridge: null
     property var sceneBridge: null
     property var viewBridge: null
+    property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
     property var selectedEdgeIds: []
@@ -851,6 +852,20 @@ Item {
                 candidate.node_id,
                 candidate.port_key
             );
+        } else if (mainWindowBridge) {
+            var overlayPoint = root.mapToItem(
+                root.overlayHostItem ? root.overlayHostItem : root,
+                Number(screenX),
+                Number(screenY)
+            );
+            mainWindowBridge.request_open_connection_quick_insert(
+                finalState.node_id,
+                finalState.port_key,
+                finalState.cursor_x,
+                finalState.cursor_y,
+                overlayPoint.x,
+                overlayPoint.y
+            );
         }
         root._clearWireDragState();
     }
@@ -1142,6 +1157,16 @@ Item {
                         root.hoveredPort = null;
                         edgeLayer.requestRedraw();
                     }
+                }
+                onInlinePropertyCommitted: function(nodeId, key, value) {
+                    root.forceActiveFocus();
+                    root._closeContextMenus();
+                    root.clearPendingConnection();
+                    root.clearEdgeSelection();
+                    if (sceneBridge)
+                        sceneBridge.select_node(nodeId, false);
+                    if (mainWindowBridge)
+                        mainWindowBridge.set_selected_node_property(key, value);
                 }
             }
         }

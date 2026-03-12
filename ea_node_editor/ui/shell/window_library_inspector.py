@@ -4,7 +4,12 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from ea_node_editor.custom_workflows import CUSTOM_WORKFLOW_LIBRARY_CATEGORY
-from ea_node_editor.graph.effective_ports import effective_ports
+from ea_node_editor.graph.effective_ports import (
+    are_data_types_compatible,
+    are_port_kinds_compatible,
+    effective_ports,
+)
+from ea_node_editor.nodes.types import property_has_inline_editor
 
 
 def build_registry_library_items(*, registry_specs: Iterable[Any]) -> list[dict[str, Any]]:
@@ -244,9 +249,48 @@ def build_selected_node_property_items(
             "type": prop.type,
             "value": node.properties.get(prop.key, prop.default),
             "enum_values": list(prop.enum_values),
+            "inline_editor": prop.inline_editor,
         }
         for prop in ordered_properties
     ]
+
+
+def build_inline_property_items(
+    *,
+    node: Any,
+    spec: Any,
+    workspace_nodes: Mapping[str, Any],
+    port_connection_counts: Mapping[tuple[str, str], int] | None = None,
+) -> list[dict[str, Any]]:
+    counts = port_connection_counts or {}
+    resolved_input_ports = {
+        port.key: port
+        for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes)
+        if str(port.direction).strip().lower() == "in" and bool(port.exposed)
+    }
+    items: list[dict[str, Any]] = []
+    for prop in spec.properties:
+        if not property_has_inline_editor(prop):
+            continue
+        matching_input_port = resolved_input_ports.get(prop.key)
+        connection_count = counts.get((str(node.node_id), str(prop.key)), 0)
+        items.append(
+            {
+                "key": prop.key,
+                "label": prop.label,
+                "type": prop.type,
+                "value": node.properties.get(prop.key, prop.default),
+                "enum_values": list(prop.enum_values),
+                "inline_editor": prop.inline_editor,
+                "overridden_by_input": bool(matching_input_port is not None and connection_count > 0),
+                "input_port_label": (
+                    str(matching_input_port.label or matching_input_port.key)
+                    if matching_input_port is not None
+                    else ""
+                ),
+            }
+        )
+    return items
 
 
 def build_selected_node_port_items(
@@ -267,3 +311,125 @@ def build_selected_node_port_items(
         }
         for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes)
     ]
+
+
+def _normalized_library_ports(item: dict[str, Any]) -> list[dict[str, Any]]:
+    ports = item.get("ports", [])
+    if not isinstance(ports, list):
+        return []
+    return [port for port in ports if isinstance(port, dict)]
+
+
+def _library_item_matches_query(item: dict[str, Any], *, query: str, compatible_ports: list[dict[str, Any]]) -> bool:
+    normalized_query = str(query).strip().lower()
+    if not normalized_query:
+        return True
+    haystack = " ".join(
+        [
+            str(item.get("type_id", "")),
+            str(item.get("display_name", "")),
+            str(item.get("category", "")),
+            str(item.get("description", "")),
+            " ".join(str(port.get("key", "")) for port in compatible_ports),
+            " ".join(str(port.get("label", "")) for port in compatible_ports),
+        ]
+    ).lower()
+    return normalized_query in haystack
+
+
+def _compatible_library_ports(
+    item: dict[str, Any],
+    *,
+    source_direction: str,
+    source_kind: str,
+    source_data_type: str,
+) -> list[dict[str, Any]]:
+    normalized_source_direction = str(source_direction).strip().lower()
+    compatible_ports: list[dict[str, Any]] = []
+    for port in _normalized_library_ports(item):
+        direction = str(port.get("direction", "")).strip().lower()
+        kind = str(port.get("kind", "")).strip().lower()
+        data_type = str(port.get("data_type", "")).strip().lower() or "any"
+        if normalized_source_direction == "out":
+            if direction != "in":
+                continue
+            if not are_port_kinds_compatible(source_kind, kind):
+                continue
+            if not are_data_types_compatible(source_data_type, data_type):
+                continue
+        elif normalized_source_direction == "in":
+            if direction != "out":
+                continue
+            if not are_port_kinds_compatible(kind, source_kind):
+                continue
+            if not are_data_types_compatible(data_type, source_data_type):
+                continue
+        else:
+            continue
+        compatible_ports.append(port)
+    return compatible_ports
+
+
+def _connection_quick_insert_rank(query: str, *, display_name: str, type_id: str) -> int:
+    normalized_query = str(query).strip().lower()
+    if not normalized_query:
+        return 100
+    name = str(display_name).strip().lower()
+    node_type_id = str(type_id).strip().lower()
+    if name == normalized_query:
+        return 0
+    if name.startswith(normalized_query):
+        return 10
+    if normalized_query in name:
+        return 20
+    if node_type_id.startswith(normalized_query):
+        return 30
+    if normalized_query in node_type_id:
+        return 40
+    return 100
+
+
+def build_connection_quick_insert_items(
+    *,
+    combined_items: Iterable[dict[str, Any]],
+    query: str,
+    source_direction: str,
+    source_kind: str,
+    source_data_type: str,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    ranked: list[tuple[int, str, dict[str, Any]]] = []
+    for item in combined_items:
+        compatible_ports = _compatible_library_ports(
+            item,
+            source_direction=source_direction,
+            source_kind=source_kind,
+            source_data_type=source_data_type,
+        )
+        if not compatible_ports:
+            continue
+        if not _library_item_matches_query(item, query=query, compatible_ports=compatible_ports):
+            continue
+        payload = dict(item)
+        payload["compatible_ports"] = compatible_ports
+        payload["compatible_port_labels"] = [
+            str(port.get("label", "")).strip() or str(port.get("key", "")).strip()
+            for port in compatible_ports
+        ]
+        payload["compatible_port_count"] = len(compatible_ports)
+        payload["compatible_direction"] = "in" if str(source_direction).strip().lower() == "out" else "out"
+        ranked.append(
+            (
+                _connection_quick_insert_rank(
+                    query,
+                    display_name=str(item.get("display_name", "")),
+                    type_id=str(item.get("type_id", "")),
+                )
+                + max(0, len(compatible_ports) - 1),
+                str(item.get("display_name", "")).lower(),
+                payload,
+            )
+        )
+    ranked.sort(key=lambda entry: (entry[0], entry[1], str(entry[2].get("type_id", "")).lower()))
+    capped = max(1, int(limit))
+    return [entry[2] for entry in ranked[:capped]]

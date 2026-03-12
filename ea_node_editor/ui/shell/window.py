@@ -9,6 +9,7 @@ from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QMainWindow, QMessageBox
 
+from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.nodes.builtins.subnode import (
@@ -37,6 +38,7 @@ from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
 from ea_node_editor.ui.shell.window_library_inspector import (
+    build_connection_quick_insert_items,
     build_combined_library_items,
     build_filtered_library_items,
     build_grouped_library_items,
@@ -73,6 +75,7 @@ def _configure_qtquick_backend() -> None:
 
 
 _configure_qtquick_backend()
+_UNSET = object()
 
 
 class ShellWindow(QMainWindow):
@@ -83,6 +86,7 @@ class ShellWindow(QMainWindow):
     selected_node_changed = pyqtSignal()
     project_meta_changed = pyqtSignal()
     graph_search_changed = pyqtSignal()
+    connection_quick_insert_changed = pyqtSignal()
     graph_hint_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
 
@@ -97,6 +101,8 @@ class ShellWindow(QMainWindow):
         "log",
     }
     _GRAPH_SEARCH_LIMIT = 10
+    _CONNECTION_QUICK_INSERT_LIMIT = 12
+    _CONNECTION_QUICK_INSERT_OFFSET = 36.0
     _SNAP_GRID_SIZE = 20.0
     _SUBNODE_PIN_TYPE_IDS = {
         SUBNODE_INPUT_TYPE_ID,
@@ -140,6 +146,11 @@ class ShellWindow(QMainWindow):
         self._graph_search_query = ""
         self._graph_search_results: list[dict[str, Any]] = []
         self._graph_search_highlight_index = -1
+        self._connection_quick_insert_open = False
+        self._connection_quick_insert_query = ""
+        self._connection_quick_insert_results: list[dict[str, Any]] = []
+        self._connection_quick_insert_highlight_index = -1
+        self._connection_quick_insert_context: dict[str, Any] | None = None
         self._graph_hint_message = ""
         self._snap_to_grid_enabled = False
         self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
@@ -396,6 +407,45 @@ class ShellWindow(QMainWindow):
     def graph_search_highlight_index(self) -> int:
         return int(self._graph_search_highlight_index)
 
+    @pyqtProperty(bool, notify=connection_quick_insert_changed)
+    def connection_quick_insert_open(self) -> bool:
+        return bool(self._connection_quick_insert_open)
+
+    @pyqtProperty(str, notify=connection_quick_insert_changed)
+    def connection_quick_insert_query(self) -> str:
+        return str(self._connection_quick_insert_query)
+
+    @pyqtProperty("QVariantList", notify=connection_quick_insert_changed)
+    def connection_quick_insert_results(self) -> list[dict[str, Any]]:
+        return list(self._connection_quick_insert_results)
+
+    @pyqtProperty(int, notify=connection_quick_insert_changed)
+    def connection_quick_insert_highlight_index(self) -> int:
+        return int(self._connection_quick_insert_highlight_index)
+
+    @pyqtProperty(float, notify=connection_quick_insert_changed)
+    def connection_quick_insert_overlay_x(self) -> float:
+        context = self._connection_quick_insert_context or {}
+        return float(context.get("overlay_x", 0.0))
+
+    @pyqtProperty(float, notify=connection_quick_insert_changed)
+    def connection_quick_insert_overlay_y(self) -> float:
+        context = self._connection_quick_insert_context or {}
+        return float(context.get("overlay_y", 0.0))
+
+    @pyqtProperty(str, notify=connection_quick_insert_changed)
+    def connection_quick_insert_source_summary(self) -> str:
+        context = self._connection_quick_insert_context or {}
+        node_title = str(context.get("node_title", "")).strip()
+        port_label = str(context.get("port_label", "")).strip()
+        data_type = str(context.get("data_type", "")).strip()
+        if not node_title and not port_label:
+            return ""
+        summary = f"{node_title}.{port_label}" if node_title and port_label else (node_title or port_label)
+        if data_type:
+            summary += f" [{data_type}]"
+        return summary
+
     @pyqtProperty(str, notify=graph_hint_changed)
     def graph_hint_message(self) -> str:
         return str(self._graph_hint_message)
@@ -552,6 +602,113 @@ class ShellWindow(QMainWindow):
     def _refresh_graph_search_results(self, query: str) -> None:
         window_search_scope_state.refresh_graph_search_results(self, query)
 
+    def _set_connection_quick_insert_state(
+        self,
+        *,
+        open_: bool | None = None,
+        query: str | None = None,
+        results: list[dict[str, Any]] | None = None,
+        highlight_index: int | None = None,
+        context: dict[str, Any] | None | object = _UNSET,
+    ) -> None:
+        changed = False
+        if open_ is not None:
+            normalized_open = bool(open_)
+            if normalized_open != self._connection_quick_insert_open:
+                self._connection_quick_insert_open = normalized_open
+                changed = True
+        if query is not None:
+            normalized_query = str(query)
+            if normalized_query != self._connection_quick_insert_query:
+                self._connection_quick_insert_query = normalized_query
+                changed = True
+        if results is not None:
+            if results != self._connection_quick_insert_results:
+                self._connection_quick_insert_results = list(results)
+                changed = True
+        if highlight_index is not None:
+            normalized_index = int(highlight_index)
+            if normalized_index != self._connection_quick_insert_highlight_index:
+                self._connection_quick_insert_highlight_index = normalized_index
+                changed = True
+        if context is not _UNSET:
+            normalized_context = dict(context) if isinstance(context, dict) else None
+            if normalized_context != self._connection_quick_insert_context:
+                self._connection_quick_insert_context = normalized_context
+                changed = True
+        if changed:
+            self.connection_quick_insert_changed.emit()
+
+    def _connection_quick_insert_context_for_port(
+        self,
+        node_id: str,
+        port_key: str,
+    ) -> dict[str, Any] | None:
+        workspace = self.model.project.workspaces.get(self.active_workspace_id)
+        if workspace is None:
+            return None
+        normalized_node_id = str(node_id).strip()
+        normalized_port_key = str(port_key).strip()
+        if not normalized_node_id or not normalized_port_key:
+            return None
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return None
+        spec = self.registry.get_spec(node.type_id)
+        port = find_port(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_key=normalized_port_key,
+        )
+        if port is None or not bool(port.exposed):
+            return None
+        connection_count = 0
+        for edge in workspace.edges.values():
+            if edge.source_node_id == normalized_node_id and edge.source_port_key == normalized_port_key:
+                connection_count += 1
+            if edge.target_node_id == normalized_node_id and edge.target_port_key == normalized_port_key:
+                connection_count += 1
+        return {
+            "node_id": normalized_node_id,
+            "node_title": str(node.title),
+            "type_id": str(node.type_id),
+            "port_key": normalized_port_key,
+            "port_label": str(port.label or port.key),
+            "direction": str(port.direction),
+            "kind": str(port.kind),
+            "data_type": str(port.data_type),
+            "connection_count": int(connection_count),
+        }
+
+    def _refresh_connection_quick_insert_results(self, query: str) -> None:
+        context = self._connection_quick_insert_context
+        if context is None:
+            self._set_connection_quick_insert_state(query=str(query), results=[], highlight_index=-1)
+            return
+        normalized_query = str(query)
+        results: list[dict[str, Any]] = []
+        if not (
+            str(context.get("direction", "")).strip().lower() == "in"
+            and int(context.get("connection_count", 0)) > 0
+        ):
+            results = build_connection_quick_insert_items(
+                combined_items=self._combined_library_items(),
+                query=normalized_query,
+                source_direction=str(context.get("direction", "")),
+                source_kind=str(context.get("kind", "")),
+                source_data_type=str(context.get("data_type", "")),
+                limit=self._CONNECTION_QUICK_INSERT_LIMIT,
+            )
+        highlight_index = 0 if results else -1
+        if 0 <= self._connection_quick_insert_highlight_index < len(results):
+            highlight_index = self._connection_quick_insert_highlight_index
+        self._set_connection_quick_insert_state(
+            query=normalized_query,
+            results=results,
+            highlight_index=highlight_index,
+        )
+
     def _active_scope_camera_key(self, scope_path: tuple[str, ...] | None = None) -> tuple[str, str, tuple[str, ...]] | None:
         return window_search_scope_state.active_scope_camera_key(self, scope_path)
 
@@ -565,6 +722,7 @@ class ShellWindow(QMainWindow):
         return bool(window_search_scope_state.navigate_scope(self, navigate_fn))
 
     def _on_scene_scope_changed(self) -> None:
+        self.request_close_connection_quick_insert()
         self.workspace_state_changed.emit()
         self.selected_node_changed.emit()
 
@@ -617,11 +775,125 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot()
     def request_open_graph_search(self) -> None:
+        self._set_connection_quick_insert_state(
+            open_=False,
+            query="",
+            results=[],
+            highlight_index=-1,
+            context=None,
+        )
         self._set_graph_search_state(open_=True, query="", results=[], highlight_index=-1)
 
     @pyqtSlot()
     def request_close_graph_search(self) -> None:
         self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+
+    @pyqtSlot(str, str, float, float, float, float, result=bool)
+    def request_open_connection_quick_insert(
+        self,
+        node_id: str,
+        port_key: str,
+        scene_x: float,
+        scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> bool:
+        context = self._connection_quick_insert_context_for_port(node_id, port_key)
+        if context is None:
+            return False
+        context["scene_x"] = float(scene_x)
+        context["scene_y"] = float(scene_y)
+        context["overlay_x"] = float(overlay_x)
+        context["overlay_y"] = float(overlay_y)
+        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self._set_connection_quick_insert_state(
+            open_=True,
+            query="",
+            results=[],
+            highlight_index=-1,
+            context=context,
+        )
+        self._refresh_connection_quick_insert_results("")
+        if not self._connection_quick_insert_results:
+            message = (
+                "This input is already connected."
+                if str(context.get("direction", "")).strip().lower() == "in"
+                and int(context.get("connection_count", 0)) > 0
+                else "No compatible nodes found for quick insert."
+            )
+            self.show_graph_hint(message, 2200)
+            self.request_close_connection_quick_insert()
+            return False
+        return True
+
+    @pyqtSlot()
+    def request_close_connection_quick_insert(self) -> None:
+        self._set_connection_quick_insert_state(
+            open_=False,
+            query="",
+            results=[],
+            highlight_index=-1,
+            context=None,
+        )
+
+    @pyqtSlot(str)
+    def set_connection_quick_insert_query(self, query: str) -> None:
+        if not self._connection_quick_insert_open:
+            return
+        self._refresh_connection_quick_insert_results(query)
+
+    @pyqtSlot(int)
+    def request_connection_quick_insert_move(self, delta: int) -> None:
+        if not self._connection_quick_insert_open or not self._connection_quick_insert_results:
+            return
+        current = self._connection_quick_insert_highlight_index
+        if current < 0:
+            current = 0
+        next_index = max(0, min(len(self._connection_quick_insert_results) - 1, current + int(delta)))
+        self._set_connection_quick_insert_state(highlight_index=next_index)
+
+    @pyqtSlot(int)
+    def request_connection_quick_insert_highlight(self, index: int) -> None:
+        if not self._connection_quick_insert_open:
+            return
+        if index < 0 or index >= len(self._connection_quick_insert_results):
+            return
+        self._set_connection_quick_insert_state(highlight_index=int(index))
+
+    @pyqtSlot(result=bool)
+    def request_connection_quick_insert_accept(self) -> bool:
+        if not self._connection_quick_insert_open or not self._connection_quick_insert_results:
+            return False
+        index = self._connection_quick_insert_highlight_index
+        if index < 0 or index >= len(self._connection_quick_insert_results):
+            index = 0
+        return self.request_connection_quick_insert_choose(index)
+
+    @pyqtSlot(int, result=bool)
+    def request_connection_quick_insert_choose(self, index: int) -> bool:
+        if index < 0 or index >= len(self._connection_quick_insert_results):
+            return False
+        context = self._connection_quick_insert_context
+        if context is None:
+            return False
+        selected_item = self._connection_quick_insert_results[index]
+        offset = self._CONNECTION_QUICK_INSERT_OFFSET
+        scene_x = float(context.get("scene_x", 0.0))
+        if str(context.get("direction", "")).strip().lower() == "in":
+            scene_x -= offset
+        else:
+            scene_x += offset
+        created = self.request_drop_node_from_library(
+            str(selected_item.get("type_id", "")),
+            scene_x,
+            float(context.get("scene_y", 0.0)),
+            "port",
+            str(context.get("node_id", "")),
+            str(context.get("port_key", "")),
+            "",
+        )
+        self.request_close_connection_quick_insert()
+        return bool(created)
 
     @pyqtSlot(str)
     def set_graph_search_query(self, query: str) -> None:

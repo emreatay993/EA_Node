@@ -42,20 +42,76 @@ def out_port(
     )
 
 
-def prop_str(key: str, default: str, label: str, *, expose_port_toggle: bool = False) -> PropertySpec:
-    return PropertySpec(key=key, type="str", default=default, label=label, expose_port_toggle=expose_port_toggle)
+def prop_str(
+    key: str,
+    default: str,
+    label: str,
+    *,
+    expose_port_toggle: bool = False,
+    inline_editor: str = "",
+) -> PropertySpec:
+    return PropertySpec(
+        key=key,
+        type="str",
+        default=default,
+        label=label,
+        expose_port_toggle=expose_port_toggle,
+        inline_editor=inline_editor,
+    )
 
 
-def prop_int(key: str, default: int, label: str, *, expose_port_toggle: bool = False) -> PropertySpec:
-    return PropertySpec(key=key, type="int", default=default, label=label, expose_port_toggle=expose_port_toggle)
+def prop_int(
+    key: str,
+    default: int,
+    label: str,
+    *,
+    expose_port_toggle: bool = False,
+    inline_editor: str = "",
+) -> PropertySpec:
+    return PropertySpec(
+        key=key,
+        type="int",
+        default=default,
+        label=label,
+        expose_port_toggle=expose_port_toggle,
+        inline_editor=inline_editor,
+    )
 
 
-def prop_float(key: str, default: float, label: str, *, expose_port_toggle: bool = False) -> PropertySpec:
-    return PropertySpec(key=key, type="float", default=default, label=label, expose_port_toggle=expose_port_toggle)
+def prop_float(
+    key: str,
+    default: float,
+    label: str,
+    *,
+    expose_port_toggle: bool = False,
+    inline_editor: str = "",
+) -> PropertySpec:
+    return PropertySpec(
+        key=key,
+        type="float",
+        default=default,
+        label=label,
+        expose_port_toggle=expose_port_toggle,
+        inline_editor=inline_editor,
+    )
 
 
-def prop_bool(key: str, default: bool, label: str, *, expose_port_toggle: bool = False) -> PropertySpec:
-    return PropertySpec(key=key, type="bool", default=default, label=label, expose_port_toggle=expose_port_toggle)
+def prop_bool(
+    key: str,
+    default: bool,
+    label: str,
+    *,
+    expose_port_toggle: bool = False,
+    inline_editor: str = "",
+) -> PropertySpec:
+    return PropertySpec(
+        key=key,
+        type="bool",
+        default=default,
+        label=label,
+        expose_port_toggle=expose_port_toggle,
+        inline_editor=inline_editor,
+    )
 
 
 def prop_enum(
@@ -65,6 +121,7 @@ def prop_enum(
     *,
     values: Iterable[str],
     expose_port_toggle: bool = False,
+    inline_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -73,11 +130,26 @@ def prop_enum(
         label=label,
         expose_port_toggle=expose_port_toggle,
         enum_values=tuple(values),
+        inline_editor=inline_editor,
     )
 
 
-def prop_json(key: str, default: Any, label: str, *, expose_port_toggle: bool = False) -> PropertySpec:
-    return PropertySpec(key=key, type="json", default=default, label=label, expose_port_toggle=expose_port_toggle)
+def prop_json(
+    key: str,
+    default: Any,
+    label: str,
+    *,
+    expose_port_toggle: bool = False,
+    inline_editor: str = "",
+) -> PropertySpec:
+    return PropertySpec(
+        key=key,
+        type="json",
+        default=default,
+        label=label,
+        expose_port_toggle=expose_port_toggle,
+        inline_editor=inline_editor,
+    )
 
 
 def node_type(

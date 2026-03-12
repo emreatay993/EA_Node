@@ -13,7 +13,7 @@ from ea_node_editor.graph.effective_ports import (
     visible_ports,
 )
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
-from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 
 NODE_HEADER_HEIGHT = 24.0
 NODE_PORT_HEIGHT = 18.0
@@ -21,6 +21,9 @@ NODE_WIDTH = 210.0
 NODE_COLLAPSED_WIDTH = 130.0
 NODE_COLLAPSED_HEIGHT = 36.0
 NODE_PORTS_TOP = 30.0
+NODE_INLINE_ROW_HEIGHT = 26.0
+NODE_INLINE_ROW_SPACING = 4.0
+NODE_INLINE_SECTION_PADDING = 8.0
 NODE_PORT_CENTER_OFFSET = 6.0
 NODE_PORT_SIDE_MARGIN = 8.0
 NODE_PORT_DOT_RADIUS = 3.5
@@ -34,6 +37,17 @@ EDGE_PIPE_STUB_MAX = 72.0
 EDGE_PIPE_MIDDLE_MARGIN = 10.0
 
 
+def inline_body_height(spec: NodeTypeSpec) -> float:
+    inline_count = len(inline_property_specs(spec))
+    if inline_count <= 0:
+        return 0.0
+    return (
+        NODE_INLINE_SECTION_PADDING
+        + inline_count * NODE_INLINE_ROW_HEIGHT
+        + max(0, inline_count - 1) * NODE_INLINE_ROW_SPACING
+    )
+
+
 def node_size(
     node: NodeInstance,
     spec: NodeTypeSpec,
@@ -44,7 +58,7 @@ def node_size(
     if node.collapsed:
         return NODE_COLLAPSED_WIDTH, NODE_COLLAPSED_HEIGHT
     port_count = max(len(in_ports), len(out_ports), 1)
-    height = NODE_HEADER_HEIGHT + port_count * NODE_PORT_HEIGHT + 8.0
+    height = NODE_HEADER_HEIGHT + inline_body_height(spec) + port_count * NODE_PORT_HEIGHT + 8.0
     return NODE_WIDTH, height
 
 
@@ -70,7 +84,7 @@ def port_scene_pos(
         if port.key == port_key:
             row_index = index
             break
-    y = node.y + NODE_PORTS_TOP + NODE_PORT_CENTER_OFFSET + NODE_PORT_HEIGHT * row_index
+    y = node.y + NODE_PORTS_TOP + inline_body_height(spec) + NODE_PORT_CENTER_OFFSET + NODE_PORT_HEIGHT * row_index
     if direction == "in":
         return QPointF(node.x + NODE_PORT_SIDE_MARGIN + NODE_PORT_DOT_RADIUS, y)
     return QPointF(node.x + width - NODE_PORT_SIDE_MARGIN - NODE_PORT_DOT_RADIUS, y)

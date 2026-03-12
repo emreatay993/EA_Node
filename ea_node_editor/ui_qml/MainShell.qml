@@ -52,6 +52,7 @@ Rectangle {
                 viewBridgeRef: root.viewBridgeRef
                 workspaceTabsBridgeRef: workspaceTabsBridge
                 consoleBridgeRef: consoleBridge
+                overlayHostItem: root
             }
 
             InspectorPane {
@@ -72,6 +73,11 @@ Rectangle {
         mainWindowRef: mainWindow
     }
 
+    ConnectionQuickInsertOverlay {
+        id: connectionQuickInsertOverlay
+        mainWindowRef: mainWindow
+    }
+
     ScriptEditorOverlay {
         id: scriptOverlay
         mainWindowRef: mainWindow
@@ -82,6 +88,6 @@ Rectangle {
     GraphHintOverlay {
         id: graphHintOverlay
         mainWindowRef: mainWindow
-        graphSearchVisible: graphSearchOverlay.visible
+        graphSearchVisible: graphSearchOverlay.visible || connectionQuickInsertOverlay.visible
     }
 }

@@ -43,6 +43,7 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
 )
+from ea_node_editor.ui.shell.window_library_inspector import build_inline_property_items
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_ADD_EDGE,
     ACTION_ADD_NODE,
@@ -1482,6 +1483,12 @@ class GraphSceneBridge(QObject):
                         "connected": bool(connection_count),
                     }
                 )
+            inline_properties_payload = build_inline_property_items(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace.nodes,
+                port_connection_counts=port_connection_counts,
+            )
             nodes_payload.append(
                 {
                     "node_id": node.node_id,
@@ -1496,6 +1503,7 @@ class GraphSceneBridge(QObject):
                     "selected": node.node_id in self._selected_node_ids,
                     "can_enter_scope": node.type_id == "core.subnode",
                     "ports": ports_payload,
+                    "inline_properties": inline_properties_payload,
                 }
             )
             minimap_nodes_payload.append(
