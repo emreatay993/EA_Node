@@ -28,6 +28,9 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_open_project.setShortcut(QKeySequence.StandardKey.Open)
     window.action_open_project.triggered.connect(window._open_project)
 
+    window.action_clear_recent_projects = QAction("Clear Recent Files", window)
+    window.action_clear_recent_projects.triggered.connect(window._clear_recent_projects)
+
     window.action_workflow_settings = QAction("Workflow Settings", window)
     window.action_workflow_settings.setShortcut(QKeySequence("Ctrl+,"))
     window.action_workflow_settings.triggered.connect(window.show_workflow_settings_dialog)
@@ -176,6 +179,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_new_workspace,
         window.action_save_project,
         window.action_open_project,
+        window.action_clear_recent_projects,
         window.action_workflow_settings,
         window.action_toggle_script_editor,
         window.action_run,
@@ -225,6 +229,9 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     file_menu = menu_bar.addMenu("&File")
     file_menu.addAction(window.action_new_project)
     file_menu.addAction(window.action_open_project)
+    window.menu_recent_projects = file_menu.addMenu("Open Recent")
+    window.menu_recent_projects.aboutToShow.connect(window._refresh_recent_projects_menu)
+    window._refresh_recent_projects_menu()
     file_menu.addAction(window.action_save_project)
     file_menu.addSeparator()
     file_menu.addAction(window.action_import_custom_workflow)

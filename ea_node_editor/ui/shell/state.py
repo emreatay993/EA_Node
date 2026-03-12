@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 
 @dataclass(slots=True)
 class ShellState:
     project_path: str = ""
+    recent_project_paths: list[str] = field(default_factory=list)
     library_query: str = ""
     library_category: str = ""
     library_data_type: str = ""

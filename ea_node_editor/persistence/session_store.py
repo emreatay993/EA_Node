@@ -49,11 +49,13 @@ class SessionAutosaveStore:
         project_path: str,
         last_manual_save_ts: float,
         project_doc: dict[str, Any],
+        recent_project_paths: list[str],
     ) -> None:
         session_payload = {
             "project_path": project_path,
             "last_manual_save_ts": last_manual_save_ts,
             "project_doc": project_doc,
+            "recent_project_paths": recent_project_paths,
         }
         write_json_atomic(self._session_path_provider(), session_payload)
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
 
@@ -33,6 +35,64 @@ class MainWindowShellDropConnectAndWorkflowIOTests(MainWindowShellTestBase):
         self.assertEqual(active_workspace.nodes, {})
         self.assertEqual(active_workspace.edges, {})
         self.assertFalse(active_workspace.dirty)
+
+    def test_recent_files_menu_tracks_saved_projects_and_restores_from_session(self) -> None:
+        alpha_path = Path(self._temp_dir.name) / "projects" / "alpha_project.sfe"
+        alpha_path.parent.mkdir(parents=True, exist_ok=True)
+
+        self.window.project_path = str(alpha_path)
+        self.window._save_project()
+        self.app.processEvents()
+
+        self.assertEqual(self.window.recent_project_paths, [str(alpha_path)])
+        recent_actions = [action for action in self.window.menu_recent_projects.actions() if not action.isSeparator()]
+        self.assertEqual(recent_actions[0].text(), f"1. alpha_project.sfe [{alpha_path.parent}]")
+        self.assertFalse(recent_actions[0].isEnabled())
+        self.assertEqual(recent_actions[-1].text(), "Clear Recent Files")
+
+        session_payload = json.loads(self._session_path.read_text(encoding="utf-8"))
+        self.assertEqual(session_payload["recent_project_paths"], [str(alpha_path)])
+
+        restored = ShellWindow()
+        restored.resize(1200, 800)
+        restored.show()
+        self.app.processEvents()
+        try:
+            self.assertEqual(restored.recent_project_paths, [str(alpha_path)])
+            restored_actions = [action for action in restored.menu_recent_projects.actions() if not action.isSeparator()]
+            self.assertEqual(restored_actions[0].text(), f"1. alpha_project.sfe [{alpha_path.parent}]")
+            self.assertFalse(restored_actions[0].isEnabled())
+        finally:
+            restored.close()
+            self.app.processEvents()
+
+    def test_recent_files_menu_action_opens_selected_project(self) -> None:
+        alpha_path = Path(self._temp_dir.name) / "alpha_project.sfe"
+        beta_path = Path(self._temp_dir.name) / "beta_project.sfe"
+
+        alpha_node_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        self.window.project_path = str(alpha_path)
+        self.window._save_project()
+        self.app.processEvents()
+
+        self.window._new_project()
+        beta_node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=40.0)
+        self.window.project_path = str(beta_path)
+        self.window._save_project()
+        self.app.processEvents()
+
+        recent_actions = [action for action in self.window.menu_recent_projects.actions() if not action.isSeparator()]
+        self.assertEqual(self.window.recent_project_paths, [str(beta_path), str(alpha_path)])
+        self.assertFalse(recent_actions[0].isEnabled())
+        recent_actions[1].trigger()
+        self.app.processEvents()
+
+        self.assertEqual(self.window.project_path, str(alpha_path))
+        self.assertEqual(self.window.recent_project_paths, [str(alpha_path), str(beta_path)])
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertIn(alpha_node_id, workspace.nodes)
+        self.assertNotIn(beta_node_id, workspace.nodes)
 
     def test_qml_connect_selected_supports_additive_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
