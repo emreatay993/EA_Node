@@ -12,11 +12,12 @@ Rectangle {
     property var consoleBridgeRef
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
+    readonly property var themePalette: themeBridge.palette
 
     Layout.fillWidth: true
     Layout.fillHeight: true
-    color: "#1B1D22"
-    border.color: "#363A43"
+    color: themePalette.panel_bg
+    border.color: themePalette.border
 
     ColumnLayout {
         anchors.fill: parent
@@ -25,8 +26,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 58
-            color: "#2B2D33"
-            border.color: "#3D414A"
+            color: root.themePalette.toolbar_bg
+            border.color: root.themePalette.border
 
             ColumnLayout {
                 anchors.fill: parent
@@ -41,7 +42,7 @@ Rectangle {
 
                     Text {
                         text: "Workspace: " + root.mainWindowRef.active_workspace_name
-                        color: "#D9DFEA"
+                        color: root.themePalette.panel_title_fg
                         font.pixelSize: 12
                         font.bold: true
                     }
@@ -68,7 +69,7 @@ Rectangle {
                         text: root.mainWindowRef.active_view_name
                             ? ("Active: " + root.mainWindowRef.active_view_name)
                             : ""
-                        color: "#AFB7C8"
+                        color: root.themePalette.muted_fg
                         font.pixelSize: 11
                     }
                 }
@@ -80,7 +81,7 @@ Rectangle {
 
                     Text {
                         text: "Scope:"
-                        color: "#9EA8BB"
+                        color: root.themePalette.muted_fg
                         font.pixelSize: 11
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -93,7 +94,7 @@ Rectangle {
                             Text {
                                 visible: index > 0
                                 text: "›"
-                                color: "#7F8BA0"
+                                color: root.themePalette.muted_fg
                                 font.pixelSize: 11
                                 anchors.verticalCenter: parent.verticalCenter
                             }
@@ -125,8 +126,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 32
-            color: "#2A2C33"
-            border.color: "#3C4049"
+            color: root.themePalette.toolbar_bg
+            border.color: root.themePalette.border
 
             Row {
                 anchors.fill: parent
@@ -141,14 +142,20 @@ Rectangle {
                         width: Math.max(120, tabText.implicitWidth + 24)
                         y: 4
                         radius: 4
-                        color: modelData.workspace_id === root.mainWindowRef.active_workspace_id ? "#3C4452" : "#2A2C33"
-                        border.color: modelData.workspace_id === root.mainWindowRef.active_workspace_id ? "#60CDFF" : "#444955"
+                        color: modelData.workspace_id === root.mainWindowRef.active_workspace_id
+                            ? root.themePalette.tab_selected_bg
+                            : root.themePalette.tab_bg
+                        border.color: modelData.workspace_id === root.mainWindowRef.active_workspace_id
+                            ? root.themePalette.accent
+                            : root.themePalette.border
 
                         Text {
                             id: tabText
                             anchors.centerIn: parent
                             text: modelData.label
-                            color: "#E0E7F4"
+                            color: modelData.workspace_id === root.mainWindowRef.active_workspace_id
+                                ? root.themePalette.tab_selected_fg
+                                : root.themePalette.tab_fg
                             font.pixelSize: 12
                         }
 
@@ -169,8 +176,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 170
-            color: "#1F2228"
-            border.color: "#3B3F48"
+            color: root.themePalette.panel_bg
+            border.color: root.themePalette.border
 
             ColumnLayout {
                 anchors.fill: parent
@@ -179,7 +186,7 @@ Rectangle {
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 30
-                    color: "#2A2D34"
+                    color: root.themePalette.toolbar_bg
 
                     RowLayout {
                         anchors.fill: parent
@@ -218,11 +225,11 @@ Rectangle {
                     TextArea {
                         readOnly: true
                         text: root.consoleBridgeRef.output_text
-                        color: "#CBD3E2"
+                        color: root.themePalette.app_fg
                         font.family: "Consolas"
                         font.pixelSize: 12
                         wrapMode: TextArea.NoWrap
-                        background: Rectangle { color: "#1D2026" }
+                        background: Rectangle { color: root.themePalette.console_bg }
                     }
                     TextArea {
                         readOnly: true
@@ -231,7 +238,7 @@ Rectangle {
                         font.family: "Consolas"
                         font.pixelSize: 12
                         wrapMode: TextArea.NoWrap
-                        background: Rectangle { color: "#1D2026" }
+                        background: Rectangle { color: root.themePalette.console_bg }
                     }
                     TextArea {
                         readOnly: true
@@ -240,7 +247,7 @@ Rectangle {
                         font.family: "Consolas"
                         font.pixelSize: 12
                         wrapMode: TextArea.NoWrap
-                        background: Rectangle { color: "#1D2026" }
+                        background: Rectangle { color: root.themePalette.console_bg }
                     }
                 }
             }

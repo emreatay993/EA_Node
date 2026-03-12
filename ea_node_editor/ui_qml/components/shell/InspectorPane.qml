@@ -6,11 +6,12 @@ import "MainShellUtils.js" as MainShellUtils
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var themePalette: themeBridge.palette
 
     Layout.preferredWidth: 300
     Layout.fillHeight: true
-    color: "#252830"
-    border.color: "#3D414A"
+    color: themePalette.panel_alt_bg
+    border.color: themePalette.border
 
     ColumnLayout {
         anchors.fill: parent
@@ -19,7 +20,7 @@ Rectangle {
 
         Text {
             text: "PROPERTIES"
-            color: "#AEB6C7"
+            color: root.themePalette.group_title_fg
             font.pixelSize: 12
             font.bold: true
         }
@@ -27,8 +28,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             visible: root.mainWindowRef.has_selected_node
-            color: "#1E232D"
-            border.color: "#364154"
+            color: root.themePalette.panel_bg
+            border.color: root.themePalette.border
             radius: 10
             implicitHeight: heroContent.implicitHeight + 26
 
@@ -41,7 +42,7 @@ Rectangle {
                 anchors.topMargin: 1
                 height: 4
                 radius: 10
-                color: "#60CDFF"
+                color: root.themePalette.accent
             }
 
             ColumnLayout {
@@ -62,7 +63,7 @@ Rectangle {
                         Text {
                             Layout.fillWidth: true
                             text: root.mainWindowRef.selected_node_title
-                            color: "#F3F7FF"
+                            color: root.themePalette.panel_title_fg
                             font.pixelSize: 18
                             font.bold: true
                             elide: Text.ElideRight
@@ -73,7 +74,7 @@ Rectangle {
                             visible: text.length > 0
                             text: root.mainWindowRef.selected_node_subtitle
                             wrapMode: Text.WordWrap
-                            color: "#9DABC0"
+                            color: root.themePalette.muted_fg
                             font.pixelSize: 11
                         }
                     }
@@ -102,8 +103,8 @@ Rectangle {
                             height: 28
                             width: chipRow.implicitWidth + 18
                             radius: 14
-                            color: "#273244"
-                            border.color: "#41536C"
+                            color: root.themePalette.accent_strong
+                            border.color: root.themePalette.accent
 
                             Row {
                                 id: chipRow
@@ -112,14 +113,14 @@ Rectangle {
 
                                 Text {
                                     text: modelData.label
-                                    color: "#93C7E6"
+                                    color: root.themePalette.accent
                                     font.pixelSize: 10
                                     font.bold: true
                                 }
 
                                 Text {
                                     text: modelData.value
-                                    color: "#E7EEF9"
+                                    color: root.themePalette.tab_selected_fg
                                     font.pixelSize: 10
                                 }
                             }
@@ -132,8 +133,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: "#1E2128"
-            border.color: "#353942"
+            color: root.themePalette.panel_bg
+            border.color: root.themePalette.border
             radius: 8
 
             ScrollView {
@@ -153,7 +154,7 @@ Rectangle {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: "Select a node to edit properties and port exposure."
-                        color: "#8E98AC"
+                        color: root.themePalette.muted_fg
                         font.pixelSize: 12
                     }
 
@@ -162,7 +163,7 @@ Rectangle {
                         width: parent.width
                         wrapMode: Text.WordWrap
                         text: "Pin ports are configured through Label, Kind, and Data Type."
-                        color: "#8FB8D8"
+                        color: root.themePalette.accent
                         font.pixelSize: 10
                     }
 
@@ -176,7 +177,7 @@ Rectangle {
                             Text {
                                 width: parent.width
                                 text: modelData.label
-                                color: "#C8D0E0"
+                                color: root.themePalette.tab_fg
                                 font.pixelSize: 11
                             }
 
@@ -245,10 +246,10 @@ Rectangle {
                                         && root.mainWindowRef.selected_node_is_subnode_pin)
                                 text: MainShellUtils.toEditorText(modelData)
                                 selectByMouse: true
-                                color: "#E6EDF8"
+                                color: root.themePalette.input_fg
                                 background: Rectangle {
-                                    color: "#272B33"
-                                    border.color: "#434955"
+                                    color: root.themePalette.input_bg
+                                    border.color: root.themePalette.input_border
                                     radius: 3
                                 }
                                 onAccepted: root.mainWindowRef.set_selected_node_property(modelData.key, text)
@@ -260,7 +261,7 @@ Rectangle {
                     Text {
                         visible: root.mainWindowRef.has_selected_node && !root.mainWindowRef.selected_node_is_subnode_pin
                         text: "Exposed Ports"
-                        color: "#9DA7BC"
+                        color: root.themePalette.muted_fg
                         font.pixelSize: 11
                         font.bold: true
                     }
@@ -270,8 +271,8 @@ Rectangle {
                         delegate: Rectangle {
                             width: inspectorColumn.width
                             height: 32
-                            color: "#232730"
-                            border.color: "#3A404A"
+                            color: root.themePalette.tab_bg
+                            border.color: root.themePalette.border
                             radius: 3
                             visible: root.mainWindowRef.has_selected_node && !root.mainWindowRef.selected_node_is_subnode_pin
 
@@ -289,7 +290,7 @@ Rectangle {
                                 Text {
                                     Layout.fillWidth: true
                                     text: modelData.direction + ":" + (modelData.label || modelData.key) + " [" + modelData.kind + " / " + modelData.data_type + "]"
-                                    color: "#CBD3E2"
+                                    color: root.themePalette.app_fg
                                     font.pixelSize: 10
                                     elide: Text.ElideRight
                                 }

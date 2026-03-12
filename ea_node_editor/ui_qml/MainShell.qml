@@ -6,7 +6,8 @@ import "components/shell"
 
 Rectangle {
     id: root
-    color: "#202020"
+    readonly property var themePalette: themeBridge.palette
+    color: themePalette.app_bg
     property var sceneBridgeRef: sceneBridge
     property var viewBridgeRef: viewBridge
 

@@ -4,11 +4,12 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var themePalette: themeBridge.palette
 
     Layout.fillWidth: true
     Layout.preferredHeight: 32
-    color: "#1F2024"
-    border.color: "#383838"
+    color: themePalette.toolbar_bg
+    border.color: themePalette.border
 
     RowLayout {
         anchors.fill: parent
@@ -18,7 +19,7 @@ Rectangle {
 
         Text {
             text: "Engineering"
-            color: "#C7D2E2"
+            color: root.themePalette.panel_title_fg
             font.pixelSize: 13
             font.bold: true
         }
@@ -27,7 +28,7 @@ Rectangle {
 
         Text {
             text: root.mainWindowRef.project_display_name
-            color: "#9AA1B0"
+            color: root.themePalette.muted_fg
             font.pixelSize: 11
         }
     }

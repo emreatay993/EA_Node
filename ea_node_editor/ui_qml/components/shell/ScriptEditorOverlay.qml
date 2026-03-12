@@ -8,14 +8,15 @@ Rectangle {
     property var mainWindowRef
     property var scriptEditorBridgeRef
     property var scriptHighlighterBridgeRef
+    readonly property var themePalette: themeBridge.palette
 
     visible: root.scriptEditorBridgeRef.visible
     anchors.right: parent.right
     anchors.top: parent.top
     anchors.bottom: parent.bottom
     width: Math.min(parent.width * 0.42, 520)
-    color: "#171A20"
-    border.color: "#2D8ED8"
+    color: themePalette.panel_bg
+    border.color: themePalette.accent
     border.width: 1
     z: 999
 
@@ -26,8 +27,8 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 30
-            color: "#22262E"
-            border.color: "#2F3540"
+            color: root.themePalette.toolbar_bg
+            border.color: root.themePalette.border
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 10
@@ -36,14 +37,16 @@ Rectangle {
                     text: root.scriptEditorBridgeRef.current_node_label
                         ? "Python Script: " + root.scriptEditorBridgeRef.current_node_label
                         : "Python Script Editor"
-                    color: "#E6ECF8"
+                    color: root.themePalette.panel_title_fg
                     font.pixelSize: 12
                     font.bold: true
                 }
                 Item { Layout.fillWidth: true }
                 Text {
                     text: root.scriptEditorBridgeRef.dirty ? "*Modified" : "Saved"
-                    color: root.scriptEditorBridgeRef.dirty ? "#60CDFF" : "#95A1B8"
+                    color: root.scriptEditorBridgeRef.dirty
+                        ? root.themePalette.accent
+                        : root.themePalette.muted_fg
                     font.pixelSize: 11
                 }
                 ShellButton {
@@ -62,8 +65,8 @@ Rectangle {
                 id: scriptLineGutter
                 Layout.preferredWidth: 52
                 Layout.fillHeight: true
-                color: "#141821"
-                border.color: "#2B313E"
+                color: root.themePalette.console_bg
+                border.color: root.themePalette.border
                 clip: true
 
                 Text {
@@ -72,7 +75,7 @@ Rectangle {
                     anchors.rightMargin: 8
                     y: (scriptEditorScroll.contentItem ? -scriptEditorScroll.contentItem.contentY : 0) + 6
                     text: MainShellUtils.lineNumbersText(scriptEditorArea.lineCount)
-                    color: "#6F7B90"
+                    color: root.themePalette.muted_fg
                     font.family: "Consolas"
                     font.pixelSize: 12
                     horizontalAlignment: Text.AlignRight
@@ -93,11 +96,11 @@ Rectangle {
                     width: scriptEditorScroll.availableWidth
                     text: root.scriptEditorBridgeRef.script_text
                     readOnly: !root.scriptEditorBridgeRef.current_node_id
-                    color: "#D0D7E6"
+                    color: root.themePalette.input_fg
                     font.family: "Consolas"
                     font.pixelSize: 12
                     wrapMode: TextArea.NoWrap
-                    background: Rectangle { color: "#1A1D24" }
+                    background: Rectangle { color: root.themePalette.console_bg }
                     selectByMouse: true
                     persistentSelection: true
                     leftPadding: 8
@@ -134,14 +137,14 @@ Rectangle {
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 30
-            color: "#22262E"
+            color: root.themePalette.toolbar_bg
             RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 8
                 anchors.rightMargin: 8
                 Text {
                     text: root.scriptEditorBridgeRef.cursor_label
-                    color: "#9DA7BC"
+                    color: root.themePalette.muted_fg
                     font.pixelSize: 11
                 }
                 Item { Layout.fillWidth: true }

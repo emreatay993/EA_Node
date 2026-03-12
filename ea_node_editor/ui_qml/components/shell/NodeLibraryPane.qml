@@ -9,12 +9,13 @@ Rectangle {
     property var graphCanvasRef
     property var popupHostItem
     property var collapsedCategories: ({})
+    readonly property var themePalette: themeBridge.palette
     signal workflowContextRequested(string workflowId, string workflowScope, real positionX, real positionY)
 
     Layout.preferredWidth: 260
     Layout.fillHeight: true
-    color: "#24262D"
-    border.color: "#3D4048"
+    color: themePalette.panel_alt_bg
+    border.color: themePalette.border
 
     function isCategoryCollapsed(category) {
         var normalizedCategory = String(category || "")
@@ -70,7 +71,7 @@ Rectangle {
 
         Text {
             text: "NODE LIBRARY"
-            color: "#AAB2C3"
+            color: root.themePalette.group_title_fg
             font.pixelSize: 12
             font.bold: true
         }
@@ -79,10 +80,11 @@ Rectangle {
             id: searchField
             Layout.fillWidth: true
             placeholderText: "Search nodes..."
-            color: "#E6EDF8"
+            color: root.themePalette.input_fg
+            placeholderTextColor: root.themePalette.muted_fg
             background: Rectangle {
-                color: "#2C2F37"
-                border.color: "#4A4E58"
+                color: root.themePalette.input_bg
+                border.color: root.themePalette.input_border
                 radius: 3
             }
             onTextChanged: root.mainWindowRef.set_library_query(text)
@@ -116,7 +118,7 @@ Rectangle {
                 width: ListView.view.width
                 height: hiddenByCategory ? 0 : (isCategory ? 32 : 28)
                 color: hiddenByCategory ? "transparent"
-                    : (mouseArea.containsMouse ? "#31343D" : "transparent")
+                    : (mouseArea.containsMouse ? root.themePalette.hover : "transparent")
                 radius: 4
                 visible: !hiddenByCategory
 
@@ -152,16 +154,18 @@ Rectangle {
                         height: isCategory ? 0 : 8
                         radius: 4
                         visible: !isCategory
-                        border.color: "#60CDFF"
+                        border.color: root.themePalette.accent
                         border.width: libraryRow.isCustomWorkflow && libraryRow.workflowScope === "local" ? 1.5 : 0
-                        color: libraryRow.isCustomWorkflow && libraryRow.workflowScope === "local" ? "transparent" : "#60CDFF"
+                        color: libraryRow.isCustomWorkflow && libraryRow.workflowScope === "local"
+                            ? "transparent"
+                            : root.themePalette.accent
                     }
 
                     Text {
                         text: isCategory
                             ? ((root.isCategoryCollapsed(modelData.category) ? "▸ " : "▾ ") + modelData.label)
                             : modelData.display_name
-                        color: isCategory ? "#CFD6E3" : "#D7DDE9"
+                        color: isCategory ? root.themePalette.group_title_fg : root.themePalette.app_fg
                         font.pixelSize: isCategory ? 12 : 11
                         font.bold: isCategory
                     }
