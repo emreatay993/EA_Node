@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: card
+    objectName: "graphNodeCard"
     property var nodeData: null
     property real worldOffset: 0
     property Item canvasItem: null
@@ -13,6 +14,22 @@ Rectangle {
     property var dragSourcePort: null
     property real liveDragDx: 0
     property real liveDragDy: 0
+    readonly property var themePalette: themeBridge.palette
+    readonly property color surfaceColor: themePalette.panel_bg
+    readonly property color outlineColor: themePalette.border
+    readonly property color headerColor: themePalette.toolbar_bg
+    readonly property color headerTextColor: themePalette.panel_title_fg
+    readonly property color scopeBadgeColor: themePalette.accent_strong
+    readonly property color scopeBadgeBorderColor: themePalette.accent
+    readonly property color scopeBadgeTextColor: themePalette.tab_selected_fg
+    readonly property color inlineRowColor: themePalette.panel_alt_bg
+    readonly property color inlineRowBorderColor: themePalette.input_border
+    readonly property color inlineLabelColor: themePalette.muted_fg
+    readonly property color inlineInputTextColor: themePalette.input_fg
+    readonly property color inlineInputBackgroundColor: themePalette.input_bg
+    readonly property color inlineInputBorderColor: themePalette.input_border
+    readonly property color inlineDrivenTextColor: themePalette.group_title_fg
+    readonly property color portLabelColor: themePalette.muted_fg
 
     signal nodeClicked(string nodeId, bool additive)
     signal nodeOpenRequested(string nodeId)
@@ -172,9 +189,9 @@ Rectangle {
     }
     width: card.nodeData ? card.nodeData.width : 0.0
     height: card.nodeData ? card.nodeData.height : 0.0
-    color: "#262A31"
+    color: card.surfaceColor
     border.width: card.nodeData && card.nodeData.selected ? 2 : 1
-    border.color: card.nodeData && card.nodeData.selected ? "#60CDFF" : "#4A4F59"
+    border.color: card.nodeData && card.nodeData.selected ? card.themePalette.accent : card.outlineColor
     radius: 6
 
     Rectangle {
@@ -192,8 +209,8 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 4
         height: 24
-        color: "#2F333B"
-        border.color: "#3A404B"
+        color: card.headerColor
+        border.color: card.outlineColor
 
         Text {
             anchors.left: parent.left
@@ -202,7 +219,7 @@ Rectangle {
             anchors.rightMargin: card.canEnterScope ? 66 : 10
             anchors.verticalCenter: parent.verticalCenter
             text: card.nodeData ? card.nodeData.title : ""
-            color: "#F5F8FF"
+            color: card.headerTextColor
             font.pixelSize: 12
             font.bold: true
             elide: Text.ElideRight
@@ -216,13 +233,13 @@ Rectangle {
             width: 48
             height: 16
             radius: 8
-            color: "#2B4B61"
-            border.color: "#5FADD9"
+            color: card.scopeBadgeColor
+            border.color: card.scopeBadgeBorderColor
 
             Text {
                 anchors.centerIn: parent
                 text: "OPEN"
-                color: "#D8F1FF"
+                color: card.scopeBadgeTextColor
                 font.pixelSize: 9
                 font.bold: true
             }
@@ -253,8 +270,8 @@ Rectangle {
                     width: inlineControlsColumn.width
                     height: card._inlineRowHeight
                     radius: 4
-                    color: "#20242B"
-                    border.color: "#39414D"
+                    color: card.inlineRowColor
+                    border.color: card.inlineRowBorderColor
 
                     RowLayout {
                         anchors.fill: parent
@@ -265,7 +282,7 @@ Rectangle {
                         Text {
                             Layout.preferredWidth: 78
                             text: String(modelData.label || modelData.key || "")
-                            color: "#C8D0E0"
+                            color: card.inlineLabelColor
                             font.pixelSize: 10
                             elide: Text.ElideRight
                         }
@@ -302,10 +319,10 @@ Rectangle {
                             enabled: !modelData.overridden_by_input
                             text: card.inlineEditorText(modelData)
                             selectByMouse: true
-                            color: "#E6EDF8"
+                            color: card.inlineInputTextColor
                             background: Rectangle {
-                                color: "#272B33"
-                                border.color: "#434955"
+                                color: card.inlineInputBackgroundColor
+                                border.color: card.inlineInputBorderColor
                                 radius: 3
                             }
                             onAccepted: card.inlinePropertyCommitted(card.nodeData.node_id, modelData.key, text)
@@ -316,7 +333,7 @@ Rectangle {
                             visible: modelData.overridden_by_input
                             Layout.fillWidth: true
                             text: "Driven by " + String(modelData.input_port_label || "input")
-                            color: "#8FB8D8"
+                            color: card.inlineDrivenTextColor
                             font.pixelSize: 9
                             elide: Text.ElideRight
                         }
@@ -453,7 +470,7 @@ Rectangle {
 
                     Text {
                         text: modelData.label || modelData.key
-                        color: "#CAD1DF"
+                        color: card.portLabelColor
                         font.pixelSize: 10
                     }
                 }
@@ -476,7 +493,7 @@ Rectangle {
 
                     Text {
                         text: modelData.label || modelData.key
-                        color: "#CAD1DF"
+                        color: card.portLabelColor
                         font.pixelSize: 10
                     }
 

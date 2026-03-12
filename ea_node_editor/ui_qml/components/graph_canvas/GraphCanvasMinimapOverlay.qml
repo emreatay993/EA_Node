@@ -3,9 +3,27 @@ import "GraphCanvasLogic.js" as GraphCanvasLogic
 
 Rectangle {
     id: root
+    objectName: "graphCanvasMinimapOverlayRoot"
     property Item canvasItem: null
     property var sceneBridge: null
     property var viewBridge: null
+    readonly property var themePalette: themeBridge.palette
+    readonly property color chromeColor: Qt.alpha(themePalette.panel_bg, 0.64)
+    readonly property color chromeBorderColor: themePalette.border
+    readonly property color titleColor: themePalette.group_title_fg
+    readonly property color toggleDefaultColor: themePalette.toolbar_bg
+    readonly property color toggleHoverColor: themePalette.hover
+    readonly property color togglePressedColor: themePalette.pressed
+    readonly property color toggleBorderColor: themePalette.border
+    readonly property color toggleTextColor: themePalette.panel_title_fg
+    readonly property color viewportBackdropColor: Qt.alpha(themePalette.canvas_bg, 0.72)
+    readonly property color viewportBackdropBorderColor: themePalette.border
+    readonly property color minimapNodeSelectedColor: Qt.alpha(themePalette.accent, 0.28)
+    readonly property color minimapNodeColor: Qt.alpha(themePalette.border, 0.45)
+    readonly property color minimapNodeSelectedBorderColor: themePalette.accent
+    readonly property color minimapNodeBorderColor: themePalette.muted_fg
+    readonly property color viewportRectFillColor: Qt.alpha(themePalette.accent, 0.18)
+    readonly property color viewportRectBorderColor: themePalette.accent
 
     z: 140
     visible: root.canvasItem ? root.canvasItem.minimapVisible : true
@@ -21,9 +39,9 @@ Rectangle {
         ? root.canvasItem.minimapExpandedHeight
         : (root.canvasItem ? root.canvasItem.minimapCollapsedHeight : 28)
     radius: 4
-    color: "#A21C2028"
+    color: root.chromeColor
     border.width: 1
-    border.color: "#4B5567"
+    border.color: root.chromeBorderColor
     clip: true
 
     Text {
@@ -33,13 +51,14 @@ Rectangle {
         anchors.top: parent.top
         anchors.topMargin: 5
         text: "MINIMAP"
-        color: "#AAB4C9"
+        color: root.titleColor
         font.pixelSize: 9
         font.bold: true
     }
 
     Rectangle {
         id: minimapToggle
+        objectName: "graphCanvasMinimapToggle"
         anchors.top: parent.top
         anchors.right: parent.right
         anchors.topMargin: 4
@@ -47,14 +66,16 @@ Rectangle {
         width: 22
         height: 18
         radius: 3
-        color: minimapToggleMouse.pressed ? "#4A5365" : (minimapToggleMouse.containsMouse ? "#3F4857" : "#37404F")
+        color: minimapToggleMouse.pressed
+            ? root.togglePressedColor
+            : (minimapToggleMouse.containsMouse ? root.toggleHoverColor : root.toggleDefaultColor)
         border.width: 1
-        border.color: "#5B667A"
+        border.color: root.toggleBorderColor
 
         Text {
             anchors.centerIn: parent
             text: (root.canvasItem && root.canvasItem.minimapExpanded) ? "-" : "+"
-            color: "#E2E9F7"
+            color: root.toggleTextColor
             font.pixelSize: 12
             font.bold: true
         }
@@ -77,6 +98,7 @@ Rectangle {
 
     Item {
         id: minimapViewport
+        objectName: "graphCanvasMinimapViewport"
         visible: root.canvasItem ? root.canvasItem.minimapExpanded : false
         anchors.left: parent.left
         anchors.right: parent.right
@@ -155,9 +177,9 @@ Rectangle {
         Rectangle {
             anchors.fill: parent
             radius: 2
-            color: "#AA171A22"
+            color: root.viewportBackdropColor
             border.width: 1
-            border.color: "#41495B"
+            border.color: root.viewportBackdropBorderColor
         }
 
         MouseArea {
@@ -188,15 +210,18 @@ Rectangle {
                 y: minimapViewport.sceneToMinimapY(modelData.y)
                 width: Math.max(2, modelData.width * minimapViewport.scaleValue())
                 height: Math.max(2, modelData.height * minimapViewport.scaleValue())
-                color: modelData.selected ? "#A4457FC6" : "#6C5A6273"
+                color: modelData.selected ? root.minimapNodeSelectedColor : root.minimapNodeColor
                 border.width: modelData.selected ? 1.2 : 1
-                border.color: modelData.selected ? "#D0EAFF" : "#909DB4"
+                border.color: modelData.selected
+                    ? root.minimapNodeSelectedBorderColor
+                    : root.minimapNodeBorderColor
                 radius: 1
             }
         }
 
         Rectangle {
             id: minimapViewportRect
+            objectName: "graphCanvasMinimapViewportRect"
             property var visibleRectPayload: minimapViewport.visibleRect()
             property real contentWidth: minimapViewport.usedWidth()
             property real contentHeight: minimapViewport.usedHeight()
@@ -212,9 +237,9 @@ Rectangle {
                 var minY = minimapViewport.contentOffsetY();
                 return Math.max(minY, Math.min(raw, minY + contentHeight - height));
             }
-            color: "#2A7EC7FF"
+            color: root.viewportRectFillColor
             border.width: 1
-            border.color: "#E0F3FF"
+            border.color: root.viewportRectBorderColor
             radius: 2
 
             MouseArea {

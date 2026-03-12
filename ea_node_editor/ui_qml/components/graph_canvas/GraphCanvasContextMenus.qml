@@ -4,32 +4,34 @@ Item {
     id: root
     property Item canvasItem: null
     property var mainWindowBridge: null
+    readonly property var themePalette: themeBridge.palette
 
     anchors.fill: parent
     z: 900
 
     Rectangle {
         id: edgeContextPopup
+        objectName: "graphCanvasEdgeContextPopup"
         visible: root.canvasItem ? root.canvasItem.edgeContextVisible : false
         x: root.canvasItem ? root.canvasItem.contextMenuX : 0
         y: root.canvasItem ? root.canvasItem.contextMenuY : 0
         width: 170
         height: 36
         radius: 4
-        color: "#2B2F37"
+        color: root.themePalette.panel_bg
         border.width: 1
-        border.color: "#4A4E58"
+        border.color: root.themePalette.border
 
         Rectangle {
             anchors.fill: parent
-            color: removeEdgeMouse.containsMouse ? "#39404C" : "transparent"
+            color: removeEdgeMouse.containsMouse ? root.themePalette.hover : "transparent"
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: 10
                 text: "Remove Connection"
-                color: "#D8DEEA"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
             }
 
@@ -55,6 +57,7 @@ Item {
 
     Rectangle {
         id: nodeContextPopup
+        objectName: "graphCanvasNodeContextPopup"
         visible: root.canvasItem ? root.canvasItem.nodeContextVisible : false
         x: root.canvasItem ? root.canvasItem.contextMenuX : 0
         y: root.canvasItem ? root.canvasItem.contextMenuY : 0
@@ -66,9 +69,9 @@ Item {
         property int rowCount: canEnterScope ? 4 : 2
         height: rowHeight * rowCount
         radius: 4
-        color: "#2B2F37"
+        color: root.themePalette.panel_bg
         border.width: 1
-        border.color: "#4A4E58"
+        border.color: root.themePalette.border
 
         Rectangle {
             visible: nodeContextPopup.canEnterScope
@@ -76,14 +79,14 @@ Item {
             y: 0
             width: parent.width
             height: nodeContextPopup.rowHeight
-            color: openSubnodeMouse.containsMouse ? "#39404C" : "transparent"
+            color: openSubnodeMouse.containsMouse ? root.themePalette.hover : "transparent"
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: 10
                 text: "Enter Subnode"
-                color: "#D8DEEA"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
             }
 
@@ -108,14 +111,14 @@ Item {
             y: nodeContextPopup.rowHeight
             width: parent.width
             height: nodeContextPopup.rowHeight
-            color: addToWorkflowsMouse.containsMouse ? "#39404C" : "transparent"
+            color: addToWorkflowsMouse.containsMouse ? root.themePalette.hover : "transparent"
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: 10
                 text: "Add to Workflows"
-                color: "#D8DEEA"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
             }
 
@@ -140,14 +143,14 @@ Item {
             y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 2 : 0
             width: parent.width
             height: nodeContextPopup.rowHeight
-            color: renameNodeMouse.containsMouse ? "#39404C" : "transparent"
+            color: renameNodeMouse.containsMouse ? root.themePalette.hover : "transparent"
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: 10
                 text: "Rename Node"
-                color: "#D8DEEA"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
             }
 
@@ -172,14 +175,14 @@ Item {
             y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 3 : nodeContextPopup.rowHeight
             width: parent.width
             height: nodeContextPopup.rowHeight
-            color: removeNodeMouse.containsMouse ? "#39404C" : "transparent"
+            color: removeNodeMouse.containsMouse ? root.themePalette.hover : "transparent"
 
             Text {
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.left: parent.left
                 anchors.leftMargin: 10
                 text: "Remove Node"
-                color: "#D8DEEA"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
             }
 
