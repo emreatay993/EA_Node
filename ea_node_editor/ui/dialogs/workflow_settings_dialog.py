@@ -7,25 +7,20 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
-    QDialog,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
-    QPushButton,
     QSpinBox,
-    QStackedWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from ea_node_editor.settings import DEFAULT_WORKFLOW_SETTINGS
+from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 
 
-class WorkflowSettingsDialog(QDialog):
+class WorkflowSettingsDialog(SectionedSettingsDialog):
     _SECTIONS = [
         ("general", "General"),
         ("solver_config", "Solver Config"),
@@ -35,55 +30,22 @@ class WorkflowSettingsDialog(QDialog):
     ]
 
     def __init__(self, initial_settings: dict[str, Any] | None = None, parent=None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Workflow Settings")
-        self.setModal(True)
-        self.resize(760, 520)
-
-        self.section_list = QListWidget(self)
-        self.section_list.setFixedWidth(190)
-        self.section_list.setObjectName("workflowSettingsSectionList")
-        for _key, label in self._SECTIONS:
-            item = QListWidgetItem(label)
-            self.section_list.addItem(item)
-
-        self.page_stack = QStackedWidget(self)
-        self._build_pages()
-
-        body_layout = QHBoxLayout()
-        body_layout.setContentsMargins(0, 0, 0, 0)
-        body_layout.setSpacing(10)
-        body_layout.addWidget(self.section_list, stretch=0)
-        body_layout.addWidget(self.page_stack, stretch=1)
-
-        actions = QHBoxLayout()
-        actions.addStretch(1)
-        self.cancel_button = QPushButton("Cancel", self)
-        self.ok_button = QPushButton("OK", self)
-        actions.addWidget(self.cancel_button)
-        actions.addWidget(self.ok_button)
-
-        root = QVBoxLayout(self)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(10)
-        header = QLabel("Configure workflow defaults and runtime behavior.")
-        header.setObjectName("workflowSettingsHeader")
-        root.addWidget(header)
-        root.addLayout(body_layout, stretch=1)
-        root.addLayout(actions)
-
-        self.section_list.currentRowChanged.connect(self.page_stack.setCurrentIndex)
-        self.cancel_button.clicked.connect(self.reject)
-        self.ok_button.clicked.connect(self.accept)
-        self.section_list.setCurrentRow(0)
+        super().__init__(
+            window_title="Workflow Settings",
+            header_text="Configure workflow defaults and runtime behavior.",
+            sections=self._SECTIONS,
+            section_list_object_name="workflowSettingsSectionList",
+            header_object_name="workflowSettingsHeader",
+            parent=parent,
+        )
         self.set_values(initial_settings or {})
 
     def _build_pages(self) -> None:
-        self.page_stack.addWidget(self._build_general_page())
-        self.page_stack.addWidget(self._build_solver_page())
-        self.page_stack.addWidget(self._build_environment_page())
-        self.page_stack.addWidget(self._build_plugins_page())
-        self.page_stack.addWidget(self._build_logging_page())
+        self.add_section_page(self._build_general_page())
+        self.add_section_page(self._build_solver_page())
+        self.add_section_page(self._build_environment_page())
+        self.add_section_page(self._build_plugins_page())
+        self.add_section_page(self._build_logging_page())
 
     def _build_general_page(self) -> QWidget:
         page = QWidget(self)
@@ -201,4 +163,3 @@ class WorkflowSettingsDialog(QDialog):
                 "capture_console": self.capture_console_check.isChecked(),
             },
         }
-
