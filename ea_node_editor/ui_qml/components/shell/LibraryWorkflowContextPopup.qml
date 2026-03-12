@@ -6,6 +6,7 @@ Item {
     property var mainWindowRef
     property string libraryContextWorkflowId: ""
     property string libraryContextWorkflowScope: "local"
+    readonly property var themePalette: themeBridge.palette
 
     function openPopup(workflowId, workflowScope, positionX, positionY) {
         libraryContextWorkflowId = String(workflowId || "")
@@ -39,8 +40,8 @@ Item {
         z: 1000
 
         background: Rectangle {
-            color: "#2B2F37"
-            border.color: "#4A4E58"
+            color: root.themePalette.tab_bg
+            border.color: root.themePalette.input_border
             radius: 3
         }
 
@@ -50,13 +51,13 @@ Item {
             Rectangle {
                 width: libraryContextPopup.implicitWidth
                 height: 29
-                color: scopeMouseArea.containsMouse ? "#343943" : "transparent"
+                color: scopeMouseArea.containsMouse ? root.themePalette.hover : "transparent"
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
                     anchors.leftMargin: 10
-                    color: "#D7DDE9"
+                    color: root.themePalette.app_fg
                     font.pixelSize: 11
                     text: root.libraryContextWorkflowScope === "global" ? "Make Project-Only" : "Make Global"
                 }
@@ -76,13 +77,13 @@ Item {
             Rectangle {
                 width: libraryContextPopup.implicitWidth
                 height: 29
-                color: deleteMouseArea.containsMouse ? "#343943" : "transparent"
+                color: deleteMouseArea.containsMouse ? root.themePalette.hover : "transparent"
 
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
                     anchors.leftMargin: 10
-                    color: "#D7DDE9"
+                    color: root.themePalette.app_fg
                     font.pixelSize: 11
                     text: "Delete"
                 }

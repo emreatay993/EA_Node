@@ -6,6 +6,7 @@ Rectangle {
     id: root
     objectName: "connectionQuickInsertOverlay"
     property var mainWindowRef
+    readonly property var themePalette: themeBridge.palette
 
     function _wheelDeltaY(wheel) {
         if (!wheel)
@@ -41,8 +42,8 @@ Rectangle {
     visible: !!root.mainWindowRef && root.mainWindowRef.connection_quick_insert_open
     width: Math.min(parent.width * 0.34, 360)
     height: quickInsertContent.implicitHeight + 20
-    color: "#20242B"
-    border.color: "#76BDE8"
+    color: themePalette.panel_alt_bg
+    border.color: themePalette.accent
     border.width: 1
     radius: 6
     z: 1120
@@ -104,7 +105,7 @@ Rectangle {
 
             Text {
                 text: "Quick Insert"
-                color: "#DDE7F6"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
                 font.bold: true
             }
@@ -113,7 +114,7 @@ Rectangle {
 
             Text {
                 text: "Esc"
-                color: "#8F9AAF"
+                color: root.themePalette.muted_fg
                 font.pixelSize: 11
             }
         }
@@ -121,7 +122,7 @@ Rectangle {
         Text {
             width: parent.width
             text: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_source_summary : ""
-            color: "#9FB5C9"
+            color: root.themePalette.muted_fg
             font.pixelSize: 10
             elide: Text.ElideRight
         }
@@ -132,11 +133,12 @@ Rectangle {
             placeholderText: "Insert compatible node..."
             text: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_query : ""
             selectByMouse: true
-            color: "#E7EEF9"
+            color: root.themePalette.input_fg
+            placeholderTextColor: root.themePalette.muted_fg
             Keys.priority: Keys.BeforeItem
             background: Rectangle {
-                color: "#2A303A"
-                border.color: "#4B586B"
+                color: root.themePalette.input_bg
+                border.color: root.themePalette.input_border
                 radius: 4
             }
             onTextChanged: root.mainWindowRef.set_connection_quick_insert_query(text)
@@ -180,10 +182,12 @@ Rectangle {
                 height: 64
                 radius: 3
                 color: index === root.mainWindowRef.connection_quick_insert_highlight_index
-                    ? "#35698A"
-                    : (resultMouse.containsMouse ? "#2C343F" : "transparent")
+                    ? root.themePalette.accent_strong
+                    : (resultMouse.containsMouse ? root.themePalette.hover : "transparent")
                 border.width: index === root.mainWindowRef.connection_quick_insert_highlight_index ? 1 : 0
-                border.color: index === root.mainWindowRef.connection_quick_insert_highlight_index ? "#76BDE8" : "transparent"
+                border.color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                    ? root.themePalette.accent
+                    : "transparent"
 
                 Column {
                     anchors.fill: parent
@@ -196,7 +200,9 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: String(modelData.display_name || "")
-                        color: "#E5EEF8"
+                        color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                            ? root.themePalette.tab_selected_fg
+                            : root.themePalette.app_fg
                         font.pixelSize: 12
                         font.bold: index === root.mainWindowRef.connection_quick_insert_highlight_index
                         elide: Text.ElideRight
@@ -207,7 +213,9 @@ Rectangle {
                         text: String(modelData.category || "")
                             + "  |  "
                             + String(modelData.type_id || "")
-                        color: "#A8B4C6"
+                        color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                            ? root.themePalette.tab_selected_fg
+                            : root.themePalette.muted_fg
                         font.pixelSize: 10
                         elide: Text.ElideRight
                     }
@@ -238,7 +246,7 @@ Rectangle {
             width: parent.width
             wrapMode: Text.WordWrap
             text: "No compatible nodes."
-            color: "#A8B4C6"
+            color: root.themePalette.muted_fg
             font.pixelSize: 11
         }
     }

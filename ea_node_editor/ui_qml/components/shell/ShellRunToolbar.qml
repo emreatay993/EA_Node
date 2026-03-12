@@ -6,11 +6,12 @@ Rectangle {
     property var mainWindowRef
     property var viewBridgeRef
     property var scriptEditorBridgeRef
+    readonly property var themePalette: themeBridge.palette
 
     Layout.fillWidth: true
     Layout.preferredHeight: 38
-    color: "#2B2D33"
-    border.color: "#3A3D44"
+    color: themePalette.toolbar_bg
+    border.color: themePalette.border
 
     RowLayout {
         anchors.fill: parent
@@ -34,10 +35,10 @@ Rectangle {
         Item { Layout.fillWidth: true }
         Text {
             text: "Zoom: " + Math.round(root.viewBridgeRef.zoom_value * 100) + "%"
-            color: "#BDC4D2"
+            color: root.themePalette.muted_fg
             font.pixelSize: 12
         }
-        Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: "#474B54" }
+        Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: root.themePalette.border }
         ShellButton {
             text: "Settings"
             onClicked: root.mainWindowRef.show_workflow_settings_dialog()

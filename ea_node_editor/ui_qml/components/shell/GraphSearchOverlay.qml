@@ -5,14 +5,15 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var themePalette: themeBridge.palette
 
     visible: root.mainWindowRef.graph_search_open
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.verticalCenter: parent.verticalCenter
     width: Math.min(parent.width * 0.62, 760)
     height: graphSearchContent.implicitHeight + 20
-    color: "#20242B"
-    border.color: "#5C8CAF"
+    color: themePalette.panel_alt_bg
+    border.color: themePalette.accent
     border.width: 1
     radius: 6
     z: 1100
@@ -51,7 +52,7 @@ Rectangle {
 
             Text {
                 text: "Graph Search"
-                color: "#DDE7F6"
+                color: root.themePalette.panel_title_fg
                 font.pixelSize: 12
                 font.bold: true
             }
@@ -60,7 +61,7 @@ Rectangle {
 
             Text {
                 text: "Esc to close"
-                color: "#8F9AAF"
+                color: root.themePalette.muted_fg
                 font.pixelSize: 11
             }
         }
@@ -71,11 +72,12 @@ Rectangle {
             placeholderText: "Search title or node type"
             text: root.mainWindowRef.graph_search_query
             selectByMouse: true
-            color: "#E7EEF9"
+            color: root.themePalette.input_fg
+            placeholderTextColor: root.themePalette.muted_fg
             Keys.priority: Keys.BeforeItem
             background: Rectangle {
-                color: "#2A303A"
-                border.color: "#4B586B"
+                color: root.themePalette.input_bg
+                border.color: root.themePalette.input_border
                 radius: 4
             }
             onTextChanged: root.mainWindowRef.set_graph_search_query(text)
@@ -119,10 +121,12 @@ Rectangle {
                 height: 42
                 radius: 3
                 color: index === root.mainWindowRef.graph_search_highlight_index
-                    ? "#35698A"
-                    : (resultMouse.containsMouse ? "#2C343F" : "transparent")
+                    ? root.themePalette.accent_strong
+                    : (resultMouse.containsMouse ? root.themePalette.hover : "transparent")
                 border.width: index === root.mainWindowRef.graph_search_highlight_index ? 1 : 0
-                border.color: index === root.mainWindowRef.graph_search_highlight_index ? "#76BDE8" : "transparent"
+                border.color: index === root.mainWindowRef.graph_search_highlight_index
+                    ? root.themePalette.accent
+                    : "transparent"
 
                 Column {
                     anchors.fill: parent
@@ -135,7 +139,9 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: String(modelData.node_title || "")
-                        color: "#E5EEF8"
+                        color: index === root.mainWindowRef.graph_search_highlight_index
+                            ? root.themePalette.tab_selected_fg
+                            : root.themePalette.app_fg
                         font.pixelSize: 12
                         font.bold: index === root.mainWindowRef.graph_search_highlight_index
                         elide: Text.ElideRight
@@ -148,7 +154,9 @@ Rectangle {
                             + String(modelData.display_name || "")
                             + "  |  "
                             + String(modelData.type_id || "")
-                        color: "#A8B4C6"
+                        color: index === root.mainWindowRef.graph_search_highlight_index
+                            ? root.themePalette.tab_selected_fg
+                            : root.themePalette.muted_fg
                         font.pixelSize: 10
                         elide: Text.ElideRight
                     }
@@ -169,13 +177,13 @@ Rectangle {
             visible: root.mainWindowRef.graph_search_query.length > 0
                 && root.mainWindowRef.graph_search_results.length === 0
             text: "No matching nodes."
-            color: "#A8B4C6"
+            color: root.themePalette.muted_fg
             font.pixelSize: 11
         }
 
         Text {
             text: "Up/Down to select, Enter to jump"
-            color: "#7E899C"
+            color: root.themePalette.muted_fg
             font.pixelSize: 10
         }
     }

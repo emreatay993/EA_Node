@@ -7,11 +7,12 @@ Rectangle {
     property var statusJobsRef
     property var statusMetricsRef
     property var statusNotificationsRef
+    readonly property var themePalette: themeBridge.palette
 
     Layout.fillWidth: true
     Layout.preferredHeight: 24
-    color: "#0D88C9"
-    border.color: "#55B8E7"
+    color: themePalette.status_bg
+    border.color: themePalette.status_border
 
     RowLayout {
         anchors.fill: parent
@@ -21,24 +22,24 @@ Rectangle {
 
         Text {
             text: root.statusEngineRef.icon_value + " " + root.statusEngineRef.text_value
-            color: "#00131D"
+            color: root.themePalette.status_fg
             font.pixelSize: 11
             font.bold: true
         }
         Text {
             text: root.statusJobsRef.icon_value + " " + root.statusJobsRef.text_value
-            color: "#022234"
+            color: root.themePalette.status_fg
             font.pixelSize: 11
         }
         Text {
             text: root.statusMetricsRef.icon_value + " " + root.statusMetricsRef.text_value
-            color: "#022234"
+            color: root.themePalette.status_fg
             font.pixelSize: 11
         }
         Item { Layout.fillWidth: true }
         Text {
             text: root.statusNotificationsRef.icon_value + " " + root.statusNotificationsRef.text_value
-            color: "#022234"
+            color: root.themePalette.status_fg
             font.pixelSize: 11
         }
     }

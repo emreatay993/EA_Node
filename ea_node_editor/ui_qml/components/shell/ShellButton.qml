@@ -3,12 +3,13 @@ import QtQuick.Controls 2.15
 
 ToolButton {
     id: control
+    readonly property var themePalette: themeBridge.palette
     property bool selectedStyle: false
     property string iconName: ""
     property url iconSource: ""
     property string tooltipText: ""
     property int iconSize: iconName.length > 0 && uiIcons.has(iconName) ? uiIcons.defaultSize(iconName) : 16
-    property color iconColor: selectedStyle ? "#DFF2FF" : "#D8DEEA"
+    property color iconColor: selectedStyle ? themePalette.tab_selected_fg : themePalette.tab_fg
     readonly property string resolvedIconSource: iconName.length > 0
         ? uiIcons.sourceSized(iconName, iconSize, String(iconColor))
         : iconSource
@@ -49,7 +50,7 @@ ToolButton {
                 id: label
                 visible: control.text.length > 0
                 text: control.text
-                color: control.selectedStyle ? "#DFF2FF" : "#D8DEEA"
+                color: control.selectedStyle ? control.themePalette.tab_selected_fg : control.themePalette.tab_fg
                 font.pixelSize: 11
                 font.bold: control.selectedStyle
                 horizontalAlignment: Text.AlignHCenter
@@ -60,9 +61,13 @@ ToolButton {
 
     background: Rectangle {
         radius: 2
-        border.color: control.down ? "#5A606B" : "#4A4E58"
+        border.color: control.selectedStyle
+            ? control.themePalette.accent
+            : (control.down ? control.themePalette.input_border : control.themePalette.border)
         color: control.selectedStyle
-            ? "#2A4F68"
-            : (control.down ? "#3A3E46" : (control.hovered ? "#343943" : "#2B2F37"))
+            ? control.themePalette.accent_strong
+            : (control.down
+                ? control.themePalette.pressed
+                : (control.hovered ? control.themePalette.hover : control.themePalette.tab_bg))
     }
 }
