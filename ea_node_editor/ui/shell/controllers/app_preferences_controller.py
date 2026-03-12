@@ -4,7 +4,7 @@ import copy
 import json
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.persistence.utils import merge_defaults, write_json_atomic
 from ea_node_editor.settings import (
@@ -14,6 +14,9 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     app_preferences_path,
 )
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.window import ShellWindow
 
 _ALLOWED_THEME_IDS = frozenset({"stitch_dark", "stitch_light"})
 
@@ -80,9 +83,9 @@ class AppPreferencesStore:
     def __init__(
         self,
         *,
-        path_provider: Callable[[], Path] = app_preferences_path,
+        path_provider: Callable[[], Path] | None = None,
     ) -> None:
-        self._path_provider = path_provider
+        self._path_provider = path_provider or app_preferences_path
 
     def load_document(self) -> dict[str, Any]:
         path = self._path_provider()
@@ -113,22 +116,38 @@ class AppPreferencesController:
         self._document = self._store.load_document()
         return copy.deepcopy(self._document)
 
+    def load_into_host(self, host: ShellWindow) -> dict[str, Any]:
+        self._document = self._store.load_document()
+        return self.apply_graphics_settings_to_host(host)
+
     def document(self) -> dict[str, Any]:
         return copy.deepcopy(self._ensure_document())
 
     def graphics_settings(self) -> dict[str, Any]:
         return copy.deepcopy(self._ensure_document()["graphics"])
 
-    def set_graphics_settings(self, graphics: Any) -> dict[str, Any]:
+    def apply_graphics_settings_to_host(
+        self,
+        host: ShellWindow,
+        graphics: Any | None = None,
+    ) -> dict[str, Any]:
+        resolved = self.graphics_settings() if graphics is None else normalize_graphics_settings(graphics)
+        host.apply_graphics_preferences(resolved)
+        return copy.deepcopy(resolved)
+
+    def set_graphics_settings(self, graphics: Any, *, host: ShellWindow | None = None) -> dict[str, Any]:
         document = self._ensure_document()
         document["graphics"] = normalize_graphics_settings(graphics)
         self.persist()
-        return self.graphics_settings()
+        resolved = self.graphics_settings()
+        if host is not None:
+            host.apply_graphics_preferences(resolved)
+        return resolved
 
-    def update_graphics_settings(self, updates: Any) -> dict[str, Any]:
+    def update_graphics_settings(self, updates: Any, *, host: ShellWindow | None = None) -> dict[str, Any]:
         current = self.graphics_settings()
         merged = merge_defaults(updates, current)
-        return self.set_graphics_settings(merged)
+        return self.set_graphics_settings(merged, host=host)
 
     def persist(self) -> dict[str, Any]:
         self._document = self._store.persist_document(self._ensure_document())

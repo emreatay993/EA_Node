@@ -20,7 +20,20 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
             for action in menu_actions["&Settings"].actions()
             if not action.isSeparator()
         ]
-        self.assertEqual(settings_entries, ["Workflow Settings"])
+        self.assertEqual(settings_entries, ["Workflow Settings", "Graphics Settings"])
+
+    def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
+        meta = self.window.metaObject()
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_show_grid"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_show_minimap"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_minimap_expanded"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("active_theme_id"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("snap_to_grid_enabled"), 0)
+        self.assertTrue(self.window.graphics_show_grid)
+        self.assertTrue(self.window.graphics_show_minimap)
+        self.assertTrue(self.window.graphics_minimap_expanded)
+        self.assertEqual(self.window.active_theme_id, "stitch_dark")
+        self.assertFalse(self.window.snap_to_grid_enabled)
 
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
@@ -53,6 +66,7 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
     def test_qml_invokable_slots_exist_for_shell_buttons(self) -> None:
         meta = self.window.metaObject()
         self.assertGreaterEqual(meta.indexOfMethod("show_workflow_settings_dialog()"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("show_graphics_settings_dialog()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible(bool)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_connect_ports(QString,QString,QString,QString)"), 0)
@@ -93,6 +107,12 @@ class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
             QMetaObject.invokeMethod(
                 self.window,
                 "show_workflow_settings_dialog",
+                Qt.ConnectionType.DirectConnection,
+            )
+        with patch("ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog.exec", return_value=0):
+            QMetaObject.invokeMethod(
+                self.window,
+                "show_graphics_settings_dialog",
                 Qt.ConnectionType.DirectConnection,
             )
         QMetaObject.invokeMethod(

@@ -25,12 +25,14 @@ from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.settings import (
     AUTOSAVE_INTERVAL_MS,
     autosave_project_path,
+    DEFAULT_GRAPHICS_SETTINGS,
     recent_session_path,
 )
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
 from ea_node_editor.ui.shell.controllers import (
+    AppPreferencesController,
     ProjectSessionController,
     RunController,
     WorkspaceLibraryController,
@@ -91,6 +93,7 @@ class ShellWindow(QMainWindow):
     connection_quick_insert_changed = pyqtSignal()
     graph_hint_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
+    graphics_preferences_changed = pyqtSignal()
 
     _RUN_SCOPED_EVENT_TYPES = {
         "run_started",
@@ -156,12 +159,17 @@ class ShellWindow(QMainWindow):
         self._connection_quick_insert_highlight_index = -1
         self._connection_quick_insert_context: dict[str, Any] | None = None
         self._graph_hint_message = ""
-        self._snap_to_grid_enabled = False
+        self._graphics_show_grid = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])
+        self._graphics_show_minimap = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])
+        self._graphics_minimap_expanded = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"])
+        self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
+        self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
         self.project_session_controller = ProjectSessionController(self)
         self.run_controller = RunController(self)
+        self.app_preferences_controller = AppPreferencesController()
 
         self.execution_client = ProcessExecutionClient()
         self.execution_client.subscribe(self.execution_event.emit)
@@ -169,6 +177,7 @@ class ShellWindow(QMainWindow):
 
         self._create_actions()
         self._build_menu_bar()
+        self.app_preferences_controller.load_into_host(self)
         self._wire_signals()
         self._build_qml_shell()
         self._restore_session()
@@ -499,6 +508,22 @@ class ShellWindow(QMainWindow):
     @pyqtProperty(bool, notify=graph_hint_changed)
     def graph_hint_visible(self) -> bool:
         return bool(self._graph_hint_message.strip())
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_grid(self) -> bool:
+        return bool(self._graphics_show_grid)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_minimap(self) -> bool:
+        return bool(self._graphics_show_minimap)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_minimap_expanded(self) -> bool:
+        return bool(self._graphics_minimap_expanded)
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def active_theme_id(self) -> str:
+        return str(self._active_theme_id)
 
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
@@ -850,6 +875,48 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     def clear_graph_hint(self) -> None:
         window_search_scope_state.clear_graph_hint(self)
+
+    def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
+        canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
+        interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
+        theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
+
+        changed = False
+        show_grid = bool(canvas.get("show_grid", self._graphics_show_grid))
+        show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
+        minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
+        active_theme_id = str(theme.get("theme_id", self._active_theme_id))
+
+        if self._graphics_show_grid != show_grid:
+            self._graphics_show_grid = show_grid
+            changed = True
+        if self._graphics_show_minimap != show_minimap:
+            self._graphics_show_minimap = show_minimap
+            changed = True
+        if self._graphics_minimap_expanded != minimap_expanded:
+            self._graphics_minimap_expanded = minimap_expanded
+            changed = True
+        if self._active_theme_id != active_theme_id:
+            self._active_theme_id = active_theme_id
+            changed = True
+
+        self.set_snap_to_grid_enabled(bool(interaction.get("snap_to_grid", self._snap_to_grid_enabled)))
+        if changed:
+            self.graphics_preferences_changed.emit()
+
+        return {
+            "canvas": {
+                "show_grid": bool(self._graphics_show_grid),
+                "show_minimap": bool(self._graphics_show_minimap),
+                "minimap_expanded": bool(self._graphics_minimap_expanded),
+            },
+            "interaction": {
+                "snap_to_grid": bool(self._snap_to_grid_enabled),
+            },
+            "theme": {
+                "theme_id": str(self._active_theme_id),
+            },
+        }
 
     @pyqtSlot()
     def request_open_graph_search(self) -> None:
@@ -1487,6 +1554,19 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(bool)
     def show_workflow_settings_dialog(self, _checked: bool = False) -> None:
         self.project_session_controller.show_workflow_settings_dialog()
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def show_graphics_settings_dialog(self, _checked: bool = False) -> None:
+        from ea_node_editor.ui.dialogs import GraphicsSettingsDialog
+
+        dialog = GraphicsSettingsDialog(
+            initial_settings=self.app_preferences_controller.graphics_settings(),
+            parent=self,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        self.app_preferences_controller.set_graphics_settings(dialog.values(), host=self)
 
     @pyqtSlot()
     @pyqtSlot(bool)

@@ -16,6 +16,14 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
 )
 
 
+class _RecordingHost:
+    def __init__(self) -> None:
+        self.applied_graphics: list[dict[str, object]] = []
+
+    def apply_graphics_preferences(self, graphics: dict[str, object]) -> None:
+        self.applied_graphics.append(graphics)
+
+
 class GraphicsSettingsPreferencesTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temp_dir = tempfile.TemporaryDirectory()
@@ -157,6 +165,38 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
+
+    def test_load_into_host_applies_loaded_graphics_settings(self) -> None:
+        host = _RecordingHost()
+
+        graphics = self._controller.load_into_host(host)
+
+        self.assertEqual(graphics, DEFAULT_GRAPHICS_SETTINGS)
+        self.assertEqual(host.applied_graphics, [DEFAULT_GRAPHICS_SETTINGS])
+
+    def test_set_graphics_settings_can_apply_persisted_values_to_host(self) -> None:
+        host = _RecordingHost()
+
+        graphics = self._controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": False,
+                    "show_minimap": False,
+                    "minimap_expanded": False,
+                },
+                "interaction": {
+                    "snap_to_grid": True,
+                },
+                "theme": {
+                    "theme_id": "stitch_light",
+                },
+            },
+            host=host,
+        )
+
+        self.assertEqual(host.applied_graphics, [graphics])
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["graphics"], graphics)
 
 
 if __name__ == "__main__":
