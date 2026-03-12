@@ -289,5 +289,5 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     workspace_menu.addAction(window.action_next_workspace)
     workspace_menu.addAction(window.action_prev_workspace)
 
-    tools_menu = menu_bar.addMenu("&Tools")
-    tools_menu.addAction(window.action_workflow_settings)
+    settings_menu = menu_bar.addMenu("&Settings")
+    settings_menu.addAction(window.action_workflow_settings)

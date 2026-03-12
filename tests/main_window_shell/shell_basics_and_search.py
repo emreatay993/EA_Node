@@ -5,6 +5,23 @@ from tests.main_window_shell.base import _action_shortcuts
 
 
 class MainWindowShellBasicsAndSearchTests(MainWindowShellTestBase):
+    def test_menu_bar_exposes_settings_menu_for_workflow_preferences(self) -> None:
+        menu_actions = {
+            action.text(): action.menu()
+            for action in self.window.menuBar().actions()
+            if action.menu() is not None
+        }
+
+        self.assertIn("&Settings", menu_actions)
+        self.assertNotIn("&Tools", menu_actions)
+
+        settings_entries = [
+            action.text()
+            for action in menu_actions["&Settings"].actions()
+            if not action.isSeparator()
+        ]
+        self.assertEqual(settings_entries, ["Workflow Settings"])
+
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)
         self.assertIs(self.window.centralWidget(), self.window.quick_widget)
