@@ -2,20 +2,20 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
 
-Rectangle {
+ShellCollapsibleSidePane {
     id: root
     objectName: "libraryPane"
     property var mainWindowRef
     property var graphCanvasRef
     property var popupHostItem
     property var collapsedCategories: ({})
-    readonly property var themePalette: themeBridge.palette
     signal workflowContextRequested(string workflowId, string workflowScope, real positionX, real positionY)
 
-    Layout.preferredWidth: 260
-    Layout.fillHeight: true
-    color: themePalette.panel_alt_bg
-    border.color: themePalette.border
+    paneTitle: "NODE LIBRARY"
+    side: "left"
+    expandedWidth: 260
+    collapseButtonTooltip: "Collapse node library"
+    expandHandleTooltip: "Expand node library"
 
     function isCategoryCollapsed(category) {
         var normalizedCategory = String(category || "")
@@ -64,18 +64,7 @@ Rectangle {
         ensureCollapsedDefaults(libraryListView.model)
     }
 
-    ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 8
-        spacing: 8
-
-        Text {
-            text: "NODE LIBRARY"
-            color: root.themePalette.group_title_fg
-            font.pixelSize: 12
-            font.bold: true
-        }
-
+    contentData: [
         TextField {
             id: searchField
             Layout.fillWidth: true
@@ -88,7 +77,7 @@ Rectangle {
                 radius: 3
             }
             onTextChanged: root.mainWindowRef.set_library_query(text)
-        }
+        },
 
         ListView {
             id: libraryListView
@@ -264,7 +253,7 @@ Rectangle {
                 }
             }
         }
-    }
+    ]
 
     Connections {
         target: root.mainWindowRef
