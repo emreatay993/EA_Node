@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import dataclass
 import math
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -36,6 +36,12 @@ from ea_node_editor.graph.transforms import (
     group_selection_into_subnode,
     insert_graph_fragment,
     ungroup_subnode,
+)
+from ea_node_editor.nodes.builtins.subnode import (
+    SUBNODE_INPUT_TYPE_ID,
+    SUBNODE_OUTPUT_TYPE_ID,
+    SUBNODE_PIN_LABEL_PROPERTY,
+    SUBNODE_TYPE_ID,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -536,7 +542,79 @@ class GraphSceneBridge(QObject):
 
     @pyqtSlot(str, float, float, result=str)
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
+        return self._create_node_from_type(
+            type_id=type_id,
+            x=float(x),
+            y=float(y),
+            parent_node_id=scope_parent_id(self._scope_path),
+            select_node=True,
+        )
+
+    def add_subnode_shell_pin(self, shell_node_id: str, pin_type_id: str) -> str:
+        if self._model is None or self._registry is None:
+            return ""
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return ""
+        shell_node = workspace.nodes.get(str(shell_node_id).strip())
+        if shell_node is None or shell_node.type_id != SUBNODE_TYPE_ID:
+            return ""
+
+        normalized_pin_type = str(pin_type_id).strip()
+        if normalized_pin_type not in {SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID}:
+            return ""
+
+        direct_child_pins = [
+            candidate
+            for candidate in workspace.nodes.values()
+            if candidate.parent_node_id == shell_node.node_id
+            and candidate.type_id in {SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID}
+        ]
+        same_direction_pins = [
+            candidate for candidate in direct_child_pins if candidate.type_id == normalized_pin_type
+        ]
+        base_label = "Input" if normalized_pin_type == SUBNODE_INPUT_TYPE_ID else "Output"
+        existing_labels = {
+            str(candidate.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip().lower()
+            for candidate in same_direction_pins
+        }
+        pin_label = base_label
+        suffix = 2
+        while pin_label.strip().lower() in existing_labels:
+            pin_label = f"{base_label} {suffix}"
+            suffix += 1
+
+        y_positions = [float(candidate.y) for candidate in same_direction_pins]
+        pin_y = (max(y_positions) + 90.0) if y_positions else (float(shell_node.y) + 60.0)
+        pin_x = float(shell_node.x) + (40.0 if normalized_pin_type == SUBNODE_INPUT_TYPE_ID else 360.0)
+
+        def _configure_pin(node: NodeInstance, _workspace: WorkspaceData, _registry: NodeRegistry) -> None:
+            node.properties[SUBNODE_PIN_LABEL_PROPERTY] = pin_label
+            shell_node.exposed_ports[node.node_id] = True
+
+        return self._create_node_from_type(
+            type_id=normalized_pin_type,
+            x=pin_x,
+            y=pin_y,
+            parent_node_id=shell_node.node_id,
+            select_node=False,
+            configure_node=_configure_pin,
+        )
+
+    def _create_node_from_type(
+        self,
+        *,
+        type_id: str,
+        x: float,
+        y: float,
+        parent_node_id: str | None,
+        select_node: bool,
+        configure_node: Callable[[NodeInstance, WorkspaceData, NodeRegistry], None] | None = None,
+    ) -> str:
         model, registry = self._require_bound()
+        workspace = model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return ""
         history_before = self._capture_history_snapshot()
         spec = registry.get_spec(type_id)
         node = model.add_node(
@@ -548,10 +626,14 @@ class GraphSceneBridge(QObject):
             properties=registry.default_properties(type_id),
             exposed_ports={port.key: port.exposed for port in spec.ports},
         )
-        node.parent_node_id = scope_parent_id(self._scope_path)
-        self._selected_node_ids = [node.node_id]
+        node.parent_node_id = parent_node_id
+        if configure_node is not None:
+            configure_node(node, workspace, registry)
+        if select_node:
+            self._selected_node_ids = [node.node_id]
         self._rebuild_models()
-        self.node_selected.emit(node.node_id)
+        if select_node:
+            self.node_selected.emit(node.node_id)
         self._record_history(ACTION_ADD_NODE, history_before)
         return node.node_id
 

@@ -311,6 +311,9 @@ class WorkspaceLibraryController:
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
         self._edit_ops.set_selected_node_collapsed(collapsed)
 
+    def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
+        return self._edit_ops.request_add_selected_subnode_pin(direction)
+
     def switch_workspace_by_offset(self, offset: int) -> None:
         self._view_nav_ops.switch_workspace_by_offset(offset)
 

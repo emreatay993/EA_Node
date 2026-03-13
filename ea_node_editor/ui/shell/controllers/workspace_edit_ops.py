@@ -7,6 +7,8 @@ from PyQt6.QtCore import QMimeData
 from ea_node_editor.graph.effective_ports import is_subnode_pin_type
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.builtins.subnode import (
+    SUBNODE_INPUT_TYPE_ID,
+    SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_PIN_KIND_PROPERTY,
     SUBNODE_PIN_LABEL_PROPERTY,
@@ -98,6 +100,29 @@ class WorkspaceEditOps:
         if not spec.collapsible:
             return
         self._controller.on_node_collapse_changed(node.node_id, bool(collapsed))
+
+    def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
+        selected = self._controller.selected_node_context()
+        if selected is None:
+            return ControllerResult(False, "No node selected.", payload="")
+        node, _spec = selected
+        if node.type_id != SUBNODE_TYPE_ID:
+            return ControllerResult(False, "Selected node is not a subnode shell.", payload="")
+
+        normalized_direction = str(direction).strip().lower()
+        if normalized_direction == "in":
+            pin_type_id = SUBNODE_INPUT_TYPE_ID
+        elif normalized_direction == "out":
+            pin_type_id = SUBNODE_OUTPUT_TYPE_ID
+        else:
+            return ControllerResult(False, "Unknown subnode port direction.", payload="")
+
+        created_node_id = self._host.scene.add_subnode_shell_pin(node.node_id, pin_type_id)
+        if not created_node_id:
+            return ControllerResult(False, "Subnode port could not be created.", payload="")
+        self._host.selected_node_changed.emit()
+        self._controller.refresh_workspace_tabs()
+        return ControllerResult(True, payload=created_node_id)
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         self._host.scene.set_node_property(node_id, key, value)

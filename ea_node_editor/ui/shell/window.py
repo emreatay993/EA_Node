@@ -1293,6 +1293,10 @@ class ShellWindow(QMainWindow):
     def request_remove_node(self, node_id: str) -> bool:
         return bool(self.workspace_library_controller.request_remove_node(node_id).payload)
 
+    @pyqtSlot(str, result=str)
+    def request_add_selected_subnode_pin(self, direction: str) -> str:
+        return str(self.workspace_library_controller.request_add_selected_subnode_pin(direction).payload or "")
+
     @pyqtSlot(str, result=bool)
     def request_rename_node(self, node_id: str) -> bool:
         return bool(self.workspace_library_controller.request_rename_node(node_id).payload)
