@@ -3,13 +3,15 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from ea_node_editor.ui.graph_theme import DEFAULT_GRAPH_THEME_ID
+
 APP_NAME = "EA Node Editor"
 APP_ID = "com.ea.node_editor"
 PROJECT_EXTENSION = ".sfe"
 SCHEMA_VERSION = 3
 AUTOSAVE_INTERVAL_MS = 30_000
 APP_PREFERENCES_KIND = "ea-node-editor/app-preferences"
-APP_PREFERENCES_VERSION = 1
+APP_PREFERENCES_VERSION = 2
 
 DEFAULT_WORKFLOW_SETTINGS = {
     "general": {
@@ -53,6 +55,11 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "theme": {
         "theme_id": "stitch_dark",
+    },
+    "graph_theme": {
+        "follow_shell_theme": True,
+        "selected_theme_id": DEFAULT_GRAPH_THEME_ID,
+        "custom_themes": [],
     },
 }
 
