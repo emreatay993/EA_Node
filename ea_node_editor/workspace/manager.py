@@ -96,6 +96,12 @@ class WorkspaceManager:
     def set_active_view(self, workspace_id: str, view_id: str) -> None:
         self._model.set_active_view(workspace_id, view_id)
 
+    def close_view(self, workspace_id: str, view_id: str) -> None:
+        self._model.close_view(workspace_id, view_id)
+
+    def rename_view(self, workspace_id: str, view_id: str, new_name: str) -> None:
+        self._model.rename_view(workspace_id, view_id, new_name)
+
     def move_workspace(self, from_index: int, to_index: int) -> None:
         self._normalize_order()
         order = self._model.project.metadata["workspace_order"]

@@ -1254,6 +1254,12 @@ class ShellWindow(QMainWindow):
         result = self.workspace_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
         return bool(result.payload)
 
+    @pyqtSlot(str, result=bool)
+    @pyqtSlot(str, str, result=bool)
+    def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
+        result = self.workspace_library_controller.rename_custom_workflow(workflow_id, workflow_scope)
+        return bool(result.payload)
+
     @pyqtSlot(str, str, result=bool)
     def request_set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> bool:
         result = self.workspace_library_controller.set_custom_workflow_scope(workflow_id, workflow_scope)
@@ -1350,6 +1356,10 @@ class ShellWindow(QMainWindow):
     def request_rename_workspace(self) -> None:
         self._rename_active_workspace()
 
+    @pyqtSlot(str, result=bool)
+    def request_rename_workspace_by_id(self, workspace_id: str) -> bool:
+        return bool(self.workspace_library_controller.rename_workspace_by_id(workspace_id))
+
     @pyqtSlot()
     def request_duplicate_workspace(self) -> None:
         self._duplicate_active_workspace()
@@ -1357,6 +1367,18 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     def request_close_workspace(self) -> None:
         self._close_active_workspace()
+
+    @pyqtSlot(str, result=bool)
+    def request_close_workspace_by_id(self, workspace_id: str) -> bool:
+        return bool(self.workspace_library_controller.close_workspace_by_id(workspace_id))
+
+    @pyqtSlot(str, result=bool)
+    def request_close_view(self, view_id: str) -> bool:
+        return bool(self.workspace_library_controller.close_view(view_id))
+
+    @pyqtSlot(str, result=bool)
+    def request_rename_view(self, view_id: str) -> bool:
+        return bool(self._rename_view(view_id))
 
     @pyqtSlot(result=bool)
     def request_align_selection_left(self) -> bool:
@@ -1574,6 +1596,9 @@ class ShellWindow(QMainWindow):
 
     def _switch_view(self, view_id):
         return self.workspace_library_controller.switch_view(view_id)
+
+    def _rename_view(self, view_id):
+        return self.workspace_library_controller.rename_view(view_id)
 
     def _create_workspace(self):
         return self.workspace_library_controller.create_workspace()

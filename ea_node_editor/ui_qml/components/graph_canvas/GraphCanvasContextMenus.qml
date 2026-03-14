@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import "../shell" as ShellComponents
 
 Item {
     id: root
@@ -9,198 +10,71 @@ Item {
     anchors.fill: parent
     z: 900
 
-    Rectangle {
+    ShellComponents.ShellContextMenu {
         id: edgeContextPopup
         objectName: "graphCanvasEdgeContextPopup"
         visible: root.canvasItem ? root.canvasItem.edgeContextVisible : false
         x: root.canvasItem ? root.canvasItem.contextMenuX : 0
         y: root.canvasItem ? root.canvasItem.contextMenuY : 0
-        width: 170
-        height: 36
-        radius: 4
-        color: root.themePalette.panel_bg
-        border.width: 1
-        border.color: root.themePalette.border
-
-        Rectangle {
-            anchors.fill: parent
-            color: removeEdgeMouse.containsMouse ? root.themePalette.hover : "transparent"
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                text: "Remove Connection"
-                color: root.themePalette.panel_title_fg
-                font.pixelSize: 12
-            }
-
-            MouseArea {
-                id: removeEdgeMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                preventStealing: true
-                acceptedButtons: Qt.LeftButton
-                onPressed: {
-                    if (!root.mainWindowBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
-                        return;
-                    root.mainWindowBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId);
-                    root.canvasItem.selectedEdgeIds = root.canvasItem.selectedEdgeIds.filter(function(value) {
-                        return value !== root.canvasItem.edgeContextEdgeId;
-                    });
-                    root.canvasItem._closeContextMenus();
-                    mouse.accepted = true;
-                }
-            }
+        minimumWidth: 198
+        actions: [
+            { "actionId": "remove_edge", "text": "Remove Connection", "destructive": true }
+        ]
+        onActionTriggered: function(actionId) {
+            if (actionId !== "remove_edge" || !root.mainWindowBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
+                return
+            root.mainWindowBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId)
+            root.canvasItem.selectedEdgeIds = root.canvasItem.selectedEdgeIds.filter(function(value) {
+                return value !== root.canvasItem.edgeContextEdgeId
+            })
+            root.canvasItem._closeContextMenus()
         }
     }
 
-    Rectangle {
+    ShellComponents.ShellContextMenu {
         id: nodeContextPopup
         objectName: "graphCanvasNodeContextPopup"
         visible: root.canvasItem ? root.canvasItem.nodeContextVisible : false
         x: root.canvasItem ? root.canvasItem.contextMenuX : 0
         y: root.canvasItem ? root.canvasItem.contextMenuY : 0
-        width: 170
+        minimumWidth: 188
         property bool canEnterScope: root.canvasItem
             ? root.canvasItem._nodeCanEnterScope(root.canvasItem.nodeContextNodeId)
             : false
-        property int rowHeight: 36
-        property int rowCount: canEnterScope ? 4 : 2
-        height: rowHeight * rowCount
-        radius: 4
-        color: root.themePalette.panel_bg
-        border.width: 1
-        border.color: root.themePalette.border
-
-        Rectangle {
-            visible: nodeContextPopup.canEnterScope
-            x: 0
-            y: 0
-            width: parent.width
-            height: nodeContextPopup.rowHeight
-            color: openSubnodeMouse.containsMouse ? root.themePalette.hover : "transparent"
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                text: "Enter Subnode"
-                color: root.themePalette.panel_title_fg
-                font.pixelSize: 12
+        actions: nodeContextPopup.canEnterScope
+            ? [
+                { "actionId": "enter_subnode", "text": "Enter Subnode" },
+                { "actionId": "add_to_workflows", "text": "Add to Workflows" },
+                { "actionId": "rename_node", "text": "Rename Node" },
+                { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
+            ]
+            : [
+                { "actionId": "rename_node", "text": "Rename Node" },
+                { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
+            ]
+        onActionTriggered: function(actionId) {
+            if (!root.canvasItem)
+                return
+            if (actionId === "enter_subnode") {
+                if (!root.canvasItem.nodeContextNodeId)
+                    return
+                if (root.canvasItem.requestOpenSubnodeScope(root.canvasItem.nodeContextNodeId))
+                    root.canvasItem._closeContextMenus()
+                return
             }
-
-            MouseArea {
-                id: openSubnodeMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                preventStealing: true
-                acceptedButtons: Qt.LeftButton
-                onPressed: {
-                    if (!root.canvasItem || !root.canvasItem.nodeContextNodeId)
-                        return;
-                    if (root.canvasItem.requestOpenSubnodeScope(root.canvasItem.nodeContextNodeId))
-                        mouse.accepted = true;
-                }
+            if (!root.mainWindowBridge || !root.canvasItem.nodeContextNodeId)
+                return
+            if (actionId === "add_to_workflows") {
+                root.mainWindowBridge.request_publish_custom_workflow_from_node(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "rename_node") {
+                root.mainWindowBridge.request_rename_node(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "remove_node") {
+                root.mainWindowBridge.request_remove_node(root.canvasItem.nodeContextNodeId)
+                root.canvasItem.clearEdgeSelection()
+            } else {
+                return
             }
-        }
-
-        Rectangle {
-            visible: nodeContextPopup.canEnterScope
-            x: 0
-            y: nodeContextPopup.rowHeight
-            width: parent.width
-            height: nodeContextPopup.rowHeight
-            color: addToWorkflowsMouse.containsMouse ? root.themePalette.hover : "transparent"
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                text: "Add to Workflows"
-                color: root.themePalette.panel_title_fg
-                font.pixelSize: 12
-            }
-
-            MouseArea {
-                id: addToWorkflowsMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                preventStealing: true
-                acceptedButtons: Qt.LeftButton
-                onPressed: {
-                    if (!root.mainWindowBridge || !root.canvasItem || !root.canvasItem.nodeContextNodeId)
-                        return;
-                    root.mainWindowBridge.request_publish_custom_workflow_from_node(root.canvasItem.nodeContextNodeId);
-                    root.canvasItem._closeContextMenus();
-                    mouse.accepted = true;
-                }
-            }
-        }
-
-        Rectangle {
-            x: 0
-            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 2 : 0
-            width: parent.width
-            height: nodeContextPopup.rowHeight
-            color: renameNodeMouse.containsMouse ? root.themePalette.hover : "transparent"
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                text: "Rename Node"
-                color: root.themePalette.panel_title_fg
-                font.pixelSize: 12
-            }
-
-            MouseArea {
-                id: renameNodeMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                preventStealing: true
-                acceptedButtons: Qt.LeftButton
-                onPressed: {
-                    if (!root.mainWindowBridge || !root.canvasItem || !root.canvasItem.nodeContextNodeId)
-                        return;
-                    root.mainWindowBridge.request_rename_node(root.canvasItem.nodeContextNodeId);
-                    root.canvasItem._closeContextMenus();
-                    mouse.accepted = true;
-                }
-            }
-        }
-
-        Rectangle {
-            x: 0
-            y: nodeContextPopup.canEnterScope ? nodeContextPopup.rowHeight * 3 : nodeContextPopup.rowHeight
-            width: parent.width
-            height: nodeContextPopup.rowHeight
-            color: removeNodeMouse.containsMouse ? root.themePalette.hover : "transparent"
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                text: "Remove Node"
-                color: root.themePalette.panel_title_fg
-                font.pixelSize: 12
-            }
-
-            MouseArea {
-                id: removeNodeMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                preventStealing: true
-                acceptedButtons: Qt.LeftButton
-                onPressed: {
-                    if (!root.mainWindowBridge || !root.canvasItem || !root.canvasItem.nodeContextNodeId)
-                        return;
-                    root.mainWindowBridge.request_remove_node(root.canvasItem.nodeContextNodeId);
-                    root.canvasItem.clearEdgeSelection();
-                    root.canvasItem._closeContextMenus();
-                    mouse.accepted = true;
-                }
-            }
+            root.canvasItem._closeContextMenus()
         }
     }
 }

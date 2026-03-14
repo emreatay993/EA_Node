@@ -35,9 +35,9 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                spacing: 12
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 10
 
                 Row {
                     Layout.alignment: Qt.AlignVCenter
@@ -85,7 +85,11 @@ Rectangle {
                     titleText: "VIEWS"
                     model: root.mainWindowRef.active_view_items
                     minTabWidth: 56
-                    tabHorizontalPadding: 24
+                    tabHorizontalPadding: 20
+                    contextMenuActions: [
+                        { "actionId": "rename", "text": "Rename View" },
+                        { "actionId": "delete", "text": "Delete View", "destructive": true }
+                    ]
                     createButtonText: "New View"
                     createButtonAccentOutline: true
                     isTabActive: function(itemData) {
@@ -93,6 +97,14 @@ Rectangle {
                     }
                     onTabActivated: function(itemData) {
                         root.mainWindowRef.request_switch_view(itemData.view_id)
+                    }
+                    onContextMenuActionRequested: function(actionId, itemData) {
+                        if (actionId === "rename") {
+                            root.mainWindowRef.request_rename_view(String(itemData.view_id || ""))
+                            return
+                        }
+                        if (actionId === "delete")
+                            root.mainWindowRef.request_close_view(String(itemData.view_id || ""))
                     }
                     onCreateActivated: root.mainWindowRef.request_create_view()
                 }
@@ -117,9 +129,9 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                spacing: 10
+                anchors.leftMargin: 8
+                anchors.rightMargin: 8
+                spacing: 8
 
                 ShellLabeledTabStrip {
                     id: workspaceControlsStrip
@@ -129,13 +141,25 @@ Rectangle {
                     titleText: "WORKSPACES"
                     model: root.workspaceTabsBridgeRef.tabs
                     minTabWidth: 132
-                    tabHorizontalPadding: 28
+                    tabHorizontalPadding: 24
+                    contextMenuActions: [
+                        { "actionId": "rename", "text": "Rename Workspace" },
+                        { "actionId": "delete", "text": "Delete Workspace", "destructive": true }
+                    ]
                     createButtonText: "New Workspace"
                     isTabActive: function(itemData) {
                         return itemData.workspace_id === root.mainWindowRef.active_workspace_id
                     }
                     onTabActivated: function(itemData) {
                         root.workspaceTabsBridgeRef.activate_workspace(itemData.workspace_id)
+                    }
+                    onContextMenuActionRequested: function(actionId, itemData) {
+                        if (actionId === "rename") {
+                            root.mainWindowRef.request_rename_workspace_by_id(String(itemData.workspace_id || ""))
+                            return
+                        }
+                        if (actionId === "delete")
+                            root.mainWindowRef.request_close_workspace_by_id(String(itemData.workspace_id || ""))
                     }
                     onCreateActivated: root.mainWindowRef.request_create_workspace()
                 }

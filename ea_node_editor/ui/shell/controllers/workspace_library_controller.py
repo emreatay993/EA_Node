@@ -97,6 +97,26 @@ class WorkspaceLibraryController:
         normalized.append(copy.deepcopy(definition))
         return normalize_custom_workflow_metadata(normalized)
 
+    @staticmethod
+    def _rename_workflow_definition_by_id(
+        definitions: list[dict[str, Any]],
+        workflow_id: str,
+        new_name: str,
+    ) -> list[dict[str, Any]] | None:
+        normalized_workflow_id = str(workflow_id or "").strip()
+        normalized_name = str(new_name or "").strip()
+        if not normalized_workflow_id or not normalized_name:
+            return None
+        normalized = normalize_custom_workflow_metadata(definitions)
+        for index, existing in enumerate(normalized):
+            if str(existing.get("workflow_id", "")).strip() != normalized_workflow_id:
+                continue
+            updated = copy.deepcopy(existing)
+            updated["name"] = normalized_name
+            normalized[index] = updated
+            return normalize_custom_workflow_metadata(normalized)
+        return None
+
     def custom_workflow_library_items(self) -> list[dict[str, Any]]:
         local_items = custom_workflow_library_items(self._custom_workflow_definitions())
         for item in local_items:
@@ -220,6 +240,72 @@ class WorkspaceLibraryController:
 
         if removed_local:
             self._host.project_meta_changed.emit()
+        self._host.node_library_changed.emit()
+        return ControllerResult(True, payload=True)
+
+    def rename_custom_workflow(self, workflow_id: str, workflow_scope: str = "") -> ControllerResult[bool]:
+        from PyQt6.QtWidgets import QInputDialog
+
+        normalized_workflow_id = str(workflow_id or "").strip()
+        normalized_scope = str(workflow_scope or "").strip().lower()
+        if not normalized_workflow_id:
+            return ControllerResult(False, "No custom workflow ID provided.", payload=False)
+        if normalized_scope and normalized_scope not in {_WORKFLOW_SCOPE_LOCAL, _WORKFLOW_SCOPE_GLOBAL}:
+            return ControllerResult(False, "Custom workflow scope is invalid.", payload=False)
+
+        if normalized_scope == _WORKFLOW_SCOPE_GLOBAL:
+            current_definition = find_custom_workflow_definition(
+                self._global_custom_workflow_definitions(),
+                normalized_workflow_id,
+            )
+        else:
+            current_definition = find_custom_workflow_definition(
+                self._custom_workflow_definitions(),
+                normalized_workflow_id,
+            )
+            if current_definition is None and not normalized_scope:
+                current_definition = find_custom_workflow_definition(
+                    self._global_custom_workflow_definitions(),
+                    normalized_workflow_id,
+                )
+                if current_definition is not None:
+                    normalized_scope = _WORKFLOW_SCOPE_GLOBAL
+
+        if current_definition is None:
+            return ControllerResult(False, "Custom workflow not found.", payload=False)
+
+        current_name = str(current_definition.get("name", "")).strip()
+        name, ok = QInputDialog.getText(self._host, "Rename Workflow", "New name:", text=current_name)
+        if not ok:
+            return ControllerResult(False, payload=False)
+        normalized_name = str(name or "").strip()
+        if not normalized_name or normalized_name == current_name:
+            return ControllerResult(False, payload=False)
+
+        if normalized_scope == _WORKFLOW_SCOPE_GLOBAL:
+            updated_global = self._rename_workflow_definition_by_id(
+                self._global_custom_workflow_definitions(),
+                normalized_workflow_id,
+                normalized_name,
+            )
+            if updated_global is None:
+                return ControllerResult(False, "Global custom workflow not found.", payload=False)
+            try:
+                self._set_global_custom_workflow_definitions(updated_global)
+            except OSError as exc:
+                return ControllerResult(False, f"Could not save global custom workflows.\n{exc}", payload=False)
+            self._host.node_library_changed.emit()
+            return ControllerResult(True, payload=True)
+
+        updated_local = self._rename_workflow_definition_by_id(
+            self._custom_workflow_definitions(),
+            normalized_workflow_id,
+            normalized_name,
+        )
+        if updated_local is None:
+            return ControllerResult(False, "Project custom workflow not found.", payload=False)
+        self._set_custom_workflow_definitions(updated_local)
+        self._host.project_meta_changed.emit()
         self._host.node_library_changed.emit()
         return ControllerResult(True, payload=True)
 
@@ -398,19 +484,28 @@ class WorkspaceLibraryController:
         self.switch_workspace(workspace_id)
 
     def rename_active_workspace(self) -> None:
-        from PyQt6.QtWidgets import QInputDialog
-
         index = self._host.workspace_tabs.currentIndex()
         if index < 0:
             return
         workspace_id = self._host.workspace_tabs.tabData(index)
-        if not workspace_id:
-            return
-        workspace = self._host.model.project.workspaces[workspace_id]
+        self.rename_workspace_by_id(workspace_id)
+
+    def rename_workspace_by_id(self, workspace_id: str) -> bool:
+        from PyQt6.QtWidgets import QInputDialog
+
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if not normalized_workspace_id:
+            return False
+        workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
+        if workspace is None:
+            return False
         name, ok = QInputDialog.getText(self._host, "Rename Workspace", "New name:", text=workspace.name)
-        if ok and name.strip():
-            self._host.workspace_manager.rename_workspace(workspace_id, name.strip())
-            self.refresh_workspace_tabs()
+        normalized_name = str(name or "").strip()
+        if not ok or not normalized_name or normalized_name == workspace.name:
+            return False
+        self._host.workspace_manager.rename_workspace(normalized_workspace_id, normalized_name)
+        self.refresh_workspace_tabs()
+        return True
 
     def duplicate_active_workspace(self) -> None:
         index = self._host.workspace_tabs.currentIndex()
@@ -428,6 +523,77 @@ class WorkspaceLibraryController:
         index = self._host.workspace_tabs.currentIndex()
         if index >= 0:
             self.on_workspace_tab_close(index)
+
+    def close_workspace_by_id(self, workspace_id: str) -> bool:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if not normalized_workspace_id:
+            return False
+        target_index = -1
+        for index in range(self._host.workspace_tabs.count()):
+            if self._host.workspace_tabs.tabData(index) != normalized_workspace_id:
+                continue
+            target_index = index
+            break
+        if target_index < 0:
+            return False
+        self.on_workspace_tab_close(target_index)
+        return normalized_workspace_id not in self._host.model.project.workspaces
+
+    def close_view(self, view_id: str) -> bool:
+        from PyQt6.QtWidgets import QMessageBox
+
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        normalized_view_id = str(view_id or "").strip()
+        if workspace is None or not normalized_view_id:
+            return False
+        workspace.ensure_default_view()
+        if normalized_view_id not in workspace.views:
+            return False
+        if len(workspace.views) == 1:
+            QMessageBox.warning(self._host, "View", "Cannot close the last view.")
+            return False
+
+        active_view_closed = workspace.active_view_id == normalized_view_id
+        self._host.workspace_manager.close_view(workspace_id, normalized_view_id)
+        if active_view_closed:
+            self.restore_active_view_state()
+            self._host.scene.sync_scope_with_active_view()
+            self._host._restore_scope_camera()
+
+        stale_scope_keys = [
+            key for key in self._host._runtime_scope_camera
+            if key[0] == workspace_id and key[1] == normalized_view_id
+        ]
+        for key in stale_scope_keys:
+            del self._host._runtime_scope_camera[key]
+
+        self._host.workspace_state_changed.emit()
+        return True
+
+    def rename_view(self, view_id: str) -> bool:
+        from PyQt6.QtWidgets import QInputDialog
+
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        normalized_view_id = str(view_id or "").strip()
+        if workspace is None or not normalized_view_id:
+            return False
+        workspace.ensure_default_view()
+        view = workspace.views.get(normalized_view_id)
+        if view is None:
+            return False
+
+        name, ok = QInputDialog.getText(self._host, "Rename View", "New name:", text=view.name)
+        if not ok:
+            return False
+        normalized_name = str(name or "").strip()
+        if not normalized_name or normalized_name == view.name:
+            return False
+
+        self._host.workspace_manager.rename_view(workspace_id, normalized_view_id, normalized_name)
+        self._host.workspace_state_changed.emit()
+        return True
 
     def on_workspace_tab_changed(self, index: int) -> None:
         if index < 0:

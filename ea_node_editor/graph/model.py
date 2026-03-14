@@ -174,6 +174,29 @@ class GraphModel:
             raise KeyError(f"Unknown view: {view_id}")
         workspace.active_view_id = view_id
 
+    def close_view(self, workspace_id: str, view_id: str) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.ensure_default_view()
+        if view_id not in workspace.views:
+            return
+        if len(workspace.views) == 1:
+            raise ValueError("Cannot close the last view")
+        ordered_view_ids = list(workspace.views)
+        close_index = ordered_view_ids.index(view_id)
+        was_active = workspace.active_view_id == view_id
+        del workspace.views[view_id]
+        if not was_active:
+            return
+        remaining_view_ids = list(workspace.views)
+        next_index = min(max(close_index, 0), len(remaining_view_ids) - 1)
+        workspace.active_view_id = remaining_view_ids[next_index]
+
+    def rename_view(self, workspace_id: str, view_id: str, new_name: str) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        if view_id not in workspace.views:
+            raise KeyError(f"Unknown view: {view_id}")
+        workspace.views[view_id].name = new_name
+
     def add_node(
         self,
         workspace_id: str,
