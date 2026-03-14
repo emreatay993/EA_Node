@@ -1305,6 +1305,10 @@ class ShellWindow(QMainWindow):
     def request_rename_selected_port(self, key: str) -> bool:
         return bool(self.workspace_library_controller.request_rename_selected_port(key).payload)
 
+    @pyqtSlot(str, result=bool)
+    def request_remove_selected_port(self, key: str) -> bool:
+        return bool(self.workspace_library_controller.request_remove_selected_port(key).payload)
+
     @pyqtSlot("QVariantList", result=bool)
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
         return bool(self.workspace_library_controller.request_delete_selected_graph_items(edge_ids).payload)

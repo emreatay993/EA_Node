@@ -10,6 +10,7 @@ ShellCollapsibleSidePane {
     property string activePortDirection: "in"
     property string selectedPortKey: ""
     property string editingPortKey: ""
+    property string editingPortLabel: ""
     readonly property bool hasSelectedNode: !!root.mainWindowRef && root.mainWindowRef.has_selected_node
     readonly property bool isPinInspector: !!root.mainWindowRef && root.mainWindowRef.selected_node_is_subnode_pin
     readonly property bool showPortSection: root.hasSelectedNode && !root.isPinInspector
@@ -56,16 +57,34 @@ ShellCollapsibleSidePane {
         return false
     }
 
+    function portItemByKey(portKey) {
+        var normalizedKey = String(portKey || "")
+        if (!normalizedKey.length)
+            return null
+        var items = root.mainWindowRef ? (root.mainWindowRef.selected_node_port_items || []) : []
+        for (var index = 0; index < items.length; ++index) {
+            var item = items[index]
+            if (!item)
+                continue
+            if (String(item.key || "") === normalizedKey)
+                return item
+        }
+        return null
+    }
+
     function syncSelectedPortSelection() {
         if (!showPortSection || visiblePortItems.length === 0) {
             selectedPortKey = ""
             editingPortKey = ""
+            editingPortLabel = ""
             return
         }
         if (!hasVisiblePort(selectedPortKey))
             selectedPortKey = String(visiblePortItems[0].key || "")
-        if (editingPortKey.length > 0 && !hasVisiblePort(editingPortKey))
+        if (editingPortKey.length > 0 && !hasVisiblePort(editingPortKey)) {
             editingPortKey = ""
+            editingPortLabel = ""
+        }
     }
 
     function addSubnodePort(direction) {
@@ -79,11 +98,20 @@ ShellCollapsibleSidePane {
         selectedPortKey = String(createdPortKey)
     }
 
+    function selectPort(portKey) {
+        var normalizedKey = String(portKey || "")
+        if (!normalizedKey.length)
+            return
+        selectedPortKey = normalizedKey
+    }
+
     function beginPortLabelEdit(portKey) {
         var normalizedKey = String(portKey || "")
         if (!canManageSubnodePorts || !normalizedKey.length)
             return
-        selectedPortKey = normalizedKey
+        var item = portItemByKey(normalizedKey)
+        editingPortLabel = String(item ? (item.label || item.key || "") : normalizedKey)
+        selectPort(normalizedKey)
         editingPortKey = normalizedKey
     }
 
@@ -94,12 +122,29 @@ ShellCollapsibleSidePane {
         if (root.mainWindowRef)
             root.mainWindowRef.set_selected_port_label(normalizedKey, String(label || ""))
         editingPortKey = ""
+        editingPortLabel = ""
     }
 
     function cancelPortLabelEdit(portKey) {
         var normalizedKey = String(portKey || "")
-        if (editingPortKey === normalizedKey)
+        if (editingPortKey === normalizedKey) {
             editingPortKey = ""
+            editingPortLabel = ""
+        }
+    }
+
+    function focusInspectorBackground() {
+        if (editingPortKey.length > 0)
+            commitPortLabelEdit(editingPortKey, editingPortLabel)
+        root.forceActiveFocus()
+    }
+
+    function deleteSelectedPort() {
+        var normalizedKey = String(selectedPortKey || "")
+        if (!root.mainWindowRef || !normalizedKey.length)
+            return
+        focusInspectorBackground()
+        root.mainWindowRef.request_remove_selected_port(normalizedKey)
     }
 
     onVisiblePortItemsChanged: syncSelectedPortSelection()
@@ -518,6 +563,12 @@ ShellCollapsibleSidePane {
             Layout.fillHeight: true
             color: "transparent"
 
+            TapHandler {
+                enabled: root.editingPortKey.length > 0
+                acceptedButtons: Qt.LeftButton
+                onTapped: root.focusInspectorBackground()
+            }
+
             ScrollView {
                 id: inspectorScroll
                 objectName: "inspectorScrollView"
@@ -526,6 +577,21 @@ ShellCollapsibleSidePane {
                 anchors.rightMargin: 2
                 clip: true
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+
+                TapHandler {
+                    enabled: root.editingPortKey.length > 0
+                    acceptedButtons: Qt.LeftButton
+                    onTapped: root.focusInspectorBackground()
+                }
+
+                background: Rectangle {
+                    color: "transparent"
+
+                    TapHandler {
+                        acceptedButtons: Qt.LeftButton
+                        onTapped: root.focusInspectorBackground()
+                    }
+                }
 
                 Column {
                     id: inspectorColumn
@@ -793,11 +859,7 @@ ShellCollapsibleSidePane {
                                 enabled: root.selectedPortKey.length > 0
                                 text: "Delete"
                                 tooltipText: "Delete the selected subnode port"
-                                onClicked: {
-                                    if (!root.mainWindowRef || !enabled)
-                                        return
-                                    root.mainWindowRef.request_remove_node(root.selectedPortKey)
-                                }
+                                onClicked: root.deleteSelectedPort()
                             }
                         }
 
@@ -874,7 +936,10 @@ ShellCollapsibleSidePane {
 
                                         InspectorCheckBox {
                                             Layout.alignment: Qt.AlignVCenter
+                                            objectName: "inspectorPortExposedToggle"
+                                            property string portKey: String(modelData.key || "")
                                             checked: !!modelData.exposed
+                                            onClicked: root.selectPort(modelData.key)
                                             onToggled: {
                                                 if (root.mainWindowRef)
                                                     root.mainWindowRef.set_selected_port_exposed(modelData.key, checked)
@@ -904,6 +969,8 @@ ShellCollapsibleSidePane {
 
                                                 TextField {
                                                     id: portLabelEditor
+                                                    objectName: "inspectorPortLabelEditor"
+                                                    property string portKey: String(modelData.key || "")
                                                     anchors.left: parent.left
                                                     anchors.right: parent.right
                                                     anchors.verticalCenter: parent.verticalCenter
@@ -927,7 +994,11 @@ ShellCollapsibleSidePane {
                                                     }
                                                     onVisibleChanged: {
                                                         if (visible)
-                                                            text = String(modelData.label || modelData.key || "")
+                                                            text = root.editingPortLabel
+                                                    }
+                                                    onTextChanged: {
+                                                        if (visible)
+                                                            root.editingPortLabel = text
                                                     }
                                                     onAccepted: root.commitPortLabelEdit(modelData.key, text)
                                                     onEditingFinished: root.commitPortLabelEdit(modelData.key, text)
@@ -987,7 +1058,7 @@ ShellCollapsibleSidePane {
                                     }
 
                                     TapHandler {
-                                        onTapped: root.selectedPortKey = String(modelData.key || "")
+                                        onTapped: root.selectPort(modelData.key)
                                     }
                                 }
                             }

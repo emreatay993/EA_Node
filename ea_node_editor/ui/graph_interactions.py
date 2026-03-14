@@ -120,6 +120,8 @@ class GraphInteractions:
         if normalized_node_id not in workspace.nodes:
             return GraphActionResult(False, "Node not found.")
         self._scene.remove_node(normalized_node_id)
+        if normalized_node_id in workspace.nodes:
+            return GraphActionResult(False, "Node could not be removed from the current scope.")
         return GraphActionResult(True)
 
     def rename_node(self, node_id: str, title: str) -> GraphActionResult:

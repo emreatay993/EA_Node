@@ -836,21 +836,27 @@ class GraphSceneBridge(QObject):
         self._rebuild_models()
         self._record_history(ACTION_REMOVE_EDGE, history_before)
 
-    def remove_node(self, node_id: str) -> None:
+    def _remove_node(self, node_id: str, *, require_visible: bool) -> bool:
         if self._model is None:
-            return
+            return False
         workspace = self._model.project.workspaces.get(self._workspace_id)
         if workspace is None or node_id not in workspace.nodes:
-            return
-        if not is_node_in_scope(workspace, node_id, self._scope_path):
-            return
+            return False
+        if require_visible and not is_node_in_scope(workspace, node_id, self._scope_path):
+            return False
         history_before = self._capture_history_snapshot()
         self._model.remove_node(self._workspace_id, node_id)
         self._selected_node_ids = [value for value in self._selected_node_ids if value != node_id]
         self._rebuild_models()
-        if not self._selected_node_ids:
-            self.node_selected.emit("")
+        self.node_selected.emit(self.selected_node_id() or "")
         self._record_history(ACTION_REMOVE_NODE, history_before)
+        return True
+
+    def remove_node(self, node_id: str) -> None:
+        self._remove_node(node_id, require_visible=True)
+
+    def remove_workspace_node(self, node_id: str) -> bool:
+        return self._remove_node(node_id, require_visible=False)
 
     @pyqtSlot(str)
     def focus_node_slot(self, node_id: str) -> None:

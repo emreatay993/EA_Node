@@ -191,6 +191,18 @@ class WorkspaceEditOps:
             return ControllerResult(False, payload=False)
         return ControllerResult(True, payload=True)
 
+    def request_remove_selected_port(self, key: str) -> ControllerResult[bool]:
+        pin_node = self._selected_shell_pin_node(key)
+        if pin_node is None:
+            return ControllerResult(False, "Subnode port not found.", payload=False)
+
+        removed = bool(self._host.scene.remove_workspace_node(pin_node.node_id))
+        if not removed:
+            return ControllerResult(False, "Subnode port could not be removed.", payload=False)
+
+        self._controller.refresh_workspace_tabs()
+        return ControllerResult(True, payload=True)
+
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         self._host.scene.set_node_property(node_id, key, value)
         workspace = self._controller.active_workspace()

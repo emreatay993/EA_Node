@@ -668,6 +668,9 @@ class WorkspaceLibraryController:
     def request_rename_selected_port(self, key: str) -> ControllerResult[bool]:
         return self._edit_ops.request_rename_selected_port(key)
 
+    def request_remove_selected_port(self, key: str) -> ControllerResult[bool]:
+        return self._edit_ops.request_remove_selected_port(key)
+
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
         return self._edit_ops.request_delete_selected_graph_items(edge_ids)
 
