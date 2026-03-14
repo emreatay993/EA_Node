@@ -29,7 +29,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: root.compactTabStripDensity ? 40 : 44
+            Layout.preferredHeight: root.compactTabStripDensity ? 34 : 44
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 
@@ -111,7 +111,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: root.compactTabStripDensity ? 42 : 48
+            Layout.preferredHeight: root.compactTabStripDensity ? 36 : 48
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 

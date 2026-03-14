@@ -12,6 +12,7 @@ ToolButton {
     property int iconBarLong: Math.max(8, control.iconCircleSize - 8)
     property int iconBarShort: 2
     property int cornerRadius: 9
+    property int contentSpacing: 8
 
     implicitHeight: control.buttonHeight
     implicitWidth: Math.max(108, contentRow.implicitWidth + 20)
@@ -29,7 +30,7 @@ ToolButton {
         Row {
             id: contentRow
             anchors.centerIn: parent
-            spacing: 8
+            spacing: control.contentSpacing
 
             Rectangle {
                 width: control.iconCircleSize

@@ -15,18 +15,18 @@ RowLayout {
     property bool createButtonAccentOutline: false
     readonly property var themePalette: themeBridge.palette
     readonly property bool compactDensity: String(root.densityPreset).toLowerCase() === "compact"
-    readonly property int titleFontSize: root.compactDensity ? 9 : 10
-    readonly property real titleLetterSpacing: root.compactDensity ? 1.0 : 1.1
-    readonly property int cardVerticalPadding: root.compactDensity ? 3 : 5
-    readonly property int cardHorizontalPadding: root.compactDensity ? 7 : 8
-    readonly property int cardRadius: root.compactDensity ? 10 : 12
-    readonly property int cardSpacing: root.compactDensity ? 5 : 6
-    readonly property int tabHeight: root.compactDensity ? 26 : 28
-    readonly property int tabRadius: root.compactDensity ? 8 : 9
-    readonly property int tabFontSize: root.compactDensity ? 11 : 12
-    readonly property int createButtonHeight: root.compactDensity ? 28 : 30
-    readonly property int createButtonFontSize: root.compactDensity ? 10 : 11
-    readonly property int createButtonIconSize: root.compactDensity ? 16 : 18
+    readonly property int titleFontSize: root.compactDensity ? 8 : 10
+    readonly property real titleLetterSpacing: root.compactDensity ? 0.9 : 1.1
+    readonly property int cardVerticalPadding: root.compactDensity ? 1 : 5
+    readonly property int cardHorizontalPadding: root.compactDensity ? 6 : 8
+    readonly property int cardRadius: root.compactDensity ? 9 : 12
+    readonly property int cardSpacing: root.compactDensity ? 4 : 6
+    readonly property int tabHeight: root.compactDensity ? 22 : 28
+    readonly property int tabRadius: root.compactDensity ? 7 : 9
+    readonly property int tabFontSize: root.compactDensity ? 10 : 12
+    readonly property int createButtonHeight: root.compactDensity ? 24 : 30
+    readonly property int createButtonFontSize: root.compactDensity ? 9 : 11
+    readonly property int createButtonIconSize: root.compactDensity ? 14 : 18
 
     signal tabActivated(var itemData)
     signal createActivated()
@@ -116,6 +116,7 @@ RowLayout {
                 buttonHeight: root.createButtonHeight
                 labelFontPixelSize: root.createButtonFontSize
                 iconCircleSize: root.createButtonIconSize
+                contentSpacing: root.compactDensity ? 6 : 8
                 cornerRadius: root.tabRadius
                 onClicked: root.createActivated()
             }

@@ -97,7 +97,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             }
         )
         try:
-            self.assertEqual(dialog.section_list.count(), 3)
+            self.assertEqual(dialog.section_list.count(), 4)
             self.assertEqual(dialog.theme_combo.count(), 2)
             self.assertEqual(dialog.graph_theme_combo.count(), len(graph_theme_choices()))
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())

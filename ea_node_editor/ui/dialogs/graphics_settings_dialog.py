@@ -38,6 +38,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         ("canvas", "Canvas"),
         ("interaction", "Interaction"),
         ("theme", "Theme"),
+        ("layout", "Layout"),
     ]
 
     def __init__(
@@ -69,6 +70,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.add_section_page(self._build_canvas_page())
         self.add_section_page(self._build_interaction_page())
         self.add_section_page(self._build_theme_page())
+        self.add_section_page(self._build_layout_page())
 
     @staticmethod
     def _make_section_card(parent: QWidget) -> tuple[QWidget, QVBoxLayout]:
@@ -253,19 +255,28 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         graph_lay.addWidget(self._graph_theme_preview)
         outer.addWidget(graph_card)
 
+        self._sync_graph_theme_combo_enabled()
+
+        outer.addStretch(1)
+        return page
+
+    def _build_layout_page(self) -> QWidget:
+        page = QWidget(self)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(4, 4, 4, 4)
+        outer.setSpacing(12)
+
         outer.addWidget(self._make_section_title("Shell Layout", page))
-        layout_card, layout_lay = self._make_section_card(page)
-        layout_form = QFormLayout()
-        layout_form.setContentsMargins(0, 0, 0, 0)
-        layout_form.setVerticalSpacing(8)
-        self.tab_strip_density_combo = QComboBox(layout_card)
+        card, card_lay = self._make_section_card(page)
+        form = QFormLayout()
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setVerticalSpacing(8)
+        self.tab_strip_density_combo = QComboBox(card)
         for density_id, label in TAB_STRIP_DENSITY_CHOICES:
             self.tab_strip_density_combo.addItem(label, density_id)
-        layout_form.addRow("Tab strip density", self.tab_strip_density_combo)
-        layout_lay.addLayout(layout_form)
-        outer.addWidget(layout_card)
-
-        self._sync_graph_theme_combo_enabled()
+        form.addRow("Tab strip density", self.tab_strip_density_combo)
+        card_lay.addLayout(form)
+        outer.addWidget(card)
 
         outer.addStretch(1)
         return page
