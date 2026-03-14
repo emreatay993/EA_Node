@@ -58,6 +58,10 @@ GRAPH_THEME_REGISTRY: dict[str, GraphThemeDefinition] = {
 }
 
 
+def graph_theme_choices() -> tuple[tuple[str, str], ...]:
+    return tuple((theme.theme_id, theme.label) for theme in GRAPH_THEME_REGISTRY.values())
+
+
 def is_known_graph_theme_id(theme_id: object) -> bool:
     return str(theme_id).strip() in GRAPH_THEME_REGISTRY
 
@@ -82,6 +86,7 @@ __all__ = [
     "SHELL_THEME_TO_GRAPH_THEME",
     "GraphThemeDefinition",
     "default_graph_theme_id_for_shell_theme",
+    "graph_theme_choices",
     "is_known_graph_theme_id",
     "resolve_graph_theme",
     "resolve_graph_theme_id",

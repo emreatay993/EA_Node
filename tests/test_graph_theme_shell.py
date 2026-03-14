@@ -10,9 +10,10 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES, DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.graph_theme import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_STITCH_DARK_EDGE_TOKENS_V1,
@@ -138,6 +139,29 @@ class GraphThemeShellTests(unittest.TestCase):
         self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_dark")
         self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_DARK_NODE_TOKENS_V1.card_bg)
         self.assertEqual(self.app.styleSheet(), build_theme_stylesheet("stitch_light"))
+
+    def test_graphics_settings_dialog_persists_and_applies_explicit_graph_theme(self) -> None:
+        updated_graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+        updated_graphics["theme"]["theme_id"] = "stitch_dark"
+        updated_graphics["graph_theme"] = {
+            "follow_shell_theme": False,
+            "selected_theme_id": "graph_stitch_light",
+            "custom_themes": [],
+        }
+
+        with patch.object(GraphicsSettingsDialog, "exec", return_value=QDialog.DialogCode.Accepted), patch.object(
+            GraphicsSettingsDialog,
+            "values",
+            return_value=updated_graphics,
+        ):
+            self.window.show_graphics_settings_dialog()
+        self.app.processEvents()
+
+        self.assertEqual(self.window.theme_bridge.theme_id, "stitch_dark")
+        self.assertEqual(self.window.graph_theme_bridge.theme_id, "graph_stitch_light")
+        self.assertEqual(self.window.graph_theme_bridge.node_palette["card_bg"], GRAPH_STITCH_LIGHT_NODE_TOKENS_V1.card_bg)
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["graphics"], updated_graphics)
 
     def test_graph_scene_payloads_follow_runtime_graph_theme_changes(self) -> None:
         start_id = self.window.scene.add_node_from_type("core.start", 20.0, 20.0)

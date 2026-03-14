@@ -29,7 +29,11 @@ from ea_node_editor.settings import (
     recent_session_path,
 )
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
-from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme
+from ea_node_editor.ui.graph_theme import (
+    default_graph_theme_id_for_shell_theme,
+    graph_theme_choices,
+    resolve_graph_theme_id,
+)
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
 from ea_node_editor.ui.shell.controllers import (
@@ -922,6 +926,12 @@ class ShellWindow(QMainWindow):
         show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
         minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
         active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
+        follow_shell_theme = graph_theme.get("follow_shell_theme")
+        if not isinstance(follow_shell_theme, bool):
+            follow_shell_theme = bool(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"])
+        selected_graph_theme_id = resolve_graph_theme_id(
+            graph_theme.get("selected_theme_id", DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
+        )
         previous_graph_theme_id = self.graph_theme_bridge.theme_id
         self.graph_theme_bridge.apply_settings(
             shell_theme_id=active_theme_id,
@@ -962,6 +972,11 @@ class ShellWindow(QMainWindow):
             },
             "theme": {
                 "theme_id": str(self._active_theme_id),
+            },
+            "graph_theme": {
+                "follow_shell_theme": bool(follow_shell_theme),
+                "selected_theme_id": selected_graph_theme_id,
+                "custom_themes": [],
             },
         }
 
@@ -1662,6 +1677,7 @@ class ShellWindow(QMainWindow):
 
         dialog = GraphicsSettingsDialog(
             initial_settings=self.app_preferences_controller.graphics_settings(),
+            available_graph_themes=graph_theme_choices(),
             parent=self,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
