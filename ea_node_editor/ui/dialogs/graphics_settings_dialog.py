@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Sequence
 from typing import Any
 
 from PyQt6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
 
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
+from ea_node_editor.ui.graph_theme import graph_theme_choices, resolve_graph_theme_id
 from ea_node_editor.ui.theme import resolve_theme_id, theme_choices
 
 
@@ -17,7 +19,17 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         ("theme", "Theme"),
     ]
 
-    def __init__(self, initial_settings: dict[str, Any] | None = None, parent=None) -> None:
+    def __init__(
+        self,
+        initial_settings: dict[str, Any] | None = None,
+        parent=None,
+        *,
+        available_graph_themes: Sequence[tuple[str, str]] | None = None,
+    ) -> None:
+        graph_themes = available_graph_themes or graph_theme_choices()
+        self._available_graph_themes = tuple((str(theme_id), str(label)) for theme_id, label in graph_themes)
+        if not self._available_graph_themes:
+            self._available_graph_themes = graph_theme_choices()
         super().__init__(
             window_title="Graphics Settings",
             header_text="Configure app-wide graphics and interaction defaults.",
@@ -57,7 +69,15 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.theme_combo = QComboBox(page)
         for theme_id, label in theme_choices():
             self.theme_combo.addItem(label, theme_id)
+        self.follow_shell_theme_check = QCheckBox("Follow shell theme", page)
+        self.follow_shell_theme_check.toggled.connect(self._sync_graph_theme_combo_enabled)
+        self.graph_theme_combo = QComboBox(page)
+        for theme_id, label in self._available_graph_themes:
+            self.graph_theme_combo.addItem(label, theme_id)
         form.addRow("Theme", self.theme_combo)
+        form.addRow(self.follow_shell_theme_check)
+        form.addRow("Graph theme", self.graph_theme_combo)
+        self._sync_graph_theme_combo_enabled()
         return page
 
     @staticmethod
@@ -81,6 +101,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         if isinstance(theme, dict):
             normalized["theme"]["theme_id"] = resolve_theme_id(theme.get("theme_id"))
 
+        graph_theme = initial_settings.get("graph_theme")
+        if isinstance(graph_theme, dict):
+            follow_shell_theme = graph_theme.get("follow_shell_theme")
+            if isinstance(follow_shell_theme, bool):
+                normalized["graph_theme"]["follow_shell_theme"] = follow_shell_theme
+            normalized["graph_theme"]["selected_theme_id"] = resolve_graph_theme_id(graph_theme.get("selected_theme_id"))
+
         return normalized
 
     def set_values(self, initial_settings: dict[str, Any]) -> None:
@@ -92,9 +119,16 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         theme_id = settings["theme"]["theme_id"]
         index = self.theme_combo.findData(theme_id)
         self.theme_combo.setCurrentIndex(index if index >= 0 else 0)
+        graph_theme_settings = settings["graph_theme"]
+        graph_theme_id = graph_theme_settings["selected_theme_id"]
+        graph_index = self.graph_theme_combo.findData(graph_theme_id)
+        self.graph_theme_combo.setCurrentIndex(graph_index if graph_index >= 0 else 0)
+        self.follow_shell_theme_check.setChecked(graph_theme_settings["follow_shell_theme"])
+        self._sync_graph_theme_combo_enabled()
 
     def values(self) -> dict[str, Any]:
         theme_id = self.theme_combo.currentData()
+        graph_theme_id = self.graph_theme_combo.currentData()
         return self._normalize(
             {
                 "canvas": {
@@ -108,5 +142,13 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 "theme": {
                     "theme_id": str(theme_id) if theme_id is not None else "",
                 },
+                "graph_theme": {
+                    "follow_shell_theme": self.follow_shell_theme_check.isChecked(),
+                    "selected_theme_id": str(graph_theme_id) if graph_theme_id is not None else "",
+                    "custom_themes": [],
+                },
             }
         )
+
+    def _sync_graph_theme_combo_enabled(self, _checked: bool | None = None) -> None:
+        self.graph_theme_combo.setEnabled(not self.follow_shell_theme_check.isChecked())
