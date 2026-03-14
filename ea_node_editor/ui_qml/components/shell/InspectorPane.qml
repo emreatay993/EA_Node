@@ -830,37 +830,15 @@ ShellCollapsibleSidePane {
                         visible: root.showPortSection
                         title: "Port Management"
 
-                        Row {
-                            objectName: "inspectorPortActionRow"
+                        InspectorButton {
+                            objectName: "inspectorDeletePortButton"
                             width: parent.width
-                            spacing: 6
                             visible: root.canManageSubnodePorts
-
-                            InspectorButton {
-                                objectName: "inspectorAddInputButton"
-                                width: (parent.width - 12) / 3
-                                text: "+ Input"
-                                tooltipText: "Add an input port to the selected subnode"
-                                onClicked: root.addSubnodePort("in")
-                            }
-
-                            InspectorButton {
-                                objectName: "inspectorAddOutputButton"
-                                width: (parent.width - 12) / 3
-                                text: "+ Output"
-                                tooltipText: "Add an output port to the selected subnode"
-                                onClicked: root.addSubnodePort("out")
-                            }
-
-                            InspectorButton {
-                                objectName: "inspectorDeletePortButton"
-                                width: (parent.width - 12) / 3
-                                destructive: true
-                                enabled: root.selectedPortKey.length > 0
-                                text: "Delete"
-                                tooltipText: "Delete the selected subnode port"
-                                onClicked: root.deleteSelectedPort()
-                            }
+                            destructive: true
+                            enabled: root.selectedPortKey.length > 0
+                            text: "Delete"
+                            tooltipText: "Delete the selected subnode port"
+                            onClicked: root.deleteSelectedPort()
                         }
 
                         Rectangle {
@@ -1062,6 +1040,17 @@ ShellCollapsibleSidePane {
                                     }
                                 }
                             }
+                        }
+
+                        InspectorButton {
+                            objectName: "inspectorAddPortButton"
+                            width: parent.width
+                            visible: root.canManageSubnodePorts
+                            text: root.activePortDirection === "in" ? "+ Input" : "+ Output"
+                            tooltipText: root.activePortDirection === "in"
+                                ? "Add an input port to the selected subnode"
+                                : "Add an output port to the selected subnode"
+                            onClicked: root.addSubnodePort(root.activePortDirection)
                         }
                     }
                 }
