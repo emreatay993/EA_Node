@@ -24,6 +24,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             dialog.show_minimap_check.setChecked(False)
             dialog.minimap_expanded_check.setChecked(False)
             dialog.snap_to_grid_check.setChecked(True)
+            dialog.tab_strip_density_combo.setCurrentIndex(dialog.tab_strip_density_combo.findData("regular"))
             dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
             dialog.follow_shell_theme_check.setChecked(False)
             dialog.graph_theme_combo.setCurrentIndex(dialog.graph_theme_combo.findData("graph_stitch_light"))
@@ -33,6 +34,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["canvas"]["show_minimap"] = False
             expected["canvas"]["minimap_expanded"] = False
             expected["interaction"]["snap_to_grid"] = True
+            expected["shell"]["tab_strip_density"] = "regular"
             expected["theme"]["theme_id"] = "stitch_light"
             expected["graph_theme"]["follow_shell_theme"] = False
             expected["graph_theme"]["selected_theme_id"] = "graph_stitch_light"
@@ -81,6 +83,9 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 },
                 "interaction": {
                     "snap_to_grid": True,
+                },
+                "shell": {
+                    "tab_strip_density": "huge",
                 },
                 "theme": {
                     "theme_id": "unknown_theme",

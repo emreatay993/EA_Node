@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS, TAB_STRIP_DENSITY_CHOICES
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 from ea_node_editor.ui.graph_theme import (
     default_graph_theme_id_for_shell_theme,
@@ -253,6 +253,18 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         graph_lay.addWidget(self._graph_theme_preview)
         outer.addWidget(graph_card)
 
+        outer.addWidget(self._make_section_title("Shell Layout", page))
+        layout_card, layout_lay = self._make_section_card(page)
+        layout_form = QFormLayout()
+        layout_form.setContentsMargins(0, 0, 0, 0)
+        layout_form.setVerticalSpacing(8)
+        self.tab_strip_density_combo = QComboBox(layout_card)
+        for density_id, label in TAB_STRIP_DENSITY_CHOICES:
+            self.tab_strip_density_combo.addItem(label, density_id)
+        layout_form.addRow("Tab strip density", self.tab_strip_density_combo)
+        layout_lay.addLayout(layout_form)
+        outer.addWidget(layout_card)
+
         self._sync_graph_theme_combo_enabled()
 
         outer.addStretch(1)
@@ -279,6 +291,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.shadow_offset_slider.setValue(settings["canvas"]["shadow_offset"])
         self._sync_shadow_settings_visibility()
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
+        density_id = settings["shell"]["tab_strip_density"]
+        density_index = self.tab_strip_density_combo.findData(density_id)
+        self.tab_strip_density_combo.setCurrentIndex(density_index if density_index >= 0 else 0)
         theme_id = settings["theme"]["theme_id"]
         index = self.theme_combo.findData(theme_id)
         self.theme_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -299,6 +314,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),
+                },
+                "shell": {
+                    "tab_strip_density": str(self.tab_strip_density_combo.currentData() or ""),
                 },
                 "theme": {
                     "theme_id": str(theme_id) if theme_id is not None else "",

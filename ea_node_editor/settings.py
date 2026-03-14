@@ -44,6 +44,11 @@ DEFAULT_UI_STATE = {
     },
 }
 
+TAB_STRIP_DENSITY_CHOICES = (
+    ("compact", "Compact"),
+    ("regular", "Regular"),
+)
+
 DEFAULT_GRAPHICS_SETTINGS = {
     "canvas": {
         "show_grid": True,
@@ -56,6 +61,9 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "interaction": {
         "snap_to_grid": False,
+    },
+    "shell": {
+        "tab_strip_density": "compact",
     },
     "theme": {
         "theme_id": "stitch_dark",

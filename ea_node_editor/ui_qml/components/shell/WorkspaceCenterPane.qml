@@ -13,6 +13,10 @@ Rectangle {
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette
+    readonly property string tabStripDensityPreset: mainWindowRef
+        ? String(mainWindowRef.graphics_tab_strip_density || "compact")
+        : "compact"
+    readonly property bool compactTabStripDensity: root.tabStripDensityPreset === "compact"
 
     Layout.fillWidth: true
     Layout.fillHeight: true
@@ -25,7 +29,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 44
+            Layout.preferredHeight: root.compactTabStripDensity ? 40 : 44
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 
@@ -73,80 +77,24 @@ Rectangle {
 
                 Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    id: viewControlsCard
+                ShellLabeledTabStrip {
+                    id: viewControlsStrip
+                    objectName: "viewControlsStrip"
                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                    implicitWidth: viewControlsRow.implicitWidth + 16
-                    implicitHeight: viewControlsRow.implicitHeight + 10
-                    radius: 12
-                    color: root.themePalette.panel_alt_bg
-                    border.color: root.themePalette.border
-
-                    Row {
-                        id: viewControlsRow
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        anchors.topMargin: 5
-                        anchors.bottomMargin: 5
-                        spacing: 6
-
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "VIEWS"
-                            color: root.themePalette.muted_fg
-                            font.pixelSize: 10
-                            font.bold: true
-                            font.letterSpacing: 1.0
-                        }
-
-                        Repeater {
-                            model: root.mainWindowRef.active_view_items
-                            delegate: Rectangle {
-                                id: viewTab
-                                property bool active: !!modelData.active
-                                height: 28
-                                width: Math.max(56, viewTabLabel.implicitWidth + 24)
-                                radius: 9
-                                color: active
-                                    ? root.themePalette.tab_selected_bg
-                                    : (viewTabMouse.containsMouse
-                                        ? root.themePalette.hover
-                                        : root.themePalette.tab_bg)
-                                border.width: 1
-                                border.color: active
-                                    ? root.themePalette.accent
-                                    : (viewTabMouse.containsMouse
-                                        ? root.themePalette.input_border
-                                        : root.themePalette.border)
-
-                                Text {
-                                    id: viewTabLabel
-                                    anchors.centerIn: parent
-                                    text: modelData.label
-                                    color: active
-                                        ? root.themePalette.tab_selected_fg
-                                        : root.themePalette.tab_fg
-                                    font.pixelSize: 12
-                                    font.bold: active
-                                }
-
-                                MouseArea {
-                                    id: viewTabMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.mainWindowRef.request_switch_view(modelData.view_id)
-                                }
-                            }
-                        }
-
-                        ShellCreateButton {
-                            text: "New View"
-                            accentOutline: true
-                            onClicked: root.mainWindowRef.request_create_view()
-                        }
+                    densityPreset: root.tabStripDensityPreset
+                    titleText: "VIEWS"
+                    model: root.mainWindowRef.active_view_items
+                    minTabWidth: 56
+                    tabHorizontalPadding: 24
+                    createButtonText: "New View"
+                    createButtonAccentOutline: true
+                    isTabActive: function(itemData) {
+                        return !!itemData.active
                     }
+                    onTabActivated: function(itemData) {
+                        root.mainWindowRef.request_switch_view(itemData.view_id)
+                    }
+                    onCreateActivated: root.mainWindowRef.request_create_view()
                 }
             }
         }
@@ -163,7 +111,7 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 48
+            Layout.preferredHeight: root.compactTabStripDensity ? 42 : 48
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 
@@ -173,78 +121,26 @@ Rectangle {
                 anchors.rightMargin: 10
                 spacing: 10
 
-                Text {
+                ShellLabeledTabStrip {
+                    id: workspaceControlsStrip
+                    objectName: "workspaceControlsStrip"
                     Layout.alignment: Qt.AlignVCenter
-                    text: "WORKSPACES"
-                    color: root.themePalette.muted_fg
-                    font.pixelSize: 10
-                    font.bold: true
-                    font.letterSpacing: 1.1
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    Layout.alignment: Qt.AlignVCenter
-                    implicitHeight: 36
-                    radius: 12
-                    color: root.themePalette.panel_alt_bg
-                    border.color: root.themePalette.border
-
-                    Row {
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        anchors.topMargin: 4
-                        anchors.bottomMargin: 4
-                        spacing: 6
-
-                        Repeater {
-                            model: root.workspaceTabsBridgeRef.tabs
-                            delegate: Rectangle {
-                                id: workspaceTab
-                                property bool active: modelData.workspace_id === root.mainWindowRef.active_workspace_id
-                                height: 28
-                                width: Math.max(132, workspaceTabLabel.implicitWidth + 28)
-                                radius: 9
-                                color: active
-                                    ? root.themePalette.tab_selected_bg
-                                    : (workspaceTabMouse.containsMouse
-                                        ? root.themePalette.hover
-                                        : root.themePalette.tab_bg)
-                                border.width: 1
-                                border.color: active
-                                    ? root.themePalette.accent
-                                    : (workspaceTabMouse.containsMouse
-                                        ? root.themePalette.input_border
-                                        : root.themePalette.border)
-
-                                Text {
-                                    id: workspaceTabLabel
-                                    anchors.centerIn: parent
-                                    text: modelData.label
-                                    color: active
-                                        ? root.themePalette.tab_selected_fg
-                                        : root.themePalette.tab_fg
-                                    font.pixelSize: 12
-                                    font.bold: active
-                                }
-
-                                MouseArea {
-                                    id: workspaceTabMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.workspaceTabsBridgeRef.activate_workspace(modelData.workspace_id)
-                                }
-                            }
-                        }
-
-                        ShellCreateButton {
-                            text: "New Workspace"
-                            onClicked: root.mainWindowRef.request_create_workspace()
-                        }
+                    densityPreset: root.tabStripDensityPreset
+                    titleText: "WORKSPACES"
+                    model: root.workspaceTabsBridgeRef.tabs
+                    minTabWidth: 132
+                    tabHorizontalPadding: 28
+                    createButtonText: "New Workspace"
+                    isTabActive: function(itemData) {
+                        return itemData.workspace_id === root.mainWindowRef.active_workspace_id
                     }
+                    onTabActivated: function(itemData) {
+                        root.workspaceTabsBridgeRef.activate_workspace(itemData.workspace_id)
+                    }
+                    onCreateActivated: root.mainWindowRef.request_create_workspace()
                 }
+
+                Item { Layout.fillWidth: true }
             }
         }
 

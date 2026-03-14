@@ -12,6 +12,7 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
     DEFAULT_GRAPHICS_SETTINGS,
+    TAB_STRIP_DENSITY_CHOICES,
     app_preferences_path,
 )
 from ea_node_editor.ui.graph_theme import (
@@ -32,6 +33,7 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 _APP_PREFERENCES_MIGRATION_VERSION = 1
+_TAB_STRIP_DENSITY_VALUES = {str(choice[0]).strip().lower() for choice in TAB_STRIP_DENSITY_CHOICES}
 
 
 def default_app_preferences_document() -> dict[str, Any]:
@@ -64,6 +66,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
 
     canvas_payload = payload.get("canvas")
     interaction_payload = payload.get("interaction")
+    shell_payload = payload.get("shell")
     theme_payload = payload.get("theme")
     graph_theme_payload = payload.get("graph_theme")
 
@@ -101,6 +104,11 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
             interaction_payload.get("snap_to_grid"),
             defaults["interaction"]["snap_to_grid"],
+        )
+    if isinstance(shell_payload, Mapping):
+        normalized["shell"]["tab_strip_density"] = _normalize_tab_strip_density(
+            shell_payload.get("tab_strip_density"),
+            defaults["shell"]["tab_strip_density"],
         )
     if isinstance(theme_payload, Mapping):
         normalized["theme"]["theme_id"] = _normalize_theme_id(
@@ -374,6 +382,16 @@ def _normalize_graph_theme_id(value: Any, default: str, *, custom_themes: Any = 
     if is_known_graph_theme_id(resolved_default, custom_themes=custom_themes):
         return resolved_default
     return DEFAULT_GRAPH_THEME_ID
+
+
+def _normalize_tab_strip_density(value: Any, default: str) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _TAB_STRIP_DENSITY_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _TAB_STRIP_DENSITY_VALUES:
+        return resolved_default
+    return str(DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
 
 
 def _find_custom_theme(custom_themes: Any, theme_id: object) -> dict[str, object] | None:

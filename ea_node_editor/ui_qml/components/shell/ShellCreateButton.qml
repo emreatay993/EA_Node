@@ -6,8 +6,14 @@ ToolButton {
     readonly property var themePalette: themeBridge.palette
     property string tooltipText: text
     property bool accentOutline: false
+    property int buttonHeight: 30
+    property int labelFontPixelSize: 11
+    property int iconCircleSize: 18
+    property int iconBarLong: Math.max(8, control.iconCircleSize - 8)
+    property int iconBarShort: 2
+    property int cornerRadius: 9
 
-    implicitHeight: 30
+    implicitHeight: control.buttonHeight
     implicitWidth: Math.max(108, contentRow.implicitWidth + 20)
     padding: 0
     hoverEnabled: true
@@ -26,23 +32,23 @@ ToolButton {
             spacing: 8
 
             Rectangle {
-                width: 18
-                height: 18
-                radius: 9
+                width: control.iconCircleSize
+                height: control.iconCircleSize
+                radius: control.iconCircleSize / 2
                 color: control.themePalette.accent
 
                 Rectangle {
                     anchors.centerIn: parent
-                    width: 10
-                    height: 2
+                    width: control.iconBarLong
+                    height: control.iconBarShort
                     radius: 1
                     color: "#ffffff"
                 }
 
                 Rectangle {
                     anchors.centerIn: parent
-                    width: 2
-                    height: 10
+                    width: control.iconBarShort
+                    height: control.iconBarLong
                     radius: 1
                     color: "#ffffff"
                 }
@@ -51,7 +57,7 @@ ToolButton {
             Text {
                 text: control.text
                 color: control.themePalette.panel_title_fg
-                font.pixelSize: 11
+                font.pixelSize: control.labelFontPixelSize
                 font.bold: true
                 verticalAlignment: Text.AlignVCenter
             }
@@ -59,7 +65,7 @@ ToolButton {
     }
 
     background: Rectangle {
-        radius: 9
+        radius: control.cornerRadius
         border.width: 1
         border.color: control.down
             ? control.themePalette.accent

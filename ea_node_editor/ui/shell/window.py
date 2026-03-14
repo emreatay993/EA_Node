@@ -177,6 +177,7 @@ class ShellWindow(QMainWindow):
         self._graphics_shadow_softness = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_softness"])
         self._graphics_shadow_offset = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
         self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
+        self._graphics_tab_strip_density = str(DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
         self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self.theme_bridge = ThemeBridge(self, theme_id=self._active_theme_id)
         self.graph_theme_bridge = GraphThemeBridge(
@@ -565,6 +566,10 @@ class ShellWindow(QMainWindow):
         return int(self._graphics_shadow_offset)
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_tab_strip_density(self) -> str:
+        return str(self._graphics_tab_strip_density)
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
     def active_theme_id(self) -> str:
         return str(self._active_theme_id)
 
@@ -946,6 +951,7 @@ class ShellWindow(QMainWindow):
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
         canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
         interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
+        shell = graphics.get("shell", {}) if isinstance(graphics, dict) else {}
         theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
         graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
 
@@ -957,6 +963,7 @@ class ShellWindow(QMainWindow):
         shadow_strength = int(canvas.get("shadow_strength", self._graphics_shadow_strength))
         shadow_softness = int(canvas.get("shadow_softness", self._graphics_shadow_softness))
         shadow_offset = int(canvas.get("shadow_offset", self._graphics_shadow_offset))
+        tab_strip_density = str(shell.get("tab_strip_density", self._graphics_tab_strip_density))
         active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
         follow_shell_theme = graph_theme.get("follow_shell_theme")
         if not isinstance(follow_shell_theme, bool):
@@ -998,6 +1005,9 @@ class ShellWindow(QMainWindow):
         if self._graphics_shadow_offset != shadow_offset:
             self._graphics_shadow_offset = shadow_offset
             changed = True
+        if self._graphics_tab_strip_density != tab_strip_density:
+            self._graphics_tab_strip_density = tab_strip_density
+            changed = True
         if self._active_theme_id != active_theme_id:
             self._active_theme_id = active_theme_id
             changed = True
@@ -1024,6 +1034,9 @@ class ShellWindow(QMainWindow):
             },
             "interaction": {
                 "snap_to_grid": bool(self._snap_to_grid_enabled),
+            },
+            "shell": {
+                "tab_strip_density": str(self._graphics_tab_strip_density),
             },
             "theme": {
                 "theme_id": str(self._active_theme_id),
