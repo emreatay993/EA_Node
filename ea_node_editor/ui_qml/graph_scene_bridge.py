@@ -61,10 +61,17 @@ from ea_node_editor.ui.shell.runtime_history import (
     ACTION_TOGGLE_COLLAPSED,
     ACTION_TOGGLE_EXPOSED_PORT,
 )
-from ea_node_editor.ui_qml.edge_routing import build_edge_payload, category_accent, node_size, port_scene_pos
+from ea_node_editor.ui.graph_theme import (
+    DEFAULT_GRAPH_THEME_ID,
+    GraphThemeDefinition,
+    resolve_category_accent,
+    resolve_graph_theme,
+)
+from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size, port_scene_pos
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory, WorkspaceSnapshot
+    from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 _MISSING = object()
 _MINIMAP_EMPTY_BOUNDS = QRectF(-1600.0, -900.0, 3200.0, 1800.0)
@@ -143,6 +150,7 @@ class GraphSceneBridge(QObject):
         self._nodes_payload: list[dict[str, Any]] = []
         self._minimap_nodes_payload: list[dict[str, Any]] = []
         self._edges_payload: list[dict[str, Any]] = []
+        self._graph_theme_bridge: GraphThemeBridge | None = None
 
     @property
     def workspace_id(self) -> str:
@@ -299,6 +307,22 @@ class GraphSceneBridge(QObject):
 
     def bind_runtime_history(self, history: RuntimeGraphHistory | None) -> None:
         self._history = history
+
+    def bind_graph_theme_bridge(self, graph_theme_bridge: GraphThemeBridge | None) -> None:
+        if self._graph_theme_bridge is graph_theme_bridge:
+            return
+        if self._graph_theme_bridge is not None:
+            try:
+                self._graph_theme_bridge.changed.disconnect(self._on_graph_theme_changed)
+            except (RuntimeError, TypeError):
+                pass
+        self._graph_theme_bridge = graph_theme_bridge
+        if self._graph_theme_bridge is not None:
+            self._graph_theme_bridge.changed.connect(self._on_graph_theme_changed)
+        self._rebuild_models()
+
+    def _on_graph_theme_changed(self) -> None:
+        self._rebuild_models()
 
     def _require_bound(self) -> tuple[GraphModel, NodeRegistry]:
         if self._model is None or self._registry is None:
@@ -1543,6 +1567,7 @@ class GraphSceneBridge(QObject):
         nodes_payload: list[dict[str, Any]] = []
         minimap_nodes_payload: list[dict[str, Any]] = []
         node_specs: dict[str, NodeTypeSpec] = {}
+        graph_theme = self._active_graph_theme()
 
         for node_id in visible_node_ids:
             node = workspace.nodes[node_id]
@@ -1586,7 +1611,7 @@ class GraphSceneBridge(QObject):
                     "y": float(node.y),
                     "width": float(width),
                     "height": float(height),
-                    "accent": category_accent(spec.category),
+                    "accent": resolve_category_accent(graph_theme, spec.category),
                     "collapsed": bool(node.collapsed),
                     "selected": node.node_id in self._selected_node_ids,
                     "can_enter_scope": node.type_id == "core.subnode",
@@ -1606,6 +1631,7 @@ class GraphSceneBridge(QObject):
             )
 
         edges_payload = build_edge_payload(
+            graph_theme=graph_theme,
             workspace_edges=workspace_edges,
             workspace_nodes=workspace.nodes,
             node_specs=node_specs,
@@ -1616,6 +1642,11 @@ class GraphSceneBridge(QObject):
         self._edges_payload = edges_payload
         self.nodes_changed.emit()
         self.edges_changed.emit()
+
+    def _active_graph_theme(self) -> GraphThemeDefinition:
+        if self._graph_theme_bridge is None:
+            return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
+        return resolve_graph_theme(self._graph_theme_bridge.theme_id)
 
 
 __all__ = ["GraphSceneBridge"]
