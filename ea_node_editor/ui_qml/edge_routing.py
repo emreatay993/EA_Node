@@ -7,13 +7,14 @@ from PyQt6.QtCore import QPointF, QRectF
 
 from ea_node_editor.graph.effective_ports import (
     are_data_types_compatible,
-    find_port,
     port_data_type,
     port_direction,
+    port_kind,
     visible_ports,
 )
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
+from ea_node_editor.ui.graph_theme import GraphThemeDefinition, resolve_edge_color
 
 NODE_HEADER_HEIGHT = 24.0
 NODE_PORT_HEIGHT = 18.0
@@ -88,31 +89,6 @@ def port_scene_pos(
     if direction == "in":
         return QPointF(node.x + NODE_PORT_SIDE_MARGIN + NODE_PORT_DOT_RADIUS, y)
     return QPointF(node.x + width - NODE_PORT_SIDE_MARGIN - NODE_PORT_DOT_RADIUS, y)
-
-
-def edge_color(
-    node: NodeInstance,
-    spec: NodeTypeSpec,
-    source_port_key: str,
-    workspace_nodes: Mapping[str, NodeInstance],
-    data_type_warning: bool = False,
-) -> str:
-    port = find_port(
-        node=node,
-        spec=spec,
-        workspace_nodes=workspace_nodes,
-        port_key=source_port_key,
-    )
-    if port is not None:
-        if port.kind == "exec":
-            return "#67D487"
-        if port.kind == "completed":
-            return "#E4CE7D"
-        if port.kind == "failed":
-            return "#D94F4F"
-    if data_type_warning:
-        return "#E8A838"
-    return "#7AA8FF"
 
 
 def edge_lane_offsets(
@@ -231,23 +207,9 @@ def edge_pipe_points(
     ]
 
 
-def category_accent(category: str) -> str:
-    normalized = category.strip().lower()
-    if normalized.startswith("core"):
-        return "#2F89FF"
-    if "input" in normalized or "output" in normalized:
-        return "#22B455"
-    if "physics" in normalized:
-        return "#D88C32"
-    if "logic" in normalized:
-        return "#B35BD1"
-    if "hpc" in normalized:
-        return "#C75050"
-    return "#4AA9D6"
-
-
 def build_edge_payload(
     *,
+    graph_theme: GraphThemeDefinition | object,
     workspace_edges: list[EdgeInstance],
     workspace_nodes: dict[str, NodeInstance],
     node_specs: dict[str, NodeTypeSpec],
@@ -337,11 +299,15 @@ def build_edge_payload(
             port_key=edge.target_port_key,
         )
         dt_warning = not are_data_types_compatible(src_dt, tgt_dt)
-        color = edge_color(
-            source_node,
-            source_spec,
-            edge.source_port_key,
-            workspace_nodes,
+        source_port_kind = port_kind(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace_nodes,
+            port_key=edge.source_port_key,
+        )
+        color = resolve_edge_color(
+            graph_theme,
+            port_kind=source_port_kind,
             data_type_warning=dt_warning,
         )
         edges_payload.append(

@@ -174,6 +174,7 @@ class ShellWindow(QMainWindow):
             self,
             theme_id=default_graph_theme_id_for_shell_theme(self._active_theme_id),
         )
+        self.scene.bind_graph_theme_bridge(self.graph_theme_bridge)
         self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
