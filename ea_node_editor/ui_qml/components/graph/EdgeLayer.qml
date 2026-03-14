@@ -3,7 +3,12 @@ import "EdgeMath.js" as EdgeMath
 
 Item {
     id: root
-    readonly property var themePalette: themeBridge.palette
+    readonly property var edgePalette: typeof graphThemeBridge !== "undefined"
+        ? graphThemeBridge.edge_palette
+        : ({})
+    readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
+        ? graphThemeBridge.port_kind_palette
+        : ({})
     property var viewBridge: null
     property var sceneBridge: null
     property var edges: []
@@ -13,10 +18,11 @@ Item {
     property string previewEdgeId: ""
     property var dragConnection: null
     property bool inputEnabled: true
-    readonly property color selectedStrokeColor: themePalette.panel_title_fg
-    readonly property color previewStrokeColor: themePalette.accent
-    readonly property color validDragStrokeColor: themePalette.accent
-    readonly property color invalidDragStrokeColor: themePalette.muted_fg
+    readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
+    readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
+    readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
+    readonly property color invalidDragStrokeColor: edgePalette.invalid_drag_stroke || "#d0d5de"
+    readonly property color fallbackStrokeColor: portKindPalette.data || "#7AA8FF"
 
     signal edgeClicked(string edgeId, bool additive)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
@@ -331,7 +337,7 @@ Item {
                 }
                 ctx.strokeStyle = selected
                     ? root.selectedStrokeColor
-                    : (previewed ? root.previewStrokeColor : (edge.color || "#7AA8FF"));
+                    : (previewed ? root.previewStrokeColor : (edge.color || root.fallbackStrokeColor));
                 ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
                 ctx.stroke();
             }
@@ -392,7 +398,8 @@ Item {
     onSelectedEdgeIdsChanged: requestRedraw()
     onPreviewEdgeIdChanged: requestRedraw()
     onDragConnectionChanged: requestRedraw()
-    onThemePaletteChanged: requestRedraw()
+    onEdgePaletteChanged: requestRedraw()
+    onPortKindPaletteChanged: requestRedraw()
 
     Connections {
         target: root.viewBridge

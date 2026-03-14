@@ -14,22 +14,32 @@ Rectangle {
     property var dragSourcePort: null
     property real liveDragDx: 0
     property real liveDragDy: 0
-    readonly property var themePalette: themeBridge.palette
-    readonly property color surfaceColor: themePalette.panel_bg
-    readonly property color outlineColor: themePalette.border
-    readonly property color headerColor: themePalette.toolbar_bg
-    readonly property color headerTextColor: themePalette.panel_title_fg
-    readonly property color scopeBadgeColor: themePalette.accent_strong
-    readonly property color scopeBadgeBorderColor: themePalette.accent
-    readonly property color scopeBadgeTextColor: themePalette.tab_selected_fg
-    readonly property color inlineRowColor: themePalette.panel_alt_bg
-    readonly property color inlineRowBorderColor: themePalette.input_border
-    readonly property color inlineLabelColor: themePalette.muted_fg
-    readonly property color inlineInputTextColor: themePalette.input_fg
-    readonly property color inlineInputBackgroundColor: themePalette.input_bg
-    readonly property color inlineInputBorderColor: themePalette.input_border
-    readonly property color inlineDrivenTextColor: themePalette.group_title_fg
-    readonly property color portLabelColor: themePalette.muted_fg
+    readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
+        ? graphThemeBridge.node_palette
+        : ({})
+    readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
+        ? graphThemeBridge.port_kind_palette
+        : ({})
+    readonly property color surfaceColor: nodePalette.card_bg || "#1b1d22"
+    readonly property color outlineColor: nodePalette.card_border || "#3a3d45"
+    readonly property color selectedOutlineColor: nodePalette.card_selected_border || "#60CDFF"
+    readonly property color headerColor: nodePalette.header_bg || "#2a2b30"
+    readonly property color headerTextColor: nodePalette.header_fg || "#f0f4fb"
+    readonly property color scopeBadgeColor: nodePalette.scope_badge_bg || "#1D8CE0"
+    readonly property color scopeBadgeBorderColor: nodePalette.scope_badge_border || "#60CDFF"
+    readonly property color scopeBadgeTextColor: nodePalette.scope_badge_fg || "#f2f4f8"
+    readonly property color inlineRowColor: nodePalette.inline_row_bg || "#24262c"
+    readonly property color inlineRowBorderColor: nodePalette.inline_row_border || "#4a4f5a"
+    readonly property color inlineLabelColor: nodePalette.inline_label_fg || "#d0d5de"
+    readonly property color inlineInputTextColor: nodePalette.inline_input_fg || "#f0f2f5"
+    readonly property color inlineInputBackgroundColor: nodePalette.inline_input_bg || "#22242a"
+    readonly property color inlineInputBorderColor: nodePalette.inline_input_border || "#4a4f5a"
+    readonly property color inlineDrivenTextColor: nodePalette.inline_driven_fg || "#bdc5d3"
+    readonly property color portLabelColor: nodePalette.port_label_fg || "#d0d5de"
+    readonly property color portInteractiveFillColor: nodePalette.port_interactive_fill || "#FFDA6B"
+    readonly property color portInteractiveBorderColor: nodePalette.port_interactive_border || "#FFE48B"
+    readonly property color portInteractiveRingFillColor: nodePalette.port_interactive_ring_fill || "#44FFC857"
+    readonly property color portInteractiveRingBorderColor: nodePalette.port_interactive_ring_border || "#66FFE29A"
 
     signal nodeClicked(string nodeId, bool additive)
     signal nodeOpenRequested(string nodeId)
@@ -123,13 +133,14 @@ Rectangle {
     }
 
     function basePortColor(portKind) {
+        var palette = card.portKindPalette || {};
         if (portKind === "exec")
-            return "#67D487";
+            return palette.exec || "#67D487";
         if (portKind === "completed")
-            return "#E4CE7D";
+            return palette.completed || "#E4CE7D";
         if (portKind === "failed")
-            return "#D94F4F";
-        return "#7AA8FF";
+            return palette.failed || "#D94F4F";
+        return palette.data || "#7AA8FF";
     }
 
     function isHoveredPort(direction, portKey) {
@@ -191,7 +202,7 @@ Rectangle {
     height: card.nodeData ? card.nodeData.height : 0.0
     color: card.surfaceColor
     border.width: card.nodeData && card.nodeData.selected ? 2 : 1
-    border.color: card.nodeData && card.nodeData.selected ? card.themePalette.accent : card.outlineColor
+    border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
     radius: 6
 
     Rectangle {
@@ -366,10 +377,10 @@ Rectangle {
                         height: interactiveState ? 14 : 8
                         radius: width * 0.5
                         anchors.verticalCenter: parent.verticalCenter
-                        color: interactiveState ? "#FFDA6B" : (connectedState ? portColor : "transparent")
+                        color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
                         border.width: interactiveState ? 2 : 1
                         border.color: interactiveState
-                            ? "#FFF4CB"
+                            ? card.portInteractiveBorderColor
                             : portColor
 
                         Rectangle {
@@ -378,9 +389,9 @@ Rectangle {
                             height: inputDot.interactiveState ? 18 : 12
                             radius: width * 0.5
                             z: -1
-                            color: inputDot.interactiveState ? "#44FFC857" : "transparent"
+                            color: inputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
                             border.width: inputDot.interactiveState ? 1 : 0
-                            border.color: inputDot.interactiveState ? "#66FFE29A" : "transparent"
+                            border.color: inputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
                         }
 
                         MouseArea {
@@ -509,10 +520,10 @@ Rectangle {
                         height: interactiveState ? 14 : 8
                         radius: width * 0.5
                         anchors.verticalCenter: parent.verticalCenter
-                        color: interactiveState ? "#FFDA6B" : (connectedState ? portColor : "transparent")
+                        color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
                         border.width: interactiveState ? 2 : 1
                         border.color: interactiveState
-                            ? "#FFF4CB"
+                            ? card.portInteractiveBorderColor
                             : portColor
 
                         Rectangle {
@@ -521,9 +532,9 @@ Rectangle {
                             height: outputDot.interactiveState ? 18 : 12
                             radius: width * 0.5
                             z: -1
-                            color: outputDot.interactiveState ? "#44FFC857" : "transparent"
+                            color: outputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
                             border.width: outputDot.interactiveState ? 1 : 0
-                            border.color: outputDot.interactiveState ? "#66FFE29A" : "transparent"
+                            border.color: outputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
                         }
 
                         MouseArea {
