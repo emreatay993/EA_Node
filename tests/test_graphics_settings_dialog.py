@@ -120,12 +120,53 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         dialog = GraphicsSettingsDialog()
         try:
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
+            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_dark")
 
             dialog.follow_shell_theme_check.setChecked(False)
             self.assertTrue(dialog.graph_theme_combo.isEnabled())
+            dialog.graph_theme_combo.setCurrentIndex(dialog.graph_theme_combo.findData("graph_stitch_light"))
+            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_light")
 
             dialog.follow_shell_theme_check.setChecked(True)
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
+            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_dark")
+
+            dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
+            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_light")
+
+            dialog.follow_shell_theme_check.setChecked(False)
+            self.assertTrue(dialog.graph_theme_combo.isEnabled())
+            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_light")
+        finally:
+            dialog.close()
+
+    def test_follow_shell_preserves_previous_explicit_graph_theme_in_values(self) -> None:
+        custom_theme = copy.deepcopy(resolve_graph_theme("graph_stitch_light").as_dict())
+        custom_theme["theme_id"] = "custom_graph_theme_deadbeef"
+        custom_theme["label"] = "Ocean Wire"
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "theme": {"theme_id": "stitch_dark"},
+                "graph_theme": {
+                    "follow_shell_theme": False,
+                    "selected_theme_id": custom_theme["theme_id"],
+                    "custom_themes": [custom_theme],
+                },
+            },
+            available_graph_themes=graph_theme_choices([custom_theme]),
+        )
+        try:
+            self.assertEqual(dialog.graph_theme_combo.currentData(), custom_theme["theme_id"])
+
+            dialog.follow_shell_theme_check.setChecked(True)
+            self.assertEqual(dialog.graph_theme_combo.currentData(), "graph_stitch_dark")
+
+            values = dialog.values()
+            self.assertTrue(values["graph_theme"]["follow_shell_theme"])
+            self.assertEqual(values["graph_theme"]["selected_theme_id"], custom_theme["theme_id"])
+
+            dialog.follow_shell_theme_check.setChecked(False)
+            self.assertEqual(dialog.graph_theme_combo.currentData(), custom_theme["theme_id"])
         finally:
             dialog.close()
 

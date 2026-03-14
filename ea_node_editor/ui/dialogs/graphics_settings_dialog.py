@@ -8,7 +8,11 @@ from PyQt6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QHBoxLayout, QPus
 
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
-from ea_node_editor.ui.graph_theme import graph_theme_choices, resolve_graph_theme_id
+from ea_node_editor.ui.graph_theme import (
+    default_graph_theme_id_for_shell_theme,
+    graph_theme_choices,
+    resolve_graph_theme_id,
+)
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
     normalize_graph_theme_settings,
     normalize_graphics_settings,
@@ -36,6 +40,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         if not self._available_graph_themes:
             self._available_graph_themes = graph_theme_choices()
         self._custom_graph_themes = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["custom_themes"])
+        self._explicit_graph_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
         self._manage_graph_themes_callback = manage_graph_themes_callback
         super().__init__(
             window_title="Graphics Settings",
@@ -76,9 +81,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.theme_combo = QComboBox(page)
         for theme_id, label in theme_choices():
             self.theme_combo.addItem(label, theme_id)
+        self.theme_combo.currentIndexChanged.connect(self._on_shell_theme_changed)
         self.follow_shell_theme_check = QCheckBox("Follow shell theme", page)
-        self.follow_shell_theme_check.toggled.connect(self._sync_graph_theme_combo_enabled)
+        self.follow_shell_theme_check.toggled.connect(self._on_follow_shell_theme_toggled)
         self.graph_theme_combo = QComboBox(page)
+        self.graph_theme_combo.currentIndexChanged.connect(self._on_graph_theme_selection_changed)
         for theme_id, label in self._available_graph_themes:
             self.graph_theme_combo.addItem(label, theme_id)
         graph_theme_row = QWidget(page)
@@ -139,8 +146,28 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
     def _sync_graph_theme_combo_enabled(self, _checked: bool | None = None) -> None:
         self.graph_theme_combo.setEnabled(not self.follow_shell_theme_check.isChecked())
 
-    def _current_graph_theme_settings(self) -> dict[str, Any]:
+    def _on_follow_shell_theme_toggled(self, _checked: bool | None = None) -> None:
+        if self.follow_shell_theme_check.isChecked():
+            self._sync_graph_theme_combo_to_shell_theme()
+        else:
+            self._set_graph_theme_combo_selection(self._explicit_graph_theme_id)
+        self._sync_graph_theme_combo_enabled()
+
+    def _on_shell_theme_changed(self, _index: int) -> None:
+        if self.follow_shell_theme_check.isChecked():
+            self._sync_graph_theme_combo_to_shell_theme()
+
+    def _on_graph_theme_selection_changed(self, _index: int) -> None:
+        if self.follow_shell_theme_check.isChecked():
+            return
         graph_theme_id = self.graph_theme_combo.currentData()
+        self._explicit_graph_theme_id = resolve_graph_theme_id(
+            str(graph_theme_id) if graph_theme_id is not None else "",
+            custom_themes=self._custom_graph_themes,
+        )
+
+    def _current_graph_theme_settings(self) -> dict[str, Any]:
+        graph_theme_id = self._explicit_graph_theme_id if self.follow_shell_theme_check.isChecked() else self.graph_theme_combo.currentData()
         return normalize_graph_theme_settings(
             {
                 "follow_shell_theme": self.follow_shell_theme_check.isChecked(),
@@ -157,15 +184,18 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             normalized["selected_theme_id"],
             custom_themes=self._custom_graph_themes,
         )
+        self._explicit_graph_theme_id = selected_theme_id
         self.graph_theme_combo.blockSignals(True)
         self.graph_theme_combo.clear()
         for theme_id, label in self._available_graph_themes:
             self.graph_theme_combo.addItem(label, theme_id)
-        graph_index = self.graph_theme_combo.findData(selected_theme_id)
-        self.graph_theme_combo.setCurrentIndex(graph_index if graph_index >= 0 else 0)
         self.graph_theme_combo.blockSignals(False)
         self.follow_shell_theme_check.setChecked(normalized["follow_shell_theme"])
-        self._sync_graph_theme_combo_enabled()
+        if self.follow_shell_theme_check.isChecked():
+            self._sync_graph_theme_combo_to_shell_theme()
+        else:
+            self._set_graph_theme_combo_selection(selected_theme_id)
+            self._sync_graph_theme_combo_enabled()
 
     def _open_graph_theme_manager(self) -> None:
         if self._manage_graph_themes_callback is None:
@@ -174,3 +204,15 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         if updated_graph_theme is None:
             return
         self._apply_graph_theme_settings(updated_graph_theme)
+
+    def _sync_graph_theme_combo_to_shell_theme(self) -> None:
+        self._set_graph_theme_combo_selection(
+            default_graph_theme_id_for_shell_theme(self.theme_combo.currentData()),
+        )
+
+    def _set_graph_theme_combo_selection(self, theme_id: object) -> None:
+        resolved_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
+        index = self.graph_theme_combo.findData(resolved_theme_id)
+        self.graph_theme_combo.blockSignals(True)
+        self.graph_theme_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.graph_theme_combo.blockSignals(False)

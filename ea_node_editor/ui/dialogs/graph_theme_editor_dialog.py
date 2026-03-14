@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import copy
+import re
+from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRegularExpression, Qt
+from PyQt6.QtGui import QRegularExpressionValidator
 from PyQt6.QtWidgets import (
     QDialog,
     QFormLayout,
@@ -36,6 +39,12 @@ from ea_node_editor.ui.graph_theme import (
 )
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
 
+_FINAL_HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$")
+_INVALID_TOKEN_FIELD_STYLE = "border: 1px solid #C75050;"
+_DEFAULT_TOKEN_FIELD_STYLE = ""
+_DEFAULT_SWATCH_STYLE = "border: 1px solid #5f6b7a;"
+_INVALID_SWATCH_STYLE = "background-color: transparent; border: 1px solid #C75050;"
+
 
 class GraphThemeEditorDialog(QDialog):
     _THEME_ID_ROLE = Qt.ItemDataRole.UserRole
@@ -46,7 +55,13 @@ class GraphThemeEditorDialog(QDialog):
         ("port_kind_tokens", "Port Kind Tokens"),
     )
 
-    def __init__(self, initial_settings: Any | None = None, parent=None) -> None:
+    def __init__(
+        self,
+        initial_settings: Any | None = None,
+        parent=None,
+        *,
+        live_apply_callback: Callable[[dict[str, Any]], None] | None = None,
+    ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Graph Theme Manager")
         self.setModal(True)
@@ -55,17 +70,21 @@ class GraphThemeEditorDialog(QDialog):
         normalized = normalize_graph_theme_settings(initial_settings)
         self._follow_shell_theme = bool(normalized["follow_shell_theme"])
         self._custom_graph_themes = serialize_custom_graph_themes(normalized["custom_themes"])
-        self._selected_theme_id = resolve_graph_theme_id(
+        self._explicit_theme_id = resolve_graph_theme_id(
             normalized["selected_theme_id"],
             custom_themes=self._custom_graph_themes,
         )
+        self._preview_theme_id = self._explicit_theme_id
+        self._live_apply_callback = live_apply_callback
         self._use_selected_requested = False
         self._theme_items: dict[str, QTreeWidgetItem] = {}
         self._token_value_fields: dict[str, dict[str, QLineEdit]] = {}
         self._token_swatch_frames: dict[str, dict[str, QFrame]] = {}
+        self._suppress_token_sync = False
+        self._token_validator = QRegularExpressionValidator(QRegularExpression(r"#[0-9A-Fa-f]{0,8}"), self)
 
         self._build_ui()
-        self._rebuild_theme_tree(selected_theme_id=self._selected_theme_id)
+        self._rebuild_theme_tree(selected_theme_id=self._preview_theme_id)
 
     @property
     def use_selected_requested(self) -> bool:
@@ -76,10 +95,10 @@ class GraphThemeEditorDialog(QDialog):
 
     def graph_theme_settings(self) -> dict[str, Any]:
         custom_themes = serialize_custom_graph_themes(self._custom_graph_themes)
-        selected_theme_id = resolve_graph_theme_id(self._selected_theme_id, custom_themes=custom_themes)
+        selected_theme_id = resolve_graph_theme_id(self._explicit_theme_id, custom_themes=custom_themes)
         return normalize_graph_theme_settings(
             {
-                "follow_shell_theme": False if self._use_selected_requested else self._follow_shell_theme,
+                "follow_shell_theme": self._follow_shell_theme,
                 "selected_theme_id": selected_theme_id,
                 "custom_themes": copy.deepcopy(custom_themes),
             }
@@ -91,8 +110,9 @@ class GraphThemeEditorDialog(QDialog):
         root.setSpacing(10)
 
         header = QLabel(
-            "Manage built-in and custom graph themes. Token previews are read-only in this packet; "
-            "editing and live apply are deferred to P08.",
+            "Manage built-in and custom graph themes. Built-ins stay read-only; custom themes can edit node, edge, "
+            "category-accent, and port-kind tokens with live runtime apply when the edited theme is already the "
+            "active explicit graph theme.",
             self,
         )
         header.setWordWrap(True)
@@ -168,12 +188,15 @@ class GraphThemeEditorDialog(QDialog):
         details_form.addRow("Mode", self.theme_mode_field)
         layout.addWidget(details_group)
 
-        preview_note = QLabel(
-            "Preview only. Built-in themes are read-only, and custom token editing is intentionally deferred.",
-            panel,
-        )
-        preview_note.setWordWrap(True)
-        layout.addWidget(preview_note)
+        self.preview_note = QLabel(panel)
+        self.preview_note.setWordWrap(True)
+        layout.addWidget(self.preview_note)
+
+        self.validation_message = QLabel("Fix invalid colors before closing. Use #RRGGBB or #AARRGGBB.", panel)
+        self.validation_message.setWordWrap(True)
+        self.validation_message.setStyleSheet("color: #C75050;")
+        self.validation_message.hide()
+        layout.addWidget(self.validation_message)
 
         preview_scroll = QScrollArea(panel)
         preview_scroll.setWidgetResizable(True)
@@ -196,8 +219,15 @@ class GraphThemeEditorDialog(QDialog):
                 row_layout.setSpacing(6)
 
                 value_field = QLineEdit(row_widget)
-                value_field.setReadOnly(True)
+                value_field.setValidator(self._token_validator)
                 value_field.setObjectName(f"{section_name}_{token_name}_value")
+                value_field.textChanged.connect(
+                    lambda text, current_section=section_name, current_token=token_name: self._on_token_text_changed(
+                        current_section,
+                        current_token,
+                        text,
+                    )
+                )
                 swatch = QFrame(row_widget)
                 swatch.setFixedSize(20, 20)
                 swatch.setFrameShape(QFrame.Shape.StyledPanel)
@@ -221,7 +251,7 @@ class GraphThemeEditorDialog(QDialog):
 
     def _rebuild_theme_tree(self, *, selected_theme_id: object | None = None) -> None:
         selection = resolve_graph_theme_id(
-            selected_theme_id if selected_theme_id is not None else self._selected_theme_id,
+            selected_theme_id if selected_theme_id is not None else self._preview_theme_id,
             custom_themes=self._custom_graph_themes,
         )
 
@@ -260,7 +290,7 @@ class GraphThemeEditorDialog(QDialog):
             self._sync_preview()
             return
         self.theme_tree.setCurrentItem(item)
-        self._selected_theme_id = str(item.data(0, self._THEME_ID_ROLE) or resolved_theme_id)
+        self._preview_theme_id = str(item.data(0, self._THEME_ID_ROLE) or resolved_theme_id)
         self._sync_preview()
 
     def _on_current_item_changed(
@@ -270,28 +300,44 @@ class GraphThemeEditorDialog(QDialog):
     ) -> None:
         theme_id = self._theme_id_from_item(current)
         if theme_id is not None:
-            self._selected_theme_id = theme_id
+            self._preview_theme_id = theme_id
         self._sync_preview()
 
     def _sync_preview(self) -> None:
-        theme = resolve_graph_theme(self._selected_theme_id, custom_themes=self._custom_graph_themes)
+        theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
+        is_custom = is_custom_graph_theme_id(theme.theme_id)
+        is_active_explicit = self._is_active_explicit_custom_theme(theme.theme_id)
         self.theme_name_field.setText(theme.label)
         self.theme_id_field.setText(theme.theme_id)
         self.theme_mode_field.setText(
-            "Custom theme (preview only in P07)"
-            if is_custom_graph_theme_id(theme.theme_id)
+            "Custom theme (editable, active explicit theme)"
+            if is_active_explicit
+            else "Custom theme (editable)"
+            if is_custom
             else "Built-in theme (read-only)"
         )
+        self.preview_note.setText(
+            "Built-in themes are read-only. Duplicate a built-in theme to make an editable custom copy."
+            if not is_custom
+            else "Custom themes are editable. Live apply only runs while this theme is already the active explicit "
+            "graph theme and Follow shell theme is off."
+        )
 
-        for section_name, _section_title in self._TOKEN_SECTIONS:
-            tokens = getattr(theme, section_name).as_dict()
-            for token_name, token_value in tokens.items():
-                self._token_value_fields[section_name][token_name].setText(token_value)
-                self._token_swatch_frames[section_name][token_name].setStyleSheet(
-                    f"background-color: {token_value}; border: 1px solid #5f6b7a;"
-                )
+        self._suppress_token_sync = True
+        try:
+            for section_name, _section_title in self._TOKEN_SECTIONS:
+                tokens = getattr(theme, section_name).as_dict()
+                for token_name, token_value in tokens.items():
+                    field = self._token_value_fields[section_name][token_name]
+                    field.setReadOnly(not is_custom)
+                    field.setText(token_value)
+                    field.setStyleSheet(_DEFAULT_TOKEN_FIELD_STYLE)
+                    self._set_token_swatch(section_name, token_name, token_value)
+        finally:
+            self._suppress_token_sync = False
 
-        is_custom = is_custom_graph_theme_id(theme.theme_id)
+        self.validation_message.setVisible(False)
+
         has_selection = bool(theme.theme_id)
         self.duplicate_button.setEnabled(has_selection)
         self.use_selected_button.setEnabled(has_selection)
@@ -304,13 +350,13 @@ class GraphThemeEditorDialog(QDialog):
         self._rebuild_theme_tree(selected_theme_id=created_theme.theme_id)
 
     def _duplicate_selected_theme(self) -> None:
-        source_theme_id = self._selected_theme_id
+        source_theme_id = self._preview_theme_id
         created_theme = duplicate_graph_theme_as_custom(source_theme_id, custom_themes=self._custom_graph_themes)
         self._custom_graph_themes.append(created_theme.as_dict())
         self._rebuild_theme_tree(selected_theme_id=created_theme.theme_id)
 
     def _rename_selected_theme(self) -> None:
-        theme_id = self._selected_theme_id
+        theme_id = self._preview_theme_id
         index = _custom_theme_index(self._custom_graph_themes, theme_id)
         if index < 0:
             return
@@ -328,9 +374,10 @@ class GraphThemeEditorDialog(QDialog):
             return
         self._custom_graph_themes[index]["label"] = normalized_label
         self._rebuild_theme_tree(selected_theme_id=theme_id)
+        self._maybe_live_apply(theme_id)
 
     def _delete_selected_theme(self) -> None:
-        theme_id = self._selected_theme_id
+        theme_id = self._preview_theme_id
         index = _custom_theme_index(self._custom_graph_themes, theme_id)
         if index < 0:
             return
@@ -345,16 +392,101 @@ class GraphThemeEditorDialog(QDialog):
         if choice != QMessageBox.StandardButton.Yes:
             return
         del self._custom_graph_themes[index]
-        self._selected_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
-        self._rebuild_theme_tree(selected_theme_id=self._selected_theme_id)
+        if str(self._explicit_theme_id).strip().lower() == str(theme_id).strip().lower():
+            self._explicit_theme_id = resolve_graph_theme_id(self._explicit_theme_id, custom_themes=self._custom_graph_themes)
+        self._preview_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
+        self._rebuild_theme_tree(selected_theme_id=self._preview_theme_id)
 
     def _use_selected_theme(self) -> None:
+        if not self._validate_current_theme_before_save():
+            return
         self._use_selected_requested = True
+        self._follow_shell_theme = False
+        self._explicit_theme_id = resolve_graph_theme_id(self._preview_theme_id, custom_themes=self._custom_graph_themes)
         self.accept()
 
     def _accept_without_using_selected(self) -> None:
+        if not self._validate_current_theme_before_save():
+            return
         self._use_selected_requested = False
         self.accept()
+
+    def _validate_current_theme_before_save(self) -> bool:
+        theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
+        if not is_custom_graph_theme_id(theme.theme_id):
+            return True
+        for section_name, _section_title in self._TOKEN_SECTIONS:
+            for token_name, field in self._token_value_fields[section_name].items():
+                if _is_valid_hex_color(field.text()):
+                    continue
+                self.validation_message.setVisible(True)
+                QMessageBox.warning(
+                    self,
+                    "Invalid Graph Theme Color",
+                    "Custom theme colors must use #RRGGBB or #AARRGGBB before the theme can be saved.",
+                )
+                field.setStyleSheet(_INVALID_TOKEN_FIELD_STYLE)
+                self._token_swatch_frames[section_name][token_name].setStyleSheet(_INVALID_SWATCH_STYLE)
+                field.setFocus(Qt.FocusReason.OtherFocusReason)
+                return False
+        self.validation_message.setVisible(False)
+        return True
+
+    def _on_token_text_changed(self, section_name: str, token_name: str, text: str) -> None:
+        if self._suppress_token_sync:
+            return
+        theme_id = self._preview_theme_id
+        theme_index = _custom_theme_index(self._custom_graph_themes, theme_id)
+        if theme_index < 0:
+            return
+
+        field = self._token_value_fields[section_name][token_name]
+        swatch = self._token_swatch_frames[section_name][token_name]
+        normalized = str(text).strip()
+        if not _is_valid_hex_color(normalized):
+            field.setStyleSheet(_INVALID_TOKEN_FIELD_STYLE)
+            swatch.setStyleSheet(_INVALID_SWATCH_STYLE)
+            self._sync_validation_message()
+            return
+
+        field.setStyleSheet(_DEFAULT_TOKEN_FIELD_STYLE)
+        section_tokens = self._custom_graph_themes[theme_index].get(section_name)
+        if not isinstance(section_tokens, dict):
+            section_tokens = {}
+            self._custom_graph_themes[theme_index][section_name] = section_tokens
+        section_tokens[token_name] = normalized
+        swatch.setStyleSheet(_swatch_style(normalized))
+        self._sync_validation_message()
+        self._maybe_live_apply(theme_id)
+
+    def _maybe_live_apply(self, theme_id: object) -> None:
+        if self._live_apply_callback is None:
+            return
+        if not self._is_active_explicit_custom_theme(theme_id):
+            return
+        self._live_apply_callback(self.graph_theme_settings())
+
+    def _is_active_explicit_custom_theme(self, theme_id: object) -> bool:
+        if self._follow_shell_theme:
+            return False
+        resolved_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
+        explicit_theme_id = resolve_graph_theme_id(self._explicit_theme_id, custom_themes=self._custom_graph_themes)
+        return is_custom_graph_theme_id(resolved_theme_id) and resolved_theme_id == explicit_theme_id
+
+    def _set_token_swatch(self, section_name: str, token_name: str, token_value: str) -> None:
+        self._token_swatch_frames[section_name][token_name].setStyleSheet(_swatch_style(token_value))
+
+    def _sync_validation_message(self) -> None:
+        theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
+        if not is_custom_graph_theme_id(theme.theme_id):
+            self.validation_message.setVisible(False)
+            return
+        has_invalid_field = any(
+            not _is_valid_hex_color(field.text())
+            for fields in self._token_value_fields.values()
+            for field in fields.values()
+        )
+        self.validation_message.setVisible(has_invalid_field)
 
     def _theme_id_from_item(self, item: QTreeWidgetItem | None) -> str | None:
         if item is None:
@@ -382,6 +514,14 @@ def _section_item(label: str) -> QTreeWidgetItem:
 
 def _token_label(token_name: str) -> str:
     return str(token_name).replace("_", " ").title()
+
+
+def _is_valid_hex_color(value: object) -> bool:
+    return bool(_FINAL_HEX_COLOR.match(str(value).strip()))
+
+
+def _swatch_style(value: str) -> str:
+    return f"background-color: {value}; {_DEFAULT_SWATCH_STYLE}"
 
 
 __all__ = ["GraphThemeEditorDialog"]
