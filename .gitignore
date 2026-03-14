@@ -12,6 +12,7 @@ venv/
 .idea/
 .vscode/
 .codex/
+.claude/
 
 # Build and release artifacts
 artifacts/
