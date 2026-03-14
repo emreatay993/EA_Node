@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+import pathlib
+
 from ea_node_editor.ui.theme.registry import DEFAULT_THEME_ID, resolve_theme_tokens
 from ea_node_editor.ui.theme.tokens import ThemeTokens
 
+_ICONS_DIR = pathlib.Path(__file__).resolve().parent / "icons"
+
+
+def _icon_path(name: str) -> str:
+    """Return a forward-slash absolute path suitable for Qt stylesheet url()."""
+    return str(_ICONS_DIR / name).replace("\\", "/")
+
 
 def build_app_stylesheet(tokens: ThemeTokens) -> str:
+    # Resolve icon file paths based on the theme's icon variant
+    check_icon = _icon_path(f"check-{tokens.icon_variant}.svg")
+    chevron_icon = _icon_path(f"chevron-down-{tokens.icon_variant}.svg")
+
     return f"""
 QMainWindow {{
     background: {tokens.app_bg};
@@ -96,7 +109,84 @@ QTreeWidget {{
     selection-background-color: {tokens.accent_strong};
 }}
 QComboBox::drop-down {{
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    width: 24px;
     border-left: 1px solid {tokens.input_border};
+    background: transparent;
+}}
+QComboBox::down-arrow {{
+    image: url({chevron_icon});
+    width: 12px;
+    height: 12px;
+}}
+QCheckBox {{
+    spacing: 8px;
+    padding: 3px 0;
+    background: transparent;
+}}
+QCheckBox::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 2px solid {tokens.input_border};
+    border-radius: 4px;
+    background: {tokens.input_bg};
+}}
+QCheckBox::indicator:hover {{
+    border-color: {tokens.accent};
+    background: {tokens.hover};
+}}
+QCheckBox::indicator:checked {{
+    background: {tokens.accent_strong};
+    border-color: {tokens.accent_strong};
+    image: url({check_icon});
+}}
+QCheckBox::indicator:checked:hover {{
+    background: {tokens.accent};
+    border-color: {tokens.accent};
+    image: url({check_icon});
+}}
+QSlider {{
+    background: transparent;
+}}
+QSlider::groove:horizontal {{
+    height: 4px;
+    background: {tokens.input_border};
+    border-radius: 2px;
+}}
+QSlider::handle:horizontal {{
+    background: {tokens.accent};
+    border: none;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}}
+QSlider::handle:horizontal:hover {{
+    background: {tokens.accent_strong};
+}}
+QSlider::sub-page:horizontal {{
+    background: {tokens.accent_strong};
+    border-radius: 2px;
+}}
+QLabel {{
+    background: transparent;
+    border: none;
+}}
+QWidget[settingsCard="true"] {{
+    background: {tokens.panel_alt_bg};
+    border: 1px solid {tokens.border};
+    border-radius: 8px;
+}}
+QLabel[settingsSectionTitle="true"] {{
+    font-weight: 600;
+    font-size: 11px;
+    color: {tokens.muted_fg};
+    padding: 0 0 2px 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: transparent;
+    border: none;
 }}
 QGroupBox {{
     border: 1px solid {tokens.border};

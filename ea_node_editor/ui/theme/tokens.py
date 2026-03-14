@@ -43,6 +43,7 @@ class ThemeTokens:
     splitter_handle_hover: str
     scrollbar_handle: str
     status_hover_bg: str
+    icon_variant: str  # "light" or "dark" — selects the correct icon files
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -87,6 +88,7 @@ STITCH_DARK_V1 = ThemeTokens(
     splitter_handle_hover="#323742",
     scrollbar_handle="#4d5361",
     status_hover_bg="rgba(255, 255, 255, 0.13)",
+    icon_variant="light",
 )
 
 
@@ -129,4 +131,5 @@ STITCH_LIGHT_V1 = ThemeTokens(
     splitter_handle_hover="#abb8c8",
     scrollbar_handle="#98a6b8",
     status_hover_bg="rgba(0, 0, 0, 0.08)",
+    icon_variant="dark",
 )
