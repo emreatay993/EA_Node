@@ -14,21 +14,28 @@ from ea_node_editor.ui.graph_theme.registry import (
 _RUNTIME_GRAPH_THEME_DEFAULTS = {
     "follow_shell_theme": True,
     "selected_theme_id": DEFAULT_GRAPH_THEME_ID,
+    "custom_themes": [],
 }
 
 
 def resolve_active_graph_theme_id(*, shell_theme_id: object, graph_theme_settings: Any) -> str:
+    custom_themes = _resolve_custom_themes(graph_theme_settings)
     if _resolve_follow_shell_theme(graph_theme_settings):
         return default_graph_theme_id_for_shell_theme(shell_theme_id)
-    return resolve_graph_theme_id(_resolve_selected_theme_id(graph_theme_settings))
+    return resolve_graph_theme_id(
+        _resolve_selected_theme_id(graph_theme_settings),
+        custom_themes=custom_themes,
+    )
 
 
 def resolve_active_graph_theme(*, shell_theme_id: object, graph_theme_settings: Any) -> GraphThemeDefinition:
+    custom_themes = _resolve_custom_themes(graph_theme_settings)
     return resolve_graph_theme(
         resolve_active_graph_theme_id(
             shell_theme_id=shell_theme_id,
             graph_theme_settings=graph_theme_settings,
-        )
+        ),
+        custom_themes=custom_themes,
     )
 
 
@@ -41,7 +48,11 @@ def _resolve_follow_shell_theme(graph_theme_settings: Any) -> bool:
 
 def _resolve_selected_theme_id(graph_theme_settings: Any) -> str:
     value = _runtime_setting(graph_theme_settings, "selected_theme_id")
-    return resolve_graph_theme_id(value)
+    return str(value).strip()
+
+
+def _resolve_custom_themes(graph_theme_settings: Any) -> Any:
+    return _runtime_setting(graph_theme_settings, "custom_themes")
 
 
 def _runtime_setting(graph_theme_settings: Any, key: str) -> Any:

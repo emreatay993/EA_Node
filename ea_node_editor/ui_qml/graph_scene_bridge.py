@@ -1646,7 +1646,7 @@ class GraphSceneBridge(QObject):
     def _active_graph_theme(self) -> GraphThemeDefinition:
         if self._graph_theme_bridge is None:
             return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
-        return resolve_graph_theme(self._graph_theme_bridge.theme_id)
+        return resolve_graph_theme(self._graph_theme_bridge.theme)
 
 
 __all__ = ["GraphSceneBridge"]

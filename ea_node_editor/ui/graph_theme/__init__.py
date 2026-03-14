@@ -1,13 +1,23 @@
 from ea_node_editor.ui.graph_theme.registry import (
+    CUSTOM_GRAPH_THEME_ID_PREFIX,
     DEFAULT_GRAPH_THEME_ID,
+    DEFAULT_CUSTOM_GRAPH_THEME_LABEL,
     GRAPH_THEME_REGISTRY,
     SHELL_THEME_TO_GRAPH_THEME,
     GraphThemeDefinition,
+    create_blank_custom_graph_theme,
     default_graph_theme_id_for_shell_theme,
+    duplicate_graph_theme_as_custom,
+    graph_theme_registry,
     graph_theme_choices,
+    is_custom_graph_theme_id,
     is_known_graph_theme_id,
+    normalize_custom_graph_theme_definition,
+    normalize_custom_graph_themes,
+    normalize_graph_theme_definition,
     resolve_graph_theme,
     resolve_graph_theme_id,
+    serialize_custom_graph_themes,
 )
 from ea_node_editor.ui.graph_theme.presentation import (
     resolve_category_accent,
@@ -31,7 +41,9 @@ from ea_node_editor.ui.graph_theme.tokens import (
 )
 
 __all__ = [
+    "CUSTOM_GRAPH_THEME_ID_PREFIX",
     "DEFAULT_GRAPH_THEME_ID",
+    "DEFAULT_CUSTOM_GRAPH_THEME_LABEL",
     "GRAPH_CATEGORY_ACCENT_TOKENS_V1",
     "GRAPH_PORT_KIND_TOKENS_V1",
     "GRAPH_STITCH_DARK_EDGE_TOKENS_V1",
@@ -45,9 +57,16 @@ __all__ = [
     "GraphPortKindTokens",
     "GraphThemeDefinition",
     "SHELL_THEME_TO_GRAPH_THEME",
+    "create_blank_custom_graph_theme",
     "default_graph_theme_id_for_shell_theme",
+    "duplicate_graph_theme_as_custom",
+    "graph_theme_registry",
     "graph_theme_choices",
+    "is_custom_graph_theme_id",
     "is_known_graph_theme_id",
+    "normalize_custom_graph_theme_definition",
+    "normalize_custom_graph_themes",
+    "normalize_graph_theme_definition",
     "resolve_category_accent",
     "resolve_active_graph_theme",
     "resolve_active_graph_theme_id",
@@ -57,4 +76,5 @@ __all__ = [
     "resolve_graph_theme",
     "resolve_graph_theme_id",
     "resolve_port_kind_color",
+    "serialize_custom_graph_themes",
 ]
