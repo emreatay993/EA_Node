@@ -14,11 +14,6 @@ Rectangle {
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette
 
-    function countLabel(items, singularLabel, pluralLabel) {
-        var count = items && items.length ? items.length : 0
-        return count + " " + (count === 1 ? singularLabel : pluralLabel)
-    }
-
     Layout.fillWidth: true
     Layout.fillHeight: true
     color: themePalette.panel_bg
@@ -30,133 +25,18 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 72
+            Layout.preferredHeight: 44
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 
-            ColumnLayout {
+            RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 10
                 anchors.rightMargin: 10
-                spacing: 6
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 38
-                    spacing: 12
-
-                    ColumnLayout {
-                        spacing: 1
-
-                        Text {
-                            text: "WORKSPACE"
-                            color: root.themePalette.muted_fg
-                            font.pixelSize: 10
-                            font.bold: true
-                            font.letterSpacing: 1.1
-                        }
-
-                        Text {
-                            text: root.mainWindowRef.active_workspace_name
-                            color: root.themePalette.panel_title_fg
-                            font.pixelSize: 18
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    ColumnLayout {
-                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                        spacing: 4
-
-                        Rectangle {
-                            id: viewControlsCard
-                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                            implicitWidth: viewControlsRow.implicitWidth + 16
-                            implicitHeight: viewControlsRow.implicitHeight + 10
-                            radius: 12
-                            color: root.themePalette.panel_alt_bg
-                            border.color: root.themePalette.border
-
-                            Row {
-                                id: viewControlsRow
-                                anchors.fill: parent
-                                anchors.leftMargin: 8
-                                anchors.rightMargin: 8
-                                anchors.topMargin: 5
-                                anchors.bottomMargin: 5
-                                spacing: 6
-
-                                Text {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: "VIEWS"
-                                    color: root.themePalette.muted_fg
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    font.letterSpacing: 1.0
-                                }
-
-                                Repeater {
-                                    model: root.mainWindowRef.active_view_items
-                                    delegate: Rectangle {
-                                        id: viewTab
-                                        property bool active: !!modelData.active
-                                        height: 28
-                                        width: Math.max(56, viewTabLabel.implicitWidth + 24)
-                                        radius: 9
-                                        color: active
-                                            ? root.themePalette.tab_selected_bg
-                                            : (viewTabMouse.containsMouse
-                                                ? root.themePalette.hover
-                                                : "transparent")
-                                        border.width: active || viewTabMouse.containsMouse ? 1 : 0
-                                        border.color: active
-                                            ? root.themePalette.accent
-                                            : root.themePalette.input_border
-
-                                        Text {
-                                            id: viewTabLabel
-                                            anchors.centerIn: parent
-                                            text: modelData.label
-                                            color: active
-                                                ? root.themePalette.tab_selected_fg
-                                                : root.themePalette.tab_fg
-                                            font.pixelSize: 12
-                                            font.bold: active
-                                        }
-
-                                        MouseArea {
-                                            id: viewTabMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.mainWindowRef.request_switch_view(modelData.view_id)
-                                        }
-                                    }
-                                }
-
-                                ShellCreateButton {
-                                    text: "New View"
-                                    accentOutline: true
-                                    onClicked: root.mainWindowRef.request_create_view()
-                                }
-                            }
-                        }
-
-                        Text {
-                            Layout.alignment: Qt.AlignRight
-                            text: root.countLabel(root.mainWindowRef.active_view_items, "view", "views")
-                            color: root.themePalette.muted_fg
-                            font.pixelSize: 11
-                        }
-                    }
-                }
+                spacing: 12
 
                 Row {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 24
+                    Layout.alignment: Qt.AlignVCenter
                     spacing: 2
 
                     Text {
@@ -187,6 +67,82 @@ Rectangle {
                                     String(modelData.node_id || "")
                                 )
                             }
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    id: viewControlsCard
+                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                    implicitWidth: viewControlsRow.implicitWidth + 16
+                    implicitHeight: viewControlsRow.implicitHeight + 10
+                    radius: 12
+                    color: root.themePalette.panel_alt_bg
+                    border.color: root.themePalette.border
+
+                    Row {
+                        id: viewControlsRow
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        anchors.topMargin: 5
+                        anchors.bottomMargin: 5
+                        spacing: 6
+
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: "VIEWS"
+                            color: root.themePalette.muted_fg
+                            font.pixelSize: 10
+                            font.bold: true
+                            font.letterSpacing: 1.0
+                        }
+
+                        Repeater {
+                            model: root.mainWindowRef.active_view_items
+                            delegate: Rectangle {
+                                id: viewTab
+                                property bool active: !!modelData.active
+                                height: 28
+                                width: Math.max(56, viewTabLabel.implicitWidth + 24)
+                                radius: 9
+                                color: active
+                                    ? root.themePalette.tab_selected_bg
+                                    : (viewTabMouse.containsMouse
+                                        ? root.themePalette.hover
+                                        : "transparent")
+                                border.width: active || viewTabMouse.containsMouse ? 1 : 0
+                                border.color: active
+                                    ? root.themePalette.accent
+                                    : root.themePalette.input_border
+
+                                Text {
+                                    id: viewTabLabel
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    color: active
+                                        ? root.themePalette.tab_selected_fg
+                                        : root.themePalette.tab_fg
+                                    font.pixelSize: 12
+                                    font.bold: active
+                                }
+
+                                MouseArea {
+                                    id: viewTabMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.mainWindowRef.request_switch_view(modelData.view_id)
+                                }
+                            }
+                        }
+
+                        ShellCreateButton {
+                            text: "New View"
+                            accentOutline: true
+                            onClicked: root.mainWindowRef.request_create_view()
                         }
                     }
                 }
