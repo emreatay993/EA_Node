@@ -14,14 +14,35 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     app_preferences_path,
 )
+from ea_node_editor.ui.graph_theme import DEFAULT_GRAPH_THEME_ID, is_known_graph_theme_id, resolve_graph_theme_id
 from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
+_APP_PREFERENCES_MIGRATION_VERSION = 1
+
 
 def default_app_preferences_document() -> dict[str, Any]:
     return copy.deepcopy(DEFAULT_APP_PREFERENCES)
+
+
+def normalize_graph_theme_settings(payload: Any) -> dict[str, Any]:
+    defaults = DEFAULT_GRAPHICS_SETTINGS["graph_theme"]
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    normalized["follow_shell_theme"] = _normalize_bool(
+        payload.get("follow_shell_theme"),
+        defaults["follow_shell_theme"],
+    )
+    normalized["selected_theme_id"] = _normalize_graph_theme_id(
+        payload.get("selected_theme_id"),
+        defaults["selected_theme_id"],
+    )
+    normalized["custom_themes"] = []
+    return normalized
 
 
 def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
@@ -32,6 +53,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
     canvas_payload = payload.get("canvas")
     interaction_payload = payload.get("interaction")
     theme_payload = payload.get("theme")
+    graph_theme_payload = payload.get("graph_theme")
 
     normalized = copy.deepcopy(defaults)
     if isinstance(canvas_payload, Mapping):
@@ -57,6 +79,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             theme_payload.get("theme_id"),
             defaults["theme"]["theme_id"],
         )
+    normalized["graph_theme"] = normalize_graph_theme_settings(graph_theme_payload)
     return normalized
 
 
@@ -71,7 +94,9 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
     except (TypeError, ValueError):
         return normalized
 
-    if kind != APP_PREFERENCES_KIND or version != APP_PREFERENCES_VERSION:
+    if kind != APP_PREFERENCES_KIND:
+        return normalized
+    if version not in {_APP_PREFERENCES_MIGRATION_VERSION, APP_PREFERENCES_VERSION}:
         return normalized
 
     normalized["graphics"] = normalize_graphics_settings(payload.get("graphics"))
@@ -171,10 +196,21 @@ def _normalize_theme_id(value: Any, default: str) -> str:
     return DEFAULT_THEME_ID
 
 
+def _normalize_graph_theme_id(value: Any, default: str) -> str:
+    normalized = str(value).strip()
+    if is_known_graph_theme_id(normalized):
+        return normalized
+    resolved_default = resolve_graph_theme_id(default)
+    if is_known_graph_theme_id(resolved_default):
+        return resolved_default
+    return DEFAULT_GRAPH_THEME_ID
+
+
 __all__ = [
     "AppPreferencesController",
     "AppPreferencesStore",
     "default_app_preferences_document",
     "normalize_app_preferences_document",
+    "normalize_graph_theme_settings",
     "normalize_graphics_settings",
 ]
