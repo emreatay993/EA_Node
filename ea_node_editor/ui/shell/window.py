@@ -29,6 +29,7 @@ from ea_node_editor.settings import (
     recent_session_path,
 )
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
+from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
 from ea_node_editor.ui.shell.controllers import (
@@ -59,6 +60,7 @@ from ea_node_editor.ui.shell.window_library_inspector import (
 )
 from ea_node_editor.ui.shell import window_search_scope_state
 from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.status_model import StatusItemModel
@@ -168,6 +170,10 @@ class ShellWindow(QMainWindow):
         self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
         self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self.theme_bridge = ThemeBridge(self, theme_id=self._active_theme_id)
+        self.graph_theme_bridge = GraphThemeBridge(
+            self,
+            theme_id=default_graph_theme_id_for_shell_theme(self._active_theme_id),
+        )
         self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
@@ -363,6 +369,7 @@ class ShellWindow(QMainWindow):
         context.setContextProperty("scriptEditorBridge", self.script_editor)
         context.setContextProperty("scriptHighlighterBridge", self.script_highlighter)
         context.setContextProperty("themeBridge", self.theme_bridge)
+        context.setContextProperty("graphThemeBridge", self.graph_theme_bridge)
         context.setContextProperty("workspaceTabsBridge", self.workspace_tabs)
         context.setContextProperty("uiIcons", self.ui_icons)
         context.setContextProperty("statusEngine", self.status_engine)
@@ -907,12 +914,18 @@ class ShellWindow(QMainWindow):
         canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
         interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
         theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
+        graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
 
         changed = False
         show_grid = bool(canvas.get("show_grid", self._graphics_show_grid))
         show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
         minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
         active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
+        previous_graph_theme_id = self.graph_theme_bridge.theme_id
+        self.graph_theme_bridge.apply_settings(
+            shell_theme_id=active_theme_id,
+            graph_theme_settings=graph_theme,
+        )
 
         if self._graphics_show_grid != show_grid:
             self._graphics_show_grid = show_grid
@@ -925,6 +938,8 @@ class ShellWindow(QMainWindow):
             changed = True
         if self._active_theme_id != active_theme_id:
             self._active_theme_id = active_theme_id
+            changed = True
+        if previous_graph_theme_id != self.graph_theme_bridge.theme_id:
             changed = True
 
         window_search_scope_state.set_snap_to_grid_enabled(

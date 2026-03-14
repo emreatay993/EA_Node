@@ -8,6 +8,7 @@ from ea_node_editor.ui.graph_theme.registry import (
     resolve_graph_theme,
     resolve_graph_theme_id,
 )
+from ea_node_editor.ui.graph_theme.runtime import resolve_active_graph_theme, resolve_active_graph_theme_id
 from ea_node_editor.ui.graph_theme.tokens import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_PORT_KIND_TOKENS_V1,
@@ -38,6 +39,8 @@ __all__ = [
     "SHELL_THEME_TO_GRAPH_THEME",
     "default_graph_theme_id_for_shell_theme",
     "is_known_graph_theme_id",
+    "resolve_active_graph_theme",
+    "resolve_active_graph_theme_id",
     "resolve_graph_theme",
     "resolve_graph_theme_id",
 ]
