@@ -13,9 +13,14 @@ ToolButton {
     property int iconBarShort: 2
     property int cornerRadius: 9
     property int contentSpacing: 8
+    property int minimumButtonWidth: 108
+    property int contentHorizontalPadding: 10
 
     implicitHeight: control.buttonHeight
-    implicitWidth: Math.max(108, contentRow.implicitWidth + 20)
+    implicitWidth: Math.max(
+        control.minimumButtonWidth,
+        contentRow.implicitWidth + (control.contentHorizontalPadding * 2)
+    )
     padding: 0
     hoverEnabled: true
 

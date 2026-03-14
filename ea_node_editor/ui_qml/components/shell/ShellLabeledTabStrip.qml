@@ -11,6 +11,8 @@ RowLayout {
     property string tabLabelKey: "label"
     property int minTabWidth: 56
     property int tabHorizontalPadding: 24
+    property int createButtonMinimumWidth: 108
+    property int createButtonHorizontalPadding: 10
     property var contextMenuActions: []
     property string createButtonText: ""
     property bool createButtonAccentOutline: false
@@ -27,9 +29,21 @@ RowLayout {
     readonly property int tabHeight: root.compactDensity ? 22 : 28
     readonly property int tabRadius: root.compactDensity ? 7 : 9
     readonly property int tabFontSize: root.compactDensity ? 10 : 12
+    readonly property int effectiveMinTabWidth: root.compactDensity
+        ? Math.max(42, Math.round(root.minTabWidth * 0.82))
+        : root.minTabWidth
+    readonly property int effectiveTabHorizontalPadding: root.compactDensity
+        ? Math.max(12, root.tabHorizontalPadding - 4)
+        : root.tabHorizontalPadding
     readonly property int createButtonHeight: root.compactDensity ? 24 : 30
     readonly property int createButtonFontSize: root.compactDensity ? 9 : 11
     readonly property int createButtonIconSize: root.compactDensity ? 14 : 18
+    readonly property int effectiveCreateButtonMinimumWidth: root.compactDensity
+        ? Math.max(88, root.createButtonMinimumWidth - 18)
+        : root.createButtonMinimumWidth
+    readonly property int effectiveCreateButtonHorizontalPadding: root.compactDensity
+        ? Math.max(8, root.createButtonHorizontalPadding - 2)
+        : root.createButtonHorizontalPadding
 
     signal tabActivated(var itemData)
     signal contextMenuActionRequested(string actionId, var itemData)
@@ -97,7 +111,7 @@ RowLayout {
                         ? !!root.isTabActive(modelData)
                         : false
                     height: root.tabHeight
-                    width: Math.max(root.minTabWidth, tabLabel.implicitWidth + root.tabHorizontalPadding)
+                    width: Math.max(root.effectiveMinTabWidth, tabLabel.implicitWidth + root.effectiveTabHorizontalPadding)
                     radius: root.tabRadius
                     color: active
                         ? root.themePalette.tab_selected_bg
@@ -152,6 +166,8 @@ RowLayout {
                 buttonHeight: root.createButtonHeight
                 labelFontPixelSize: root.createButtonFontSize
                 iconCircleSize: root.createButtonIconSize
+                minimumButtonWidth: root.effectiveCreateButtonMinimumWidth
+                contentHorizontalPadding: root.effectiveCreateButtonHorizontalPadding
                 contentSpacing: root.compactDensity ? 6 : 8
                 cornerRadius: root.tabRadius
                 onClicked: root.createActivated()
