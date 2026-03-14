@@ -112,11 +112,13 @@ Rectangle {
                                     ? root.themePalette.tab_selected_bg
                                     : (viewTabMouse.containsMouse
                                         ? root.themePalette.hover
-                                        : "transparent")
-                                border.width: active || viewTabMouse.containsMouse ? 1 : 0
+                                        : root.themePalette.tab_bg)
+                                border.width: 1
                                 border.color: active
                                     ? root.themePalette.accent
-                                    : root.themePalette.input_border
+                                    : (viewTabMouse.containsMouse
+                                        ? root.themePalette.input_border
+                                        : root.themePalette.border)
 
                                 Text {
                                     id: viewTabLabel
@@ -208,11 +210,13 @@ Rectangle {
                                     ? root.themePalette.tab_selected_bg
                                     : (workspaceTabMouse.containsMouse
                                         ? root.themePalette.hover
-                                        : "transparent")
-                                border.width: active || workspaceTabMouse.containsMouse ? 1 : 0
+                                        : root.themePalette.tab_bg)
+                                border.width: 1
                                 border.color: active
                                     ? root.themePalette.accent
-                                    : root.themePalette.input_border
+                                    : (workspaceTabMouse.containsMouse
+                                        ? root.themePalette.input_border
+                                        : root.themePalette.border)
 
                                 Text {
                                     id: workspaceTabLabel
