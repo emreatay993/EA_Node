@@ -124,28 +124,52 @@ class WorkspaceEditOps:
         self._controller.refresh_workspace_tabs()
         return ControllerResult(True, payload=created_node_id)
 
-    def request_rename_selected_port(self, key: str) -> ControllerResult[bool]:
-        from PyQt6.QtWidgets import QInputDialog
-
+    def _selected_shell_pin_node(self, key: str) -> NodeInstance | None:
         selected = self._controller.selected_node_context()
         if selected is None:
-            return ControllerResult(False, "No node selected.", payload=False)
+            return None
         node, _spec = selected
         if node.type_id != SUBNODE_TYPE_ID:
-            return ControllerResult(False, "Selected node is not a subnode shell.", payload=False)
+            return None
 
         workspace = self._controller.active_workspace()
         if workspace is None:
-            return ControllerResult(False, "No active workspace.", payload=False)
+            return None
 
         port_node_id = str(key or "").strip()
         if not port_node_id:
-            return ControllerResult(False, "No subnode port selected.", payload=False)
+            return None
         pin_node = workspace.nodes.get(port_node_id)
         if pin_node is None or not self._is_direct_child_pin_node(pin_node, workspace.nodes):
-            return ControllerResult(False, "Subnode port not found.", payload=False)
+            return None
         if str(pin_node.parent_node_id or "").strip() != str(node.node_id):
-            return ControllerResult(False, "Subnode port does not belong to the selected shell.", payload=False)
+            return None
+        return pin_node
+
+    def set_selected_port_label(self, key: str, label: Any) -> bool:
+        pin_node = self._selected_shell_pin_node(key)
+        if pin_node is None:
+            return False
+
+        normalized_label = str(label or "").strip()
+        if not normalized_label:
+            return False
+
+        current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+        if not current_label:
+            current_label = "Input" if pin_node.type_id == SUBNODE_INPUT_TYPE_ID else "Output"
+        if normalized_label == current_label:
+            return False
+
+        self.on_node_property_changed(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+        return True
+
+    def request_rename_selected_port(self, key: str) -> ControllerResult[bool]:
+        from PyQt6.QtWidgets import QInputDialog
+
+        pin_node = self._selected_shell_pin_node(key)
+        if pin_node is None:
+            return ControllerResult(False, "Subnode port not found.", payload=False)
 
         current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
         if not current_label:
@@ -159,13 +183,12 @@ class WorkspaceEditOps:
         if not ok:
             return ControllerResult(False, payload=False)
 
-        normalized_label = str(new_label).strip()
-        if not normalized_label:
-            return ControllerResult(False, "Port name cannot be empty.", payload=False)
-        if normalized_label == current_label:
+        renamed = self.set_selected_port_label(key, new_label)
+        if not renamed:
+            normalized_label = str(new_label).strip()
+            if not normalized_label:
+                return ControllerResult(False, "Port name cannot be empty.", payload=False)
             return ControllerResult(False, payload=False)
-
-        self.on_node_property_changed(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
         return ControllerResult(True, payload=True)
 
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:

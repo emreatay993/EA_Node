@@ -1317,6 +1317,10 @@ class ShellWindow(QMainWindow):
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
         self.workspace_library_controller.set_selected_port_exposed(key, exposed)
 
+    @pyqtSlot(str, str, result=bool)
+    def set_selected_port_label(self, key: str, label: str) -> bool:
+        return bool(self.workspace_library_controller.set_selected_port_label(key, label))
+
     @pyqtSlot(bool)
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
         self.workspace_library_controller.set_selected_node_collapsed(collapsed)

@@ -9,7 +9,7 @@ ShellCollapsibleSidePane {
     property var mainWindowRef
     property string activePortDirection: "in"
     property string selectedPortKey: ""
-    property string portActionPopupKey: ""
+    property string editingPortKey: ""
     readonly property bool hasSelectedNode: !!root.mainWindowRef && root.mainWindowRef.has_selected_node
     readonly property bool isPinInspector: !!root.mainWindowRef && root.mainWindowRef.selected_node_is_subnode_pin
     readonly property bool showPortSection: root.hasSelectedNode && !root.isPinInspector
@@ -59,10 +59,13 @@ ShellCollapsibleSidePane {
     function syncSelectedPortSelection() {
         if (!showPortSection || visiblePortItems.length === 0) {
             selectedPortKey = ""
+            editingPortKey = ""
             return
         }
         if (!hasVisiblePort(selectedPortKey))
             selectedPortKey = String(visiblePortItems[0].key || "")
+        if (editingPortKey.length > 0 && !hasVisiblePort(editingPortKey))
+            editingPortKey = ""
     }
 
     function addSubnodePort(direction) {
@@ -76,29 +79,31 @@ ShellCollapsibleSidePane {
         selectedPortKey = String(createdPortKey)
     }
 
-    function openPortActionPopup(portKey, sourceItem) {
-        portActionPopupKey = String(portKey || "")
-        selectedPortKey = portActionPopupKey
-        if (!portActionPopupKey.length || !sourceItem)
+    function beginPortLabelEdit(portKey) {
+        var normalizedKey = String(portKey || "")
+        if (!canManageSubnodePorts || !normalizedKey.length)
             return
-        var popupWidth = Math.max(1, Number(portActionPopup.implicitWidth) || 120)
-        var popupHeight = Math.max(1, Number(portActionPopup.implicitHeight) || 34)
-        var point = sourceItem.mapToItem(root, 0, sourceItem.height + 4)
-        portActionPopup.x = Math.max(0, Math.min(root.width - popupWidth - 6, Math.round(point.x - popupWidth + sourceItem.width)))
-        portActionPopup.y = Math.max(0, Math.min(root.height - popupHeight - 6, Math.round(point.y)))
-        portActionPopup.open()
+        selectedPortKey = normalizedKey
+        editingPortKey = normalizedKey
+    }
+
+    function commitPortLabelEdit(portKey, label) {
+        var normalizedKey = String(portKey || "")
+        if (editingPortKey !== normalizedKey)
+            return
+        if (root.mainWindowRef)
+            root.mainWindowRef.set_selected_port_label(normalizedKey, String(label || ""))
+        editingPortKey = ""
+    }
+
+    function cancelPortLabelEdit(portKey) {
+        var normalizedKey = String(portKey || "")
+        if (editingPortKey === normalizedKey)
+            editingPortKey = ""
     }
 
     onVisiblePortItemsChanged: syncSelectedPortSelection()
     onShowPortSectionChanged: syncSelectedPortSelection()
-    onWidthChanged: {
-        if (portActionPopup.visible)
-            portActionPopup.close()
-    }
-    onHeightChanged: {
-        if (portActionPopup.visible)
-            portActionPopup.close()
-    }
 
     Connections {
         target: root.mainWindowRef
@@ -881,13 +886,73 @@ ShellCollapsibleSidePane {
                                             Layout.alignment: Qt.AlignVCenter
                                             spacing: 0
 
-                                            Text {
+                                            Item {
                                                 Layout.fillWidth: true
-                                                text: String(modelData.label || modelData.key || "")
-                                                color: root.themePalette.panel_title_fg
-                                                font.pixelSize: 11
-                                                font.bold: true
-                                                elide: Text.ElideRight
+                                                implicitHeight: 18
+
+                                                Text {
+                                                    anchors.left: parent.left
+                                                    anchors.right: parent.right
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    visible: !portLabelEditor.visible
+                                                    text: String(modelData.label || modelData.key || "")
+                                                    color: root.themePalette.panel_title_fg
+                                                    font.pixelSize: 11
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                TextField {
+                                                    id: portLabelEditor
+                                                    anchors.left: parent.left
+                                                    anchors.right: parent.right
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    visible: root.canManageSubnodePorts
+                                                        && root.editingPortKey === String(modelData.key || "")
+                                                    implicitHeight: 24
+                                                    leftPadding: 4
+                                                    rightPadding: 4
+                                                    topPadding: 1
+                                                    bottomPadding: 1
+                                                    selectByMouse: true
+                                                    text: String(modelData.label || modelData.key || "")
+                                                    color: root.themePalette.panel_title_fg
+                                                    font.pixelSize: 11
+                                                    font.bold: true
+                                                    background: Rectangle {
+                                                        radius: 6
+                                                        color: root.themePalette.input_bg
+                                                        border.color: root.themePalette.accent
+                                                        border.width: 1
+                                                    }
+                                                    onVisibleChanged: {
+                                                        if (visible)
+                                                            text = String(modelData.label || modelData.key || "")
+                                                    }
+                                                    onAccepted: root.commitPortLabelEdit(modelData.key, text)
+                                                    onEditingFinished: root.commitPortLabelEdit(modelData.key, text)
+                                                    onActiveFocusChanged: {
+                                                        if (!activeFocus)
+                                                            root.commitPortLabelEdit(modelData.key, text)
+                                                    }
+                                                    Keys.onEscapePressed: {
+                                                        text = String(modelData.label || modelData.key || "")
+                                                        root.cancelPortLabelEdit(modelData.key)
+                                                    }
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    enabled: root.canManageSubnodePorts && !portLabelEditor.visible
+                                                    cursorShape: Qt.IBeamCursor
+                                                    onClicked: {
+                                                        root.beginPortLabelEdit(modelData.key)
+                                                        Qt.callLater(function() {
+                                                            portLabelEditor.forceActiveFocus()
+                                                            portLabelEditor.selectAll()
+                                                        })
+                                                    }
+                                                }
                                             }
 
                                             Text {
@@ -899,78 +964,24 @@ ShellCollapsibleSidePane {
                                             }
                                         }
 
-                                        Item {
+                                        Rectangle {
+                                            visible: !!modelData.required
                                             Layout.alignment: Qt.AlignVCenter
-                                            implicitWidth: trailingRow.implicitWidth
-                                            implicitHeight: trailingRow.implicitHeight
+                                            radius: 8
+                                            color: root.sectionHeaderColor
+                                            border.color: root.themePalette.input_border
+                                            border.width: 1
+                                            implicitWidth: requiredLabel.implicitWidth + 10
+                                            implicitHeight: requiredLabel.implicitHeight + 6
 
-                                            Row {
-                                                id: trailingRow
+                                            Text {
+                                                id: requiredLabel
                                                 anchors.centerIn: parent
-                                                spacing: 8
-
-                                                Rectangle {
-                                                    visible: !!modelData.required
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    radius: 8
-                                                    color: root.sectionHeaderColor
-                                                    border.color: root.themePalette.input_border
-                                                    border.width: 1
-                                                    implicitWidth: requiredLabel.implicitWidth + 10
-                                                    implicitHeight: requiredLabel.implicitHeight + 6
-
-                                                    Text {
-                                                        id: requiredLabel
-                                                        anchors.centerIn: parent
-                                                        text: "REQUIRED"
-                                                        color: root.themePalette.muted_fg
-                                                        font.pixelSize: 8
-                                                        font.bold: true
-                                                        font.letterSpacing: 0.5
-                                                    }
-                                                }
-
-                                                Column {
-                                                    visible: root.canManageSubnodePorts
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    spacing: 2
-
-                                                    Repeater {
-                                                        model: 3
-
-                                                        delegate: Rectangle {
-                                                            width: 3
-                                                            height: 3
-                                                            radius: 1.5
-                                                            color: root.themePalette.muted_fg
-                                                            opacity: 0.85
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            Rectangle {
-                                                id: portActionActivator
-                                                visible: root.canManageSubnodePorts
-                                                anchors.fill: parent
-                                                color: "transparent"
-                                                radius: 8
-                                                border.width: 0
-
-                                                HoverHandler {
-                                                    id: portMenuHover
-                                                }
-
-                                                Rectangle {
-                                                    anchors.fill: parent
-                                                    color: portMenuHover.hovered ? root.themePalette.hover : "transparent"
-                                                    radius: 8
-                                                    visible: portMenuHover.hovered
-                                                }
-
-                                                TapHandler {
-                                                    onTapped: root.openPortActionPopup(String(modelData.key || ""), portActionActivator)
-                                                }
+                                                text: "REQUIRED"
+                                                color: root.themePalette.muted_fg
+                                                font.pixelSize: 8
+                                                font.bold: true
+                                                font.letterSpacing: 0.5
                                             }
                                         }
                                     }
@@ -986,52 +997,4 @@ ShellCollapsibleSidePane {
             }
         }
     ]
-
-    Popup {
-        id: portActionPopup
-        parent: root
-        modal: false
-        focus: true
-        padding: 0
-        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
-        implicitWidth: 126
-        implicitHeight: 32
-        z: 1000
-
-        background: Rectangle {
-            color: root.themePalette.tab_bg
-            border.color: root.themePalette.input_border
-            border.width: 1
-            radius: 8
-        }
-
-        contentItem: Rectangle {
-            width: portActionPopup.implicitWidth
-            height: portActionPopup.implicitHeight
-            color: renamePortMouseArea.containsMouse ? root.themePalette.hover : "transparent"
-            radius: 8
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 10
-                text: "Rename Port"
-                color: root.canManageSubnodePorts ? root.themePalette.app_fg : root.themePalette.muted_fg
-                font.pixelSize: 11
-                font.bold: true
-            }
-
-            MouseArea {
-                id: renamePortMouseArea
-                anchors.fill: parent
-                hoverEnabled: true
-                enabled: root.canManageSubnodePorts && root.portActionPopupKey.length > 0
-                onClicked: {
-                    if (root.mainWindowRef)
-                        root.mainWindowRef.request_rename_selected_port(root.portActionPopupKey)
-                    portActionPopup.close()
-                }
-            }
-        }
-    }
 }

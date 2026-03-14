@@ -308,6 +308,9 @@ class WorkspaceLibraryController:
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
         self._edit_ops.set_selected_port_exposed(key, exposed)
 
+    def set_selected_port_label(self, key: str, label: Any) -> bool:
+        return self._edit_ops.set_selected_port_label(key, label)
+
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
         self._edit_ops.set_selected_node_collapsed(collapsed)
 
