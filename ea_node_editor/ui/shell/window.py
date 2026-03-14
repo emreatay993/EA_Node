@@ -173,6 +173,9 @@ class ShellWindow(QMainWindow):
         self._graphics_show_minimap = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])
         self._graphics_minimap_expanded = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"])
         self._graphics_node_shadow = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["node_shadow"])
+        self._graphics_shadow_strength = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])
+        self._graphics_shadow_softness = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_softness"])
+        self._graphics_shadow_offset = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
         self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
         self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self.theme_bridge = ThemeBridge(self, theme_id=self._active_theme_id)
@@ -548,6 +551,18 @@ class ShellWindow(QMainWindow):
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_shadow(self) -> bool:
         return bool(self._graphics_node_shadow)
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_shadow_strength(self) -> int:
+        return int(self._graphics_shadow_strength)
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_shadow_softness(self) -> int:
+        return int(self._graphics_shadow_softness)
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_shadow_offset(self) -> int:
+        return int(self._graphics_shadow_offset)
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def active_theme_id(self) -> str:
@@ -939,6 +954,9 @@ class ShellWindow(QMainWindow):
         show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
         minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
         node_shadow = bool(canvas.get("node_shadow", self._graphics_node_shadow))
+        shadow_strength = int(canvas.get("shadow_strength", self._graphics_shadow_strength))
+        shadow_softness = int(canvas.get("shadow_softness", self._graphics_shadow_softness))
+        shadow_offset = int(canvas.get("shadow_offset", self._graphics_shadow_offset))
         active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
         follow_shell_theme = graph_theme.get("follow_shell_theme")
         if not isinstance(follow_shell_theme, bool):
@@ -971,6 +989,15 @@ class ShellWindow(QMainWindow):
         if self._graphics_node_shadow != node_shadow:
             self._graphics_node_shadow = node_shadow
             changed = True
+        if self._graphics_shadow_strength != shadow_strength:
+            self._graphics_shadow_strength = shadow_strength
+            changed = True
+        if self._graphics_shadow_softness != shadow_softness:
+            self._graphics_shadow_softness = shadow_softness
+            changed = True
+        if self._graphics_shadow_offset != shadow_offset:
+            self._graphics_shadow_offset = shadow_offset
+            changed = True
         if self._active_theme_id != active_theme_id:
             self._active_theme_id = active_theme_id
             changed = True
@@ -991,6 +1018,9 @@ class ShellWindow(QMainWindow):
                 "show_minimap": bool(self._graphics_show_minimap),
                 "minimap_expanded": bool(self._graphics_minimap_expanded),
                 "node_shadow": bool(self._graphics_node_shadow),
+                "shadow_strength": int(self._graphics_shadow_strength),
+                "shadow_softness": int(self._graphics_shadow_softness),
+                "shadow_offset": int(self._graphics_shadow_offset),
             },
             "interaction": {
                 "snap_to_grid": bool(self._snap_to_grid_enabled),

@@ -50,6 +50,9 @@ DEFAULT_GRAPHICS_SETTINGS = {
         "show_minimap": True,
         "minimap_expanded": True,
         "node_shadow": True,
+        "shadow_strength": 70,
+        "shadow_softness": 50,
+        "shadow_offset": 4,
     },
     "interaction": {
         "snap_to_grid": False,

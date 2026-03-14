@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Effects
 
 Rectangle {
     id: card
@@ -15,6 +16,9 @@ Rectangle {
     property real liveDragDx: 0
     property real liveDragDy: 0
     property bool showShadow: false
+    property int shadowStrength: 70
+    property int shadowSoftness: 50
+    property int shadowOffset: 4
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.node_palette
         : ({})
@@ -206,38 +210,14 @@ Rectangle {
     border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
     radius: 6
 
-    Rectangle {
-        id: shadowOuter
-        visible: card.showShadow
-        x: -4
-        y: 2
-        z: -3
-        width: card.width + 8
-        height: card.height + 8
-        radius: card.radius + 4
-        color: "#18000000"
-    }
-    Rectangle {
-        id: shadowMid
-        visible: card.showShadow
-        x: -2
-        y: 2
-        z: -2
-        width: card.width + 4
-        height: card.height + 5
-        radius: card.radius + 2
-        color: "#28000000"
-    }
-    Rectangle {
-        id: shadowInner
-        visible: card.showShadow
-        x: 0
-        y: 2
-        z: -1
-        width: card.width
-        height: card.height + 2
-        radius: card.radius
-        color: "#38000000"
+    layer.enabled: card.showShadow
+    layer.effect: MultiEffect {
+        shadowEnabled: true
+        shadowBlur: card.shadowSoftness / 100.0
+        shadowColor: Qt.rgba(0, 0, 0, card.shadowStrength / 100.0)
+        shadowVerticalOffset: card.shadowOffset
+        shadowHorizontalOffset: 0
+        autoPaddingEnabled: true
     }
 
     Rectangle {

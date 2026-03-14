@@ -85,6 +85,18 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             canvas_payload.get("node_shadow"),
             defaults["canvas"]["node_shadow"],
         )
+        normalized["canvas"]["shadow_strength"] = _normalize_int(
+            canvas_payload.get("shadow_strength"),
+            defaults["canvas"]["shadow_strength"], 0, 100,
+        )
+        normalized["canvas"]["shadow_softness"] = _normalize_int(
+            canvas_payload.get("shadow_softness"),
+            defaults["canvas"]["shadow_softness"], 0, 100,
+        )
+        normalized["canvas"]["shadow_offset"] = _normalize_int(
+            canvas_payload.get("shadow_offset"),
+            defaults["canvas"]["shadow_offset"], 0, 20,
+        )
     if isinstance(interaction_payload, Mapping):
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
             interaction_payload.get("snap_to_grid"),
@@ -337,6 +349,12 @@ class AppPreferencesController:
 
 def _normalize_bool(value: Any, default: bool) -> bool:
     return value if isinstance(value, bool) else default
+
+
+def _normalize_int(value: Any, default: int, lo: int, hi: int) -> int:
+    if isinstance(value, int) and lo <= value <= hi:
+        return value
+    return default
 
 
 def _normalize_theme_id(value: Any, default: str) -> str:

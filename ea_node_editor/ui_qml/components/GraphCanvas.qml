@@ -32,6 +32,9 @@ Item {
     readonly property bool showGrid: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true
     readonly property bool minimapVisible: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true
     readonly property bool nodeShadowEnabled: mainWindowBridge ? Boolean(mainWindowBridge.graphics_node_shadow) : true
+    readonly property int shadowStrength: mainWindowBridge ? mainWindowBridge.graphics_shadow_strength : 70
+    readonly property int shadowSoftness: mainWindowBridge ? mainWindowBridge.graphics_shadow_softness : 50
+    readonly property int shadowOffset: mainWindowBridge ? mainWindowBridge.graphics_shadow_offset : 4
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
     readonly property real worldOffset: worldSize / 2
@@ -1066,6 +1069,9 @@ Item {
                 liveDragDx: root.liveDragDxForNode(modelData.node_id)
                 liveDragDy: root.liveDragDyForNode(modelData.node_id)
                 showShadow: root.nodeShadowEnabled
+                shadowStrength: root.shadowStrength
+                shadowSoftness: root.shadowSoftness
+                shadowOffset: root.shadowOffset
 
                 onNodeClicked: function(nodeId, additive) {
                     root.forceActiveFocus();
