@@ -31,8 +31,8 @@ from ea_node_editor.settings import (
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.graph_theme import (
     default_graph_theme_id_for_shell_theme,
-    graph_theme_choices,
     resolve_graph_theme_id,
+    serialize_custom_graph_themes,
 )
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
@@ -929,13 +929,20 @@ class ShellWindow(QMainWindow):
         follow_shell_theme = graph_theme.get("follow_shell_theme")
         if not isinstance(follow_shell_theme, bool):
             follow_shell_theme = bool(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"])
+        custom_graph_themes = serialize_custom_graph_themes(graph_theme.get("custom_themes"))
         selected_graph_theme_id = resolve_graph_theme_id(
-            graph_theme.get("selected_theme_id", DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
+            graph_theme.get("selected_theme_id", DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"]),
+            custom_themes=custom_graph_themes,
         )
+        normalized_graph_theme = {
+            "follow_shell_theme": bool(follow_shell_theme),
+            "selected_theme_id": selected_graph_theme_id,
+            "custom_themes": custom_graph_themes,
+        }
         previous_graph_theme_id = self.graph_theme_bridge.theme_id
         self.graph_theme_bridge.apply_settings(
             shell_theme_id=active_theme_id,
-            graph_theme_settings=graph_theme,
+            graph_theme_settings=normalized_graph_theme,
         )
 
         if self._graphics_show_grid != show_grid:
@@ -976,7 +983,7 @@ class ShellWindow(QMainWindow):
             "graph_theme": {
                 "follow_shell_theme": bool(follow_shell_theme),
                 "selected_theme_id": selected_graph_theme_id,
-                "custom_themes": [],
+                "custom_themes": custom_graph_themes,
             },
         }
 
@@ -1677,7 +1684,7 @@ class ShellWindow(QMainWindow):
 
         dialog = GraphicsSettingsDialog(
             initial_settings=self.app_preferences_controller.graphics_settings(),
-            available_graph_themes=graph_theme_choices(),
+            available_graph_themes=self.app_preferences_controller.graph_theme_choices(),
             parent=self,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:

@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QCheckBox, QComboBox, QFormLayout, QWidget
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 from ea_node_editor.ui.graph_theme import graph_theme_choices, resolve_graph_theme_id
+from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graphics_settings
 from ea_node_editor.ui.theme import resolve_theme_id, theme_choices
 
 
@@ -30,6 +31,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self._available_graph_themes = tuple((str(theme_id), str(label)) for theme_id, label in graph_themes)
         if not self._available_graph_themes:
             self._available_graph_themes = graph_theme_choices()
+        self._custom_graph_themes = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["custom_themes"])
         super().__init__(
             window_title="Graphics Settings",
             header_text="Configure app-wide graphics and interaction defaults.",
@@ -82,36 +84,17 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
     @staticmethod
     def _normalize(initial_settings: dict[str, Any]) -> dict[str, Any]:
-        normalized = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
-
-        canvas = initial_settings.get("canvas")
-        if isinstance(canvas, dict):
-            for field in ("show_grid", "show_minimap", "minimap_expanded"):
-                value = canvas.get(field)
-                if isinstance(value, bool):
-                    normalized["canvas"][field] = value
-
-        interaction = initial_settings.get("interaction")
-        if isinstance(interaction, dict):
-            value = interaction.get("snap_to_grid")
-            if isinstance(value, bool):
-                normalized["interaction"]["snap_to_grid"] = value
-
-        theme = initial_settings.get("theme")
-        if isinstance(theme, dict):
-            normalized["theme"]["theme_id"] = resolve_theme_id(theme.get("theme_id"))
-
-        graph_theme = initial_settings.get("graph_theme")
-        if isinstance(graph_theme, dict):
-            follow_shell_theme = graph_theme.get("follow_shell_theme")
-            if isinstance(follow_shell_theme, bool):
-                normalized["graph_theme"]["follow_shell_theme"] = follow_shell_theme
-            normalized["graph_theme"]["selected_theme_id"] = resolve_graph_theme_id(graph_theme.get("selected_theme_id"))
-
+        normalized = normalize_graphics_settings(initial_settings)
+        normalized["theme"]["theme_id"] = resolve_theme_id(normalized["theme"]["theme_id"])
+        normalized["graph_theme"]["selected_theme_id"] = resolve_graph_theme_id(
+            normalized["graph_theme"]["selected_theme_id"],
+            custom_themes=normalized["graph_theme"]["custom_themes"],
+        )
         return normalized
 
     def set_values(self, initial_settings: dict[str, Any]) -> None:
         settings = self._normalize(initial_settings)
+        self._custom_graph_themes = copy.deepcopy(settings["graph_theme"]["custom_themes"])
         self.show_grid_check.setChecked(settings["canvas"]["show_grid"])
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.minimap_expanded_check.setChecked(settings["canvas"]["minimap_expanded"])
@@ -145,7 +128,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 "graph_theme": {
                     "follow_shell_theme": self.follow_shell_theme_check.isChecked(),
                     "selected_theme_id": str(graph_theme_id) if graph_theme_id is not None else "",
-                    "custom_themes": [],
+                    "custom_themes": copy.deepcopy(self._custom_graph_themes),
                 },
             }
         )

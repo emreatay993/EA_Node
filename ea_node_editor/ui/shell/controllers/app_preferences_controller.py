@@ -14,7 +14,18 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     app_preferences_path,
 )
-from ea_node_editor.ui.graph_theme import DEFAULT_GRAPH_THEME_ID, is_known_graph_theme_id, resolve_graph_theme_id
+from ea_node_editor.ui.graph_theme import (
+    DEFAULT_GRAPH_THEME_ID,
+    create_blank_custom_graph_theme,
+    duplicate_graph_theme_as_custom,
+    graph_theme_choices as available_graph_theme_choices,
+    graph_theme_registry,
+    is_custom_graph_theme_id,
+    is_known_graph_theme_id,
+    normalize_custom_graph_theme_definition,
+    resolve_graph_theme_id,
+    serialize_custom_graph_themes,
+)
 from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id
 
 if TYPE_CHECKING:
@@ -37,11 +48,12 @@ def normalize_graph_theme_settings(payload: Any) -> dict[str, Any]:
         payload.get("follow_shell_theme"),
         defaults["follow_shell_theme"],
     )
+    normalized["custom_themes"] = serialize_custom_graph_themes(payload.get("custom_themes"))
     normalized["selected_theme_id"] = _normalize_graph_theme_id(
         payload.get("selected_theme_id"),
         defaults["selected_theme_id"],
+        custom_themes=normalized["custom_themes"],
     )
-    normalized["custom_themes"] = []
     return normalized
 
 
@@ -150,6 +162,20 @@ class AppPreferencesController:
     def graphics_settings(self) -> dict[str, Any]:
         return copy.deepcopy(self._ensure_document()["graphics"])
 
+    def graph_theme_settings(self) -> dict[str, Any]:
+        return copy.deepcopy(self.graphics_settings()["graph_theme"])
+
+    def graph_theme_choices(self) -> tuple[tuple[str, str], ...]:
+        settings = self.graph_theme_settings()
+        return available_graph_theme_choices(settings.get("custom_themes"))
+
+    def custom_graph_themes(self) -> list[dict[str, object]]:
+        settings = self.graph_theme_settings()
+        custom_themes = settings.get("custom_themes")
+        if not isinstance(custom_themes, list):
+            return []
+        return copy.deepcopy(custom_themes)
+
     def apply_graphics_settings_to_host(
         self,
         host: ShellWindow,
@@ -173,6 +199,118 @@ class AppPreferencesController:
         merged = merge_defaults(updates, current)
         return self.set_graphics_settings(merged, host=host)
 
+    def create_blank_custom_graph_theme(
+        self,
+        *,
+        label: object | None = None,
+        host: ShellWindow | None = None,
+    ) -> dict[str, object]:
+        settings = self.graph_theme_settings()
+        theme = create_blank_custom_graph_theme(
+            custom_themes=settings.get("custom_themes"),
+            label=label,
+        )
+        updated_settings = copy.deepcopy(settings)
+        updated_settings["custom_themes"] = [*self.custom_graph_themes(), theme.as_dict()]
+        saved_settings = self._set_graph_theme_settings(updated_settings, host=host)
+        return _find_custom_theme(saved_settings.get("custom_themes"), theme.theme_id) or theme.as_dict()
+
+    def duplicate_graph_theme(
+        self,
+        theme_id: object,
+        *,
+        label: object | None = None,
+        host: ShellWindow | None = None,
+    ) -> dict[str, object] | None:
+        settings = self.graph_theme_settings()
+        custom_themes = settings.get("custom_themes")
+        if not is_known_graph_theme_id(theme_id, custom_themes=custom_themes):
+            return None
+        theme = duplicate_graph_theme_as_custom(
+            theme_id,
+            custom_themes=custom_themes,
+            label=label,
+        )
+        updated_settings = copy.deepcopy(settings)
+        updated_settings["custom_themes"] = [*self.custom_graph_themes(), theme.as_dict()]
+        saved_settings = self._set_graph_theme_settings(updated_settings, host=host)
+        return _find_custom_theme(saved_settings.get("custom_themes"), theme.theme_id) or theme.as_dict()
+
+    def rename_custom_graph_theme(
+        self,
+        theme_id: object,
+        label: object,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, object] | None:
+        normalized_theme_id = str(theme_id).strip().lower()
+        if not is_custom_graph_theme_id(normalized_theme_id):
+            return None
+        existing_theme = _find_custom_theme(self.custom_graph_themes(), normalized_theme_id)
+        if existing_theme is None:
+            return None
+        existing_theme["label"] = label
+        return self.save_custom_graph_theme(existing_theme, host=host)
+
+    def delete_custom_graph_theme(self, theme_id: object, *, host: ShellWindow | None = None) -> bool:
+        normalized_theme_id = str(theme_id).strip().lower()
+        if not is_custom_graph_theme_id(normalized_theme_id):
+            return False
+
+        settings = self.graph_theme_settings()
+        current_custom_themes = self.custom_graph_themes()
+        updated_custom_themes = [
+            theme
+            for theme in current_custom_themes
+            if str(theme.get("theme_id", "")).strip().lower() != normalized_theme_id
+        ]
+        if len(updated_custom_themes) == len(current_custom_themes):
+            return False
+
+        updated_settings = copy.deepcopy(settings)
+        updated_settings["custom_themes"] = updated_custom_themes
+        if str(updated_settings.get("selected_theme_id", "")).strip().lower() == normalized_theme_id:
+            updated_settings["selected_theme_id"] = DEFAULT_GRAPH_THEME_ID
+        self._set_graph_theme_settings(updated_settings, host=host)
+        return True
+
+    def save_custom_graph_theme(
+        self,
+        theme: Any,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, object]:
+        settings = self.graph_theme_settings()
+        current_custom_themes = self.custom_graph_themes()
+        existing_theme_id = str(_theme_identity(theme)).strip().lower()
+        existing_index = _find_custom_theme_index(current_custom_themes, existing_theme_id)
+
+        retained_custom_themes = current_custom_themes
+        if existing_index >= 0:
+            retained_custom_themes = [
+                existing_theme
+                for index, existing_theme in enumerate(current_custom_themes)
+                if index != existing_index
+            ]
+
+        normalized_theme = normalize_custom_graph_theme_definition(
+            theme,
+            reserved_theme_ids=graph_theme_registry(retained_custom_themes),
+        )
+        saved_theme = normalized_theme.as_dict()
+        if existing_index >= 0:
+            retained_custom_themes.insert(existing_index, saved_theme)
+        else:
+            retained_custom_themes.append(saved_theme)
+
+        updated_settings = copy.deepcopy(settings)
+        updated_settings["custom_themes"] = retained_custom_themes
+        if existing_index >= 0 and existing_theme_id == str(settings.get("selected_theme_id", "")).strip().lower():
+            updated_settings["selected_theme_id"] = normalized_theme.theme_id
+
+        saved_settings = self._set_graph_theme_settings(updated_settings, host=host)
+        return _find_custom_theme(saved_settings.get("custom_themes"), normalized_theme.theme_id) or saved_theme
+
     def persist(self) -> dict[str, Any]:
         self._document = self._store.persist_document(self._ensure_document())
         return copy.deepcopy(self._document)
@@ -181,6 +319,16 @@ class AppPreferencesController:
         if self._document is None:
             self._document = self._store.load_document()
         return self._document
+
+    def _set_graph_theme_settings(
+        self,
+        graph_theme_settings: Any,
+        *,
+        host: ShellWindow | None = None,
+    ) -> dict[str, Any]:
+        graphics = self.graphics_settings()
+        graphics["graph_theme"] = normalize_graph_theme_settings(graph_theme_settings)
+        return self.set_graphics_settings(graphics, host=host)["graph_theme"]
 
 
 def _normalize_bool(value: Any, default: bool) -> bool:
@@ -196,14 +344,44 @@ def _normalize_theme_id(value: Any, default: str) -> str:
     return DEFAULT_THEME_ID
 
 
-def _normalize_graph_theme_id(value: Any, default: str) -> str:
+def _normalize_graph_theme_id(value: Any, default: str, *, custom_themes: Any = None) -> str:
     normalized = str(value).strip()
-    if is_known_graph_theme_id(normalized):
+    if is_known_graph_theme_id(normalized, custom_themes=custom_themes):
         return normalized
-    resolved_default = resolve_graph_theme_id(default)
-    if is_known_graph_theme_id(resolved_default):
+    resolved_default = resolve_graph_theme_id(default, custom_themes=custom_themes)
+    if is_known_graph_theme_id(resolved_default, custom_themes=custom_themes):
         return resolved_default
     return DEFAULT_GRAPH_THEME_ID
+
+
+def _find_custom_theme(custom_themes: Any, theme_id: object) -> dict[str, object] | None:
+    normalized_theme_id = str(theme_id).strip().lower()
+    if not isinstance(custom_themes, list):
+        return None
+    for theme in custom_themes:
+        if not isinstance(theme, Mapping):
+            continue
+        if str(theme.get("theme_id", "")).strip().lower() == normalized_theme_id:
+            return copy.deepcopy(dict(theme))
+    return None
+
+
+def _find_custom_theme_index(custom_themes: Any, theme_id: object) -> int:
+    normalized_theme_id = str(theme_id).strip().lower()
+    if not isinstance(custom_themes, list):
+        return -1
+    for index, theme in enumerate(custom_themes):
+        if not isinstance(theme, Mapping):
+            continue
+        if str(theme.get("theme_id", "")).strip().lower() == normalized_theme_id:
+            return index
+    return -1
+
+
+def _theme_identity(theme: Any) -> Any:
+    if isinstance(theme, Mapping):
+        return theme.get("theme_id")
+    return getattr(theme, "theme_id", theme)
 
 
 __all__ = [
