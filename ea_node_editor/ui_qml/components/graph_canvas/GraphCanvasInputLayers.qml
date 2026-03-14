@@ -125,6 +125,20 @@ Item {
             selecting = false;
         }
 
+        onDoubleClicked: {
+            selecting = false;
+            if (!root.canvasItem || !root.mainWindowBridge)
+                return;
+            var sceneX = root.canvasItem.screenToSceneX(mouse.x);
+            var sceneY = root.canvasItem.screenToSceneY(mouse.y);
+            var overlayHost = root.canvasItem.overlayHostItem || root.canvasItem;
+            var overlayPoint = root.canvasItem.mapToItem(overlayHost, mouse.x, mouse.y);
+            root.mainWindowBridge.request_open_canvas_quick_insert(
+                sceneX, sceneY, overlayPoint.x, overlayPoint.y
+            );
+            mouse.accepted = true;
+        }
+
         onWheel: function(wheel) {
             if (root.canvasItem && root.canvasItem.applyWheelZoom(wheel))
                 wheel.accepted = true;

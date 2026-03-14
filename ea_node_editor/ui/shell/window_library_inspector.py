@@ -471,3 +471,34 @@ def build_connection_quick_insert_items(
     ranked.sort(key=lambda entry: (entry[0], entry[1], str(entry[2].get("type_id", "")).lower()))
     capped = max(1, int(limit))
     return [entry[2] for entry in ranked[:capped]]
+
+
+def build_canvas_quick_insert_items(
+    *,
+    combined_items: Iterable[dict[str, Any]],
+    query: str,
+    limit: int = 12,
+) -> list[dict[str, Any]]:
+    ranked: list[tuple[int, str, dict[str, Any]]] = []
+    for item in combined_items:
+        if not _library_item_matches_query(item, query=query, compatible_ports=[]):
+            continue
+        payload = dict(item)
+        payload["compatible_ports"] = []
+        payload["compatible_port_labels"] = []
+        payload["compatible_port_count"] = 0
+        payload["compatible_direction"] = ""
+        ranked.append(
+            (
+                _connection_quick_insert_rank(
+                    query,
+                    display_name=str(item.get("display_name", "")),
+                    type_id=str(item.get("type_id", "")),
+                ),
+                str(item.get("display_name", "")).lower(),
+                payload,
+            )
+        )
+    ranked.sort(key=lambda entry: (entry[0], entry[1], str(entry[2].get("type_id", "")).lower()))
+    capped = max(1, int(limit))
+    return [entry[2] for entry in ranked[:capped]]

@@ -42,6 +42,7 @@ from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
 from ea_node_editor.ui.theme import build_theme_stylesheet
 from ea_node_editor.ui.shell.window_library_inspector import (
+    build_canvas_quick_insert_items,
     build_connection_quick_insert_items,
     build_combined_library_items,
     build_filtered_library_items,
@@ -505,6 +506,11 @@ class ShellWindow(QMainWindow):
             summary += f" [{data_type}]"
         return summary
 
+    @pyqtProperty(bool, notify=connection_quick_insert_changed)
+    def connection_quick_insert_is_canvas_mode(self) -> bool:
+        context = self._connection_quick_insert_context or {}
+        return str(context.get("mode", "")).strip() == "canvas_insert"
+
     @pyqtProperty(str, notify=graph_hint_changed)
     def graph_hint_message(self) -> str:
         return str(self._graph_hint_message)
@@ -795,7 +801,13 @@ class ShellWindow(QMainWindow):
             return
         normalized_query = str(query)
         results: list[dict[str, Any]] = []
-        if not (
+        if str(context.get("mode", "")).strip() == "canvas_insert":
+            results = build_canvas_quick_insert_items(
+                combined_items=self._combined_library_items(),
+                query=normalized_query,
+                limit=self._CONNECTION_QUICK_INSERT_LIMIT,
+            )
+        elif not (
             str(context.get("direction", "")).strip().lower() == "in"
             and int(context.get("connection_count", 0)) > 0
         ):
@@ -990,6 +1002,31 @@ class ShellWindow(QMainWindow):
             return False
         return True
 
+    @pyqtSlot(float, float, float, float)
+    def request_open_canvas_quick_insert(
+        self,
+        scene_x: float,
+        scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> None:
+        context: dict[str, Any] = {
+            "mode": "canvas_insert",
+            "scene_x": float(scene_x),
+            "scene_y": float(scene_y),
+            "overlay_x": float(overlay_x),
+            "overlay_y": float(overlay_y),
+        }
+        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self._set_connection_quick_insert_state(
+            open_=True,
+            query="",
+            results=[],
+            highlight_index=-1,
+            context=context,
+        )
+        self._refresh_connection_quick_insert_results("")
+
     @pyqtSlot()
     def request_close_connection_quick_insert(self) -> None:
         self._set_connection_quick_insert_state(
@@ -1041,21 +1078,33 @@ class ShellWindow(QMainWindow):
         if context is None:
             return False
         selected_item = self._connection_quick_insert_results[index]
-        offset = self._CONNECTION_QUICK_INSERT_OFFSET
         scene_x = float(context.get("scene_x", 0.0))
-        if str(context.get("direction", "")).strip().lower() == "in":
-            scene_x -= offset
+        scene_y = float(context.get("scene_y", 0.0))
+        if str(context.get("mode", "")).strip() == "canvas_insert":
+            created = self.request_drop_node_from_library(
+                str(selected_item.get("type_id", "")),
+                scene_x,
+                scene_y,
+                "",
+                "",
+                "",
+                "",
+            )
         else:
-            scene_x += offset
-        created = self.request_drop_node_from_library(
-            str(selected_item.get("type_id", "")),
-            scene_x,
-            float(context.get("scene_y", 0.0)),
-            "port",
-            str(context.get("node_id", "")),
-            str(context.get("port_key", "")),
-            "",
-        )
+            offset = self._CONNECTION_QUICK_INSERT_OFFSET
+            if str(context.get("direction", "")).strip().lower() == "in":
+                scene_x -= offset
+            else:
+                scene_x += offset
+            created = self.request_drop_node_from_library(
+                str(selected_item.get("type_id", "")),
+                scene_x,
+                scene_y,
+                "port",
+                str(context.get("node_id", "")),
+                str(context.get("port_key", "")),
+                "",
+            )
         self.request_close_connection_quick_insert()
         return bool(created)
 

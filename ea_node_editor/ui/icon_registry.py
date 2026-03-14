@@ -29,6 +29,10 @@ _ICON_SPECS: dict[str, IconSpec] = {
     "pause": IconSpec(name="pause", label="Pause", relative_path="player-pause.svg"),
     "resume": IconSpec(name="resume", label="Resume", relative_path="player-play.svg"),
     "stop": IconSpec(name="stop", label="Stop", relative_path="player-stop.svg"),
+    "chevrons-left": IconSpec(name="chevrons-left", label="Collapse", relative_path="chevrons-left.svg"),
+    "chevrons-right": IconSpec(name="chevrons-right", label="Collapse", relative_path="chevrons-right.svg"),
+    "chevron-up": IconSpec(name="chevron-up", label="Expand", relative_path="chevron-up.svg"),
+    "chevron-down": IconSpec(name="chevron-down", label="Collapse", relative_path="chevron-down.svg"),
 }
 
 

@@ -22,6 +22,7 @@ Rectangle {
     readonly property var themePalette: themeBridge.palette
     readonly property bool isLeftSide: String(side || "").toLowerCase() === "left"
     readonly property string collapseButtonText: root.isLeftSide ? "‹" : "›"
+    readonly property string collapseButtonIconName: root.isLeftSide ? "chevrons-left" : "chevrons-right"
     readonly property string expandHandleArrow: root.isLeftSide ? "›" : "‹"
     property real animatedPaneWidth: root.paneCollapsed ? root.collapsedRailWidth : root.expandedWidth
     property real expandedContentOpacity: root.paneCollapsed ? 0 : 1
@@ -181,9 +182,21 @@ Rectangle {
                 }
 
                 ShellButton {
-                    text: root.collapseButtonText
+                    iconName: root.collapseButtonIconName
+                    iconSize: 14
+                    implicitWidth: 26
+                    implicitHeight: 24
                     tooltipText: root.collapseButtonTooltip
                     onClicked: root.collapsePane()
+
+                    background: Rectangle {
+                        radius: 4
+                        color: parent.down
+                            ? root.themePalette.pressed
+                            : (parent.hovered ? root.themePalette.hover : "transparent")
+                        border.color: parent.hovered || parent.down ? root.themePalette.border : "transparent"
+                        border.width: 1
+                    }
                 }
             }
 

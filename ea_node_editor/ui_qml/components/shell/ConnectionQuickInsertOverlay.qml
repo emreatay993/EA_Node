@@ -72,6 +72,17 @@ Rectangle {
         })
     }
 
+    Connections {
+        target: quickInsertField
+        function onActiveFocusChanged() {
+            if (!quickInsertField.activeFocus && root.visible && root.mainWindowRef)
+                Qt.callLater(function() {
+                    if (!quickInsertField.activeFocus && root.visible && root.mainWindowRef)
+                        root.mainWindowRef.request_close_connection_quick_insert()
+                })
+        }
+    }
+
     MouseArea {
         anchors.fill: parent
         acceptedButtons: Qt.NoButton
@@ -121,6 +132,7 @@ Rectangle {
 
         Text {
             width: parent.width
+            visible: text.length > 0
             text: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_source_summary : ""
             color: root.themePalette.muted_fg
             font.pixelSize: 10
@@ -130,7 +142,9 @@ Rectangle {
         TextField {
             id: quickInsertField
             width: parent.width
-            placeholderText: "Insert compatible node..."
+            placeholderText: (root.mainWindowRef && root.mainWindowRef.connection_quick_insert_is_canvas_mode)
+                ? "Search nodes..."
+                : "Insert compatible node..."
             text: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_query : ""
             selectByMouse: true
             color: root.themePalette.input_fg
@@ -245,7 +259,9 @@ Rectangle {
                 && root.mainWindowRef.connection_quick_insert_results.length === 0
             width: parent.width
             wrapMode: Text.WordWrap
-            text: "No compatible nodes."
+            text: (root.mainWindowRef && root.mainWindowRef.connection_quick_insert_is_canvas_mode)
+                ? "No matching nodes."
+                : "No compatible nodes."
             color: root.themePalette.muted_fg
             font.pixelSize: 11
         }

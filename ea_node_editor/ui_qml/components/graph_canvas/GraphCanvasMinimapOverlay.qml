@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import "GraphCanvasLogic.js" as GraphCanvasLogic
 
 Rectangle {
@@ -8,14 +9,14 @@ Rectangle {
     property var sceneBridge: null
     property var viewBridge: null
     readonly property var themePalette: themeBridge.palette
+    readonly property bool isExpanded: root.canvasItem ? root.canvasItem.minimapExpanded : false
     readonly property color chromeColor: Qt.alpha(themePalette.panel_bg, 0.64)
     readonly property color chromeBorderColor: themePalette.border
     readonly property color titleColor: themePalette.group_title_fg
-    readonly property color toggleDefaultColor: themePalette.toolbar_bg
     readonly property color toggleHoverColor: themePalette.hover
     readonly property color togglePressedColor: themePalette.pressed
     readonly property color toggleBorderColor: themePalette.border
-    readonly property color toggleTextColor: themePalette.panel_title_fg
+    readonly property color toggleIconColor: themePalette.panel_title_fg
     readonly property color viewportBackdropColor: Qt.alpha(themePalette.canvas_bg, 0.72)
     readonly property color viewportBackdropBorderColor: themePalette.border
     readonly property color minimapNodeSelectedColor: Qt.alpha(themePalette.accent, 0.28)
@@ -32,53 +33,77 @@ Rectangle {
     anchors.bottom: parent.bottom
     anchors.rightMargin: 12
     anchors.bottomMargin: 12
-    width: root.canvasItem && root.canvasItem.minimapExpanded
+    width: root.canvasItem && root.isExpanded
         ? root.canvasItem.minimapExpandedWidth
-        : (root.canvasItem ? root.canvasItem.minimapCollapsedWidth : 36)
-    height: root.canvasItem && root.canvasItem.minimapExpanded
+        : (root.canvasItem ? root.canvasItem.minimapCollapsedWidth : 28)
+    height: root.canvasItem && root.isExpanded
         ? root.canvasItem.minimapExpandedHeight
         : (root.canvasItem ? root.canvasItem.minimapCollapsedHeight : 28)
-    radius: 4
+    radius: 6
     color: root.chromeColor
     border.width: 1
-    border.color: root.chromeBorderColor
+    border.color: root.isExpanded ? root.chromeBorderColor : (minimapToggleMouse.containsMouse || minimapToggleMouse.pressed ? root.chromeBorderColor : "transparent")
     clip: true
 
+    Behavior on width {
+        NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
+    }
+    Behavior on height {
+        NumberAnimation { duration: 200; easing.type: Easing.InOutCubic }
+    }
+    Behavior on border.color {
+        ColorAnimation { duration: 120 }
+    }
+
+    // Expanded header: label + collapse toggle
     Text {
-        visible: root.canvasItem ? root.canvasItem.minimapExpanded : false
+        visible: root.isExpanded
         anchors.left: parent.left
         anchors.leftMargin: 8
         anchors.top: parent.top
-        anchors.topMargin: 5
+        anchors.topMargin: 6
         text: "MINIMAP"
         color: root.titleColor
         font.pixelSize: 9
         font.bold: true
     }
 
+    // Toggle button — ghost icon-only style.
+    // Collapsed: fills the entire root and shows "expand" chevron.
+    // Expanded: small button in top-right shows "collapse" chevron.
     Rectangle {
         id: minimapToggle
         objectName: "graphCanvasMinimapToggle"
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.topMargin: 4
-        anchors.rightMargin: 4
-        width: 22
-        height: 18
-        radius: 3
+        anchors.topMargin: root.isExpanded ? 3 : 0
+        anchors.rightMargin: root.isExpanded ? 3 : 0
+        width: root.isExpanded ? 22 : parent.width
+        height: root.isExpanded ? 22 : parent.height
+        radius: root.isExpanded ? 4 : root.radius
         color: minimapToggleMouse.pressed
             ? root.togglePressedColor
-            : (minimapToggleMouse.containsMouse ? root.toggleHoverColor : root.toggleDefaultColor)
-        border.width: 1
+            : (minimapToggleMouse.containsMouse ? root.toggleHoverColor : "transparent")
+        border.width: (minimapToggleMouse.containsMouse || minimapToggleMouse.pressed) ? 1 : 0
         border.color: root.toggleBorderColor
 
-        Text {
+        Behavior on color { ColorAnimation { duration: 100 } }
+
+        Image {
             anchors.centerIn: parent
-            text: (root.canvasItem && root.canvasItem.minimapExpanded) ? "-" : "+"
-            color: root.toggleTextColor
-            font.pixelSize: 12
-            font.bold: true
+            source: root.isExpanded
+                ? uiIcons.sourceSized("chevron-down", 12, String(root.toggleIconColor))
+                : uiIcons.sourceSized("chevron-up", 14, String(root.toggleIconColor))
+            width: root.isExpanded ? 12 : 14
+            height: root.isExpanded ? 12 : 14
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
         }
+
+        ToolTip.visible: minimapToggleMouse.containsMouse
+        ToolTip.text: root.isExpanded ? "Collapse minimap" : "Expand minimap"
+        ToolTip.delay: 400
 
         MouseArea {
             id: minimapToggleMouse
@@ -99,7 +124,7 @@ Rectangle {
     Item {
         id: minimapViewport
         objectName: "graphCanvasMinimapViewport"
-        visible: root.canvasItem ? root.canvasItem.minimapExpanded : false
+        visible: root.isExpanded
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top

@@ -36,7 +36,7 @@ Item {
     readonly property real worldOffset: worldSize / 2
     readonly property real minimapExpandedWidth: 238
     readonly property real minimapExpandedHeight: 162
-    readonly property real minimapCollapsedWidth: 36
+    readonly property real minimapCollapsedWidth: 28
     readonly property real minimapCollapsedHeight: 28
     focus: true
     activeFocusOnTab: true
