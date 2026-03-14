@@ -8,6 +8,8 @@ Rectangle {
     property string paneTitle: ""
     property string side: "right"
     property real expandedWidth: 300
+    property real minExpandedWidth: 180
+    property real maxExpandedWidth: 600
     property int collapsedRailWidth: 0
     property int collapsedHandleWidth: 30
     property int collapsedTabTopMargin: 112
@@ -48,6 +50,7 @@ Rectangle {
     clip: false
 
     Behavior on animatedPaneWidth {
+        enabled: !resizeHandle.pressed
         NumberAnimation {
             duration: 240
             easing.type: Easing.InOutCubic
@@ -205,6 +208,56 @@ Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 spacing: root.contentSpacing
+            }
+        }
+    }
+
+    MouseArea {
+        id: resizeHandle
+        width: 6
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: root.isLeftSide ? parent.right : undefined
+        anchors.left: root.isLeftSide ? undefined : parent.left
+        visible: !root.paneCollapsed && root.expandedContentOpacity > 0.5
+        cursorShape: Qt.SplitHCursor
+        z: 20
+
+        property real dragStartX: 0
+        property real dragStartWidth: 0
+
+        onPressed: {
+            dragStartX = mapToItem(null, mouseX, 0).x
+            dragStartWidth = root.expandedWidth
+        }
+
+        onPositionChanged: {
+            if (!pressed)
+                return
+            var currentX = mapToItem(null, mouseX, 0).x
+            var delta = root.isLeftSide
+                ? (currentX - dragStartX)
+                : (dragStartX - currentX)
+            var newWidth = Math.max(root.minExpandedWidth,
+                Math.min(root.maxExpandedWidth, dragStartWidth + delta))
+            root.expandedWidth = newWidth
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: 2
+            height: 24
+            radius: 1
+            color: resizeHandle.containsMouse || resizeHandle.pressed
+                ? root.themePalette.accent
+                : root.themePalette.border
+            opacity: resizeHandle.containsMouse || resizeHandle.pressed ? 1.0 : 0.0
+
+            Behavior on opacity {
+                NumberAnimation { duration: 150 }
+            }
+            Behavior on color {
+                ColorAnimation { duration: 150 }
             }
         }
     }
