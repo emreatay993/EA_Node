@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import unittest
 from pathlib import Path
@@ -19,6 +20,7 @@ from ea_node_editor.ui.graph_theme import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_STITCH_DARK_EDGE_TOKENS_V1,
     GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1,
+    resolve_graph_theme,
 )
 from ea_node_editor.ui.theme import STITCH_DARK_V1, STITCH_LIGHT_V1
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -525,6 +527,43 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertGreater(len(edges_changed), edges_count_before)
         edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}
         self.assertEqual(edge_payload[edge_id]["color"], GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1.warning_stroke)
+
+    def test_graph_theme_bridge_accepts_custom_theme_payloads_and_rebuilds_scene(self) -> None:
+        custom_theme = copy.deepcopy(resolve_graph_theme("graph_stitch_dark").as_dict())
+        custom_theme["theme_id"] = "custom_graph_theme_deadbeef"
+        custom_theme["label"] = "Ocean Wire"
+        custom_theme["category_accent_tokens"]["core"] = "#44AAFF"
+        custom_theme["edge_tokens"]["warning_stroke"] = "#11AA66"
+
+        graph_theme_bridge = GraphThemeBridge(theme_id=custom_theme)
+        self.scene.bind_graph_theme_bridge(graph_theme_bridge)
+        nodes_changed: list[str] = []
+        edges_changed: list[str] = []
+        self.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
+        self.scene.edges_changed.connect(lambda: edges_changed.append("edges"))
+
+        start_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        constant_id = self.scene.add_node_from_type("core.constant", 220.0, 0.0)
+        branch_id = self.scene.add_node_from_type("core.branch", 480.0, 0.0)
+        edge_id = self.scene.add_edge(constant_id, "as_text", branch_id, "condition")
+
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}
+        self.assertEqual(node_payload[start_id]["accent"], "#44AAFF")
+        self.assertEqual(edge_payload[edge_id]["color"], "#11AA66")
+
+        custom_theme["category_accent_tokens"]["core"] = "#C955CC"
+        custom_theme["edge_tokens"]["warning_stroke"] = "#1188CC"
+        nodes_count_before = len(nodes_changed)
+        edges_count_before = len(edges_changed)
+        graph_theme_bridge.apply_theme(custom_theme)
+
+        self.assertGreater(len(nodes_changed), nodes_count_before)
+        self.assertGreater(len(edges_changed), edges_count_before)
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}
+        self.assertEqual(node_payload[start_id]["accent"], "#C955CC")
+        self.assertEqual(edge_payload[edge_id]["color"], "#1188CC")
 
     def test_connect_nodes_uses_only_currently_exposed_ports(self) -> None:
         source_id = self.scene.add_node_from_type("core.constant", 0.0, 0.0)

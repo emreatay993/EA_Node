@@ -30,7 +30,7 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
 
-    def test_dialog_groups_built_in_and_custom_themes_and_previews_tokens_read_only(self) -> None:
+    def test_dialog_groups_built_in_and_custom_themes_and_only_custom_tokens_are_editable(self) -> None:
         custom_theme = _custom_theme()
         dialog = GraphThemeEditorDialog(
             initial_settings={
@@ -46,17 +46,25 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
             self.assertEqual(dialog.theme_tree.topLevelItem(0).childCount(), 2)
             self.assertEqual(dialog.theme_tree.topLevelItem(1).childCount(), 1)
 
+            card_bg_value = dialog.findChild(QLineEdit, "node_tokens_card_bg_value")
+            self.assertIsNotNone(card_bg_value)
             self.assertEqual(dialog.theme_id_field.text(), "graph_stitch_dark")
             self.assertEqual(dialog.theme_mode_field.text(), "Built-in theme (read-only)")
             self.assertFalse(dialog.rename_button.isEnabled())
             self.assertFalse(dialog.delete_button.isEnabled())
             self.assertTrue(dialog.duplicate_button.isEnabled())
             self.assertTrue(dialog.use_selected_button.isEnabled())
-
-            card_bg_value = dialog.findChild(QLineEdit, "node_tokens_card_bg_value")
-            self.assertIsNotNone(card_bg_value)
             self.assertTrue(card_bg_value.isReadOnly())
             self.assertEqual(card_bg_value.text(), resolve_graph_theme("graph_stitch_dark").node_tokens.card_bg)
+
+            dialog.theme_tree.setCurrentItem(dialog._theme_items[custom_theme["theme_id"]])
+            self.assertEqual(dialog.theme_mode_field.text(), "Custom theme (editable)")
+            self.assertFalse(card_bg_value.isReadOnly())
+
+            card_bg_value.setText("#123456")
+            settings = dialog.graph_theme_settings()
+            self.assertEqual(settings["selected_theme_id"], "graph_stitch_dark")
+            self.assertEqual(settings["custom_themes"][0]["node_tokens"]["card_bg"], "#123456")
         finally:
             dialog.close()
 
@@ -117,6 +125,80 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_invalid_custom_hex_color_blocks_close_until_fixed(self) -> None:
+        custom_theme = _custom_theme()
+        dialog = GraphThemeEditorDialog(
+            initial_settings={
+                "follow_shell_theme": False,
+                "selected_theme_id": custom_theme["theme_id"],
+                "custom_themes": [custom_theme],
+            }
+        )
+        try:
+            warning_stroke_value = dialog.findChild(QLineEdit, "edge_tokens_warning_stroke_value")
+            self.assertIsNotNone(warning_stroke_value)
+            self.assertFalse(warning_stroke_value.isReadOnly())
+
+            warning_stroke_value.setText("#12345")
+            with patch.object(QMessageBox, "warning", return_value=QMessageBox.StandardButton.Ok) as warning:
+                dialog.close_button.click()
+
+            warning.assert_called_once()
+            self.assertNotEqual(dialog.result(), dialog.DialogCode.Accepted)
+            self.assertFalse(dialog.validation_message.isHidden())
+
+            warning_stroke_value.setText("#123456")
+            dialog.close_button.click()
+
+            self.assertEqual(dialog.result(), dialog.DialogCode.Accepted)
+        finally:
+            dialog.close()
+
+    def test_live_apply_callback_only_runs_for_active_explicit_custom_theme(self) -> None:
+        active_theme = _custom_theme("custom_graph_theme_deadbeef", "Ocean Wire")
+        inactive_theme = _custom_theme("custom_graph_theme_feedf00d", "Mint Wire")
+        live_apply_calls: list[dict[str, object]] = []
+        dialog = GraphThemeEditorDialog(
+            initial_settings={
+                "follow_shell_theme": False,
+                "selected_theme_id": active_theme["theme_id"],
+                "custom_themes": [active_theme, inactive_theme],
+            },
+            live_apply_callback=lambda settings: live_apply_calls.append(copy.deepcopy(settings)),
+        )
+        try:
+            warning_stroke_value = dialog.findChild(QLineEdit, "edge_tokens_warning_stroke_value")
+            self.assertIsNotNone(warning_stroke_value)
+
+            warning_stroke_value.setText("#1188CC")
+            self.assertEqual(len(live_apply_calls), 1)
+            self.assertEqual(
+                live_apply_calls[0]["custom_themes"][0]["edge_tokens"]["warning_stroke"],
+                "#1188CC",
+            )
+
+            dialog.theme_tree.setCurrentItem(dialog._theme_items[inactive_theme["theme_id"]])
+            warning_stroke_value.setText("#44AA22")
+            self.assertEqual(len(live_apply_calls), 1)
+
+            follow_shell_dialog = GraphThemeEditorDialog(
+                initial_settings={
+                    "follow_shell_theme": True,
+                    "selected_theme_id": active_theme["theme_id"],
+                    "custom_themes": [active_theme],
+                },
+                live_apply_callback=lambda settings: live_apply_calls.append(copy.deepcopy(settings)),
+            )
+            try:
+                follow_shell_warning_value = follow_shell_dialog.findChild(QLineEdit, "edge_tokens_warning_stroke_value")
+                self.assertIsNotNone(follow_shell_warning_value)
+                follow_shell_warning_value.setText("#AA2299")
+                self.assertEqual(len(live_apply_calls), 1)
+            finally:
+                follow_shell_dialog.close()
+        finally:
+            dialog.close()
+
     def test_reject_keeps_library_changes_for_close_style_exit(self) -> None:
         dialog = GraphThemeEditorDialog(
             initial_settings={
@@ -136,6 +218,8 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
             settings = dialog.graph_theme_settings()
             self.assertEqual(len(settings["custom_themes"]), 1)
             self.assertEqual(settings["custom_themes"][0]["theme_id"], created_theme_id)
+            self.assertTrue(settings["follow_shell_theme"])
+            self.assertEqual(settings["selected_theme_id"], "graph_stitch_dark")
         finally:
             dialog.close()
 
@@ -202,6 +286,46 @@ class GraphThemeEditorShellFlowTests(unittest.TestCase):
 
         self.assertEqual(persisted["graphics"]["graph_theme"], expected_document["graphics"]["graph_theme"])
         self.assertEqual(self.window.graph_theme_bridge.theme_id, custom_theme["theme_id"])
+
+    def test_live_custom_theme_edit_updates_bridge_and_scene_payloads(self) -> None:
+        custom_theme = _custom_theme()
+        updated_graphics = copy.deepcopy(DEFAULT_APP_PREFERENCES["graphics"])
+        updated_graphics["graph_theme"] = {
+            "follow_shell_theme": False,
+            "selected_theme_id": custom_theme["theme_id"],
+            "custom_themes": [custom_theme],
+        }
+        self.window.app_preferences_controller.set_graphics_settings(updated_graphics, host=self.window)
+        self.app.processEvents()
+
+        constant_id = self.window.scene.add_node_from_type("core.constant", 220.0, 20.0)
+        branch_id = self.window.scene.add_node_from_type("core.branch", 500.0, 20.0)
+        edge_id = self.window.scene.add_edge(constant_id, "as_text", branch_id, "condition")
+        self.assertEqual(
+            {item["edge_id"]: item for item in self.window.scene.edges_model}[edge_id]["color"],
+            custom_theme["edge_tokens"]["warning_stroke"],
+        )
+
+        dialog = GraphThemeEditorDialog(
+            initial_settings=self.window.app_preferences_controller.graph_theme_settings(),
+            parent=self.window,
+            live_apply_callback=self.window.preview_graph_theme_settings,
+        )
+        try:
+            warning_stroke_value = dialog.findChild(QLineEdit, "edge_tokens_warning_stroke_value")
+            self.assertIsNotNone(warning_stroke_value)
+
+            warning_stroke_value.setText("#1188CC")
+            self.app.processEvents()
+
+            self.assertEqual(self.window.graph_theme_bridge.theme_id, custom_theme["theme_id"])
+            self.assertEqual(self.window.graph_theme_bridge.edge_palette["warning_stroke"], "#1188CC")
+            self.assertEqual(
+                {item["edge_id"]: item for item in self.window.scene.edges_model}[edge_id]["color"],
+                "#1188CC",
+            )
+        finally:
+            dialog.close()
 
 
 if __name__ == "__main__":

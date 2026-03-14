@@ -42,6 +42,7 @@ from ea_node_editor.ui.shell.controllers import (
     RunController,
     WorkspaceLibraryController,
 )
+from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
@@ -915,6 +916,13 @@ class ShellWindow(QMainWindow):
             app.setStyleSheet(build_theme_stylesheet(resolved_theme_id))
         return resolved_theme_id
 
+    def preview_graph_theme_settings(self, graph_theme_settings: Any) -> str:
+        normalized = normalize_graph_theme_settings(graph_theme_settings)
+        return self.graph_theme_bridge.apply_settings(
+            shell_theme_id=self.active_theme_id,
+            graph_theme_settings=normalized,
+        )
+
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
         canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
         interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
@@ -1692,10 +1700,19 @@ class ShellWindow(QMainWindow):
             return
         self.app_preferences_controller.set_graphics_settings(dialog.values(), host=self)
 
-    def edit_graph_theme_settings(self, graph_theme_settings: Any) -> dict[str, Any] | None:
+    def edit_graph_theme_settings(
+        self,
+        graph_theme_settings: Any,
+        *,
+        enable_live_apply: bool = False,
+    ) -> dict[str, Any] | None:
         from ea_node_editor.ui.dialogs import GraphThemeEditorDialog
 
-        dialog = GraphThemeEditorDialog(initial_settings=graph_theme_settings, parent=self)
+        dialog = GraphThemeEditorDialog(
+            initial_settings=graph_theme_settings,
+            parent=self,
+            live_apply_callback=self.preview_graph_theme_settings if enable_live_apply else None,
+        )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return None
         return dialog.graph_theme_settings()
@@ -1703,7 +1720,10 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     @pyqtSlot(bool)
     def show_graph_theme_editor_dialog(self, _checked: bool = False) -> None:
-        graph_theme_settings = self.edit_graph_theme_settings(self.app_preferences_controller.graph_theme_settings())
+        graph_theme_settings = self.edit_graph_theme_settings(
+            self.app_preferences_controller.graph_theme_settings(),
+            enable_live_apply=True,
+        )
         if graph_theme_settings is None:
             return
         graphics = self.app_preferences_controller.graphics_settings()
