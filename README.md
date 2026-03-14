@@ -6,8 +6,9 @@ multi-step engineering workflows -- all through a drag-and-drop canvas.
 
 Recent UI/UX architecture highlights:
 
-- App-wide Graphics Settings modal for grid, minimap, snap-to-grid default, and live theme selection
-- Shared `stitch_dark` and `stitch_light` theme application across both QWidget and QML shell/canvas surfaces
+- App-wide Graphics Settings modal for grid, minimap, snap-to-grid default, shell-theme selection, and graph-theme follow-shell or explicit selection
+- Split shell/chrome theming (`ThemeBridge` + `stitch_dark` / `stitch_light`) from node/edge graph theming (`graphThemeBridge` + built-in/custom graph themes)
+- Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, and live apply for the active explicit custom theme
 - Graphics preferences now persist in `app_preferences.json` separately from project `.sfe` files and `last_session.json`
 - Connection-aware quick insert from a dangling wire drag
 - Inline node controls for fast editing of selected property types
@@ -81,7 +82,13 @@ ea_node_editor/
     system_metrics.py
   ui/
     graph_interactions.py
+    graph_theme/
+      presentation.py
+      registry.py
+      runtime.py
+      tokens.py
     dialogs/
+      graph_theme_editor_dialog.py
       graphics_settings_dialog.py
       sectioned_settings_dialog.py
       workflow_settings_dialog.py
@@ -116,6 +123,7 @@ ea_node_editor/
   ui_qml/
     MainShell.qml
     graph_scene_bridge.py
+    graph_theme_bridge.py
     viewport_bridge.py
     edge_routing.py
     console_model.py
@@ -201,9 +209,11 @@ Restart the application and the node will appear in the Node Library under the
 
 ## Graphics Settings
 
-- Open `Settings > Graphics Settings` to configure the grid overlay, minimap visibility/default expansion, snap-to-grid default, and the active shell/canvas theme.
-- Theme changes apply live to both the QWidget shell styling and the QML shell/canvas surfaces.
-- App-wide graphics preferences persist in `%APPDATA%\EA_Node_Editor\app_preferences.json` and stay separate from project `.sfe` files and `last_session.json`.
+- Open `Settings > Graphics Settings` to configure the grid overlay, minimap visibility/default expansion, snap-to-grid default, shell theme, graph-theme follow-shell behavior, and explicit graph-theme selection.
+- Use `Manage Graph Themes...` to duplicate built-in graph themes into editable custom themes, edit node/edge/category-accent/port-kind tokens, and choose an explicit graph theme.
+- Shell-theme changes apply live to QWidget styling and QML shell/canvas chrome surfaces. Node and edge visuals resolve through the active graph theme.
+- Graph themes affect `NodeCard` and `EdgeLayer` only; background, grid, minimap, marquee, and drop-preview chrome stay on the shell theme path.
+- App-wide graphics preferences, including the inline custom graph-theme library, persist in `%APPDATA%\EA_Node_Editor\app_preferences.json` and stay separate from project `.sfe` files and `last_session.json`.
 
 ## Running Tests
 
@@ -214,6 +224,7 @@ python -m pytest tests/ -v
 ## Interaction Notes
 
 - Graphics settings are app-wide rather than project-local, so reopening the app restores the last saved grid/minimap/snap/theme choices.
+- Standalone graph-theme editing previews only apply live when the edited theme is already the active explicit custom theme; Graph Themes opened from Graphics Settings do not mutate the running graph until Graphics Settings is accepted.
 - Drag from a port to empty canvas space to open the connection-aware quick insert overlay.
 - Quick insert only shows node types that can auto-connect to the dragged source port using the same compatibility rules as normal graph connections.
 - Some node types expose inline property controls directly in the node card for faster editing, while the inspector remains the full editing surface.

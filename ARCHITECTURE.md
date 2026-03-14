@@ -10,7 +10,7 @@ EA Node Editor is a desktop visual workflow editor that:
 - supports nested subnode scopes (graph hierarchy),
 - executes workflows in a separate worker process,
 - persists projects as versioned `.sfe` JSON,
-- persists app-wide graphics/theme preferences as versioned `app_preferences.json`,
+- persists app-wide graphics, shell-theme, and graph-theme preferences as versioned `app_preferences.json`,
 - supports plugin-based custom node types,
 - publishes/imports reusable custom workflow snapshots,
 - restores sessions/autosaves and reports runtime status/metrics.
@@ -21,6 +21,7 @@ The app is split into clear parts:
 - `ea_node_editor/ui` + `ea_node_editor/ui_qml`: shell window, QML shell/canvas composition, bridges, and UI models.
 - `ea_node_editor/ui/shell/controllers`: orchestration split into app-preferences, run, project/session, and workspace/library controllers.
 - `ea_node_editor/ui/theme`: shared theme registry, token sets, QWidget stylesheet generation, and QML palette bridge inputs.
+- `ea_node_editor/ui/graph_theme`: graph-theme registry, token sets, runtime resolution, and node/edge presentation helpers.
 - `ea_node_editor/graph`: in-memory graph domain (`ProjectData`, `WorkspaceData`, nodes, edges, views), hierarchy helpers, and graph transforms.
 - `ea_node_editor/nodes`: node SDK contracts, registry, built-ins, plugin discovery, and package import/export.
 - `ea_node_editor/execution`: UI client + worker process + typed command/event protocol.
@@ -35,7 +36,8 @@ Design intent:
 - shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
 - `ShellWindow` is a thin facade that delegates to controllers and bridge helpers.
 - App-wide graphics settings live in `app_preferences.json` through `AppPreferencesController`, not in project `.sfe` metadata or `last_session.json`.
-- Shared theme resolution feeds both the QApplication stylesheet and QML `ThemeBridge.palette`, so shell and canvas surfaces switch themes together at runtime.
+- Shared shell-theme resolution feeds both the QApplication stylesheet and QML `ThemeBridge.palette`, so shell and canvas chrome surfaces switch themes together at runtime.
+- Dedicated graph-theme resolution feeds QML `graphThemeBridge`, so `NodeCard` and `EdgeLayer` can follow the shell theme by default or switch to explicit/custom graph themes without changing canvas chrome.
 - User-facing shell surfaces prefer node titles and per-type sequential IDs; raw internal `node_id` values stay as internal references.
 - `GraphModel` remains the canonical mutable graph state.
 - Hierarchy is explicit via `NodeInstance.parent_node_id` and per-view `scope_path`.
@@ -73,6 +75,7 @@ flowchart LR
     GC --> EDGE[EdgeLayer]
     GC --> NODECARD[NodeCard]
     GC --> TBRIDGE[ThemeBridge palette]
+    GC --> GTBRIDGE[graphThemeBridge node/edge palette]
     NODECARD --> INS
     NODECARD --> SW
 
@@ -91,6 +94,8 @@ flowchart LR
     SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
     SW --> TBRIDGE
     SW --> THEME[theme registry and stylesheet builder]
+    SW --> GTBRIDGE
+    SW --> GTHEME[graph theme registry/runtime]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
@@ -157,7 +162,7 @@ flowchart TD
     G --> H[Load MainShell + GraphCanvas composition components]
     H --> I[Restore session and optional autosave recovery]
     I --> J[Switch workspace and restore view and scope camera]
-    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, and theme palette surfaces]
+    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, ThemeBridge chrome palettes, and graphThemeBridge node/edge palettes]
 
     K --> L[User edits graph, searches by title or type, navigates scope, or opens Graphics Settings]
     L --> M[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
@@ -170,7 +175,7 @@ flowchart TD
     Q --> K
 
     K --> KP[Graphics Settings dialog updates app_preferences.json]
-    KP --> KR[ShellWindow reapplies graphics flags plus theme bridge and stylesheet]
+    KP --> KR[ShellWindow reapplies graphics flags plus shell theme bridge and stylesheet and resolves graphThemeBridge]
     KR --> K
 
     K --> R[Inline property payloads rendered in NodeCard]
@@ -249,9 +254,9 @@ sequenceDiagram
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
 - controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
-- QML bridges/models (`ThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, console/status/script/workspace models),
+- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, console/status/script/workspace models),
 - execution client (`ProcessExecutionClient`) and event subscription.
-4. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap/theme state before the shell is shown.
+4. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap, shell-theme, and graph-theme state before the shell is shown.
 5. QML shell is loaded (`ui_qml/MainShell.qml`) with context properties and a composed `GraphCanvas` surface.
 6. `GraphCanvas` composes dedicated background/minimap/input/context/drop-preview modules.
 7. Session restore + optional autosave recovery runs, then active workspace/view/scope are bound.
@@ -261,6 +266,7 @@ sequenceDiagram
 - `GraphCanvasInputLayers`, `NodeCard`, and `EdgeLayer` capture pointer/keyboard interactions and issue `request_*` calls.
 - Shell delegates edits/navigation to `WorkspaceLibraryController` and helper ops.
 - `GraphSceneBridge` applies scoped mutations to `GraphModel` (only nodes in active scope).
+- `GraphSceneBridge` and edge-routing helpers shape node accents and edge colors from the active graph theme before payloads reach QML.
 - Scope breadcrumbs and per-view `scope_path` are updated and persisted.
 - `RuntimeGraphHistory` records snapshots for undo/redo.
 - `GraphCanvasBackground`, `GraphCanvasDropPreview`, and `GraphCanvasMinimapOverlay` repaint from bridge payloads.
@@ -284,11 +290,14 @@ sequenceDiagram
 - Search results can jump across workspaces, reveal collapsed parent chains, and focus/center selected nodes.
 - Scope camera (zoom/pan) is remembered per workspace/view/scope tuple.
 
-### 3) Graphics settings and live theme application
+### 3) Graphics settings, shell themes, and graph themes
 - `GraphicsSettingsDialog` is opened from `Settings > Graphics Settings` through `ShellWindow.show_graphics_settings_dialog()`.
-- `AppPreferencesController` normalizes and persists grid, minimap, snap-to-grid, and theme choices into versioned `app_preferences.json`.
-- `ShellWindow.apply_graphics_preferences()` updates graph-canvas behavior flags and reapplies the shared theme to both QApplication stylesheet and `ThemeBridge`.
-- QML shell/canvas surfaces bind to `themeBridge.palette`, while QWidget surfaces use the same resolved theme tokens through generated stylesheets.
+- `GraphicsSettingsDialog` controls shell-theme selection plus graph-theme follow-shell/explicit selection and launches the graph-theme manager from `Manage Graph Themes...`.
+- `GraphThemeEditorDialog` groups built-in read-only themes and editable custom themes, supports create/duplicate/rename/delete/use-selected flows, and edits node/edge/category-accent/port-kind color tokens.
+- `AppPreferencesController` normalizes and persists grid, minimap, snap-to-grid, shell-theme, and `graph_theme` payload choices into versioned `app_preferences.json`.
+- `ShellWindow.apply_graphics_preferences()` updates graph-canvas behavior flags, reapplies the shared shell theme to both QApplication stylesheet and `ThemeBridge`, and resolves `graphThemeBridge` independently.
+- `GraphCanvasBackground`, `GraphCanvasDropPreview`, and `GraphCanvasMinimapOverlay` stay on `themeBridge.palette`, while `NodeCard` and `EdgeLayer` bind to `graphThemeBridge`.
+- Live graph-theme preview is intentionally limited to the standalone `show_graph_theme_editor_dialog()` flow and only while editing the active explicit custom theme; nested manager usage inside Graphics Settings updates the library but does not mutate the running graph until the outer dialog is accepted.
 
 ### 4) Custom workflow lifecycle
 - Subnode scopes can be published into `metadata.custom_workflows` as reusable fragment snapshots.
@@ -329,13 +338,15 @@ sequenceDiagram
 - Persistence contract:
 - schema-versioned `.sfe` JSON (`SCHEMA_VERSION = 3`) migrated before model construction.
 - App preferences contract:
-- versioned `app_preferences.json` (`kind = "ea-node-editor/app-preferences"`, `version = 1`) containing graphics defaults separate from project/session persistence.
+- versioned `app_preferences.json` (`kind = "ea-node-editor/app-preferences"`, `version = 2`) containing graphics defaults plus `graph_theme = {follow_shell_theme, selected_theme_id, custom_themes}` separate from project/session persistence.
 - Custom workflow contract:
 - `metadata.custom_workflows` plus `.eawf` import/export document format.
 - QML canvas composition contract:
 - `GraphCanvas.qml` remains the orchestration surface exposing `toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, and `performLibraryDrop()`.
-- Theme bridge contract:
-- `ThemeBridge.palette` exposes shared resolved theme tokens to QML shell/canvas surfaces while QApplication uses the same theme registry for QWidget styling.
+- Shell theme bridge contract:
+- `ThemeBridge.palette` exposes shared resolved shell-theme tokens to QML shell and canvas-chrome surfaces while QApplication uses the same theme registry for QWidget styling.
+- Graph theme bridge contract:
+- `graphThemeBridge` exposes node, edge, category-accent, and port-kind palettes to QML graph item surfaces without changing canvas chrome tokens.
 
 ## Key architecture rules currently enforced
 1. UI responsiveness through process isolation
@@ -353,8 +364,8 @@ sequenceDiagram
 5. App-wide preferences stay outside project/session files
 - Graphics/theme preferences persist in `app_preferences.json`; `.sfe` and `last_session.json` stay focused on project/session state only.
 
-6. Shared theme tokens drive both QWidget and QML surfaces
-- Theme changes must resolve through the common registry so shell and graph canvas remain visually aligned at runtime.
+6. Shell-theme and graph-theme responsibilities stay split
+- Shell/chrome theming resolves through `ea_node_editor/ui/theme/*` + `ThemeBridge`, while node/edge graph theming resolves through `ea_node_editor/ui/graph_theme/*` + `graphThemeBridge`.
 
 7. Deterministic persistence with migration
 - Documents are normalized/migrated before decode; save output is stable and diff-friendly.
