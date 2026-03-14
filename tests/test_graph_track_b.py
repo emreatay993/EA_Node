@@ -128,7 +128,9 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.engine = QQmlEngine()
         self.theme_bridge = ThemeBridge(theme_id="stitch_dark")
+        self.graph_theme_bridge = GraphThemeBridge(theme_id="graph_stitch_dark")
         self.engine.rootContext().setContextProperty("themeBridge", self.theme_bridge)
+        self.engine.rootContext().setContextProperty("graphThemeBridge", self.graph_theme_bridge)
         self.component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_GRAPH_CANVAS_QML_PATH)))
         if self.component.status() != QQmlComponent.Status.Ready:
             errors = "\n".join(str(error) for error in self.component.errors())
@@ -221,14 +223,21 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             _color_name(drop_preview.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_DARK_V1.panel_bg, 0.66),
         )
-        self.assertEqual(_color_name(edge_layer.property("selectedStrokeColor")), STITCH_DARK_V1.panel_title_fg)
-        self.assertEqual(_color_name(edge_layer.property("invalidDragStrokeColor")), STITCH_DARK_V1.muted_fg)
+        self.assertEqual(
+            _color_name(edge_layer.property("selectedStrokeColor")),
+            self.graph_theme_bridge.edge_palette["selected_stroke"],
+        )
+        self.assertEqual(
+            _color_name(edge_layer.property("invalidDragStrokeColor")),
+            self.graph_theme_bridge.edge_palette["invalid_drag_stroke"],
+        )
         self.assertEqual(
             _color_name(marquee_rect.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_DARK_V1.accent, 0.2),
         )
 
         self.theme_bridge.apply_theme("stitch_light")
+        self.graph_theme_bridge.apply_theme("graph_stitch_light")
         self.app.processEvents()
 
         self.assertEqual(_color_name(background.property("backgroundFillColor")), STITCH_LIGHT_V1.canvas_bg)
@@ -246,8 +255,14 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             _color_name(drop_preview.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_LIGHT_V1.panel_bg, 0.66),
         )
-        self.assertEqual(_color_name(edge_layer.property("selectedStrokeColor")), STITCH_LIGHT_V1.panel_title_fg)
-        self.assertEqual(_color_name(edge_layer.property("invalidDragStrokeColor")), STITCH_LIGHT_V1.muted_fg)
+        self.assertEqual(
+            _color_name(edge_layer.property("selectedStrokeColor")),
+            self.graph_theme_bridge.edge_palette["selected_stroke"],
+        )
+        self.assertEqual(
+            _color_name(edge_layer.property("invalidDragStrokeColor")),
+            self.graph_theme_bridge.edge_palette["invalid_drag_stroke"],
+        )
         self.assertEqual(
             _color_name(marquee_rect.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_LIGHT_V1.accent, 0.2),
@@ -326,20 +341,65 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             self.fail(f"Failed to instantiate NodeCard.qml:\n{errors}")
         self.app.processEvents()
 
-        self.assertEqual(_color_name(node_card.property("color")), STITCH_DARK_V1.panel_bg)
-        self.assertEqual(_color_name(node_card.property("headerColor")), STITCH_DARK_V1.toolbar_bg)
-        self.assertEqual(_color_name(node_card.property("inlineRowColor")), STITCH_DARK_V1.panel_alt_bg)
-        self.assertEqual(_color_name(node_card.property("inlineInputBackgroundColor")), STITCH_DARK_V1.input_bg)
-        self.assertEqual(_color_name(node_card.property("portLabelColor")), STITCH_DARK_V1.muted_fg)
+        self.assertEqual(_color_name(node_card.property("color")), self.graph_theme_bridge.node_palette["card_bg"])
+        self.assertEqual(_color_name(node_card.property("headerColor")), self.graph_theme_bridge.node_palette["header_bg"])
+        self.assertEqual(_color_name(node_card.property("inlineRowColor")), self.graph_theme_bridge.node_palette["inline_row_bg"])
+        self.assertEqual(
+            _color_name(node_card.property("inlineInputBackgroundColor")),
+            self.graph_theme_bridge.node_palette["inline_input_bg"],
+        )
+        self.assertEqual(
+            _color_name(node_card.property("portLabelColor")),
+            self.graph_theme_bridge.node_palette["port_label_fg"],
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("exec")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["exec"]),
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("data")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["data"]),
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("completed")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["completed"]),
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("failed")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["failed"]),
+        )
 
         self.theme_bridge.apply_theme("stitch_light")
+        self.graph_theme_bridge.apply_theme("graph_stitch_light")
         self.app.processEvents()
 
-        self.assertEqual(_color_name(node_card.property("color")), STITCH_LIGHT_V1.panel_bg)
-        self.assertEqual(_color_name(node_card.property("headerColor")), STITCH_LIGHT_V1.toolbar_bg)
-        self.assertEqual(_color_name(node_card.property("inlineRowColor")), STITCH_LIGHT_V1.panel_alt_bg)
-        self.assertEqual(_color_name(node_card.property("inlineInputBackgroundColor")), STITCH_LIGHT_V1.input_bg)
-        self.assertEqual(_color_name(node_card.property("portLabelColor")), STITCH_LIGHT_V1.muted_fg)
+        self.assertEqual(_color_name(node_card.property("color")), self.graph_theme_bridge.node_palette["card_bg"])
+        self.assertEqual(_color_name(node_card.property("headerColor")), self.graph_theme_bridge.node_palette["header_bg"])
+        self.assertEqual(_color_name(node_card.property("inlineRowColor")), self.graph_theme_bridge.node_palette["inline_row_bg"])
+        self.assertEqual(
+            _color_name(node_card.property("inlineInputBackgroundColor")),
+            self.graph_theme_bridge.node_palette["inline_input_bg"],
+        )
+        self.assertEqual(
+            _color_name(node_card.property("portLabelColor")),
+            self.graph_theme_bridge.node_palette["port_label_fg"],
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("exec")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["exec"]),
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("data")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["data"]),
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("completed")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["completed"]),
+        )
+        self.assertEqual(
+            _color_name(node_card.basePortColor("failed")),
+            _color_name(self.graph_theme_bridge.port_kind_palette["failed"]),
+        )
 
         node_card.deleteLater()
         self.app.processEvents()
