@@ -1685,11 +1685,30 @@ class ShellWindow(QMainWindow):
         dialog = GraphicsSettingsDialog(
             initial_settings=self.app_preferences_controller.graphics_settings(),
             available_graph_themes=self.app_preferences_controller.graph_theme_choices(),
+            manage_graph_themes_callback=self.edit_graph_theme_settings,
             parent=self,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         self.app_preferences_controller.set_graphics_settings(dialog.values(), host=self)
+
+    def edit_graph_theme_settings(self, graph_theme_settings: Any) -> dict[str, Any] | None:
+        from ea_node_editor.ui.dialogs import GraphThemeEditorDialog
+
+        dialog = GraphThemeEditorDialog(initial_settings=graph_theme_settings, parent=self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return None
+        return dialog.graph_theme_settings()
+
+    @pyqtSlot()
+    @pyqtSlot(bool)
+    def show_graph_theme_editor_dialog(self, _checked: bool = False) -> None:
+        graph_theme_settings = self.edit_graph_theme_settings(self.app_preferences_controller.graph_theme_settings())
+        if graph_theme_settings is None:
+            return
+        graphics = self.app_preferences_controller.graphics_settings()
+        graphics["graph_theme"] = graph_theme_settings
+        self.app_preferences_controller.set_graphics_settings(graphics, host=self)
 
     @pyqtSlot()
     @pyqtSlot(bool)
