@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QLineEdit, QMessageBox
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES
 from ea_node_editor.ui.dialogs.graph_theme_editor_dialog import GraphThemeEditorDialog
-from ea_node_editor.ui.graph_theme import resolve_graph_theme
+from ea_node_editor.ui.graph_theme import GRAPH_THEME_REGISTRY, resolve_graph_theme
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.main_window_shell.base import MainWindowShellTestBase
 
@@ -36,7 +36,7 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
             self.assertEqual(dialog.theme_tree.topLevelItemCount(), 2)
             self.assertEqual(dialog.theme_tree.topLevelItem(0).text(0), "Built-in Themes")
             self.assertEqual(dialog.theme_tree.topLevelItem(1).text(0), "Custom Themes")
-            self.assertEqual(dialog.theme_tree.topLevelItem(0).childCount(), 2)
+            self.assertEqual(dialog.theme_tree.topLevelItem(0).childCount(), len(GRAPH_THEME_REGISTRY))
             self.assertEqual(dialog.theme_tree.topLevelItem(1).childCount(), 1)
 
             card_bg_value = dialog.findChild(QLineEdit, "node_tokens_card_bg_value")
