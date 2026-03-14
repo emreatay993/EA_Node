@@ -1,13 +1,8 @@
 from __future__ import annotations
 
 import copy
-import os
 import unittest
 from unittest.mock import patch
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
@@ -16,9 +11,6 @@ from ea_node_editor.ui.graph_theme import graph_theme_choices, resolve_graph_the
 
 
 class GraphicsSettingsDialogTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
 
     def test_dialog_defaults_and_values_roundtrip(self) -> None:
         dialog = GraphicsSettingsDialog()

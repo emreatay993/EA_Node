@@ -2,15 +2,9 @@ from __future__ import annotations
 
 import copy
 import json
-import os
-import tempfile
-import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-from PyQt6.QtWidgets import QApplication, QDialog
+from PyQt6.QtWidgets import QDialog
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES, DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
@@ -23,51 +17,10 @@ from ea_node_editor.ui.graph_theme import (
 )
 from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.theme import build_theme_stylesheet
+from tests.main_window_shell.base import MainWindowShellTestBase
 
 
-class GraphThemeShellTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
-
-    def setUp(self) -> None:
-        self._temp_dir = tempfile.TemporaryDirectory()
-        self._session_path = Path(self._temp_dir.name) / "last_session.json"
-        self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
-        self._app_preferences_path = Path(self._temp_dir.name) / "app_preferences.json"
-        self._global_custom_workflows_path = Path(self._temp_dir.name) / "custom_workflows_global.json"
-        self._session_patch = patch(
-            "ea_node_editor.ui.shell.window.recent_session_path",
-            return_value=self._session_path,
-        )
-        self._autosave_patch = patch(
-            "ea_node_editor.ui.shell.window.autosave_project_path",
-            return_value=self._autosave_path,
-        )
-        self._app_preferences_patch = patch(
-            "ea_node_editor.ui.shell.controllers.app_preferences_controller.app_preferences_path",
-            return_value=self._app_preferences_path,
-        )
-        self._global_custom_workflows_patch = patch(
-            "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
-            return_value=self._global_custom_workflows_path,
-        )
-        self._session_patch.start()
-        self._autosave_patch.start()
-        self._app_preferences_patch.start()
-        self._global_custom_workflows_patch.start()
-        self.window = ShellWindow()
-        self.window.show()
-        self.app.processEvents()
-
-    def tearDown(self) -> None:
-        self.window.close()
-        self.app.processEvents()
-        self._session_patch.stop()
-        self._autosave_patch.stop()
-        self._app_preferences_patch.stop()
-        self._global_custom_workflows_patch.stop()
-        self._temp_dir.cleanup()
+class GraphThemeShellTests(MainWindowShellTestBase):
 
     def _recreate_window(self) -> None:
         self.window.close()

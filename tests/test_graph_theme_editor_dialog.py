@@ -2,20 +2,16 @@ from __future__ import annotations
 
 import copy
 import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
-from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox
+from PyQt6.QtWidgets import QLineEdit, QMessageBox
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES
 from ea_node_editor.ui.dialogs.graph_theme_editor_dialog import GraphThemeEditorDialog
 from ea_node_editor.ui.graph_theme import resolve_graph_theme
 from ea_node_editor.ui.shell.window import ShellWindow
+from tests.main_window_shell.base import MainWindowShellTestBase
 
 
 def _custom_theme(theme_id: str = "custom_graph_theme_deadbeef", label: str = "Ocean Wire") -> dict[str, object]:
@@ -26,9 +22,6 @@ def _custom_theme(theme_id: str = "custom_graph_theme_deadbeef", label: str = "O
 
 
 class GraphThemeEditorDialogTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
 
     def test_dialog_groups_built_in_and_custom_themes_and_only_custom_tokens_are_editable(self) -> None:
         custom_theme = _custom_theme()
@@ -224,49 +217,7 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
             dialog.close()
 
 
-class GraphThemeEditorShellFlowTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
-
-    def setUp(self) -> None:
-        self._temp_dir = tempfile.TemporaryDirectory()
-        self._session_path = Path(self._temp_dir.name) / "last_session.json"
-        self._autosave_path = Path(self._temp_dir.name) / "autosave.sfe"
-        self._app_preferences_path = Path(self._temp_dir.name) / "app_preferences.json"
-        self._global_custom_workflows_path = Path(self._temp_dir.name) / "custom_workflows_global.json"
-        self._session_patch = patch(
-            "ea_node_editor.ui.shell.window.recent_session_path",
-            return_value=self._session_path,
-        )
-        self._autosave_patch = patch(
-            "ea_node_editor.ui.shell.window.autosave_project_path",
-            return_value=self._autosave_path,
-        )
-        self._app_preferences_patch = patch(
-            "ea_node_editor.ui.shell.controllers.app_preferences_controller.app_preferences_path",
-            return_value=self._app_preferences_path,
-        )
-        self._global_custom_workflows_patch = patch(
-            "ea_node_editor.custom_workflows.global_store.global_custom_workflows_path",
-            return_value=self._global_custom_workflows_path,
-        )
-        self._session_patch.start()
-        self._autosave_patch.start()
-        self._app_preferences_patch.start()
-        self._global_custom_workflows_patch.start()
-        self.window = ShellWindow()
-        self.window.show()
-        self.app.processEvents()
-
-    def tearDown(self) -> None:
-        self.window.close()
-        self.app.processEvents()
-        self._session_patch.stop()
-        self._autosave_patch.stop()
-        self._app_preferences_patch.stop()
-        self._global_custom_workflows_patch.stop()
-        self._temp_dir.cleanup()
+class GraphThemeEditorShellFlowTests(MainWindowShellTestBase):
 
     def test_shell_flow_persists_manager_result(self) -> None:
         custom_theme = _custom_theme()

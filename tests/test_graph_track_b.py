@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import copy
-import os
 import unittest
 from pathlib import Path
-
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QObject, QRectF, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor
@@ -123,11 +120,8 @@ class _GraphCanvasPreferenceBridge(QObject):
 
 
 class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
-
     def setUp(self) -> None:
+        self.app = QApplication.instance()
         self.engine = QQmlEngine()
         self.theme_bridge = ThemeBridge(theme_id="stitch_dark")
         self.graph_theme_bridge = GraphThemeBridge(theme_id="graph_stitch_dark")
@@ -430,11 +424,8 @@ class GraphModelTrackBTests(unittest.TestCase):
 
 
 class GraphSceneBridgeTrackBTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        cls.app = QApplication.instance() or QApplication([])
-
     def setUp(self) -> None:
+        self.app = QApplication.instance()
         self.registry = build_default_registry()
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id

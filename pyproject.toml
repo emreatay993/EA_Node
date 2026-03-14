@@ -25,6 +25,7 @@ all = [
 ]
 dev = [
     "pytest>=7.4",
+    "pytest-xdist>=3.5",
     "pyinstaller>=6.0",
     "openpyxl>=3.1",
     "psutil>=5.9",
@@ -49,3 +50,8 @@ ea_node_editor = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gui: marks tests requiring Qt GUI",
+]
+addopts = "--strict-markers"
