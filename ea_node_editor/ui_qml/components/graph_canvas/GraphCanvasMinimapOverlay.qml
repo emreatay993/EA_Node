@@ -16,6 +16,7 @@ Rectangle {
     readonly property color toggleHoverColor: themePalette.hover
     readonly property color togglePressedColor: themePalette.pressed
     readonly property color toggleBorderColor: themePalette.border
+    readonly property color toggleCollapsedColor: themePalette.toolbar_bg
     readonly property color toggleIconColor: themePalette.panel_title_fg
     readonly property color viewportBackdropColor: Qt.alpha(themePalette.canvas_bg, 0.72)
     readonly property color viewportBackdropBorderColor: themePalette.border
@@ -83,11 +84,9 @@ Rectangle {
         radius: root.isExpanded ? 4 : root.radius
         color: minimapToggleMouse.pressed
             ? root.togglePressedColor
-            : (minimapToggleMouse.containsMouse ? root.toggleHoverColor : "transparent")
+            : (minimapToggleMouse.containsMouse ? root.toggleHoverColor : root.toggleCollapsedColor)
         border.width: (minimapToggleMouse.containsMouse || minimapToggleMouse.pressed) ? 1 : 0
         border.color: root.toggleBorderColor
-
-        Behavior on color { ColorAnimation { duration: 100 } }
 
         Image {
             anchors.centerIn: parent
