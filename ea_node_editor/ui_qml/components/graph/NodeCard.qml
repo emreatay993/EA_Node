@@ -14,6 +14,7 @@ Rectangle {
     property var dragSourcePort: null
     property real liveDragDx: 0
     property real liveDragDy: 0
+    property bool showShadow: false
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.node_palette
         : ({})
@@ -204,6 +205,40 @@ Rectangle {
     border.width: card.nodeData && card.nodeData.selected ? 2 : 1
     border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
     radius: 6
+
+    Rectangle {
+        id: shadowOuter
+        visible: card.showShadow
+        x: -4
+        y: 2
+        z: -3
+        width: card.width + 8
+        height: card.height + 8
+        radius: card.radius + 4
+        color: "#18000000"
+    }
+    Rectangle {
+        id: shadowMid
+        visible: card.showShadow
+        x: -2
+        y: 2
+        z: -2
+        width: card.width + 4
+        height: card.height + 5
+        radius: card.radius + 2
+        color: "#28000000"
+    }
+    Rectangle {
+        id: shadowInner
+        visible: card.showShadow
+        x: 0
+        y: 2
+        z: -1
+        width: card.width
+        height: card.height + 2
+        radius: card.radius
+        color: "#38000000"
+    }
 
     Rectangle {
         anchors.left: parent.left

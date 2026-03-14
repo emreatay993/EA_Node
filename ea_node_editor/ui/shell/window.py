@@ -172,6 +172,7 @@ class ShellWindow(QMainWindow):
         self._graphics_show_grid = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])
         self._graphics_show_minimap = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])
         self._graphics_minimap_expanded = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"])
+        self._graphics_node_shadow = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["node_shadow"])
         self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
         self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self.theme_bridge = ThemeBridge(self, theme_id=self._active_theme_id)
@@ -543,6 +544,10 @@ class ShellWindow(QMainWindow):
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_minimap_expanded(self) -> bool:
         return bool(self._graphics_minimap_expanded)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_node_shadow(self) -> bool:
+        return bool(self._graphics_node_shadow)
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def active_theme_id(self) -> str:
@@ -933,6 +938,7 @@ class ShellWindow(QMainWindow):
         show_grid = bool(canvas.get("show_grid", self._graphics_show_grid))
         show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
         minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
+        node_shadow = bool(canvas.get("node_shadow", self._graphics_node_shadow))
         active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
         follow_shell_theme = graph_theme.get("follow_shell_theme")
         if not isinstance(follow_shell_theme, bool):
@@ -962,6 +968,9 @@ class ShellWindow(QMainWindow):
         if self._graphics_minimap_expanded != minimap_expanded:
             self._graphics_minimap_expanded = minimap_expanded
             changed = True
+        if self._graphics_node_shadow != node_shadow:
+            self._graphics_node_shadow = node_shadow
+            changed = True
         if self._active_theme_id != active_theme_id:
             self._active_theme_id = active_theme_id
             changed = True
@@ -981,6 +990,7 @@ class ShellWindow(QMainWindow):
                 "show_grid": bool(self._graphics_show_grid),
                 "show_minimap": bool(self._graphics_show_minimap),
                 "minimap_expanded": bool(self._graphics_minimap_expanded),
+                "node_shadow": bool(self._graphics_node_shadow),
             },
             "interaction": {
                 "snap_to_grid": bool(self._snap_to_grid_enabled),

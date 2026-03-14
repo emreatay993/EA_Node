@@ -31,6 +31,7 @@ Item {
     property bool minimapExpanded: mainWindowBridge ? Boolean(mainWindowBridge.graphics_minimap_expanded) : true
     readonly property bool showGrid: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true
     readonly property bool minimapVisible: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true
+    readonly property bool nodeShadowEnabled: mainWindowBridge ? Boolean(mainWindowBridge.graphics_node_shadow) : true
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
     readonly property real worldOffset: worldSize / 2
@@ -1064,6 +1065,7 @@ Item {
                 dragSourcePort: root.wireDragSourcePort()
                 liveDragDx: root.liveDragDxForNode(modelData.node_id)
                 liveDragDy: root.liveDragDyForNode(modelData.node_id)
+                showShadow: root.nodeShadowEnabled
 
                 onNodeClicked: function(nodeId, additive) {
                     root.forceActiveFocus();

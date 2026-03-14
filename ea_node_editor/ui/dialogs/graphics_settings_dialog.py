@@ -63,9 +63,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.show_grid_check = QCheckBox("Show grid overlay", page)
         self.show_minimap_check = QCheckBox("Show minimap", page)
         self.minimap_expanded_check = QCheckBox("Expand minimap by default", page)
+        self.node_shadow_check = QCheckBox("Show node shadow", page)
         form.addRow(self.show_grid_check)
         form.addRow(self.show_minimap_check)
         form.addRow(self.minimap_expanded_check)
+        form.addRow(self.node_shadow_check)
         return page
 
     def _build_interaction_page(self) -> QWidget:
@@ -118,6 +120,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.show_grid_check.setChecked(settings["canvas"]["show_grid"])
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.minimap_expanded_check.setChecked(settings["canvas"]["minimap_expanded"])
+        self.node_shadow_check.setChecked(settings["canvas"]["node_shadow"])
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
         theme_id = settings["theme"]["theme_id"]
         index = self.theme_combo.findData(theme_id)
@@ -132,6 +135,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     "show_grid": self.show_grid_check.isChecked(),
                     "show_minimap": self.show_minimap_check.isChecked(),
                     "minimap_expanded": self.minimap_expanded_check.isChecked(),
+                    "node_shadow": self.node_shadow_check.isChecked(),
                 },
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),

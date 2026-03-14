@@ -49,6 +49,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
         "show_grid": True,
         "show_minimap": True,
         "minimap_expanded": True,
+        "node_shadow": True,
     },
     "interaction": {
         "snap_to_grid": False,

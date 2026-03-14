@@ -81,6 +81,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             canvas_payload.get("minimap_expanded"),
             defaults["canvas"]["minimap_expanded"],
         )
+        normalized["canvas"]["node_shadow"] = _normalize_bool(
+            canvas_payload.get("node_shadow"),
+            defaults["canvas"]["node_shadow"],
+        )
     if isinstance(interaction_payload, Mapping):
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
             interaction_payload.get("snap_to_grid"),
