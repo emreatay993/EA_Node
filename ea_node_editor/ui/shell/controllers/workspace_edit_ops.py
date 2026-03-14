@@ -124,6 +124,50 @@ class WorkspaceEditOps:
         self._controller.refresh_workspace_tabs()
         return ControllerResult(True, payload=created_node_id)
 
+    def request_rename_selected_port(self, key: str) -> ControllerResult[bool]:
+        from PyQt6.QtWidgets import QInputDialog
+
+        selected = self._controller.selected_node_context()
+        if selected is None:
+            return ControllerResult(False, "No node selected.", payload=False)
+        node, _spec = selected
+        if node.type_id != SUBNODE_TYPE_ID:
+            return ControllerResult(False, "Selected node is not a subnode shell.", payload=False)
+
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return ControllerResult(False, "No active workspace.", payload=False)
+
+        port_node_id = str(key or "").strip()
+        if not port_node_id:
+            return ControllerResult(False, "No subnode port selected.", payload=False)
+        pin_node = workspace.nodes.get(port_node_id)
+        if pin_node is None or not self._is_direct_child_pin_node(pin_node, workspace.nodes):
+            return ControllerResult(False, "Subnode port not found.", payload=False)
+        if str(pin_node.parent_node_id or "").strip() != str(node.node_id):
+            return ControllerResult(False, "Subnode port does not belong to the selected shell.", payload=False)
+
+        current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+        if not current_label:
+            current_label = "Input" if pin_node.type_id == SUBNODE_INPUT_TYPE_ID else "Output"
+        new_label, ok = QInputDialog.getText(
+            self._host,
+            "Rename Port",
+            "Port name:",
+            text=current_label,
+        )
+        if not ok:
+            return ControllerResult(False, payload=False)
+
+        normalized_label = str(new_label).strip()
+        if not normalized_label:
+            return ControllerResult(False, "Port name cannot be empty.", payload=False)
+        if normalized_label == current_label:
+            return ControllerResult(False, payload=False)
+
+        self.on_node_property_changed(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+        return ControllerResult(True, payload=True)
+
     def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
         self._host.scene.set_node_property(node_id, key, value)
         workspace = self._controller.active_workspace()

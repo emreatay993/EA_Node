@@ -16,6 +16,13 @@ class ThemeTokens:
     input_bg: str
     input_border: str
     input_fg: str
+    inspector_card_bg: str
+    inspector_section_header_bg: str
+    inspector_selected_bg: str
+    inspector_selected_border: str
+    inspector_danger_bg: str
+    inspector_danger_border: str
+    inspector_danger_fg: str
     accent: str
     accent_strong: str
     status_bg: str
@@ -53,6 +60,13 @@ STITCH_DARK_V1 = ThemeTokens(
     input_bg="#22242a",
     input_border="#4a4f5a",
     input_fg="#f0f2f5",
+    inspector_card_bg="#20242b",
+    inspector_section_header_bg="#32363f",
+    inspector_selected_bg="#2f4a66",
+    inspector_selected_border="#60CDFF",
+    inspector_danger_bg="#392629",
+    inspector_danger_border="#b96a72",
+    inspector_danger_fg="#f1b0b7",
     accent="#60CDFF",
     accent_strong="#1D8CE0",
     status_bg="#24a2dc",
@@ -88,6 +102,13 @@ STITCH_LIGHT_V1 = ThemeTokens(
     input_bg="#ffffff",
     input_border="#96a6ba",
     input_fg="#17212b",
+    inspector_card_bg="#ffffff",
+    inspector_section_header_bg="#e3eaf1",
+    inspector_selected_bg="#d8ebf9",
+    inspector_selected_border="#1D8CE0",
+    inspector_danger_bg="#fae7e9",
+    inspector_danger_border="#d28c94",
+    inspector_danger_fg="#98434c",
     accent="#1D8CE0",
     accent_strong="#b9dcf7",
     status_bg="#dceefb",

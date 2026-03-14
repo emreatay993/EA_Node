@@ -9,20 +9,29 @@ ShellCollapsibleSidePane {
     property var mainWindowRef
     property string activePortDirection: "in"
     property string selectedPortKey: ""
-    readonly property bool showPortSection: root.mainWindowRef.has_selected_node
-        && !root.mainWindowRef.selected_node_is_subnode_pin
-    readonly property bool canManageSubnodePorts: root.mainWindowRef.selected_node_is_subnode_shell
+    property string portActionPopupKey: ""
+    readonly property bool hasSelectedNode: !!root.mainWindowRef && root.mainWindowRef.has_selected_node
+    readonly property bool isPinInspector: !!root.mainWindowRef && root.mainWindowRef.selected_node_is_subnode_pin
+    readonly property bool showPortSection: root.hasSelectedNode && !root.isPinInspector
+    readonly property bool canManageSubnodePorts: !!root.mainWindowRef && root.mainWindowRef.selected_node_is_subnode_shell
     readonly property var visiblePortItems: root.portItemsForDirection(activePortDirection)
+    readonly property int inputPortCount: root.portItemsForDirection("in").length
+    readonly property int outputPortCount: root.portItemsForDirection("out").length
+    readonly property color cardBackgroundColor: root.themePalette.inspector_card_bg
+    readonly property color sectionHeaderColor: root.themePalette.inspector_section_header_bg
+    readonly property color selectedSurfaceColor: root.themePalette.inspector_selected_bg
+    readonly property color selectedOutlineColor: root.themePalette.inspector_selected_border
 
     paneTitle: "PROPERTIES"
     side: "right"
     expandedWidth: 300
+    contentSpacing: 0
     collapseButtonTooltip: "Collapse properties pane"
     expandHandleTooltip: "Expand properties pane"
 
     function portItemsForDirection(direction) {
         var normalizedDirection = String(direction || "").toLowerCase()
-        var items = root.mainWindowRef.selected_node_port_items || []
+        var items = root.mainWindowRef ? (root.mainWindowRef.selected_node_port_items || []) : []
         var filtered = []
         for (var index = 0; index < items.length; ++index) {
             var item = items[index]
@@ -58,6 +67,8 @@ ShellCollapsibleSidePane {
 
     function addSubnodePort(direction) {
         var normalizedDirection = String(direction || "").toLowerCase()
+        if (!root.mainWindowRef)
+            return
         var createdPortKey = root.mainWindowRef.request_add_selected_subnode_pin(normalizedDirection)
         if (!String(createdPortKey || "").length)
             return
@@ -65,8 +76,29 @@ ShellCollapsibleSidePane {
         selectedPortKey = String(createdPortKey)
     }
 
+    function openPortActionPopup(portKey, sourceItem) {
+        portActionPopupKey = String(portKey || "")
+        selectedPortKey = portActionPopupKey
+        if (!portActionPopupKey.length || !sourceItem)
+            return
+        var popupWidth = Math.max(1, Number(portActionPopup.implicitWidth) || 120)
+        var popupHeight = Math.max(1, Number(portActionPopup.implicitHeight) || 34)
+        var point = sourceItem.mapToItem(root, 0, sourceItem.height + 4)
+        portActionPopup.x = Math.max(0, Math.min(root.width - popupWidth - 6, Math.round(point.x - popupWidth + sourceItem.width)))
+        portActionPopup.y = Math.max(0, Math.min(root.height - popupHeight - 6, Math.round(point.y)))
+        portActionPopup.open()
+    }
+
     onVisiblePortItemsChanged: syncSelectedPortSelection()
     onShowPortSectionChanged: syncSelectedPortSelection()
+    onWidthChanged: {
+        if (portActionPopup.visible)
+            portActionPopup.close()
+    }
+    onHeightChanged: {
+        if (portActionPopup.visible)
+            portActionPopup.close()
+    }
 
     Connections {
         target: root.mainWindowRef
@@ -76,123 +108,417 @@ ShellCollapsibleSidePane {
         }
     }
 
-    contentData: [
-        Rectangle {
-            Layout.fillWidth: true
-            visible: root.mainWindowRef.has_selected_node
-            color: root.themePalette.panel_bg
-            border.color: root.themePalette.border
-            radius: 10
-            implicitHeight: heroContent.implicitHeight + 26
+    component InspectorSectionCard : Rectangle {
+        id: card
+        property string title: ""
+        property string subtitle: ""
+        default property alias bodyData: bodyColumn.data
+
+        width: parent ? parent.width : implicitWidth
+        radius: 12
+        color: root.cardBackgroundColor
+        border.color: root.themePalette.border
+        border.width: 1
+        clip: true
+        implicitHeight: cardColumn.implicitHeight
+
+        Column {
+            id: cardColumn
+            width: parent.width
+            spacing: 0
 
             Rectangle {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.leftMargin: 1
-                anchors.rightMargin: 1
-                anchors.topMargin: 1
-                height: 4
-                radius: 10
-                color: root.themePalette.accent
-            }
+                width: parent.width
+                height: headerColumn.implicitHeight + 14
+                color: root.sectionHeaderColor
 
-            ColumnLayout {
-                id: heroContent
-                anchors.fill: parent
-                anchors.margins: 12
-                anchors.topMargin: 16
-                spacing: 10
+                Column {
+                    id: headerColumn
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 12
+                    spacing: subtitleLabel.visible ? 2 : 0
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.mainWindowRef.selected_node_title
-                            color: root.themePalette.panel_title_fg
-                            font.pixelSize: 18
-                            font.bold: true
-                            elide: Text.ElideRight
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            visible: text.length > 0
-                            text: root.mainWindowRef.selected_node_subtitle
-                            wrapMode: Text.WordWrap
-                            color: root.themePalette.muted_fg
-                            font.pixelSize: 11
-                        }
+                    Text {
+                        text: card.title.toUpperCase()
+                        color: root.themePalette.group_title_fg
+                        font.pixelSize: 10
+                        font.bold: true
+                        font.letterSpacing: 0.9
+                        elide: Text.ElideRight
                     }
 
-                    ShellButton {
-                        visible: root.mainWindowRef.selected_node_collapsible
-                        text: root.mainWindowRef.selected_node_collapsed ? "Expand Node" : "Collapse Node"
-                        selectedStyle: root.mainWindowRef.selected_node_collapsed
-                        tooltipText: root.mainWindowRef.selected_node_collapsed
-                            ? "Expand the selected node body"
-                            : "Collapse the selected node body"
-                        onClicked: root.mainWindowRef.set_selected_node_collapsed(!root.mainWindowRef.selected_node_collapsed)
-                    }
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    width: parent.width
-                    spacing: 6
-                    visible: root.mainWindowRef.selected_node_header_items.length > 0
-
-                    Repeater {
-                        model: root.mainWindowRef.selected_node_header_items
-
-                        delegate: Rectangle {
-                            height: 28
-                            width: chipRow.implicitWidth + 18
-                            radius: 14
-                            color: root.themePalette.accent_strong
-                            border.color: root.themePalette.accent
-
-                            Row {
-                                id: chipRow
-                                anchors.centerIn: parent
-                                spacing: 6
-
-                                Text {
-                                    text: modelData.label
-                                    color: root.themePalette.accent
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                }
-
-                                Text {
-                                    text: modelData.value
-                                    color: root.themePalette.tab_selected_fg
-                                    font.pixelSize: 10
-                                }
-                            }
-                        }
+                    Text {
+                        id: subtitleLabel
+                        visible: card.subtitle.length > 0
+                        text: card.subtitle
+                        color: root.themePalette.muted_fg
+                        font.pixelSize: 10
+                        wrapMode: Text.WordWrap
                     }
                 }
             }
-        },
 
+            Item {
+                width: parent.width
+                implicitHeight: bodyColumn.implicitHeight + 18
+
+                Column {
+                    id: bodyColumn
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 10
+                    spacing: 8
+                }
+            }
+        }
+    }
+
+    component InspectorMetadataChip : Rectangle {
+        id: chip
+        property string labelText: ""
+        property string valueText: ""
+
+        color: "transparent"
+        height: metadataRow.implicitHeight
+        width: Math.min(metadataFlow.width, metadataRow.implicitWidth)
+
+        Row {
+            id: metadataRow
+            spacing: 8
+
+            Text {
+                text: chip.labelText.toUpperCase()
+                anchors.verticalCenter: valuePill.verticalCenter
+                color: root.themePalette.muted_fg
+                font.pixelSize: 9
+                font.bold: true
+                font.letterSpacing: 0.6
+                elide: Text.ElideRight
+            }
+
+            Rectangle {
+                id: valuePill
+                radius: 8
+                color: root.themePalette.input_bg
+                border.color: root.themePalette.input_border
+                border.width: 1
+                height: valueLabel.implicitHeight + 10
+                width: valueLabel.implicitWidth + 18
+
+                Text {
+                    id: valueLabel
+                    anchors.centerIn: parent
+                    text: chip.valueText
+                    color: root.themePalette.panel_title_fg
+                    font.pixelSize: 11
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+            }
+        }
+    }
+
+    component InspectorButton : Button {
+        id: control
+        property bool destructive: false
+        property bool selectedStyle: false
+        property bool compact: false
+        property string tooltipText: ""
+        readonly property color fillColor: !enabled
+            ? root.themePalette.tab_bg
+            : destructive
+                ? (down ? root.themePalette.inspector_danger_border
+                    : (hovered ? root.themePalette.inspector_danger_border : root.themePalette.inspector_danger_bg))
+                : selectedStyle
+                    ? root.themePalette.accent_strong
+                    : (down
+                        ? root.themePalette.hover
+                        : (hovered ? root.themePalette.hover : root.themePalette.input_bg))
+        readonly property color outlineColor: destructive
+            ? root.themePalette.inspector_danger_border
+            : (selectedStyle ? root.themePalette.accent : root.themePalette.input_border)
+        readonly property color labelColor: !enabled
+            ? root.themePalette.muted_fg
+            : (destructive
+                ? root.themePalette.inspector_danger_fg
+                : (selectedStyle ? root.themePalette.panel_title_fg : root.themePalette.tab_fg))
+
+        implicitHeight: compact ? 30 : 36
+        implicitWidth: Math.max(compact ? 80 : 92, label.implicitWidth + (compact ? 18 : 22))
+        hoverEnabled: true
+        padding: 0
+
+        ToolTip.visible: hovered && tooltipText.length > 0
+        ToolTip.delay: 280
+        ToolTip.text: tooltipText
+
+        contentItem: Text {
+            id: label
+            text: control.text
+            color: control.labelColor
+            font.pixelSize: control.compact ? 10 : 12
+            font.bold: true
+            font.letterSpacing: control.compact ? 0.5 : 0.2
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: control.compact ? 10 : 11
+            color: control.fillColor
+            border.color: control.outlineColor
+            border.width: 1
+        }
+    }
+
+    component InspectorSegmentButton : Button {
+        id: control
+        property bool selectedStyle: false
+        readonly property color fillColor: selectedStyle
+            ? root.selectedSurfaceColor
+            : (down ? root.themePalette.hover : (hovered ? root.themePalette.hover : "transparent"))
+        readonly property color outlineColor: selectedStyle ? root.selectedOutlineColor : "transparent"
+        readonly property color labelColor: selectedStyle ? root.themePalette.panel_title_fg : root.themePalette.muted_fg
+
+        implicitHeight: 38
+        hoverEnabled: true
+        padding: 0
+
+        contentItem: Text {
+            text: control.text
+            color: control.labelColor
+            font.pixelSize: 11
+            font.bold: true
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: 9
+            color: control.fillColor
+            border.color: control.outlineColor
+            border.width: 1
+        }
+    }
+
+    component InspectorCheckBox : CheckBox {
+        id: control
+        hoverEnabled: true
+        spacing: 8
+        padding: 0
+
+        indicator: Rectangle {
+            implicitWidth: 16
+            implicitHeight: 16
+            radius: 4
+            color: control.checked ? root.themePalette.accent : root.themePalette.input_bg
+            border.color: control.checked ? root.themePalette.accent : root.themePalette.input_border
+            border.width: 1
+
+            Text {
+                anchors.centerIn: parent
+                text: control.checked ? "✓" : ""
+                color: control.checked ? root.themePalette.panel_bg : "transparent"
+                font.pixelSize: 10
+                font.bold: true
+            }
+        }
+
+        contentItem: Text {
+            text: control.text
+            visible: text.length > 0
+            leftPadding: control.indicator.width + control.spacing
+            color: root.themePalette.input_fg
+            font.pixelSize: 11
+            verticalAlignment: Text.AlignVCenter
+        }
+    }
+
+    component InspectorTextField : TextField {
+        id: control
+        implicitHeight: 34
+        padding: 8
+        selectByMouse: true
+        color: root.themePalette.input_fg
+        selectionColor: root.selectedSurfaceColor
+        selectedTextColor: root.themePalette.panel_title_fg
+
+        background: Rectangle {
+            radius: 9
+            color: root.themePalette.input_bg
+            border.color: control.activeFocus ? root.themePalette.accent : root.themePalette.input_border
+            border.width: 1
+        }
+    }
+
+    component InspectorComboBox : ComboBox {
+        id: control
+        implicitHeight: 34
+        leftPadding: 8
+        rightPadding: 30
+        hoverEnabled: true
+        font.pixelSize: 11
+        palette.buttonText: root.themePalette.input_fg
+        palette.text: root.themePalette.input_fg
+        palette.highlight: root.selectedSurfaceColor
+        palette.highlightedText: root.themePalette.panel_title_fg
+        palette.base: root.themePalette.input_bg
+        palette.window: root.cardBackgroundColor
+
+        indicator: Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            text: "▾"
+            color: root.themePalette.muted_fg
+            font.pixelSize: 11
+            font.bold: true
+        }
+
+        contentItem: Text {
+            leftPadding: 0
+            rightPadding: 0
+            text: control.displayText
+            color: root.themePalette.input_fg
+            font: control.font
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+        }
+
+        background: Rectangle {
+            radius: 10
+            color: root.themePalette.input_bg
+            border.color: control.activeFocus ? root.themePalette.accent : root.themePalette.input_border
+            border.width: 1
+        }
+
+        delegate: ItemDelegate {
+            width: ListView.view ? ListView.view.width : control.width
+            highlighted: control.highlightedIndex === index
+            contentItem: Text {
+                text: modelData
+                color: highlighted ? root.themePalette.panel_title_fg : root.themePalette.input_fg
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                color: highlighted ? root.selectedSurfaceColor : "transparent"
+                radius: 7
+            }
+        }
+
+        popup: Popup {
+            y: control.height + 4
+            width: control.width
+            padding: 4
+
+            background: Rectangle {
+                radius: 9
+                color: root.cardBackgroundColor
+                border.color: root.themePalette.input_border
+                border.width: 1
+            }
+
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: control.popup.visible ? control.delegateModel : null
+                currentIndex: control.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator { }
+            }
+        }
+    }
+
+    component InspectorEditableComboBox : ComboBox {
+        id: control
+        implicitHeight: 34
+        editable: true
+        leftPadding: 8
+        rightPadding: 30
+        hoverEnabled: true
+        font.pixelSize: 11
+        palette.buttonText: root.themePalette.input_fg
+        palette.text: root.themePalette.input_fg
+        palette.highlight: root.selectedSurfaceColor
+        palette.highlightedText: root.themePalette.panel_title_fg
+        palette.base: root.themePalette.input_bg
+        palette.window: root.cardBackgroundColor
+
+        indicator: Text {
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            text: "▾"
+            color: root.themePalette.muted_fg
+            font.pixelSize: 11
+            font.bold: true
+        }
+
+        background: Rectangle {
+            radius: 9
+            color: root.themePalette.input_bg
+            border.color: control.activeFocus ? root.themePalette.accent : root.themePalette.input_border
+            border.width: 1
+        }
+
+        delegate: ItemDelegate {
+            width: ListView.view ? ListView.view.width : control.width
+            highlighted: control.highlightedIndex === index
+            contentItem: Text {
+                text: modelData
+                color: highlighted ? root.themePalette.panel_title_fg : root.themePalette.input_fg
+                font.pixelSize: 11
+                elide: Text.ElideRight
+                verticalAlignment: Text.AlignVCenter
+            }
+            background: Rectangle {
+                color: highlighted ? root.selectedSurfaceColor : "transparent"
+                radius: 7
+            }
+        }
+
+        popup: Popup {
+            y: control.height + 4
+            width: control.width
+            padding: 4
+
+            background: Rectangle {
+                radius: 9
+                color: root.cardBackgroundColor
+                border.color: root.themePalette.input_border
+                border.width: 1
+            }
+
+            contentItem: ListView {
+                clip: true
+                implicitHeight: contentHeight
+                model: control.popup.visible ? control.delegateModel : null
+                currentIndex: control.highlightedIndex
+                ScrollIndicator.vertical: ScrollIndicator { }
+            }
+        }
+    }
+
+    contentData: [
         Rectangle {
+            objectName: "inspectorContentSurface"
             Layout.fillWidth: true
             Layout.fillHeight: true
-            color: root.themePalette.panel_bg
-            border.color: root.themePalette.border
-            radius: 8
+            color: "transparent"
 
             ScrollView {
                 id: inspectorScroll
+                objectName: "inspectorScrollView"
                 anchors.fill: parent
-                anchors.margins: 8
+                anchors.leftMargin: 2
+                anchors.rightMargin: 2
                 clip: true
                 ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
@@ -201,245 +527,457 @@ ShellCollapsibleSidePane {
                     width: inspectorScroll.availableWidth
                     spacing: 10
 
-                    Text {
-                        visible: !root.mainWindowRef.has_selected_node
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: "Select a node to edit properties and port exposure."
-                        color: root.themePalette.muted_fg
-                        font.pixelSize: 12
+                    InspectorSectionCard {
+                        objectName: "inspectorEmptyStateCard"
+                        width: inspectorColumn.width
+                        visible: !root.hasSelectedNode
+                        title: "No Selection"
+                        subtitle: "Select a node on the graph to inspect its properties and exposed ports."
+
+                        Text {
+                            width: parent.width
+                            text: "The selected node's definition, editable fields, and port exposure controls will appear here."
+                            wrapMode: Text.WordWrap
+                            color: root.themePalette.muted_fg
+                            font.pixelSize: 11
+                        }
                     }
 
-                    Text {
-                        visible: root.mainWindowRef.selected_node_is_subnode_pin
-                        width: parent.width
-                        wrapMode: Text.WordWrap
-                        text: "Pin ports are configured through Label, Kind, and Data Type."
-                        color: root.themePalette.accent
-                        font.pixelSize: 10
-                    }
+                    InspectorSectionCard {
+                        objectName: "inspectorNodeDefinitionCard"
+                        width: inspectorColumn.width
+                        visible: root.hasSelectedNode
+                        title: "Node Definition"
 
-                    Repeater {
-                        model: root.mainWindowRef.selected_node_property_items
+                        RowLayout {
+                            width: parent.width
+                            spacing: 8
 
-                        delegate: Column {
-                            width: inspectorColumn.width
-                            spacing: 4
-                            visible: root.mainWindowRef.has_selected_node
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 2
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: root.mainWindowRef ? root.mainWindowRef.selected_node_title : ""
+                                    color: root.themePalette.panel_title_fg
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: text.length > 0
+                                    text: root.mainWindowRef ? root.mainWindowRef.selected_node_subtitle : ""
+                                    wrapMode: Text.WordWrap
+                                    color: root.themePalette.muted_fg
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            InspectorButton {
+                                objectName: "inspectorCollapseButton"
+                                visible: root.mainWindowRef && root.mainWindowRef.selected_node_collapsible
+                                compact: true
+                                selectedStyle: root.mainWindowRef && root.mainWindowRef.selected_node_collapsed
+                                text: root.mainWindowRef && root.mainWindowRef.selected_node_collapsed ? "EXPAND" : "COLLAPSE"
+                                tooltipText: root.mainWindowRef && root.mainWindowRef.selected_node_collapsed
+                                    ? "Expand the selected node body"
+                                    : "Collapse the selected node body"
+                                onClicked: {
+                                    if (!root.mainWindowRef)
+                                        return
+                                    root.mainWindowRef.set_selected_node_collapsed(!root.mainWindowRef.selected_node_collapsed)
+                                }
+                            }
+                        }
+
+                        Flow {
+                            id: metadataFlow
+                            width: parent.width
+                            spacing: 6
+                            visible: root.mainWindowRef && root.mainWindowRef.selected_node_header_items.length > 0
+
+                            Repeater {
+                                model: root.mainWindowRef ? root.mainWindowRef.selected_node_header_items : []
+
+                                delegate: InspectorMetadataChip {
+                                    labelText: String(modelData.label || "")
+                                    valueText: String(modelData.value || "")
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            objectName: "inspectorPinHintBanner"
+                            width: parent.width
+                            visible: root.isPinInspector
+                            radius: 10
+                            color: root.selectedSurfaceColor
+                            border.color: root.selectedOutlineColor
+                            border.width: 1
+                            implicitHeight: pinHintText.implicitHeight + 14
 
                             Text {
-                                width: parent.width
-                                text: modelData.label
-                                color: root.themePalette.tab_fg
-                                font.pixelSize: 11
+                                id: pinHintText
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.leftMargin: 10
+                                anchors.rightMargin: 10
+                                text: "Pin ports are configured through Label, Kind, and Data Type."
+                                wrapMode: Text.WordWrap
+                                color: root.themePalette.panel_title_fg
+                                font.pixelSize: 10
+                                font.bold: true
                             }
+                        }
 
-                            CheckBox {
-                                width: parent.width
-                                visible: modelData.type === "bool"
-                                checked: !!modelData.value
-                                onToggled: root.mainWindowRef.set_selected_node_property(modelData.key, checked)
-                            }
+                        Repeater {
+                            model: root.mainWindowRef ? root.mainWindowRef.selected_node_property_items : []
 
-                            ComboBox {
+                            delegate: Column {
                                 width: parent.width
-                                visible: modelData.type === "enum"
-                                model: modelData.enum_values || []
-                                currentIndex: {
-                                    var values = modelData.enum_values || []
-                                    var value = String(modelData.value || "")
-                                    var index = values.indexOf(value)
-                                    return index >= 0 ? index : 0
-                                }
-                                onActivated: {
-                                    var values = modelData.enum_values || []
-                                    if (currentIndex < 0 || currentIndex >= values.length)
-                                        return
-                                    root.mainWindowRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
-                                }
-                            }
+                                spacing: 4
 
-                            ComboBox {
-                                id: pinDataTypeEditor
-                                width: parent.width
-                                visible: modelData.type === "str"
-                                    && modelData.key === "data_type"
-                                    && root.mainWindowRef.selected_node_is_subnode_pin
-                                editable: true
-                                model: root.mainWindowRef.pin_data_type_options
-                                currentIndex: {
-                                    var values = root.mainWindowRef.pin_data_type_options || []
-                                    var value = String(modelData.value || "").toLowerCase()
-                                    var index = values.indexOf(value)
-                                    return index
+                                Text {
+                                    width: parent.width
+                                    text: String(modelData.label || "")
+                                    color: root.themePalette.group_title_fg
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    elide: Text.ElideRight
                                 }
-                                Component.onCompleted: {
-                                    if (visible)
-                                        editText = String(modelData.value || "")
-                                }
-                                onActivated: {
-                                    var values = root.mainWindowRef.pin_data_type_options || []
-                                    if (currentIndex < 0 || currentIndex >= values.length)
-                                        return
-                                    root.mainWindowRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
-                                }
-                                onAccepted: root.mainWindowRef.set_selected_node_property(modelData.key, editText)
-                                onActiveFocusChanged: {
-                                    if (!activeFocus)
-                                        root.mainWindowRef.set_selected_node_property(modelData.key, editText)
-                                }
-                            }
 
-                            TextField {
-                                width: parent.width
-                                visible: modelData.type !== "bool"
-                                    && modelData.type !== "enum"
-                                    && !(modelData.type === "str"
-                                        && modelData.key === "data_type"
-                                        && root.mainWindowRef.selected_node_is_subnode_pin)
-                                text: MainShellUtils.toEditorText(modelData)
-                                selectByMouse: true
-                                color: root.themePalette.input_fg
-                                background: Rectangle {
+                                Rectangle {
+                                    width: parent.width
+                                    visible: modelData.type === "bool"
+                                    radius: 10
                                     color: root.themePalette.input_bg
                                     border.color: root.themePalette.input_border
-                                    radius: 3
+                                    border.width: 1
+                                    implicitHeight: 38
+
+                                    Row {
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 10
+                                        spacing: 8
+
+                                        InspectorCheckBox {
+                                            id: boolToggle
+                                            checked: !!modelData.value
+                                            onToggled: {
+                                                if (root.mainWindowRef)
+                                                    root.mainWindowRef.set_selected_node_property(modelData.key, checked)
+                                            }
+                                        }
+
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: boolToggle.checked ? "Enabled" : "Disabled"
+                                            color: root.themePalette.input_fg
+                                            font.pixelSize: 11
+                                        }
+                                    }
                                 }
-                                onAccepted: root.mainWindowRef.set_selected_node_property(modelData.key, text)
-                                onEditingFinished: root.mainWindowRef.set_selected_node_property(modelData.key, text)
+
+                                InspectorComboBox {
+                                    width: parent.width
+                                    visible: modelData.type === "enum"
+                                    model: modelData.enum_values || []
+                                    currentIndex: {
+                                        var values = modelData.enum_values || []
+                                        var value = String(modelData.value || "")
+                                        var index = values.indexOf(value)
+                                        return index >= 0 ? index : 0
+                                    }
+                                    onActivated: {
+                                        var values = modelData.enum_values || []
+                                        if (!root.mainWindowRef || currentIndex < 0 || currentIndex >= values.length)
+                                            return
+                                        root.mainWindowRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
+                                    }
+                                }
+
+                                InspectorEditableComboBox {
+                                    id: pinDataTypeEditor
+                                    width: parent.width
+                                    visible: modelData.type === "str"
+                                        && modelData.key === "data_type"
+                                        && root.isPinInspector
+                                    model: root.mainWindowRef ? root.mainWindowRef.pin_data_type_options : []
+                                    currentIndex: {
+                                        var values = root.mainWindowRef ? (root.mainWindowRef.pin_data_type_options || []) : []
+                                        var value = String(modelData.value || "").toLowerCase()
+                                        return values.indexOf(value)
+                                    }
+                                    Component.onCompleted: editText = String(modelData.value || "")
+                                    onActivated: {
+                                        var values = root.mainWindowRef ? (root.mainWindowRef.pin_data_type_options || []) : []
+                                        if (!root.mainWindowRef || currentIndex < 0 || currentIndex >= values.length)
+                                            return
+                                        root.mainWindowRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
+                                    }
+                                    onAccepted: {
+                                        if (root.mainWindowRef)
+                                            root.mainWindowRef.set_selected_node_property(modelData.key, editText)
+                                    }
+                                    onActiveFocusChanged: {
+                                        if (!activeFocus && root.mainWindowRef)
+                                            root.mainWindowRef.set_selected_node_property(modelData.key, editText)
+                                    }
+                                }
+
+                                InspectorTextField {
+                                    width: parent.width
+                                    visible: modelData.type !== "bool"
+                                        && modelData.type !== "enum"
+                                        && !(modelData.type === "str"
+                                            && modelData.key === "data_type"
+                                            && root.isPinInspector)
+                                    text: MainShellUtils.toEditorText(modelData)
+                                    onAccepted: {
+                                        if (root.mainWindowRef)
+                                            root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                    }
+                                    onEditingFinished: {
+                                        if (root.mainWindowRef)
+                                            root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                    }
+                                }
                             }
                         }
                     }
 
-                    Column {
+                    InspectorSectionCard {
+                        objectName: "inspectorPortManagementCard"
                         width: inspectorColumn.width
-                        spacing: 8
                         visible: root.showPortSection
+                        title: "Port Management"
 
-                        RowLayout {
+                        Row {
+                            objectName: "inspectorPortActionRow"
                             width: parent.width
                             spacing: 6
+                            visible: root.canManageSubnodePorts
 
-                            Text {
-                                text: "Ports"
-                                color: root.themePalette.muted_fg
-                                font.pixelSize: 11
-                                font.bold: true
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            ShellButton {
-                                visible: root.canManageSubnodePorts
+                            InspectorButton {
+                                objectName: "inspectorAddInputButton"
+                                width: (parent.width - 12) / 3
                                 text: "+ Input"
                                 tooltipText: "Add an input port to the selected subnode"
                                 onClicked: root.addSubnodePort("in")
                             }
 
-                            ShellButton {
-                                visible: root.canManageSubnodePorts
+                            InspectorButton {
+                                objectName: "inspectorAddOutputButton"
+                                width: (parent.width - 12) / 3
                                 text: "+ Output"
                                 tooltipText: "Add an output port to the selected subnode"
                                 onClicked: root.addSubnodePort("out")
                             }
 
-                            ShellButton {
-                                visible: root.canManageSubnodePorts
+                            InspectorButton {
+                                objectName: "inspectorDeletePortButton"
+                                width: (parent.width - 12) / 3
+                                destructive: true
                                 enabled: root.selectedPortKey.length > 0
                                 text: "Delete"
                                 tooltipText: "Delete the selected subnode port"
                                 onClicked: {
-                                    if (!enabled)
+                                    if (!root.mainWindowRef || !enabled)
                                         return
                                     root.mainWindowRef.request_remove_node(root.selectedPortKey)
                                 }
                             }
                         }
 
-                        RowLayout {
+                        Rectangle {
+                            objectName: "inspectorPortTabs"
                             width: parent.width
-                            spacing: 6
+                            height: 44
+                            radius: 11
+                            color: root.themePalette.input_bg
+                            border.color: root.themePalette.input_border
+                            border.width: 1
 
-                            ShellButton {
-                                text: "Inputs (" + root.portItemsForDirection("in").length + ")"
-                                selectedStyle: root.activePortDirection === "in"
-                                onClicked: root.activePortDirection = "in"
-                            }
+                            Row {
+                                anchors.fill: parent
+                                anchors.margins: 3
+                                spacing: 4
 
-                            ShellButton {
-                                text: "Outputs (" + root.portItemsForDirection("out").length + ")"
-                                selectedStyle: root.activePortDirection === "out"
-                                onClicked: root.activePortDirection = "out"
+                                InspectorSegmentButton {
+                                    objectName: "inspectorInputsTab"
+                                    width: (parent.width - 4) / 2
+                                    height: parent.height
+                                    text: "INPUTS (" + root.inputPortCount + ")"
+                                    selectedStyle: root.activePortDirection === "in"
+                                    onClicked: root.activePortDirection = "in"
+                                }
+
+                                InspectorSegmentButton {
+                                    objectName: "inspectorOutputsTab"
+                                    width: (parent.width - 4) / 2
+                                    height: parent.height
+                                    text: "OUTPUTS (" + root.outputPortCount + ")"
+                                    selectedStyle: root.activePortDirection === "out"
+                                    onClicked: root.activePortDirection = "out"
+                                }
                             }
                         }
 
                         Text {
-                            visible: root.visiblePortItems.length === 0
                             width: parent.width
+                            visible: root.visiblePortItems.length === 0
                             wrapMode: Text.WordWrap
                             text: root.activePortDirection === "in"
-                                ? "No input ports available."
-                                : "No output ports available."
+                                ? "No input ports are available for the current node."
+                                : "No output ports are available for the current node."
                             color: root.themePalette.muted_fg
-                            font.pixelSize: 11
+                            font.pixelSize: 10
                         }
 
-                        Repeater {
-                            model: root.visiblePortItems
+                        Column {
+                            objectName: "inspectorPortList"
+                            width: parent.width
+                            spacing: 4
 
-                            delegate: Rectangle {
-                                width: inspectorColumn.width
-                                height: 42
-                                radius: 4
-                                color: root.selectedPortKey === String(modelData.key || "")
-                                    ? root.themePalette.hover
-                                    : root.themePalette.tab_bg
-                                border.color: root.selectedPortKey === String(modelData.key || "")
-                                    ? root.themePalette.accent
-                                    : root.themePalette.border
+                            Repeater {
+                                model: root.visiblePortItems
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 6
-                                    anchors.rightMargin: 6
-                                    spacing: 6
+                                delegate: Rectangle {
+                                    width: parent.width
+                                    radius: 9
+                                    color: root.selectedPortKey === String(modelData.key || "")
+                                        ? root.selectedSurfaceColor
+                                        : root.themePalette.input_bg
+                                    border.color: root.selectedPortKey === String(modelData.key || "")
+                                        ? root.selectedOutlineColor
+                                        : root.themePalette.input_border
+                                    border.width: 1
+                                    implicitHeight: 46
 
-                                    CheckBox {
-                                        checked: !!modelData.exposed
-                                        onToggled: root.mainWindowRef.set_selected_port_exposed(modelData.key, checked)
-                                    }
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 8
+                                        anchors.rightMargin: 8
+                                        spacing: 6
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-
-                                        Text {
-                                            Layout.fillWidth: true
-                                            text: String(modelData.label || modelData.key || "")
-                                            color: root.themePalette.app_fg
-                                            font.pixelSize: 11
-                                            elide: Text.ElideRight
+                                        InspectorCheckBox {
+                                            Layout.alignment: Qt.AlignVCenter
+                                            checked: !!modelData.exposed
+                                            onToggled: {
+                                                if (root.mainWindowRef)
+                                                    root.mainWindowRef.set_selected_port_exposed(modelData.key, checked)
+                                            }
                                         }
 
-                                        Text {
+                                        ColumnLayout {
                                             Layout.fillWidth: true
-                                            text: String(modelData.kind || "") + " / " + String(modelData.data_type || "any")
-                                            color: root.themePalette.muted_fg
-                                            font.pixelSize: 10
-                                            elide: Text.ElideRight
+                                            Layout.alignment: Qt.AlignVCenter
+                                            spacing: 0
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: String(modelData.label || modelData.key || "")
+                                                color: root.themePalette.panel_title_fg
+                                                font.pixelSize: 11
+                                                font.bold: true
+                                                elide: Text.ElideRight
+                                            }
+
+                                            Text {
+                                                Layout.fillWidth: true
+                                                text: String(modelData.kind || "") + " / " + String(modelData.data_type || "any")
+                                                color: root.themePalette.muted_fg
+                                                font.pixelSize: 9
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        Item {
+                                            Layout.alignment: Qt.AlignVCenter
+                                            implicitWidth: trailingRow.implicitWidth
+                                            implicitHeight: trailingRow.implicitHeight
+
+                                            Row {
+                                                id: trailingRow
+                                                anchors.centerIn: parent
+                                                spacing: 8
+
+                                                Rectangle {
+                                                    visible: !!modelData.required
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    radius: 8
+                                                    color: root.sectionHeaderColor
+                                                    border.color: root.themePalette.input_border
+                                                    border.width: 1
+                                                    implicitWidth: requiredLabel.implicitWidth + 10
+                                                    implicitHeight: requiredLabel.implicitHeight + 6
+
+                                                    Text {
+                                                        id: requiredLabel
+                                                        anchors.centerIn: parent
+                                                        text: "REQUIRED"
+                                                        color: root.themePalette.muted_fg
+                                                        font.pixelSize: 8
+                                                        font.bold: true
+                                                        font.letterSpacing: 0.5
+                                                    }
+                                                }
+
+                                                Column {
+                                                    visible: root.canManageSubnodePorts
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    spacing: 2
+
+                                                    Repeater {
+                                                        model: 3
+
+                                                        delegate: Rectangle {
+                                                            width: 3
+                                                            height: 3
+                                                            radius: 1.5
+                                                            color: root.themePalette.muted_fg
+                                                            opacity: 0.85
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                id: portActionActivator
+                                                visible: root.canManageSubnodePorts
+                                                anchors.fill: parent
+                                                color: "transparent"
+                                                radius: 8
+                                                border.width: 0
+
+                                                HoverHandler {
+                                                    id: portMenuHover
+                                                }
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    color: portMenuHover.hovered ? root.themePalette.hover : "transparent"
+                                                    radius: 8
+                                                    visible: portMenuHover.hovered
+                                                }
+
+                                                TapHandler {
+                                                    onTapped: root.openPortActionPopup(String(modelData.key || ""), portActionActivator)
+                                                }
+                                            }
                                         }
                                     }
 
-                                    Text {
-                                        text: modelData.required ? "Required" : ""
-                                        color: root.themePalette.muted_fg
-                                        font.pixelSize: 10
-                                        visible: text.length > 0
+                                    TapHandler {
+                                        onTapped: root.selectedPortKey = String(modelData.key || "")
                                     }
-                                }
-
-                                TapHandler {
-                                    onTapped: root.selectedPortKey = String(modelData.key || "")
                                 }
                             }
                         }
@@ -448,4 +986,52 @@ ShellCollapsibleSidePane {
             }
         }
     ]
+
+    Popup {
+        id: portActionPopup
+        parent: root
+        modal: false
+        focus: true
+        padding: 0
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+        implicitWidth: 126
+        implicitHeight: 32
+        z: 1000
+
+        background: Rectangle {
+            color: root.themePalette.tab_bg
+            border.color: root.themePalette.input_border
+            border.width: 1
+            radius: 8
+        }
+
+        contentItem: Rectangle {
+            width: portActionPopup.implicitWidth
+            height: portActionPopup.implicitHeight
+            color: renamePortMouseArea.containsMouse ? root.themePalette.hover : "transparent"
+            radius: 8
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left
+                anchors.leftMargin: 10
+                text: "Rename Port"
+                color: root.canManageSubnodePorts ? root.themePalette.app_fg : root.themePalette.muted_fg
+                font.pixelSize: 11
+                font.bold: true
+            }
+
+            MouseArea {
+                id: renamePortMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                enabled: root.canManageSubnodePorts && root.portActionPopupKey.length > 0
+                onClicked: {
+                    if (root.mainWindowRef)
+                        root.mainWindowRef.request_rename_selected_port(root.portActionPopupKey)
+                    portActionPopup.close()
+                }
+            }
+        }
+    }
 }
