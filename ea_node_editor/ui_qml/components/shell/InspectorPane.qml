@@ -80,7 +80,7 @@ ShellCollapsibleSidePane {
             return
         }
         if (!hasVisiblePort(selectedPortKey))
-            selectedPortKey = String(visiblePortItems[0].key || "")
+            selectedPortKey = String(visiblePortItems[visiblePortItems.length - 1].key || "")
         if (editingPortKey.length > 0 && !hasVisiblePort(editingPortKey)) {
             editingPortKey = ""
             editingPortLabel = ""
