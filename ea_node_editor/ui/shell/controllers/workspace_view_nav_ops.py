@@ -219,11 +219,17 @@ class WorkspaceViewNavOps:
 
         workspace_id = self._host.workspace_manager.active_workspace_id()
         self._controller.save_active_view_state()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        source_view_id = workspace.active_view_id if workspace is not None else None
         name, ok = QInputDialog.getText(self._host, "New View", "View name:")
         if not ok:
             return
         normalized_name = str(name).strip()
-        view_id = self._host.workspace_manager.create_view(workspace_id, name=normalized_name or None)
+        view_id = self._host.workspace_manager.create_view(
+            workspace_id,
+            name=normalized_name or None,
+            source_view_id=source_view_id,
+        )
         self._host.workspace_manager.set_active_view(workspace_id, view_id)
         self._controller.restore_active_view_state()
         self._host.workspace_state_changed.emit()

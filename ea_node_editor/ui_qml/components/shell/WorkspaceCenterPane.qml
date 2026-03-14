@@ -14,6 +14,11 @@ Rectangle {
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette
 
+    function countLabel(items, singularLabel, pluralLabel) {
+        var count = items && items.length ? items.length : 0
+        return count + " " + (count === 1 ? singularLabel : pluralLabel)
+    }
+
     Layout.fillWidth: true
     Layout.fillHeight: true
     color: themePalette.panel_bg
@@ -25,52 +30,127 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 58
+            Layout.preferredHeight: 72
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 2
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 6
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 28
-                    spacing: 8
+                    Layout.preferredHeight: 38
+                    spacing: 12
 
-                    Text {
-                        text: "Workspace: " + root.mainWindowRef.active_workspace_name
-                        color: root.themePalette.panel_title_fg
-                        font.pixelSize: 12
-                        font.bold: true
+                    ColumnLayout {
+                        spacing: 1
+
+                        Text {
+                            text: "WORKSPACE"
+                            color: root.themePalette.muted_fg
+                            font.pixelSize: 10
+                            font.bold: true
+                            font.letterSpacing: 1.1
+                        }
+
+                        Text {
+                            text: root.mainWindowRef.active_workspace_name
+                            color: root.themePalette.panel_title_fg
+                            font.pixelSize: 18
+                            font.bold: true
+                            elide: Text.ElideRight
+                        }
                     }
 
                     Item { Layout.fillWidth: true }
 
-                    Row {
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                         spacing: 4
-                        Repeater {
-                            model: root.mainWindowRef.active_view_items
-                            delegate: ShellButton {
-                                text: modelData.label
-                                selectedStyle: !!modelData.active
-                                onClicked: root.mainWindowRef.request_switch_view(modelData.view_id)
+
+                        Rectangle {
+                            id: viewControlsCard
+                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                            implicitWidth: viewControlsRow.implicitWidth + 16
+                            implicitHeight: viewControlsRow.implicitHeight + 10
+                            radius: 12
+                            color: root.themePalette.panel_alt_bg
+                            border.color: root.themePalette.border
+
+                            Row {
+                                id: viewControlsRow
+                                anchors.fill: parent
+                                anchors.leftMargin: 8
+                                anchors.rightMargin: 8
+                                anchors.topMargin: 5
+                                anchors.bottomMargin: 5
+                                spacing: 6
+
+                                Text {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "VIEWS"
+                                    color: root.themePalette.muted_fg
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.letterSpacing: 1.0
+                                }
+
+                                Repeater {
+                                    model: root.mainWindowRef.active_view_items
+                                    delegate: Rectangle {
+                                        id: viewTab
+                                        property bool active: !!modelData.active
+                                        height: 28
+                                        width: Math.max(56, viewTabLabel.implicitWidth + 24)
+                                        radius: 9
+                                        color: active
+                                            ? root.themePalette.tab_selected_bg
+                                            : (viewTabMouse.containsMouse
+                                                ? root.themePalette.hover
+                                                : "transparent")
+                                        border.width: active || viewTabMouse.containsMouse ? 1 : 0
+                                        border.color: active
+                                            ? root.themePalette.accent
+                                            : root.themePalette.input_border
+
+                                        Text {
+                                            id: viewTabLabel
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            color: active
+                                                ? root.themePalette.tab_selected_fg
+                                                : root.themePalette.tab_fg
+                                            font.pixelSize: 12
+                                            font.bold: active
+                                        }
+
+                                        MouseArea {
+                                            id: viewTabMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.mainWindowRef.request_switch_view(modelData.view_id)
+                                        }
+                                    }
+                                }
+
+                                ShellCreateButton {
+                                    text: "New View"
+                                    accentOutline: true
+                                    onClicked: root.mainWindowRef.request_create_view()
+                                }
                             }
                         }
-                    }
-                    ShellButton {
-                        text: "+ View"
-                        onClicked: root.mainWindowRef.request_create_view()
-                    }
 
-                    Text {
-                        text: root.mainWindowRef.active_view_name
-                            ? ("Active: " + root.mainWindowRef.active_view_name)
-                            : ""
-                        color: root.themePalette.muted_fg
-                        font.pixelSize: 11
+                        Text {
+                            Layout.alignment: Qt.AlignRight
+                            text: root.countLabel(root.mainWindowRef.active_view_items, "view", "views")
+                            color: root.themePalette.muted_fg
+                            font.pixelSize: 11
+                        }
                     }
                 }
 
@@ -125,50 +205,85 @@ Rectangle {
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 32
+            Layout.preferredHeight: 48
             color: root.themePalette.toolbar_bg
             border.color: root.themePalette.border
 
-            Row {
+            RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 6
-                anchors.rightMargin: 6
-                spacing: 4
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 10
 
-                Repeater {
-                    model: root.workspaceTabsBridgeRef.tabs
-                    delegate: Rectangle {
-                        height: 24
-                        width: Math.max(120, tabText.implicitWidth + 24)
-                        y: 4
-                        radius: 4
-                        color: modelData.workspace_id === root.mainWindowRef.active_workspace_id
-                            ? root.themePalette.tab_selected_bg
-                            : root.themePalette.tab_bg
-                        border.color: modelData.workspace_id === root.mainWindowRef.active_workspace_id
-                            ? root.themePalette.accent
-                            : root.themePalette.border
+                Text {
+                    Layout.alignment: Qt.AlignVCenter
+                    text: "WORKSPACES"
+                    color: root.themePalette.muted_fg
+                    font.pixelSize: 10
+                    font.bold: true
+                    font.letterSpacing: 1.1
+                }
 
-                        Text {
-                            id: tabText
-                            anchors.centerIn: parent
-                            text: modelData.label
-                            color: modelData.workspace_id === root.mainWindowRef.active_workspace_id
-                                ? root.themePalette.tab_selected_fg
-                                : root.themePalette.tab_fg
-                            font.pixelSize: 12
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitHeight: 36
+                    radius: 12
+                    color: root.themePalette.panel_alt_bg
+                    border.color: root.themePalette.border
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
+                        anchors.topMargin: 4
+                        anchors.bottomMargin: 4
+                        spacing: 6
+
+                        Repeater {
+                            model: root.workspaceTabsBridgeRef.tabs
+                            delegate: Rectangle {
+                                id: workspaceTab
+                                property bool active: modelData.workspace_id === root.mainWindowRef.active_workspace_id
+                                height: 28
+                                width: Math.max(132, workspaceTabLabel.implicitWidth + 28)
+                                radius: 9
+                                color: active
+                                    ? root.themePalette.tab_selected_bg
+                                    : (workspaceTabMouse.containsMouse
+                                        ? root.themePalette.hover
+                                        : "transparent")
+                                border.width: active || workspaceTabMouse.containsMouse ? 1 : 0
+                                border.color: active
+                                    ? root.themePalette.accent
+                                    : root.themePalette.input_border
+
+                                Text {
+                                    id: workspaceTabLabel
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    color: active
+                                        ? root.themePalette.tab_selected_fg
+                                        : root.themePalette.tab_fg
+                                    font.pixelSize: 12
+                                    font.bold: active
+                                }
+
+                                MouseArea {
+                                    id: workspaceTabMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.workspaceTabsBridgeRef.activate_workspace(modelData.workspace_id)
+                                }
+                            }
                         }
 
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: root.workspaceTabsBridgeRef.activate_workspace(modelData.workspace_id)
+                        ShellCreateButton {
+                            text: "New Workspace"
+                            onClicked: root.mainWindowRef.request_create_workspace()
                         }
                     }
-                }
-                ShellButton {
-                    y: 4
-                    text: "+ Workspace"
-                    onClicked: root.mainWindowRef.request_create_workspace()
                 }
             }
         }

@@ -147,9 +147,23 @@ class GraphModel:
             raise KeyError(f"Unknown workspace: {workspace_id}")
         self.project.active_workspace_id = workspace_id
 
-    def create_view(self, workspace_id: str, name: str | None = None) -> ViewState:
+    def create_view(
+        self,
+        workspace_id: str,
+        name: str | None = None,
+        *,
+        source_view_id: str | None = None,
+    ) -> ViewState:
         workspace = self.project.workspaces[workspace_id]
-        view = ViewState(view_id=new_id("view"), name=name or f"V{len(workspace.views) + 1}")
+        source_view = workspace.views.get(source_view_id) if source_view_id else None
+        view = ViewState(
+            view_id=new_id("view"),
+            name=name or f"V{len(workspace.views) + 1}",
+            zoom=source_view.zoom if source_view is not None else 1.0,
+            pan_x=source_view.pan_x if source_view is not None else 0.0,
+            pan_y=source_view.pan_y if source_view is not None else 0.0,
+            scope_path=list(source_view.scope_path) if source_view is not None else [],
+        )
         workspace.views[view.view_id] = view
         workspace.active_view_id = view.view_id
         return view

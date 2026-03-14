@@ -83,8 +83,14 @@ class WorkspaceManager:
     def set_active_workspace(self, workspace_id: str) -> None:
         self._model.set_active_workspace(workspace_id)
 
-    def create_view(self, workspace_id: str, name: str | None = None) -> str:
-        view = self._model.create_view(workspace_id, name=name)
+    def create_view(
+        self,
+        workspace_id: str,
+        name: str | None = None,
+        *,
+        source_view_id: str | None = None,
+    ) -> str:
+        view = self._model.create_view(workspace_id, name=name, source_view_id=source_view_id)
         return view.view_id
 
     def set_active_view(self, workspace_id: str, view_id: str) -> None:
