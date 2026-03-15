@@ -14,6 +14,7 @@ from ea_node_editor.settings import (
     DEFAULT_WORKFLOW_SETTINGS,
     SCHEMA_VERSION,
 )
+from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
 
 
 class JsonProjectMigration:
@@ -168,6 +169,9 @@ class JsonProjectMigration:
         metadata = JsonProjectMigration.as_dict(source)
         metadata["workspace_order"] = list(workspace_order)
         metadata["ui"] = JsonProjectMigration.merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
+        metadata["ui"]["passive_style_presets"] = normalize_passive_style_presets(
+            metadata["ui"].get("passive_style_presets")
+        )
         metadata["workflow_settings"] = JsonProjectMigration.merge_defaults(
             metadata.get("workflow_settings"),
             DEFAULT_WORKFLOW_SETTINGS,

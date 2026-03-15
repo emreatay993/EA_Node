@@ -9,6 +9,7 @@ from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.persistence.utils import merge_defaults
 from ea_node_editor.settings import DEFAULT_UI_STATE, DEFAULT_WORKFLOW_SETTINGS
+from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
 from ea_node_editor.workspace.manager import WorkspaceManager
 
 if TYPE_CHECKING:
@@ -78,6 +79,9 @@ class ProjectSessionController:
     def ensure_project_metadata_defaults(self) -> None:
         metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
         metadata["ui"] = merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
+        metadata["ui"]["passive_style_presets"] = normalize_passive_style_presets(
+            metadata["ui"].get("passive_style_presets")
+        )
         metadata["workflow_settings"] = merge_defaults(
             metadata.get("workflow_settings"),
             DEFAULT_WORKFLOW_SETTINGS,

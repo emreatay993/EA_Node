@@ -77,6 +77,85 @@ class PassiveNodeStyleDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_dialog_reselects_matching_node_preset_on_reopen(self) -> None:
+        dialog = PassiveNodeStyleDialog(
+            initial_style={"fill_color": "#203040"},
+            user_presets=[
+                {
+                    "preset_id": "node_preset_deadbeef",
+                    "name": "Project Custom",
+                    "style": {"fill_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Custom")
+        finally:
+            dialog.close()
+
+    def test_dialog_supports_project_local_node_preset_crud_with_read_only_starters(self) -> None:
+        dialog = PassiveNodeStyleDialog(
+            initial_style={"fill_color": "#102030"},
+            user_presets=[
+                {
+                    "preset_id": "node_preset_deadbeef",
+                    "name": "Project Custom",
+                    "style": {"fill_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            self.assertGreaterEqual(dialog.preset_combo.count(), 4)
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            self.assertEqual(dialog.preset_combo.itemText(1).startswith("Starter:"), True)
+            self.assertFalse(dialog.overwrite_preset_button.isEnabled())
+            self.assertFalse(dialog.rename_preset_button.isEnabled())
+            self.assertFalse(dialog.delete_preset_button.isEnabled())
+
+            dialog.findChild(QLineEdit, "fill_color_value").setText("#334455")
+            with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Review Theme", True)):
+                dialog.save_preset_button.click()
+
+            user_presets = dialog.user_presets()
+            self.assertEqual(len(user_presets), 2)
+            self.assertRegex(user_presets[1]["preset_id"], r"^node_preset_[0-9a-f]{8}$")
+            self.assertEqual(user_presets[1]["name"], "Review Theme")
+            self.assertEqual(user_presets[1]["style"], {"fill_color": "#334455"})
+
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Custom"))
+            dialog.findChild(QLineEdit, "border_color_value").setText("#556677")
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Custom"))
+            dialog.overwrite_preset_button.click()
+
+            self.assertEqual(
+                dialog.user_presets()[0]["style"],
+                {
+                    "fill_color": "#334455",
+                    "border_color": "#556677",
+                },
+            )
+
+            with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Project Renamed", True)):
+                dialog.rename_preset_button.click()
+            self.assertEqual(dialog.user_presets()[0]["name"], "Project Renamed")
+
+            with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+                dialog.delete_preset_button.click()
+
+            self.assertEqual(
+                dialog.user_presets(),
+                [
+                    {
+                        "preset_id": user_presets[1]["preset_id"],
+                        "name": "Review Theme",
+                        "style": {"fill_color": "#334455"},
+                    }
+                ],
+            )
+        finally:
+            dialog.close()
+
 
 class FlowEdgeStyleDialogTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -134,6 +213,84 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
             dialog.apply_button.click()
 
             self.assertEqual(dialog.result(), dialog.DialogCode.Accepted)
+        finally:
+            dialog.close()
+
+    def test_dialog_reselects_matching_edge_preset_on_reopen(self) -> None:
+        dialog = FlowEdgeStyleDialog(
+            initial_style={"stroke_color": "#203040"},
+            user_presets=[
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": "Project Edge",
+                    "style": {"stroke_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Edge")
+        finally:
+            dialog.close()
+
+    def test_dialog_supports_project_local_edge_preset_crud_with_read_only_starters(self) -> None:
+        dialog = FlowEdgeStyleDialog(
+            initial_style={"stroke_color": "#102030"},
+            user_presets=[
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": "Project Edge",
+                    "style": {"stroke_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            self.assertGreaterEqual(dialog.preset_combo.count(), 4)
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            self.assertEqual(dialog.preset_combo.itemText(1).startswith("Starter:"), True)
+            self.assertFalse(dialog.overwrite_preset_button.isEnabled())
+            self.assertFalse(dialog.rename_preset_button.isEnabled())
+            self.assertFalse(dialog.delete_preset_button.isEnabled())
+
+            dialog.findChild(QLineEdit, "stroke_color_value").setText("#445566")
+            with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Connector Link", True)):
+                dialog.save_preset_button.click()
+
+            user_presets = dialog.user_presets()
+            self.assertEqual(len(user_presets), 2)
+            self.assertRegex(user_presets[1]["preset_id"], r"^edge_preset_[0-9a-f]{8}$")
+            self.assertEqual(user_presets[1]["name"], "Connector Link")
+            self.assertEqual(user_presets[1]["style"], {"stroke_color": "#445566"})
+
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Edge"))
+            dialog.findChild(QLineEdit, "stroke_width_value").setText("2.5")
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Edge"))
+            dialog.overwrite_preset_button.click()
+            self.assertEqual(
+                dialog.user_presets()[0]["style"],
+                {
+                    "stroke_color": "#445566",
+                    "stroke_width": 2.5,
+                },
+            )
+
+            with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Edge Renamed", True)):
+                dialog.rename_preset_button.click()
+            self.assertEqual(dialog.user_presets()[0]["name"], "Edge Renamed")
+
+            with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+                dialog.delete_preset_button.click()
+
+            self.assertEqual(
+                dialog.user_presets(),
+                [
+                    {
+                        "preset_id": user_presets[1]["preset_id"],
+                        "name": "Connector Link",
+                        "style": {"stroke_color": "#445566"},
+                    }
+                ],
+            )
         finally:
             dialog.close()
 

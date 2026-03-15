@@ -79,6 +79,103 @@ class SerializerTests(unittest.TestCase):
             {"stroke": "dashed", "arrow": {"kind": "none"}},
         )
 
+    def test_round_trip_normalizes_project_local_passive_style_presets(self) -> None:
+        model = GraphModel()
+        serializer = JsonProjectSerializer(build_default_registry())
+        doc = serializer.to_document(model.project)
+        doc["metadata"]["ui"]["passive_style_presets"] = {
+            "node_presets": [
+                {
+                    "preset_id": "NodePresetBad",
+                    "name": " Flow Warm ",
+                    "style": {
+                        "fill_color": "#112233",
+                        "border_width": "2.5",
+                        "ignored": True,
+                    },
+                },
+                {
+                    "preset_id": "",
+                    "name": " ",
+                    "style": {
+                        "text_color": "#445566",
+                        "font_size": "15",
+                    },
+                },
+            ],
+            "edge_presets": [
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": " Link ",
+                    "style": {
+                        "stroke_color": "#abcdef",
+                        "stroke_width": "3",
+                        "stroke_pattern": "dashed",
+                        "arrow_head": "open",
+                        "ignored": "value",
+                    },
+                },
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": "",
+                    "style": {
+                        "label_text_color": "#010203",
+                        "label_background_color": "#AABBCC",
+                    },
+                },
+            ],
+        }
+
+        loaded = serializer.from_document(doc)
+        presets = loaded.metadata["ui"]["passive_style_presets"]
+
+        self.assertEqual(len(presets["node_presets"]), 2)
+        self.assertRegex(presets["node_presets"][0]["preset_id"], r"^node_preset_[0-9a-f]{8}$")
+        self.assertRegex(presets["node_presets"][1]["preset_id"], r"^node_preset_[0-9a-f]{8}$")
+        self.assertNotEqual(presets["node_presets"][0]["preset_id"], presets["node_presets"][1]["preset_id"])
+        self.assertEqual(presets["node_presets"][0]["name"], "Flow Warm")
+        self.assertEqual(presets["node_presets"][1]["name"], "Node Preset 2")
+        self.assertEqual(
+            presets["node_presets"][0]["style"],
+            {
+                "fill_color": "#112233",
+                "border_width": 2.5,
+            },
+        )
+        self.assertEqual(
+            presets["node_presets"][1]["style"],
+            {
+                "text_color": "#445566",
+                "font_size": 15,
+            },
+        )
+
+        self.assertEqual(len(presets["edge_presets"]), 2)
+        self.assertEqual(presets["edge_presets"][0]["preset_id"], "edge_preset_deadbeef")
+        self.assertRegex(presets["edge_presets"][1]["preset_id"], r"^edge_preset_[0-9a-f]{8}$")
+        self.assertNotEqual(presets["edge_presets"][0]["preset_id"], presets["edge_presets"][1]["preset_id"])
+        self.assertEqual(presets["edge_presets"][0]["name"], "Link")
+        self.assertEqual(presets["edge_presets"][1]["name"], "Edge Preset 2")
+        self.assertEqual(
+            presets["edge_presets"][0]["style"],
+            {
+                "stroke_color": "#abcdef",
+                "stroke_width": 3.0,
+                "stroke_pattern": "dashed",
+                "arrow_head": "open",
+            },
+        )
+        self.assertEqual(
+            presets["edge_presets"][1]["style"],
+            {
+                "label_text_color": "#010203",
+                "label_background_color": "#AABBCC",
+            },
+        )
+
+        saved_doc = serializer.to_document(loaded)
+        self.assertEqual(saved_doc["metadata"]["ui"]["passive_style_presets"], presets)
+
     def test_round_trip_preserves_workspace_order_active_workspace_and_view_cameras(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)
