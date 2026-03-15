@@ -12,15 +12,14 @@ requires-python = ">=3.10"
 dependencies = [
     "PyQt6>=6.5",
     "PyQt6-QmlIntegration>=6.5",
+    "psutil>=5.9",
 ]
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.1"]
-metrics = ["psutil>=5.9"]
 hpc = ["paramiko>=3.3"]
 all = [
     "openpyxl>=3.1",
-    "psutil>=5.9",
     "paramiko>=3.3",
 ]
 dev = [
@@ -28,7 +27,6 @@ dev = [
     "pytest-xdist>=3.5",
     "pyinstaller>=6.0",
     "openpyxl>=3.1",
-    "psutil>=5.9",
     "paramiko>=3.3",
 ]
 

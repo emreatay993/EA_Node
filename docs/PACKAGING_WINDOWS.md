@@ -56,16 +56,16 @@ The packaging script now emits a deterministic dependency matrix CSV on each bui
 
 - `docs\specs\perf\rc3\dependency_matrix.csv`
 
-Current optional dependency contract:
+Current dependency contract:
 
 - `openpyxl`:
   - Source runtime: CSV flows are always supported; XLSX flows require `openpyxl`.
   - Packaged runtime: same behavior, with deterministic runtime guidance to rebuild package with `openpyxl` in build environment.
   - Policy: optional include, bundle only when installed in build environment.
 - `psutil`:
-  - Source runtime: live system metrics use `psutil` when available.
-  - Packaged runtime: same fallback contract; when unavailable, metrics deterministically show `CPU:0% RAM:0/0 GB`.
-  - Policy: optional include, absence allowed with deterministic fallback.
+  - Source runtime: live system metrics require `psutil`.
+  - Packaged runtime: packaged builds must include `psutil` so the telemetry strip reports live CPU/RAM readings.
+  - Policy: required dependency; treat missing installation as a packaging defect.
 
 Recommended packaging command for policy evidence:
 

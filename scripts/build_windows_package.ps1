@@ -105,10 +105,10 @@ function Write-DependencyMatrix {
         [PSCustomObject]@{
             dependency = "psutil"
             build_env_installed = $Availability.psutil
-            source_runtime_behavior = "System metrics use psutil when present; fallback metrics are CPU=0 and RAM=0/0 GB when absent."
-            packaged_runtime_behavior = "Same fallback behavior in packaged app; UI remains operational without psutil."
-            packaging_policy = "Optional include; absence is allowed with deterministic fallback."
-            operator_action = "Install psutil before packaging when live system metrics are required."
+            source_runtime_behavior = "System metrics require psutil for live CPU and RAM readings."
+            packaged_runtime_behavior = "Packaged app must include psutil so the telemetry strip remains live."
+            packaging_policy = "Required dependency; missing install is a packaging defect."
+            operator_action = "Install psutil before packaging."
         }
     )
 
