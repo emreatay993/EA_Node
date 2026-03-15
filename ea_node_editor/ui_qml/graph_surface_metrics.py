@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import textwrap
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 from ea_node_editor.graph.effective_ports import port_direction, visible_ports
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
+from ea_node_editor.ui.media_preview_provider import local_image_dimensions
 
 STANDARD_DEFAULT_WIDTH = 210.0
 STANDARD_MIN_WIDTH = 120.0
@@ -38,6 +40,10 @@ FLOWCHART_INLINE_GAP = 8.0
 FLOWCHART_PORT_SECTION_TOP = 12.0
 
 PASSIVE_SURFACE_RESIZE_HANDLE_SIZE = 16.0
+MEDIA_CAPTION_SPACING = 10.0
+MEDIA_CAPTION_MAX_LINES = 4
+MEDIA_CAPTION_LINE_HEIGHT_FACTOR = 1.3
+MEDIA_CAPTION_CHAR_WIDTH_FACTOR = 0.55
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,6 +134,24 @@ class _PassivePanelLayout:
     title_right_margin: float
     body_top: float
     body_height: float
+    body_left_margin: float
+    body_right_margin: float
+    body_bottom_margin: float
+    title_centered: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _MediaPanelLayout:
+    default_width: float
+    default_height: float
+    min_width: float
+    min_height: float
+    title_top: float
+    title_height: float
+    title_left_margin: float
+    title_right_margin: float
+    body_top: float
+    min_body_height: float
     body_left_margin: float
     body_right_margin: float
     body_bottom_margin: float
@@ -348,6 +372,24 @@ _ANNOTATION_VARIANT_LAYOUTS: dict[str, _PassivePanelLayout] = {
     ),
 }
 
+_MEDIA_VARIANT_LAYOUTS: dict[str, _MediaPanelLayout] = {
+    "image_panel": _MediaPanelLayout(
+        default_width=296.0,
+        default_height=236.0,
+        min_width=220.0,
+        min_height=176.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        min_body_height=120.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+}
+
 
 def standard_inline_body_height(spec: NodeTypeSpec) -> float:
     inline_count = len(inline_property_specs(spec))
@@ -373,6 +415,80 @@ def normalize_planning_variant(variant: str) -> str:
 def normalize_annotation_variant(variant: str) -> str:
     normalized = str(variant or "").strip().lower()
     return normalized if normalized in _ANNOTATION_VARIANT_LAYOUTS else "sticky_note"
+
+
+def normalize_media_variant(variant: str) -> str:
+    normalized = str(variant or "").strip().lower()
+    return normalized if normalized in _MEDIA_VARIANT_LAYOUTS else "image_panel"
+
+
+def _safe_number(value: Any, fallback: float) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return number
+
+
+def _wrapped_media_caption_lines(text: str, max_chars_per_line: int) -> int:
+    line_count = 0
+    paragraphs = text.splitlines() or [text]
+    wrap_width = max(1, int(max_chars_per_line))
+    for paragraph in paragraphs:
+        normalized = paragraph.expandtabs(4)
+        if not normalized:
+            line_count += 1
+        else:
+            wrapped = textwrap.wrap(
+                normalized,
+                width=wrap_width,
+                break_long_words=True,
+                break_on_hyphens=False,
+                drop_whitespace=False,
+                replace_whitespace=False,
+            )
+            line_count += max(1, len(wrapped))
+        if line_count >= MEDIA_CAPTION_MAX_LINES:
+            return MEDIA_CAPTION_MAX_LINES
+    return max(1, min(line_count, MEDIA_CAPTION_MAX_LINES))
+
+
+def _media_caption_height(node: NodeInstance, content_width: float) -> float:
+    caption = str(node.properties.get("caption", "") or "")
+    if not caption:
+        return 0.0
+    font_size = max(1.0, _safe_number(node.visual_style.get("font_size"), 12.0))
+    line_height = max(1.0, math.ceil(font_size * MEDIA_CAPTION_LINE_HEIGHT_FACTOR))
+    average_char_width = max(1.0, font_size * MEDIA_CAPTION_CHAR_WIDTH_FACTOR)
+    max_chars_per_line = max(1, int(max(1.0, content_width) / average_char_width))
+    line_count = _wrapped_media_caption_lines(caption, max_chars_per_line)
+    return line_height * line_count
+
+
+def _media_default_dimensions(
+    node: NodeInstance,
+    layout: _MediaPanelLayout,
+) -> tuple[float, float]:
+    default_width = float(layout.default_width)
+    default_height = float(layout.default_height)
+    image_dimensions = local_image_dimensions(str(node.properties.get("source_path", "") or ""))
+    if image_dimensions is None:
+        return default_width, default_height
+    image_width, image_height = image_dimensions
+    if image_width <= 0 or image_height <= 0:
+        return default_width, default_height
+
+    preview_width = max(1.0, default_width - layout.body_left_margin - layout.body_right_margin)
+    preview_height = preview_width * (float(image_height) / float(image_width))
+    caption_height = _media_caption_height(node, preview_width)
+    caption_extra = (MEDIA_CAPTION_SPACING + caption_height) if caption_height > 0.0 else 0.0
+    body_height = max(layout.min_body_height, preview_height + caption_extra)
+    return (
+        default_width,
+        max(layout.min_height, layout.body_top + layout.body_bottom_margin + body_height),
+    )
 
 
 def _resolved_dimensions(
@@ -559,6 +675,46 @@ def _annotation_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> Graph
     return _passive_panel_surface_metrics(node, layout)
 
 
+def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
+    layout = _MEDIA_VARIANT_LAYOUTS[normalize_media_variant(spec.surface_variant)]
+    default_width, default_height = _media_default_dimensions(node, layout)
+    _active_width, active_height = _resolved_dimensions(
+        node,
+        default_width=default_width,
+        default_height=default_height,
+    )
+    body_height = max(layout.min_body_height, active_height - layout.body_top - layout.body_bottom_margin)
+    return GraphNodeSurfaceMetrics(
+        default_width=default_width,
+        default_height=default_height,
+        min_width=layout.min_width,
+        min_height=layout.min_height,
+        collapsed_width=STANDARD_COLLAPSED_WIDTH,
+        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
+        header_height=0.0,
+        header_top_margin=0.0,
+        body_top=layout.body_top,
+        body_height=body_height,
+        port_top=active_height - layout.body_bottom_margin,
+        port_height=0.0,
+        port_center_offset=0.0,
+        port_side_margin=STANDARD_PORT_SIDE_MARGIN,
+        port_dot_radius=STANDARD_PORT_DOT_RADIUS,
+        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
+        title_top=layout.title_top,
+        title_height=layout.title_height,
+        title_left_margin=layout.title_left_margin,
+        title_right_margin=layout.title_right_margin,
+        title_centered=layout.title_centered,
+        body_left_margin=layout.body_left_margin,
+        body_right_margin=layout.body_right_margin,
+        body_bottom_margin=layout.body_bottom_margin,
+        show_header_background=False,
+        show_accent_bar=False,
+        use_host_chrome=True,
+    )
+
+
 def node_surface_metrics(
     node: NodeInstance,
     spec: NodeTypeSpec,
@@ -571,6 +727,8 @@ def node_surface_metrics(
         return _planning_surface_metrics(node, spec)
     if family == "annotation":
         return _annotation_surface_metrics(node, spec)
+    if family == "media":
+        return _media_surface_metrics(node, spec)
     return _standard_surface_metrics(node, spec, workspace_nodes)
 
 

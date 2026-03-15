@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal, Protocol
 PortDirection = Literal["in", "out"]
 PortKind = Literal["exec", "completed", "failed", "data", "flow"]
 PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
-InlineEditorType = Literal["", "text", "number", "toggle", "enum"]
+InlineEditorType = Literal["", "text", "number", "toggle", "enum", "path", "textarea"]
 InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum"]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
 SurfaceFamily = Literal["standard", "flowchart", "planning", "annotation", "media"]

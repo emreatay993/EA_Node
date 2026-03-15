@@ -176,6 +176,42 @@ class SerializerTests(unittest.TestCase):
         saved_doc = serializer.to_document(loaded)
         self.assertEqual(saved_doc["metadata"]["ui"]["passive_style_presets"], presets)
 
+    def test_round_trip_preserves_passive_image_panel_properties_and_size(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Image Panel",
+            25.0,
+            45.0,
+            properties={
+                "source_path": r"C:\fixtures\diagram.png",
+                "caption": "System overview\nRevision 2",
+                "fit_mode": "cover",
+            },
+        )
+        model.set_node_size(workspace.workspace_id, node.node_id, 348.0, 258.0)
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "project.sfe"
+            serializer.save(str(path), model.project)
+            loaded = serializer.load(str(path))
+
+        loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
+        self.assertEqual(loaded_node.type_id, "passive.media.image_panel")
+        self.assertEqual(
+            loaded_node.properties,
+            {
+                "source_path": r"C:\fixtures\diagram.png",
+                "caption": "System overview\nRevision 2",
+                "fit_mode": "cover",
+            },
+        )
+        self.assertEqual(loaded_node.custom_width, 348.0)
+        self.assertEqual(loaded_node.custom_height, 258.0)
+
     def test_round_trip_preserves_workspace_order_active_workspace_and_view_cameras(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)
