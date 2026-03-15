@@ -257,6 +257,8 @@ class JsonProjectMigration:
                 "properties": self._registry.normalize_properties(type_id, self.as_dict(node_doc.get("properties"))),
                 "exposed_ports": normalized_exposed_ports,
                 "parent_node_id": self._coerce_str(node_doc.get("parent_node_id")) or None,
+                "custom_width": self._coerce_float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
+                "custom_height": self._coerce_float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
             }
             node_specs[node_id] = spec
 
