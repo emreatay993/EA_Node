@@ -340,13 +340,30 @@ function _annotationVariantLayout(variant) {
 
 function _normalizedMediaVariant(value) {
     var variant = String(value || "").trim().toLowerCase();
-    if (variant === "image_panel")
+    if (variant === "image_panel" || variant === "pdf_panel")
         return variant;
     return "image_panel";
 }
 
 function _mediaVariantLayout(variant) {
     switch (_normalizedMediaVariant(variant)) {
+    case "pdf_panel":
+        return {
+            "defaultWidth": 268.0,
+            "defaultHeight": 396.0,
+            "minWidth": 228.0,
+            "minHeight": 320.0,
+            "titleTop": 12.0,
+            "titleHeight": 24.0,
+            "titleLeftMargin": 14.0,
+            "titleRightMargin": 14.0,
+            "bodyTop": 44.0,
+            "minBodyHeight": 264.0,
+            "bodyLeftMargin": 14.0,
+            "bodyRightMargin": 14.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
     case "image_panel":
     default:
         return {

@@ -10,6 +10,7 @@ from ea_node_editor.graph.effective_ports import port_direction, visible_ports
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.media_preview_provider import local_image_dimensions
+from ea_node_editor.ui.pdf_preview_provider import local_pdf_page_dimensions
 
 STANDARD_DEFAULT_WIDTH = 210.0
 STANDARD_MIN_WIDTH = 120.0
@@ -388,6 +389,21 @@ _MEDIA_VARIANT_LAYOUTS: dict[str, _MediaPanelLayout] = {
         body_right_margin=14.0,
         body_bottom_margin=12.0,
     ),
+    "pdf_panel": _MediaPanelLayout(
+        default_width=268.0,
+        default_height=396.0,
+        min_width=228.0,
+        min_height=320.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        min_body_height=264.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
 }
 
 
@@ -470,18 +486,24 @@ def _media_caption_height(node: NodeInstance, content_width: float) -> float:
 def _media_default_dimensions(
     node: NodeInstance,
     layout: _MediaPanelLayout,
+    *,
+    variant: str,
 ) -> tuple[float, float]:
     default_width = float(layout.default_width)
     default_height = float(layout.default_height)
-    image_dimensions = local_image_dimensions(str(node.properties.get("source_path", "") or ""))
-    if image_dimensions is None:
+    source_path = str(node.properties.get("source_path", "") or "")
+    if variant == "pdf_panel":
+        media_dimensions = local_pdf_page_dimensions(source_path, node.properties.get("page_number"))
+    else:
+        media_dimensions = local_image_dimensions(source_path)
+    if media_dimensions is None:
         return default_width, default_height
-    image_width, image_height = image_dimensions
-    if image_width <= 0 or image_height <= 0:
+    media_width, media_height = media_dimensions
+    if media_width <= 0 or media_height <= 0:
         return default_width, default_height
 
     preview_width = max(1.0, default_width - layout.body_left_margin - layout.body_right_margin)
-    preview_height = preview_width * (float(image_height) / float(image_width))
+    preview_height = preview_width * (float(media_height) / float(media_width))
     caption_height = _media_caption_height(node, preview_width)
     caption_extra = (MEDIA_CAPTION_SPACING + caption_height) if caption_height > 0.0 else 0.0
     body_height = max(layout.min_body_height, preview_height + caption_extra)
@@ -676,8 +698,9 @@ def _annotation_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> Graph
 
 
 def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
-    layout = _MEDIA_VARIANT_LAYOUTS[normalize_media_variant(spec.surface_variant)]
-    default_width, default_height = _media_default_dimensions(node, layout)
+    variant = normalize_media_variant(spec.surface_variant)
+    layout = _MEDIA_VARIANT_LAYOUTS[variant]
+    default_width, default_height = _media_default_dimensions(node, layout, variant=variant)
     _active_width, active_height = _resolved_dimensions(
         node,
         default_width=default_width,
