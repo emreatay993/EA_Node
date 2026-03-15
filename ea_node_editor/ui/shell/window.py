@@ -7,7 +7,7 @@ from typing import Any, Callable, Literal
 from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
-from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
 
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.execution.client import ProcessExecutionClient
@@ -716,6 +716,33 @@ class ShellWindow(QMainWindow):
             spec=spec,
             subnode_pin_type_ids=self._SUBNODE_PIN_TYPE_IDS,
         )
+
+    def _selected_node_property_spec(self, key: str):
+        selected = self._selected_node_context()
+        if selected is None:
+            return None
+        _node, spec = selected
+        normalized_key = str(key).strip()
+        if not normalized_key:
+            return None
+        return next((prop for prop in spec.properties if prop.key == normalized_key), None)
+
+    def _path_dialog_start_path(self, current_path: str) -> str:
+        normalized_current = str(current_path or "").strip()
+        if normalized_current:
+            candidate = Path(normalized_current).expanduser()
+            if candidate.exists():
+                return str(candidate)
+            parent = candidate.parent
+            if str(parent).strip() and parent.exists():
+                return str(parent)
+        normalized_project_path = str(self.project_path or "").strip()
+        if normalized_project_path:
+            project_path = Path(normalized_project_path).expanduser()
+            parent = project_path.parent
+            if str(parent).strip() and parent.exists():
+                return str(parent)
+        return str(Path.cwd())
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_port_items(self) -> list[dict[str, Any]]:
@@ -1486,6 +1513,18 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self, key: str, value: Any) -> None:
         self.workspace_library_controller.set_selected_node_property(key, value)
+
+    @pyqtSlot(str, str, result=str)
+    def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
+        property_spec = self._selected_node_property_spec(key)
+        if property_spec is None or str(property_spec.type) != "path":
+            return ""
+        selected_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            f"Choose {property_spec.label}",
+            self._path_dialog_start_path(current_path),
+        )
+        return str(selected_path or "")
 
     @pyqtSlot(str, bool)
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:

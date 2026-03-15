@@ -30,19 +30,34 @@ Rectangle {
     property real expandedContentOpacity: root.paneCollapsed ? 0 : 1
     property real collapsedHandleShift: root.paneCollapsed ? 0 : (root.isLeftSide ? -root.handleFadeShift : root.handleFadeShift)
 
+    function refreshAncestorLayouts() {
+        var candidate = root.parent
+        while (candidate) {
+            if (candidate.forceLayout)
+                candidate.forceLayout()
+            candidate = candidate.parent
+        }
+    }
+
     function collapsePane() {
         root.paneCollapsed = true
+        Qt.callLater(root.refreshAncestorLayouts)
     }
 
     function expandPane() {
         root.paneCollapsed = false
+        Qt.callLater(root.refreshAncestorLayouts)
     }
 
     function togglePane() {
         root.paneCollapsed = !root.paneCollapsed
+        Qt.callLater(root.refreshAncestorLayouts)
     }
 
     Layout.preferredWidth: root.animatedPaneWidth
+    Layout.minimumWidth: root.animatedPaneWidth
+    Layout.maximumWidth: root.animatedPaneWidth
+    implicitWidth: root.animatedPaneWidth
     Layout.fillHeight: true
     color: root.paneCollapsed ? "transparent" : root.themePalette.panel_alt_bg
     border.color: root.paneCollapsed ? "transparent" : root.themePalette.border

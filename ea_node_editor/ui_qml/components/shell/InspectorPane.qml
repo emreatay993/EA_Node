@@ -407,6 +407,24 @@ ShellCollapsibleSidePane {
         }
     }
 
+    component InspectorTextArea : TextArea {
+        id: control
+        implicitHeight: 118
+        padding: 8
+        selectByMouse: true
+        wrapMode: TextEdit.Wrap
+        color: root.themePalette.input_fg
+        selectionColor: root.selectedSurfaceColor
+        selectedTextColor: root.themePalette.panel_title_fg
+
+        background: Rectangle {
+            radius: 10
+            color: root.themePalette.input_bg
+            border.color: control.activeFocus ? root.themePalette.accent : root.themePalette.input_border
+            border.width: 1
+        }
+    }
+
     component InspectorComboBox : ComboBox {
         id: control
         implicitHeight: 34
@@ -723,7 +741,7 @@ ShellCollapsibleSidePane {
 
                                 Rectangle {
                                     width: parent.width
-                                    visible: modelData.type === "bool"
+                                    visible: modelData.editor_mode === "toggle"
                                     radius: 10
                                     color: root.themePalette.input_bg
                                     border.color: root.themePalette.input_border
@@ -758,7 +776,7 @@ ShellCollapsibleSidePane {
 
                                 InspectorComboBox {
                                     width: parent.width
-                                    visible: modelData.type === "enum"
+                                    visible: modelData.editor_mode === "enum"
                                     model: modelData.enum_values || []
                                     currentIndex: {
                                         var values = modelData.enum_values || []
@@ -777,9 +795,8 @@ ShellCollapsibleSidePane {
                                 InspectorEditableComboBox {
                                     id: pinDataTypeEditor
                                     width: parent.width
-                                    visible: modelData.type === "str"
-                                        && modelData.key === "data_type"
-                                        && root.isPinInspector
+                                    visible: root.isPinInspector
+                                        && String(modelData.key || "") === "data_type"
                                     model: root.mainWindowRef ? root.mainWindowRef.pin_data_type_options : []
                                     currentIndex: {
                                         var values = root.mainWindowRef ? (root.mainWindowRef.pin_data_type_options || []) : []
@@ -803,13 +820,135 @@ ShellCollapsibleSidePane {
                                     }
                                 }
 
+                                Column {
+                                    id: textareaEditorGroup
+                                    width: parent.width
+                                    visible: !pinDataTypeEditor.visible && modelData.editor_mode === "textarea"
+                                    spacing: 6
+                                    property string propertyKey: String(modelData.key || "")
+                                    property string committedText: MainShellUtils.toEditorText(modelData)
+                                    property string draftText: committedText
+                                    property bool draftDirty: draftText !== committedText
+
+                                    function syncDraftToCommitted() {
+                                        draftText = committedText
+                                        if (textareaEditor.text !== committedText)
+                                            textareaEditor.text = committedText
+                                    }
+
+                                    function commitDraft() {
+                                        if (!root.mainWindowRef)
+                                            return
+                                        root.mainWindowRef.set_selected_node_property(propertyKey, draftText)
+                                    }
+
+                                    onCommittedTextChanged: {
+                                        if (!textareaEditor.activeFocus || !draftDirty)
+                                            syncDraftToCommitted()
+                                    }
+
+                                    InspectorTextArea {
+                                        id: textareaEditor
+                                        objectName: "inspectorTextareaEditor"
+                                        property string propertyKey: textareaEditorGroup.propertyKey
+                                        width: parent.width
+                                        text: textareaEditorGroup.draftText
+                                        onTextChanged: {
+                                            if (textareaEditorGroup.draftText !== text)
+                                                textareaEditorGroup.draftText = text
+                                        }
+                                        Keys.onPressed: function(event) {
+                                            if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                                                    && (event.modifiers & Qt.ControlModifier)) {
+                                                textareaEditorGroup.commitDraft()
+                                                event.accepted = true
+                                            } else if (event.key === Qt.Key_Escape) {
+                                                textareaEditorGroup.syncDraftToCommitted()
+                                                event.accepted = true
+                                            }
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        width: parent.width
+                                        spacing: 6
+
+                                        InspectorButton {
+                                            objectName: "inspectorTextareaApplyButton"
+                                            property string propertyKey: textareaEditorGroup.propertyKey
+                                            compact: true
+                                            enabled: textareaEditorGroup.draftDirty
+                                            text: "Apply"
+                                            onClicked: textareaEditorGroup.commitDraft()
+                                        }
+
+                                        InspectorButton {
+                                            objectName: "inspectorTextareaResetButton"
+                                            property string propertyKey: textareaEditorGroup.propertyKey
+                                            compact: true
+                                            enabled: textareaEditorGroup.draftDirty
+                                            text: "Reset"
+                                            onClicked: textareaEditorGroup.syncDraftToCommitted()
+                                        }
+
+                                        Text {
+                                            Layout.fillWidth: true
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: textareaEditorGroup.draftDirty
+                                                ? "Ctrl+Enter to commit"
+                                                : "Committed"
+                                            color: root.themePalette.muted_fg
+                                            font.pixelSize: 10
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    width: parent.width
+                                    visible: !pinDataTypeEditor.visible && modelData.editor_mode === "path"
+                                    spacing: 6
+
+                                    InspectorTextField {
+                                        id: pathEditor
+                                        objectName: "inspectorPathEditor"
+                                        property string propertyKey: String(modelData.key || "")
+                                        Layout.fillWidth: true
+                                        text: MainShellUtils.toEditorText(modelData)
+                                        onAccepted: {
+                                            if (root.mainWindowRef)
+                                                root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                        }
+                                        onEditingFinished: {
+                                            if (root.mainWindowRef)
+                                                root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                        }
+                                    }
+
+                                    InspectorButton {
+                                        objectName: "inspectorPathBrowseButton"
+                                        property string propertyKey: String(modelData.key || "")
+                                        compact: true
+                                        text: "Browse"
+                                        onClicked: {
+                                            if (!root.mainWindowRef)
+                                                return
+                                            var selectedPath = root.mainWindowRef.browse_selected_node_property_path(
+                                                String(modelData.key || ""),
+                                                pathEditor.text
+                                            )
+                                            if (!String(selectedPath || "").length)
+                                                return
+                                            pathEditor.text = String(selectedPath)
+                                            root.mainWindowRef.set_selected_node_property(modelData.key, pathEditor.text)
+                                        }
+                                    }
+                                }
+
                                 InspectorTextField {
                                     width: parent.width
-                                    visible: modelData.type !== "bool"
-                                        && modelData.type !== "enum"
-                                        && !(modelData.type === "str"
-                                            && modelData.key === "data_type"
-                                            && root.isPinInspector)
+                                    visible: !pinDataTypeEditor.visible
+                                        && modelData.editor_mode === "text"
                                     text: MainShellUtils.toEditorText(modelData)
                                     onAccepted: {
                                         if (root.mainWindowRef)

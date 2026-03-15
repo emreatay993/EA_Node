@@ -53,6 +53,7 @@ def prop_str(
     *,
     expose_port_toggle: bool = False,
     inline_editor: str = "",
+    inspector_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -61,6 +62,7 @@ def prop_str(
         label=label,
         expose_port_toggle=expose_port_toggle,
         inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
     )
 
 
@@ -71,6 +73,7 @@ def prop_int(
     *,
     expose_port_toggle: bool = False,
     inline_editor: str = "",
+    inspector_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -79,6 +82,7 @@ def prop_int(
         label=label,
         expose_port_toggle=expose_port_toggle,
         inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
     )
 
 
@@ -89,6 +93,7 @@ def prop_float(
     *,
     expose_port_toggle: bool = False,
     inline_editor: str = "",
+    inspector_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -97,6 +102,7 @@ def prop_float(
         label=label,
         expose_port_toggle=expose_port_toggle,
         inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
     )
 
 
@@ -107,6 +113,7 @@ def prop_bool(
     *,
     expose_port_toggle: bool = False,
     inline_editor: str = "",
+    inspector_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -115,6 +122,7 @@ def prop_bool(
         label=label,
         expose_port_toggle=expose_port_toggle,
         inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
     )
 
 
@@ -126,6 +134,7 @@ def prop_enum(
     values: Iterable[str],
     expose_port_toggle: bool = False,
     inline_editor: str = "",
+    inspector_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -135,6 +144,7 @@ def prop_enum(
         expose_port_toggle=expose_port_toggle,
         enum_values=tuple(values),
         inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
     )
 
 
@@ -145,6 +155,7 @@ def prop_json(
     *,
     expose_port_toggle: bool = False,
     inline_editor: str = "",
+    inspector_editor: str = "",
 ) -> PropertySpec:
     return PropertySpec(
         key=key,
@@ -153,6 +164,7 @@ def prop_json(
         label=label,
         expose_port_toggle=expose_port_toggle,
         inline_editor=inline_editor,
+        inspector_editor=inspector_editor,
     )
 
 

@@ -9,7 +9,7 @@ from ea_node_editor.graph.effective_ports import (
     are_port_kinds_compatible,
     effective_ports,
 )
-from ea_node_editor.nodes.types import property_has_inline_editor
+from ea_node_editor.nodes.types import property_has_inline_editor, property_inspector_editor
 
 
 def build_registry_library_items(*, registry_specs: Iterable[Any]) -> list[dict[str, Any]]:
@@ -288,6 +288,7 @@ def build_selected_node_property_items(
             "value": node.properties.get(prop.key, prop.default),
             "enum_values": list(prop.enum_values),
             "inline_editor": prop.inline_editor,
+            "editor_mode": property_inspector_editor(prop),
         }
         for prop in ordered_properties
     ]

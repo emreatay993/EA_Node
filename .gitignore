@@ -34,9 +34,18 @@ docs/specs/
 tests/
 !tests/
 tests/*
+!tests/passive_property_editor_fixtures.py
+!tests/test_inspector_reflection.py
+!tests/test_main_window_shell.py
 !tests/test_passive_runtime_wiring.py
+!tests/test_passive_property_editors.py
 !tests/test_serializer.py
 !tests/test_passive_visual_metadata.py
+!tests/main_window_shell/
+tests/main_window_shell/*
+!tests/main_window_shell/base.py
+!tests/main_window_shell/passive_property_editors.py
+!tests/main_window_shell/view_library_inspector.py
 
 # Benchmark reference assets
 docs/Benchmark_Programs/

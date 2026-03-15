@@ -8,6 +8,7 @@ PortDirection = Literal["in", "out"]
 PortKind = Literal["exec", "completed", "failed", "data", "flow"]
 PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
 InlineEditorType = Literal["", "text", "number", "toggle", "enum"]
+InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum"]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
 SurfaceFamily = Literal["standard", "flowchart", "planning", "annotation", "media"]
 
@@ -32,6 +33,7 @@ class PropertySpec:
     expose_port_toggle: bool = False
     enum_values: tuple[str, ...] = ()
     inline_editor: InlineEditorType = ""
+    inspector_editor: InspectorEditorType = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -109,3 +111,16 @@ def inline_property_specs(spec: NodeTypeSpec) -> tuple[PropertySpec, ...]:
         for property_spec in spec.properties
         if property_has_inline_editor(property_spec)
     )
+
+
+def property_inspector_editor(property_spec: PropertySpec) -> str:
+    editor = str(property_spec.inspector_editor).strip()
+    if editor:
+        return editor
+    if property_spec.type == "bool":
+        return "toggle"
+    if property_spec.type == "enum":
+        return "enum"
+    if property_spec.type == "path":
+        return "path"
+    return "text"
