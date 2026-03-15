@@ -188,6 +188,31 @@ Item {
         border.color: surface.panelBorderColor
     }
 
+    Rectangle {
+        id: pdfPageBadge
+        objectName: "graphNodeMediaPageBadge"
+        z: 5
+        visible: surface.isPdfPanel && surface.previewState === "ready" && surface.pdfPageCount > 0
+        anchors.right: parent.right
+        anchors.rightMargin: host ? Number(host.surfaceMetrics.title_right_margin || 10) : 10
+        y: host ? Number(host.surfaceMetrics.title_top || 0) + Math.max(0, (Number(host.surfaceMetrics.title_height || 28) - height) * 0.5) : 6
+        radius: 10
+        color: surface.pdfBadgeFillColor
+        border.width: 1
+        border.color: surface.pdfBadgeBorderColor
+        height: pageBadgeLabel.implicitHeight + 10
+        width: pageBadgeLabel.implicitWidth + 16
+
+        Text {
+            id: pageBadgeLabel
+            anchors.centerIn: parent
+            text: "Page " + surface.pdfResolvedPageNumber + " / " + surface.pdfPageCount
+            color: surface.pdfBadgeTextColor
+            font.pixelSize: 10
+            font.bold: true
+        }
+    }
+
     Column {
         anchors.left: parent.left
         anchors.leftMargin: host ? Number(host.surfaceMetrics.body_left_margin || 14) : 14
@@ -240,30 +265,6 @@ Item {
                     smooth: true
                 }
 
-                Rectangle {
-                    id: pdfPageBadge
-                    objectName: "graphNodeMediaPageBadge"
-                    visible: surface.isPdfPanel && surface.previewState === "ready" && surface.pdfPageCount > 0
-                    anchors.top: parent.top
-                    anchors.right: parent.right
-                    anchors.topMargin: 10
-                    anchors.rightMargin: 10
-                    radius: 10
-                    color: surface.pdfBadgeFillColor
-                    border.width: 1
-                    border.color: surface.pdfBadgeBorderColor
-                    height: pageBadgeLabel.implicitHeight + 10
-                    width: pageBadgeLabel.implicitWidth + 16
-
-                    Text {
-                        id: pageBadgeLabel
-                        anchors.centerIn: parent
-                        text: "Page " + surface.pdfResolvedPageNumber + " / " + surface.pdfPageCount
-                        color: surface.pdfBadgeTextColor
-                        font.pixelSize: 10
-                        font.bold: true
-                    }
-                }
 
                 Column {
                     anchors.centerIn: parent
