@@ -22,6 +22,7 @@ SUBNODE_PIN_KIND_VALUES = ("data", "exec", "completed", "failed")
     description="Container shell whose outer ports are derived from direct child pin nodes.",
     ports=(),
     properties=(),
+    runtime_behavior="compile_only",
 )
 class SubnodeNodePlugin:
     def execute(self, _ctx: ExecutionContext) -> NodeResult:
@@ -45,6 +46,7 @@ class SubnodeNodePlugin:
         ),
         prop_str(SUBNODE_PIN_DATA_TYPE_PROPERTY, "any", "Data Type"),
     ),
+    runtime_behavior="compile_only",
 )
 class SubnodeInputNodePlugin:
     def execute(self, _ctx: ExecutionContext) -> NodeResult:
@@ -68,6 +70,7 @@ class SubnodeInputNodePlugin:
         ),
         prop_str(SUBNODE_PIN_DATA_TYPE_PROPERTY, "any", "Data Type"),
     ),
+    runtime_behavior="compile_only",
 )
 class SubnodeOutputNodePlugin:
     def execute(self, _ctx: ExecutionContext) -> NodeResult:

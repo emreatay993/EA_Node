@@ -22,6 +22,7 @@ class NodeInstance:
     collapsed: bool = False
     properties: dict[str, Any] = field(default_factory=dict)
     exposed_ports: dict[str, bool] = field(default_factory=dict)
+    visual_style: dict[str, Any] = field(default_factory=dict)
     parent_node_id: str | None = None
     custom_width: float | None = None
     custom_height: float | None = None
@@ -37,6 +38,8 @@ class EdgeInstance:
     source_port_key: str
     target_node_id: str
     target_port_key: str
+    label: str = ""
+    visual_style: dict[str, Any] = field(default_factory=dict)
 
     def clone(self) -> "EdgeInstance":
         return copy.deepcopy(self)

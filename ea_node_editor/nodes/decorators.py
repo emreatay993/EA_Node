@@ -13,6 +13,7 @@ def in_port(
     data_type: str = "any",
     required: bool = False,
     exposed: bool = True,
+    allow_multiple_connections: bool = False,
 ) -> PortSpec:
     return PortSpec(
         key=key,
@@ -21,6 +22,7 @@ def in_port(
         data_type=data_type,
         required=required,
         exposed=exposed,
+        allow_multiple_connections=allow_multiple_connections,
     )
 
 
@@ -31,6 +33,7 @@ def out_port(
     data_type: str = "any",
     required: bool = False,
     exposed: bool = True,
+    allow_multiple_connections: bool = False,
 ) -> PortSpec:
     return PortSpec(
         key=key,
@@ -39,6 +42,7 @@ def out_port(
         data_type=data_type,
         required=required,
         exposed=exposed,
+        allow_multiple_connections=allow_multiple_connections,
     )
 
 
@@ -162,6 +166,9 @@ def node_type(
     properties: tuple[PropertySpec, ...] | list[PropertySpec],
     collapsible: bool = True,
     description: str = "",
+    runtime_behavior: str = "active",
+    surface_family: str = "standard",
+    surface_variant: str = "",
 ) -> Callable[[type[NodePlugin]], type[NodePlugin]]:
     spec = NodeTypeSpec(
         type_id=type_id,
@@ -172,6 +179,9 @@ def node_type(
         properties=tuple(properties),
         collapsible=collapsible,
         description=description,
+        runtime_behavior=runtime_behavior,  # type: ignore[arg-type]
+        surface_family=surface_family,  # type: ignore[arg-type]
+        surface_variant=surface_variant,
     )
 
     def decorator(cls: type[NodePlugin]) -> type[NodePlugin]:
@@ -182,4 +192,3 @@ def node_type(
         return cls
 
     return decorator
-

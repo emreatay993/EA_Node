@@ -19,7 +19,15 @@ class NodeRegistry:
     _TYPE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     _SUPPORTED_PROPERTY_TYPES = {"str", "int", "float", "bool", "path", "enum", "json"}
     _SUPPORTED_DIRECTIONS = {"in", "out"}
-    _SUPPORTED_KINDS = {"exec", "completed", "failed", "data"}
+    _SUPPORTED_KINDS = {"exec", "completed", "failed", "data", "flow"}
+    _SUPPORTED_RUNTIME_BEHAVIORS = {"active", "passive", "compile_only"}
+    _SUPPORTED_SURFACE_FAMILIES = {
+        "standard",
+        "flowchart",
+        "planning",
+        "annotation",
+        "media",
+    }
 
     def __init__(self) -> None:
         self._entries: dict[str, NodeRegistryEntry] = {}
@@ -147,6 +155,20 @@ class NodeRegistry:
             raise ValueError(f"Node {spec.type_id} display_name must be non-empty")
         if not spec.category.strip():
             raise ValueError(f"Node {spec.type_id} category must be non-empty")
+        if spec.runtime_behavior not in self._SUPPORTED_RUNTIME_BEHAVIORS:
+            raise ValueError(
+                f"Node {spec.type_id} runtime_behavior has invalid value: {spec.runtime_behavior}"
+            )
+        if (
+            not isinstance(spec.surface_family, str)
+            or not spec.surface_family
+            or spec.surface_family.strip() != spec.surface_family
+        ):
+            raise ValueError(f"Node {spec.type_id} surface_family must be a non-empty trimmed string")
+        if spec.surface_family not in self._SUPPORTED_SURFACE_FAMILIES:
+            raise ValueError(f"Node {spec.type_id} surface_family has invalid value: {spec.surface_family}")
+        if not isinstance(spec.surface_variant, str) or spec.surface_variant.strip() != spec.surface_variant:
+            raise ValueError(f"Node {spec.type_id} surface_variant must be a trimmed string")
         if not isinstance(spec.ports, tuple):
             raise TypeError(f"Node {spec.type_id} ports must be a tuple[PortSpec, ...]")
         if not isinstance(spec.properties, tuple):
@@ -181,6 +203,10 @@ class NodeRegistry:
             raise TypeError(f"Node {type_id} port {port.key} required must be bool")
         if not isinstance(port.exposed, bool):
             raise TypeError(f"Node {type_id} port {port.key} exposed must be bool")
+        if not isinstance(port.allow_multiple_connections, bool):
+            raise TypeError(
+                f"Node {type_id} port {port.key} allow_multiple_connections must be bool"
+            )
 
     def _validate_property(self, type_id: str, prop: PropertySpec) -> None:
         if not isinstance(prop, PropertySpec):

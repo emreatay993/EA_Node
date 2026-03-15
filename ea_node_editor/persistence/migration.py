@@ -37,6 +37,9 @@ class JsonProjectMigration:
             elif version == 2:
                 doc = self._migrate_v2_to_v3(doc)
                 version = 3
+            elif version == 3:
+                doc = self._migrate_v3_to_v4(doc)
+                version = 4
             else:
                 raise ValueError(f"Unsupported schema version: {version}")
         return self._normalize_document(doc)
@@ -75,6 +78,12 @@ class JsonProjectMigration:
             merged["custom_workflows"] = []
         migrated["metadata"] = merged
         migrated["schema_version"] = 3
+        return migrated
+
+    @staticmethod
+    def _migrate_v3_to_v4(doc: dict[str, Any]) -> dict[str, Any]:
+        migrated = dict(doc)
+        migrated["schema_version"] = 4
         return migrated
 
     @staticmethod
@@ -256,6 +265,7 @@ class JsonProjectMigration:
                 "collapsed": self._coerce_bool(node_doc.get("collapsed"), False),
                 "properties": self._registry.normalize_properties(type_id, self.as_dict(node_doc.get("properties"))),
                 "exposed_ports": normalized_exposed_ports,
+                "visual_style": self.as_dict(node_doc.get("visual_style")),
                 "parent_node_id": self._coerce_str(node_doc.get("parent_node_id")) or None,
                 "custom_width": self._coerce_float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
                 "custom_height": self._coerce_float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
@@ -277,12 +287,13 @@ class JsonProjectMigration:
                 collapsed=bool(node["collapsed"]),
                 properties=dict(node["properties"]),
                 exposed_ports=dict(node["exposed_ports"]),
+                visual_style=dict(node["visual_style"]),
                 parent_node_id=node["parent_node_id"],
             )
             for node_id, node in nodes_by_id.items()
         }
 
-        candidate_edges: list[dict[str, str]] = []
+        candidate_edges: list[dict[str, Any]] = []
         for edge_doc in self.as_list(workspace_doc.get("edges", [])):
             if not isinstance(edge_doc, Mapping):
                 continue
@@ -334,6 +345,8 @@ class JsonProjectMigration:
                     "source_port_key": source_port_key,
                     "target_node_id": target_node_id,
                     "target_port_key": target_port_key,
+                    "label": self._coerce_str(edge_doc.get("label")),
+                    "visual_style": self.as_dict(edge_doc.get("visual_style")),
                 }
             )
 
