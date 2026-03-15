@@ -501,6 +501,35 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         payload = {item["node_id"]: item for item in self.scene.nodes_model}
         self.assertFalse(payload[source_id]["collapsed"])
 
+    def test_scene_payloads_include_node_and_edge_visual_metadata_contracts(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        target_id = self.scene.add_node_from_type("core.end", 320.0, 40.0)
+        edge_id = self.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        workspace = self.model.project.workspaces[self.workspace_id]
+        workspace.nodes[source_id].visual_style = {"fill": "#102030", "badge": {"shape": "pill"}}
+        workspace.edges[edge_id].label = "Primary path"
+        workspace.edges[edge_id].visual_style = {"stroke": "dashed", "arrow": {"kind": "none"}}
+
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}
+
+        self.assertEqual(node_payload[source_id]["runtime_behavior"], "active")
+        self.assertEqual(node_payload[source_id]["surface_family"], "standard")
+        self.assertEqual(node_payload[source_id]["surface_variant"], "")
+        self.assertEqual(
+            node_payload[source_id]["visual_style"],
+            {"fill": "#102030", "badge": {"shape": "pill"}},
+        )
+        self.assertEqual(edge_payload[edge_id]["label"], "Primary path")
+        self.assertEqual(
+            edge_payload[edge_id]["visual_style"],
+            {"stroke": "dashed", "arrow": {"kind": "none"}},
+        )
+        self.assertEqual(edge_payload[edge_id]["source_port_kind"], "exec")
+        self.assertEqual(edge_payload[edge_id]["target_port_kind"], "exec")
+
     def test_hiding_connected_port_removes_edges_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
         target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)

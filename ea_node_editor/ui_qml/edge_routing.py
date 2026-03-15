@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping
 from typing import Any
 
@@ -307,6 +308,12 @@ def build_edge_payload(
             workspace_nodes=workspace_nodes,
             port_key=edge.source_port_key,
         )
+        target_port_kind = port_kind(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace_nodes,
+            port_key=edge.target_port_key,
+        )
         color = resolve_edge_color(
             graph_theme,
             port_kind=source_port_kind,
@@ -319,6 +326,10 @@ def build_edge_payload(
                 "source_port_key": edge.source_port_key,
                 "target_node_id": edge.target_node_id,
                 "target_port_key": edge.target_port_key,
+                "source_port_kind": source_port_kind,
+                "target_port_kind": target_port_kind,
+                "label": str(edge.label),
+                "visual_style": copy.deepcopy(edge.visual_style),
                 "route": route_mode,
                 "pipe_points": pipe_points,
                 "lane_bias": float(lane_bias),

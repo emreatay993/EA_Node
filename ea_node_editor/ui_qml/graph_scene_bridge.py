@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from contextlib import nullcontext
 from dataclasses import dataclass
 import math
@@ -46,7 +47,9 @@ from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
+    normalize_edge_label,
     normalize_graph_fragment_payload,
+    normalize_visual_style_payload,
 )
 from ea_node_editor.ui.shell.window_library_inspector import build_inline_property_items
 from ea_node_editor.ui.shell.runtime_history import (
@@ -562,6 +565,8 @@ class GraphSceneBridge(QObject):
             "source_port_key": edge.source_port_key,
             "target_node_id": edge.target_node_id,
             "target_port_key": edge.target_port_key,
+            "label": str(edge.label),
+            "visual_style": copy.deepcopy(edge.visual_style),
         }
 
     @pyqtSlot(str, float, float, result=str)
@@ -914,6 +919,32 @@ class GraphSceneBridge(QObject):
         self._rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
+    @pyqtSlot("QVariant", result="QVariantMap")
+    def normalize_node_visual_style(self, visual_style: Any) -> dict[str, Any]:
+        return normalize_visual_style_payload(visual_style)
+
+    @pyqtSlot(str, "QVariant")
+    def set_node_visual_style(self, node_id: str, visual_style: Any) -> None:
+        if self._model is None:
+            return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        normalized = normalize_visual_style_payload(visual_style)
+        if node.visual_style == normalized:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_node_visual_style(self._workspace_id, node_id, normalized)
+        self._rebuild_models()
+        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    @pyqtSlot(str)
+    def clear_node_visual_style(self, node_id: str) -> None:
+        self.set_node_visual_style(node_id, {})
+
     def set_node_title(self, node_id: str, title: str) -> None:
         if self._model is None:
             return
@@ -929,6 +960,58 @@ class GraphSceneBridge(QObject):
         self._model.set_node_title(self._workspace_id, node_id, normalized)
         self._rebuild_models()
         self._record_history(ACTION_RENAME_NODE, history_before)
+
+    @pyqtSlot("QVariant", result=str)
+    def normalize_edge_label(self, label: Any) -> str:
+        return normalize_edge_label(label)
+
+    @pyqtSlot(str, "QVariant")
+    def set_edge_label(self, edge_id: str, label: Any) -> None:
+        if self._model is None:
+            return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        edge = workspace.edges.get(edge_id)
+        if edge is None:
+            return
+        normalized = normalize_edge_label(label)
+        if edge.label == normalized:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_edge_label(self._workspace_id, edge_id, normalized)
+        self._rebuild_models()
+        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    @pyqtSlot(str)
+    def clear_edge_label(self, edge_id: str) -> None:
+        self.set_edge_label(edge_id, "")
+
+    @pyqtSlot("QVariant", result="QVariantMap")
+    def normalize_edge_visual_style(self, visual_style: Any) -> dict[str, Any]:
+        return normalize_visual_style_payload(visual_style)
+
+    @pyqtSlot(str, "QVariant")
+    def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
+        if self._model is None:
+            return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        edge = workspace.edges.get(edge_id)
+        if edge is None:
+            return
+        normalized = normalize_visual_style_payload(visual_style)
+        if edge.visual_style == normalized:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_edge_visual_style(self._workspace_id, edge_id, normalized)
+        self._rebuild_models()
+        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    @pyqtSlot(str)
+    def clear_edge_visual_style(self, edge_id: str) -> None:
+        self.set_edge_visual_style(edge_id, {})
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
         if self._model is None or self._registry is None:
@@ -1419,6 +1502,7 @@ class GraphSceneBridge(QObject):
                 collapsed=bool(node_payload.get("collapsed", False)),
                 properties=dict(node_payload.get("properties", {})),
                 exposed_ports=dict(node_payload.get("exposed_ports", {})),
+                visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
                 parent_node_id=node_payload.get("parent_node_id"),
             )
             fragment_nodes[ref_id] = node
@@ -1458,6 +1542,7 @@ class GraphSceneBridge(QObject):
                 collapsed=bool(node_payload.get("collapsed", False)),
                 properties=dict(node_payload.get("properties", {})),
                 exposed_ports=dict(node_payload.get("exposed_ports", {})),
+                visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
                 parent_node_id=node_payload.get("parent_node_id"),
             )
 
@@ -1628,6 +1713,10 @@ class GraphSceneBridge(QObject):
                     "accent": resolve_category_accent(graph_theme, spec.category),
                     "collapsed": bool(node.collapsed),
                     "selected": node.node_id in self._selected_node_ids,
+                    "runtime_behavior": spec.runtime_behavior,
+                    "surface_family": spec.surface_family,
+                    "surface_variant": spec.surface_variant,
+                    "visual_style": copy.deepcopy(node.visual_style),
                     "can_enter_scope": node.type_id == "core.subnode",
                     "ports": ports_payload,
                     "inline_properties": inline_properties_payload,

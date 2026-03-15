@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Mapping
 from typing import Any
 
 GRAPH_FRAGMENT_MIME_TYPE = "application/x-ea-node-editor-graph-fragment+json"
@@ -70,7 +71,7 @@ def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
     if not normalized_nodes:
         return None
 
-    normalized_edges: list[dict[str, str]] = []
+    normalized_edges: list[dict[str, Any]] = []
     seen_edges: set[tuple[str, str, str, str]] = set()
     for raw_edge in raw_edges:
         normalized_edge = _normalize_edge_entry(raw_edge)
@@ -138,11 +139,12 @@ def _normalize_node_entry(raw_node: Any) -> dict[str, Any] | None:
         "collapsed": bool(raw_node.get("collapsed", False)),
         "properties": copy.deepcopy(raw_properties),
         "exposed_ports": normalized_exposed_ports,
+        "visual_style": normalize_visual_style_payload(raw_node.get("visual_style")),
         "parent_node_id": parent_node_id,
     }
 
 
-def _normalize_edge_entry(raw_edge: Any) -> dict[str, str] | None:
+def _normalize_edge_entry(raw_edge: Any) -> dict[str, Any] | None:
     if not isinstance(raw_edge, dict):
         return None
     source_ref_id = str(raw_edge.get("source_ref_id", "")).strip()
@@ -156,7 +158,38 @@ def _normalize_edge_entry(raw_edge: Any) -> dict[str, str] | None:
         "source_port_key": source_port_key,
         "target_ref_id": target_ref_id,
         "target_port_key": target_port_key,
+        "label": normalize_edge_label(raw_edge.get("label")),
+        "visual_style": normalize_visual_style_payload(raw_edge.get("visual_style")),
     }
+
+
+def normalize_edge_label(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def normalize_visual_style_payload(value: Any) -> dict[str, Any]:
+    normalized = _normalize_visual_style_value(value)
+    if isinstance(normalized, dict):
+        return normalized
+    return {}
+
+
+def _normalize_visual_style_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, child in value.items():
+            normalized_key = str(key).strip()
+            if not normalized_key:
+                continue
+            normalized[normalized_key] = _normalize_visual_style_value(child)
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_visual_style_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_normalize_visual_style_value(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return copy.deepcopy(value)
+    return str(value)
 
 
 __all__ = [
@@ -164,7 +197,9 @@ __all__ = [
     "GRAPH_FRAGMENT_MIME_TYPE",
     "GRAPH_FRAGMENT_VERSION",
     "build_graph_fragment_payload",
+    "normalize_edge_label",
     "normalize_graph_fragment_payload",
+    "normalize_visual_style_payload",
     "parse_graph_fragment_payload",
     "serialize_graph_fragment_payload",
 ]
