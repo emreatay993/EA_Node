@@ -86,25 +86,28 @@ Item {
     function _traceDocument(ctx, left, top, right, bottom) {
         var widthValue = Math.max(0.0, right - left);
         var heightValue = Math.max(0.0, bottom - top);
-        var waveDepth = Math.min(heightValue * 0.18, 16.0 + root.strokeWidth);
+        var waveDepth = Math.min(heightValue * 0.11, 10.0 + root.strokeWidth * 1.5);
+        var waveBase = bottom - waveDepth * 0.58;
+        var waveCrest = bottom - waveDepth * 1.08;
+        var waveTrough = bottom - waveDepth * 0.12;
         ctx.moveTo(left, top);
         ctx.lineTo(right, top);
-        ctx.lineTo(right, bottom - waveDepth);
+        ctx.lineTo(right, waveBase);
         ctx.bezierCurveTo(
-            right - widthValue * 0.14,
-            bottom + waveDepth * 0.4,
-            left + widthValue * 0.64,
-            bottom - waveDepth * 1.15,
-            left + widthValue * 0.48,
-            bottom - waveDepth * 0.18
+            right - widthValue * 0.17,
+            waveTrough,
+            left + widthValue * 0.7,
+            waveTrough,
+            left + widthValue * 0.52,
+            waveBase - waveDepth * 0.34
         );
         ctx.bezierCurveTo(
-            left + widthValue * 0.28,
-            bottom + waveDepth * 0.6,
-            left + widthValue * 0.12,
-            bottom - waveDepth * 0.7,
+            left + widthValue * 0.33,
+            waveCrest,
+            left + widthValue * 0.14,
+            waveCrest,
             left,
-            bottom - waveDepth * 0.18
+            waveBase
         );
         ctx.closePath();
     }
@@ -112,7 +115,7 @@ Item {
     function _traceInputOutput(ctx, left, top, right, bottom) {
         var widthValue = Math.max(0.0, right - left);
         var heightValue = Math.max(0.0, bottom - top);
-        var slant = Math.min(widthValue * 0.16, heightValue * 0.35);
+        var slant = Math.min(widthValue * 0.13, heightValue * 0.26);
         ctx.moveTo(left + slant, top);
         ctx.lineTo(right, top);
         ctx.lineTo(right - slant, bottom);
@@ -124,13 +127,14 @@ Item {
         var widthValue = Math.max(0.0, right - left);
         var heightValue = Math.max(0.0, bottom - top);
         var rx = widthValue * 0.5;
-        var cap = Math.min(heightValue * 0.18, 18.0 + root.strokeWidth);
+        var cap = Math.min(heightValue * 0.13, 14.0 + root.strokeWidth);
         var cx = left + rx;
         var topCy = top + cap;
         var bottomCy = bottom - cap;
         _traceTopHalfEllipse(ctx, cx, topCy, rx, cap);
         ctx.lineTo(right, bottomCy);
         _traceBottomHalfEllipseFromRight(ctx, cx, bottomCy, rx, cap);
+        ctx.lineTo(left, topCy);
         ctx.closePath();
     }
 
@@ -179,7 +183,7 @@ Item {
             ctx.stroke();
 
             if (variantKey === "predefined_process") {
-                var barInset = Math.min((right - left) * 0.12, 18.0 + inset);
+                var barInset = Math.min((right - left) * 0.1, 16.0 + inset);
                 ctx.beginPath();
                 ctx.moveTo(left + barInset, top);
                 ctx.lineTo(left + barInset, bottom);
@@ -190,7 +194,7 @@ Item {
                 var widthValue = Math.max(0.0, right - left);
                 var heightValue = Math.max(0.0, bottom - top);
                 var rx = widthValue * 0.5;
-                var cap = Math.min(heightValue * 0.18, 18.0 + root.strokeWidth);
+                var cap = Math.min(heightValue * 0.13, 14.0 + root.strokeWidth);
                 var cx = left + rx;
                 var topCy = top + cap;
                 var bottomCy = bottom - cap;

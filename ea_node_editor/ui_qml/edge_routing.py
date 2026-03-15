@@ -122,6 +122,45 @@ def edge_control_points(
     return c1x, c1y, c2x, c2y
 
 
+def _is_flowchart_surface(spec: NodeTypeSpec) -> bool:
+    return str(spec.surface_family or "").strip() == "flowchart"
+
+
+def _flowchart_decision_source_fan_bias(spec: NodeTypeSpec, source_port_key: str) -> float:
+    if not _is_flowchart_surface(spec):
+        return 0.0
+    if str(spec.surface_variant or "").strip() != "decision":
+        return 0.0
+    if source_port_key == "branch_a":
+        return -12.0
+    if source_port_key == "branch_b":
+        return 12.0
+    return 0.0
+
+
+def _rect_center_x(bounds: QRectF) -> float:
+    return float(bounds.left() + bounds.width() * 0.5)
+
+
+def _should_use_flowchart_pipe_route(
+    source: QPointF,
+    target: QPointF,
+    source_bounds: QRectF,
+    target_bounds: QRectF,
+) -> bool:
+    dx = float(target.x() - source.x())
+    dy = float(target.y() - source.y())
+    horizontal_gap = float(target_bounds.left() - source_bounds.right())
+    center_dx = abs(_rect_center_x(target_bounds) - _rect_center_x(source_bounds))
+    max_width = max(float(source_bounds.width()), float(target_bounds.width()))
+    min_width = min(float(source_bounds.width()), float(target_bounds.width()))
+    overlap = float(source_bounds.left()) <= float(target_bounds.right()) and float(target_bounds.left()) <= float(source_bounds.right())
+    stacked_vertical = dy >= 42.0 and center_dx <= max_width * 0.78
+    near_vertical = abs(dx) <= max(96.0, min_width * 0.42) and dy >= 24.0
+    cramped_forward = horizontal_gap <= max(56.0, min_width * 0.22)
+    return dx < 104.0 or overlap or stacked_vertical or (near_vertical and cramped_forward)
+
+
 def edge_pipe_points(
     source: QPointF,
     target: QPointF,
@@ -297,11 +336,33 @@ def build_edge_payload(
         pair_lane = pair_lane_offsets.get(edge.edge_id, 0.0)
         source_fan = source_fan_offsets.get(edge.edge_id, 0.0)
         target_fan = target_fan_offsets.get(edge.edge_id, 0.0)
+        source_port_kind = port_kind(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace_nodes,
+            port_key=edge.source_port_key,
+        )
+        target_port_kind = port_kind(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace_nodes,
+            port_key=edge.target_port_key,
+        )
+        edge_family = "flow" if source_port_kind == "flow" and target_port_kind == "flow" else "standard"
+        flowchart_edge = (
+            edge_family == "flow"
+            and _is_flowchart_surface(source_spec)
+            and _is_flowchart_surface(target_spec)
+        )
+        if flowchart_edge:
+            source_fan += _flowchart_decision_source_fan_bias(source_spec, edge.source_port_key)
         lane_bias = pair_lane + source_fan - target_fan
         route_mode = "bezier"
         pipe_points: list[dict[str, float]] = []
 
-        if float(target.x()) < float(source.x()) - 8.0:
+        if float(target.x()) < float(source.x()) - 8.0 or (
+            flowchart_edge and _should_use_flowchart_pipe_route(source, target, source_bounds, target_bounds)
+        ):
             route_mode = "pipe"
             pipe_points = edge_pipe_points(
                 source,
@@ -339,19 +400,6 @@ def build_edge_payload(
             port_key=edge.target_port_key,
         )
         dt_warning = not are_data_types_compatible(src_dt, tgt_dt)
-        source_port_kind = port_kind(
-            node=source_node,
-            spec=source_spec,
-            workspace_nodes=workspace_nodes,
-            port_key=edge.source_port_key,
-        )
-        target_port_kind = port_kind(
-            node=target_node,
-            spec=target_spec,
-            workspace_nodes=workspace_nodes,
-            port_key=edge.target_port_key,
-        )
-        edge_family = "flow" if source_port_kind == "flow" and target_port_kind == "flow" else "standard"
         flow_style = normalize_flow_edge_visual_style_payload(edge.visual_style) if edge_family == "flow" else {}
         color = resolve_edge_color(
             graph_theme,

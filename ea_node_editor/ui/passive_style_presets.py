@@ -21,13 +21,11 @@ _RAW_BUILT_IN_NODE_PRESETS = (
         "preset_id": "builtin_node_flowchart_classic",
         "name": "Flowchart Classic",
         "style": {
-            "fill_color": "#F4FAFF",
-            "border_color": "#2D6C96",
+            "fill_color": "#F5FAFD",
+            "border_color": "#61798B",
             "text_color": "#173247",
-            "accent_color": "#63A5D8",
-            "header_color": "#E1F0FB",
             "border_width": 2.0,
-            "corner_radius": 16.0,
+            "font_weight": "bold",
         },
     },
     {

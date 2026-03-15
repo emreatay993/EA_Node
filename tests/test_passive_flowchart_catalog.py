@@ -76,6 +76,26 @@ _EXPECTED_FLOWCHART_SPECS = {
 
 
 class PassiveFlowchartCatalogTests(unittest.TestCase):
+    def test_locked_flowchart_type_ids_remain_stable(self) -> None:
+        registry = build_default_registry()
+
+        self.assertEqual(
+            set(_EXPECTED_FLOWCHART_SPECS),
+            {
+                "passive.flowchart.start",
+                "passive.flowchart.end",
+                "passive.flowchart.process",
+                "passive.flowchart.decision",
+                "passive.flowchart.document",
+                "passive.flowchart.connector",
+                "passive.flowchart.input_output",
+                "passive.flowchart.predefined_process",
+                "passive.flowchart.database",
+            },
+        )
+        for type_id in _EXPECTED_FLOWCHART_SPECS:
+            self.assertIsNotNone(registry.get_spec(type_id))
+
     def test_default_registry_registers_locked_flowchart_catalog_specs(self) -> None:
         registry = build_default_registry()
 

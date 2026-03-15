@@ -15,6 +15,22 @@ from ea_node_editor.ui.shell.window import ShellWindow
 
 
 class PassiveStylePresetCatalogTests(unittest.TestCase):
+    def test_flowchart_classic_preset_matches_polished_defaults(self) -> None:
+        built_ins = built_in_style_presets("node")
+        flowchart_classic = next(entry for entry in built_ins if entry["preset_id"] == "builtin_node_flowchart_classic")
+
+        self.assertTrue(flowchart_classic["read_only"])
+        self.assertEqual(
+            flowchart_classic["style"],
+            {
+                "fill_color": "#F5FAFD",
+                "border_color": "#61798B",
+                "text_color": "#173247",
+                "border_width": 2.0,
+                "font_weight": "bold",
+            },
+        )
+
     def test_catalog_exposes_read_only_starters_without_serializing_them(self) -> None:
         catalog = PassiveStylePresetCatalog("node", [])
 

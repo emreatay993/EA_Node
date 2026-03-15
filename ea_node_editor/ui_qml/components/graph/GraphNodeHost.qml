@@ -29,6 +29,9 @@ Rectangle {
     readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.port_kind_palette
         : ({})
+    readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
+    readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
+    readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
     readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
     readonly property var passiveStyle: isPassiveNode && nodeData && nodeData.visual_style ? nodeData.visual_style : ({})
     readonly property string _passiveFillOverride: card._styleString(passiveStyle.fill_color)
@@ -57,12 +60,30 @@ Rectangle {
     readonly property color themeInlineInputBorderColor: nodePalette.inline_input_border || "#4a4f5a"
     readonly property color themeInlineDrivenTextColor: nodePalette.inline_driven_fg || "#bdc5d3"
     readonly property color themePortLabelColor: nodePalette.port_label_fg || "#d0d5de"
-    readonly property color surfaceColor: isPassiveNode ? (_passiveFillOverride || themeSurfaceColor) : themeSurfaceColor
-    readonly property color outlineColor: isPassiveNode ? (_passiveBorderOverride || themeOutlineColor) : themeOutlineColor
-    readonly property color selectedOutlineColor: isPassiveNode ? Qt.lighter(outlineColor, 1.25) : themeSelectedOutlineColor
-    readonly property color headerColor: isPassiveNode ? (_passiveHeaderOverride || themeHeaderColor) : themeHeaderColor
-    readonly property color headerTextColor: isPassiveNode ? (_passiveTextOverride || themeHeaderTextColor) : themeHeaderTextColor
-    readonly property color scopeBadgeColor: isPassiveNode ? (_passiveAccentOverride || themeScopeBadgeColor) : themeScopeBadgeColor
+    readonly property color flowchartDefaultFillColor: "#F5FAFD"
+    readonly property color flowchartDefaultOutlineColor: "#61798B"
+    readonly property color flowchartDefaultSelectedOutlineColor: "#2C85BF"
+    readonly property color flowchartDefaultTextColor: "#173247"
+    readonly property color surfaceColor: isPassiveNode
+        ? (_passiveFillOverride || (isFlowchartSurface ? flowchartDefaultFillColor : themeSurfaceColor))
+        : themeSurfaceColor
+    readonly property color outlineColor: isPassiveNode
+        ? (_passiveBorderOverride || (isFlowchartSurface ? flowchartDefaultOutlineColor : themeOutlineColor))
+        : themeOutlineColor
+    readonly property color selectedOutlineColor: isPassiveNode
+        ? (isFlowchartSurface
+            ? (hasPassiveBorderOverride ? Qt.lighter(outlineColor, 1.18) : flowchartDefaultSelectedOutlineColor)
+            : Qt.lighter(outlineColor, 1.25))
+        : themeSelectedOutlineColor
+    readonly property color headerColor: isPassiveNode
+        ? (_passiveHeaderOverride || (isFlowchartSurface ? surfaceColor : themeHeaderColor))
+        : themeHeaderColor
+    readonly property color headerTextColor: isPassiveNode
+        ? (_passiveTextOverride || (isFlowchartSurface ? flowchartDefaultTextColor : themeHeaderTextColor))
+        : themeHeaderTextColor
+    readonly property color scopeBadgeColor: isPassiveNode
+        ? (_passiveAccentOverride || (isFlowchartSurface ? selectedOutlineColor : themeScopeBadgeColor))
+        : themeScopeBadgeColor
     readonly property color scopeBadgeBorderColor: isPassiveNode
         ? Qt.lighter(scopeBadgeColor, 1.16)
         : themeScopeBadgeBorderColor
@@ -76,17 +97,31 @@ Rectangle {
         : themeInlineInputBackgroundColor
     readonly property color inlineInputBorderColor: isPassiveNode ? Qt.alpha(outlineColor, 0.9) : themeInlineInputBorderColor
     readonly property color inlineDrivenTextColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.72) : themeInlineDrivenTextColor
-    readonly property color portLabelColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.84) : themePortLabelColor
-    readonly property color portInteractiveFillColor: nodePalette.port_interactive_fill || "#FFDA6B"
-    readonly property color portInteractiveBorderColor: nodePalette.port_interactive_border || "#FFE48B"
-    readonly property color portInteractiveRingFillColor: nodePalette.port_interactive_ring_fill || "#44FFC857"
-    readonly property color portInteractiveRingBorderColor: nodePalette.port_interactive_ring_border || "#66FFE29A"
+    readonly property color portLabelColor: isPassiveNode
+        ? Qt.alpha(headerTextColor, isFlowchartSurface ? 0.74 : 0.84)
+        : themePortLabelColor
+    readonly property color portInteractiveFillColor: isFlowchartSurface
+        ? Qt.alpha(selectedOutlineColor, 0.18)
+        : (nodePalette.port_interactive_fill || "#FFDA6B")
+    readonly property color portInteractiveBorderColor: isFlowchartSurface
+        ? selectedOutlineColor
+        : (nodePalette.port_interactive_border || "#FFE48B")
+    readonly property color portInteractiveRingFillColor: isFlowchartSurface
+        ? Qt.alpha(selectedOutlineColor, 0.1)
+        : (nodePalette.port_interactive_ring_fill || "#44FFC857")
+    readonly property color portInteractiveRingBorderColor: isFlowchartSurface
+        ? Qt.alpha(selectedOutlineColor, 0.38)
+        : (nodePalette.port_interactive_ring_border || "#66FFE29A")
+    readonly property color flowchartConnectedPortFillColor: Qt.alpha(outlineColor, 0.18)
+    readonly property real flowchartRestPortDiameter: 6.0
+    readonly property real flowchartConnectedPortDiameter: 7.0
+    readonly property real flowchartSelectedPortDiameter: 8.0
+    readonly property real flowchartInteractivePortDiameter: 11.0
+    readonly property real flowchartInteractiveRingDiameter: 15.0
     readonly property real passiveBorderWidth: card._styleNumber(passiveStyle.border_width, 1.0, false)
     readonly property real passiveCornerRadius: card._styleNumber(passiveStyle.corner_radius, 6.0, true)
     readonly property real passiveFontPixelSize: card._styleNumber(passiveStyle.font_size, 12.0, false)
     readonly property bool passiveFontBold: card._styleString(passiveStyle.font_weight).toLowerCase() === "bold"
-    readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
-    readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
     readonly property bool isCollapsed: !!nodeData && !!nodeData.collapsed
 
@@ -167,6 +202,8 @@ Rectangle {
     readonly property bool _titleCentered: !card.isCollapsed && Boolean(surfaceMetrics.title_centered)
     readonly property real _portLabelGap: 6.0
     readonly property real _portLabelMaxWidth: Math.max(40.0, card.width * 0.46)
+    readonly property bool _portLabelsVisible: !card.isFlowchartSurface
+    readonly property bool _suppressShadow: card.isFlowchartSurface && !card.isCollapsed
 
     readonly property var inputPorts: {
         if (!card.nodeData || !card.nodeData.ports)
@@ -212,7 +249,7 @@ Rectangle {
     function basePortColor(portKind) {
         var palette = card.portKindPalette || {};
         if (portKind === "flow")
-            return card.isPassiveNode ? card.scopeBadgeColor : "#60CDFF";
+            return card.isFlowchartSurface ? Qt.alpha(card.outlineColor, 0.72) : (card.isPassiveNode ? card.scopeBadgeColor : "#60CDFF");
         if (portKind === "exec")
             return palette.exec || "#67D487";
         if (portKind === "completed")
@@ -305,7 +342,7 @@ Rectangle {
     border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
     radius: card._useHostChrome ? card.resolvedCornerRadius : 0
 
-    layer.enabled: card.showShadow
+    layer.enabled: card.showShadow && !card._suppressShadow
     layer.effect: MultiEffect {
         shadowEnabled: true
         shadowBlur: card.shadowSoftness / 100.0
@@ -403,7 +440,7 @@ Rectangle {
             delegate: Item {
                 property int rowIndex: index
                 readonly property var portPoint: card.localPortPoint("in", rowIndex)
-                readonly property real dotDiameter: inputDot.interactiveState ? 14 : 8
+                readonly property real dotDiameter: inputDot.width
                 x: 0
                 y: portPoint.y - height * 0.5
                 width: card.width
@@ -411,36 +448,53 @@ Rectangle {
 
                 Rectangle {
                     id: inputDot
+                    objectName: "graphNodeInputPortDot"
                     property bool hoveredState: card.isHoveredPort("in", modelData.key)
                     property bool pendingState: card.isPendingPort("in", modelData.key)
                     property bool dragSourceState: card.isDragSourcePort("in", modelData.key)
-                    property bool interactiveState: hoveredState || pendingState || dragSourceState
+                    property bool selectedState: card.isFlowchartSurface && card.nodeData && card.nodeData.selected
+                    property bool attentionState: hoveredState || pendingState || dragSourceState
+                    property bool interactiveState: attentionState || selectedState
                     property bool connectedState: card.isConnectedPort(modelData)
                     property color portColor: card.basePortColor(modelData.kind)
+                    property real restDiameter: card.isFlowchartSurface
+                        ? (connectedState ? card.flowchartConnectedPortDiameter : card.flowchartRestPortDiameter)
+                        : 8
+                    property real activeDiameter: card.isFlowchartSurface
+                        ? (attentionState ? card.flowchartInteractivePortDiameter : card.flowchartSelectedPortDiameter)
+                        : 14
+                    property real ringDiameter: card.isFlowchartSurface ? card.flowchartInteractiveRingDiameter : (attentionState ? 18 : 12)
                     x: parent.portPoint.x - width * 0.5
                     anchors.verticalCenter: parent.verticalCenter
-                    width: interactiveState ? 14 : 8
-                    height: interactiveState ? 14 : 8
+                    width: interactiveState ? activeDiameter : restDiameter
+                    height: width
                     radius: width * 0.5
-                    color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
-                    border.width: interactiveState ? 2 : 1
-                    border.color: interactiveState
+                    color: card.isFlowchartSurface
+                        ? (attentionState
+                            ? card.portInteractiveFillColor
+                            : ((selectedState || connectedState) ? card.flowchartConnectedPortFillColor : "transparent"))
+                        : (interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent"))
+                    border.width: card.isFlowchartSurface ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
+                    border.color: attentionState
                         ? card.portInteractiveBorderColor
-                        : portColor
+                        : (card.isFlowchartSurface && selectedState ? card.selectedOutlineColor : portColor)
 
                     Rectangle {
+                        objectName: "graphNodeInputPortRing"
                         anchors.centerIn: parent
-                        width: inputDot.interactiveState ? 18 : 12
-                        height: inputDot.interactiveState ? 18 : 12
+                        visible: !card.isFlowchartSurface || inputDot.attentionState
+                        width: inputDot.ringDiameter
+                        height: inputDot.ringDiameter
                         radius: width * 0.5
                         z: -1
-                        color: inputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
-                        border.width: inputDot.interactiveState ? 1 : 0
-                        border.color: inputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
+                        color: inputDot.attentionState ? card.portInteractiveRingFillColor : "transparent"
+                        border.width: inputDot.attentionState ? 1 : 0
+                        border.color: inputDot.attentionState ? card.portInteractiveRingBorderColor : "transparent"
                     }
 
                     MouseArea {
                         id: inputPortMouse
+                        objectName: "graphNodeInputPortMouseArea"
                         property real pressStartX: 0
                         property real pressStartY: 0
                         property bool movedState: false
@@ -525,6 +579,8 @@ Rectangle {
                 }
 
                 Text {
+                    objectName: "graphNodeInputPortLabel"
+                    visible: card._portLabelsVisible
                     anchors.verticalCenter: parent.verticalCenter
                     x: Math.max(0, inputDot.x + inputDot.width + card._portLabelGap)
                     width: Math.max(0, Math.min(card._portLabelMaxWidth, card.width - x - 4))
@@ -541,7 +597,7 @@ Rectangle {
             delegate: Item {
                 property int rowIndex: index
                 readonly property var portPoint: card.localPortPoint("out", rowIndex)
-                readonly property real dotDiameter: outputDot.interactiveState ? 14 : 8
+                readonly property real dotDiameter: outputDot.width
                 x: 0
                 y: portPoint.y - height * 0.5
                 width: card.width
@@ -549,36 +605,53 @@ Rectangle {
 
                 Rectangle {
                     id: outputDot
+                    objectName: "graphNodeOutputPortDot"
                     property bool hoveredState: card.isHoveredPort("out", modelData.key)
                     property bool pendingState: card.isPendingPort("out", modelData.key)
                     property bool dragSourceState: card.isDragSourcePort("out", modelData.key)
-                    property bool interactiveState: hoveredState || pendingState || dragSourceState
+                    property bool selectedState: card.isFlowchartSurface && card.nodeData && card.nodeData.selected
+                    property bool attentionState: hoveredState || pendingState || dragSourceState
+                    property bool interactiveState: attentionState || selectedState
                     property bool connectedState: card.isConnectedPort(modelData)
                     property color portColor: card.basePortColor(modelData.kind)
+                    property real restDiameter: card.isFlowchartSurface
+                        ? (connectedState ? card.flowchartConnectedPortDiameter : card.flowchartRestPortDiameter)
+                        : 8
+                    property real activeDiameter: card.isFlowchartSurface
+                        ? (attentionState ? card.flowchartInteractivePortDiameter : card.flowchartSelectedPortDiameter)
+                        : 14
+                    property real ringDiameter: card.isFlowchartSurface ? card.flowchartInteractiveRingDiameter : (attentionState ? 18 : 12)
                     x: parent.portPoint.x - width * 0.5
                     anchors.verticalCenter: parent.verticalCenter
-                    width: interactiveState ? 14 : 8
-                    height: interactiveState ? 14 : 8
+                    width: interactiveState ? activeDiameter : restDiameter
+                    height: width
                     radius: width * 0.5
-                    color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
-                    border.width: interactiveState ? 2 : 1
-                    border.color: interactiveState
+                    color: card.isFlowchartSurface
+                        ? (attentionState
+                            ? card.portInteractiveFillColor
+                            : ((selectedState || connectedState) ? card.flowchartConnectedPortFillColor : "transparent"))
+                        : (interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent"))
+                    border.width: card.isFlowchartSurface ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
+                    border.color: attentionState
                         ? card.portInteractiveBorderColor
-                        : portColor
+                        : (card.isFlowchartSurface && selectedState ? card.selectedOutlineColor : portColor)
 
                     Rectangle {
+                        objectName: "graphNodeOutputPortRing"
                         anchors.centerIn: parent
-                        width: outputDot.interactiveState ? 18 : 12
-                        height: outputDot.interactiveState ? 18 : 12
+                        visible: !card.isFlowchartSurface || outputDot.attentionState
+                        width: outputDot.ringDiameter
+                        height: outputDot.ringDiameter
                         radius: width * 0.5
                         z: -1
-                        color: outputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
-                        border.width: outputDot.interactiveState ? 1 : 0
-                        border.color: outputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
+                        color: outputDot.attentionState ? card.portInteractiveRingFillColor : "transparent"
+                        border.width: outputDot.attentionState ? 1 : 0
+                        border.color: outputDot.attentionState ? card.portInteractiveRingBorderColor : "transparent"
                     }
 
                     MouseArea {
                         id: outputPortMouse
+                        objectName: "graphNodeOutputPortMouseArea"
                         property real pressStartX: 0
                         property real pressStartY: 0
                         property bool movedState: false
@@ -682,6 +755,8 @@ Rectangle {
                 }
 
                 Text {
+                    objectName: "graphNodeOutputPortLabel"
+                    visible: card._portLabelsVisible
                     anchors.verticalCenter: parent.verticalCenter
                     x: 4
                     width: Math.max(0, Math.min(card._portLabelMaxWidth, outputDot.x - card._portLabelGap - x))

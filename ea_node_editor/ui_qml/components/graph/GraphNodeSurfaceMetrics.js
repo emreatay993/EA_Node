@@ -87,106 +87,106 @@ function _flowchartVariantLayout(variant) {
     case "start":
     case "end":
         return {
-            "defaultWidth": 220.0,
-            "minWidth": 140.0,
-            "minHeight": 76.0,
+            "defaultWidth": 228.0,
+            "minWidth": 152.0,
+            "minHeight": 78.0,
             "titleTop": 18.0,
-            "titleLeftMargin": 30.0,
-            "titleRightMargin": 30.0,
-            "bodyLeftMargin": 28.0,
-            "bodyRightMargin": 28.0,
+            "titleLeftMargin": 34.0,
+            "titleRightMargin": 34.0,
+            "bodyLeftMargin": 30.0,
+            "bodyRightMargin": 30.0,
             "bodyBottomMargin": 16.0,
             "square": false
         };
     case "decision":
         return {
-            "defaultWidth": 220.0,
-            "minWidth": 180.0,
-            "minHeight": 120.0,
-            "titleTop": 24.0,
-            "titleLeftMargin": 52.0,
-            "titleRightMargin": 52.0,
-            "bodyLeftMargin": 42.0,
-            "bodyRightMargin": 42.0,
-            "bodyBottomMargin": 20.0,
+            "defaultWidth": 236.0,
+            "minWidth": 192.0,
+            "minHeight": 128.0,
+            "titleTop": 26.0,
+            "titleLeftMargin": 66.0,
+            "titleRightMargin": 66.0,
+            "bodyLeftMargin": 46.0,
+            "bodyRightMargin": 46.0,
+            "bodyBottomMargin": 22.0,
             "square": false
         };
     case "document":
         return {
-            "defaultWidth": 220.0,
-            "minWidth": 170.0,
-            "minHeight": 96.0,
+            "defaultWidth": 228.0,
+            "minWidth": 176.0,
+            "minHeight": 104.0,
             "titleTop": 18.0,
-            "titleLeftMargin": 20.0,
-            "titleRightMargin": 20.0,
-            "bodyLeftMargin": 18.0,
-            "bodyRightMargin": 18.0,
-            "bodyBottomMargin": 22.0,
+            "titleLeftMargin": 24.0,
+            "titleRightMargin": 24.0,
+            "bodyLeftMargin": 20.0,
+            "bodyRightMargin": 20.0,
+            "bodyBottomMargin": 24.0,
             "square": false
         };
     case "connector":
         return {
-            "defaultWidth": 96.0,
-            "minWidth": 84.0,
-            "minHeight": 84.0,
+            "defaultWidth": 108.0,
+            "minWidth": 92.0,
+            "minHeight": 92.0,
             "titleTop": 18.0,
-            "titleLeftMargin": 18.0,
-            "titleRightMargin": 18.0,
-            "bodyLeftMargin": 18.0,
-            "bodyRightMargin": 18.0,
+            "titleLeftMargin": 20.0,
+            "titleRightMargin": 20.0,
+            "bodyLeftMargin": 20.0,
+            "bodyRightMargin": 20.0,
             "bodyBottomMargin": 18.0,
             "square": true
         };
     case "input_output":
         return {
-            "defaultWidth": 230.0,
-            "minWidth": 170.0,
-            "minHeight": 88.0,
+            "defaultWidth": 236.0,
+            "minWidth": 182.0,
+            "minHeight": 94.0,
             "titleTop": 20.0,
-            "titleLeftMargin": 28.0,
-            "titleRightMargin": 28.0,
-            "bodyLeftMargin": 24.0,
-            "bodyRightMargin": 24.0,
-            "bodyBottomMargin": 16.0,
+            "titleLeftMargin": 34.0,
+            "titleRightMargin": 34.0,
+            "bodyLeftMargin": 28.0,
+            "bodyRightMargin": 28.0,
+            "bodyBottomMargin": 18.0,
             "square": false
         };
     case "predefined_process":
         return {
-            "defaultWidth": 230.0,
-            "minWidth": 170.0,
-            "minHeight": 88.0,
+            "defaultWidth": 236.0,
+            "minWidth": 182.0,
+            "minHeight": 94.0,
             "titleTop": 20.0,
-            "titleLeftMargin": 28.0,
-            "titleRightMargin": 28.0,
-            "bodyLeftMargin": 24.0,
-            "bodyRightMargin": 24.0,
-            "bodyBottomMargin": 16.0,
+            "titleLeftMargin": 36.0,
+            "titleRightMargin": 36.0,
+            "bodyLeftMargin": 30.0,
+            "bodyRightMargin": 30.0,
+            "bodyBottomMargin": 18.0,
             "square": false
         };
     case "database":
         return {
-            "defaultWidth": 220.0,
-            "minWidth": 170.0,
-            "minHeight": 120.0,
-            "titleTop": 26.0,
-            "titleLeftMargin": 26.0,
-            "titleRightMargin": 26.0,
-            "bodyLeftMargin": 22.0,
-            "bodyRightMargin": 22.0,
-            "bodyBottomMargin": 20.0,
+            "defaultWidth": 228.0,
+            "minWidth": 180.0,
+            "minHeight": 128.0,
+            "titleTop": 24.0,
+            "titleLeftMargin": 30.0,
+            "titleRightMargin": 30.0,
+            "bodyLeftMargin": 24.0,
+            "bodyRightMargin": 24.0,
+            "bodyBottomMargin": 22.0,
             "square": false
         };
     case "process":
     default:
         return {
-            "defaultWidth": 220.0,
-            "minWidth": 150.0,
-            "minHeight": 80.0,
+            "defaultWidth": 224.0,
+            "minWidth": 156.0,
+            "minHeight": 84.0,
             "titleTop": 18.0,
-            "titleLeftMargin": 18.0,
-            "titleRightMargin": 18.0,
-            "bodyLeftMargin": 16.0,
-            "bodyRightMargin": 16.0,
+            "titleLeftMargin": 20.0,
+            "titleRightMargin": 20.0,
+            "bodyLeftMargin": 18.0,
+            "bodyRightMargin": 18.0,
             "bodyBottomMargin": 16.0,
             "square": false
         };
@@ -533,7 +533,7 @@ function _flowchartHorizontalBounds(variant, width, height, localY) {
         return {"left": rx - dxConnector, "right": rx + dxConnector};
     }
     if (variant === "input_output") {
-        var slant = Math.min(width * 0.16, height * 0.35);
+        var slant = Math.min(width * 0.13, height * 0.26);
         var leftIo = Math.max(0.0, slant * (1.0 - (yValue / height)));
         return {"left": leftIo, "right": width - leftIo};
     }

@@ -14,11 +14,21 @@ Rectangle {
     readonly property color previewHeaderColor: Qt.alpha(themePalette.toolbar_bg, 0.86)
     readonly property color previewTitleColor: themePalette.panel_title_fg
     readonly property color previewLabelColor: themePalette.muted_fg
+    readonly property color flowchartPreviewFillColor: Qt.alpha("#F5FAFD", 0.96)
+    readonly property color flowchartPreviewBorderColor: "#61798B"
+    readonly property color flowchartPreviewTitleColor: "#173247"
+    readonly property color flowchartPreviewPortColor: Qt.alpha(flowchartPreviewBorderColor, 0.74)
+    readonly property color flowchartPreviewPortFillColor: Qt.alpha(flowchartPreviewBorderColor, 0.16)
     readonly property var previewPayload: root.canvasItem ? root.canvasItem.dropPreviewNodePayload : null
     readonly property var previewMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(previewPayload)
     readonly property real previewZoom: root.viewBridge ? root.viewBridge.zoom_value : 1.0
     readonly property bool previewIsFlowchart: String(previewPayload ? previewPayload.surface_family || "standard" : "standard") === "flowchart"
     readonly property bool previewUsesHostChrome: !previewIsFlowchart || Boolean(previewMetrics.use_host_chrome)
+    readonly property color effectivePreviewFillColor: previewIsFlowchart ? flowchartPreviewFillColor : previewChromeColor
+    readonly property color effectivePreviewBorderColor: previewIsFlowchart ? flowchartPreviewBorderColor : previewBorderColor
+    readonly property color effectivePreviewTitleColor: previewIsFlowchart ? flowchartPreviewTitleColor : previewTitleColor
+    readonly property bool previewPortLabelsEnabled: !previewIsFlowchart
+        && (root.canvasItem ? root.canvasItem.previewPortLabelsVisible() : false)
 
     function _scaledMetric(value, fallback) {
         var numeric = Number(value);
@@ -38,17 +48,17 @@ Rectangle {
     width: root.canvasItem ? root.canvasItem.previewNodeScreenWidth() : 0
     height: root.canvasItem ? root.canvasItem.previewNodeScreenHeight() : 0
     radius: previewUsesHostChrome ? Math.max(4, 6 * previewZoom) : 0
-    color: previewUsesHostChrome ? root.previewChromeColor : "transparent"
+    color: previewUsesHostChrome ? root.effectivePreviewFillColor : "transparent"
     border.width: previewUsesHostChrome ? 1 : 0
-    border.color: root.previewBorderColor
+    border.color: root.effectivePreviewBorderColor
     clip: previewUsesHostChrome
 
     GraphPassiveComponents.FlowchartShapeCanvas {
         anchors.fill: parent
         visible: root.previewIsFlowchart && !root.previewUsesHostChrome
         variant: root.previewPayload ? root.previewPayload.surface_variant : ""
-        fillColor: root.previewChromeColor
-        strokeColor: root.previewBorderColor
+        fillColor: root.effectivePreviewFillColor
+        strokeColor: root.effectivePreviewBorderColor
         strokeWidth: Math.max(1.0, root.previewZoom)
     }
 
@@ -86,7 +96,7 @@ Rectangle {
         text: root.previewPayload
             ? String(root.previewPayload.display_name || root.previewPayload.type_id || "")
             : ""
-        color: root.previewTitleColor
+        color: root.effectivePreviewTitleColor
         font.bold: true
         font.pixelSize: Math.max(10, Math.min(16, 12 * root.previewZoom))
         horizontalAlignment: Boolean(root.previewMetrics.title_centered) ? Text.AlignHCenter : Text.AlignLeft
@@ -98,7 +108,9 @@ Rectangle {
         model: root.canvasItem ? root.canvasItem.previewInputPorts() : []
         delegate: Item {
             readonly property var portPoint: root._portPoint("in", index)
-            readonly property real dotSize: Math.max(5, Math.min(10, 8 * root.previewZoom))
+            readonly property real dotSize: root.previewIsFlowchart
+                ? Math.max(4, Math.min(8, 6 * root.previewZoom))
+                : Math.max(5, Math.min(10, 8 * root.previewZoom))
             x: 0
             y: portPoint.y * root.previewZoom - height * 0.5
             width: root.width
@@ -106,20 +118,22 @@ Rectangle {
 
             Rectangle {
                 id: inputDot
+                objectName: "graphCanvasDropPreviewInputPortDot"
                 x: portPoint.x * root.previewZoom - width * 0.5
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.dotSize
                 height: parent.dotSize
                 radius: width * 0.5
-                color: "transparent"
+                color: root.previewIsFlowchart ? root.flowchartPreviewPortFillColor : "transparent"
                 border.width: 1
-                border.color: root.canvasItem
-                    ? root.canvasItem.previewPortColor(modelData.kind)
-                    : root.previewLabelColor
+                border.color: root.previewIsFlowchart
+                    ? root.flowchartPreviewPortColor
+                    : (root.canvasItem ? root.canvasItem.previewPortColor(modelData.kind) : root.previewLabelColor)
             }
 
             Text {
-                visible: root.canvasItem ? root.canvasItem.previewPortLabelsVisible() : false
+                objectName: "graphCanvasDropPreviewInputPortLabel"
+                visible: root.previewPortLabelsEnabled
                 anchors.verticalCenter: parent.verticalCenter
                 x: Math.max(0, inputDot.x + inputDot.width + Math.max(4, 6 * root.previewZoom))
                 width: Math.max(0, root.width - x - 4)
@@ -135,7 +149,9 @@ Rectangle {
         model: root.canvasItem ? root.canvasItem.previewOutputPorts() : []
         delegate: Item {
             readonly property var portPoint: root._portPoint("out", index)
-            readonly property real dotSize: Math.max(5, Math.min(10, 8 * root.previewZoom))
+            readonly property real dotSize: root.previewIsFlowchart
+                ? Math.max(4, Math.min(8, 6 * root.previewZoom))
+                : Math.max(5, Math.min(10, 8 * root.previewZoom))
             x: 0
             y: portPoint.y * root.previewZoom - height * 0.5
             width: root.width
@@ -143,20 +159,22 @@ Rectangle {
 
             Rectangle {
                 id: outputDot
+                objectName: "graphCanvasDropPreviewOutputPortDot"
                 x: portPoint.x * root.previewZoom - width * 0.5
                 anchors.verticalCenter: parent.verticalCenter
                 width: parent.dotSize
                 height: parent.dotSize
                 radius: width * 0.5
-                color: "transparent"
+                color: root.previewIsFlowchart ? root.flowchartPreviewPortFillColor : "transparent"
                 border.width: 1
-                border.color: root.canvasItem
-                    ? root.canvasItem.previewPortColor(modelData.kind)
-                    : root.previewLabelColor
+                border.color: root.previewIsFlowchart
+                    ? root.flowchartPreviewPortColor
+                    : (root.canvasItem ? root.canvasItem.previewPortColor(modelData.kind) : root.previewLabelColor)
             }
 
             Text {
-                visible: root.canvasItem ? root.canvasItem.previewPortLabelsVisible() : false
+                objectName: "graphCanvasDropPreviewOutputPortLabel"
+                visible: root.previewPortLabelsEnabled
                 anchors.verticalCenter: parent.verticalCenter
                 x: 4
                 width: Math.max(0, outputDot.x - Math.max(4, 6 * root.previewZoom) - x)

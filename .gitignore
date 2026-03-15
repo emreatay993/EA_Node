@@ -49,6 +49,8 @@ tests/*
 !tests/test_flow_edge_labels.py
 !tests/test_passive_style_dialogs.py
 !tests/test_passive_style_presets.py
+!tests/test_flowchart_surfaces.py
+!tests/test_flowchart_visual_polish.py
 !tests/main_window_shell/
 tests/main_window_shell/*
 !tests/main_window_shell/base.py

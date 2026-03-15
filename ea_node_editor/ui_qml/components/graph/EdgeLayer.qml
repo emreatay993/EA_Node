@@ -434,7 +434,33 @@ Item {
     }
 
     function _flowLabelAnchor(geometry) {
-        var anchor = root._edgeAnchor(geometry, 0.5);
+        var anchor = null;
+        if (geometry && geometry.route === "pipe") {
+            var pipePoints = geometry.pipe_points || [];
+            var longestHorizontal = null;
+            for (var i = 1; i < pipePoints.length; i++) {
+                var start = pipePoints[i - 1];
+                var end = pipePoints[i];
+                var dx = end.x - start.x;
+                var dy = end.y - start.y;
+                if (Math.abs(dy) > 0.01)
+                    continue;
+                var length = Math.abs(dx);
+                if (!longestHorizontal || length > longestHorizontal.length) {
+                    longestHorizontal = {
+                        "x": (start.x + end.x) * 0.5,
+                        "y": start.y,
+                        "dx": dx >= 0.0 ? 1.0 : -1.0,
+                        "dy": 0.0,
+                        "angle": dx >= 0.0 ? 0.0 : 180.0,
+                        "length": length
+                    };
+                }
+            }
+            anchor = longestHorizontal || root._edgeAnchor(geometry, 0.5);
+        } else {
+            anchor = root._edgeAnchor(geometry, 0.5);
+        }
         if (!anchor)
             return null;
         var normalX = -anchor.dy;
@@ -444,8 +470,8 @@ Item {
             normalY = -normalY;
         }
         return {
-            "screen_x": root.sceneToScreenX(anchor.x) + normalX * 16.0,
-            "screen_y": root.sceneToScreenY(anchor.y) + normalY * 16.0,
+            "screen_x": root.sceneToScreenX(anchor.x) + normalX * 18.0,
+            "screen_y": root.sceneToScreenY(anchor.y) + normalY * 18.0,
             "angle": anchor.angle
         };
     }

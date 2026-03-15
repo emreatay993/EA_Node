@@ -7,48 +7,90 @@ import sys
 import textwrap
 import unittest
 
-from ea_node_editor.graph.model import NodeInstance
-from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
-from ea_node_editor.ui_qml.edge_routing import port_scene_pos
+from ea_node_editor.graph.model import GraphModel, NodeInstance
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-class FlowchartSurfaceGeometryTests(unittest.TestCase):
-    def test_terminator_anchor_hugs_the_curved_edge(self) -> None:
-        spec = NodeTypeSpec(
-            type_id="tests.flowchart_start",
-            display_name="Start",
-            category="Tests",
-            icon="play",
-            ports=(
-                PortSpec("flow_in", "in", "flow", "any"),
-                PortSpec("flow_out", "out", "flow", "any", allow_multiple_connections=True),
-            ),
-            properties=(),
-            runtime_behavior="passive",
-            surface_family="flowchart",
-            surface_variant="start",
-        )
+class FlowchartVisualPolishMetricsTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = build_default_registry()
+
+    def _metrics_for(self, type_id: str):
+        spec = self.registry.get_spec(type_id)
         node = NodeInstance(
-            node_id="node_start",
-            type_id=spec.type_id,
-            title="Start",
-            x=40.0,
+            node_id=f"node_{type_id.rsplit('.', 1)[-1]}",
+            type_id=type_id,
+            title=spec.display_name,
+            x=20.0,
             y=30.0,
         )
+        return node_surface_metrics(node, spec, {node.node_id: node})
 
-        metrics = node_surface_metrics(node, spec, {node.node_id: node})
-        input_point = port_scene_pos(node, spec, "flow_in", {node.node_id: node})
+    def test_polished_flowchart_variants_use_roomier_layout_metrics(self) -> None:
+        decision = self._metrics_for("passive.flowchart.decision")
+        document = self._metrics_for("passive.flowchart.document")
+        connector = self._metrics_for("passive.flowchart.connector")
+        input_output = self._metrics_for("passive.flowchart.input_output")
+        predefined = self._metrics_for("passive.flowchart.predefined_process")
+        database = self._metrics_for("passive.flowchart.database")
 
-        self.assertEqual(metrics.default_width, 228.0)
-        self.assertGreaterEqual(metrics.min_height, 78.0)
-        self.assertGreater(input_point.x() - node.x, 0.0)
-        self.assertLess(input_point.x() - node.x, 2.0)
+        self.assertEqual((decision.default_width, decision.min_width, decision.min_height), (236.0, 192.0, 128.0))
+        self.assertEqual((decision.title_left_margin, decision.title_right_margin), (66.0, 66.0))
+        self.assertEqual((document.default_width, document.min_height, document.body_bottom_margin), (228.0, 104.0, 24.0))
+        self.assertEqual((connector.default_width, connector.min_width, connector.min_height), (108.0, 92.0, 92.0))
+        self.assertEqual((input_output.default_width, input_output.title_left_margin), (236.0, 34.0))
+        self.assertEqual((predefined.default_width, predefined.title_left_margin), (236.0, 36.0))
+        self.assertEqual((database.default_width, database.min_width, database.min_height), (228.0, 180.0, 128.0))
 
 
-class FlowchartSurfaceQmlTests(unittest.TestCase):
+class FlowchartVisualPolishRoutingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.registry = build_default_registry()
+        self.model = GraphModel()
+        self.workspace = self.model.active_workspace
+        self.scene = GraphSceneBridge()
+        self.scene.set_workspace(self.model, self.registry, self.workspace.workspace_id)
+
+    def test_vertical_flowchart_edges_prefer_pipe_routes(self) -> None:
+        source_id = self.scene.add_node_from_type("passive.flowchart.process", 40.0, 40.0)
+        target_id = self.scene.add_node_from_type("passive.flowchart.process", 64.0, 250.0)
+        edge_id = self.scene.add_edge(source_id, "flow_out", target_id, "flow_in")
+
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
+
+        self.assertEqual(edge_payload["route"], "pipe")
+        self.assertEqual(len(edge_payload["pipe_points"]), 6)
+        self.assertGreater(edge_payload["pipe_points"][2]["y"], edge_payload["pipe_points"][0]["y"])
+
+    def test_wide_left_to_right_flowchart_edges_keep_bezier_routes(self) -> None:
+        source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 40.0)
+        target_id = self.scene.add_node_from_type("passive.flowchart.process", 420.0, 72.0)
+        edge_id = self.scene.add_edge(source_id, "flow_out", target_id, "flow_in")
+
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
+
+        self.assertEqual(edge_payload["route"], "bezier")
+        self.assertEqual(edge_payload["pipe_points"], [])
+
+    def test_decision_branch_edges_keep_distinct_lane_biases(self) -> None:
+        decision_id = self.scene.add_node_from_type("passive.flowchart.decision", 40.0, 40.0)
+        branch_a_target = self.scene.add_node_from_type("passive.flowchart.process", 260.0, 210.0)
+        branch_b_target = self.scene.add_node_from_type("passive.flowchart.process", 260.0, 320.0)
+        edge_a = self.scene.add_edge(decision_id, "branch_a", branch_a_target, "flow_in")
+        edge_b = self.scene.add_edge(decision_id, "branch_b", branch_b_target, "flow_in")
+
+        payload = {item["edge_id"]: item for item in self.scene.edges_model}
+
+        self.assertEqual(payload[edge_a]["route"], "pipe")
+        self.assertEqual(payload[edge_b]["route"], "pipe")
+        self.assertGreaterEqual(abs(payload[edge_a]["lane_bias"] - payload[edge_b]["lane_bias"]), 20.0)
+
+
+class FlowchartVisualPolishQmlTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
         script = textwrap.dedent(
             """
@@ -106,14 +148,14 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
 
             def flowchart_payload(variant):
                 return {
-                    "node_id": "node_flowchart_surface_test",
-                    "type_id": "tests.flowchart_surface",
-                    "title": "Flowchart",
-                    "display_name": "Flowchart",
+                    "node_id": "node_flowchart_visual_polish",
+                    "type_id": "tests.flowchart_visual_polish",
+                    "title": "Decision",
+                    "display_name": "Decision",
                     "x": 120.0,
                     "y": 120.0,
-                    "width": 220.0,
-                    "height": 124.0,
+                    "width": 236.0,
+                    "height": 128.0,
                     "accent": "#2F89FF",
                     "collapsed": False,
                     "selected": False,
@@ -125,28 +167,28 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                     "ports": [
                         {
                             "key": "flow_in",
-                            "label": "In",
+                            "label": "flow_in",
                             "direction": "in",
                             "kind": "flow",
-                            "data_type": "any",
+                            "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
                         {
                             "key": "branch_a",
-                            "label": "A",
+                            "label": "branch_a",
                             "direction": "out",
                             "kind": "flow",
-                            "data_type": "any",
+                            "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
                         {
                             "key": "branch_b",
-                            "label": "B",
+                            "label": "branch_b",
                             "direction": "out",
                             "kind": "flow",
-                            "data_type": "any",
+                            "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
@@ -170,20 +212,19 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
             )
             self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
 
-    def test_graph_node_host_loads_flowchart_surface_family(self) -> None:
+    def test_flowchart_host_hides_raw_port_labels_and_keeps_port_handles(self) -> None:
         self._run_qml_probe(
-            "flowchart-host",
+            "flowchart-host-polish",
             """
             host = create_component(
                 graph_node_host_qml_path,
                 {"nodeData": flowchart_payload("decision")},
             )
-            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
-            assert loader is not None
-            assert loader.property("loadedSurfaceKey") == "flowchart"
+            assert bool(host.property("isFlowchartSurface"))
             assert not bool(host.property("_useHostChrome"))
-            assert host.findChild(QObject, "graphNodeFlowchartSurface") is not None
-            assert len(named_child_items(host, "graphFlowchartSilhouette")) >= 1
+            assert bool(host.property("_suppressShadow"))
+            assert len(named_child_items(host, "graphNodeInputPortDot")) == 1
+            assert len(named_child_items(host, "graphNodeOutputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 1
             assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
@@ -191,9 +232,9 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_canvas_drop_preview_reuses_flowchart_silhouette_component(self) -> None:
+    def test_flowchart_drop_preview_matches_family_and_hides_port_labels(self) -> None:
         self._run_qml_probe(
-            "flowchart-drop-preview",
+            "flowchart-drop-preview-polish",
             """
             view = ViewportBridge()
             view.set_viewport_size(1280.0, 720.0)
@@ -204,19 +245,19 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                     "viewBridge": view,
                     "width": 1280.0,
                     "height": 720.0,
-                    "dropPreviewNodePayload": flowchart_payload("database"),
+                    "dropPreviewNodePayload": flowchart_payload("document"),
                     "dropPreviewScreenX": 180.0,
                     "dropPreviewScreenY": 220.0,
                 },
             )
             drop_preview = canvas.findChild(QObject, "graphCanvasDropPreview")
             assert drop_preview is not None
-            assert bool(drop_preview.property("visible"))
-            assert float(drop_preview.property("width")) > 0.0
-            assert float(drop_preview.property("height")) > 0.0
-            assert len(named_child_items(drop_preview, "graphFlowchartSilhouette")) >= 1
-            assert not bool(drop_preview.property("clip"))
+            assert bool(drop_preview.property("previewIsFlowchart"))
+            assert not bool(drop_preview.property("previewUsesHostChrome"))
             assert not bool(drop_preview.property("previewPortLabelsEnabled"))
+            assert len(named_child_items(drop_preview, "graphFlowchartSilhouette")) >= 1
+            assert len(named_child_items(drop_preview, "graphCanvasDropPreviewInputPortDot")) == 1
+            assert len(named_child_items(drop_preview, "graphCanvasDropPreviewOutputPortDot")) == 2
             assert not any(item.isVisible() for item in named_child_items(drop_preview, "graphCanvasDropPreviewInputPortLabel"))
             assert not any(item.isVisible() for item in named_child_items(drop_preview, "graphCanvasDropPreviewOutputPortLabel"))
             """,
