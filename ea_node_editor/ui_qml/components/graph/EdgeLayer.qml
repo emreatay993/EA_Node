@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "EdgeMath.js" as EdgeMath
+import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 
 Item {
     id: root
@@ -73,14 +74,6 @@ Item {
         return byId;
     }
 
-    function _inlineBodyHeight(node) {
-        var inlineProperties = node && node.inline_properties ? node.inline_properties : [];
-        var count = inlineProperties.length;
-        if (count <= 0)
-            return 0.0;
-        return 8.0 + count * 26.0 + Math.max(0, count - 1) * 4.0;
-    }
-
     function _portScenePoint(node, portKey) {
         if (!node || !portKey)
             return null;
@@ -93,18 +86,8 @@ Item {
                 continue;
             var direction = String(port.direction || "");
             var rowIndex = direction === "in" ? inputRow : outputRow;
-            if (String(port.key || "") === String(portKey)) {
-                if (node.collapsed) {
-                    return {
-                        "x": direction === "in" ? node.x : (node.x + node.width),
-                        "y": node.y + 18.0
-                    };
-                }
-                return {
-                    "x": direction === "in" ? node.x + 11.5 : node.x + node.width - 11.5,
-                    "y": node.y + 30.0 + _inlineBodyHeight(node) + 6.0 + 18.0 * rowIndex
-                };
-            }
+            if (String(port.key || "") === String(portKey))
+                return GraphNodeSurfaceMetrics.portScenePoint(node, direction, rowIndex);
             if (direction === "in")
                 inputRow += 1;
             else if (direction === "out")

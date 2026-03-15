@@ -39,6 +39,7 @@ tests/*
 !tests/test_main_window_shell.py
 !tests/test_passive_runtime_wiring.py
 !tests/test_passive_property_editors.py
+!tests/test_passive_graph_surface_host.py
 !tests/test_serializer.py
 !tests/test_passive_visual_metadata.py
 !tests/main_window_shell/

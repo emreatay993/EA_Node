@@ -71,6 +71,7 @@ from ea_node_editor.ui.graph_theme import (
     resolve_graph_theme,
 )
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size, port_scene_pos
+from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory, WorkspaceSnapshot
@@ -1080,8 +1081,15 @@ class GraphSceneBridge(QObject):
         node = self._node(node_id)
         if node is None:
             return
-        final_w = max(120.0, float(width))
-        final_h = max(50.0, float(height))
+        spec = self._registry.get_spec(node.type_id) if self._registry is not None else None
+        min_width = 120.0
+        min_height = 50.0
+        if spec is not None:
+            metrics = node_surface_metrics(node, spec, workspace.nodes)
+            min_width = float(metrics.min_width)
+            min_height = float(metrics.min_height)
+        final_w = max(min_width, float(width))
+        final_h = max(min_height, float(height))
         if node.custom_width == final_w and node.custom_height == final_h:
             return
         history_before = self._capture_history_snapshot()
@@ -1671,6 +1679,7 @@ class GraphSceneBridge(QObject):
             node = workspace.nodes[node_id]
             spec = self._registry.get_spec(node.type_id)
             node_specs[node_id] = spec
+            surface_metrics = node_surface_metrics(node, spec, workspace.nodes)
             width, height = node_size(node, spec, workspace.nodes)
             resolved_ports = effective_ports(
                 node=node,
@@ -1716,6 +1725,7 @@ class GraphSceneBridge(QObject):
                     "runtime_behavior": spec.runtime_behavior,
                     "surface_family": spec.surface_family,
                     "surface_variant": spec.surface_variant,
+                    "surface_metrics": surface_metrics.to_payload(),
                     "visual_style": copy.deepcopy(node.visual_style),
                     "can_enter_scope": node.type_id == "core.subnode",
                     "ports": ports_payload,

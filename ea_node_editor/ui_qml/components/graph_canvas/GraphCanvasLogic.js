@@ -1,4 +1,5 @@
 .pragma library
+.import "../graph/GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 
 function screenToSceneX(screenX, centerX, viewportWidth, zoomValue) {
     var zoom = zoomValue;
@@ -192,20 +193,7 @@ function libraryPorts(payload) {
 }
 
 function scenePortPoint(node, port, inputRow, outputRow) {
-    if (!node || !port)
-        return {"x": 0.0, "y": 0.0};
-    if (node.collapsed) {
-        return {
-            "x": port.direction === "in" ? node.x : (node.x + node.width),
-            "y": node.y + 18.0
-        };
-    }
-    return {
-        "x": port.direction === "in"
-            ? node.x + 11.5
-            : node.x + node.width - 11.5,
-        "y": node.y + 36.0 + 18.0 * (port.direction === "in" ? inputRow : outputRow)
-    };
+    return GraphNodeSurfaceMetrics.portScenePointForPort(node, port, inputRow, outputRow);
 }
 
 function previewNodeMetrics(payload) {

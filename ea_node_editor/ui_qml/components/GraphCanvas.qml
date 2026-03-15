@@ -1100,7 +1100,7 @@ Item {
 
         Repeater {
             model: sceneBridge ? sceneBridge.nodes_model : []
-            delegate: GraphComponents.NodeCard {
+            delegate: GraphComponents.GraphNodeHost {
                 id: nodeCard
                 nodeData: modelData
                 worldOffset: root.worldOffset
