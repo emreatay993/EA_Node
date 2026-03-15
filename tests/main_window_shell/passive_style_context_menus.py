@@ -6,7 +6,12 @@ from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QColor
 from PyQt6.QtQuick import QQuickItem
 
-from ea_node_editor.ui.shell.window import ShellWindow
+from ea_node_editor.ui.shell.window import (
+    ShellWindow,
+    _FLOW_EDGE_STYLE_CLIPBOARD_KIND,
+    _PASSIVE_NODE_STYLE_CLIPBOARD_KIND,
+    _STYLE_CLIPBOARD_APP_PROPERTY,
+)
 from tests.main_window_shell.base import MainWindowShellTestBase
 
 
@@ -48,6 +53,10 @@ def _node_card_for(graph_canvas: QObject, node_id: str) -> QQuickItem | None:
         if isinstance(node_data, dict) and str(node_data.get("node_id", "")) == str(node_id):
             return item
     return None
+
+
+def _style_clipboard_property_name(kind: str) -> str:
+    return f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{kind}"
 
 
 class MainWindowShellPassiveStyleContextMenuTests(MainWindowShellTestBase):
@@ -116,6 +125,7 @@ class MainWindowShellPassiveStyleContextMenuTests(MainWindowShellTestBase):
 
     def test_passive_node_style_slots_apply_copy_paste_and_reset_only_for_passive_nodes(self) -> None:
         workspace = self.window.model.project.workspaces[self.window.workspace_manager.active_workspace_id()]
+        clipboard = self.app.clipboard()
         source_id = self.window.scene.add_node_from_type("passive.annotation.sticky_note", 120.0, 80.0)
         target_id = self.window.scene.add_node_from_type("passive.annotation.callout", 420.0, 80.0)
         standard_id = self.window.scene.add_node_from_type("core.logger", 720.0, 80.0)
@@ -144,17 +154,26 @@ class MainWindowShellPassiveStyleContextMenuTests(MainWindowShellTestBase):
         self.assertEqual(_color_name(styled_card.property("headerTextColor")), "#1f2933")
         self.assertEqual(int(round(float(styled_card.property("radius")))), 18)
 
+        clipboard.setText("external clipboard text")
         self.assertTrue(self.window.request_copy_passive_node_style(source_id))
+        self.assertEqual(clipboard.text(), "external clipboard text")
         self.assertTrue(self.window.request_paste_passive_node_style(target_id))
         self.assertEqual(workspace.nodes[target_id].visual_style, style_payload)
 
         self.assertTrue(self.window.request_reset_passive_node_style(target_id))
+        self.assertEqual(workspace.nodes[target_id].visual_style, {})
+        self.app.setProperty(_style_clipboard_property_name(_PASSIVE_NODE_STYLE_CLIPBOARD_KIND), "")
+        clipboard.setText(
+            '{"kind":"passive-node-style","version":1,"style":{"fill_color":"#FFEAA7","border_width":2}}'
+        )
+        self.assertFalse(self.window.request_paste_passive_node_style(target_id))
         self.assertEqual(workspace.nodes[target_id].visual_style, {})
         self.assertFalse(self.window.request_copy_passive_node_style(standard_id))
         self.assertFalse(self.window.request_paste_passive_node_style(standard_id))
 
     def test_flow_edge_style_slots_apply_copy_paste_reset_and_label_only_for_flow_edges(self) -> None:
         workspace = self.window.model.project.workspaces[self.window.workspace_manager.active_workspace_id()]
+        clipboard = self.app.clipboard()
         source_id = self.window.scene.add_node_from_type("passive.flowchart.process", 80.0, 60.0)
         target_id = self.window.scene.add_node_from_type("passive.flowchart.decision", 360.0, 60.0)
         flow_edge_id = self.window.scene.add_edge(source_id, "flow_out", target_id, "flow_in")
@@ -174,10 +193,12 @@ class MainWindowShellPassiveStyleContextMenuTests(MainWindowShellTestBase):
             "label_background_color": "#223344",
         }
 
+        clipboard.setText("external clipboard text")
         with patch.object(ShellWindow, "edit_flow_edge_style", return_value=style_payload):
             self.assertTrue(self.window.request_edit_flow_edge_style(flow_edge_id))
 
         self.assertEqual(workspace.edges[flow_edge_id].visual_style, style_payload)
+        self.assertEqual(clipboard.text(), "external clipboard text")
         edge_payload = {item["edge_id"]: item for item in self.window.scene.edges_model}
         self.assertEqual(edge_payload[flow_edge_id]["flow_style"], style_payload)
         self.assertFalse(self.window.request_edit_flow_edge_style(data_edge_id))
@@ -188,10 +209,19 @@ class MainWindowShellPassiveStyleContextMenuTests(MainWindowShellTestBase):
         self.assertFalse(self.window.request_edit_flow_edge_label(data_edge_id))
 
         self.assertTrue(self.window.request_copy_flow_edge_style(flow_edge_id))
+        self.assertEqual(clipboard.text(), "external clipboard text")
+        clipboard.setText("clipboard should stay untouched")
         self.assertTrue(self.window.request_paste_flow_edge_style(sibling_edge_id))
         self.assertEqual(workspace.edges[sibling_edge_id].visual_style, style_payload)
+        self.assertEqual(clipboard.text(), "clipboard should stay untouched")
 
         self.assertTrue(self.window.request_reset_flow_edge_style(sibling_edge_id))
+        self.assertEqual(workspace.edges[sibling_edge_id].visual_style, {})
+        self.app.setProperty(_style_clipboard_property_name(_FLOW_EDGE_STYLE_CLIPBOARD_KIND), "")
+        clipboard.setText(
+            '{"kind":"flow-edge-style","version":1,"style":{"stroke_pattern":"dashed","arrow_head":"open"}}'
+        )
+        self.assertFalse(self.window.request_paste_flow_edge_style(sibling_edge_id))
         self.assertEqual(workspace.edges[sibling_edge_id].visual_style, {})
         self.assertFalse(self.window.request_copy_flow_edge_style(data_edge_id))
         self.assertFalse(self.window.request_paste_flow_edge_style(data_edge_id))

@@ -400,7 +400,7 @@ class WorkspaceEditOps:
             payload = parse_graph_fragment_payload(serialized)
             if payload is not None:
                 return payload
-        return parse_graph_fragment_payload(mime_data.text())
+        return None
 
     def copy_selected_nodes_to_clipboard(self) -> bool:
         fragment_payload = self._host.scene.serialize_selected_subgraph_fragment()

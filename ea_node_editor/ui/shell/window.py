@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -98,6 +99,7 @@ _configure_qtquick_backend()
 _UNSET = object()
 _PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
 _FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
+_STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
 
 
 class ShellWindow(QMainWindow):
@@ -1983,24 +1985,40 @@ class ShellWindow(QMainWindow):
         return dialog.edge_style()
 
     def _write_style_clipboard(self, *, kind: str, style: dict[str, Any]) -> None:
-        QApplication.clipboard().setText(
+        app = QApplication.instance()
+        if app is None:
+            return
+        app.setProperty(
+            f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{str(kind).strip()}",
             json.dumps(
                 {
                     "kind": str(kind),
                     "version": 1,
-                    "style": style,
-                }
-            )
+                    "style": copy.deepcopy(style),
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
         )
 
     def _read_style_clipboard(self, *, kind: str) -> dict[str, Any] | None:
-        raw_text = str(QApplication.clipboard().text() or "").strip()
-        if not raw_text:
+        app = QApplication.instance()
+        if app is None:
             return None
-        try:
-            payload = json.loads(raw_text)
-        except ValueError:
-            return None
+        return self._normalize_style_clipboard_payload(
+            app.property(f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{str(kind).strip()}"),
+            kind=kind,
+        )
+
+    def _normalize_style_clipboard_payload(self, payload: Any, *, kind: str) -> dict[str, Any] | None:
+        if isinstance(payload, str):
+            raw_text = payload.strip()
+            if not raw_text:
+                return None
+            try:
+                payload = json.loads(raw_text)
+            except ValueError:
+                return None
         if not isinstance(payload, dict) or str(payload.get("kind", "")).strip() != str(kind):
             return None
         style = payload.get("style")
