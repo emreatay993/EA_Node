@@ -602,6 +602,10 @@ Item {
         return GraphCanvasLogic.previewNodeMetrics(payload);
     }
 
+    function previewNodeMetrics() {
+        return _previewNodeMetrics(root.dropPreviewNodePayload);
+    }
+
     function _previewVisiblePorts(payload, direction) {
         return GraphCanvasLogic.previewVisiblePorts(payload, direction);
     }
@@ -621,13 +625,13 @@ Item {
     function previewNodeScreenWidth() {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
-        return GraphCanvasLogic.previewNodeScreenExtent(metrics.worldWidth, zoom);
+        return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_width, zoom);
     }
 
     function previewNodeScreenHeight() {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
-        return GraphCanvasLogic.previewNodeScreenExtent(metrics.worldHeight, zoom);
+        return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_height, zoom);
     }
 
     function previewPortLabelsVisible() {

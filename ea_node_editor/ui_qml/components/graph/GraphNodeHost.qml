@@ -117,13 +117,18 @@ Rectangle {
         return card.nodeData.inline_properties;
     }
     readonly property real inlineBodyHeight: Number(surfaceMetrics.body_height)
-    readonly property real _portTop: Number(surfaceMetrics.port_top)
-    readonly property real _portHeight: Number(surfaceMetrics.port_height)
-    readonly property real _portCenterOffset: Number(surfaceMetrics.port_center_offset)
-    readonly property real _portSideMargin: Number(surfaceMetrics.port_side_margin)
-    readonly property real _portDotRadius: Number(surfaceMetrics.port_dot_radius)
     readonly property real _portDragThreshold: 2
     readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
+    readonly property bool _useHostChrome: card.isCollapsed || Boolean(surfaceMetrics.use_host_chrome)
+    readonly property bool _showAccentBar: card.isCollapsed || Boolean(surfaceMetrics.show_accent_bar)
+    readonly property bool _showHeaderBackground: card.isCollapsed || Boolean(surfaceMetrics.show_header_background)
+    readonly property real _titleTop: card.isCollapsed ? 4.0 : Number(surfaceMetrics.title_top)
+    readonly property real _titleHeight: card.isCollapsed ? 24.0 : Number(surfaceMetrics.title_height)
+    readonly property real _titleLeftMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_left_margin)
+    readonly property real _titleRightMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_right_margin)
+    readonly property bool _titleCentered: !card.isCollapsed && Boolean(surfaceMetrics.title_centered)
+    readonly property real _portLabelGap: 6.0
+    readonly property real _portLabelMaxWidth: Math.max(40.0, card.width * 0.46)
 
     readonly property var inputPorts: {
         if (!card.nodeData || !card.nodeData.ports)
@@ -136,7 +141,7 @@ Rectangle {
         return card.nodeData.ports.filter(function(port) { return port.direction === "out"; });
     }
 
-    function portScenePos(direction, rowIndex) {
+    function localPortPoint(direction, rowIndex) {
         if (!card.nodeData)
             return {"x": 0.0, "y": 0.0};
         var widthValue = Number(card.width);
@@ -144,17 +149,22 @@ Rectangle {
             widthValue = Number(card.nodeData.width);
         if (!isFinite(widthValue) || widthValue <= 0.0)
             widthValue = Number(surfaceMetrics.default_width);
-        if (card.nodeData.collapsed) {
-            return {
-                "x": direction === "in" ? Number(card.nodeData.x) : Number(card.nodeData.x) + widthValue,
-                "y": Number(card.nodeData.y) + Number(surfaceMetrics.collapsed_height) * 0.5
-            };
-        }
-        var xValue = direction === "in"
-            ? Number(card.nodeData.x) + card._portSideMargin + card._portDotRadius
-            : Number(card.nodeData.x) + widthValue - card._portSideMargin - card._portDotRadius;
-        var yValue = Number(card.nodeData.y) + card._portTop + card._portCenterOffset + card._portHeight * rowIndex;
-        return {"x": xValue, "y": yValue};
+        var heightValue = Number(card.height);
+        if (!isFinite(heightValue) || heightValue <= 0.0)
+            heightValue = Number(card.nodeData.height);
+        if (!isFinite(heightValue) || heightValue <= 0.0)
+            heightValue = Number(surfaceMetrics.default_height);
+        return GraphNodeSurfaceMetrics.localPortPoint(card.nodeData, direction, rowIndex, widthValue, heightValue);
+    }
+
+    function portScenePos(direction, rowIndex) {
+        if (!card.nodeData)
+            return {"x": 0.0, "y": 0.0};
+        var point = card.localPortPoint(direction, rowIndex);
+        return {
+            "x": Number(card.nodeData.x) + point.x,
+            "y": Number(card.nodeData.y) + point.y
+        };
     }
 
     function basePortColor(portKind) {
@@ -231,10 +241,10 @@ Rectangle {
     }
     width: card._liveWidth > 0 ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
     height: card._liveHeight > 0 ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
-    color: card.surfaceColor
-    border.width: card.nodeData && card.nodeData.selected ? 2 : 1
+    color: card._useHostChrome ? card.surfaceColor : "transparent"
+    border.width: card._useHostChrome ? (card.nodeData && card.nodeData.selected ? 2 : 1) : 0
     border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
-    radius: 6
+    radius: card._useHostChrome ? 6 : 0
 
     layer.enabled: card.showShadow
     layer.effect: MultiEffect {
@@ -246,7 +256,25 @@ Rectangle {
         autoPaddingEnabled: true
     }
 
+    Item {
+        id: surfaceLayer
+        z: 1
+        anchors.fill: parent
+        visible: card.nodeData ? !card.nodeData.collapsed : false
+
+        GraphNodeSurfaceLoader {
+            id: surfaceLoader
+            anchors.fill: parent
+            host: card
+            nodeData: card.nodeData
+            surfaceFamily: card.surfaceFamily
+            surfaceVariant: card.surfaceVariant
+        }
+    }
+
     Rectangle {
+        z: 3
+        visible: card._showAccentBar
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -256,6 +284,8 @@ Rectangle {
     }
 
     Rectangle {
+        z: 3
+        visible: card._showHeaderBackground
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -263,348 +293,344 @@ Rectangle {
         height: Number(surfaceMetrics.header_height)
         color: card.headerColor
         border.color: card.outlineColor
+    }
+
+    Text {
+        z: 4
+        anchors.left: parent.left
+        anchors.leftMargin: card._titleLeftMargin
+        anchors.right: parent.right
+        anchors.rightMargin: card._titleRightMargin + (card.canEnterScope ? 56 : 0)
+        y: card._titleTop
+        height: card._titleHeight
+        text: card.nodeData ? card.nodeData.title : ""
+        color: card.headerTextColor
+        font.pixelSize: 12
+        font.bold: true
+        horizontalAlignment: card._titleCentered ? Text.AlignHCenter : Text.AlignLeft
+        verticalAlignment: Text.AlignVCenter
+        elide: Text.ElideRight
+    }
+
+    Rectangle {
+        z: 4
+        visible: card.canEnterScope
+        anchors.right: parent.right
+        anchors.rightMargin: 8
+        y: card._titleTop + Math.max(0, (card._titleHeight - height) * 0.5)
+        width: 48
+        height: 16
+        radius: 8
+        color: card.scopeBadgeColor
+        border.color: card.scopeBadgeBorderColor
 
         Text {
-            anchors.left: parent.left
-            anchors.leftMargin: 10
-            anchors.right: parent.right
-            anchors.rightMargin: card.canEnterScope ? 66 : 10
-            anchors.verticalCenter: parent.verticalCenter
-            text: card.nodeData ? card.nodeData.title : ""
-            color: card.headerTextColor
-            font.pixelSize: 12
+            anchors.centerIn: parent
+            text: "OPEN"
+            color: card.scopeBadgeTextColor
+            font.pixelSize: 9
             font.bold: true
-            elide: Text.ElideRight
-        }
-
-        Rectangle {
-            visible: card.canEnterScope
-            anchors.right: parent.right
-            anchors.rightMargin: 8
-            anchors.verticalCenter: parent.verticalCenter
-            width: 48
-            height: 16
-            radius: 8
-            color: card.scopeBadgeColor
-            border.color: card.scopeBadgeBorderColor
-
-            Text {
-                anchors.centerIn: parent
-                text: "OPEN"
-                color: card.scopeBadgeTextColor
-                font.pixelSize: 9
-                font.bold: true
-            }
         }
     }
 
     Item {
-        z: 3
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.topMargin: Number(surfaceMetrics.body_top)
-        anchors.bottom: parent.bottom
-        anchors.margins: 8
+        id: portLayer
+        z: 5
+        anchors.fill: parent
         visible: card.nodeData ? !card.nodeData.collapsed : false
 
-        GraphNodeSurfaceLoader {
-            id: surfaceLoader
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            height: contentHeight
-            host: card
-            nodeData: card.nodeData
-            surfaceFamily: card.surfaceFamily
-            surfaceVariant: card.surfaceVariant
-        }
+        Repeater {
+            model: card.inputPorts
+            delegate: Item {
+                property int rowIndex: index
+                readonly property var portPoint: card.localPortPoint("in", rowIndex)
+                readonly property real dotDiameter: inputDot.interactiveState ? 14 : 8
+                x: 0
+                y: portPoint.y - height * 0.5
+                width: card.width
+                height: Math.max(dotDiameter, 18)
 
-        Column {
-            anchors.left: parent.left
-            anchors.top: surfaceLoader.bottom
-            spacing: 4
-
-            Repeater {
-                model: card.inputPorts
-                delegate: Row {
-                    property int rowIndex: index
-                    spacing: 6
+                Rectangle {
+                    id: inputDot
+                    property bool hoveredState: card.isHoveredPort("in", modelData.key)
+                    property bool pendingState: card.isPendingPort("in", modelData.key)
+                    property bool dragSourceState: card.isDragSourcePort("in", modelData.key)
+                    property bool interactiveState: hoveredState || pendingState || dragSourceState
+                    property bool connectedState: card.isConnectedPort(modelData)
+                    property color portColor: card.basePortColor(modelData.kind)
+                    x: parent.portPoint.x - width * 0.5
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: interactiveState ? 14 : 8
+                    height: interactiveState ? 14 : 8
+                    radius: width * 0.5
+                    color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
+                    border.width: interactiveState ? 2 : 1
+                    border.color: interactiveState
+                        ? card.portInteractiveBorderColor
+                        : portColor
 
                     Rectangle {
-                        id: inputDot
-                        property bool hoveredState: card.isHoveredPort("in", modelData.key)
-                        property bool pendingState: card.isPendingPort("in", modelData.key)
-                        property bool dragSourceState: card.isDragSourcePort("in", modelData.key)
-                        property bool interactiveState: hoveredState || pendingState || dragSourceState
-                        property bool connectedState: card.isConnectedPort(modelData)
-                        property color portColor: card.basePortColor(modelData.kind)
-                        width: interactiveState ? 14 : 8
-                        height: interactiveState ? 14 : 8
+                        anchors.centerIn: parent
+                        width: inputDot.interactiveState ? 18 : 12
+                        height: inputDot.interactiveState ? 18 : 12
                         radius: width * 0.5
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
-                        border.width: interactiveState ? 2 : 1
-                        border.color: interactiveState
-                            ? card.portInteractiveBorderColor
-                            : portColor
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: inputDot.interactiveState ? 18 : 12
-                            height: inputDot.interactiveState ? 18 : 12
-                            radius: width * 0.5
-                            z: -1
-                            color: inputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
-                            border.width: inputDot.interactiveState ? 1 : 0
-                            border.color: inputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
-                        }
-
-                        MouseArea {
-                            id: inputPortMouse
-                            property real pressStartX: 0
-                            property real pressStartY: 0
-                            property bool movedState: false
-                            x: -9
-                            y: -9
-                            width: parent.width + 18
-                            height: parent.height + 18
-                            acceptedButtons: Qt.LeftButton
-                            hoverEnabled: true
-                            preventStealing: true
-                            cursorShape: Qt.PointingHandCursor
-                            onPressed: {
-                                if (mouse.button !== Qt.LeftButton)
-                                    return;
-                                pressStartX = mouse.x;
-                                pressStartY = mouse.y;
-                                movedState = false;
-                                var scenePos = card.portScenePos("in", rowIndex);
-                                var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
-                                card.portDragStarted(
-                                    card.nodeData.node_id,
-                                    modelData.key,
-                                    "in",
-                                    scenePos.x,
-                                    scenePos.y,
-                                    pointerPos.x,
-                                    pointerPos.y
-                                );
-                                mouse.accepted = true;
-                            }
-                            onPositionChanged: {
-                                if (!pressed)
-                                    return;
-                                if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
-                                    || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
-                                    movedState = true;
-                                }
-                                var scenePos = card.portScenePos("in", rowIndex);
-                                var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
-                                card.portDragMoved(
-                                    card.nodeData.node_id,
-                                    modelData.key,
-                                    "in",
-                                    scenePos.x,
-                                    scenePos.y,
-                                    pointerPos.x,
-                                    pointerPos.y,
-                                    movedState
-                                );
-                            }
-                            onReleased: {
-                                var scenePos = card.portScenePos("in", rowIndex);
-                                var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
-                                card.portDragFinished(
-                                    card.nodeData.node_id,
-                                    modelData.key,
-                                    "in",
-                                    scenePos.x,
-                                    scenePos.y,
-                                    pointerPos.x,
-                                    pointerPos.y,
-                                    movedState
-                                );
-                                if (!movedState) {
-                                    card.portClicked(card.nodeData.node_id, modelData.key, "in", scenePos.x, scenePos.y);
-                                }
-                                movedState = false;
-                            }
-                            onCanceled: {
-                                card.portDragCanceled(card.nodeData.node_id, modelData.key, "in");
-                                movedState = false;
-                            }
-                            onEntered: {
-                                var pos = card.portScenePos("in", rowIndex);
-                                card.portHoverChanged(card.nodeData.node_id, modelData.key, "in", pos.x, pos.y, true);
-                            }
-                            onExited: {
-                                var pos = card.portScenePos("in", rowIndex);
-                                card.portHoverChanged(card.nodeData.node_id, modelData.key, "in", pos.x, pos.y, false);
-                            }
-                        }
+                        z: -1
+                        color: inputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
+                        border.width: inputDot.interactiveState ? 1 : 0
+                        border.color: inputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
                     }
 
-                    Text {
-                        text: modelData.label || modelData.key
-                        color: card.portLabelColor
-                        font.pixelSize: 10
+                    MouseArea {
+                        id: inputPortMouse
+                        property real pressStartX: 0
+                        property real pressStartY: 0
+                        property bool movedState: false
+                        x: -9
+                        y: -9
+                        width: parent.width + 18
+                        height: parent.height + 18
+                        acceptedButtons: Qt.LeftButton
+                        hoverEnabled: true
+                        preventStealing: true
+                        cursorShape: Qt.PointingHandCursor
+                        onPressed: {
+                            if (mouse.button !== Qt.LeftButton)
+                                return;
+                            pressStartX = mouse.x;
+                            pressStartY = mouse.y;
+                            movedState = false;
+                            var scenePos = card.portScenePos("in", rowIndex);
+                            var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
+                            card.portDragStarted(
+                                card.nodeData.node_id,
+                                modelData.key,
+                                "in",
+                                scenePos.x,
+                                scenePos.y,
+                                pointerPos.x,
+                                pointerPos.y
+                            );
+                            mouse.accepted = true;
+                        }
+                        onPositionChanged: {
+                            if (!pressed)
+                                return;
+                            if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
+                                || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
+                                movedState = true;
+                            }
+                            var scenePos = card.portScenePos("in", rowIndex);
+                            var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
+                            card.portDragMoved(
+                                card.nodeData.node_id,
+                                modelData.key,
+                                "in",
+                                scenePos.x,
+                                scenePos.y,
+                                pointerPos.x,
+                                pointerPos.y,
+                                movedState
+                            );
+                        }
+                        onReleased: {
+                            var scenePos = card.portScenePos("in", rowIndex);
+                            var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
+                            card.portDragFinished(
+                                card.nodeData.node_id,
+                                modelData.key,
+                                "in",
+                                scenePos.x,
+                                scenePos.y,
+                                pointerPos.x,
+                                pointerPos.y,
+                                movedState
+                            );
+                            if (!movedState) {
+                                card.portClicked(card.nodeData.node_id, modelData.key, "in", scenePos.x, scenePos.y);
+                            }
+                            movedState = false;
+                        }
+                        onCanceled: {
+                            card.portDragCanceled(card.nodeData.node_id, modelData.key, "in");
+                            movedState = false;
+                        }
+                        onEntered: {
+                            var pos = card.portScenePos("in", rowIndex);
+                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "in", pos.x, pos.y, true);
+                        }
+                        onExited: {
+                            var pos = card.portScenePos("in", rowIndex);
+                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "in", pos.x, pos.y, false);
+                        }
                     }
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Math.max(0, inputDot.x + inputDot.width + card._portLabelGap)
+                    width: Math.max(0, Math.min(card._portLabelMaxWidth, card.width - x - 4))
+                    text: modelData.label || modelData.key
+                    color: card.portLabelColor
+                    font.pixelSize: 10
+                    elide: Text.ElideRight
                 }
             }
         }
 
-        Column {
-            id: outputPortsColumn
-            anchors.right: parent.right
-            anchors.top: surfaceLoader.bottom
-            spacing: 4
+        Repeater {
+            model: card.outputPorts
+            delegate: Item {
+                property int rowIndex: index
+                readonly property var portPoint: card.localPortPoint("out", rowIndex)
+                readonly property real dotDiameter: outputDot.interactiveState ? 14 : 8
+                x: 0
+                y: portPoint.y - height * 0.5
+                width: card.width
+                height: Math.max(dotDiameter, 18)
 
-            Repeater {
-                model: card.outputPorts
-                delegate: Row {
-                    property int rowIndex: index
-                    anchors.right: outputPortsColumn.right
-                    spacing: 6
-
-                    Text {
-                        text: modelData.label || modelData.key
-                        color: card.portLabelColor
-                        font.pixelSize: 10
-                    }
+                Rectangle {
+                    id: outputDot
+                    property bool hoveredState: card.isHoveredPort("out", modelData.key)
+                    property bool pendingState: card.isPendingPort("out", modelData.key)
+                    property bool dragSourceState: card.isDragSourcePort("out", modelData.key)
+                    property bool interactiveState: hoveredState || pendingState || dragSourceState
+                    property bool connectedState: card.isConnectedPort(modelData)
+                    property color portColor: card.basePortColor(modelData.kind)
+                    x: parent.portPoint.x - width * 0.5
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: interactiveState ? 14 : 8
+                    height: interactiveState ? 14 : 8
+                    radius: width * 0.5
+                    color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
+                    border.width: interactiveState ? 2 : 1
+                    border.color: interactiveState
+                        ? card.portInteractiveBorderColor
+                        : portColor
 
                     Rectangle {
-                        id: outputDot
-                        property bool hoveredState: card.isHoveredPort("out", modelData.key)
-                        property bool pendingState: card.isPendingPort("out", modelData.key)
-                        property bool dragSourceState: card.isDragSourcePort("out", modelData.key)
-                        property bool interactiveState: hoveredState || pendingState || dragSourceState
-                        property bool connectedState: card.isConnectedPort(modelData)
-                        property color portColor: card.basePortColor(modelData.kind)
-                        width: interactiveState ? 14 : 8
-                        height: interactiveState ? 14 : 8
+                        anchors.centerIn: parent
+                        width: outputDot.interactiveState ? 18 : 12
+                        height: outputDot.interactiveState ? 18 : 12
                         radius: width * 0.5
-                        anchors.verticalCenter: parent.verticalCenter
-                        color: interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent")
-                        border.width: interactiveState ? 2 : 1
-                        border.color: interactiveState
-                            ? card.portInteractiveBorderColor
-                            : portColor
+                        z: -1
+                        color: outputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
+                        border.width: outputDot.interactiveState ? 1 : 0
+                        border.color: outputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
+                    }
 
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: outputDot.interactiveState ? 18 : 12
-                            height: outputDot.interactiveState ? 18 : 12
-                            radius: width * 0.5
-                            z: -1
-                            color: outputDot.interactiveState ? card.portInteractiveRingFillColor : "transparent"
-                            border.width: outputDot.interactiveState ? 1 : 0
-                            border.color: outputDot.interactiveState ? card.portInteractiveRingBorderColor : "transparent"
+                    MouseArea {
+                        id: outputPortMouse
+                        property real pressStartX: 0
+                        property real pressStartY: 0
+                        property bool movedState: false
+                        property bool hoverActive: false
+                        x: -9
+                        y: -9
+                        width: parent.width + 18
+                        height: parent.height + 18
+                        acceptedButtons: Qt.LeftButton
+                        hoverEnabled: true
+                        preventStealing: true
+                        cursorShape: Qt.PointingHandCursor
+                        function updateHoverState(localX, localY) {
+                            var nextHover = !card._isResizeHandlePoint(localX, localY);
+                            if (hoverActive === nextHover)
+                                return;
+                            hoverActive = nextHover;
+                            var pos = card.portScenePos("out", rowIndex);
+                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, nextHover);
                         }
-
-                        MouseArea {
-                            id: outputPortMouse
-                            property real pressStartX: 0
-                            property real pressStartY: 0
-                            property bool movedState: false
-                            property bool hoverActive: false
-                            x: -9
-                            y: -9
-                            width: parent.width + 18
-                            height: parent.height + 18
-                            acceptedButtons: Qt.LeftButton
-                            hoverEnabled: true
-                            preventStealing: true
-                            cursorShape: Qt.PointingHandCursor
-                            function updateHoverState(localX, localY) {
-                                var nextHover = !card._isResizeHandlePoint(localX, localY);
-                                if (hoverActive === nextHover)
-                                    return;
-                                hoverActive = nextHover;
-                                var pos = card.portScenePos("out", rowIndex);
-                                card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, nextHover);
+                        onPressed: {
+                            if (mouse.button !== Qt.LeftButton)
+                                return;
+                            var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
+                            if (card._isResizeHandlePoint(localPoint.x, localPoint.y)) {
+                                mouse.accepted = false;
+                                return;
                             }
-                            onPressed: {
-                                if (mouse.button !== Qt.LeftButton)
-                                    return;
-                                var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
-                                if (card._isResizeHandlePoint(localPoint.x, localPoint.y)) {
-                                    mouse.accepted = false;
-                                    return;
-                                }
-                                pressStartX = mouse.x;
-                                pressStartY = mouse.y;
-                                movedState = false;
-                                var scenePos = card.portScenePos("out", rowIndex);
-                                var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
-                                card.portDragStarted(
-                                    card.nodeData.node_id,
-                                    modelData.key,
-                                    "out",
-                                    scenePos.x,
-                                    scenePos.y,
-                                    pointerPos.x,
-                                    pointerPos.y
-                                );
-                                mouse.accepted = true;
+                            pressStartX = mouse.x;
+                            pressStartY = mouse.y;
+                            movedState = false;
+                            var scenePos = card.portScenePos("out", rowIndex);
+                            var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
+                            card.portDragStarted(
+                                card.nodeData.node_id,
+                                modelData.key,
+                                "out",
+                                scenePos.x,
+                                scenePos.y,
+                                pointerPos.x,
+                                pointerPos.y
+                            );
+                            mouse.accepted = true;
+                        }
+                        onPositionChanged: {
+                            var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
+                            updateHoverState(localPoint.x, localPoint.y);
+                            if (!pressed)
+                                return;
+                            if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
+                                || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
+                                movedState = true;
                             }
-                            onPositionChanged: {
-                                var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
-                                updateHoverState(localPoint.x, localPoint.y);
-                                if (!pressed)
-                                    return;
-                                if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
-                                    || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
-                                    movedState = true;
-                                }
-                                var scenePos = card.portScenePos("out", rowIndex);
-                                var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
-                                card.portDragMoved(
-                                    card.nodeData.node_id,
-                                    modelData.key,
-                                    "out",
-                                    scenePos.x,
-                                    scenePos.y,
-                                    pointerPos.x,
-                                    pointerPos.y,
-                                    movedState
-                                );
+                            var scenePos = card.portScenePos("out", rowIndex);
+                            var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
+                            card.portDragMoved(
+                                card.nodeData.node_id,
+                                modelData.key,
+                                "out",
+                                scenePos.x,
+                                scenePos.y,
+                                pointerPos.x,
+                                pointerPos.y,
+                                movedState
+                            );
+                        }
+                        onReleased: {
+                            var scenePos = card.portScenePos("out", rowIndex);
+                            var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
+                            card.portDragFinished(
+                                card.nodeData.node_id,
+                                modelData.key,
+                                "out",
+                                scenePos.x,
+                                scenePos.y,
+                                pointerPos.x,
+                                pointerPos.y,
+                                movedState
+                            );
+                            if (!movedState) {
+                                card.portClicked(card.nodeData.node_id, modelData.key, "out", scenePos.x, scenePos.y);
                             }
-                            onReleased: {
-                                var scenePos = card.portScenePos("out", rowIndex);
-                                var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
-                                card.portDragFinished(
-                                    card.nodeData.node_id,
-                                    modelData.key,
-                                    "out",
-                                    scenePos.x,
-                                    scenePos.y,
-                                    pointerPos.x,
-                                    pointerPos.y,
-                                    movedState
-                                );
-                                if (!movedState) {
-                                    card.portClicked(card.nodeData.node_id, modelData.key, "out", scenePos.x, scenePos.y);
-                                }
-                                movedState = false;
-                            }
-                            onCanceled: {
-                                card.portDragCanceled(card.nodeData.node_id, modelData.key, "out");
-                                movedState = false;
-                            }
-                            onEntered: {
-                                var localPoint = outputPortMouse.mapToItem(card, outputPortMouse.mouseX, outputPortMouse.mouseY);
-                                updateHoverState(localPoint.x, localPoint.y);
-                            }
-                            onExited: {
-                                if (!hoverActive)
-                                    return;
-                                hoverActive = false;
-                                var pos = card.portScenePos("out", rowIndex);
-                                card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, false);
-                            }
+                            movedState = false;
+                        }
+                        onCanceled: {
+                            card.portDragCanceled(card.nodeData.node_id, modelData.key, "out");
+                            movedState = false;
+                        }
+                        onEntered: {
+                            var localPoint = outputPortMouse.mapToItem(card, outputPortMouse.mouseX, outputPortMouse.mouseY);
+                            updateHoverState(localPoint.x, localPoint.y);
+                        }
+                        onExited: {
+                            if (!hoverActive)
+                                return;
+                            hoverActive = false;
+                            var pos = card.portScenePos("out", rowIndex);
+                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, false);
                         }
                     }
+                }
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: 4
+                    width: Math.max(0, Math.min(card._portLabelMaxWidth, outputDot.x - card._portLabelGap - x))
+                    text: modelData.label || modelData.key
+                    color: card.portLabelColor
+                    font.pixelSize: 10
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideLeft
                 }
             }
         }

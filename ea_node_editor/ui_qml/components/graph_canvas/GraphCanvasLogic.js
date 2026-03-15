@@ -197,26 +197,7 @@ function scenePortPoint(node, port, inputRow, outputRow) {
 }
 
 function previewNodeMetrics(payload) {
-    if (!payload)
-        return {"portCount": 1, "worldWidth": 210.0, "worldHeight": 50.0};
-    var ports = libraryPorts(payload);
-    var inputCount = 0;
-    var outputCount = 0;
-    for (var i = 0; i < ports.length; i++) {
-        var port = ports[i];
-        if (!port || port.exposed === false)
-            continue;
-        if (port.direction === "in")
-            inputCount += 1;
-        else if (port.direction === "out")
-            outputCount += 1;
-    }
-    var portCount = Math.max(inputCount, outputCount, 1);
-    return {
-        "portCount": portCount,
-        "worldWidth": 210.0,
-        "worldHeight": 24.0 + portCount * 18.0 + 8.0
-    };
+    return GraphNodeSurfaceMetrics.surfaceMetrics(payload);
 }
 
 function previewVisiblePorts(payload, direction) {

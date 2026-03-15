@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import "passive" as GraphPassiveComponents
 
 Item {
     id: root
@@ -19,8 +20,8 @@ Item {
     }
 
     function _loadedSurfaceKey(family, _variant) {
-        if (String(family || "standard") === "standard")
-            return "standard";
+        if (String(family || "standard") === "flowchart")
+            return "flowchart";
         return "standard";
     }
 
@@ -28,7 +29,7 @@ Item {
         id: loader
         anchors.fill: parent
         active: !!root.host && !!root.nodeData && !Boolean(root.nodeData.collapsed)
-        sourceComponent: root.loadedSurfaceKey === "standard" ? standardSurfaceComponent : standardSurfaceComponent
+        sourceComponent: root.loadedSurfaceKey === "flowchart" ? flowchartSurfaceComponent : standardSurfaceComponent
     }
 
     Component {
@@ -38,5 +39,12 @@ Item {
             host: root.host
         }
     }
-}
 
+    Component {
+        id: flowchartSurfaceComponent
+
+        GraphPassiveComponents.GraphFlowchartNodeSurface {
+            host: root.host
+        }
+    }
+}
