@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping
 
-from ea_node_editor.graph.model import NodeInstance
+from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
@@ -28,6 +28,7 @@ class EffectivePort:
     data_type: str
     required: bool = False
     exposed: bool = True
+    allow_multiple_connections: bool = False
 
 
 def is_subnode_shell_type(type_id: str) -> bool:
@@ -76,6 +77,7 @@ def effective_ports(
             data_type=port.data_type,
             required=port.required,
             exposed=bool(node.exposed_ports.get(port.key, port.exposed)),
+            allow_multiple_connections=bool(port.allow_multiple_connections),
         )
         for port in spec.ports
     )
@@ -144,6 +146,40 @@ def is_port_exposed(
     if port is None:
         raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
     return bool(port.exposed)
+
+
+def port_allows_multiple_connections(
+    *,
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance],
+    port_key: str,
+) -> bool:
+    port = find_port(node=node, spec=spec, workspace_nodes=workspace_nodes, port_key=port_key)
+    if port is None:
+        raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
+    return bool(port.allow_multiple_connections)
+
+
+def target_port_has_capacity(
+    *,
+    edges: Iterable[EdgeInstance],
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance],
+    port_key: str,
+) -> bool:
+    port = find_port(node=node, spec=spec, workspace_nodes=workspace_nodes, port_key=port_key)
+    if port is None:
+        raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
+    if port.direction != "in":
+        raise ValueError(f"Port {port_key} is not an input on node type {spec.type_id}")
+    if port.allow_multiple_connections:
+        return True
+    for edge in edges:
+        if edge.target_node_id == node.node_id and edge.target_port_key == port_key:
+            return False
+    return True
 
 
 def default_port(
@@ -224,6 +260,7 @@ def _subnode_shell_ports(
                 data_type=pin_port.data_type,
                 required=shell_direction == "in",
                 exposed=bool(node.exposed_ports.get(shell_key, True)),
+                allow_multiple_connections=bool(pin_port.allow_multiple_connections),
             )
         )
     return tuple(ports)
@@ -249,6 +286,7 @@ def _subnode_pin_port(*, node: NodeInstance) -> EffectivePort:
         data_type=data_type,
         required=direction == "in",
         exposed=bool(node.exposed_ports.get(SUBNODE_PIN_PORT_KEY, True)),
+        allow_multiple_connections=False,
     )
 
 
@@ -261,11 +299,13 @@ __all__ = [
     "find_port",
     "first_compatible_port",
     "is_port_exposed",
+    "port_allows_multiple_connections",
     "is_subnode_pin_type",
     "is_subnode_shell_type",
     "port_data_type",
     "port_direction",
     "port_kind",
     "ports_compatible",
+    "target_port_has_capacity",
     "visible_ports",
 ]

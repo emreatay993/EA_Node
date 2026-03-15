@@ -291,10 +291,6 @@ class GraphModel:
                 and existing.target_port_key == target_port_key
             ):
                 return existing
-            if existing.target_node_id == target_node_id and existing.target_port_key == target_port_key:
-                raise ValueError(
-                    f"Target input port already has a connection: {target_node_id}.{target_port_key}"
-                )
         edge = EdgeInstance(
             edge_id=new_id("edge"),
             source_node_id=source_node_id,

@@ -411,6 +411,7 @@ Item {
                     "node_id": node.node_id,
                     "port_key": port.key,
                     "direction": port.direction,
+                    "allow_multiple_connections": Boolean(port.allow_multiple_connections),
                     "scene_x": point.x,
                     "scene_y": point.y,
                     "valid_drop": false
@@ -468,7 +469,11 @@ Item {
     function _hasCompatiblePortForTarget(targetPort, nodePorts) {
         if (!targetPort || !nodePorts || !nodePorts.length)
             return false;
-        if (targetPort.direction === "in" && Number(targetPort.connection_count || 0) > 0)
+        if (
+            targetPort.direction === "in"
+            && !Boolean(targetPort.allow_multiple_connections)
+            && Number(targetPort.connection_count || 0) > 0
+        )
             return false;
 
         for (var i = 0; i < nodePorts.length; i++) {
@@ -700,10 +705,12 @@ Item {
     function _wireDragSourceData(state) {
         if (!state)
             return null;
+        var sourcePort = _scenePortData(state.node_id, state.port_key);
         return {
             "node_id": state.node_id,
             "port_key": state.port_key,
             "source_direction": state.source_direction,
+            "allow_multiple_connections": sourcePort ? Boolean(sourcePort.allow_multiple_connections) : false,
             "start_x": state.start_x,
             "start_y": state.start_y,
             "cursor_x": state.cursor_x,
@@ -750,6 +757,7 @@ Item {
             "node_id": pending.node_id,
             "port_key": pending.port_key,
             "source_direction": pending.direction,
+            "allow_multiple_connections": Boolean(pending.allow_multiple_connections),
             "start_x": pending.scene_x,
             "start_y": pending.scene_y,
             "cursor_x": hovered.scene_x,
@@ -759,6 +767,7 @@ Item {
             "node_id": hovered.node_id,
             "port_key": hovered.port_key,
             "direction": hovered.direction,
+            "allow_multiple_connections": Boolean(hovered.allow_multiple_connections),
             "scene_x": hovered.scene_x,
             "scene_y": hovered.scene_y,
             "valid_drop": _isDropAllowed(pendingSource, hovered)
@@ -921,10 +930,12 @@ Item {
     function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) {
         root.forceActiveFocus();
         root._closeContextMenus();
+        var clickedPort = _scenePortData(nodeId, portKey);
         var clicked = {
             "node_id": nodeId,
             "port_key": portKey,
             "direction": direction,
+            "allow_multiple_connections": clickedPort ? Boolean(clickedPort.allow_multiple_connections) : false,
             "scene_x": sceneX,
             "scene_y": sceneY,
             "valid_drop": false
@@ -956,6 +967,7 @@ Item {
             "node_id": pending.node_id,
             "port_key": pending.port_key,
             "source_direction": pending.direction,
+            "allow_multiple_connections": Boolean(pending.allow_multiple_connections),
             "start_x": pending.scene_x,
             "start_y": pending.scene_y,
             "cursor_x": sceneX,
@@ -1198,10 +1210,12 @@ Item {
                     if (root.wireDragState && root.wireDragState.active)
                         return;
                     if (hovered) {
+                        var hoveredPortData = root._scenePortData(nodeId, portKey);
                         root.hoveredPort = {
                             "node_id": nodeId,
                             "port_key": portKey,
                             "direction": direction,
+                            "allow_multiple_connections": hoveredPortData ? Boolean(hoveredPortData.allow_multiple_connections) : false,
                             "scene_x": sceneX,
                             "scene_y": sceneY,
                             "valid_drop": false

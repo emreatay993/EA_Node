@@ -3,21 +3,34 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any, Mapping
 
+from ea_node_editor.graph.effective_ports import find_port
+from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_PORT_KEY,
     SUBNODE_TYPE_ID,
 )
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import NodeTypeSpec
 
 _COMPILE_ONLY_TYPES = frozenset({SUBNODE_TYPE_ID, SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID})
 _EdgeTuple = tuple[str, str, str, str]
 
 
-def compile_workspace_document(workspace_doc: Mapping[str, Any]) -> dict[str, Any]:
+def compile_workspace_document(
+    workspace_doc: Mapping[str, Any],
+    registry: NodeRegistry | None = None,
+) -> dict[str, Any]:
     """Compile nested subnode authoring constructs into a flat execution graph."""
     nodes_by_id, node_order = _normalize_nodes(workspace_doc.get("nodes"))
-    edge_set = _normalize_edges(workspace_doc.get("edges"), valid_node_ids=set(nodes_by_id))
+    workspace_nodes = _materialize_nodes(nodes_by_id)
+    edge_set = _normalize_edges(
+        workspace_doc.get("edges"),
+        valid_node_ids=set(nodes_by_id),
+        workspace_nodes=workspace_nodes,
+        registry=registry,
+    )
 
     input_pins_by_shell: dict[str, set[str]] = defaultdict(set)
     output_pin_parent: dict[str, str] = {}
@@ -41,7 +54,7 @@ def compile_workspace_document(workspace_doc: Mapping[str, Any]) -> dict[str, An
     real_node_ids: set[str] = set()
     for node_id in node_order:
         node_doc = nodes_by_id[node_id]
-        if _is_compile_only(node_doc):
+        if _is_runtime_excluded(node_doc, registry):
             continue
         compiled = dict(node_doc)
         compiled["parent_node_id"] = None
@@ -145,11 +158,38 @@ def _normalize_nodes(raw_nodes: object) -> tuple[dict[str, dict[str, Any]], list
     return nodes_by_id, node_order
 
 
-def _normalize_edges(raw_edges: object, *, valid_node_ids: set[str]) -> set[_EdgeTuple]:
+def _materialize_nodes(nodes_by_id: Mapping[str, Mapping[str, Any]]) -> dict[str, NodeInstance]:
+    return {
+        node_id: NodeInstance(
+            node_id=node_id,
+            type_id=str(node_doc.get("type_id", "")),
+            title=str(node_doc.get("title", node_doc.get("type_id", ""))),
+            x=float(node_doc.get("x", 0.0)),
+            y=float(node_doc.get("y", 0.0)),
+            collapsed=bool(node_doc.get("collapsed", False)),
+            properties=dict(node_doc.get("properties", {})),
+            exposed_ports=dict(node_doc.get("exposed_ports", {})),
+            visual_style=dict(node_doc.get("visual_style", {})),
+            parent_node_id=_normalize_optional_id(node_doc.get("parent_node_id")),
+            custom_width=float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
+            custom_height=float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
+        )
+        for node_id, node_doc in nodes_by_id.items()
+    }
+
+
+def _normalize_edges(
+    raw_edges: object,
+    *,
+    valid_node_ids: set[str],
+    workspace_nodes: Mapping[str, NodeInstance],
+    registry: NodeRegistry | None,
+) -> set[_EdgeTuple]:
     if not isinstance(raw_edges, list):
         return set()
 
     edges: set[_EdgeTuple] = set()
+    spec_cache: dict[str, NodeTypeSpec | None] = {}
     for raw_edge in raw_edges:
         if not isinstance(raw_edge, Mapping):
             continue
@@ -166,6 +206,16 @@ def _normalize_edges(raw_edges: object, *, valid_node_ids: set[str]) -> set[_Edg
             or target_node_id not in valid_node_ids
         ):
             continue
+        if _edge_is_runtime_excluded(
+            source_node_id=source_node_id,
+            source_port_key=source_port_key,
+            target_node_id=target_node_id,
+            target_port_key=target_port_key,
+            workspace_nodes=workspace_nodes,
+            registry=registry,
+            spec_cache=spec_cache,
+        ):
+            continue
         edges.add(
             (
                 source_node_id,
@@ -177,8 +227,80 @@ def _normalize_edges(raw_edges: object, *, valid_node_ids: set[str]) -> set[_Edg
     return edges
 
 
-def _is_compile_only(node_doc: Mapping[str, Any]) -> bool:
-    return str(node_doc.get("type_id", "")) in _COMPILE_ONLY_TYPES
+def _edge_is_runtime_excluded(
+    *,
+    source_node_id: str,
+    source_port_key: str,
+    target_node_id: str,
+    target_port_key: str,
+    workspace_nodes: Mapping[str, NodeInstance],
+    registry: NodeRegistry | None,
+    spec_cache: dict[str, NodeTypeSpec | None],
+) -> bool:
+    source_port = _resolve_port(
+        node_id=source_node_id,
+        port_key=source_port_key,
+        workspace_nodes=workspace_nodes,
+        registry=registry,
+        spec_cache=spec_cache,
+    )
+    if source_port is not None and source_port.kind == "flow":
+        return True
+    target_port = _resolve_port(
+        node_id=target_node_id,
+        port_key=target_port_key,
+        workspace_nodes=workspace_nodes,
+        registry=registry,
+        spec_cache=spec_cache,
+    )
+    return target_port is not None and target_port.kind == "flow"
+
+
+def _resolve_port(
+    *,
+    node_id: str,
+    port_key: str,
+    workspace_nodes: Mapping[str, NodeInstance],
+    registry: NodeRegistry | None,
+    spec_cache: dict[str, NodeTypeSpec | None],
+):
+    node = workspace_nodes.get(node_id)
+    if node is None:
+        return None
+    spec = _node_spec(node.type_id, registry=registry, spec_cache=spec_cache)
+    if spec is None:
+        return None
+    return find_port(node=node, spec=spec, workspace_nodes=workspace_nodes, port_key=port_key)
+
+
+def _is_runtime_excluded(node_doc: Mapping[str, Any], registry: NodeRegistry | None) -> bool:
+    return _node_runtime_behavior(node_doc, registry) in {"compile_only", "passive"}
+
+
+def _node_runtime_behavior(node_doc: Mapping[str, Any], registry: NodeRegistry | None) -> str:
+    type_id = str(node_doc.get("type_id", ""))
+    spec = _node_spec(type_id, registry=registry, spec_cache={})
+    if spec is not None:
+        return str(spec.runtime_behavior)
+    if type_id in _COMPILE_ONLY_TYPES:
+        return "compile_only"
+    return "active"
+
+
+def _node_spec(
+    type_id: str,
+    *,
+    registry: NodeRegistry | None,
+    spec_cache: dict[str, NodeTypeSpec | None],
+) -> NodeTypeSpec | None:
+    if registry is None:
+        return None
+    if type_id not in spec_cache:
+        try:
+            spec_cache[type_id] = registry.get_spec(type_id)
+        except KeyError:
+            spec_cache[type_id] = None
+    return spec_cache[type_id]
 
 
 def _node_type(nodes_by_id: Mapping[str, Mapping[str, Any]], node_id: str) -> str:

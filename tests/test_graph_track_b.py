@@ -121,7 +121,7 @@ class _GraphCanvasPreferenceBridge(QObject):
 
 class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.app = QApplication.instance()
+        self.app = QApplication.instance() or QApplication([])
         self.engine = QQmlEngine()
         self.theme_bridge = ThemeBridge(theme_id="stitch_dark")
         self.graph_theme_bridge = GraphThemeBridge(theme_id="graph_stitch_dark")
@@ -270,10 +270,10 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         self.assertIsNotNone(edge_layer)
         self.assertIsNotNone(world)
-        child_items = list(self.canvas.childItems())
-        self.assertIn(edge_layer, child_items)
-        self.assertIn(world, child_items)
-        self.assertLess(child_items.index(edge_layer), child_items.index(world))
+        child_objects = list(self.canvas.children())
+        self.assertIn(edge_layer, child_objects)
+        self.assertIn(world, child_objects)
+        self.assertLess(child_objects.index(edge_layer), child_objects.index(world))
 
     def test_graph_canvas_live_resize_dimensions_propagate_to_edge_layer(self) -> None:
         edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")
@@ -286,7 +286,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(self.canvas.property("liveResizeDimensions"), payload)
         self.assertEqual(edge_layer.property("liveNodeSizes"), payload)
 
-    def test_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
+    def test_a_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_NODE_CARD_QML_PATH)))
         if component.status() != QQmlComponent.Status.Ready:
             errors = "\n".join(str(error) for error in component.errors())
@@ -446,7 +446,7 @@ class GraphModelTrackBTests(unittest.TestCase):
 
 class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.app = QApplication.instance()
+        self.app = QApplication.instance() or QApplication([])
         self.registry = build_default_registry()
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id
@@ -592,6 +592,16 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.scene.add_edge(source_id, "exec_out", target_id, "message")
+
+    def test_add_edge_rejects_second_incoming_connection_for_single_input_port(self) -> None:
+        first_source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        second_source_id = self.scene.add_node_from_type("core.start", 0.0, 120.0)
+        target_id = self.scene.add_node_from_type("core.end", 320.0, 30.0)
+
+        self.scene.add_edge(first_source_id, "exec_out", target_id, "exec_in")
+
+        with self.assertRaises(ValueError):
+            self.scene.add_edge(second_source_id, "exec_out", target_id, "exec_in")
 
     def test_subnode_shell_ports_follow_direct_pin_sort_and_pin_properties(self) -> None:
         shell_id = self.scene.add_node_from_type("core.subnode", 200.0, 120.0)
