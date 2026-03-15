@@ -1,10 +1,44 @@
 .pragma library
 
+var STANDARD_DEFAULT_WIDTH = 210.0;
+var STANDARD_MIN_WIDTH = 120.0;
+var STANDARD_MIN_HEIGHT = 50.0;
+var STANDARD_COLLAPSED_WIDTH = 130.0;
+var STANDARD_COLLAPSED_HEIGHT = 36.0;
+var STANDARD_HEADER_HEIGHT = 24.0;
+var STANDARD_HEADER_TOP_MARGIN = 4.0;
+var STANDARD_BODY_TOP = 30.0;
+var STANDARD_PORT_HEIGHT = 18.0;
+var STANDARD_INLINE_ROW_HEIGHT = 26.0;
+var STANDARD_INLINE_ROW_SPACING = 4.0;
+var STANDARD_INLINE_SECTION_PADDING = 8.0;
+var STANDARD_PORT_CENTER_OFFSET = 6.0;
+var STANDARD_PORT_SIDE_MARGIN = 8.0;
+var STANDARD_PORT_DOT_RADIUS = 3.5;
+var STANDARD_RESIZE_HANDLE_SIZE = 16.0;
+var STANDARD_BOTTOM_PADDING = 8.0;
+
+var FLOWCHART_COLLAPSED_WIDTH = 140.0;
+var FLOWCHART_COLLAPSED_HEIGHT = 40.0;
+var FLOWCHART_TITLE_HEIGHT = 24.0;
+var FLOWCHART_PORT_HEIGHT = 18.0;
+var FLOWCHART_PORT_CENTER_OFFSET = 6.0;
+var FLOWCHART_PORT_DOT_RADIUS = 4.0;
+var FLOWCHART_RESIZE_HANDLE_SIZE = 16.0;
+var FLOWCHART_INLINE_GAP = 8.0;
+var FLOWCHART_PORT_SECTION_TOP = 12.0;
+
 function _metricNumber(source, key, fallback) {
     var value = source ? Number(source[key]) : NaN;
     if (!isFinite(value))
         value = fallback;
     return value;
+}
+
+function _metricBool(source, key, fallback) {
+    if (!source || source[key] === undefined)
+        return Boolean(fallback);
+    return Boolean(source[key]);
 }
 
 function inlineBodyHeight(node) {
@@ -15,57 +49,358 @@ function inlineBodyHeight(node) {
     return 8.0 + count * 26.0 + Math.max(0, count - 1) * 4.0;
 }
 
-function surfaceMetrics(node) {
-    var source = node && node.surface_metrics ? node.surface_metrics : {};
-    var bodyHeight = _metricNumber(source, "body_height", inlineBodyHeight(node));
+function _visiblePortCounts(node) {
+    var ports = node && node.ports ? node.ports : [];
+    var inputCount = 0;
+    var outputCount = 0;
+    for (var i = 0; i < ports.length; i++) {
+        var port = ports[i];
+        if (!port || port.exposed === false)
+            continue;
+        if (String(port.direction || "") === "in")
+            inputCount += 1;
+        else if (String(port.direction || "") === "out")
+            outputCount += 1;
+    }
     return {
-        "default_width": _metricNumber(source, "default_width", 210.0),
-        "default_height": _metricNumber(source, "default_height", 50.0),
-        "min_width": _metricNumber(source, "min_width", 120.0),
-        "min_height": _metricNumber(source, "min_height", 50.0),
-        "collapsed_width": _metricNumber(source, "collapsed_width", 130.0),
-        "collapsed_height": _metricNumber(source, "collapsed_height", 36.0),
-        "header_height": _metricNumber(source, "header_height", 24.0),
-        "header_top_margin": _metricNumber(source, "header_top_margin", 4.0),
-        "body_top": _metricNumber(source, "body_top", 30.0),
-        "body_height": bodyHeight,
-        "port_top": _metricNumber(source, "port_top", 30.0 + bodyHeight),
-        "port_height": _metricNumber(source, "port_height", 18.0),
-        "port_center_offset": _metricNumber(source, "port_center_offset", 6.0),
-        "port_side_margin": _metricNumber(source, "port_side_margin", 8.0),
-        "port_dot_radius": _metricNumber(source, "port_dot_radius", 3.5),
-        "resize_handle_size": _metricNumber(source, "resize_handle_size", 16.0)
+        "inputCount": inputCount,
+        "outputCount": outputCount,
+        "portCount": Math.max(inputCount, outputCount, 1)
     };
 }
 
-function portScenePoint(node, direction, rowIndex) {
+function _normalizedFlowchartVariant(value) {
+    var variant = String(value || "").trim().toLowerCase();
+    if (variant === "start" || variant === "end" || variant === "process" || variant === "decision"
+        || variant === "document" || variant === "connector" || variant === "input_output"
+        || variant === "predefined_process" || variant === "database") {
+        return variant;
+    }
+    return "process";
+}
+
+function _flowchartVariantLayout(variant) {
+    var normalized = _normalizedFlowchartVariant(variant);
+    switch (normalized) {
+    case "start":
+    case "end":
+        return {
+            "defaultWidth": 220.0,
+            "minWidth": 140.0,
+            "minHeight": 76.0,
+            "titleTop": 18.0,
+            "titleLeftMargin": 30.0,
+            "titleRightMargin": 30.0,
+            "bodyLeftMargin": 28.0,
+            "bodyRightMargin": 28.0,
+            "bodyBottomMargin": 16.0,
+            "square": false
+        };
+    case "decision":
+        return {
+            "defaultWidth": 220.0,
+            "minWidth": 180.0,
+            "minHeight": 120.0,
+            "titleTop": 24.0,
+            "titleLeftMargin": 52.0,
+            "titleRightMargin": 52.0,
+            "bodyLeftMargin": 42.0,
+            "bodyRightMargin": 42.0,
+            "bodyBottomMargin": 20.0,
+            "square": false
+        };
+    case "document":
+        return {
+            "defaultWidth": 220.0,
+            "minWidth": 170.0,
+            "minHeight": 96.0,
+            "titleTop": 18.0,
+            "titleLeftMargin": 20.0,
+            "titleRightMargin": 20.0,
+            "bodyLeftMargin": 18.0,
+            "bodyRightMargin": 18.0,
+            "bodyBottomMargin": 22.0,
+            "square": false
+        };
+    case "connector":
+        return {
+            "defaultWidth": 96.0,
+            "minWidth": 84.0,
+            "minHeight": 84.0,
+            "titleTop": 18.0,
+            "titleLeftMargin": 18.0,
+            "titleRightMargin": 18.0,
+            "bodyLeftMargin": 18.0,
+            "bodyRightMargin": 18.0,
+            "bodyBottomMargin": 18.0,
+            "square": true
+        };
+    case "input_output":
+        return {
+            "defaultWidth": 230.0,
+            "minWidth": 170.0,
+            "minHeight": 88.0,
+            "titleTop": 20.0,
+            "titleLeftMargin": 28.0,
+            "titleRightMargin": 28.0,
+            "bodyLeftMargin": 24.0,
+            "bodyRightMargin": 24.0,
+            "bodyBottomMargin": 16.0,
+            "square": false
+        };
+    case "predefined_process":
+        return {
+            "defaultWidth": 230.0,
+            "minWidth": 170.0,
+            "minHeight": 88.0,
+            "titleTop": 20.0,
+            "titleLeftMargin": 28.0,
+            "titleRightMargin": 28.0,
+            "bodyLeftMargin": 24.0,
+            "bodyRightMargin": 24.0,
+            "bodyBottomMargin": 16.0,
+            "square": false
+        };
+    case "database":
+        return {
+            "defaultWidth": 220.0,
+            "minWidth": 170.0,
+            "minHeight": 120.0,
+            "titleTop": 26.0,
+            "titleLeftMargin": 26.0,
+            "titleRightMargin": 26.0,
+            "bodyLeftMargin": 22.0,
+            "bodyRightMargin": 22.0,
+            "bodyBottomMargin": 20.0,
+            "square": false
+        };
+    case "process":
+    default:
+        return {
+            "defaultWidth": 220.0,
+            "minWidth": 150.0,
+            "minHeight": 80.0,
+            "titleTop": 18.0,
+            "titleLeftMargin": 18.0,
+            "titleRightMargin": 18.0,
+            "bodyLeftMargin": 16.0,
+            "bodyRightMargin": 16.0,
+            "bodyBottomMargin": 16.0,
+            "square": false
+        };
+    }
+}
+
+function _resolvedDimension(value, fallback) {
+    var numeric = Number(value);
+    if (!(numeric > 0.0))
+        numeric = fallback;
+    return numeric;
+}
+
+function _standardSurfaceMetrics(node, source) {
+    var portCount = _visiblePortCounts(node).portCount;
+    var bodyHeight = _metricNumber(source, "body_height", inlineBodyHeight(node));
+    return {
+        "default_width": _metricNumber(source, "default_width", STANDARD_DEFAULT_WIDTH),
+        "default_height": _metricNumber(
+            source,
+            "default_height",
+            STANDARD_HEADER_HEIGHT + bodyHeight + portCount * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
+        ),
+        "min_width": _metricNumber(source, "min_width", STANDARD_MIN_WIDTH),
+        "min_height": _metricNumber(source, "min_height", STANDARD_MIN_HEIGHT),
+        "collapsed_width": _metricNumber(source, "collapsed_width", STANDARD_COLLAPSED_WIDTH),
+        "collapsed_height": _metricNumber(source, "collapsed_height", STANDARD_COLLAPSED_HEIGHT),
+        "header_height": _metricNumber(source, "header_height", STANDARD_HEADER_HEIGHT),
+        "header_top_margin": _metricNumber(source, "header_top_margin", STANDARD_HEADER_TOP_MARGIN),
+        "body_top": _metricNumber(source, "body_top", STANDARD_BODY_TOP),
+        "body_height": bodyHeight,
+        "port_top": _metricNumber(source, "port_top", STANDARD_BODY_TOP + bodyHeight),
+        "port_height": _metricNumber(source, "port_height", STANDARD_PORT_HEIGHT),
+        "port_center_offset": _metricNumber(source, "port_center_offset", STANDARD_PORT_CENTER_OFFSET),
+        "port_side_margin": _metricNumber(source, "port_side_margin", STANDARD_PORT_SIDE_MARGIN),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", STANDARD_PORT_DOT_RADIUS),
+        "resize_handle_size": _metricNumber(source, "resize_handle_size", STANDARD_RESIZE_HANDLE_SIZE),
+        "title_top": _metricNumber(source, "title_top", STANDARD_HEADER_TOP_MARGIN),
+        "title_height": _metricNumber(source, "title_height", STANDARD_HEADER_HEIGHT),
+        "title_left_margin": _metricNumber(source, "title_left_margin", 10.0),
+        "title_right_margin": _metricNumber(source, "title_right_margin", 10.0),
+        "title_centered": _metricBool(source, "title_centered", false),
+        "body_left_margin": _metricNumber(source, "body_left_margin", 8.0),
+        "body_right_margin": _metricNumber(source, "body_right_margin", 8.0),
+        "body_bottom_margin": _metricNumber(source, "body_bottom_margin", STANDARD_BOTTOM_PADDING),
+        "show_header_background": _metricBool(source, "show_header_background", true),
+        "show_accent_bar": _metricBool(source, "show_accent_bar", true),
+        "use_host_chrome": _metricBool(source, "use_host_chrome", true)
+    };
+}
+
+function _flowchartSurfaceMetrics(node, source) {
+    var layout = _flowchartVariantLayout(node && node.surface_variant);
+    var portCount = _visiblePortCounts(node).portCount;
+    var bodyHeight = _metricNumber(source, "body_height", inlineBodyHeight(node));
+    var basePortSectionTop = bodyHeight > 0.0
+        ? layout.titleTop + FLOWCHART_TITLE_HEIGHT + FLOWCHART_INLINE_GAP + bodyHeight + FLOWCHART_INLINE_GAP
+        : FLOWCHART_PORT_SECTION_TOP;
+    var defaultHeight = Math.max(
+        layout.minHeight,
+        basePortSectionTop + portCount * FLOWCHART_PORT_HEIGHT + layout.bodyBottomMargin
+    );
+    var defaultWidth = layout.defaultWidth;
+    var minWidth = layout.minWidth;
+    if (layout.square) {
+        defaultWidth = Math.max(defaultWidth, defaultHeight);
+        minWidth = Math.max(minWidth, layout.minHeight);
+    }
+    defaultHeight = _metricNumber(source, "default_height", defaultHeight);
+    defaultWidth = _metricNumber(source, "default_width", defaultWidth);
+    minWidth = _metricNumber(source, "min_width", minWidth);
+    var minHeight = _metricNumber(source, "min_height", layout.minHeight);
+    var activeWidth = _resolvedDimension(node && node.width, defaultWidth);
+    var activeHeight = _resolvedDimension(node && node.height, defaultHeight);
+    var titleTop = bodyHeight > 0.0
+        ? layout.titleTop
+        : Math.max(12.0, (activeHeight - FLOWCHART_TITLE_HEIGHT) * 0.5);
+    titleTop = _metricNumber(source, "title_top", titleTop);
+    var bodyTop = _metricNumber(source, "body_top", titleTop + FLOWCHART_TITLE_HEIGHT + FLOWCHART_INLINE_GAP);
+    var portSectionTop = bodyHeight > 0.0
+        ? bodyTop + bodyHeight + FLOWCHART_INLINE_GAP
+        : FLOWCHART_PORT_SECTION_TOP;
+    var availablePortHeight = Math.max(
+        portCount * FLOWCHART_PORT_HEIGHT,
+        activeHeight - portSectionTop - layout.bodyBottomMargin
+    );
+    return {
+        "default_width": defaultWidth,
+        "default_height": defaultHeight,
+        "min_width": minWidth,
+        "min_height": minHeight,
+        "collapsed_width": _metricNumber(source, "collapsed_width", FLOWCHART_COLLAPSED_WIDTH),
+        "collapsed_height": _metricNumber(source, "collapsed_height", FLOWCHART_COLLAPSED_HEIGHT),
+        "header_height": _metricNumber(source, "header_height", 0.0),
+        "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
+        "body_top": bodyTop,
+        "body_height": bodyHeight,
+        "port_top": _metricNumber(
+            source,
+            "port_top",
+            portSectionTop + Math.max(0.0, (availablePortHeight - portCount * FLOWCHART_PORT_HEIGHT) * 0.5)
+        ),
+        "port_height": _metricNumber(source, "port_height", FLOWCHART_PORT_HEIGHT),
+        "port_center_offset": _metricNumber(source, "port_center_offset", FLOWCHART_PORT_CENTER_OFFSET),
+        "port_side_margin": _metricNumber(source, "port_side_margin", 0.0),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", FLOWCHART_PORT_DOT_RADIUS),
+        "resize_handle_size": _metricNumber(source, "resize_handle_size", FLOWCHART_RESIZE_HANDLE_SIZE),
+        "title_top": titleTop,
+        "title_height": _metricNumber(source, "title_height", FLOWCHART_TITLE_HEIGHT),
+        "title_left_margin": _metricNumber(source, "title_left_margin", layout.titleLeftMargin),
+        "title_right_margin": _metricNumber(source, "title_right_margin", layout.titleRightMargin),
+        "title_centered": _metricBool(source, "title_centered", true),
+        "body_left_margin": _metricNumber(source, "body_left_margin", layout.bodyLeftMargin),
+        "body_right_margin": _metricNumber(source, "body_right_margin", layout.bodyRightMargin),
+        "body_bottom_margin": _metricNumber(source, "body_bottom_margin", layout.bodyBottomMargin),
+        "show_header_background": _metricBool(source, "show_header_background", false),
+        "show_accent_bar": _metricBool(source, "show_accent_bar", false),
+        "use_host_chrome": _metricBool(source, "use_host_chrome", false)
+    };
+}
+
+function surfaceMetrics(node) {
+    var source = node && node.surface_metrics ? node.surface_metrics : null;
+    var family = String(node && node.surface_family || "standard");
+    if (family === "flowchart")
+        return _flowchartSurfaceMetrics(node, source);
+    return _standardSurfaceMetrics(node, source);
+}
+
+function _flowchartHorizontalBounds(variant, width, height, localY) {
+    if (!(width > 0.0) || !(height > 0.0))
+        return {"left": 0.0, "right": Math.max(0.0, width)};
+    var yValue = Math.max(0.0, Math.min(height, localY));
+    if (variant === "start" || variant === "end") {
+        var radius = Math.min(width * 0.5, height * 0.5);
+        var cy = height * 0.5;
+        var dy = Math.max(-radius, Math.min(radius, yValue - cy));
+        var dx = Math.sqrt(Math.max(0.0, radius * radius - dy * dy));
+        var left = radius - dx;
+        return {"left": left, "right": width - left};
+    }
+    if (variant === "decision") {
+        var leftDecision = Math.abs((height * 0.5) - yValue) * width / height;
+        return {"left": leftDecision, "right": width - leftDecision};
+    }
+    if (variant === "connector") {
+        var rx = width * 0.5;
+        var ry = height * 0.5;
+        var cyConnector = height * 0.5;
+        var dyConnector = Math.max(-ry, Math.min(ry, yValue - cyConnector));
+        if (!(ry > 0.0))
+            return {"left": 0.0, "right": width};
+        var factor = Math.sqrt(Math.max(0.0, 1.0 - (dyConnector * dyConnector) / (ry * ry)));
+        var dxConnector = rx * factor;
+        return {"left": rx - dxConnector, "right": rx + dxConnector};
+    }
+    if (variant === "input_output") {
+        var slant = Math.min(width * 0.16, height * 0.35);
+        var leftIo = Math.max(0.0, slant * (1.0 - (yValue / height)));
+        return {"left": leftIo, "right": width - leftIo};
+    }
+    return {"left": 0.0, "right": width};
+}
+
+function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride) {
     if (!node)
         return {"x": 0.0, "y": 0.0};
     var metrics = surfaceMetrics(node);
-    var widthValue = Number(node.width);
-    if (!isFinite(widthValue) || widthValue <= 0.0)
-        widthValue = metrics.default_width;
+    var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
+    var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
     if (node.collapsed) {
         return {
-            "x": direction === "in" ? Number(node.x) : (Number(node.x) + widthValue),
-            "y": Number(node.y) + metrics.collapsed_height * 0.5
+            "x": String(direction || "") === "in" ? 0.0 : widthValue,
+            "y": metrics.collapsed_height * 0.5
+        };
+    }
+    var localY = metrics.port_top + metrics.port_center_offset + metrics.port_height * Number(rowIndex);
+    if (String(node.surface_family || "standard") === "flowchart") {
+        var bounds = _flowchartHorizontalBounds(
+            _normalizedFlowchartVariant(node.surface_variant),
+            widthValue,
+            heightValue,
+            localY
+        );
+        return {
+            "x": String(direction || "") === "in" ? bounds.left : bounds.right,
+            "y": localY
         };
     }
     return {
-        "x": direction === "in"
-            ? Number(node.x) + metrics.port_side_margin + metrics.port_dot_radius
-            : Number(node.x) + widthValue - metrics.port_side_margin - metrics.port_dot_radius,
-        "y": Number(node.y) + metrics.port_top + metrics.port_center_offset + metrics.port_height * Number(rowIndex)
+        "x": String(direction || "") === "in"
+            ? metrics.port_side_margin + metrics.port_dot_radius
+            : widthValue - metrics.port_side_margin - metrics.port_dot_radius,
+        "y": localY
     };
 }
 
-function portScenePointForPort(node, port, inputRow, outputRow) {
-    if (!node || !port)
+function portScenePoint(node, direction, rowIndex, widthOverride, heightOverride) {
+    if (!node)
         return {"x": 0.0, "y": 0.0};
-    return portScenePoint(
-        node,
-        String(port.direction || ""),
-        String(port.direction || "") === "in" ? inputRow : outputRow
-    );
+    var localPoint = localPortPoint(node, direction, rowIndex, widthOverride, heightOverride);
+    return {
+        "x": Number(node.x || 0.0) + localPoint.x,
+        "y": Number(node.y || 0.0) + localPoint.y
+    };
 }
 
+function portScenePointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride) {
+    if (!node || !port)
+        return {"x": 0.0, "y": 0.0};
+    var direction = String(port.direction || "");
+    return portScenePoint(
+        node,
+        direction,
+        direction === "in" ? inputRow : outputRow,
+        widthOverride,
+        heightOverride
+    );
+}

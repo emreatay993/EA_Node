@@ -12,12 +12,15 @@ from ea_node_editor.graph.effective_ports import (
     port_data_type,
     port_direction,
     port_kind,
-    visible_ports,
 )
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition, resolve_edge_color
-from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics, standard_inline_body_height
+from ea_node_editor.ui_qml.graph_surface_metrics import (
+    node_surface_metrics,
+    standard_inline_body_height,
+    surface_port_local_point,
+)
 
 EDGE_PAIR_LANE_SPACING = 24.0
 EDGE_PORT_FAN_SPACING = 10.0
@@ -57,25 +60,23 @@ def port_scene_pos(
 ) -> QPointF:
     scoped_nodes = workspace_nodes or {node.node_id: node}
     metrics = node_surface_metrics(node, spec, scoped_nodes)
-    in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
-    direction = port_direction(node=node, spec=spec, workspace_nodes=scoped_nodes, port_key=port_key)
     width, _height = node_size(node, spec, scoped_nodes)
 
     if node.collapsed:
+        direction = port_direction(node=node, spec=spec, workspace_nodes=scoped_nodes, port_key=port_key)
         if direction == "in":
             return QPointF(node.x, node.y + (metrics.collapsed_height * 0.5))
         return QPointF(node.x + width, node.y + (metrics.collapsed_height * 0.5))
 
-    visible = in_ports if direction == "in" else out_ports
-    row_index = 0
-    for index, port in enumerate(visible):
-        if port.key == port_key:
-            row_index = index
-            break
-    y = node.y + metrics.port_top + metrics.port_center_offset + metrics.port_height * row_index
-    if direction == "in":
-        return QPointF(node.x + metrics.port_side_margin + metrics.port_dot_radius, y)
-    return QPointF(node.x + width - metrics.port_side_margin - metrics.port_dot_radius, y)
+    local_x, local_y = surface_port_local_point(
+        node,
+        spec,
+        port_key,
+        scoped_nodes,
+        width=width,
+        height=_height,
+    )
+    return QPointF(node.x + local_x, node.y + local_y)
 
 
 def edge_lane_offsets(
