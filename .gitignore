@@ -40,7 +40,9 @@ tests/*
 !tests/test_passive_runtime_wiring.py
 !tests/test_passive_property_editors.py
 !tests/test_passive_graph_surface_host.py
+!tests/test_passive_flowchart_catalog.py
 !tests/test_serializer.py
+!tests/test_registry_filters.py
 !tests/test_passive_visual_metadata.py
 !tests/test_shell_theme.py
 !tests/test_flow_edge_labels.py
