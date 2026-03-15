@@ -77,6 +77,22 @@ class PassiveNodeStyleDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_dialog_reselects_matching_node_preset_on_reopen(self) -> None:
+        dialog = PassiveNodeStyleDialog(
+            initial_style={"fill_color": "#203040"},
+            user_presets=[
+                {
+                    "preset_id": "node_preset_deadbeef",
+                    "name": "Project Custom",
+                    "style": {"fill_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Custom")
+        finally:
+            dialog.close()
+
     def test_dialog_supports_project_local_node_preset_crud_with_read_only_starters(self) -> None:
         dialog = PassiveNodeStyleDialog(
             initial_style={"fill_color": "#102030"},
@@ -90,7 +106,8 @@ class PassiveNodeStyleDialogTests(unittest.TestCase):
         )
         try:
             self.assertGreaterEqual(dialog.preset_combo.count(), 4)
-            self.assertTrue(dialog.preset_combo.itemText(0).startswith("Starter:"))
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            self.assertEqual(dialog.preset_combo.itemText(1).startswith("Starter:"), True)
             self.assertFalse(dialog.overwrite_preset_button.isEnabled())
             self.assertFalse(dialog.rename_preset_button.isEnabled())
             self.assertFalse(dialog.delete_preset_button.isEnabled())
@@ -107,6 +124,8 @@ class PassiveNodeStyleDialogTests(unittest.TestCase):
 
             dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Custom"))
             dialog.findChild(QLineEdit, "border_color_value").setText("#556677")
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Custom"))
             dialog.overwrite_preset_button.click()
 
             self.assertEqual(
@@ -197,6 +216,22 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_dialog_reselects_matching_edge_preset_on_reopen(self) -> None:
+        dialog = FlowEdgeStyleDialog(
+            initial_style={"stroke_color": "#203040"},
+            user_presets=[
+                {
+                    "preset_id": "edge_preset_deadbeef",
+                    "name": "Project Edge",
+                    "style": {"stroke_color": "#203040"},
+                }
+            ],
+        )
+        try:
+            self.assertEqual(dialog.preset_combo.currentText(), "Project: Project Edge")
+        finally:
+            dialog.close()
+
     def test_dialog_supports_project_local_edge_preset_crud_with_read_only_starters(self) -> None:
         dialog = FlowEdgeStyleDialog(
             initial_style={"stroke_color": "#102030"},
@@ -210,7 +245,8 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
         )
         try:
             self.assertGreaterEqual(dialog.preset_combo.count(), 4)
-            self.assertTrue(dialog.preset_combo.itemText(0).startswith("Starter:"))
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            self.assertEqual(dialog.preset_combo.itemText(1).startswith("Starter:"), True)
             self.assertFalse(dialog.overwrite_preset_button.isEnabled())
             self.assertFalse(dialog.rename_preset_button.isEnabled())
             self.assertFalse(dialog.delete_preset_button.isEnabled())
@@ -227,6 +263,8 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
 
             dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Edge"))
             dialog.findChild(QLineEdit, "stroke_width_value").setText("2.5")
+            self.assertEqual(dialog.preset_combo.currentText(), "Current Style")
+            dialog.preset_combo.setCurrentIndex(dialog.preset_combo.findText("Project: Project Edge"))
             dialog.overwrite_preset_button.click()
             self.assertEqual(
                 dialog.user_presets()[0]["style"],

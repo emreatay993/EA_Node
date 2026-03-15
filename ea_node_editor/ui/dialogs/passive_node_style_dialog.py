@@ -46,10 +46,11 @@ class PassiveNodeStyleDialog(QDialog):
         self._color_fields: dict[str, ColorHexFieldControl] = {}
         self._numeric_fields: dict[str, QLineEdit] = {}
         self._preset_catalog = PassiveStylePresetCatalog("node", user_presets)
+        self._loading_style = False
 
         self._build_ui()
         self._load_style(initial_style)
-        self._rebuild_preset_combo()
+        self._rebuild_preset_combo(selected_preset_id=self._preset_catalog.matching_preset_id(self.node_style()))
 
     def node_style(self) -> dict[str, Any]:
         payload: dict[str, Any] = {}
@@ -163,6 +164,7 @@ class PassiveNodeStyleDialog(QDialog):
             field = ColorHexFieldControl(self, allow_empty=True, color_dialog_title=f"Pick {label}")
             field.setObjectNames(value_name=f"{key}_value", swatch_name=f"{key}_swatch")
             field.valueChanged.connect(self._sync_validation_message)
+            field.valueChanged.connect(self._sync_preset_selection_for_current_style)
             self._color_fields[key] = field
             form.addRow(label, field)
 
@@ -192,6 +194,7 @@ class PassiveNodeStyleDialog(QDialog):
         self.font_weight_combo.addItem("Inherit", "")
         for value in PASSIVE_NODE_STYLE_FONT_WEIGHTS:
             self.font_weight_combo.addItem(value.title(), value)
+        self.font_weight_combo.currentIndexChanged.connect(self._sync_preset_selection_for_current_style)
         form.addRow("Font Weight", self.font_weight_combo)
 
         buttons = QHBoxLayout()
@@ -220,9 +223,11 @@ class PassiveNodeStyleDialog(QDialog):
         field.setPlaceholderText(placeholder)
         field.setValidator(validator)
         field.textChanged.connect(self._sync_validation_message)
+        field.textChanged.connect(self._sync_preset_selection_for_current_style)
         return field
 
     def _load_style(self, initial_style: Any | None) -> None:
+        self._loading_style = True
         normalized = normalize_passive_node_style_payload(initial_style)
         for key, field in self._color_fields.items():
             field.setText(normalized.get(key, ""))
@@ -235,7 +240,9 @@ class PassiveNodeStyleDialog(QDialog):
         weight = str(normalized.get("font_weight", "")).strip()
         index = max(0, self.font_weight_combo.findData(weight))
         self.font_weight_combo.setCurrentIndex(index)
+        self._loading_style = False
         self._sync_validation_message()
+        self._sync_preset_selection_for_current_style()
 
     def _validate(self) -> bool:
         invalid = False
@@ -285,6 +292,8 @@ class PassiveNodeStyleDialog(QDialog):
         target_id = str(selected_preset_id or self._selected_preset_id()).strip()
         self.preset_combo.blockSignals(True)
         self.preset_combo.clear()
+        self.preset_combo.addItem("Current Style")
+        self.preset_combo.setItemData(0, "", self._PRESET_ID_ROLE)
         for entry in self._preset_catalog.entries():
             label_prefix = "Starter" if entry.get("read_only") else "Project"
             self.preset_combo.addItem(f"{label_prefix}: {entry['name']}")
@@ -308,7 +317,7 @@ class PassiveNodeStyleDialog(QDialog):
         self.rename_preset_button.setEnabled(has_preset and not read_only)
         self.delete_preset_button.setEnabled(has_preset and not read_only)
         if not preset:
-            self.preset_status_label.setText("No preset selected.")
+            self.preset_status_label.setText("Current style does not exactly match a saved preset.")
         elif read_only:
             self.preset_status_label.setText("Starter presets are read-only and are not saved into the project.")
         else:
@@ -375,6 +384,20 @@ class PassiveNodeStyleDialog(QDialog):
         if not self._validate():
             return None
         return self.node_style()
+
+    def _sync_preset_selection_for_current_style(self) -> None:
+        if self._loading_style:
+            return
+        matching_preset_id = self._preset_catalog.matching_preset_id(self.node_style())
+        current_preset_id = self._selected_preset_id()
+        if matching_preset_id == current_preset_id:
+            self._sync_preset_controls()
+            return
+        self.preset_combo.blockSignals(True)
+        index = self.preset_combo.findData(matching_preset_id, self._PRESET_ID_ROLE)
+        self.preset_combo.setCurrentIndex(max(0, index))
+        self.preset_combo.blockSignals(False)
+        self._sync_preset_controls()
 
 
 def _format_number(value: object) -> str:

@@ -176,6 +176,16 @@ class PassiveStylePresetCatalog:
                 return result
         return None
 
+    def matching_preset_id(self, style: Any) -> str:
+        normalized_style = _style_normalizer(self._kind)(style)
+        for entry in self._built_ins:
+            if entry["style"] == normalized_style:
+                return str(entry["preset_id"])
+        for entry in self._user_presets:
+            if entry["style"] == normalized_style:
+                return str(entry["preset_id"])
+        return ""
+
     def save_new(self, name: Any, style: Any) -> dict[str, Any] | None:
         normalized_name = _normalized_preset_name(name, kind=self._kind, index=len(self._user_presets) + 1)
         normalized_style = _style_normalizer(self._kind)(style)
