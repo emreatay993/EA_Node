@@ -41,6 +41,7 @@ from ea_node_editor.ui.dialogs.passive_style_controls import (
     normalize_flow_edge_style_payload,
     normalize_passive_node_style_payload,
 )
+from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
 from ea_node_editor.ui.shell.controllers import (
     AppPreferencesController,
     ProjectSessionController,
@@ -1895,6 +1896,50 @@ class ShellWindow(QMainWindow):
             return None
         return edge, workspace
 
+    def _project_passive_style_presets(self) -> dict[str, list[dict[str, Any]]]:
+        self._ensure_project_metadata_defaults()
+        metadata = self.model.project.metadata if isinstance(self.model.project.metadata, dict) else {}
+        ui = metadata.get("ui", {}) if isinstance(metadata.get("ui"), dict) else {}
+        normalized = normalize_passive_style_presets(ui.get("passive_style_presets"))
+        if ui.get("passive_style_presets") != normalized:
+            updated_ui = dict(ui)
+            updated_ui["passive_style_presets"] = normalized
+            updated_metadata = dict(metadata)
+            updated_metadata["ui"] = updated_ui
+            self.model.project.metadata = updated_metadata
+        return normalize_passive_style_presets(normalized)
+
+    def _set_project_passive_style_presets(
+        self,
+        *,
+        node_presets: Any = _UNSET,
+        edge_presets: Any = _UNSET,
+    ) -> None:
+        current = self._project_passive_style_presets()
+        updated = {
+            "node_presets": current["node_presets"],
+            "edge_presets": current["edge_presets"],
+        }
+        if node_presets is not _UNSET:
+            updated["node_presets"] = normalize_passive_style_presets(
+                {"node_presets": node_presets, "edge_presets": current["edge_presets"]}
+            )["node_presets"]
+        if edge_presets is not _UNSET:
+            updated["edge_presets"] = normalize_passive_style_presets(
+                {"node_presets": updated["node_presets"], "edge_presets": edge_presets}
+            )["edge_presets"]
+        if updated == current:
+            return
+        metadata = self.model.project.metadata if isinstance(self.model.project.metadata, dict) else {}
+        ui = metadata.get("ui", {}) if isinstance(metadata.get("ui"), dict) else {}
+        updated_ui = dict(ui)
+        updated_ui["passive_style_presets"] = updated
+        updated_metadata = dict(metadata)
+        updated_metadata["ui"] = updated_ui
+        self.model.project.metadata = updated_metadata
+        self._persist_session()
+        self.project_meta_changed.emit()
+
     def edit_passive_node_style(self, node_id: str) -> dict[str, Any] | None:
         context = self._passive_node_context(node_id)
         if context is None:
@@ -1902,8 +1947,17 @@ class ShellWindow(QMainWindow):
         node, _spec, _workspace = context
         from ea_node_editor.ui.dialogs import PassiveNodeStyleDialog
 
-        dialog = PassiveNodeStyleDialog(initial_style=node.visual_style, parent=self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
+        user_presets = self._project_passive_style_presets()["node_presets"]
+        dialog = PassiveNodeStyleDialog(
+            initial_style=node.visual_style,
+            parent=self,
+            user_presets=user_presets,
+        )
+        result = dialog.exec()
+        updated_user_presets = dialog.user_presets()
+        if updated_user_presets != user_presets:
+            self._set_project_passive_style_presets(node_presets=updated_user_presets)
+        if result != dialog.DialogCode.Accepted:
             return None
         return dialog.node_style()
 
@@ -1914,8 +1968,17 @@ class ShellWindow(QMainWindow):
         edge, _workspace = context
         from ea_node_editor.ui.dialogs import FlowEdgeStyleDialog
 
-        dialog = FlowEdgeStyleDialog(initial_style=edge.visual_style, parent=self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
+        user_presets = self._project_passive_style_presets()["edge_presets"]
+        dialog = FlowEdgeStyleDialog(
+            initial_style=edge.visual_style,
+            parent=self,
+            user_presets=user_presets,
+        )
+        result = dialog.exec()
+        updated_user_presets = dialog.user_presets()
+        if updated_user_presets != user_presets:
+            self._set_project_passive_style_presets(edge_presets=updated_user_presets)
+        if result != dialog.DialogCode.Accepted:
             return None
         return dialog.edge_style()
 
