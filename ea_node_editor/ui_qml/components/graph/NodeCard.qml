@@ -101,6 +101,7 @@ Rectangle {
     property real _liveHeight: 0
     readonly property real _minNodeWidth: 120.0
     readonly property real _minNodeHeight: 50.0
+    readonly property real _resizeHandleSize: 16.0
 
     readonly property real _portHeight: 18
     readonly property real _inlineRowHeight: 26
@@ -203,6 +204,12 @@ Rectangle {
         if (!card.canvasItem)
             return {"x": 0.0, "y": 0.0};
         return mouseArea.mapToItem(card.canvasItem, mouse.x, mouse.y);
+    }
+
+    function _isResizeHandlePoint(localX, localY) {
+        if (!card.nodeData || card.nodeData.collapsed)
+            return false;
+        return localX >= card.width - card._resizeHandleSize && localY >= card.height - card._resizeHandleSize;
     }
 
     z: card.nodeData && card.nodeData.selected ? 30 : 20
@@ -566,6 +573,7 @@ Rectangle {
                             property real pressStartX: 0
                             property real pressStartY: 0
                             property bool movedState: false
+                            property bool hoverActive: false
                             x: -9
                             y: -9
                             width: parent.width + 18
@@ -574,9 +582,22 @@ Rectangle {
                             hoverEnabled: true
                             preventStealing: true
                             cursorShape: Qt.PointingHandCursor
+                            function updateHoverState(localX, localY) {
+                                var nextHover = !card._isResizeHandlePoint(localX, localY);
+                                if (hoverActive === nextHover)
+                                    return;
+                                hoverActive = nextHover;
+                                var pos = card.portScenePos("out", rowIndex);
+                                card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, nextHover);
+                            }
                             onPressed: {
                                 if (mouse.button !== Qt.LeftButton)
                                     return;
+                                var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
+                                if (card._isResizeHandlePoint(localPoint.x, localPoint.y)) {
+                                    mouse.accepted = false;
+                                    return;
+                                }
                                 pressStartX = mouse.x;
                                 pressStartY = mouse.y;
                                 movedState = false;
@@ -594,6 +615,8 @@ Rectangle {
                                 mouse.accepted = true;
                             }
                             onPositionChanged: {
+                                var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
+                                updateHoverState(localPoint.x, localPoint.y);
                                 if (!pressed)
                                     return;
                                 if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
@@ -636,10 +659,13 @@ Rectangle {
                                 movedState = false;
                             }
                             onEntered: {
-                                var pos = card.portScenePos("out", rowIndex);
-                                card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, true);
+                                var localPoint = outputPortMouse.mapToItem(card, outputPortMouse.mouseX, outputPortMouse.mouseY);
+                                updateHoverState(localPoint.x, localPoint.y);
                             }
                             onExited: {
+                                if (!hoverActive)
+                                    return;
+                                hoverActive = false;
                                 var pos = card.portScenePos("out", rowIndex);
                                 card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, false);
                             }
