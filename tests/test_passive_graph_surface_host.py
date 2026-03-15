@@ -228,3 +228,95 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             app.processEvents()
             """,
         )
+
+    def test_graph_canvas_keeps_live_drag_preview_continuous_when_snap_to_grid_is_enabled(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-snap-live-preview",
+            """
+            from PyQt6.QtCore import pyqtProperty, pyqtSignal
+
+            class MainWindowBridge(QObject):
+                snap_to_grid_changed = pyqtSignal()
+                graphics_preferences_changed = pyqtSignal()
+
+                @pyqtProperty(bool, notify=snap_to_grid_changed)
+                def snap_to_grid_enabled(self):
+                    return True
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(bool, notify=graphics_preferences_changed)
+                def graphics_minimap_expanded(self):
+                    return True
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+            node_id = scene.nodes_model[0]["node_id"]
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+            main_window_bridge = MainWindowBridge()
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": main_window_bridge,
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 1
+            node_card = node_cards[0]
+
+            assert canvas.snapToGridEnabled() is True
+            node_card.dragOffsetChanged.emit(node_id, 11.0, 9.0)
+            app.processEvents()
+            assert canvas.liveDragDxForNode(node_id) == 11.0
+            assert canvas.liveDragDyForNode(node_id) == 9.0
+
+            node_card.dragFinished.emit(node_id, 131.0, 149.0, True)
+            app.processEvents()
+            assert canvas.liveDragDxForNode(node_id) == 0.0
+            assert canvas.liveDragDyForNode(node_id) == 0.0
+            assert scene.nodes_model[0]["x"] == 140.0
+            assert scene.nodes_model[0]["y"] == 140.0
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
