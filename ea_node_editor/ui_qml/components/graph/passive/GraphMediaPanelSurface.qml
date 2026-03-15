@@ -13,6 +13,7 @@ Item {
     readonly property string normalizedFitMode: _normalizedFitMode()
     readonly property bool captionVisible: captionText.length > 0
     readonly property string resolvedSourceUrl: _resolvedLocalSourceUrl(sourcePath)
+    readonly property string previewSourceUrl: _previewSourceUrl(resolvedSourceUrl)
     readonly property bool sourceRejected: sourcePath.trim().length > 0 && resolvedSourceUrl.length === 0
     readonly property string previewState: {
         if (sourcePath.trim().length === 0)
@@ -102,6 +103,13 @@ Item {
         return "";
     }
 
+    function _previewSourceUrl(localSourceUrl) {
+        var normalized = String(localSourceUrl || "").trim();
+        if (!normalized.length)
+            return "";
+        return "image://local-media-preview/preview?source=" + encodeURIComponent(normalized);
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: host ? Number(host.resolvedCornerRadius || 6) : 6
@@ -147,7 +155,7 @@ Item {
                     fillMode: surface.normalizedFitMode === "cover"
                         ? Image.PreserveAspectCrop
                         : Image.PreserveAspectFit
-                    source: surface.sourceRejected ? "" : surface.resolvedSourceUrl
+                    source: surface.sourceRejected ? "" : surface.previewSourceUrl
                     width: surface.originalModeActive
                         ? Math.max(1, implicitWidth)
                         : parent.width

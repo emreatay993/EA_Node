@@ -6,9 +6,12 @@ import subprocess
 import sys
 import textwrap
 import unittest
+from unittest.mock import patch
 
+from PyQt6.QtCore import QSize
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui.media_preview_provider import LocalMediaPreviewImageProvider
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -79,11 +82,16 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtWidgets import QApplication
 
+            from ea_node_editor.ui.media_preview_provider import (
+                LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
+                LocalMediaPreviewImageProvider,
+            )
             from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
             from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
+            engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
             engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
             engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
 
@@ -341,6 +349,45 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 assert relative_surface.property("resolvedSourceUrl") == ""
             """,
         )
+
+
+class LocalMediaPreviewProviderTests(unittest.TestCase):
+    def test_provider_enables_auto_transform_for_local_images(self) -> None:
+        calls: list[tuple[str, object]] = []
+
+        class FakeReader:
+            def __init__(self, filename: str) -> None:
+                calls.append(("init", filename))
+
+            def setAutoTransform(self, value: bool) -> None:
+                calls.append(("setAutoTransform", value))
+
+            def setDecideFormatFromContent(self, value: bool) -> None:
+                calls.append(("setDecideFormatFromContent", value))
+
+            def read(self):
+                calls.append(("read", None))
+                from PyQt6.QtGui import QColor, QImage
+
+                image = QImage(8, 6, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                return image
+
+        provider = LocalMediaPreviewImageProvider()
+        with patch("ea_node_editor.ui.media_preview_provider.QImageReader", FakeReader):
+            with patch("ea_node_editor.ui.media_preview_provider.Path.exists", return_value=True):
+                with patch("ea_node_editor.ui.media_preview_provider.Path.is_file", return_value=True):
+                    image, size = provider.requestImage(
+                        "preview?source=file%3A%2F%2F%2FC%3A%2Ftmp%2Forientation-test.jpg",
+                        QSize(),
+                    )
+
+        self.assertFalse(image.isNull())
+        self.assertEqual(size.width(), 8)
+        self.assertEqual(size.height(), 6)
+        self.assertIn(("setAutoTransform", True), calls)
+        self.assertIn(("setDecideFormatFromContent", True), calls)
+        self.assertIn(("read", None), calls)
 
 
 if __name__ == "__main__":
