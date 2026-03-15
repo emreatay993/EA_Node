@@ -227,6 +227,12 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             _color_name(edge_layer.property("invalidDragStrokeColor")),
             self.graph_theme_bridge.edge_palette["invalid_drag_stroke"],
         )
+        self.assertEqual(_color_name(edge_layer.property("flowDefaultStrokeColor")), STITCH_DARK_V1.muted_fg)
+        self.assertEqual(_color_name(edge_layer.property("flowDefaultLabelTextColor")), STITCH_DARK_V1.panel_title_fg)
+        self.assertEqual(
+            _color_name(edge_layer.property("flowDefaultLabelBackgroundColor")),
+            STITCH_DARK_V1.panel_bg,
+        )
         self.assertEqual(
             _color_name(marquee_rect.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_DARK_V1.accent, 0.2),
@@ -258,6 +264,12 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(
             _color_name(edge_layer.property("invalidDragStrokeColor")),
             self.graph_theme_bridge.edge_palette["invalid_drag_stroke"],
+        )
+        self.assertEqual(_color_name(edge_layer.property("flowDefaultStrokeColor")), STITCH_LIGHT_V1.muted_fg)
+        self.assertEqual(_color_name(edge_layer.property("flowDefaultLabelTextColor")), STITCH_LIGHT_V1.panel_title_fg)
+        self.assertEqual(
+            _color_name(edge_layer.property("flowDefaultLabelBackgroundColor")),
+            STITCH_LIGHT_V1.panel_bg,
         )
         self.assertEqual(
             _color_name(marquee_rect.property("color"), include_alpha=True),
