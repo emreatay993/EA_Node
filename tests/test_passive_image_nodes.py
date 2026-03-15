@@ -4,14 +4,18 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
 from unittest.mock import patch
 
 from PyQt6.QtCore import QSize
+from PyQt6.QtGui import QColor, QImage
+from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.media_preview_provider import LocalMediaPreviewImageProvider
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -68,6 +72,105 @@ class PassiveImageNodeCatalogTests(unittest.TestCase):
         self.assertTrue(metrics.use_host_chrome)
         self.assertFalse(metrics.show_header_background)
         self.assertFalse(metrics.show_accent_bar)
+
+    def test_media_surface_metrics_auto_size_default_height_from_local_image_ratio(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("passive.media.image_panel")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            portrait_path = Path(temp_dir) / "portrait.png"
+            panorama_path = Path(temp_dir) / "panorama.png"
+
+            portrait = QImage(18, 36, QImage.Format.Format_ARGB32)
+            portrait.fill(QColor("#2c85bf"))
+            self.assertTrue(portrait.save(str(portrait_path)))
+
+            panorama = QImage(72, 18, QImage.Format.Format_ARGB32)
+            panorama.fill(QColor("#173247"))
+            self.assertTrue(panorama.save(str(panorama_path)))
+
+            portrait_node = NodeInstance(
+                node_id="node_image_panel_portrait",
+                type_id=spec.type_id,
+                title="Image Panel",
+                x=20.0,
+                y=30.0,
+                properties={"source_path": str(portrait_path), "caption": "", "fit_mode": "contain"},
+            )
+            panorama_node = NodeInstance(
+                node_id="node_image_panel_panorama",
+                type_id=spec.type_id,
+                title="Image Panel",
+                x=20.0,
+                y=30.0,
+                properties={"source_path": str(panorama_path), "caption": "", "fit_mode": "contain"},
+            )
+
+            portrait_metrics = node_surface_metrics(portrait_node, spec, {portrait_node.node_id: portrait_node})
+            panorama_metrics = node_surface_metrics(panorama_node, spec, {panorama_node.node_id: panorama_node})
+
+            self.assertAlmostEqual(portrait_metrics.default_height, 592.0, places=6)
+            self.assertAlmostEqual(panorama_metrics.default_height, 176.0, places=6)
+
+    def test_media_surface_metrics_reserves_caption_space_in_derived_height(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("passive.media.image_panel")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "captioned-image.png"
+            image = QImage(18, 36, QImage.Format.Format_ARGB32)
+            image.fill(QColor("#2c85bf"))
+            self.assertTrue(image.save(str(image_path)))
+
+            without_caption = NodeInstance(
+                node_id="node_image_panel_without_caption",
+                type_id=spec.type_id,
+                title="Image Panel",
+                x=20.0,
+                y=30.0,
+                properties={"source_path": str(image_path), "caption": "", "fit_mode": "contain"},
+            )
+            with_caption = NodeInstance(
+                node_id="node_image_panel_with_caption",
+                type_id=spec.type_id,
+                title="Image Panel",
+                x=20.0,
+                y=30.0,
+                properties={
+                    "source_path": str(image_path),
+                    "caption": "This caption should reserve space under the preview.",
+                    "fit_mode": "contain",
+                },
+            )
+
+            without_caption_metrics = node_surface_metrics(without_caption, spec, {without_caption.node_id: without_caption})
+            with_caption_metrics = node_surface_metrics(with_caption, spec, {with_caption.node_id: with_caption})
+
+            self.assertGreater(with_caption_metrics.default_height, without_caption_metrics.default_height)
+
+    def test_scene_bridge_recomputes_payload_height_without_persisting_custom_size(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            image_path = Path(temp_dir) / "portrait-image.png"
+            image = QImage(18, 36, QImage.Format.Format_ARGB32)
+            image.fill(QColor("#2c85bf"))
+            self.assertTrue(image.save(str(image_path)))
+
+            node_id = scene.add_node_from_type("passive.media.image_panel", 40.0, 60.0)
+            initial_payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+            self.assertEqual(initial_payload["height"], 236.0)
+
+            scene.set_node_property(node_id, "source_path", str(image_path))
+
+            updated_payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+            node = model.project.workspaces[workspace_id].nodes[node_id]
+            self.assertAlmostEqual(updated_payload["width"], 296.0, places=6)
+            self.assertAlmostEqual(updated_payload["height"], 592.0, places=6)
+            self.assertIsNone(node.custom_width)
+            self.assertIsNone(node.custom_height)
 
 
 class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):

@@ -16,6 +16,16 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         for child in item.childItems():
             yield from self._walk_items(child)
 
+    def _graph_node_card(self, node_id: str) -> QQuickItem:
+        graph_canvas = self._graph_canvas_item()
+        for item in self._walk_items(graph_canvas):
+            if item.objectName() != "graphNodeCard":
+                continue
+            node_data = item.property("nodeData") or {}
+            if str(node_data.get("node_id", "")) == node_id:
+                return item
+        self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
+
     def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
         root_object = self.window.quick_widget.rootObject()
         self.assertIsNotNone(root_object)
@@ -47,9 +57,11 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
         self.window.scene.focus_node(node_id)
         self.app.processEvents()
+        initial_card = self._graph_node_card(node_id)
+        initial_height = float(initial_card.height())
 
         picked_path = Path(self._env.temp_path) / "picked-image-node.png"
-        image = QImage(18, 12, QImage.Format.Format_ARGB32)
+        image = QImage(12, 24, QImage.Format.Format_ARGB32)
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(picked_path)))
 
@@ -61,5 +73,11 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
             self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        node_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
+        updated_card = self._graph_node_card(node_id)
         self.assertEqual(node.properties["source_path"], str(picked_path))
         self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertIsNone(node.custom_width)
+        self.assertIsNone(node.custom_height)
+        self.assertGreater(float(node_payload["height"]), initial_height)
+        self.assertAlmostEqual(float(updated_card.height()), float(node_payload["height"]), places=3)
