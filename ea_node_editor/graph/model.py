@@ -211,6 +211,7 @@ class GraphModel:
         y: float,
         properties: dict[str, Any] | None = None,
         exposed_ports: dict[str, bool] | None = None,
+        visual_style: dict[str, Any] | None = None,
     ) -> NodeInstance:
         workspace = self.project.workspaces[workspace_id]
         node = NodeInstance(
@@ -221,6 +222,7 @@ class GraphModel:
             y=y,
             properties=properties or {},
             exposed_ports=exposed_ports or {},
+            visual_style=copy.deepcopy(visual_style or {}),
         )
         workspace.nodes[node.node_id] = node
         workspace.dirty = True
@@ -265,6 +267,11 @@ class GraphModel:
         workspace.nodes[node_id].title = title
         workspace.dirty = True
 
+    def set_node_visual_style(self, workspace_id: str, node_id: str, visual_style: dict[str, Any] | None) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.nodes[node_id].visual_style = copy.deepcopy(visual_style or {})
+        workspace.dirty = True
+
     def set_exposed_port(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].exposed_ports[key] = exposed
@@ -277,6 +284,8 @@ class GraphModel:
         source_port_key: str,
         target_node_id: str,
         target_port_key: str,
+        label: str = "",
+        visual_style: dict[str, Any] | None = None,
     ) -> EdgeInstance:
         workspace = self.project.workspaces[workspace_id]
         if source_node_id not in workspace.nodes:
@@ -297,10 +306,22 @@ class GraphModel:
             source_port_key=source_port_key,
             target_node_id=target_node_id,
             target_port_key=target_port_key,
+            label=str(label),
+            visual_style=copy.deepcopy(visual_style or {}),
         )
         workspace.edges[edge.edge_id] = edge
         workspace.dirty = True
         return edge
+
+    def set_edge_label(self, workspace_id: str, edge_id: str, label: str) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.edges[edge_id].label = str(label)
+        workspace.dirty = True
+
+    def set_edge_visual_style(self, workspace_id: str, edge_id: str, visual_style: dict[str, Any] | None) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.edges[edge_id].visual_style = copy.deepcopy(visual_style or {})
+        workspace.dirty = True
 
     def remove_edge(self, workspace_id: str, edge_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]

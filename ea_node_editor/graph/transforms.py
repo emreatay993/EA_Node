@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -117,15 +118,16 @@ def build_subtree_fragment_payload_data(
                 "x": float(node.x),
                 "y": float(node.y),
                 "collapsed": bool(node.collapsed),
-                "properties": dict(node.properties),
+                "properties": copy.deepcopy(node.properties),
                 "exposed_ports": dict(node.exposed_ports),
+                "visual_style": copy.deepcopy(node.visual_style),
                 "parent_node_id": node.parent_node_id,
             }
         )
     if not nodes_payload:
         return None
 
-    edges_payload: list[dict[str, str]] = []
+    edges_payload: list[dict[str, Any]] = []
     workspace_edges = sorted(
         workspace.edges.values(),
         key=lambda edge: edge.edge_id,
@@ -139,6 +141,8 @@ def build_subtree_fragment_payload_data(
                 "source_port_key": edge.source_port_key,
                 "target_ref_id": edge.target_node_id,
                 "target_port_key": edge.target_port_key,
+                "label": str(edge.label),
+                "visual_style": copy.deepcopy(edge.visual_style),
             }
         )
     return {
@@ -229,6 +233,7 @@ def insert_graph_fragment(
             y=float(node_payload.get("y", 0.0)) + float(delta_y),
             properties=dict(node_payload.get("properties", {})),
             exposed_ports=dict(node_payload.get("exposed_ports", {})),
+            visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
         )
         created.collapsed = bool(node_payload.get("collapsed", False))
         node_id_map[source_node_id] = created.node_id
@@ -285,6 +290,8 @@ def insert_graph_fragment(
                 source_port_key=source_port_key,
                 target_node_id=target_node_id,
                 target_port_key=target_port_key,
+                label=str(edge_payload.get("label", "")),
+                visual_style=copy.deepcopy(edge_payload.get("visual_style", {})),
             )
         except ValueError:
             continue

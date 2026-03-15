@@ -35,6 +35,8 @@ tests/
 !tests/
 tests/*
 !tests/test_passive_runtime_wiring.py
+!tests/test_serializer.py
+!tests/test_passive_visual_metadata.py
 
 # Benchmark reference assets
 docs/Benchmark_Programs/
