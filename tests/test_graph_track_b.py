@@ -610,6 +610,27 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         expected_right_x = source_payload["x"] + (source_payload["width"] - expected_left_offset)
         self.assertAlmostEqual(edge_payload["sx"], expected_right_x, places=4)
 
+    def test_builtin_flowchart_catalog_nodes_keep_display_titles_and_neutral_branch_keys(self) -> None:
+        decision_id = self.scene.add_node_from_type("passive.flowchart.decision", 20.0, 30.0)
+        end_id = self.scene.add_node_from_type("passive.flowchart.end", 360.0, 90.0)
+        edge_id = self.scene.add_edge(decision_id, "branch_a", end_id, "flow_in")
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.assertEqual(workspace.nodes[decision_id].title, "Decision")
+        self.assertEqual(workspace.nodes[end_id].title, "End")
+
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
+        decision_ports = {port["key"]: port for port in node_payload[decision_id]["ports"]}
+
+        self.assertEqual(set(decision_ports), {"flow_in", "branch_a", "branch_b"})
+        self.assertEqual(decision_ports["branch_a"]["label"], "branch_a")
+        self.assertEqual(decision_ports["branch_b"]["label"], "branch_b")
+        self.assertEqual(decision_ports["branch_a"]["kind"], "flow")
+        self.assertEqual(decision_ports["branch_b"]["data_type"], "flow")
+        self.assertEqual(edge_payload["source_port_kind"], "flow")
+        self.assertEqual(edge_payload["target_port_kind"], "flow")
+
     def test_hiding_connected_port_removes_edges_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
         target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)
