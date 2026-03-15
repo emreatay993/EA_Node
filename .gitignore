@@ -47,9 +47,11 @@ tests/*
 !tests/test_passive_visual_metadata.py
 !tests/test_shell_theme.py
 !tests/test_flow_edge_labels.py
+!tests/test_passive_style_dialogs.py
 !tests/main_window_shell/
 tests/main_window_shell/*
 !tests/main_window_shell/base.py
+!tests/main_window_shell/passive_style_context_menus.py
 !tests/main_window_shell/passive_property_editors.py
 !tests/main_window_shell/view_library_inspector.py
 

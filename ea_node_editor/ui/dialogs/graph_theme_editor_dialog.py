@@ -1,18 +1,15 @@
 from __future__ import annotations
 
 import copy
-import re
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QRegularExpression, Qt, pyqtSignal
-from PyQt6.QtGui import QBrush, QColor, QFont, QRegularExpressionValidator
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QBrush, QColor, QFont
 from PyQt6.QtWidgets import (
-    QColorDialog,
     QDialog,
     QFormLayout,
     QFrame,
-    QGridLayout,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -27,6 +24,14 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from ea_node_editor.ui.dialogs.passive_style_controls import (
+    ColorHexFieldControl,
+    DEFAULT_LINE_EDIT_STYLE,
+    INVALID_LINE_EDIT_STYLE,
+    INVALID_SWATCH_STYLE,
+    is_valid_hex_color,
+    swatch_style,
+)
 from ea_node_editor.ui.graph_theme import (
     DEFAULT_GRAPH_THEME_ID,
     GRAPH_THEME_REGISTRY,
@@ -39,12 +44,6 @@ from ea_node_editor.ui.graph_theme import (
 )
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
 
-_FINAL_HEX_COLOR = re.compile(r"^#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?$")
-_INVALID_TOKEN_FIELD_STYLE = "border: 1px solid #C75050;"
-_DEFAULT_TOKEN_FIELD_STYLE = ""
-_DEFAULT_SWATCH_STYLE = "border: 1px solid #5f6b7a; border-radius: 4px;"
-_INVALID_SWATCH_STYLE = "background-color: transparent; border: 1px solid #C75050; border-radius: 4px;"
-
 _TOKEN_LABEL_EXPANSIONS: dict[str, str] = {
     "bg": "Background",
     "fg": "Foreground",
@@ -55,35 +54,6 @@ _TOKEN_LABEL_EXPANSIONS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Helper widgets
 # ---------------------------------------------------------------------------
-
-
-class _ColorSwatchFrame(QFrame):
-    """A 32x32 clickable color swatch that can open a QColorDialog."""
-
-    clicked = pyqtSignal()
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setFixedSize(32, 32)
-        self.setFrameShape(QFrame.Shape.NoFrame)
-        self._editable = False
-
-    @property
-    def editable(self) -> bool:
-        return self._editable
-
-    @editable.setter
-    def editable(self, value: bool) -> None:
-        self._editable = value
-        self.setCursor(
-            Qt.CursorShape.PointingHandCursor if value else Qt.CursorShape.ArrowCursor
-        )
-
-    def mousePressEvent(self, event) -> None:  # noqa: ANN001
-        if self._editable and event.button() == Qt.MouseButton.LeftButton:
-            self.clicked.emit()
-        else:
-            super().mousePressEvent(event)
 
 
 class _CollapsibleSection(QWidget):
@@ -193,9 +163,8 @@ class GraphThemeEditorDialog(QDialog):
         self._use_selected_requested = False
         self._theme_items: dict[str, QTreeWidgetItem] = {}
         self._token_value_fields: dict[str, dict[str, QLineEdit]] = {}
-        self._token_swatch_frames: dict[str, dict[str, _ColorSwatchFrame]] = {}
+        self._token_swatch_frames: dict[str, dict[str, QFrame]] = {}
         self._suppress_token_sync = False
-        self._token_validator = QRegularExpressionValidator(QRegularExpression(r"#[0-9A-Fa-f]{0,8}"), self)
         self._collapsed_sections: dict[str, bool] = {}
         self._collapsible_sections: dict[str, _CollapsibleSection] = {}
 
@@ -421,38 +390,28 @@ class GraphThemeEditorDialog(QDialog):
             form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
             value_fields: dict[str, QLineEdit] = {}
-            swatch_frames: dict[str, _ColorSwatchFrame] = {}
+            swatch_frames: dict[str, QFrame] = {}
             for token_name in section_mapping:
-                row_widget = QWidget(collapsible.content_widget)
-                row_layout = QHBoxLayout(row_widget)
-                row_layout.setContentsMargins(0, 0, 0, 0)
-                row_layout.setSpacing(8)
-
-                swatch = _ColorSwatchFrame(row_widget)
-                swatch.setObjectName(f"{section_name}_{token_name}_swatch")
-                swatch.clicked.connect(
-                    lambda current_section=section_name, current_token=token_name: self._on_swatch_clicked(
-                        current_section, current_token
-                    )
+                control = ColorHexFieldControl(
+                    collapsible.content_widget,
+                    allow_empty=False,
+                    color_dialog_title=f"Pick color for {_token_label(token_name)}",
                 )
-
-                value_field = QLineEdit(row_widget)
-                value_field.setValidator(self._token_validator)
-                value_field.setObjectName(f"{section_name}_{token_name}_value")
-                value_field.textChanged.connect(
+                control.setObjectNames(
+                    value_name=f"{section_name}_{token_name}_value",
+                    swatch_name=f"{section_name}_{token_name}_swatch",
+                )
+                control.valueChanged.connect(
                     lambda text, current_section=section_name, current_token=token_name: self._on_token_text_changed(
                         current_section,
                         current_token,
                         text,
                     )
                 )
+                form.addRow(_token_label(token_name), control)
 
-                row_layout.addWidget(swatch, stretch=0, alignment=Qt.AlignmentFlag.AlignVCenter)
-                row_layout.addWidget(value_field, stretch=1)
-                form.addRow(_token_label(token_name), row_widget)
-
-                value_fields[token_name] = value_field
-                swatch_frames[token_name] = swatch
+                value_fields[token_name] = control.line_edit
+                swatch_frames[token_name] = control.swatch
 
             self._token_value_fields[section_name] = value_fields
             self._token_swatch_frames[section_name] = swatch_frames
@@ -576,11 +535,12 @@ class GraphThemeEditorDialog(QDialog):
                     if not is_custom:
                         field.setStyleSheet("background: rgba(128, 128, 128, 0.08);")
                     else:
-                        field.setStyleSheet(_DEFAULT_TOKEN_FIELD_STYLE)
+                        field.setStyleSheet(DEFAULT_LINE_EDIT_STYLE)
                     field.setText(token_value)
 
                     swatch = self._token_swatch_frames[section_name][token_name]
-                    swatch.editable = is_custom
+                    if hasattr(swatch, "editable"):
+                        swatch.editable = is_custom
                     self._set_token_swatch(section_name, token_name, token_value)
         finally:
             self._suppress_token_sync = False
@@ -674,7 +634,7 @@ class GraphThemeEditorDialog(QDialog):
             return True
         for section_name, _section_title in self._TOKEN_SECTIONS:
             for token_name, field in self._token_value_fields[section_name].items():
-                if _is_valid_hex_color(field.text()):
+                if is_valid_hex_color(field.text()):
                     continue
                 self.validation_message.setVisible(True)
                 QMessageBox.warning(
@@ -682,8 +642,8 @@ class GraphThemeEditorDialog(QDialog):
                     "Invalid Graph Theme Color",
                     "Custom theme colors must use #RRGGBB or #AARRGGBB before the theme can be saved.",
                 )
-                field.setStyleSheet(_INVALID_TOKEN_FIELD_STYLE)
-                self._token_swatch_frames[section_name][token_name].setStyleSheet(_INVALID_SWATCH_STYLE)
+                field.setStyleSheet(INVALID_LINE_EDIT_STYLE)
+                self._token_swatch_frames[section_name][token_name].setStyleSheet(INVALID_SWATCH_STYLE)
                 field.setFocus(Qt.FocusReason.OtherFocusReason)
                 return False
         self.validation_message.setVisible(False)
@@ -704,39 +664,21 @@ class GraphThemeEditorDialog(QDialog):
         field = self._token_value_fields[section_name][token_name]
         swatch = self._token_swatch_frames[section_name][token_name]
         normalized = str(text).strip()
-        if not _is_valid_hex_color(normalized):
-            field.setStyleSheet(_INVALID_TOKEN_FIELD_STYLE)
-            swatch.setStyleSheet(_INVALID_SWATCH_STYLE)
+        if not is_valid_hex_color(normalized):
+            field.setStyleSheet(INVALID_LINE_EDIT_STYLE)
+            swatch.setStyleSheet(INVALID_SWATCH_STYLE)
             self._sync_validation_message()
             return
 
-        field.setStyleSheet(_DEFAULT_TOKEN_FIELD_STYLE)
+        field.setStyleSheet(DEFAULT_LINE_EDIT_STYLE)
         section_tokens = self._custom_graph_themes[theme_index].get(section_name)
         if not isinstance(section_tokens, dict):
             section_tokens = {}
             self._custom_graph_themes[theme_index][section_name] = section_tokens
         section_tokens[token_name] = normalized
-        swatch.setStyleSheet(_swatch_style(normalized))
+        swatch.setStyleSheet(swatch_style(normalized))
         self._sync_validation_message()
         self._maybe_live_apply(theme_id)
-
-    def _on_swatch_clicked(self, section_name: str, token_name: str) -> None:
-        field = self._token_value_fields[section_name][token_name]
-        current_text = field.text().strip()
-        initial_color = QColor(current_text) if _is_valid_hex_color(current_text) else QColor("#ffffff")
-        color = QColorDialog.getColor(
-            initial_color,
-            self,
-            f"Pick color for {_token_label(token_name)}",
-            QColorDialog.ColorDialogOption.ShowAlphaChannel,
-        )
-        if not color.isValid():
-            return
-        if color.alpha() < 255:
-            hex_value = f"#{color.alpha():02X}{color.red():02X}{color.green():02X}{color.blue():02X}"
-        else:
-            hex_value = color.name().upper()
-        field.setText(hex_value)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -757,7 +699,7 @@ class GraphThemeEditorDialog(QDialog):
         return is_custom_graph_theme_id(resolved_theme_id) and resolved_theme_id == explicit_theme_id
 
     def _set_token_swatch(self, section_name: str, token_name: str, token_value: str) -> None:
-        self._token_swatch_frames[section_name][token_name].setStyleSheet(_swatch_style(token_value))
+        self._token_swatch_frames[section_name][token_name].setStyleSheet(swatch_style(token_value))
 
     def _sync_validation_message(self) -> None:
         theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
@@ -765,7 +707,7 @@ class GraphThemeEditorDialog(QDialog):
             self.validation_message.setVisible(False)
             return
         has_invalid_field = any(
-            not _is_valid_hex_color(field.text())
+            not is_valid_hex_color(field.text())
             for fields in self._token_value_fields.values()
             for field in fields.values()
         )
@@ -804,14 +746,6 @@ def _token_label(token_name: str) -> str:
     parts = str(token_name).split("_")
     expanded = [_TOKEN_LABEL_EXPANSIONS.get(p, p) for p in parts]
     return " ".join(expanded).title()
-
-
-def _is_valid_hex_color(value: object) -> bool:
-    return bool(_FINAL_HEX_COLOR.match(str(value).strip()))
-
-
-def _swatch_style(value: str) -> str:
-    return f"background-color: {value}; {_DEFAULT_SWATCH_STYLE}"
 
 
 def _h_separator() -> QFrame:

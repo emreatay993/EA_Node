@@ -196,6 +196,33 @@ Item {
         return null;
     }
 
+    function _sceneEdgePayload(edgeId) {
+        var normalized = String(edgeId || "").trim();
+        if (!normalized)
+            return null;
+        var edges = root.edgePayload || [];
+        for (var i = 0; i < edges.length; i++) {
+            var edge = edges[i];
+            if (edge && edge.edge_id === normalized)
+                return edge;
+        }
+        return null;
+    }
+
+    function _nodeSupportsPassiveStyle(nodeId) {
+        var payload = _sceneNodePayload(nodeId);
+        if (!payload)
+            return false;
+        return String(payload.runtime_behavior || "").toLowerCase() === "passive";
+    }
+
+    function _edgeSupportsFlowStyle(edgeId) {
+        var payload = _sceneEdgePayload(edgeId);
+        if (!payload)
+            return false;
+        return String(payload.edge_family || "").toLowerCase() === "flow";
+    }
+
     function _nodeCanEnterScope(nodeId) {
         var payload = _sceneNodePayload(nodeId);
         if (!payload)
@@ -1027,7 +1054,8 @@ Item {
         if (!edgeId)
             return;
         root.forceActiveFocus();
-        var position = _clampMenuPosition(x, y, 170, 36);
+        var menuHeight = _edgeSupportsFlowStyle(edgeId) ? 232 : 48;
+        var position = _clampMenuPosition(x, y, 206, menuHeight);
         _closeContextMenus();
         root.edgeContextEdgeId = edgeId;
         root.contextMenuX = position.x;
@@ -1039,8 +1067,10 @@ Item {
         if (!nodeId)
             return;
         root.forceActiveFocus();
-        var menuHeight = _nodeCanEnterScope(nodeId) ? 144 : 72;
-        var position = _clampMenuPosition(x, y, 170, menuHeight);
+        var menuHeight = _nodeSupportsPassiveStyle(nodeId)
+            ? (_nodeCanEnterScope(nodeId) ? 304 : 232)
+            : (_nodeCanEnterScope(nodeId) ? 152 : 80);
+        var position = _clampMenuPosition(x, y, 206, menuHeight);
         _closeContextMenus();
         root.nodeContextNodeId = nodeId;
         root.contextMenuX = position.x;

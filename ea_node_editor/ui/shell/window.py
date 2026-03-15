@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -7,9 +8,9 @@ from typing import Any, Callable, Literal
 from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
-from PyQt6.QtWidgets import QApplication, QFileDialog, QMainWindow, QMessageBox
+from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow, QMessageBox
 
-from ea_node_editor.graph.effective_ports import find_port
+from ea_node_editor.graph.effective_ports import find_port, port_kind
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.nodes.builtins.subnode import (
@@ -36,6 +37,10 @@ from ea_node_editor.ui.graph_theme import (
 )
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
+from ea_node_editor.ui.dialogs.passive_style_controls import (
+    normalize_flow_edge_style_payload,
+    normalize_passive_node_style_payload,
+)
 from ea_node_editor.ui.shell.controllers import (
     AppPreferencesController,
     ProjectSessionController,
@@ -90,6 +95,8 @@ def _configure_qtquick_backend() -> None:
 
 _configure_qtquick_backend()
 _UNSET = object()
+_PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
+_FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
 
 
 class ShellWindow(QMainWindow):
@@ -1506,6 +1513,97 @@ class ShellWindow(QMainWindow):
     def request_remove_selected_port(self, key: str) -> bool:
         return bool(self.workspace_library_controller.request_remove_selected_port(key).payload)
 
+    @pyqtSlot(str, result=bool)
+    def request_edit_passive_node_style(self, node_id: str) -> bool:
+        style = self.edit_passive_node_style(node_id)
+        if style is None:
+            return False
+        self.scene.set_node_visual_style(node_id, style)
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_reset_passive_node_style(self, node_id: str) -> bool:
+        if self._passive_node_context(node_id) is None:
+            return False
+        self.scene.clear_node_visual_style(node_id)
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_copy_passive_node_style(self, node_id: str) -> bool:
+        context = self._passive_node_context(node_id)
+        if context is None:
+            return False
+        node, _spec, _workspace = context
+        self._write_style_clipboard(
+            kind=_PASSIVE_NODE_STYLE_CLIPBOARD_KIND,
+            style=normalize_passive_node_style_payload(node.visual_style),
+        )
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_paste_passive_node_style(self, node_id: str) -> bool:
+        if self._passive_node_context(node_id) is None:
+            return False
+        style = self._read_style_clipboard(kind=_PASSIVE_NODE_STYLE_CLIPBOARD_KIND)
+        if style is None:
+            return False
+        self.scene.set_node_visual_style(node_id, style)
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
+        style = self.edit_flow_edge_style(edge_id)
+        if style is None:
+            return False
+        self.scene.set_edge_visual_style(edge_id, style)
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
+            return False
+        edge, _workspace = context
+        label, accepted = QInputDialog.getText(
+            self,
+            "Edit Flow Edge Label",
+            "Label:",
+            text=str(edge.label or ""),
+        )
+        if not accepted:
+            return False
+        self.scene.set_edge_label(edge_id, label)
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
+        if self._flow_edge_context(edge_id) is None:
+            return False
+        self.scene.clear_edge_visual_style(edge_id)
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
+            return False
+        edge, _workspace = context
+        self._write_style_clipboard(
+            kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND,
+            style=normalize_flow_edge_style_payload(edge.visual_style),
+        )
+        return True
+
+    @pyqtSlot(str, result=bool)
+    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
+        if self._flow_edge_context(edge_id) is None:
+            return False
+        style = self._read_style_clipboard(kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND)
+        if style is None:
+            return False
+        self.scene.set_edge_visual_style(edge_id, style)
+        return True
+
     @pyqtSlot("QVariantList", result=bool)
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
         return bool(self.workspace_library_controller.request_delete_selected_graph_items(edge_ids).payload)
@@ -1742,6 +1840,112 @@ class ShellWindow(QMainWindow):
 
     def _selected_node_context(self):
         return self.workspace_library_controller.selected_node_context()
+
+    def _active_workspace_data(self):
+        workspace_id = self.workspace_manager.active_workspace_id()
+        return self.model.project.workspaces.get(workspace_id)
+
+    def _passive_node_context(self, node_id: str):
+        workspace = self._active_workspace_data()
+        if workspace is None:
+            return None
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return None
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return None
+        spec = self.registry.get_spec(node.type_id)
+        if str(spec.runtime_behavior or "").strip().lower() != "passive":
+            return None
+        return node, spec, workspace
+
+    def _flow_edge_context(self, edge_id: str):
+        workspace = self._active_workspace_data()
+        if workspace is None:
+            return None
+        normalized_edge_id = str(edge_id).strip()
+        if not normalized_edge_id:
+            return None
+        edge = workspace.edges.get(normalized_edge_id)
+        if edge is None:
+            return None
+        source_node = workspace.nodes.get(edge.source_node_id)
+        target_node = workspace.nodes.get(edge.target_node_id)
+        if source_node is None or target_node is None:
+            return None
+        source_spec = self.registry.get_spec(source_node.type_id)
+        target_spec = self.registry.get_spec(target_node.type_id)
+        try:
+            source_kind = port_kind(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=edge.source_port_key,
+            )
+            target_kind = port_kind(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=edge.target_port_key,
+            )
+        except KeyError:
+            return None
+        if source_kind != "flow" or target_kind != "flow":
+            return None
+        return edge, workspace
+
+    def edit_passive_node_style(self, node_id: str) -> dict[str, Any] | None:
+        context = self._passive_node_context(node_id)
+        if context is None:
+            return None
+        node, _spec, _workspace = context
+        from ea_node_editor.ui.dialogs import PassiveNodeStyleDialog
+
+        dialog = PassiveNodeStyleDialog(initial_style=node.visual_style, parent=self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return None
+        return dialog.node_style()
+
+    def edit_flow_edge_style(self, edge_id: str) -> dict[str, Any] | None:
+        context = self._flow_edge_context(edge_id)
+        if context is None:
+            return None
+        edge, _workspace = context
+        from ea_node_editor.ui.dialogs import FlowEdgeStyleDialog
+
+        dialog = FlowEdgeStyleDialog(initial_style=edge.visual_style, parent=self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return None
+        return dialog.edge_style()
+
+    def _write_style_clipboard(self, *, kind: str, style: dict[str, Any]) -> None:
+        QApplication.clipboard().setText(
+            json.dumps(
+                {
+                    "kind": str(kind),
+                    "version": 1,
+                    "style": style,
+                }
+            )
+        )
+
+    def _read_style_clipboard(self, *, kind: str) -> dict[str, Any] | None:
+        raw_text = str(QApplication.clipboard().text() or "").strip()
+        if not raw_text:
+            return None
+        try:
+            payload = json.loads(raw_text)
+        except ValueError:
+            return None
+        if not isinstance(payload, dict) or str(payload.get("kind", "")).strip() != str(kind):
+            return None
+        style = payload.get("style")
+        if kind == _PASSIVE_NODE_STYLE_CLIPBOARD_KIND:
+            return normalize_passive_node_style_payload(style)
+        if kind == _FLOW_EDGE_STYLE_CLIPBOARD_KIND:
+            return normalize_flow_edge_style_payload(style)
+        return None
 
     def _focus_failed_node(self, workspace_id, node_id, error):
         return self.workspace_library_controller.focus_failed_node(workspace_id, node_id, error)
