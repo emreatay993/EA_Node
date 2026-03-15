@@ -13,7 +13,7 @@ Item {
         strokeColor: host
             ? (host.nodeData && host.nodeData.selected ? host.selectedOutlineColor : host.outlineColor)
             : "#3a3d45"
-        strokeWidth: host && host.nodeData && host.nodeData.selected ? 2 : 1
+        strokeWidth: host ? Number(host.resolvedBorderWidth || 1) : 1
     }
 
     GraphComponents.GraphInlinePropertiesLayer {

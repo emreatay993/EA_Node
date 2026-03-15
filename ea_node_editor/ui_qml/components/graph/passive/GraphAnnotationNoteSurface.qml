@@ -9,12 +9,18 @@ Item {
         : ({})
     readonly property string annotationVariant: host ? String(host.surfaceVariant || "") : ""
     readonly property color noteFillColor: _noteFillColor()
-    readonly property color noteBorderColor: host ? Qt.lighter(host.outlineColor, 1.08) : "#4a4f5a"
+    readonly property color noteBorderColor: host && host.nodeData && host.nodeData.selected
+        ? host.selectedOutlineColor
+        : (host && host.hasPassiveBorderOverride
+            ? host.outlineColor
+            : (host ? Qt.lighter(host.outlineColor, 1.08) : "#4a4f5a"))
     readonly property color primaryTextColor: host ? host.inlineInputTextColor : "#f0f2f5"
     readonly property color secondaryTextColor: host ? host.inlineDrivenTextColor : "#bdc5d3"
     readonly property color labelTextColor: host ? host.inlineLabelColor : "#d0d5de"
     readonly property string bodyValue: _value("body")
     readonly property string subtitleValue: _value("subtitle")
+    readonly property real bodyFontSize: host ? Number(host.passiveFontPixelSize || 12) : 12
+    readonly property real labelFontSize: Math.max(9, bodyFontSize - 2)
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     function _value(key) {
@@ -25,6 +31,8 @@ Item {
     }
 
     function _noteFillColor() {
+        if (host && host.hasPassiveFillOverride)
+            return host.surfaceColor;
         if (annotationVariant === "section_header")
             return Qt.alpha(host ? host.headerColor : "#2a2b30", 0.22);
         if (annotationVariant === "callout")
@@ -34,9 +42,11 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: annotationVariant === "section_header" ? 4 : 6
+        radius: annotationVariant === "section_header"
+            ? Math.max(4, host ? Number(host.resolvedCornerRadius || 6) - 2 : 4)
+            : (host ? Number(host.resolvedCornerRadius || 6) : 6)
         color: surface.noteFillColor
-        border.width: 1
+        border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.noteBorderColor
     }
 
@@ -103,29 +113,31 @@ Item {
                     border.width: 1
                     border.color: host ? host.scopeBadgeColor : "#1D8CE0"
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: "!"
-                        color: host ? host.scopeBadgeTextColor : "#f2f4f8"
-                        font.pixelSize: 11
-                        font.bold: true
-                    }
-                }
-
                 Text {
-                    text: "CALLOUT"
-                    color: surface.labelTextColor
-                    font.pixelSize: 10
+                    anchors.centerIn: parent
+                    text: "!"
+                    color: host ? host.scopeBadgeTextColor : "#f2f4f8"
+                    font.pixelSize: Math.max(11, surface.bodyFontSize - 1)
                     font.bold: true
-                    opacity: 0.86
                 }
             }
+
+            Text {
+                text: "CALLOUT"
+                color: surface.labelTextColor
+                font.pixelSize: surface.labelFontSize
+                font.bold: true
+                opacity: 0.86
+            }
+        }
 
             Text {
                 visible: annotationVariant !== "section_header" && surface.bodyValue.length > 0
                 width: parent.width
                 text: surface.bodyValue
                 color: surface.primaryTextColor
+                font.pixelSize: surface.bodyFontSize
+                font.bold: host ? Boolean(host.passiveFontBold) : false
                 wrapMode: Text.WordWrap
                 maximumLineCount: annotationVariant === "sticky_note" ? 5 : 4
                 elide: Text.ElideRight
@@ -136,6 +148,7 @@ Item {
                 width: parent.width
                 text: surface.subtitleValue
                 color: surface.secondaryTextColor
+                font.pixelSize: surface.bodyFontSize
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
                 elide: Text.ElideRight

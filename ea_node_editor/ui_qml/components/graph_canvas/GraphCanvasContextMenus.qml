@@ -17,16 +17,41 @@ Item {
         x: root.canvasItem ? root.canvasItem.contextMenuX : 0
         y: root.canvasItem ? root.canvasItem.contextMenuY : 0
         minimumWidth: 198
+        readonly property var edgePayload: root.canvasItem
+            ? root.canvasItem._sceneEdgePayload(root.canvasItem.edgeContextEdgeId)
+            : null
+        readonly property bool isFlowEdge: edgePayload
+            ? String(edgePayload.edge_family || "").toLowerCase() === "flow"
+            : false
         actions: [
+            { "actionId": "edit_flow_edge", "text": "Edit Flow Edge...", "visible": edgeContextPopup.isFlowEdge },
+            { "actionId": "edit_edge_label", "text": "Edit Label...", "visible": edgeContextPopup.isFlowEdge },
+            { "actionId": "reset_flow_edge_style", "text": "Reset Style", "visible": edgeContextPopup.isFlowEdge },
+            { "actionId": "copy_flow_edge_style", "text": "Copy Style", "visible": edgeContextPopup.isFlowEdge },
+            { "actionId": "paste_flow_edge_style", "text": "Paste Style", "visible": edgeContextPopup.isFlowEdge },
             { "actionId": "remove_edge", "text": "Remove Connection", "destructive": true }
         ]
         onActionTriggered: function(actionId) {
-            if (actionId !== "remove_edge" || !root.mainWindowBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
+            if (!root.mainWindowBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
                 return
-            root.mainWindowBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId)
-            root.canvasItem.selectedEdgeIds = root.canvasItem.selectedEdgeIds.filter(function(value) {
-                return value !== root.canvasItem.edgeContextEdgeId
-            })
+            if (actionId === "edit_flow_edge") {
+                root.mainWindowBridge.request_edit_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+            } else if (actionId === "edit_edge_label") {
+                root.mainWindowBridge.request_edit_flow_edge_label(root.canvasItem.edgeContextEdgeId)
+            } else if (actionId === "reset_flow_edge_style") {
+                root.mainWindowBridge.request_reset_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+            } else if (actionId === "copy_flow_edge_style") {
+                root.mainWindowBridge.request_copy_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+            } else if (actionId === "paste_flow_edge_style") {
+                root.mainWindowBridge.request_paste_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+            } else if (actionId === "remove_edge") {
+                root.mainWindowBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId)
+                root.canvasItem.selectedEdgeIds = root.canvasItem.selectedEdgeIds.filter(function(value) {
+                    return value !== root.canvasItem.edgeContextEdgeId
+                })
+            } else {
+                return
+            }
             root.canvasItem._closeContextMenus()
         }
     }
@@ -41,17 +66,19 @@ Item {
         property bool canEnterScope: root.canvasItem
             ? root.canvasItem._nodeCanEnterScope(root.canvasItem.nodeContextNodeId)
             : false
-        actions: nodeContextPopup.canEnterScope
-            ? [
-                { "actionId": "enter_subnode", "text": "Enter Subnode" },
-                { "actionId": "add_to_workflows", "text": "Add to Workflows" },
-                { "actionId": "rename_node", "text": "Rename Node" },
-                { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
-            ]
-            : [
-                { "actionId": "rename_node", "text": "Rename Node" },
-                { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
-            ]
+        readonly property bool isPassiveNode: root.canvasItem
+            ? root.canvasItem._nodeSupportsPassiveStyle(root.canvasItem.nodeContextNodeId)
+            : false
+        actions: [
+            { "actionId": "enter_subnode", "text": "Enter Subnode", "visible": nodeContextPopup.canEnterScope },
+            { "actionId": "add_to_workflows", "text": "Add to Workflows", "visible": nodeContextPopup.canEnterScope },
+            { "actionId": "edit_node_style", "text": "Edit Style...", "visible": nodeContextPopup.isPassiveNode },
+            { "actionId": "reset_node_style", "text": "Reset Style", "visible": nodeContextPopup.isPassiveNode },
+            { "actionId": "copy_node_style", "text": "Copy Style", "visible": nodeContextPopup.isPassiveNode },
+            { "actionId": "paste_node_style", "text": "Paste Style", "visible": nodeContextPopup.isPassiveNode },
+            { "actionId": "rename_node", "text": "Rename Node" },
+            { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
+        ]
         onActionTriggered: function(actionId) {
             if (!root.canvasItem)
                 return
@@ -66,6 +93,14 @@ Item {
                 return
             if (actionId === "add_to_workflows") {
                 root.mainWindowBridge.request_publish_custom_workflow_from_node(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "edit_node_style") {
+                root.mainWindowBridge.request_edit_passive_node_style(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "reset_node_style") {
+                root.mainWindowBridge.request_reset_passive_node_style(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "copy_node_style") {
+                root.mainWindowBridge.request_copy_passive_node_style(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "paste_node_style") {
+                root.mainWindowBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "rename_node") {
                 root.mainWindowBridge.request_rename_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "remove_node") {

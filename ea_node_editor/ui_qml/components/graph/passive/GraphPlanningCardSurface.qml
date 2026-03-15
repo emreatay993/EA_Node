@@ -8,8 +8,14 @@ Item {
         ? host.nodeData.properties
         : ({})
     readonly property string planningVariant: host ? String(host.surfaceVariant || "") : ""
-    readonly property color panelFillColor: Qt.darker(host ? host.surfaceColor : "#1b1d22", 1.06)
-    readonly property color panelBorderColor: host ? Qt.lighter(host.outlineColor, 1.12) : "#4a4f5a"
+    readonly property color panelFillColor: host && host.hasPassiveFillOverride
+        ? host.surfaceColor
+        : Qt.darker(host ? host.surfaceColor : "#1b1d22", 1.06)
+    readonly property color panelBorderColor: host && host.nodeData && host.nodeData.selected
+        ? host.selectedOutlineColor
+        : (host && host.hasPassiveBorderOverride
+            ? host.outlineColor
+            : (host ? Qt.lighter(host.outlineColor, 1.12) : "#4a4f5a"))
     readonly property color bodyTextColor: host ? host.inlineInputTextColor : "#f0f2f5"
     readonly property color mutedTextColor: host ? host.inlineDrivenTextColor : "#bdc5d3"
     readonly property color metaLabelColor: host ? host.inlineLabelColor : "#d0d5de"
@@ -23,6 +29,9 @@ Item {
     readonly property string chipText: _chipText()
     readonly property color chipFillColor: _chipFillColor()
     readonly property color chipBorderColor: Qt.lighter(chipFillColor, 1.16)
+    readonly property real bodyFontSize: host ? Number(host.passiveFontPixelSize || 12) : 12
+    readonly property real metaFontSize: Math.max(9, bodyFontSize - 2)
+    readonly property real chipFontSize: Math.max(9, bodyFontSize - 3)
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     function _value(key) {
@@ -61,6 +70,8 @@ Item {
     }
 
     function _chipFillColor() {
+        if (host && host.hasPassiveAccentOverride)
+            return host.scopeBadgeColor;
         var key = _chipText();
         if (key === "done" || key === "decided")
             return "#2f8f68";
@@ -137,9 +148,9 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        radius: 6
+        radius: host ? Number(host.resolvedCornerRadius || 6) : 6
         color: surface.panelFillColor
-        border.width: 1
+        border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.panelBorderColor
     }
 
@@ -167,7 +178,7 @@ Item {
                     id: variantLabel
                     text: surface._variantLabel()
                     color: surface.metaLabelColor
-                    font.pixelSize: 10
+                    font.pixelSize: surface.metaFontSize
                     font.bold: true
                     opacity: 0.86
                 }
@@ -192,7 +203,7 @@ Item {
                         anchors.centerIn: parent
                         text: surface.chipText.toUpperCase()
                         color: "#f5f7fb"
-                        font.pixelSize: 9
+                        font.pixelSize: surface.chipFontSize
                         font.bold: true
                     }
                 }
@@ -203,6 +214,8 @@ Item {
                 width: parent.width
                 text: surface.bodyValue
                 color: surface.bodyTextColor
+                font.pixelSize: surface.bodyFontSize
+                font.bold: host ? Boolean(host.passiveFontBold) : false
                 wrapMode: Text.WordWrap
                 maximumLineCount: surface.planningVariant === "milestone_card" ? 4 : 5
                 elide: Text.ElideRight
@@ -221,7 +234,7 @@ Item {
                     Text {
                         text: surface.leftMetaLabel
                         color: surface.metaLabelColor
-                        font.pixelSize: 9
+                        font.pixelSize: surface.metaFontSize
                         font.bold: true
                     }
 
@@ -229,6 +242,7 @@ Item {
                         width: parent.width
                         text: surface.leftMetaValue
                         color: surface.mutedTextColor
+                        font.pixelSize: surface.bodyFontSize
                         wrapMode: Text.WordWrap
                         maximumLineCount: 2
                         elide: Text.ElideRight
@@ -243,7 +257,7 @@ Item {
                     Text {
                         text: surface.rightMetaLabel
                         color: surface.metaLabelColor
-                        font.pixelSize: 9
+                        font.pixelSize: surface.metaFontSize
                         font.bold: true
                     }
 
@@ -251,6 +265,7 @@ Item {
                         width: parent.width
                         text: surface.rightMetaValue
                         color: surface.mutedTextColor
+                        font.pixelSize: surface.bodyFontSize
                         wrapMode: Text.WordWrap
                         maximumLineCount: 2
                         elide: Text.ElideRight
@@ -266,7 +281,7 @@ Item {
                 Text {
                     text: surface.detailMetaLabel
                     color: surface.metaLabelColor
-                    font.pixelSize: 9
+                    font.pixelSize: surface.metaFontSize
                     font.bold: true
                 }
 
@@ -274,6 +289,7 @@ Item {
                     width: parent.width
                     text: surface.detailMetaValue
                     color: surface.mutedTextColor
+                    font.pixelSize: surface.bodyFontSize
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight

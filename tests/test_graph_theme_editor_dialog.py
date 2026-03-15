@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtWidgets import QLineEdit, QMessageBox
+from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES
 from ea_node_editor.ui.dialogs.graph_theme_editor_dialog import GraphThemeEditorDialog
@@ -22,6 +22,8 @@ def _custom_theme(theme_id: str = "custom_graph_theme_deadbeef", label: str = "O
 
 
 class GraphThemeEditorDialogTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app = QApplication.instance() or QApplication([])
 
     def test_dialog_groups_built_in_and_custom_themes_and_only_custom_tokens_are_editable(self) -> None:
         custom_theme = _custom_theme()

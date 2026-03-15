@@ -29,26 +29,62 @@ Rectangle {
     readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.port_kind_palette
         : ({})
-    readonly property color surfaceColor: nodePalette.card_bg || "#1b1d22"
-    readonly property color outlineColor: nodePalette.card_border || "#3a3d45"
-    readonly property color selectedOutlineColor: nodePalette.card_selected_border || "#60CDFF"
-    readonly property color headerColor: nodePalette.header_bg || "#2a2b30"
-    readonly property color headerTextColor: nodePalette.header_fg || "#f0f4fb"
-    readonly property color scopeBadgeColor: nodePalette.scope_badge_bg || "#1D8CE0"
-    readonly property color scopeBadgeBorderColor: nodePalette.scope_badge_border || "#60CDFF"
-    readonly property color scopeBadgeTextColor: nodePalette.scope_badge_fg || "#f2f4f8"
-    readonly property color inlineRowColor: nodePalette.inline_row_bg || "#24262c"
-    readonly property color inlineRowBorderColor: nodePalette.inline_row_border || "#4a4f5a"
-    readonly property color inlineLabelColor: nodePalette.inline_label_fg || "#d0d5de"
-    readonly property color inlineInputTextColor: nodePalette.inline_input_fg || "#f0f2f5"
-    readonly property color inlineInputBackgroundColor: nodePalette.inline_input_bg || "#22242a"
-    readonly property color inlineInputBorderColor: nodePalette.inline_input_border || "#4a4f5a"
-    readonly property color inlineDrivenTextColor: nodePalette.inline_driven_fg || "#bdc5d3"
-    readonly property color portLabelColor: nodePalette.port_label_fg || "#d0d5de"
+    readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
+    readonly property var passiveStyle: isPassiveNode && nodeData && nodeData.visual_style ? nodeData.visual_style : ({})
+    readonly property string _passiveFillOverride: card._styleString(passiveStyle.fill_color)
+    readonly property string _passiveBorderOverride: card._styleString(passiveStyle.border_color)
+    readonly property string _passiveTextOverride: card._styleString(passiveStyle.text_color)
+    readonly property string _passiveAccentOverride: card._styleString(passiveStyle.accent_color)
+    readonly property string _passiveHeaderOverride: card._styleString(passiveStyle.header_color)
+    readonly property bool hasPassiveFillOverride: isPassiveNode && _passiveFillOverride.length > 0
+    readonly property bool hasPassiveBorderOverride: isPassiveNode && _passiveBorderOverride.length > 0
+    readonly property bool hasPassiveTextOverride: isPassiveNode && _passiveTextOverride.length > 0
+    readonly property bool hasPassiveAccentOverride: isPassiveNode && _passiveAccentOverride.length > 0
+    readonly property bool hasPassiveHeaderOverride: isPassiveNode && _passiveHeaderOverride.length > 0
+    readonly property color themeSurfaceColor: nodePalette.card_bg || "#1b1d22"
+    readonly property color themeOutlineColor: nodePalette.card_border || "#3a3d45"
+    readonly property color themeSelectedOutlineColor: nodePalette.card_selected_border || "#60CDFF"
+    readonly property color themeHeaderColor: nodePalette.header_bg || "#2a2b30"
+    readonly property color themeHeaderTextColor: nodePalette.header_fg || "#f0f4fb"
+    readonly property color themeScopeBadgeColor: nodePalette.scope_badge_bg || "#1D8CE0"
+    readonly property color themeScopeBadgeBorderColor: nodePalette.scope_badge_border || "#60CDFF"
+    readonly property color themeScopeBadgeTextColor: nodePalette.scope_badge_fg || "#f2f4f8"
+    readonly property color themeInlineRowColor: nodePalette.inline_row_bg || "#24262c"
+    readonly property color themeInlineRowBorderColor: nodePalette.inline_row_border || "#4a4f5a"
+    readonly property color themeInlineLabelColor: nodePalette.inline_label_fg || "#d0d5de"
+    readonly property color themeInlineInputTextColor: nodePalette.inline_input_fg || "#f0f2f5"
+    readonly property color themeInlineInputBackgroundColor: nodePalette.inline_input_bg || "#22242a"
+    readonly property color themeInlineInputBorderColor: nodePalette.inline_input_border || "#4a4f5a"
+    readonly property color themeInlineDrivenTextColor: nodePalette.inline_driven_fg || "#bdc5d3"
+    readonly property color themePortLabelColor: nodePalette.port_label_fg || "#d0d5de"
+    readonly property color surfaceColor: isPassiveNode ? (_passiveFillOverride || themeSurfaceColor) : themeSurfaceColor
+    readonly property color outlineColor: isPassiveNode ? (_passiveBorderOverride || themeOutlineColor) : themeOutlineColor
+    readonly property color selectedOutlineColor: isPassiveNode ? Qt.lighter(outlineColor, 1.25) : themeSelectedOutlineColor
+    readonly property color headerColor: isPassiveNode ? (_passiveHeaderOverride || themeHeaderColor) : themeHeaderColor
+    readonly property color headerTextColor: isPassiveNode ? (_passiveTextOverride || themeHeaderTextColor) : themeHeaderTextColor
+    readonly property color scopeBadgeColor: isPassiveNode ? (_passiveAccentOverride || themeScopeBadgeColor) : themeScopeBadgeColor
+    readonly property color scopeBadgeBorderColor: isPassiveNode
+        ? Qt.lighter(scopeBadgeColor, 1.16)
+        : themeScopeBadgeBorderColor
+    readonly property color scopeBadgeTextColor: isPassiveNode ? "#f2f4f8" : themeScopeBadgeTextColor
+    readonly property color inlineRowColor: isPassiveNode ? Qt.darker(surfaceColor, 1.04) : themeInlineRowColor
+    readonly property color inlineRowBorderColor: isPassiveNode ? Qt.alpha(outlineColor, 0.85) : themeInlineRowBorderColor
+    readonly property color inlineLabelColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.82) : themeInlineLabelColor
+    readonly property color inlineInputTextColor: isPassiveNode ? headerTextColor : themeInlineInputTextColor
+    readonly property color inlineInputBackgroundColor: isPassiveNode
+        ? Qt.darker(surfaceColor, 1.08)
+        : themeInlineInputBackgroundColor
+    readonly property color inlineInputBorderColor: isPassiveNode ? Qt.alpha(outlineColor, 0.9) : themeInlineInputBorderColor
+    readonly property color inlineDrivenTextColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.72) : themeInlineDrivenTextColor
+    readonly property color portLabelColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.84) : themePortLabelColor
     readonly property color portInteractiveFillColor: nodePalette.port_interactive_fill || "#FFDA6B"
     readonly property color portInteractiveBorderColor: nodePalette.port_interactive_border || "#FFE48B"
     readonly property color portInteractiveRingFillColor: nodePalette.port_interactive_ring_fill || "#44FFC857"
     readonly property color portInteractiveRingBorderColor: nodePalette.port_interactive_ring_border || "#66FFE29A"
+    readonly property real passiveBorderWidth: card._styleNumber(passiveStyle.border_width, 1.0, false)
+    readonly property real passiveCornerRadius: card._styleNumber(passiveStyle.corner_radius, 6.0, true)
+    readonly property real passiveFontPixelSize: card._styleNumber(passiveStyle.font_size, 12.0, false)
+    readonly property bool passiveFontBold: card._styleString(passiveStyle.font_weight).toLowerCase() === "bold"
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
@@ -121,7 +157,9 @@ Rectangle {
     readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
     readonly property bool _useHostChrome: card.isCollapsed || Boolean(surfaceMetrics.use_host_chrome)
     readonly property bool _showAccentBar: card.isCollapsed || Boolean(surfaceMetrics.show_accent_bar)
-    readonly property bool _showHeaderBackground: card.isCollapsed || Boolean(surfaceMetrics.show_header_background)
+    readonly property bool _showHeaderBackground: card.isCollapsed
+        || Boolean(surfaceMetrics.show_header_background)
+        || (card.isPassiveNode && card._useHostChrome && card.hasPassiveHeaderOverride)
     readonly property real _titleTop: card.isCollapsed ? 4.0 : Number(surfaceMetrics.title_top)
     readonly property real _titleHeight: card.isCollapsed ? 24.0 : Number(surfaceMetrics.title_height)
     readonly property real _titleLeftMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_left_margin)
@@ -140,6 +178,10 @@ Rectangle {
             return [];
         return card.nodeData.ports.filter(function(port) { return port.direction === "out"; });
     }
+    readonly property real resolvedBorderWidth: card.isPassiveNode
+        ? (card.nodeData && card.nodeData.selected ? Math.max(2.0, card.passiveBorderWidth) : card.passiveBorderWidth)
+        : (card.nodeData && card.nodeData.selected ? 2.0 : 1.0)
+    readonly property real resolvedCornerRadius: card.isPassiveNode ? card.passiveCornerRadius : 6.0
 
     function localPortPoint(direction, rowIndex) {
         if (!card.nodeData)
@@ -169,6 +211,8 @@ Rectangle {
 
     function basePortColor(portKind) {
         var palette = card.portKindPalette || {};
+        if (portKind === "flow")
+            return card.isPassiveNode ? card.scopeBadgeColor : "#60CDFF";
         if (portKind === "exec")
             return palette.exec || "#67D487";
         if (portKind === "completed")
@@ -220,6 +264,21 @@ Rectangle {
         return String(value);
     }
 
+    function _styleString(value) {
+        if (value === undefined || value === null)
+            return "";
+        return String(value).trim();
+    }
+
+    function _styleNumber(value, fallback, allowZero) {
+        var numeric = Number(value);
+        if (!isFinite(numeric))
+            return fallback;
+        if (allowZero ? numeric < 0.0 : numeric <= 0.0)
+            return fallback;
+        return numeric;
+    }
+
     function _pointerInCanvas(mouseArea, mouse) {
         if (!card.canvasItem)
             return {"x": 0.0, "y": 0.0};
@@ -242,9 +301,9 @@ Rectangle {
     width: card._liveWidth > 0 ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
     height: card._liveHeight > 0 ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
     color: card._useHostChrome ? card.surfaceColor : "transparent"
-    border.width: card._useHostChrome ? (card.nodeData && card.nodeData.selected ? 2 : 1) : 0
+    border.width: card._useHostChrome ? card.resolvedBorderWidth : 0
     border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
-    radius: card._useHostChrome ? 6 : 0
+    radius: card._useHostChrome ? card.resolvedCornerRadius : 0
 
     layer.enabled: card.showShadow
     layer.effect: MultiEffect {
@@ -305,8 +364,8 @@ Rectangle {
         height: card._titleHeight
         text: card.nodeData ? card.nodeData.title : ""
         color: card.headerTextColor
-        font.pixelSize: 12
-        font.bold: true
+        font.pixelSize: card.isPassiveNode ? card.passiveFontPixelSize : 12
+        font.bold: card.isPassiveNode ? card.passiveFontBold : true
         horizontalAlignment: card._titleCentered ? Text.AlignHCenter : Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
