@@ -269,7 +269,10 @@ def run_workflow(
     registry = build_default_registry()
     serializer = JsonProjectSerializer(registry)
     project_doc = _load_project_doc(typed_command, serializer)
-    workspace = compile_workspace_document(_workspace_doc_from_project(project_doc, workspace_id))
+    workspace = compile_workspace_document(
+        _workspace_doc_from_project(project_doc, workspace_id),
+        registry=registry,
+    )
 
     nodes = {node["node_id"]: node for node in workspace.get("nodes", [])}
     edges = list(workspace.get("edges", []))
@@ -292,6 +295,8 @@ def run_workflow(
         elif source_kind in {"exec", "completed"}:
             exec_outgoing[source_node_id].append(target_node_id)
             exec_incoming_count[target_node_id] += 1
+        elif source_kind == "flow":
+            continue
         else:
             data_incoming[target_node_id].append(edge)
 

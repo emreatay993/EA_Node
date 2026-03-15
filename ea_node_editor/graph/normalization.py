@@ -33,6 +33,7 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
                 for port in resolved_ports
             }
 
+        occupied_single_target_ports: set[tuple[str, str]] = set()
         for edge_id, edge in list(workspace.edges.items()):
             source_node = workspace.nodes.get(edge.source_node_id)
             target_node = workspace.nodes.get(edge.target_node_id)
@@ -41,25 +42,27 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
                 continue
             source_spec = registry.get_spec(source_node.type_id)
             target_spec = registry.get_spec(target_node.type_id)
-            if (
-                find_port(
-                    node=source_node,
-                    spec=source_spec,
-                    workspace_nodes=workspace.nodes,
-                    port_key=edge.source_port_key,
-                )
-                is None
-            ):
+            source_port = find_port(
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=edge.source_port_key,
+            )
+            if source_port is None:
                 workspace.edges.pop(edge_id, None)
                 continue
-            if (
-                find_port(
-                    node=target_node,
-                    spec=target_spec,
-                    workspace_nodes=workspace.nodes,
-                    port_key=edge.target_port_key,
-                )
-                is None
-            ):
+            target_port = find_port(
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=edge.target_port_key,
+            )
+            if target_port is None or target_port.direction != "in":
                 workspace.edges.pop(edge_id, None)
                 continue
+            target_key = (edge.target_node_id, edge.target_port_key)
+            if not target_port.allow_multiple_connections and target_key in occupied_single_target_ports:
+                workspace.edges.pop(edge_id, None)
+                continue
+            if not target_port.allow_multiple_connections:
+                occupied_single_target_ports.add(target_key)

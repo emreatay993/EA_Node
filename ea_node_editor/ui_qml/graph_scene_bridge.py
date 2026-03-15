@@ -13,10 +13,9 @@ from ea_node_editor.graph.effective_ports import (
     default_port,
     effective_ports,
     find_port,
-    is_port_exposed,
     port_data_type,
-    port_direction,
     port_kind,
+    target_port_has_capacity,
 )
 from ea_node_editor.graph.hierarchy import (
     ScopePath,
@@ -726,59 +725,47 @@ class GraphSceneBridge(QObject):
             raise ValueError("Connections are only allowed for nodes in the active scope.")
         source_spec = registry.get_spec(source_node.type_id)
         target_spec = registry.get_spec(target_node.type_id)
-
-        if (
-            port_direction(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=source_port,
-            )
-            != "out"
-        ):
-            raise ValueError(f"Source port must be an output: {source_node_id}.{source_port}")
-        if (
-            port_direction(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=target_port,
-            )
-            != "in"
-        ):
-            raise ValueError(f"Target port must be an input: {target_node_id}.{target_port}")
-        source_kind = port_kind(
+        source_port_doc = find_port(
             node=source_node,
             spec=source_spec,
             workspace_nodes=workspace.nodes,
             port_key=source_port,
         )
-        target_kind = port_kind(
+        if source_port_doc is None:
+            raise KeyError(f"Port {source_port} not found on node type {source_spec.type_id}")
+        target_port_doc = find_port(
             node=target_node,
             spec=target_spec,
             workspace_nodes=workspace.nodes,
             port_key=target_port,
         )
+        if target_port_doc is None:
+            raise KeyError(f"Port {target_port} not found on node type {target_spec.type_id}")
+
+        if source_port_doc.direction != "out":
+            raise ValueError(f"Source port must be an output: {source_node_id}.{source_port}")
+        if target_port_doc.direction != "in":
+            raise ValueError(f"Target port must be an input: {target_node_id}.{target_port}")
+        source_kind = source_port_doc.kind
+        target_kind = target_port_doc.kind
         if not are_port_kinds_compatible(source_kind, target_kind):
             raise ValueError(f"Incompatible port kinds: {source_kind} -> {target_kind}.")
-        if not is_port_exposed(
-            node=source_node,
-            spec=source_spec,
-            workspace_nodes=workspace.nodes,
-            port_key=source_port,
-        ):
+        if not source_port_doc.exposed:
             raise ValueError(f"Source port is hidden: {source_node_id}.{source_port}")
-        if not is_port_exposed(
-            node=target_node,
-            spec=target_spec,
-            workspace_nodes=workspace.nodes,
-            port_key=target_port,
-        ):
+        if not target_port_doc.exposed:
             raise ValueError(f"Target port is hidden: {target_node_id}.{target_port}")
 
         existing = self._find_model_edge_id(source_node_id, source_port, target_node_id, target_port)
         if existing:
             return existing
+        if not target_port_has_capacity(
+            edges=workspace.edges.values(),
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=target_port,
+        ):
+            raise ValueError(f"Target input port already has a connection: {target_node_id}.{target_port}")
 
         edge = model.add_edge(
             self._workspace_id,
@@ -1474,6 +1461,7 @@ class GraphSceneBridge(QObject):
                 parent_node_id=node_payload.get("parent_node_id"),
             )
 
+        occupied_single_target_ports: set[tuple[str, str]] = set()
         for edge_payload in fragment_payload["edges"]:
             source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
             target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
@@ -1501,6 +1489,11 @@ class GraphSceneBridge(QObject):
                 return False
             if source_port.direction != "out" or target_port.direction != "in":
                 return False
+            target_key = (target_ref_id, target_port_key)
+            if not target_port.allow_multiple_connections and target_key in occupied_single_target_ports:
+                return False
+            if not target_port.allow_multiple_connections:
+                occupied_single_target_ports.add(target_key)
         return True
 
     def _insert_fragment(
@@ -1612,6 +1605,7 @@ class GraphSceneBridge(QObject):
                         "kind": port.kind,
                         "data_type": port.data_type,
                         "exposed": bool(port.exposed),
+                        "allow_multiple_connections": bool(port.allow_multiple_connections),
                         "connection_count": int(connection_count),
                         "connected": bool(connection_count),
                     }

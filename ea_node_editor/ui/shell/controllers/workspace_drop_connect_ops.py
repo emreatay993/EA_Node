@@ -10,7 +10,6 @@ from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.graph.transforms import encode_fragment_external_parent_id
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_TYPE_ID
 from ea_node_editor.ui.shell.controllers.result import ControllerResult
-from ea_node_editor.ui.shell.library_flow import input_port_is_available
 from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
@@ -191,7 +190,13 @@ class WorkspaceDropConnectOps:
         ]
         candidates: list[dict[str, Any]] = []
         if target_port.direction == "in":
-            if not input_port_is_available(workspace, target_node.node_id, target_port.key):
+            if (
+                not target_port.allow_multiple_connections
+                and any(
+                    edge.target_node_id == target_node.node_id and edge.target_port_key == target_port.key
+                    for edge in workspace.edges.values()
+                )
+            ):
                 return False
             for port in new_ports:
                 if port.direction != "out":

@@ -32,6 +32,9 @@ docs/specs/gui/_unzipped_preview/
 # Local-only specs and tests
 docs/specs/
 tests/
+!tests/
+tests/*
+!tests/test_passive_runtime_wiring.py
 
 # Benchmark reference assets
 docs/Benchmark_Programs/

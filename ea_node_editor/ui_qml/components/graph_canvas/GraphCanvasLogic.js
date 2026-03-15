@@ -146,6 +146,9 @@ function isDropAllowedWithCompatibility(sourceDrag, candidate, edges, kindsCompa
         return false;
 
     var targetInput = dropTargetInput(sourceDrag, candidate);
+    var targetAllowsMultiple = sourceDrag.source_direction === "out"
+        ? Boolean(candidate.allow_multiple_connections)
+        : Boolean(sourceDrag.allow_multiple_connections);
     var edgePayload = edges || [];
     for (var i = 0; i < edgePayload.length; i++) {
         var edge = edgePayload[i];
@@ -153,6 +156,8 @@ function isDropAllowedWithCompatibility(sourceDrag, candidate, edges, kindsCompa
         if (!sameTargetInput)
             continue;
         if (isExactDuplicate(sourceDrag, candidate, edge))
+            continue;
+        if (targetAllowsMultiple)
             continue;
         return false;
     }

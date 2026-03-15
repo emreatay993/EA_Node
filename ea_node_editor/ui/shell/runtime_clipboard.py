@@ -72,7 +72,6 @@ def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
 
     normalized_edges: list[dict[str, str]] = []
     seen_edges: set[tuple[str, str, str, str]] = set()
-    seen_target_inputs: set[tuple[str, str]] = set()
     for raw_edge in raw_edges:
         normalized_edge = _normalize_edge_entry(raw_edge)
         if normalized_edge is None:
@@ -90,10 +89,6 @@ def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
         if edge_key in seen_edges:
             continue
         seen_edges.add(edge_key)
-        target_key = (target_ref_id, normalized_edge["target_port_key"])
-        if target_key in seen_target_inputs:
-            return None
-        seen_target_inputs.add(target_key)
         normalized_edges.append(normalized_edge)
 
     return build_graph_fragment_payload(nodes=normalized_nodes, edges=normalized_edges)
