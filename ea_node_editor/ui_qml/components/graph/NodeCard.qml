@@ -54,6 +54,7 @@ Rectangle {
     signal dragOffsetChanged(string nodeId, real dx, real dy)
     signal dragFinished(string nodeId, real finalX, real finalY, bool moved)
     signal dragCanceled(string nodeId)
+    signal resizePreviewChanged(string nodeId, real newWidth, real newHeight, bool active)
     signal resizeFinished(string nodeId, real newWidth, real newHeight)
     signal portClicked(string nodeId, string portKey, string direction, real sceneX, real sceneY)
     signal portDragStarted(
@@ -753,6 +754,7 @@ Rectangle {
             pressHeight = card.height;
             card._liveWidth = pressWidth;
             card._liveHeight = pressHeight;
+            card.resizePreviewChanged(card.nodeData.node_id, pressWidth, pressHeight, true);
             mouse.accepted = true;
         }
         onPositionChanged: function(mouse) {
@@ -762,6 +764,7 @@ Rectangle {
             var dh = (gp.y - pressGlobalY) / card.zoom;
             card._liveWidth = Math.max(card._minNodeWidth, pressWidth + dw);
             card._liveHeight = Math.max(card._minNodeHeight, pressHeight + dh);
+            card.resizePreviewChanged(card.nodeData.node_id, card._liveWidth, card._liveHeight, true);
         }
         onReleased: function(mouse) {
             if (card._liveWidth <= 0) return;
@@ -769,11 +772,15 @@ Rectangle {
             var finalHeight = card._liveHeight;
             card._liveWidth = 0;
             card._liveHeight = 0;
+            card.resizePreviewChanged(card.nodeData.node_id, finalWidth, finalHeight, false);
             card.resizeFinished(card.nodeData.node_id, finalWidth, finalHeight);
         }
         onCanceled: {
+            var fallbackWidth = card._liveWidth > 0 ? card._liveWidth : card.width;
+            var fallbackHeight = card._liveHeight > 0 ? card._liveHeight : card.height;
             card._liveWidth = 0;
             card._liveHeight = 0;
+            card.resizePreviewChanged(card.nodeData.node_id, fallbackWidth, fallbackHeight, false);
         }
     }
 

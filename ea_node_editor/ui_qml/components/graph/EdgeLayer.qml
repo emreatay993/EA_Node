@@ -14,6 +14,7 @@ Item {
     property var edges: []
     property var nodes: []
     property var dragOffsets: ({})
+    property var liveNodeSizes: ({})
     property var selectedEdgeIds: []
     property string previewEdgeId: ""
     property var dragConnection: null
@@ -46,10 +47,70 @@ Item {
     function _nodeMap() {
         var byId = {};
         var sceneNodes = root.nodes || [];
+        var liveSizes = root.liveNodeSizes || {};
         for (var i = 0; i < sceneNodes.length; i++) {
-            byId[sceneNodes[i].node_id] = sceneNodes[i];
+            var node = sceneNodes[i];
+            if (!node || !node.node_id)
+                continue;
+            var overlay = liveSizes[node.node_id];
+            if (!overlay || node.collapsed) {
+                byId[node.node_id] = node;
+                continue;
+            }
+            var merged = {};
+            for (var key in node) {
+                if (Object.prototype.hasOwnProperty.call(node, key))
+                    merged[key] = node[key];
+            }
+            var liveWidth = Number(overlay.width);
+            var liveHeight = Number(overlay.height);
+            if (isFinite(liveWidth) && liveWidth > 0.0)
+                merged.width = liveWidth;
+            if (isFinite(liveHeight) && liveHeight > 0.0)
+                merged.height = liveHeight;
+            byId[node.node_id] = merged;
         }
         return byId;
+    }
+
+    function _inlineBodyHeight(node) {
+        var inlineProperties = node && node.inline_properties ? node.inline_properties : [];
+        var count = inlineProperties.length;
+        if (count <= 0)
+            return 0.0;
+        return 8.0 + count * 26.0 + Math.max(0, count - 1) * 4.0;
+    }
+
+    function _portScenePoint(node, portKey) {
+        if (!node || !portKey)
+            return null;
+        var ports = node.ports || [];
+        var inputRow = 0;
+        var outputRow = 0;
+        for (var i = 0; i < ports.length; i++) {
+            var port = ports[i];
+            if (!port)
+                continue;
+            var direction = String(port.direction || "");
+            var rowIndex = direction === "in" ? inputRow : outputRow;
+            if (String(port.key || "") === String(portKey)) {
+                if (node.collapsed) {
+                    return {
+                        "x": direction === "in" ? node.x : (node.x + node.width),
+                        "y": node.y + 18.0
+                    };
+                }
+                return {
+                    "x": direction === "in" ? node.x + 11.5 : node.x + node.width - 11.5,
+                    "y": node.y + 30.0 + _inlineBodyHeight(node) + 6.0 + 18.0 * rowIndex
+                };
+            }
+            if (direction === "in")
+                inputRow += 1;
+            else if (direction === "out")
+                outputRow += 1;
+        }
+        return null;
     }
 
     function _nodeBounds(nodeId, nodeOffset, nodeById) {
@@ -170,6 +231,23 @@ Item {
         var c1yWorld = edge.c1y;
         var c2xWorld = edge.c2x;
         var c2yWorld = edge.c2y;
+        var sourceNode = nodeById[edge.source_node_id];
+        var targetNode = nodeById[edge.target_node_id];
+        var sourcePoint = _portScenePoint(sourceNode, edge.source_port_key);
+        var targetPoint = _portScenePoint(targetNode, edge.target_port_key);
+
+        if (sourcePoint) {
+            c1xWorld += sourcePoint.x - sxWorld;
+            c1yWorld += sourcePoint.y - syWorld;
+            sxWorld = sourcePoint.x;
+            syWorld = sourcePoint.y;
+        }
+        if (targetPoint) {
+            c2xWorld += targetPoint.x - txWorld;
+            c2yWorld += targetPoint.y - tyWorld;
+            txWorld = targetPoint.x;
+            tyWorld = targetPoint.y;
+        }
 
         var sourceOffset = root.dragOffsets ? root.dragOffsets[edge.source_node_id] : null;
         if (sourceOffset) {
@@ -395,6 +473,7 @@ Item {
     onEdgesChanged: requestRedraw()
     onNodesChanged: requestRedraw()
     onDragOffsetsChanged: requestRedraw()
+    onLiveNodeSizesChanged: requestRedraw()
     onSelectedEdgeIdsChanged: requestRedraw()
     onPreviewEdgeIdChanged: requestRedraw()
     onDragConnectionChanged: requestRedraw()

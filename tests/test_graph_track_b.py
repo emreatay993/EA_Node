@@ -275,6 +275,17 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertIn(world, child_items)
         self.assertLess(child_items.index(edge_layer), child_items.index(world))
 
+    def test_graph_canvas_live_resize_dimensions_propagate_to_edge_layer(self) -> None:
+        edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")
+        self.assertIsNotNone(edge_layer)
+
+        payload = {"node_resize_test": {"width": 260.0, "height": 144.0}}
+        self.canvas.setProperty("liveResizeDimensions", payload)
+        self.app.processEvents()
+
+        self.assertEqual(self.canvas.property("liveResizeDimensions"), payload)
+        self.assertEqual(edge_layer.property("liveNodeSizes"), payload)
+
     def test_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_NODE_CARD_QML_PATH)))
         if component.status() != QQmlComponent.Status.Ready:
