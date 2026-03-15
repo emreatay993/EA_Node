@@ -134,6 +134,24 @@ class _PassivePanelLayout:
     title_centered: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class _MediaPanelLayout:
+    default_width: float
+    default_height: float
+    min_width: float
+    min_height: float
+    title_top: float
+    title_height: float
+    title_left_margin: float
+    title_right_margin: float
+    body_top: float
+    min_body_height: float
+    body_left_margin: float
+    body_right_margin: float
+    body_bottom_margin: float
+    title_centered: bool = False
+
+
 _FLOWCHART_VARIANT_LAYOUTS: dict[str, _FlowchartVariantLayout] = {
     "start": _FlowchartVariantLayout(
         default_width=228.0,
@@ -348,6 +366,24 @@ _ANNOTATION_VARIANT_LAYOUTS: dict[str, _PassivePanelLayout] = {
     ),
 }
 
+_MEDIA_VARIANT_LAYOUTS: dict[str, _MediaPanelLayout] = {
+    "image_panel": _MediaPanelLayout(
+        default_width=296.0,
+        default_height=236.0,
+        min_width=220.0,
+        min_height=176.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        min_body_height=120.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+}
+
 
 def standard_inline_body_height(spec: NodeTypeSpec) -> float:
     inline_count = len(inline_property_specs(spec))
@@ -373,6 +409,11 @@ def normalize_planning_variant(variant: str) -> str:
 def normalize_annotation_variant(variant: str) -> str:
     normalized = str(variant or "").strip().lower()
     return normalized if normalized in _ANNOTATION_VARIANT_LAYOUTS else "sticky_note"
+
+
+def normalize_media_variant(variant: str) -> str:
+    normalized = str(variant or "").strip().lower()
+    return normalized if normalized in _MEDIA_VARIANT_LAYOUTS else "image_panel"
 
 
 def _resolved_dimensions(
@@ -559,6 +600,45 @@ def _annotation_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> Graph
     return _passive_panel_surface_metrics(node, layout)
 
 
+def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
+    layout = _MEDIA_VARIANT_LAYOUTS[normalize_media_variant(spec.surface_variant)]
+    _active_width, active_height = _resolved_dimensions(
+        node,
+        default_width=layout.default_width,
+        default_height=layout.default_height,
+    )
+    body_height = max(layout.min_body_height, active_height - layout.body_top - layout.body_bottom_margin)
+    return GraphNodeSurfaceMetrics(
+        default_width=layout.default_width,
+        default_height=layout.default_height,
+        min_width=layout.min_width,
+        min_height=layout.min_height,
+        collapsed_width=STANDARD_COLLAPSED_WIDTH,
+        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
+        header_height=0.0,
+        header_top_margin=0.0,
+        body_top=layout.body_top,
+        body_height=body_height,
+        port_top=active_height - layout.body_bottom_margin,
+        port_height=0.0,
+        port_center_offset=0.0,
+        port_side_margin=STANDARD_PORT_SIDE_MARGIN,
+        port_dot_radius=STANDARD_PORT_DOT_RADIUS,
+        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
+        title_top=layout.title_top,
+        title_height=layout.title_height,
+        title_left_margin=layout.title_left_margin,
+        title_right_margin=layout.title_right_margin,
+        title_centered=layout.title_centered,
+        body_left_margin=layout.body_left_margin,
+        body_right_margin=layout.body_right_margin,
+        body_bottom_margin=layout.body_bottom_margin,
+        show_header_background=False,
+        show_accent_bar=False,
+        use_host_chrome=True,
+    )
+
+
 def node_surface_metrics(
     node: NodeInstance,
     spec: NodeTypeSpec,
@@ -571,6 +651,8 @@ def node_surface_metrics(
         return _planning_surface_metrics(node, spec)
     if family == "annotation":
         return _annotation_surface_metrics(node, spec)
+    if family == "media":
+        return _media_surface_metrics(node, spec)
     return _standard_surface_metrics(node, spec, workspace_nodes)
 
 

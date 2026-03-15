@@ -27,6 +27,8 @@ Item {
             return "planning";
         if (normalizedFamily === "annotation")
             return "annotation";
+        if (normalizedFamily === "media")
+            return "media";
         return "standard";
     }
 
@@ -41,6 +43,8 @@ Item {
                 return planningSurfaceComponent;
             if (root.loadedSurfaceKey === "annotation")
                 return annotationSurfaceComponent;
+            if (root.loadedSurfaceKey === "media")
+                return mediaSurfaceComponent;
             return standardSurfaceComponent;
         }
     }
@@ -73,6 +77,14 @@ Item {
         id: annotationSurfaceComponent
 
         GraphPassiveComponents.GraphAnnotationNoteSurface {
+            host: root.host
+        }
+    }
+
+    Component {
+        id: mediaSurfaceComponent
+
+        GraphPassiveComponents.GraphMediaPanelSurface {
             host: root.host
         }
     }
