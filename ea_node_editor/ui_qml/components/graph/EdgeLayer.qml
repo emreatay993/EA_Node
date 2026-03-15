@@ -7,6 +7,9 @@ Item {
     readonly property var edgePalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.edge_palette
         : ({})
+    readonly property var shellPalette: typeof themeBridge !== "undefined"
+        ? themeBridge.palette
+        : ({})
     readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.port_kind_palette
         : ({})
@@ -25,6 +28,12 @@ Item {
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
     readonly property color invalidDragStrokeColor: edgePalette.invalid_drag_stroke || "#d0d5de"
     readonly property color fallbackStrokeColor: portKindPalette.data || "#7AA8FF"
+    readonly property color flowDefaultStrokeColor: shellPalette.muted_fg || invalidDragStrokeColor
+    readonly property color flowDefaultLabelTextColor: shellPalette.panel_title_fg || selectedStrokeColor
+    readonly property color flowDefaultLabelBackgroundColor: shellPalette.panel_bg || "#1b1d22"
+    readonly property color flowDefaultLabelBorderColor: shellPalette.border || "#3a3d45"
+    property real flowLabelHideZoomThreshold: 0.55
+    property real flowLabelSimplifyZoomThreshold: 0.85
 
     signal edgeClicked(string edgeId, bool additive)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
@@ -299,6 +308,189 @@ Item {
         };
     }
 
+    function _edgeIsFlow(edge) {
+        if (!edge)
+            return false;
+        if (String(edge.edge_family || "") === "flow")
+            return true;
+        return String(edge.source_port_kind || "") === "flow"
+            && String(edge.target_port_kind || "") === "flow";
+    }
+
+    function _flowStyle(edge) {
+        if (!edge)
+            return ({});
+        if (edge.flow_style)
+            return edge.flow_style;
+        return edge.visual_style || ({});
+    }
+
+    function _styleString(value) {
+        return String(value || "").trim();
+    }
+
+    function _stylePositiveNumber(value, fallback) {
+        var numeric = Number(value);
+        if (!isFinite(numeric) || numeric <= 0.0)
+            return fallback;
+        return numeric;
+    }
+
+    function _flowStrokePattern(edge) {
+        var style = _flowStyle(edge);
+        var pattern = _styleString(style.stroke_pattern || style.stroke).toLowerCase();
+        if (pattern === "dashed" || pattern === "dotted")
+            return pattern;
+        return "solid";
+    }
+
+    function _flowArrowHead(edge) {
+        var style = _flowStyle(edge);
+        var arrowHead = _styleString(style.arrow_head).toLowerCase();
+        if (!arrowHead) {
+            var arrow = style.arrow;
+            if (arrow)
+                arrowHead = _styleString(arrow.kind).toLowerCase();
+        }
+        if (arrowHead === "open" || arrowHead === "none")
+            return arrowHead;
+        return "filled";
+    }
+
+    function _flowStrokeColor(edge, selected, previewed) {
+        if (selected)
+            return root.selectedStrokeColor;
+        if (previewed)
+            return root.previewStrokeColor;
+        var style = _flowStyle(edge);
+        return _styleString(style.stroke_color || style.color) || root.flowDefaultStrokeColor;
+    }
+
+    function _flowStrokeWidth(edge, selected, previewed, zoom) {
+        var baseWidth = _stylePositiveNumber(_flowStyle(edge).stroke_width, 2.0);
+        if (selected)
+            baseWidth = Math.max(baseWidth, 3.0);
+        else if (previewed)
+            baseWidth = Math.max(baseWidth, 2.8);
+        return Math.max(1.0, baseWidth * zoom);
+    }
+
+    function _flowDashPattern(edge, zoom) {
+        var unit = Math.max(1.0, zoom);
+        var pattern = _flowStrokePattern(edge);
+        if (pattern === "dashed")
+            return [Math.max(3.0, 8.0 * unit), Math.max(2.0, 5.0 * unit)];
+        if (pattern === "dotted")
+            return [Math.max(1.0, 1.0 * unit), Math.max(2.0, 4.0 * unit)];
+        return [];
+    }
+
+    function _edgeAnchor(geometry, fraction) {
+        if (!geometry)
+            return null;
+        if (geometry.route === "pipe")
+            return EdgeMath.pointTangentAlongPolyline(geometry.pipe_points || [], fraction);
+        return EdgeMath.pointTangentAlongBezier(
+            geometry.sx,
+            geometry.sy,
+            geometry.c1x,
+            geometry.c1y,
+            geometry.c2x,
+            geometry.c2y,
+            geometry.tx,
+            geometry.ty,
+            fraction,
+            40
+        );
+    }
+
+    function _edgeLabelText(edge) {
+        return String(edge && edge.label ? edge.label : "").trim();
+    }
+
+    function _flowLabelMode(edge) {
+        if (!root._edgeIsFlow(edge) || !root._edgeLabelText(edge))
+            return "hidden";
+        var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
+        if (zoom < root.flowLabelHideZoomThreshold)
+            return "hidden";
+        if (zoom < root.flowLabelSimplifyZoomThreshold)
+            return "text";
+        return "pill";
+    }
+
+    function _flowLabelTextColor(edge) {
+        return _styleString(_flowStyle(edge).label_text_color) || root.flowDefaultLabelTextColor;
+    }
+
+    function _flowLabelBackgroundColor(edge) {
+        return _styleString(_flowStyle(edge).label_background_color) || root.flowDefaultLabelBackgroundColor;
+    }
+
+    function _flowLabelBorderColor(edge, selected, previewed) {
+        if (selected || previewed)
+            return root._flowStrokeColor(edge, selected, previewed);
+        return root.flowDefaultLabelBorderColor;
+    }
+
+    function _flowLabelAnchor(geometry) {
+        var anchor = root._edgeAnchor(geometry, 0.5);
+        if (!anchor)
+            return null;
+        var normalX = -anchor.dy;
+        var normalY = anchor.dx;
+        if (normalY > 0.0) {
+            normalX = -normalX;
+            normalY = -normalY;
+        }
+        return {
+            "screen_x": root.sceneToScreenX(anchor.x) + normalX * 16.0,
+            "screen_y": root.sceneToScreenY(anchor.y) + normalY * 16.0,
+            "angle": anchor.angle
+        };
+    }
+
+    function _drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom) {
+        var arrowHead = root._flowArrowHead(edge);
+        if (arrowHead === "none")
+            return;
+        var anchor = root._edgeAnchor(geometry, 1.0);
+        if (!anchor)
+            return;
+        var tipX = root.sceneToScreenX(anchor.x);
+        var tipY = root.sceneToScreenY(anchor.y);
+        var size = Math.max(6.0, 8.0 * zoom);
+        var wing = Math.max(3.0, 4.5 * zoom);
+        var baseX = tipX - anchor.dx * size;
+        var baseY = tipY - anchor.dy * size;
+        var normalX = -anchor.dy;
+        var normalY = anchor.dx;
+        var leftX = baseX + normalX * wing;
+        var leftY = baseY + normalY * wing;
+        var rightX = baseX - normalX * wing;
+        var rightY = baseY - normalY * wing;
+
+        ctx.save();
+        ctx.setLineDash([]);
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = strokeColor;
+        ctx.fillStyle = strokeColor;
+        ctx.lineWidth = Math.max(1.0, 1.4 * zoom);
+        ctx.beginPath();
+        ctx.moveTo(leftX, leftY);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(rightX, rightY);
+        if (arrowHead === "filled") {
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        } else {
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
     function _isSelected(edgeId) {
         return (root.selectedEdgeIds || []).indexOf(edgeId) >= 0;
     }
@@ -370,7 +562,8 @@ Item {
                 var geometry = root._edgeGeometry(edge, nodeById);
                 var selected = root._isSelected(edge.edge_id);
                 var previewed = root.previewEdgeId && root.previewEdgeId === edge.edge_id;
-
+                var flowEdge = root._edgeIsFlow(edge);
+                ctx.save();
                 ctx.beginPath();
                 if (geometry.route === "pipe") {
                     var pipePoints = geometry.pipe_points || [];
@@ -396,11 +589,22 @@ Item {
                         root.sceneToScreenY(geometry.ty)
                     );
                 }
-                ctx.strokeStyle = selected
-                    ? root.selectedStrokeColor
-                    : (previewed ? root.previewStrokeColor : (edge.color || root.fallbackStrokeColor));
-                ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
-                ctx.stroke();
+
+                if (flowEdge) {
+                    var flowStrokeColor = root._flowStrokeColor(edge, selected, previewed);
+                    ctx.strokeStyle = flowStrokeColor;
+                    ctx.lineWidth = root._flowStrokeWidth(edge, selected, previewed, zoom);
+                    ctx.setLineDash(root._flowDashPattern(edge, zoom));
+                    ctx.stroke();
+                    root._drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom);
+                } else {
+                    ctx.strokeStyle = selected
+                        ? root.selectedStrokeColor
+                        : (previewed ? root.previewStrokeColor : (edge.color || root.fallbackStrokeColor));
+                    ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
+                    ctx.stroke();
+                }
+                ctx.restore();
             }
 
             var liveDrag = root.dragConnection;
@@ -427,6 +631,72 @@ Item {
                 }
             }
 
+        }
+    }
+
+    Item {
+        id: flowLabelLayer
+        anchors.fill: parent
+        readonly property var nodeById: root._nodeMap()
+
+        Repeater {
+            model: root.edges || []
+
+            delegate: Item {
+                objectName: "graphEdgeFlowLabelItem"
+                property var edgeData: modelData
+                property string labelText: root._edgeLabelText(edgeData)
+                property string labelMode: root._flowLabelMode(edgeData)
+                property bool pillVisible: labelMode === "pill"
+                property real anchorScreenX: labelAnchor ? labelAnchor.screen_x : 0.0
+                property real anchorScreenY: labelAnchor ? labelAnchor.screen_y : 0.0
+                property var geometry: labelMode === "hidden" ? null : root._edgeGeometry(edgeData, flowLabelLayer.nodeById)
+                property var pathAnchor: geometry ? root._edgeAnchor(geometry, 0.5) : null
+                property real edgeScreenX: pathAnchor ? root.sceneToScreenX(pathAnchor.x) : 0.0
+                property real edgeScreenY: pathAnchor ? root.sceneToScreenY(pathAnchor.y) : 0.0
+                property var labelAnchor: geometry ? root._flowLabelAnchor(geometry) : null
+                property bool hitTestMatches: visible
+                    ? root.edgeAtScreen(edgeScreenX, edgeScreenY) === String(edgeData && edgeData.edge_id || "")
+                    : false
+                property bool selectedEdge: root._isSelected(String(edgeData && edgeData.edge_id || ""))
+                property bool previewedEdge: root.previewEdgeId && root.previewEdgeId === String(edgeData && edgeData.edge_id || "")
+                property real horizontalPadding: pillVisible ? 9.0 : 1.0
+                property real verticalPadding: pillVisible ? 5.0 : 0.0
+                property real maximumTextWidth: pillVisible ? 180.0 : 110.0
+                visible: labelMode !== "hidden" && labelAnchor !== null
+                width: labelTextItem.width + horizontalPadding * 2.0
+                height: labelTextItem.height + verticalPadding * 2.0
+                x: anchorScreenX - width * 0.5
+                y: anchorScreenY - height * 0.5
+
+                Rectangle {
+                    objectName: "graphEdgeFlowLabelPill"
+                    anchors.fill: parent
+                    radius: height * 0.5
+                    visible: parent.pillVisible
+                    color: root._flowLabelBackgroundColor(parent.edgeData)
+                    border.width: 1
+                    border.color: root._flowLabelBorderColor(
+                        parent.edgeData,
+                        parent.selectedEdge,
+                        parent.previewedEdge
+                    )
+                }
+
+                Text {
+                    id: labelTextItem
+                    objectName: "graphEdgeFlowLabelText"
+                    anchors.centerIn: parent
+                    width: Math.min(parent.maximumTextWidth, implicitWidth)
+                    text: parent.labelText
+                    color: root._flowLabelTextColor(parent.edgeData)
+                    font.pixelSize: parent.pillVisible ? 12 : 11
+                    font.weight: parent.pillVisible ? Font.DemiBold : Font.Medium
+                    wrapMode: Text.NoWrap
+                    elide: Text.ElideRight
+                    renderType: Text.NativeRendering
+                }
+            }
         }
     }
 
@@ -461,6 +731,7 @@ Item {
     onPreviewEdgeIdChanged: requestRedraw()
     onDragConnectionChanged: requestRedraw()
     onEdgePaletteChanged: requestRedraw()
+    onShellPaletteChanged: requestRedraw()
     onPortKindPaletteChanged: requestRedraw()
 
     Connections {

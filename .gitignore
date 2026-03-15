@@ -42,6 +42,8 @@ tests/*
 !tests/test_passive_graph_surface_host.py
 !tests/test_serializer.py
 !tests/test_passive_visual_metadata.py
+!tests/test_shell_theme.py
+!tests/test_flow_edge_labels.py
 !tests/main_window_shell/
 tests/main_window_shell/*
 !tests/main_window_shell/base.py

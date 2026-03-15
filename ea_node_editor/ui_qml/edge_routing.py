@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -26,6 +27,8 @@ EDGE_PIPE_STUB = 44.0
 EDGE_PIPE_STUB_MIN = 32.0
 EDGE_PIPE_STUB_MAX = 72.0
 EDGE_PIPE_MIDDLE_MARGIN = 10.0
+_FLOW_EDGE_STROKE_PATTERNS = {"solid", "dashed", "dotted"}
+_FLOW_EDGE_ARROW_HEADS = {"filled", "open", "none"}
 
 
 def inline_body_height(spec: NodeTypeSpec) -> float:
@@ -191,6 +194,58 @@ def edge_pipe_points(
     ]
 
 
+def normalize_flow_edge_visual_style_payload(visual_style: Any) -> dict[str, Any]:
+    if not isinstance(visual_style, Mapping):
+        return {}
+    normalized: dict[str, Any] = {}
+
+    def normalized_string(value: Any) -> str:
+        if not isinstance(value, str):
+            return ""
+        return value.strip()
+
+    def normalized_positive_number(value: Any) -> float | None:
+        if isinstance(value, bool):
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(numeric) or numeric <= 0.0:
+            return None
+        return numeric
+
+    stroke_color = normalized_string(visual_style.get("stroke_color") or visual_style.get("color"))
+    if stroke_color:
+        normalized["stroke_color"] = stroke_color
+
+    stroke_width = normalized_positive_number(visual_style.get("stroke_width"))
+    if stroke_width is not None:
+        normalized["stroke_width"] = stroke_width
+
+    stroke_pattern = normalized_string(visual_style.get("stroke_pattern") or visual_style.get("stroke")).lower()
+    if stroke_pattern in _FLOW_EDGE_STROKE_PATTERNS:
+        normalized["stroke_pattern"] = stroke_pattern
+
+    arrow_head = normalized_string(visual_style.get("arrow_head")).lower()
+    if not arrow_head:
+        arrow_payload = visual_style.get("arrow")
+        if isinstance(arrow_payload, Mapping):
+            arrow_head = normalized_string(arrow_payload.get("kind")).lower()
+    if arrow_head in _FLOW_EDGE_ARROW_HEADS:
+        normalized["arrow_head"] = arrow_head
+
+    label_text_color = normalized_string(visual_style.get("label_text_color"))
+    if label_text_color:
+        normalized["label_text_color"] = label_text_color
+
+    label_background_color = normalized_string(visual_style.get("label_background_color"))
+    if label_background_color:
+        normalized["label_background_color"] = label_background_color
+
+    return normalized
+
+
 def build_edge_payload(
     *,
     graph_theme: GraphThemeDefinition | object,
@@ -295,6 +350,8 @@ def build_edge_payload(
             workspace_nodes=workspace_nodes,
             port_key=edge.target_port_key,
         )
+        edge_family = "flow" if source_port_kind == "flow" and target_port_kind == "flow" else "standard"
+        flow_style = normalize_flow_edge_visual_style_payload(edge.visual_style) if edge_family == "flow" else {}
         color = resolve_edge_color(
             graph_theme,
             port_kind=source_port_kind,
@@ -309,8 +366,10 @@ def build_edge_payload(
                 "target_port_key": edge.target_port_key,
                 "source_port_kind": source_port_kind,
                 "target_port_kind": target_port_kind,
+                "edge_family": edge_family,
                 "label": str(edge.label),
                 "visual_style": copy.deepcopy(edge.visual_style),
+                "flow_style": flow_style,
                 "route": route_mode,
                 "pipe_points": pipe_points,
                 "lane_bias": float(lane_bias),
