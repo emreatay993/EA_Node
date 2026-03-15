@@ -70,6 +70,7 @@ from ea_node_editor.ui.graph_theme import (
     resolve_category_accent,
     resolve_graph_theme,
 )
+from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size, port_scene_pos
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
@@ -1667,6 +1668,7 @@ class GraphSceneBridge(QObject):
             return
 
         workspace = self._model.project.workspaces[self._workspace_id]
+        self._normalize_pdf_panel_pages(workspace)
         visible_node_ids = scope_node_ids(workspace, self._scope_path)
         visible_nodes = {node_id: workspace.nodes[node_id] for node_id in visible_node_ids}
         workspace_edges = scope_edges(workspace, self._scope_path)
@@ -1763,6 +1765,26 @@ class GraphSceneBridge(QObject):
         self._edges_payload = edges_payload
         self.nodes_changed.emit()
         self.edges_changed.emit()
+
+    def _normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
+        if self._model is None or self._registry is None:
+            return
+        for node in workspace.nodes.values():
+            spec = self._registry.get_spec(node.type_id)
+            if str(spec.surface_family or "").strip() != "media":
+                continue
+            if str(spec.surface_variant or "").strip() != "pdf_panel":
+                continue
+            resolved_page_number = clamp_pdf_page_number(
+                str(node.properties.get("source_path", "") or ""),
+                node.properties.get("page_number"),
+            )
+            if resolved_page_number is None:
+                continue
+            current_page_number = node.properties.get("page_number")
+            if current_page_number == resolved_page_number:
+                continue
+            self._model.set_node_property(workspace.workspace_id, node.node_id, "page_number", resolved_page_number)
 
     def _active_graph_theme(self) -> GraphThemeDefinition:
         if self._graph_theme_bridge is None:

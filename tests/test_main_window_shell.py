@@ -11,6 +11,7 @@ from tests.main_window_shell.edit_clipboard_history import *  # noqa: F401,F403
 from tests.main_window_shell.passive_style_context_menus import *  # noqa: F401,F403
 from tests.main_window_shell.passive_property_editors import *  # noqa: F401,F403
 from tests.main_window_shell.passive_image_nodes import *  # noqa: F401,F403
+from tests.main_window_shell.passive_pdf_nodes import *  # noqa: F401,F403
 from tests.main_window_shell.view_library_inspector import *  # noqa: F401,F403
 
 

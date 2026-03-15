@@ -42,6 +42,11 @@ from ea_node_editor.ui.media_preview_provider import (
     LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
     LocalMediaPreviewImageProvider,
 )
+from ea_node_editor.ui.pdf_preview_provider import (
+    LOCAL_PDF_PREVIEW_PROVIDER_ID,
+    LocalPdfPreviewImageProvider,
+    describe_pdf_preview,
+)
 from ea_node_editor.ui.dialogs.passive_style_controls import (
     normalize_flow_edge_style_payload,
     normalize_passive_node_style_payload,
@@ -170,6 +175,7 @@ class ShellWindow(QMainWindow):
         self.ui_icons = UiIconRegistryBridge(self)
         self._ui_icon_image_provider = UiIconImageProvider()
         self._local_media_preview_provider = LocalMediaPreviewImageProvider()
+        self._local_pdf_preview_provider = LocalPdfPreviewImageProvider()
         self.status_engine = StatusItemModel("E", "Ready", self)
         self.status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", self)
         self.status_metrics = StatusItemModel("M", "CPU:0% RAM:0/0 GB", self)
@@ -390,6 +396,10 @@ class ShellWindow(QMainWindow):
         self.quick_widget.engine().addImageProvider(
             LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
             self._local_media_preview_provider,
+        )
+        self.quick_widget.engine().addImageProvider(
+            LOCAL_PDF_PREVIEW_PROVIDER_ID,
+            self._local_pdf_preview_provider,
         )
         context = self.quick_widget.rootContext()
         context.setContextProperty("mainWindow", self)
@@ -1623,6 +1633,10 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self, key: str, value: Any) -> None:
         self.workspace_library_controller.set_selected_node_property(key, value)
+
+    @pyqtSlot(str, "QVariant", result="QVariantMap")
+    def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
+        return describe_pdf_preview(source, page_number)
 
     @pyqtSlot(str, str, result=str)
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:

@@ -8,14 +8,35 @@ Item {
         ? host.nodeData.properties
         : ({})
     readonly property string mediaVariant: host ? String(host.surfaceVariant || "") : ""
+    readonly property bool isPdfPanel: mediaVariant === "pdf_panel"
     readonly property string sourcePath: _value("source_path")
+    readonly property var rawPageNumber: _rawValue("page_number", 1)
     readonly property string captionText: _value("caption")
     readonly property string normalizedFitMode: _normalizedFitMode()
     readonly property bool captionVisible: captionText.length > 0
-    readonly property string resolvedSourceUrl: _resolvedLocalSourceUrl(sourcePath)
-    readonly property string previewSourceUrl: _previewSourceUrl(resolvedSourceUrl)
+    readonly property var pdfPreviewInfo: isPdfPanel ? _describePdfPreview(sourcePath, rawPageNumber) : ({})
+    readonly property string resolvedSourceUrl: isPdfPanel
+        ? String(pdfPreviewInfo.resolved_source_url || "")
+        : _resolvedLocalSourceUrl(sourcePath)
+    readonly property string previewSourceUrl: isPdfPanel
+        ? String(pdfPreviewInfo.preview_url || "")
+        : _previewSourceUrl(resolvedSourceUrl)
+    readonly property int pdfPageCount: isPdfPanel ? Number(pdfPreviewInfo.page_count || 0) : 0
+    readonly property int pdfRequestedPageNumber: isPdfPanel ? Number(pdfPreviewInfo.requested_page_number || 1) : 1
+    readonly property int pdfResolvedPageNumber: isPdfPanel ? Number(pdfPreviewInfo.resolved_page_number || 1) : 1
+    readonly property string pdfPreviewMessage: isPdfPanel ? String(pdfPreviewInfo.message || "") : ""
     readonly property bool sourceRejected: sourcePath.trim().length > 0 && resolvedSourceUrl.length === 0
     readonly property string previewState: {
+        if (isPdfPanel) {
+            var state = String(pdfPreviewInfo.state || "placeholder");
+            if (state === "error")
+                return "error";
+            if (state === "ready" && previewImage.status === Image.Ready)
+                return "ready";
+            if (previewImage.status === Image.Error)
+                return "error";
+            return "placeholder";
+        }
         if (sourcePath.trim().length === 0)
             return "placeholder";
         if (sourceRejected)
@@ -26,8 +47,18 @@ Item {
             return "ready";
         return "placeholder";
     }
-    readonly property string appliedFitMode: normalizedFitMode
-    readonly property bool originalModeActive: normalizedFitMode === "original"
+    readonly property string appliedFitMode: isPdfPanel ? "contain" : normalizedFitMode
+    readonly property bool originalModeActive: !isPdfPanel && normalizedFitMode === "original"
+    readonly property string previewHintText: {
+        if (isPdfPanel) {
+            if (previewState === "error")
+                return pdfPreviewMessage.length > 0 ? pdfPreviewMessage : "Unable to load a local PDF preview.";
+            return "Choose a local PDF file to preview it here.";
+        }
+        return previewState === "error"
+            ? "Unable to load a local image preview."
+            : "Choose a local image file to preview it here.";
+    }
     readonly property color panelFillColor: host && host.hasPassiveFillOverride
         ? host.surfaceColor
         : Qt.darker(host ? host.surfaceColor : "#1b1d22", 1.03)
@@ -41,7 +72,15 @@ Item {
         : "#202228"
     readonly property color hintTextColor: host ? host.inlineDrivenTextColor : "#bdc5d3"
     readonly property color captionTextColor: host ? host.inlineInputTextColor : "#f0f2f5"
+    readonly property color pdfBadgeFillColor: host ? Qt.alpha(host.scopeBadgeColor, 0.92) : "#2C85BF"
+    readonly property color pdfBadgeBorderColor: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.96) : "#7FC7FF"
+    readonly property color pdfBadgeTextColor: host ? host.scopeBadgeTextColor : "#F4F8FC"
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
+
+    function _rawValue(key, fallback) {
+        var value = nodeProperties[key];
+        return value === undefined || value === null ? fallback : value;
+    }
 
     function _value(key) {
         var value = nodeProperties[key];
@@ -110,6 +149,37 @@ Item {
         return "image://local-media-preview/preview?source=" + encodeURIComponent(normalized);
     }
 
+    function _describePdfPreview(source, pageNumber) {
+        if (typeof mainWindow !== "undefined" && mainWindow) {
+            try {
+                return mainWindow.describe_pdf_preview(String(source || ""), pageNumber);
+            } catch (error) {
+            }
+        }
+        if (String(source || "").trim().length === 0) {
+            return {
+                "state": "placeholder",
+                "message": "Choose a local PDF file to preview it here.",
+                "resolved_source_url": "",
+                "preview_url": "",
+                "page_count": 0,
+                "requested_page_number": 1,
+                "resolved_page_number": 1,
+                "file_stamp_token": ""
+            };
+        }
+        return {
+            "state": "error",
+            "message": "PDF preview service unavailable.",
+            "resolved_source_url": "",
+            "preview_url": "",
+            "page_count": 0,
+            "requested_page_number": Number(pageNumber || 1),
+            "resolved_page_number": Number(pageNumber || 1),
+            "file_stamp_token": ""
+        };
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: host ? Number(host.resolvedCornerRadius || 6) : 6
@@ -152,10 +222,14 @@ Item {
                     asynchronous: false
                     cache: false
                     mipmap: true
-                    fillMode: surface.normalizedFitMode === "cover"
-                        ? Image.PreserveAspectCrop
-                        : Image.PreserveAspectFit
-                    source: surface.sourceRejected ? "" : surface.previewSourceUrl
+                    fillMode: surface.isPdfPanel
+                        ? Image.PreserveAspectFit
+                        : (surface.normalizedFitMode === "cover"
+                            ? Image.PreserveAspectCrop
+                            : Image.PreserveAspectFit)
+                    source: surface.previewSourceUrl
+                    sourceSize.width: surface.isPdfPanel ? Math.max(1, Math.round(previewViewport.width)) : 0
+                    sourceSize.height: surface.isPdfPanel ? Math.max(1, Math.round(previewViewport.height)) : 0
                     width: surface.originalModeActive
                         ? Math.max(1, implicitWidth)
                         : parent.width
@@ -166,41 +240,109 @@ Item {
                     smooth: true
                 }
 
+                Rectangle {
+                    id: pdfPageBadge
+                    objectName: "graphNodeMediaPageBadge"
+                    visible: surface.isPdfPanel && surface.previewState === "ready" && surface.pdfPageCount > 0
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.topMargin: 10
+                    anchors.rightMargin: 10
+                    radius: 10
+                    color: surface.pdfBadgeFillColor
+                    border.width: 1
+                    border.color: surface.pdfBadgeBorderColor
+                    height: pageBadgeLabel.implicitHeight + 10
+                    width: pageBadgeLabel.implicitWidth + 16
+
+                    Text {
+                        id: pageBadgeLabel
+                        anchors.centerIn: parent
+                        text: "Page " + surface.pdfResolvedPageNumber + " / " + surface.pdfPageCount
+                        color: surface.pdfBadgeTextColor
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
+                }
+
                 Column {
                     anchors.centerIn: parent
-                    width: Math.min(parent.width - 24, 180)
+                    width: Math.min(parent.width - 24, surface.isPdfPanel ? 208 : 180)
                     spacing: 8
                     visible: surface.previewState !== "ready"
 
-                    Rectangle {
+                    Item {
                         width: 42
                         height: 42
-                        radius: 8
                         anchors.horizontalCenter: parent.horizontalCenter
-                        color: Qt.alpha(surface.panelBorderColor, 0.1)
-                        border.width: 1
-                        border.color: Qt.alpha(surface.panelBorderColor, 0.55)
 
                         Rectangle {
-                            anchors.centerIn: parent
-                            width: 22
-                            height: 16
-                            radius: 3
-                            color: "transparent"
+                            visible: !surface.isPdfPanel
+                            width: 42
+                            height: 42
+                            radius: 8
+                            color: Qt.alpha(surface.panelBorderColor, 0.1)
                             border.width: 1
-                            border.color: Qt.alpha(surface.hintTextColor, 0.9)
+                            border.color: Qt.alpha(surface.panelBorderColor, 0.55)
+
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 22
+                                height: 16
+                                radius: 3
+                                color: "transparent"
+                                border.width: 1
+                                border.color: Qt.alpha(surface.hintTextColor, 0.9)
+                            }
+                        }
+
+                        Item {
+                            visible: surface.isPdfPanel
+                            anchors.fill: parent
+
+                            Rectangle {
+                                x: 8
+                                y: 2
+                                width: 26
+                                height: 34
+                                radius: 4
+                                color: "#F5F7FA"
+                                border.width: 1
+                                border.color: Qt.alpha(surface.hintTextColor, 0.75)
+                            }
+
+                            Rectangle {
+                                x: 13
+                                y: 8
+                                width: 16
+                                height: 8
+                                radius: 2
+                                color: surface.previewState === "error"
+                                    ? Qt.alpha("#B55454", 0.92)
+                                    : Qt.alpha("#3A7CA5", 0.92)
+                            }
+
+                            Rectangle {
+                                x: 28
+                                y: 2
+                                width: 6
+                                height: 6
+                                color: "#E8EDF3"
+                                rotation: 45
+                                transformOrigin: Item.TopLeft
+                            }
                         }
                     }
 
                     Text {
+                        objectName: "graphNodeMediaPreviewHint"
+                        visible: parent.visible
                         width: parent.width
                         horizontalAlignment: Text.AlignHCenter
                         wrapMode: Text.WordWrap
                         color: surface.hintTextColor
                         font.pixelSize: 11
-                        text: surface.previewState === "error"
-                            ? "Unable to load a local image preview."
-                            : "Choose a local image file to preview it here."
+                        text: surface.previewHintText
                     }
                 }
             }
