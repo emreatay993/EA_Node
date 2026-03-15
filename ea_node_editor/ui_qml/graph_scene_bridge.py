@@ -659,6 +659,7 @@ class GraphSceneBridge(QObject):
         node.parent_node_id = parent_node_id
         if configure_node is not None:
             configure_node(node, workspace, registry)
+        self._sync_surface_title(node, spec)
         if select_node:
             self._selected_node_ids = [node.node_id]
         self._rebuild_models()
@@ -911,12 +912,15 @@ class GraphSceneBridge(QObject):
             return
         workspace = self._model.project.workspaces[self._workspace_id]
         node = workspace.nodes[node_id]
+        spec = self._registry.get_spec(node.type_id)
         normalized = self._registry.normalize_property_value(node.type_id, key, value)
         current_value = node.properties.get(key, _MISSING)
         if current_value is not _MISSING and current_value == normalized:
             return
         history_before = self._capture_history_snapshot()
         self._model.set_node_property(self._workspace_id, node_id, key, normalized)
+        if key == "title":
+            self._sync_surface_title(node, spec)
         self._rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
@@ -947,11 +951,12 @@ class GraphSceneBridge(QObject):
         self.set_node_visual_style(node_id, {})
 
     def set_node_title(self, node_id: str, title: str) -> None:
-        if self._model is None:
+        if self._model is None or self._registry is None:
             return
         node = self._node(node_id)
         if node is None:
             return
+        spec = self._registry.get_spec(node.type_id)
         normalized = str(title).strip()
         if not normalized:
             return
@@ -959,6 +964,8 @@ class GraphSceneBridge(QObject):
             return
         history_before = self._capture_history_snapshot()
         self._model.set_node_title(self._workspace_id, node_id, normalized)
+        if self._surface_title_sync_enabled(spec):
+            node.properties["title"] = normalized
         self._rebuild_models()
         self._record_history(ACTION_RENAME_NODE, history_before)
 
@@ -1715,6 +1722,7 @@ class GraphSceneBridge(QObject):
                     "node_id": node.node_id,
                     "type_id": node.type_id,
                     "title": node.title,
+                    "properties": copy.deepcopy(node.properties),
                     "x": float(node.x),
                     "y": float(node.y),
                     "width": float(width),
@@ -1760,6 +1768,24 @@ class GraphSceneBridge(QObject):
         if self._graph_theme_bridge is None:
             return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
         return resolve_graph_theme(self._graph_theme_bridge.theme)
+
+    @staticmethod
+    def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
+        family = str(spec.surface_family or "").strip()
+        return family in {"planning", "annotation"} and any(prop.key == "title" for prop in spec.properties)
+
+    @classmethod
+    def _synced_surface_title(cls, node: NodeInstance, spec: NodeTypeSpec) -> str:
+        if not cls._surface_title_sync_enabled(spec):
+            return str(node.title).strip() or str(spec.display_name).strip()
+        title = str(node.properties.get("title", "")).strip()
+        return title or str(spec.display_name).strip()
+
+    @classmethod
+    def _sync_surface_title(cls, node: NodeInstance, spec: NodeTypeSpec) -> None:
+        if not cls._surface_title_sync_enabled(spec):
+            return
+        node.title = cls._synced_surface_title(node, spec)
 
 
 __all__ = ["GraphSceneBridge"]

@@ -20,8 +20,13 @@ Item {
     }
 
     function _loadedSurfaceKey(family, _variant) {
-        if (String(family || "standard") === "flowchart")
+        var normalizedFamily = String(family || "standard");
+        if (normalizedFamily === "flowchart")
             return "flowchart";
+        if (normalizedFamily === "planning")
+            return "planning";
+        if (normalizedFamily === "annotation")
+            return "annotation";
         return "standard";
     }
 
@@ -29,7 +34,15 @@ Item {
         id: loader
         anchors.fill: parent
         active: !!root.host && !!root.nodeData && !Boolean(root.nodeData.collapsed)
-        sourceComponent: root.loadedSurfaceKey === "flowchart" ? flowchartSurfaceComponent : standardSurfaceComponent
+        sourceComponent: {
+            if (root.loadedSurfaceKey === "flowchart")
+                return flowchartSurfaceComponent;
+            if (root.loadedSurfaceKey === "planning")
+                return planningSurfaceComponent;
+            if (root.loadedSurfaceKey === "annotation")
+                return annotationSurfaceComponent;
+            return standardSurfaceComponent;
+        }
     }
 
     Component {
@@ -44,6 +57,22 @@ Item {
         id: flowchartSurfaceComponent
 
         GraphPassiveComponents.GraphFlowchartNodeSurface {
+            host: root.host
+        }
+    }
+
+    Component {
+        id: planningSurfaceComponent
+
+        GraphPassiveComponents.GraphPlanningCardSurface {
+            host: root.host
+        }
+    }
+
+    Component {
+        id: annotationSurfaceComponent
+
+        GraphPassiveComponents.GraphAnnotationNoteSurface {
             host: root.host
         }
     }

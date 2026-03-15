@@ -28,6 +28,8 @@ var FLOWCHART_RESIZE_HANDLE_SIZE = 16.0;
 var FLOWCHART_INLINE_GAP = 8.0;
 var FLOWCHART_PORT_SECTION_TOP = 12.0;
 
+var PASSIVE_SURFACE_RESIZE_HANDLE_SIZE = 16.0;
+
 function _metricNumber(source, key, fallback) {
     var value = source ? Number(source[key]) : NaN;
     if (!isFinite(value))
@@ -191,6 +193,151 @@ function _flowchartVariantLayout(variant) {
     }
 }
 
+function _normalizedPlanningVariant(value) {
+    var variant = String(value || "").trim().toLowerCase();
+    if (variant === "task_card" || variant === "milestone_card" || variant === "risk_card" || variant === "decision_card")
+        return variant;
+    return "task_card";
+}
+
+function _planningVariantLayout(variant) {
+    switch (_normalizedPlanningVariant(variant)) {
+    case "milestone_card":
+        return {
+            "defaultWidth": 248.0,
+            "defaultHeight": 156.0,
+            "minWidth": 190.0,
+            "minHeight": 136.0,
+            "titleTop": 12.0,
+            "titleHeight": 24.0,
+            "titleLeftMargin": 14.0,
+            "titleRightMargin": 14.0,
+            "bodyTop": 44.0,
+            "bodyHeight": 100.0,
+            "bodyLeftMargin": 14.0,
+            "bodyRightMargin": 14.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    case "risk_card":
+        return {
+            "defaultWidth": 252.0,
+            "defaultHeight": 180.0,
+            "minWidth": 196.0,
+            "minHeight": 156.0,
+            "titleTop": 12.0,
+            "titleHeight": 24.0,
+            "titleLeftMargin": 14.0,
+            "titleRightMargin": 14.0,
+            "bodyTop": 44.0,
+            "bodyHeight": 124.0,
+            "bodyLeftMargin": 14.0,
+            "bodyRightMargin": 14.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    case "decision_card":
+        return {
+            "defaultWidth": 252.0,
+            "defaultHeight": 180.0,
+            "minWidth": 196.0,
+            "minHeight": 156.0,
+            "titleTop": 12.0,
+            "titleHeight": 24.0,
+            "titleLeftMargin": 14.0,
+            "titleRightMargin": 14.0,
+            "bodyTop": 44.0,
+            "bodyHeight": 124.0,
+            "bodyLeftMargin": 14.0,
+            "bodyRightMargin": 14.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    case "task_card":
+    default:
+        return {
+            "defaultWidth": 248.0,
+            "defaultHeight": 168.0,
+            "minWidth": 190.0,
+            "minHeight": 148.0,
+            "titleTop": 12.0,
+            "titleHeight": 24.0,
+            "titleLeftMargin": 14.0,
+            "titleRightMargin": 14.0,
+            "bodyTop": 44.0,
+            "bodyHeight": 112.0,
+            "bodyLeftMargin": 14.0,
+            "bodyRightMargin": 14.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    }
+}
+
+function _normalizedAnnotationVariant(value) {
+    var variant = String(value || "").trim().toLowerCase();
+    if (variant === "sticky_note" || variant === "callout" || variant === "section_header")
+        return variant;
+    return "sticky_note";
+}
+
+function _annotationVariantLayout(variant) {
+    switch (_normalizedAnnotationVariant(variant)) {
+    case "callout":
+        return {
+            "defaultWidth": 236.0,
+            "defaultHeight": 156.0,
+            "minWidth": 184.0,
+            "minHeight": 132.0,
+            "titleTop": 14.0,
+            "titleHeight": 22.0,
+            "titleLeftMargin": 16.0,
+            "titleRightMargin": 16.0,
+            "bodyTop": 42.0,
+            "bodyHeight": 102.0,
+            "bodyLeftMargin": 16.0,
+            "bodyRightMargin": 16.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    case "section_header":
+        return {
+            "defaultWidth": 280.0,
+            "defaultHeight": 112.0,
+            "minWidth": 220.0,
+            "minHeight": 96.0,
+            "titleTop": 18.0,
+            "titleHeight": 24.0,
+            "titleLeftMargin": 18.0,
+            "titleRightMargin": 18.0,
+            "bodyTop": 52.0,
+            "bodyHeight": 34.0,
+            "bodyLeftMargin": 18.0,
+            "bodyRightMargin": 18.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    case "sticky_note":
+    default:
+        return {
+            "defaultWidth": 228.0,
+            "defaultHeight": 152.0,
+            "minWidth": 176.0,
+            "minHeight": 128.0,
+            "titleTop": 14.0,
+            "titleHeight": 22.0,
+            "titleLeftMargin": 14.0,
+            "titleRightMargin": 14.0,
+            "bodyTop": 42.0,
+            "bodyHeight": 98.0,
+            "bodyLeftMargin": 14.0,
+            "bodyRightMargin": 14.0,
+            "bodyBottomMargin": 12.0,
+            "titleCentered": false
+        };
+    }
+}
+
 function _resolvedDimension(value, fallback) {
     var numeric = Number(value);
     if (!(numeric > 0.0))
@@ -306,11 +453,55 @@ function _flowchartSurfaceMetrics(node, source) {
     };
 }
 
+function _passivePanelSurfaceMetrics(node, source, layout) {
+    var activeHeight = _resolvedDimension(node && node.height, layout.defaultHeight);
+    var bodyTop = _metricNumber(source, "body_top", layout.bodyTop);
+    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", layout.bodyBottomMargin);
+    var bodyHeight = _metricNumber(
+        source,
+        "body_height",
+        Math.max(layout.bodyHeight, activeHeight - bodyTop - bodyBottomMargin)
+    );
+    return {
+        "default_width": _metricNumber(source, "default_width", layout.defaultWidth),
+        "default_height": _metricNumber(source, "default_height", layout.defaultHeight),
+        "min_width": _metricNumber(source, "min_width", layout.minWidth),
+        "min_height": _metricNumber(source, "min_height", layout.minHeight),
+        "collapsed_width": _metricNumber(source, "collapsed_width", STANDARD_COLLAPSED_WIDTH),
+        "collapsed_height": _metricNumber(source, "collapsed_height", STANDARD_COLLAPSED_HEIGHT),
+        "header_height": _metricNumber(source, "header_height", 0.0),
+        "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
+        "body_top": bodyTop,
+        "body_height": bodyHeight,
+        "port_top": _metricNumber(source, "port_top", activeHeight - bodyBottomMargin),
+        "port_height": _metricNumber(source, "port_height", 0.0),
+        "port_center_offset": _metricNumber(source, "port_center_offset", 0.0),
+        "port_side_margin": _metricNumber(source, "port_side_margin", STANDARD_PORT_SIDE_MARGIN),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", STANDARD_PORT_DOT_RADIUS),
+        "resize_handle_size": _metricNumber(source, "resize_handle_size", PASSIVE_SURFACE_RESIZE_HANDLE_SIZE),
+        "title_top": _metricNumber(source, "title_top", layout.titleTop),
+        "title_height": _metricNumber(source, "title_height", layout.titleHeight),
+        "title_left_margin": _metricNumber(source, "title_left_margin", layout.titleLeftMargin),
+        "title_right_margin": _metricNumber(source, "title_right_margin", layout.titleRightMargin),
+        "title_centered": _metricBool(source, "title_centered", layout.titleCentered),
+        "body_left_margin": _metricNumber(source, "body_left_margin", layout.bodyLeftMargin),
+        "body_right_margin": _metricNumber(source, "body_right_margin", layout.bodyRightMargin),
+        "body_bottom_margin": bodyBottomMargin,
+        "show_header_background": _metricBool(source, "show_header_background", false),
+        "show_accent_bar": _metricBool(source, "show_accent_bar", false),
+        "use_host_chrome": _metricBool(source, "use_host_chrome", true)
+    };
+}
+
 function surfaceMetrics(node) {
     var source = node && node.surface_metrics ? node.surface_metrics : null;
     var family = String(node && node.surface_family || "standard");
     if (family === "flowchart")
         return _flowchartSurfaceMetrics(node, source);
+    if (family === "planning")
+        return _passivePanelSurfaceMetrics(node, source, _planningVariantLayout(node && node.surface_variant));
+    if (family === "annotation")
+        return _passivePanelSurfaceMetrics(node, source, _annotationVariantLayout(node && node.surface_variant));
     return _standardSurfaceMetrics(node, source);
 }
 

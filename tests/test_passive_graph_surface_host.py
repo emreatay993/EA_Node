@@ -171,9 +171,9 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """
             host = create_component(
                 graph_node_host_qml_path,
-                {"nodeData": node_payload(surface_family="annotation", surface_variant="sticky_note")},
+                {"nodeData": node_payload(surface_family="mystery", surface_variant="sticky_note")},
             )
-            assert host.property("surfaceFamily") == "annotation"
+            assert host.property("surfaceFamily") == "mystery"
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             assert loader is not None
             assert loader.property("loadedSurfaceKey") == "standard"
