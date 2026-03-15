@@ -58,6 +58,7 @@ from ea_node_editor.ui.shell.runtime_history import (
     ACTION_REMOVE_EDGE,
     ACTION_REMOVE_NODE,
     ACTION_RENAME_NODE,
+    ACTION_RESIZE_NODE,
     ACTION_TOGGLE_COLLAPSED,
     ACTION_TOGGLE_EXPOSED_PORT,
 )
@@ -998,6 +999,25 @@ class GraphSceneBridge(QObject):
         self._model.set_node_position(self._workspace_id, node_id, final_x, final_y)
         self._rebuild_models()
         self._record_history(ACTION_MOVE_NODE, history_before)
+
+    @pyqtSlot(str, float, float)
+    def resize_node(self, node_id: str, width: float, height: float) -> None:
+        if self._model is None:
+            return
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return
+        node = self._node(node_id)
+        if node is None:
+            return
+        final_w = max(120.0, float(width))
+        final_h = max(50.0, float(height))
+        if node.custom_width == final_w and node.custom_height == final_h:
+            return
+        history_before = self._capture_history_snapshot()
+        self._model.set_node_size(self._workspace_id, node_id, final_w, final_h)
+        self._rebuild_models()
+        self._record_history(ACTION_RESIZE_NODE, history_before)
 
     @pyqtSlot("QVariantList", float, float, result=bool)
     def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:

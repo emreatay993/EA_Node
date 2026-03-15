@@ -46,12 +46,15 @@ Rectangle {
     readonly property color portInteractiveRingFillColor: nodePalette.port_interactive_ring_fill || "#44FFC857"
     readonly property color portInteractiveRingBorderColor: nodePalette.port_interactive_ring_border || "#66FFE29A"
 
+    property real zoom: 1.0
+
     signal nodeClicked(string nodeId, bool additive)
     signal nodeOpenRequested(string nodeId)
     signal nodeContextRequested(string nodeId, real localX, real localY)
     signal dragOffsetChanged(string nodeId, real dx, real dy)
     signal dragFinished(string nodeId, real finalX, real finalY, bool moved)
     signal dragCanceled(string nodeId)
+    signal resizeFinished(string nodeId, real newWidth, real newHeight)
     signal portClicked(string nodeId, string portKey, string direction, real sceneX, real sceneY)
     signal portDragStarted(
         string nodeId,
@@ -92,6 +95,11 @@ Rectangle {
         real sceneY,
         bool hovered
     )
+
+    property real _liveWidth: 0
+    property real _liveHeight: 0
+    readonly property real _minNodeWidth: 120.0
+    readonly property real _minNodeHeight: 50.0
 
     readonly property real _portHeight: 18
     readonly property real _inlineRowHeight: 26
@@ -203,8 +211,8 @@ Rectangle {
         x: nodeDragArea.drag.active ? 0 : card.liveDragDx
         y: nodeDragArea.drag.active ? 0 : card.liveDragDy
     }
-    width: card.nodeData ? card.nodeData.width : 0.0
-    height: card.nodeData ? card.nodeData.height : 0.0
+    width: card._liveWidth > 0 ? card._liveWidth : (card.nodeData ? card.nodeData.width : 0.0)
+    height: card._liveHeight > 0 ? card._liveHeight : (card.nodeData ? card.nodeData.height : 0.0)
     color: card.surfaceColor
     border.width: card.nodeData && card.nodeData.selected ? 2 : 1
     border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
@@ -696,4 +704,77 @@ Rectangle {
             card.dragCanceled(card.nodeData.node_id);
         }
     }
+
+    Canvas {
+        id: resizeGrip
+        z: 6
+        width: 16
+        height: 16
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        visible: card.nodeData ? !card.nodeData.collapsed : false
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.clearRect(0, 0, width, height);
+            ctx.strokeStyle = card.outlineColor;
+            ctx.lineWidth = 1.2;
+            ctx.lineCap = "round";
+            for (var i = 1; i <= 3; i++) {
+                var off = i * 3.5;
+                ctx.beginPath();
+                ctx.moveTo(width - off, height - 1);
+                ctx.lineTo(width - 1, height - off);
+                ctx.stroke();
+            }
+        }
+    }
+
+    MouseArea {
+        id: resizeDragArea
+        z: 5
+        width: 16
+        height: 16
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        visible: card.nodeData ? !card.nodeData.collapsed : false
+        hoverEnabled: true
+        cursorShape: Qt.SizeFDiagCursor
+        preventStealing: true
+        property real pressGlobalX: 0
+        property real pressGlobalY: 0
+        property real pressWidth: 0
+        property real pressHeight: 0
+
+        onPressed: function(mouse) {
+            var gp = mapToGlobal(mouse.x, mouse.y);
+            pressGlobalX = gp.x;
+            pressGlobalY = gp.y;
+            pressWidth = card.width;
+            pressHeight = card.height;
+            card._liveWidth = pressWidth;
+            card._liveHeight = pressHeight;
+            mouse.accepted = true;
+        }
+        onPositionChanged: function(mouse) {
+            if (!pressed) return;
+            var gp = mapToGlobal(mouse.x, mouse.y);
+            var dw = (gp.x - pressGlobalX) / card.zoom;
+            var dh = (gp.y - pressGlobalY) / card.zoom;
+            card._liveWidth = Math.max(card._minNodeWidth, pressWidth + dw);
+            card._liveHeight = Math.max(card._minNodeHeight, pressHeight + dh);
+        }
+        onReleased: function(mouse) {
+            if (card._liveWidth <= 0) return;
+            var finalWidth = card._liveWidth;
+            var finalHeight = card._liveHeight;
+            card._liveWidth = 0;
+            card._liveHeight = 0;
+            card.resizeFinished(card.nodeData.node_id, finalWidth, finalHeight);
+        }
+        onCanceled: {
+            card._liveWidth = 0;
+            card._liveHeight = 0;
+        }
+    }
+
 }

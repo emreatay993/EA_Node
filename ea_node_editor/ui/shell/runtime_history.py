@@ -16,6 +16,7 @@ ACTION_TOGGLE_EXPOSED_PORT = "toggle-exposed-port"
 ACTION_EDIT_PROPERTY = "edit-property"
 ACTION_DELETE_SELECTED = "delete-selected"
 ACTION_MOVE_NODE = "move-node"
+ACTION_RESIZE_NODE = "resize-node"
 
 
 @dataclass(slots=True)
@@ -196,6 +197,7 @@ __all__ = [
     "ACTION_DELETE_SELECTED",
     "ACTION_EDIT_PROPERTY",
     "ACTION_MOVE_NODE",
+    "ACTION_RESIZE_NODE",
     "ACTION_REMOVE_EDGE",
     "ACTION_REMOVE_NODE",
     "ACTION_RENAME_NODE",

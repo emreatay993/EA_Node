@@ -60,7 +60,9 @@ def node_size(
         return NODE_COLLAPSED_WIDTH, NODE_COLLAPSED_HEIGHT
     port_count = max(len(in_ports), len(out_ports), 1)
     height = NODE_HEADER_HEIGHT + inline_body_height(spec) + port_count * NODE_PORT_HEIGHT + 8.0
-    return NODE_WIDTH, height
+    width = node.custom_width if node.custom_width is not None else NODE_WIDTH
+    height = node.custom_height if node.custom_height is not None else height
+    return width, height
 
 
 def port_scene_pos(

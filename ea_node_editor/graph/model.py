@@ -23,6 +23,8 @@ class NodeInstance:
     properties: dict[str, Any] = field(default_factory=dict)
     exposed_ports: dict[str, bool] = field(default_factory=dict)
     parent_node_id: str | None = None
+    custom_width: float | None = None
+    custom_height: float | None = None
 
     def clone(self) -> "NodeInstance":
         return copy.deepcopy(self)
@@ -237,6 +239,12 @@ class GraphModel:
         node = workspace.nodes[node_id]
         node.x = x
         node.y = y
+        workspace.dirty = True
+
+    def set_node_size(self, workspace_id: str, node_id: str, width: float | None, height: float | None) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.nodes[node_id].custom_width = width
+        workspace.nodes[node_id].custom_height = height
         workspace.dirty = True
 
     def set_node_collapsed(self, workspace_id: str, node_id: str, collapsed: bool) -> None:

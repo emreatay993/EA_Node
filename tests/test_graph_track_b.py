@@ -264,6 +264,17 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             _alpha_color_name(STITCH_LIGHT_V1.accent, 0.2),
         )
 
+    def test_graph_canvas_world_stacks_above_edge_layer(self) -> None:
+        edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")
+        world = self.canvas.findChild(QObject, "graphCanvasWorld")
+
+        self.assertIsNotNone(edge_layer)
+        self.assertIsNotNone(world)
+        child_items = list(self.canvas.childItems())
+        self.assertIn(edge_layer, child_items)
+        self.assertIn(world, child_items)
+        self.assertLess(child_items.index(edge_layer), child_items.index(world))
+
     def test_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_NODE_CARD_QML_PATH)))
         if component.status() != QQmlComponent.Status.Ready:
@@ -399,7 +410,6 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         node_card.deleteLater()
         self.app.processEvents()
-
 
 class GraphModelTrackBTests(unittest.TestCase):
     def test_add_move_connect_remove_node_operations(self) -> None:

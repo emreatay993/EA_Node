@@ -1014,7 +1014,6 @@ Item {
         id: edgeLayer
         objectName: "graphCanvasEdgeLayer"
         anchors.fill: parent
-        z: 8
         viewBridge: root.viewBridge
         sceneBridge: root.sceneBridge
         edges: root.edgePayload
@@ -1048,6 +1047,7 @@ Item {
 
     Item {
         id: world
+        objectName: "graphCanvasWorld"
         width: root.worldSize
         height: root.worldSize
         transformOrigin: Item.TopLeft
@@ -1072,6 +1072,7 @@ Item {
                 shadowStrength: root.shadowStrength
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
+                zoom: viewBridge ? viewBridge.zoom_value : 1.0
 
                 onNodeClicked: function(nodeId, additive) {
                     root.forceActiveFocus();
@@ -1138,6 +1139,10 @@ Item {
                 }
                 onDragCanceled: function(_nodeId) {
                     root.clearLiveDragOffsets();
+                }
+                onResizeFinished: function(nodeId, newWidth, newHeight) {
+                    if (!sceneBridge) return;
+                    sceneBridge.resize_node(nodeId, newWidth, newHeight);
                 }
                 onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
                     root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);

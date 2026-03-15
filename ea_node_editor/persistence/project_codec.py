@@ -69,6 +69,8 @@ class JsonProjectCodec:
                             "properties": node.properties,
                             "exposed_ports": node.exposed_ports,
                             "parent_node_id": node.parent_node_id,
+                            "custom_width": node.custom_width,
+                            "custom_height": node.custom_height,
                         }
                         for node in sorted(
                             workspace.nodes.values(), key=lambda item: item.node_id
@@ -158,6 +160,8 @@ class JsonProjectCodec:
                     properties=dict(node_doc.get("properties", {})),
                     exposed_ports=dict(node_doc.get("exposed_ports", {})),
                     parent_node_id=node_doc.get("parent_node_id"),
+                    custom_width=float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
+                    custom_height=float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
                 )
                 workspace.nodes[node.node_id] = node
             for edge_doc in ws_doc.get("edges", []):
