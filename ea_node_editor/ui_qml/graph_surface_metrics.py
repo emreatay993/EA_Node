@@ -37,6 +37,8 @@ FLOWCHART_RESIZE_HANDLE_SIZE = 16.0
 FLOWCHART_INLINE_GAP = 8.0
 FLOWCHART_PORT_SECTION_TOP = 12.0
 
+PASSIVE_SURFACE_RESIZE_HANDLE_SIZE = 16.0
+
 
 @dataclass(frozen=True, slots=True)
 class GraphNodeSurfaceMetrics:
@@ -112,6 +114,24 @@ class _FlowchartVariantLayout:
     body_right_margin: float
     body_bottom_margin: float
     square: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _PassivePanelLayout:
+    default_width: float
+    default_height: float
+    min_width: float
+    min_height: float
+    title_top: float
+    title_height: float
+    title_left_margin: float
+    title_right_margin: float
+    body_top: float
+    body_height: float
+    body_left_margin: float
+    body_right_margin: float
+    body_bottom_margin: float
+    title_centered: bool = False
 
 
 _FLOWCHART_VARIANT_LAYOUTS: dict[str, _FlowchartVariantLayout] = {
@@ -217,6 +237,117 @@ _FLOWCHART_VARIANT_LAYOUTS: dict[str, _FlowchartVariantLayout] = {
     ),
 }
 
+_PLANNING_VARIANT_LAYOUTS: dict[str, _PassivePanelLayout] = {
+    "task_card": _PassivePanelLayout(
+        default_width=248.0,
+        default_height=168.0,
+        min_width=190.0,
+        min_height=148.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        body_height=112.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+    "milestone_card": _PassivePanelLayout(
+        default_width=248.0,
+        default_height=156.0,
+        min_width=190.0,
+        min_height=136.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        body_height=100.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+    "risk_card": _PassivePanelLayout(
+        default_width=252.0,
+        default_height=180.0,
+        min_width=196.0,
+        min_height=156.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        body_height=124.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+    "decision_card": _PassivePanelLayout(
+        default_width=252.0,
+        default_height=180.0,
+        min_width=196.0,
+        min_height=156.0,
+        title_top=12.0,
+        title_height=24.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=44.0,
+        body_height=124.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+}
+
+_ANNOTATION_VARIANT_LAYOUTS: dict[str, _PassivePanelLayout] = {
+    "sticky_note": _PassivePanelLayout(
+        default_width=228.0,
+        default_height=152.0,
+        min_width=176.0,
+        min_height=128.0,
+        title_top=14.0,
+        title_height=22.0,
+        title_left_margin=14.0,
+        title_right_margin=14.0,
+        body_top=42.0,
+        body_height=98.0,
+        body_left_margin=14.0,
+        body_right_margin=14.0,
+        body_bottom_margin=12.0,
+    ),
+    "callout": _PassivePanelLayout(
+        default_width=236.0,
+        default_height=156.0,
+        min_width=184.0,
+        min_height=132.0,
+        title_top=14.0,
+        title_height=22.0,
+        title_left_margin=16.0,
+        title_right_margin=16.0,
+        body_top=42.0,
+        body_height=102.0,
+        body_left_margin=16.0,
+        body_right_margin=16.0,
+        body_bottom_margin=12.0,
+    ),
+    "section_header": _PassivePanelLayout(
+        default_width=280.0,
+        default_height=112.0,
+        min_width=220.0,
+        min_height=96.0,
+        title_top=18.0,
+        title_height=24.0,
+        title_left_margin=18.0,
+        title_right_margin=18.0,
+        body_top=52.0,
+        body_height=34.0,
+        body_left_margin=18.0,
+        body_right_margin=18.0,
+        body_bottom_margin=12.0,
+    ),
+}
+
 
 def standard_inline_body_height(spec: NodeTypeSpec) -> float:
     inline_count = len(inline_property_specs(spec))
@@ -232,6 +363,16 @@ def standard_inline_body_height(spec: NodeTypeSpec) -> float:
 def normalize_flowchart_variant(variant: str) -> str:
     normalized = str(variant or "").strip().lower()
     return normalized if normalized in _FLOWCHART_VARIANT_LAYOUTS else "process"
+
+
+def normalize_planning_variant(variant: str) -> str:
+    normalized = str(variant or "").strip().lower()
+    return normalized if normalized in _PLANNING_VARIANT_LAYOUTS else "task_card"
+
+
+def normalize_annotation_variant(variant: str) -> str:
+    normalized = str(variant or "").strip().lower()
+    return normalized if normalized in _ANNOTATION_VARIANT_LAYOUTS else "sticky_note"
 
 
 def _resolved_dimensions(
@@ -367,6 +508,57 @@ def _flowchart_surface_metrics(
     )
 
 
+def _passive_panel_surface_metrics(
+    node: NodeInstance,
+    layout: _PassivePanelLayout,
+) -> GraphNodeSurfaceMetrics:
+    _active_width, active_height = _resolved_dimensions(
+        node,
+        default_width=layout.default_width,
+        default_height=layout.default_height,
+    )
+    body_height = max(layout.body_height, active_height - layout.body_top - layout.body_bottom_margin)
+    return GraphNodeSurfaceMetrics(
+        default_width=layout.default_width,
+        default_height=layout.default_height,
+        min_width=layout.min_width,
+        min_height=layout.min_height,
+        collapsed_width=STANDARD_COLLAPSED_WIDTH,
+        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
+        header_height=0.0,
+        header_top_margin=0.0,
+        body_top=layout.body_top,
+        body_height=body_height,
+        port_top=active_height - layout.body_bottom_margin,
+        port_height=0.0,
+        port_center_offset=0.0,
+        port_side_margin=STANDARD_PORT_SIDE_MARGIN,
+        port_dot_radius=STANDARD_PORT_DOT_RADIUS,
+        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
+        title_top=layout.title_top,
+        title_height=layout.title_height,
+        title_left_margin=layout.title_left_margin,
+        title_right_margin=layout.title_right_margin,
+        title_centered=layout.title_centered,
+        body_left_margin=layout.body_left_margin,
+        body_right_margin=layout.body_right_margin,
+        body_bottom_margin=layout.body_bottom_margin,
+        show_header_background=False,
+        show_accent_bar=False,
+        use_host_chrome=True,
+    )
+
+
+def _planning_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
+    layout = _PLANNING_VARIANT_LAYOUTS[normalize_planning_variant(spec.surface_variant)]
+    return _passive_panel_surface_metrics(node, layout)
+
+
+def _annotation_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
+    layout = _ANNOTATION_VARIANT_LAYOUTS[normalize_annotation_variant(spec.surface_variant)]
+    return _passive_panel_surface_metrics(node, layout)
+
+
 def node_surface_metrics(
     node: NodeInstance,
     spec: NodeTypeSpec,
@@ -375,6 +567,10 @@ def node_surface_metrics(
     family = str(spec.surface_family or "standard").strip() or "standard"
     if family == "flowchart":
         return _flowchart_surface_metrics(node, spec, workspace_nodes)
+    if family == "planning":
+        return _planning_surface_metrics(node, spec)
+    if family == "annotation":
+        return _annotation_surface_metrics(node, spec)
     return _standard_surface_metrics(node, spec, workspace_nodes)
 
 

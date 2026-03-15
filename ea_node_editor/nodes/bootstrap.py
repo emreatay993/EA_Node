@@ -17,7 +17,9 @@ from ea_node_editor.nodes.builtins.hpc import (
     HPCOnStatusNodePlugin,
     HPCSubmitNodePlugin,
 )
+from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_NODE_PLUGINS
 from ea_node_editor.nodes.builtins.passive_flowchart import PASSIVE_FLOWCHART_NODE_PLUGINS
+from ea_node_editor.nodes.builtins.passive_planning import PASSIVE_PLANNING_NODE_PLUGINS
 from ea_node_editor.nodes.builtins.subnode import (
     SubnodeInputNodePlugin,
     SubnodeNodePlugin,
@@ -56,6 +58,10 @@ def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeR
     registry.register(SubnodeInputNodePlugin)
     registry.register(SubnodeOutputNodePlugin)
     for plugin in PASSIVE_FLOWCHART_NODE_PLUGINS:
+        registry.register(plugin)
+    for plugin in PASSIVE_PLANNING_NODE_PLUGINS:
+        registry.register(plugin)
+    for plugin in PASSIVE_ANNOTATION_NODE_PLUGINS:
         registry.register(plugin)
 
     from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins

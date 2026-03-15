@@ -631,6 +631,40 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(edge_payload["source_port_kind"], "flow")
         self.assertEqual(edge_payload["target_port_kind"], "flow")
 
+    def test_planning_and_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
+        task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)
+        note_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 340.0, 80.0)
+
+        self.scene.set_node_property(task_id, "title", "Ship parser")
+        self.scene.set_node_property(task_id, "body", "Finalize validation and release notes.")
+        self.scene.set_node_property(task_id, "owner", "Platform")
+        self.scene.set_node_property(task_id, "due_date", "2026-03-31")
+        self.scene.set_node_property(task_id, "status", "in_progress")
+        self.scene.set_node_title(note_id, "Release note")
+        self.scene.set_node_property(note_id, "body", "Track follow-up messaging for the rollout.")
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        task_payload = node_payload[task_id]
+        note_payload = node_payload[note_id]
+
+        self.assertEqual(workspace.nodes[task_id].title, "Ship parser")
+        self.assertEqual(workspace.nodes[note_id].title, "Release note")
+        self.assertEqual(workspace.nodes[note_id].properties["title"], "Release note")
+
+        self.assertEqual(task_payload["surface_family"], "planning")
+        self.assertEqual(task_payload["surface_variant"], "task_card")
+        self.assertEqual(task_payload["title"], "Ship parser")
+        self.assertEqual(task_payload["properties"]["owner"], "Platform")
+        self.assertEqual(task_payload["properties"]["status"], "in_progress")
+        self.assertGreaterEqual(task_payload["surface_metrics"]["min_height"], 148.0)
+        self.assertTrue(bool(task_payload["surface_metrics"]["use_host_chrome"]))
+        self.assertEqual(note_payload["surface_family"], "annotation")
+        self.assertEqual(note_payload["surface_variant"], "sticky_note")
+        self.assertEqual(note_payload["title"], "Release note")
+        self.assertEqual(note_payload["properties"]["body"], "Track follow-up messaging for the rollout.")
+        self.assertGreaterEqual(note_payload["surface_metrics"]["min_width"], 176.0)
+
     def test_hiding_connected_port_removes_edges_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
         target_id = self.scene.add_node_from_type("core.python_script", 320.0, 30.0)

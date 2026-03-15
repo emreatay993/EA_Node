@@ -46,6 +46,30 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
         self.assertEqual(items["message"]["editor_mode"], "text")
         self.assertEqual(items["level"]["editor_mode"], "enum")
 
+    def test_planning_family_long_form_fields_use_textarea(self) -> None:
+        task_items = self._property_items_for_type("passive.planning.task_card")
+        risk_items = self._property_items_for_type("passive.planning.risk_card")
+        decision_items = self._property_items_for_type("passive.planning.decision_card")
+
+        self.assertEqual(task_items["body"]["editor_mode"], "textarea")
+        self.assertEqual(risk_items["body"]["editor_mode"], "textarea")
+        self.assertEqual(risk_items["mitigation"]["editor_mode"], "textarea")
+        self.assertEqual(decision_items["body"]["editor_mode"], "textarea")
+        self.assertEqual(decision_items["outcome"]["editor_mode"], "textarea")
+        self.assertEqual(task_items["owner"]["editor_mode"], "text")
+        self.assertEqual(task_items["status"]["editor_mode"], "enum")
+
+    def test_annotation_family_uses_textarea_only_for_body_fields(self) -> None:
+        sticky_items = self._property_items_for_type("passive.annotation.sticky_note")
+        callout_items = self._property_items_for_type("passive.annotation.callout")
+        section_items = self._property_items_for_type("passive.annotation.section_header")
+
+        self.assertEqual(sticky_items["body"]["editor_mode"], "textarea")
+        self.assertEqual(callout_items["body"]["editor_mode"], "textarea")
+        self.assertEqual(sticky_items["title"]["editor_mode"], "text")
+        self.assertEqual(section_items["title"]["editor_mode"], "text")
+        self.assertEqual(section_items["subtitle"]["editor_mode"], "text")
+
 
 if __name__ == "__main__":
     unittest.main()

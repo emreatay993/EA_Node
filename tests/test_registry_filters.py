@@ -27,6 +27,37 @@ class RegistryFilterTests(unittest.TestCase):
         self.assertTrue(results)
         self.assertTrue(all(spec.category == "Flowchart" for spec in results))
 
+    def test_planning_category_exposes_locked_passive_catalog(self) -> None:
+        registry = build_default_registry()
+        results = registry.filter_nodes(category="Planning")
+
+        self.assertEqual(
+            {spec.type_id for spec in results},
+            {
+                "passive.planning.task_card",
+                "passive.planning.milestone_card",
+                "passive.planning.risk_card",
+                "passive.planning.decision_card",
+            },
+        )
+        self.assertTrue(results)
+        self.assertTrue(all(spec.category == "Planning" for spec in results))
+
+    def test_annotation_category_exposes_locked_passive_catalog(self) -> None:
+        registry = build_default_registry()
+        results = registry.filter_nodes(category="Annotation")
+
+        self.assertEqual(
+            {spec.type_id for spec in results},
+            {
+                "passive.annotation.sticky_note",
+                "passive.annotation.callout",
+                "passive.annotation.section_header",
+            },
+        )
+        self.assertTrue(results)
+        self.assertTrue(all(spec.category == "Annotation" for spec in results))
+
     def test_filter_by_text_and_category(self) -> None:
         registry = build_default_registry()
         results = registry.filter_nodes(query="excel", category="Input / Output")
