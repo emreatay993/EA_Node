@@ -30,6 +30,7 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     recent_session_path,
 )
+from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.graph_theme import (
     default_graph_theme_id_for_shell_theme,
@@ -178,8 +179,9 @@ class ShellWindow(QMainWindow):
         self._local_pdf_preview_provider = LocalPdfPreviewImageProvider()
         self.status_engine = StatusItemModel("E", "Ready", self)
         self.status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", self)
-        self.status_metrics = StatusItemModel("M", "CPU:0% RAM:0/0 GB", self)
+        self.status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", self)
         self.status_notifications = StatusItemModel("N", "W:0 E:0", self)
+        self._frame_rate_sampler = FrameRateSampler()
         self._graph_search_open = False
         self._graph_search_query = ""
         self._graph_search_results: list[dict[str, Any]] = []
@@ -419,6 +421,12 @@ class ShellWindow(QMainWindow):
 
         qml_path = Path(__file__).resolve().parents[2] / "ui_qml" / "MainShell.qml"
         self.quick_widget.setSource(QUrl.fromLocalFile(str(qml_path)))
+        quick_window = self.quick_widget.quickWindow()
+        if quick_window is not None:
+            quick_window.afterRendering.connect(
+                self._record_render_frame,
+                Qt.ConnectionType.QueuedConnection,
+            )
         if self.quick_widget.status() == QQuickWidget.Status.Error:
             formatted_errors = "\n".join(error.toString() for error in self.quick_widget.errors()).strip()
             message = formatted_errors or "Unknown QML load error."
@@ -2163,6 +2171,10 @@ class ShellWindow(QMainWindow):
     def _prompt_recover_autosave(self):
         return self.project_session_controller.prompt_recover_autosave()
 
+    @pyqtSlot()
+    def _record_render_frame(self) -> None:
+        self._frame_rate_sampler.record_frame()
+
     def _update_metrics(self) -> None:
         metrics = read_system_metrics()
         self.update_system_metrics(metrics.cpu_percent, metrics.ram_used_gb, metrics.ram_total_gb)
@@ -2202,9 +2214,16 @@ class ShellWindow(QMainWindow):
     def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
         self.status_jobs.set_text(f"R:{running} Q:{queued} D:{done} F:{failed}")
 
-    def update_system_metrics(self, cpu_percent: float, ram_used_gb: float, ram_total_gb: float) -> None:
+    def update_system_metrics(
+        self,
+        cpu_percent: float,
+        ram_used_gb: float,
+        ram_total_gb: float,
+        fps: float | None = None,
+    ) -> None:
+        fps_value = max(0.0, float(fps)) if fps is not None else self._frame_rate_sampler.snapshot().fps
         self.status_metrics.set_text(
-            f"CPU:{cpu_percent:.0f}% RAM:{ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
+            f"FPS:{fps_value:.0f} CPU:{cpu_percent:.0f}% RAM:{ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
         )
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
