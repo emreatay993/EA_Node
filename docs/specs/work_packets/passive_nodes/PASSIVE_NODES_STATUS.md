@@ -17,6 +17,7 @@
 | P09 Planning Annotation | `codex/passive-nodes/p09-planning-annotation` | PENDING | `n/a` | pending | pending | pending | pending |
 | P10 Style Editor | `codex/passive-nodes/p10-style-editor` | PENDING | `n/a` | pending | pending | pending | pending |
 | P11 Style Presets | `codex/passive-nodes/p11-style-presets` | PENDING | `n/a` | pending | pending | pending | pending |
+| P11A Flowchart Visual Polish | `codex/passive-nodes/p11a-flowchart-visual-polish` | PENDING | `n/a` | pending | pending | pending | pending |
 | P12 Image Nodes | `codex/passive-nodes/p12-image-nodes` | PENDING | `n/a` | pending | pending | pending | pending |
 | P13 PDF Nodes | `codex/passive-nodes/p13-pdf-nodes` | PENDING | `n/a` | pending | pending | pending | pending |
 | P14 QA Traceability | `codex/passive-nodes/p14-qa-traceability` | PENDING | `n/a` | pending | pending | pending | pending |
