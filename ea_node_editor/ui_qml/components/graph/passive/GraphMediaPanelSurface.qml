@@ -220,7 +220,7 @@ Item {
                     objectName: "graphNodeMediaPreviewImage"
                     anchors.centerIn: parent
                     asynchronous: false
-                    cache: false
+                    cache: surface.isPdfPanel
                     mipmap: true
                     fillMode: surface.isPdfPanel
                         ? Image.PreserveAspectFit
