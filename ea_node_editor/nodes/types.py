@@ -5,9 +5,11 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Literal, Protocol
 
 PortDirection = Literal["in", "out"]
-PortKind = Literal["exec", "completed", "failed", "data"]
+PortKind = Literal["exec", "completed", "failed", "data", "flow"]
 PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
 InlineEditorType = Literal["", "text", "number", "toggle", "enum"]
+RuntimeBehavior = Literal["active", "passive", "compile_only"]
+SurfaceFamily = Literal["standard", "flowchart", "planning", "annotation", "media"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -18,6 +20,7 @@ class PortSpec:
     data_type: str
     required: bool = False
     exposed: bool = True
+    allow_multiple_connections: bool = False
 
 
 @dataclass(slots=True, frozen=True)
@@ -42,6 +45,9 @@ class NodeTypeSpec:
     collapsible: bool = True
     description: str = ""
     is_async: bool = False
+    runtime_behavior: RuntimeBehavior = "active"
+    surface_family: SurfaceFamily = "standard"
+    surface_variant: str = ""
 
 
 @dataclass(slots=True)

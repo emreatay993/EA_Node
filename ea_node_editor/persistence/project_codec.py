@@ -68,6 +68,7 @@ class JsonProjectCodec:
                             "collapsed": node.collapsed,
                             "properties": node.properties,
                             "exposed_ports": node.exposed_ports,
+                            "visual_style": node.visual_style,
                             "parent_node_id": node.parent_node_id,
                             "custom_width": node.custom_width,
                             "custom_height": node.custom_height,
@@ -83,6 +84,8 @@ class JsonProjectCodec:
                             "source_port_key": edge.source_port_key,
                             "target_node_id": edge.target_node_id,
                             "target_port_key": edge.target_port_key,
+                            "label": edge.label,
+                            "visual_style": edge.visual_style,
                         }
                         for edge in sorted(
                             workspace.edges.values(), key=lambda item: item.edge_id
@@ -159,6 +162,7 @@ class JsonProjectCodec:
                     collapsed=bool(node_doc.get("collapsed", False)),
                     properties=dict(node_doc.get("properties", {})),
                     exposed_ports=dict(node_doc.get("exposed_ports", {})),
+                    visual_style=dict(node_doc.get("visual_style", {})),
                     parent_node_id=node_doc.get("parent_node_id"),
                     custom_width=float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
                     custom_height=float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
@@ -186,6 +190,8 @@ class JsonProjectCodec:
                     source_port_key=str(source_port_key),
                     target_node_id=str(target_node_id),
                     target_port_key=str(target_port_key),
+                    label=self._coerce_str(edge_doc.get("label")),
+                    visual_style=dict(edge_doc.get("visual_style", {})),
                 )
                 workspace.edges[edge.edge_id] = edge
             for view in workspace.views.values():
