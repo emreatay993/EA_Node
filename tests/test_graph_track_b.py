@@ -518,6 +518,9 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(node_payload[source_id]["runtime_behavior"], "active")
         self.assertEqual(node_payload[source_id]["surface_family"], "standard")
         self.assertEqual(node_payload[source_id]["surface_variant"], "")
+        self.assertEqual(node_payload[source_id]["surface_metrics"]["default_width"], 210.0)
+        self.assertEqual(node_payload[source_id]["surface_metrics"]["min_width"], 120.0)
+        self.assertEqual(node_payload[source_id]["surface_metrics"]["min_height"], 50.0)
         self.assertEqual(
             node_payload[source_id]["visual_style"],
             {"fill": "#102030", "badge": {"shape": "pill"}},

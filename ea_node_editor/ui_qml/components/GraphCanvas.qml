@@ -1100,7 +1100,7 @@ Item {
 
         Repeater {
             model: sceneBridge ? sceneBridge.nodes_model : []
-            delegate: GraphComponents.NodeCard {
+            delegate: GraphComponents.GraphNodeHost {
                 id: nodeCard
                 nodeData: modelData
                 worldOffset: root.worldOffset
@@ -1135,11 +1135,10 @@ Item {
                     root.requestOpenSubnodeScope(nodeId);
                 }
                 onDragOffsetChanged: function(nodeId, dx, dy) {
-                    var snappedDelta = root.snappedDragDelta(nodeId, dx, dy);
                     root.setLiveDragOffsets(
                         root.dragNodeIdsForAnchor(nodeId),
-                        snappedDelta.dx,
-                        snappedDelta.dy
+                        Number(dx),
+                        Number(dy)
                     );
                 }
                 onDragFinished: function(nodeId, finalX, finalY, _moved) {

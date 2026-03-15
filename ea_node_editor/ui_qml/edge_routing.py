@@ -16,19 +16,8 @@ from ea_node_editor.graph.effective_ports import (
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition, resolve_edge_color
+from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics, standard_inline_body_height
 
-NODE_HEADER_HEIGHT = 24.0
-NODE_PORT_HEIGHT = 18.0
-NODE_WIDTH = 210.0
-NODE_COLLAPSED_WIDTH = 130.0
-NODE_COLLAPSED_HEIGHT = 36.0
-NODE_PORTS_TOP = 30.0
-NODE_INLINE_ROW_HEIGHT = 26.0
-NODE_INLINE_ROW_SPACING = 4.0
-NODE_INLINE_SECTION_PADDING = 8.0
-NODE_PORT_CENTER_OFFSET = 6.0
-NODE_PORT_SIDE_MARGIN = 8.0
-NODE_PORT_DOT_RADIUS = 3.5
 EDGE_PAIR_LANE_SPACING = 24.0
 EDGE_PORT_FAN_SPACING = 10.0
 EDGE_FORWARD_LEAD_MIN = 56.0
@@ -40,14 +29,7 @@ EDGE_PIPE_MIDDLE_MARGIN = 10.0
 
 
 def inline_body_height(spec: NodeTypeSpec) -> float:
-    inline_count = len(inline_property_specs(spec))
-    if inline_count <= 0:
-        return 0.0
-    return (
-        NODE_INLINE_SECTION_PADDING
-        + inline_count * NODE_INLINE_ROW_HEIGHT
-        + max(0, inline_count - 1) * NODE_INLINE_ROW_SPACING
-    )
+    return standard_inline_body_height(spec)
 
 
 def node_size(
@@ -56,13 +38,11 @@ def node_size(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
 ) -> tuple[float, float]:
     scoped_nodes = workspace_nodes or {node.node_id: node}
-    in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
+    metrics = node_surface_metrics(node, spec, scoped_nodes)
     if node.collapsed:
-        return NODE_COLLAPSED_WIDTH, NODE_COLLAPSED_HEIGHT
-    port_count = max(len(in_ports), len(out_ports), 1)
-    height = NODE_HEADER_HEIGHT + inline_body_height(spec) + port_count * NODE_PORT_HEIGHT + 8.0
-    width = node.custom_width if node.custom_width is not None else NODE_WIDTH
-    height = node.custom_height if node.custom_height is not None else height
+        return metrics.collapsed_width, metrics.collapsed_height
+    width = node.custom_width if node.custom_width is not None else metrics.default_width
+    height = node.custom_height if node.custom_height is not None else metrics.default_height
     return width, height
 
 
@@ -73,14 +53,15 @@ def port_scene_pos(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
 ) -> QPointF:
     scoped_nodes = workspace_nodes or {node.node_id: node}
+    metrics = node_surface_metrics(node, spec, scoped_nodes)
     in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
     direction = port_direction(node=node, spec=spec, workspace_nodes=scoped_nodes, port_key=port_key)
     width, _height = node_size(node, spec, scoped_nodes)
 
     if node.collapsed:
         if direction == "in":
-            return QPointF(node.x, node.y + (NODE_COLLAPSED_HEIGHT * 0.5))
-        return QPointF(node.x + width, node.y + (NODE_COLLAPSED_HEIGHT * 0.5))
+            return QPointF(node.x, node.y + (metrics.collapsed_height * 0.5))
+        return QPointF(node.x + width, node.y + (metrics.collapsed_height * 0.5))
 
     visible = in_ports if direction == "in" else out_ports
     row_index = 0
@@ -88,10 +69,10 @@ def port_scene_pos(
         if port.key == port_key:
             row_index = index
             break
-    y = node.y + NODE_PORTS_TOP + inline_body_height(spec) + NODE_PORT_CENTER_OFFSET + NODE_PORT_HEIGHT * row_index
+    y = node.y + metrics.port_top + metrics.port_center_offset + metrics.port_height * row_index
     if direction == "in":
-        return QPointF(node.x + NODE_PORT_SIDE_MARGIN + NODE_PORT_DOT_RADIUS, y)
-    return QPointF(node.x + width - NODE_PORT_SIDE_MARGIN - NODE_PORT_DOT_RADIUS, y)
+        return QPointF(node.x + metrics.port_side_margin + metrics.port_dot_radius, y)
+    return QPointF(node.x + width - metrics.port_side_margin - metrics.port_dot_radius, y)
 
 
 def edge_lane_offsets(
