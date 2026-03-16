@@ -755,15 +755,26 @@ class ShellWindow(QMainWindow):
             subnode_pin_type_ids=self._SUBNODE_PIN_TYPE_IDS,
         )
 
+    def _node_property_spec(self, node_id: str, key: str):
+        normalized_node_id = str(node_id or "").strip()
+        normalized_key = str(key).strip()
+        if not normalized_node_id or not normalized_key:
+            return None
+        workspace = self.model.project.workspaces.get(self.active_workspace_id)
+        if workspace is None:
+            return None
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return None
+        spec = self.registry.get_spec(node.type_id)
+        return next((prop for prop in spec.properties if prop.key == normalized_key), None)
+
     def _selected_node_property_spec(self, key: str):
         selected = self._selected_node_context()
         if selected is None:
             return None
-        _node, spec = selected
-        normalized_key = str(key).strip()
-        if not normalized_key:
-            return None
-        return next((prop for prop in spec.properties if prop.key == normalized_key), None)
+        node, _spec = selected
+        return self._node_property_spec(node.node_id, key)
 
     def _path_dialog_start_path(self, current_path: str) -> str:
         normalized_current = str(current_path or "").strip()
@@ -1696,9 +1707,19 @@ class ShellWindow(QMainWindow):
         property_spec = self._selected_node_property_spec(key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
+        return self._browse_property_path_dialog(property_spec.label, current_path)
+
+    @pyqtSlot(str, str, str, result=str)
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
+        property_spec = self._node_property_spec(node_id, key)
+        if property_spec is None or str(property_spec.type) != "path":
+            return ""
+        return self._browse_property_path_dialog(property_spec.label, current_path)
+
+    def _browse_property_path_dialog(self, property_label: str, current_path: str) -> str:
         selected_path, _selected_filter = QFileDialog.getOpenFileName(
             self,
-            f"Choose {property_spec.label}",
+            f"Choose {property_label}",
             self._path_dialog_start_path(current_path),
         )
         return str(selected_path or "")
