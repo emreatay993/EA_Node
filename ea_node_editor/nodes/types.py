@@ -34,6 +34,7 @@ class PropertySpec:
     enum_values: tuple[str, ...] = ()
     inline_editor: InlineEditorType = ""
     inspector_editor: InspectorEditorType = ""
+    inspector_visible: bool = True
 
 
 @dataclass(slots=True, frozen=True)
@@ -124,3 +125,7 @@ def property_inspector_editor(property_spec: PropertySpec) -> str:
     if property_spec.type == "path":
         return "path"
     return "text"
+
+
+def property_visible_in_inspector(property_spec: PropertySpec) -> bool:
+    return bool(property_spec.inspector_visible)

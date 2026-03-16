@@ -420,3 +420,56 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             app.processEvents()
             """,
         )
+
+    def test_media_crop_mode_locks_host_drag_resize_and_ports(self) -> None:
+        self._run_qml_probe(
+            "media-host-lock",
+            """
+            import tempfile
+            from PyQt6.QtGui import QColor, QImage
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "media-lock.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+                media_payload["runtime_behavior"] = "passive"
+                media_payload["surface_metrics"] = {}
+                media_payload["properties"] = {
+                    "source_path": str(image_path),
+                    "caption": "",
+                    "fit_mode": "contain",
+                }
+                host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                assert surface is not None
+                assert loader is not None
+
+                for _index in range(40):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+
+                surface.setProperty("cropModeActive", True)
+                app.processEvents()
+
+                drag_area = host.findChild(QObject, "graphNodeDragArea")
+                resize_area = host.findChild(QObject, "graphNodeResizeDragArea")
+                input_areas = named_child_items(host, "graphNodeInputPortMouseArea")
+                output_areas = named_child_items(host, "graphNodeOutputPortMouseArea")
+
+                assert bool(host.property("surfaceInteractionLocked"))
+                assert bool(loader.property("blocksHostInteraction"))
+                assert drag_area is not None
+                assert resize_area is not None
+                assert not bool(drag_area.property("enabled"))
+                assert not bool(resize_area.property("enabled"))
+                assert len(input_areas) >= 1
+                assert len(output_areas) >= 1
+                assert not bool(input_areas[0].property("enabled"))
+                assert not bool(output_areas[0].property("enabled"))
+            """,
+        )

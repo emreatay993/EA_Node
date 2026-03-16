@@ -124,6 +124,7 @@ Item {
     readonly property real passiveFontPixelSize: card._styleNumber(passiveStyle.font_size, 12.0, false)
     readonly property bool passiveFontBold: card._styleString(passiveStyle.font_weight).toLowerCase() === "bold"
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
+    readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
     readonly property bool isCollapsed: !!nodeData && !!nodeData.collapsed
     readonly property color color: card._useHostChrome ? card.surfaceColor : "transparent"
     readonly property real radius: card._useHostChrome ? card.resolvedCornerRadius : 0
@@ -336,6 +337,26 @@ Item {
         return localX >= card.width - card._resizeHandleSize && localY >= card.height - card._resizeHandleSize;
     }
 
+    function _pointInHoverAction(localX, localY) {
+        var rect = surfaceLoader.hoverActionHitRect;
+        var rectX = Number(rect.x || 0);
+        var rectY = Number(rect.y || 0);
+        var rectWidth = Number(rect.width || 0);
+        var rectHeight = Number(rect.height || 0);
+        return rectWidth > 0
+            && rectHeight > 0
+            && localX >= rectX
+            && localX <= rectX + rectWidth
+            && localY >= rectY
+            && localY <= rectY + rectHeight;
+    }
+
+    HoverHandler {
+        id: cardHoverHandler
+    }
+
+    readonly property bool hoverActive: cardHoverHandler.hovered || nodeDragArea.containsMouse || resizeDragArea.containsMouse
+
     z: card.nodeData && card.nodeData.selected ? 30 : 20
     x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
     y: (card.nodeData ? card.nodeData.y : 0.0) + card.worldOffset
@@ -453,6 +474,33 @@ Item {
         }
     }
 
+    Button {
+        id: surfaceHoverActionArea
+        objectName: "graphNodeSurfaceHoverActionButton"
+        z: 6
+        visible: !card.surfaceInteractionLocked
+            && Number(surfaceLoader.hoverActionHitRect.width || 0) > 0
+            && Number(surfaceLoader.hoverActionHitRect.height || 0) > 0
+        enabled: visible
+        x: Number(surfaceLoader.hoverActionHitRect.x || 0)
+        y: Number(surfaceLoader.hoverActionHitRect.y || 0)
+        width: Number(surfaceLoader.hoverActionHitRect.width || 0)
+        height: Number(surfaceLoader.hoverActionHitRect.height || 0)
+        hoverEnabled: true
+        focusPolicy: Qt.NoFocus
+        padding: 0
+
+        contentItem: Item {
+        }
+
+        background: Item {
+        }
+
+        onClicked: {
+            surfaceLoader.triggerHoverAction();
+        }
+    }
+
     Item {
         id: portLayer
         z: 5
@@ -519,6 +567,7 @@ Item {
                     MouseArea {
                         id: inputPortMouse
                         objectName: "graphNodeInputPortMouseArea"
+                        enabled: !card.surfaceInteractionLocked
                         property real pressStartX: 0
                         property real pressStartY: 0
                         property bool movedState: false
@@ -678,6 +727,7 @@ Item {
                     MouseArea {
                         id: outputPortMouse
                         objectName: "graphNodeOutputPortMouseArea"
+                        enabled: !card.surfaceInteractionLocked
                         property real pressStartX: 0
                         property real pressStartY: 0
                         property bool movedState: false
@@ -800,17 +850,23 @@ Item {
 
     MouseArea {
         id: nodeDragArea
+        objectName: "graphNodeDragArea"
         z: 2
         anchors.fill: parent
+        enabled: !card.surfaceInteractionLocked
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: true
         cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
-        drag.target: card
+        drag.target: enabled ? card : null
         drag.axis: Drag.XAndYAxis
         propagateComposedEvents: true
         property bool dragMoved: false
 
         onPressed: {
+            if (mouse.button === Qt.LeftButton && card._pointInHoverAction(mouse.x, mouse.y)) {
+                mouse.accepted = false;
+                return;
+            }
             if (mouse.button === Qt.RightButton) {
                 card.nodeContextRequested(card.nodeData.node_id, mouse.x, mouse.y);
                 mouse.accepted = true;
@@ -861,7 +917,7 @@ Item {
         height: card._resizeHandleSize
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        visible: card.nodeData ? !card.nodeData.collapsed : false
+        visible: card.nodeData ? (!card.nodeData.collapsed && !card.surfaceInteractionLocked) : false
         onPaint: {
             var ctx = getContext("2d");
             ctx.clearRect(0, 0, width, height);
@@ -880,12 +936,14 @@ Item {
 
     MouseArea {
         id: resizeDragArea
+        objectName: "graphNodeResizeDragArea"
         z: 5
         width: card._resizeHandleSize
         height: card._resizeHandleSize
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        visible: card.nodeData ? !card.nodeData.collapsed : false
+        visible: card.nodeData ? (!card.nodeData.collapsed && !card.surfaceInteractionLocked) : false
+        enabled: !card.surfaceInteractionLocked
         hoverEnabled: true
         cursorShape: Qt.SizeFDiagCursor
         preventStealing: true

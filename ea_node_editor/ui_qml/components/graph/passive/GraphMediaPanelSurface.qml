@@ -1,9 +1,16 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 
 Item {
     id: surface
     objectName: "graphNodeMediaSurface"
     property Item host: null
+    property bool cropModeActive: false
+    property real draftCropX: 0.0
+    property real draftCropY: 0.0
+    property real draftCropW: 1.0
+    property real draftCropH: 1.0
+    readonly property bool blocksHostInteraction: cropModeActive
     readonly property var nodeProperties: host && host.nodeData && host.nodeData.properties
         ? host.nodeData.properties
         : ({})
@@ -49,6 +56,42 @@ Item {
     }
     readonly property string appliedFitMode: isPdfPanel ? "contain" : normalizedFitMode
     readonly property bool originalModeActive: !isPdfPanel && normalizedFitMode === "original"
+    readonly property real sourcePixelWidth: !isPdfPanel && sourceImageProbe.status === Image.Ready
+        ? Number(sourceImageProbe.implicitWidth || 0)
+        : 0
+    readonly property real sourcePixelHeight: !isPdfPanel && sourceImageProbe.status === Image.Ready
+        ? Number(sourceImageProbe.implicitHeight || 0)
+        : 0
+    readonly property var normalizedStoredCropRect: _normalizedStoredCropRect()
+    readonly property bool hasEffectiveCrop: !_isFullCropRect(normalizedStoredCropRect)
+    readonly property rect appliedSourceClipRect: _sourceClipRectFromNormalized(normalizedStoredCropRect)
+    readonly property real appliedClipX: Number(appliedSourceClipRect.x || 0)
+    readonly property real appliedClipY: Number(appliedSourceClipRect.y || 0)
+    readonly property real appliedClipWidth: Number(appliedSourceClipRect.width || 0)
+    readonly property real appliedClipHeight: Number(appliedSourceClipRect.height || 0)
+    readonly property bool cropToolAvailable: !isPdfPanel
+        && previewState === "ready"
+        && sourcePixelWidth > 0
+        && sourcePixelHeight > 0
+    readonly property bool cropButtonVisible: cropToolAvailable
+        && !cropModeActive
+        && (host ? host.hoverActive : false)
+    readonly property rect hoverActionHitRect: cropButton.visible
+        ? Qt.rect(cropButton.x, cropButton.y, cropButton.width, cropButton.height)
+        : Qt.rect(0, 0, 0, 0)
+    readonly property var cropDisplayRect: _containRect(
+        previewViewport.width,
+        previewViewport.height,
+        sourcePixelWidth,
+        sourcePixelHeight
+    )
+    readonly property var draftDisplayCropRect: _displayCropRect(
+        draftCropX,
+        draftCropY,
+        draftCropW,
+        draftCropH,
+        cropDisplayRect
+    )
     readonly property string previewHintText: {
         if (isPdfPanel) {
             if (previewState === "error")
@@ -75,7 +118,22 @@ Item {
     readonly property color pdfBadgeFillColor: host ? Qt.alpha(host.scopeBadgeColor, 0.92) : "#2C85BF"
     readonly property color pdfBadgeBorderColor: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.96) : "#7FC7FF"
     readonly property color pdfBadgeTextColor: host ? host.scopeBadgeTextColor : "#F4F8FC"
+    readonly property color cropOverlayShadeColor: Qt.alpha("#11151A", 0.44)
+    readonly property color cropFrameColor: host ? host.selectedOutlineColor : "#60CDFF"
+    readonly property color cropHandleFillColor: host ? host.surfaceColor : "#1b1d22"
+    readonly property color cropHandleBorderColor: host ? host.selectedOutlineColor : "#60CDFF"
+    readonly property color cropButtonIconColor: host ? host.headerTextColor : "#f0f2f5"
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
+
+    onCropToolAvailableChanged: {
+        if (!cropToolAvailable && cropModeActive)
+            _cancelCropEdit();
+    }
+
+    onSourcePathChanged: {
+        if (cropModeActive)
+            _cancelCropEdit();
+    }
 
     function _rawValue(key, fallback) {
         var value = nodeProperties[key];
@@ -89,11 +147,230 @@ Item {
         return String(value);
     }
 
+    function _numberValue(key, fallback) {
+        var numeric = Number(_rawValue(key, fallback));
+        return isFinite(numeric) ? numeric : fallback;
+    }
+
     function _normalizedFitMode() {
         var value = _value("fit_mode").trim().toLowerCase();
         if (value === "cover" || value === "original")
             return value;
         return "contain";
+    }
+
+    function _clamp(value, minimum, maximum) {
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    function _approxEqual(a, b) {
+        return Math.abs(Number(a) - Number(b)) <= 0.0001;
+    }
+
+    function _minimumCropWidth() {
+        return sourcePixelWidth > 0 ? (1.0 / sourcePixelWidth) : 0.001;
+    }
+
+    function _minimumCropHeight() {
+        return sourcePixelHeight > 0 ? (1.0 / sourcePixelHeight) : 0.001;
+    }
+
+    function _fullCropRect() {
+        return {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0};
+    }
+
+    function _normalizedCropRect(x, y, w, h) {
+        var left = Number(x);
+        var top = Number(y);
+        var widthValue = Number(w);
+        var heightValue = Number(h);
+        if (!isFinite(left) || !isFinite(top) || !isFinite(widthValue) || !isFinite(heightValue))
+            return _fullCropRect();
+        if (!(widthValue > 0.0) || !(heightValue > 0.0))
+            return _fullCropRect();
+        left = _clamp(left, 0.0, 1.0);
+        top = _clamp(top, 0.0, 1.0);
+        var right = _clamp(left + widthValue, left, 1.0);
+        var bottom = _clamp(top + heightValue, top, 1.0);
+        if (!(right > left) || !(bottom > top))
+            return _fullCropRect();
+        return {
+            "x": left,
+            "y": top,
+            "width": right - left,
+            "height": bottom - top
+        };
+    }
+
+    function _normalizedStoredCropRect() {
+        return _normalizedCropRect(
+            _numberValue("crop_x", 0.0),
+            _numberValue("crop_y", 0.0),
+            _numberValue("crop_w", 1.0),
+            _numberValue("crop_h", 1.0)
+        );
+    }
+
+    function _isFullCropRect(rect) {
+        return _approxEqual(rect.x, 0.0)
+            && _approxEqual(rect.y, 0.0)
+            && _approxEqual(rect.width, 1.0)
+            && _approxEqual(rect.height, 1.0);
+    }
+
+    function _sourceClipRectFromNormalized(rect) {
+        if (sourcePixelWidth <= 0 || sourcePixelHeight <= 0)
+            return Qt.rect(0, 0, 0, 0);
+        return Qt.rect(
+            rect.x * sourcePixelWidth,
+            rect.y * sourcePixelHeight,
+            rect.width * sourcePixelWidth,
+            rect.height * sourcePixelHeight
+        );
+    }
+
+    function _containRect(containerWidth, containerHeight, sourceWidth, sourceHeight) {
+        var cw = Math.max(0.0, Number(containerWidth || 0));
+        var ch = Math.max(0.0, Number(containerHeight || 0));
+        var sw = Math.max(0.0, Number(sourceWidth || 0));
+        var sh = Math.max(0.0, Number(sourceHeight || 0));
+        if (!(cw > 0.0) || !(ch > 0.0) || !(sw > 0.0) || !(sh > 0.0))
+            return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0};
+        var scale = Math.min(cw / sw, ch / sh);
+        var widthValue = sw * scale;
+        var heightValue = sh * scale;
+        return {
+            "x": (cw - widthValue) * 0.5,
+            "y": (ch - heightValue) * 0.5,
+            "width": widthValue,
+            "height": heightValue
+        };
+    }
+
+    function _displayCropRect(x, y, w, h, imageRect) {
+        var rect = _normalizedCropRect(x, y, w, h);
+        var widthValue = Number(imageRect.width || 0);
+        var heightValue = Number(imageRect.height || 0);
+        return {
+            "x": Number(imageRect.x || 0) + rect.x * widthValue,
+            "y": Number(imageRect.y || 0) + rect.y * heightValue,
+            "width": rect.width * widthValue,
+            "height": rect.height * heightValue
+        };
+    }
+
+    function _iconSource(name, size, color) {
+        if (typeof uiIcons === "undefined" || !uiIcons || !uiIcons.has(name))
+            return "";
+        return uiIcons.sourceSized(name, size, color);
+    }
+
+    function _setDraftCropRect(rect) {
+        draftCropX = Number(rect.x || 0);
+        draftCropY = Number(rect.y || 0);
+        draftCropW = Number(rect.width || 1);
+        draftCropH = Number(rect.height || 1);
+    }
+
+    function _loadDraftFromStoredCrop() {
+        _setDraftCropRect(normalizedStoredCropRect);
+    }
+
+    function _beginCropEdit() {
+        if (!cropToolAvailable)
+            return;
+        if (typeof sceneBridge !== "undefined" && sceneBridge && host && host.nodeData) {
+            sceneBridge.select_node(String(host.nodeData.node_id || ""), false);
+        }
+        _loadDraftFromStoredCrop();
+        cropModeActive = true;
+    }
+
+    function _cancelCropEdit() {
+        cropModeActive = false;
+        _loadDraftFromStoredCrop();
+    }
+
+    function _applyCropEdit() {
+        var rect = _normalizedCropRect(draftCropX, draftCropY, draftCropW, draftCropH);
+        if (typeof sceneBridge !== "undefined" && sceneBridge && host && host.nodeData) {
+            var applied = sceneBridge.set_node_properties(
+                String(host.nodeData.node_id || ""),
+                {
+                    "crop_x": rect.x,
+                    "crop_y": rect.y,
+                    "crop_w": rect.width,
+                    "crop_h": rect.height
+                }
+            );
+            if (!applied)
+                return;
+        }
+        cropModeActive = false;
+        _setDraftCropRect(rect);
+    }
+
+    function triggerHoverAction() {
+        _beginCropEdit();
+    }
+
+    function _updateDraftFromHandle(handle, deltaPixelsX, deltaPixelsY, startX, startY, startW, startH) {
+        var imageWidth = Number(cropDisplayRect.width || 0);
+        var imageHeight = Number(cropDisplayRect.height || 0);
+        if (!(imageWidth > 0.0) || !(imageHeight > 0.0))
+            return;
+        var deltaX = deltaPixelsX / imageWidth;
+        var deltaY = deltaPixelsY / imageHeight;
+        var left = Number(startX);
+        var top = Number(startY);
+        var right = Number(startX) + Number(startW);
+        var bottom = Number(startY) + Number(startH);
+        var minWidth = _minimumCropWidth();
+        var minHeight = _minimumCropHeight();
+
+        if (handle.indexOf("left") >= 0)
+            left = _clamp(left + deltaX, 0.0, right - minWidth);
+        if (handle.indexOf("right") >= 0)
+            right = _clamp(right + deltaX, left + minWidth, 1.0);
+        if (handle.indexOf("top") >= 0)
+            top = _clamp(top + deltaY, 0.0, bottom - minHeight);
+        if (handle.indexOf("bottom") >= 0)
+            bottom = _clamp(bottom + deltaY, top + minHeight, 1.0);
+
+        _setDraftCropRect({
+            "x": left,
+            "y": top,
+            "width": right - left,
+            "height": bottom - top
+        });
+    }
+
+    function _handleCursorShape(handle) {
+        if (handle === "top_left" || handle === "bottom_right")
+            return Qt.SizeFDiagCursor;
+        if (handle === "top_right" || handle === "bottom_left")
+            return Qt.SizeBDiagCursor;
+        if (handle === "top" || handle === "bottom")
+            return Qt.SizeVerCursor;
+        return Qt.SizeHorCursor;
+    }
+
+    function _handleX(handle, frameRect, handleSize) {
+        var half = handleSize * 0.5;
+        if (handle === "top_left" || handle === "left" || handle === "bottom_left")
+            return frameRect.x - half;
+        if (handle === "top_right" || handle === "right" || handle === "bottom_right")
+            return frameRect.x + frameRect.width - half;
+        return frameRect.x + frameRect.width * 0.5 - half;
+    }
+
+    function _handleY(handle, frameRect, handleSize) {
+        var half = handleSize * 0.5;
+        if (handle === "top_left" || handle === "top" || handle === "top_right")
+            return frameRect.y - half;
+        if (handle === "bottom_left" || handle === "bottom" || handle === "bottom_right")
+            return frameRect.y + frameRect.height - half;
+        return frameRect.y + frameRect.height * 0.5 - half;
     }
 
     function _isWindowsDrivePath(value) {
@@ -180,12 +457,90 @@ Item {
         };
     }
 
+    component SurfaceButton : Button {
+        id: control
+        property string iconName: ""
+        property int iconSize: 14
+        property color iconColor: surface.cropButtonIconColor
+        property color labelColor: surface.cropButtonIconColor
+        readonly property string resolvedIconSource: surface._iconSource(iconName, iconSize, String(iconColor))
+        implicitHeight: 24
+        implicitWidth: Math.max(28, contentRow.implicitWidth + 14)
+        padding: 0
+        hoverEnabled: true
+
+        contentItem: Item {
+            implicitWidth: contentRow.implicitWidth
+            implicitHeight: contentRow.implicitHeight
+
+            Row {
+                id: contentRow
+                anchors.centerIn: parent
+                spacing: control.text.length > 0 && control.resolvedIconSource.length > 0 ? 6 : 0
+
+                Image {
+                    visible: control.resolvedIconSource.length > 0
+                    source: control.resolvedIconSource
+                    width: control.iconSize
+                    height: control.iconSize
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    mipmap: true
+                    sourceSize.width: control.iconSize
+                    sourceSize.height: control.iconSize
+                }
+
+                Text {
+                    visible: control.text.length > 0
+                    text: control.text
+                    color: control.labelColor
+                    font.pixelSize: 10
+                    font.bold: true
+                    verticalAlignment: Text.AlignVCenter
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                }
+            }
+        }
+
+        background: Rectangle {
+            radius: 6
+            color: control.down
+                ? Qt.alpha(surface.panelFillColor, 0.96)
+                : (control.hovered
+                    ? Qt.alpha(surface.panelFillColor, 0.9)
+                    : Qt.alpha(surface.panelFillColor, 0.82))
+            border.width: 1
+            border.color: control.down
+                ? Qt.alpha(surface.cropFrameColor, 0.95)
+                : Qt.alpha(surface.panelBorderColor, control.hovered ? 0.95 : 0.82)
+        }
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: host ? Number(host.resolvedCornerRadius || 6) : 6
         color: surface.panelFillColor
         border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.panelBorderColor
+    }
+
+    SurfaceButton {
+        id: cropButton
+        objectName: "graphNodeMediaCropButton"
+        z: 6
+        visible: surface.cropButtonVisible
+        enabled: visible
+        iconName: "crop"
+        iconSize: 14
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        y: host
+            ? Number(host.surfaceMetrics.title_top || 0)
+                + Math.max(0, (Number(host.surfaceMetrics.title_height || 24) - height) * 0.5)
+            : 6
+        implicitWidth: 28
+        text: ""
+        onClicked: surface.triggerHoverAction()
     }
 
     Rectangle {
@@ -195,7 +550,10 @@ Item {
         visible: surface.isPdfPanel && surface.previewState === "ready" && surface.pdfPageCount > 0
         anchors.right: parent.right
         anchors.rightMargin: host ? Number(host.surfaceMetrics.title_right_margin || 10) : 10
-        y: host ? Number(host.surfaceMetrics.title_top || 0) + Math.max(0, (Number(host.surfaceMetrics.title_height || 28) - height) * 0.5) : 6
+        y: host
+            ? Number(host.surfaceMetrics.title_top || 0)
+                + Math.max(0, (Number(host.surfaceMetrics.title_height || 28) - height) * 0.5)
+            : 6
         radius: 10
         color: surface.pdfBadgeFillColor
         border.width: 1
@@ -242,6 +600,14 @@ Item {
                 anchors.fill: parent
 
                 Image {
+                    id: sourceImageProbe
+                    visible: false
+                    asynchronous: false
+                    cache: true
+                    source: surface.isPdfPanel ? "" : surface.previewSourceUrl
+                }
+
+                Image {
                     id: previewImage
                     objectName: "graphNodeMediaPreviewImage"
                     anchors.centerIn: parent
@@ -254,6 +620,9 @@ Item {
                             ? Image.PreserveAspectCrop
                             : Image.PreserveAspectFit)
                     source: surface.previewSourceUrl
+                    sourceClipRect: surface.isPdfPanel
+                        ? Qt.rect(0, 0, sourceSize.width, sourceSize.height)
+                        : surface.appliedSourceClipRect
                     sourceSize.width: surface.isPdfPanel ? Math.max(1, Math.round(previewViewport.width)) : 0
                     sourceSize.height: surface.isPdfPanel ? Math.max(1, Math.round(previewViewport.height)) : 0
                     width: surface.originalModeActive
@@ -262,10 +631,171 @@ Item {
                     height: surface.originalModeActive
                         ? Math.max(1, implicitHeight)
                         : parent.height
-                    visible: surface.previewState === "ready"
+                    visible: surface.previewState === "ready" && !surface.cropModeActive
                     smooth: true
                 }
 
+                Item {
+                    id: cropOverlay
+                    objectName: "graphNodeMediaCropOverlay"
+                    anchors.fill: parent
+                    visible: surface.cropModeActive && surface.cropToolAvailable
+                    z: 3
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        hoverEnabled: true
+                        preventStealing: true
+                        onPressed: function(mouse) { mouse.accepted = true; }
+                    }
+
+                    Image {
+                        id: cropEditImage
+                        objectName: "graphNodeMediaCropEditImage"
+                        x: Number(surface.cropDisplayRect.x || 0)
+                        y: Number(surface.cropDisplayRect.y || 0)
+                        width: Number(surface.cropDisplayRect.width || 0)
+                        height: Number(surface.cropDisplayRect.height || 0)
+                        asynchronous: false
+                        cache: true
+                        mipmap: true
+                        fillMode: Image.PreserveAspectFit
+                        source: surface.previewSourceUrl
+                        visible: parent.visible
+                        smooth: true
+                    }
+
+                    Rectangle {
+                        color: surface.cropOverlayShadeColor
+                        x: 0
+                        y: 0
+                        width: parent.width
+                        height: Number(surface.draftDisplayCropRect.y || 0)
+                    }
+
+                    Rectangle {
+                        color: surface.cropOverlayShadeColor
+                        x: 0
+                        y: Number(surface.draftDisplayCropRect.y || 0) + Number(surface.draftDisplayCropRect.height || 0)
+                        width: parent.width
+                        height: Math.max(0, parent.height - y)
+                    }
+
+                    Rectangle {
+                        color: surface.cropOverlayShadeColor
+                        x: 0
+                        y: Number(surface.draftDisplayCropRect.y || 0)
+                        width: Number(surface.draftDisplayCropRect.x || 0)
+                        height: Number(surface.draftDisplayCropRect.height || 0)
+                    }
+
+                    Rectangle {
+                        color: surface.cropOverlayShadeColor
+                        x: Number(surface.draftDisplayCropRect.x || 0) + Number(surface.draftDisplayCropRect.width || 0)
+                        y: Number(surface.draftDisplayCropRect.y || 0)
+                        width: Math.max(0, parent.width - x)
+                        height: Number(surface.draftDisplayCropRect.height || 0)
+                    }
+
+                    Rectangle {
+                        id: cropFrame
+                        objectName: "graphNodeMediaCropFrame"
+                        x: Number(surface.draftDisplayCropRect.x || 0)
+                        y: Number(surface.draftDisplayCropRect.y || 0)
+                        width: Number(surface.draftDisplayCropRect.width || 0)
+                        height: Number(surface.draftDisplayCropRect.height || 0)
+                        color: "transparent"
+                        border.width: 2
+                        border.color: surface.cropFrameColor
+                    }
+
+                    Repeater {
+                        model: [
+                            "top_left",
+                            "top",
+                            "top_right",
+                            "left",
+                            "right",
+                            "bottom_left",
+                            "bottom",
+                            "bottom_right"
+                        ]
+
+                        delegate: Rectangle {
+                            property real pressGlobalX: 0
+                            property real pressGlobalY: 0
+                            property real startCropX: 0
+                            property real startCropY: 0
+                            property real startCropW: 1
+                            property real startCropH: 1
+                            width: 12
+                            height: 12
+                            radius: 3
+                            z: 4
+                            color: surface.cropHandleFillColor
+                            border.width: 2
+                            border.color: surface.cropHandleBorderColor
+                            x: surface._handleX(modelData, surface.draftDisplayCropRect, width)
+                            y: surface._handleY(modelData, surface.draftDisplayCropRect, height)
+
+                            MouseArea {
+                                anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton
+                                cursorShape: surface._handleCursorShape(parent.modelData)
+                                hoverEnabled: true
+                                preventStealing: true
+
+                                onPressed: function(mouse) {
+                                    var gp = mapToGlobal(mouse.x, mouse.y);
+                                    parent.pressGlobalX = gp.x;
+                                    parent.pressGlobalY = gp.y;
+                                    parent.startCropX = surface.draftCropX;
+                                    parent.startCropY = surface.draftCropY;
+                                    parent.startCropW = surface.draftCropW;
+                                    parent.startCropH = surface.draftCropH;
+                                    mouse.accepted = true;
+                                }
+
+                                onPositionChanged: function(mouse) {
+                                    if (!pressed)
+                                        return;
+                                    var gp = mapToGlobal(mouse.x, mouse.y);
+                                    surface._updateDraftFromHandle(
+                                        parent.modelData,
+                                        gp.x - parent.pressGlobalX,
+                                        gp.y - parent.pressGlobalY,
+                                        parent.startCropX,
+                                        parent.startCropY,
+                                        parent.startCropW,
+                                        parent.startCropH
+                                    );
+                                }
+                            }
+                        }
+                    }
+
+                    Row {
+                        anchors.top: parent.top
+                        anchors.right: parent.right
+                        anchors.topMargin: 8
+                        anchors.rightMargin: 8
+                        spacing: 6
+                        z: 5
+
+                        SurfaceButton {
+                            objectName: "graphNodeMediaCropApplyButton"
+                            text: "Apply"
+                            onClicked: surface._applyCropEdit()
+                        }
+
+                        SurfaceButton {
+                            objectName: "graphNodeMediaCropCancelButton"
+                            text: "Cancel"
+                            onClicked: surface._cancelCropEdit()
+                        }
+                    }
+                }
 
                 Column {
                     anchors.centerIn: parent

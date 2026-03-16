@@ -374,7 +374,7 @@ function _mediaVariantLayout(variant) {
             "titleTop": 12.0,
             "titleHeight": 24.0,
             "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
+            "titleRightMargin": 46.0,
             "bodyTop": 44.0,
             "minBodyHeight": 120.0,
             "bodyLeftMargin": 14.0,

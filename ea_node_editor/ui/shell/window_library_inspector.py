@@ -9,7 +9,11 @@ from ea_node_editor.graph.effective_ports import (
     are_port_kinds_compatible,
     effective_ports,
 )
-from ea_node_editor.nodes.types import property_has_inline_editor, property_inspector_editor
+from ea_node_editor.nodes.types import (
+    property_has_inline_editor,
+    property_inspector_editor,
+    property_visible_in_inspector,
+)
 
 
 def build_registry_library_items(*, registry_specs: Iterable[Any]) -> list[dict[str, Any]]:
@@ -277,9 +281,14 @@ def build_selected_node_property_items(
 ) -> list[dict[str, Any]]:
     if node.type_id in subnode_pin_type_ids:
         ordered_keys = ("label", "kind", "data_type")
-        ordered_properties = [prop for key in ordered_keys for prop in spec.properties if prop.key == key]
+        ordered_properties = [
+            prop
+            for key in ordered_keys
+            for prop in spec.properties
+            if prop.key == key and property_visible_in_inspector(prop)
+        ]
     else:
-        ordered_properties = list(spec.properties)
+        ordered_properties = [prop for prop in spec.properties if property_visible_in_inspector(prop)]
     return [
         {
             "key": prop.key,

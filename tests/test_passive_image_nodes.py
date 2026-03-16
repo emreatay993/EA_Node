@@ -33,11 +33,18 @@ class PassiveImageNodeCatalogTests(unittest.TestCase):
         self.assertEqual(spec.surface_variant, "image_panel")
         self.assertFalse(spec.collapsible)
         self.assertEqual(spec.ports, ())
-        self.assertEqual(tuple(prop.key for prop in spec.properties), ("source_path", "caption", "fit_mode"))
+        self.assertEqual(
+            tuple(prop.key for prop in spec.properties),
+            ("source_path", "caption", "fit_mode", "crop_x", "crop_y", "crop_w", "crop_h"),
+        )
 
         source_path = next(prop for prop in spec.properties if prop.key == "source_path")
         caption = next(prop for prop in spec.properties if prop.key == "caption")
         fit_mode = next(prop for prop in spec.properties if prop.key == "fit_mode")
+        crop_x = next(prop for prop in spec.properties if prop.key == "crop_x")
+        crop_y = next(prop for prop in spec.properties if prop.key == "crop_y")
+        crop_w = next(prop for prop in spec.properties if prop.key == "crop_w")
+        crop_h = next(prop for prop in spec.properties if prop.key == "crop_h")
 
         self.assertEqual(source_path.type, "path")
         self.assertEqual(source_path.inline_editor, "path")
@@ -47,6 +54,15 @@ class PassiveImageNodeCatalogTests(unittest.TestCase):
         self.assertEqual(fit_mode.type, "enum")
         self.assertEqual(fit_mode.default, "contain")
         self.assertEqual(fit_mode.enum_values, ("contain", "cover", "original"))
+        self.assertEqual(crop_x.type, "float")
+        self.assertEqual(crop_x.default, 0.0)
+        self.assertFalse(crop_x.inspector_visible)
+        self.assertEqual(crop_y.default, 0.0)
+        self.assertFalse(crop_y.inspector_visible)
+        self.assertEqual(crop_w.default, 1.0)
+        self.assertFalse(crop_w.inspector_visible)
+        self.assertEqual(crop_h.default, 1.0)
+        self.assertFalse(crop_h.inspector_visible)
 
     def test_media_surface_metrics_use_locked_image_panel_defaults(self) -> None:
         registry = build_default_registry()
@@ -171,6 +187,37 @@ class PassiveImageNodeCatalogTests(unittest.TestCase):
             self.assertAlmostEqual(updated_payload["height"], 592.0, places=6)
             self.assertIsNone(node.custom_width)
             self.assertIsNone(node.custom_height)
+
+    def test_scene_bridge_batches_crop_property_updates_into_node_state(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+
+        node_id = scene.add_node_from_type("passive.media.image_panel", 40.0, 60.0)
+
+        changed = scene.set_node_properties(
+            node_id,
+            {
+                "crop_x": 0.125,
+                "crop_y": 0.2,
+                "crop_w": 0.5,
+                "crop_h": 0.6,
+            },
+        )
+
+        self.assertTrue(changed)
+        node = model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(
+            {key: node.properties[key] for key in ("crop_x", "crop_y", "crop_w", "crop_h")},
+            {
+                "crop_x": 0.125,
+                "crop_y": 0.2,
+                "crop_w": 0.5,
+                "crop_h": 0.6,
+            },
+        )
 
 
 class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
@@ -371,11 +418,145 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 assert bool(contain_surface.property("captionVisible"))
                 assert str(contain_surface.property("resolvedSourceUrl")).startswith("file:///")
                 assert contain_surface.property("appliedFitMode") == "contain"
+                assert bool(contain_surface.property("cropToolAvailable"))
                 assert cover_surface.property("previewState") == "ready"
                 assert cover_surface.property("appliedFitMode") == "cover"
                 assert original_surface.property("previewState") == "ready"
                 assert original_surface.property("appliedFitMode") == "original"
                 assert bool(original_surface.property("originalModeActive"))
+            """,
+        )
+
+    def test_crop_rect_applies_source_clip_for_ready_images(self) -> None:
+        self._run_qml_probe(
+            "media-crop-clip",
+            """
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "cropped-preview.png"
+                image = QImage(40, 20, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": image_panel_payload(
+                            {
+                                "source_path": str(image_path),
+                                "caption": "",
+                                "fit_mode": "contain",
+                                "crop_x": 0.25,
+                                "crop_y": 0.1,
+                                "crop_w": 0.5,
+                                "crop_h": 0.4,
+                            }
+                        ),
+                    },
+                )
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                wait_for_preview(surface)
+
+                assert surface.property("previewState") == "ready"
+                assert bool(surface.property("hasEffectiveCrop"))
+                assert float(surface.property("appliedClipX")) == 10.0
+                assert float(surface.property("appliedClipY")) == 2.0
+                assert float(surface.property("appliedClipWidth")) == 20.0
+                assert float(surface.property("appliedClipHeight")) == 8.0
+            """,
+        )
+
+    def test_crop_controls_stay_unavailable_for_placeholder_error_and_pdf_states(self) -> None:
+        self._run_qml_probe(
+            "media-crop-availability",
+            """
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "image.png"
+                missing_path = Path(temp_dir) / "missing.png"
+                pdf_path = Path(temp_dir) / "sample.pdf"
+                make_png(image_path, "#2c85bf")
+                pdf_path.write_bytes(b"%PDF-1.4\\n%%EOF\\n")
+
+                placeholder_host = create_component(
+                    graph_node_host_qml_path,
+                    {"nodeData": image_panel_payload({"source_path": "", "caption": "", "fit_mode": "contain"})},
+                )
+                error_host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": image_panel_payload(
+                            {"source_path": str(missing_path), "caption": "", "fit_mode": "contain"}
+                        )
+                    },
+                )
+                pdf_host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": {
+                            "node_id": "node_pdf_panel_surface_test",
+                            "type_id": "passive.media.pdf_panel",
+                            "title": "PDF Panel",
+                            "x": 100.0,
+                            "y": 110.0,
+                            "width": 268.0,
+                            "height": 396.0,
+                            "accent": "#2F89FF",
+                            "collapsed": False,
+                            "selected": False,
+                            "runtime_behavior": "passive",
+                            "surface_family": "media",
+                            "surface_variant": "pdf_panel",
+                            "visual_style": {},
+                            "can_enter_scope": False,
+                            "ports": [],
+                            "inline_properties": [],
+                            "properties": {
+                                "source_path": str(pdf_path),
+                                "page_number": 1,
+                                "caption": "",
+                            },
+                        }
+                    },
+                )
+
+                placeholder_surface = placeholder_host.findChild(QObject, "graphNodeMediaSurface")
+                error_surface = error_host.findChild(QObject, "graphNodeMediaSurface")
+                pdf_surface = pdf_host.findChild(QObject, "graphNodeMediaSurface")
+                wait_for_preview(error_surface)
+                wait_for_preview(pdf_surface)
+
+                assert not bool(placeholder_surface.property("cropToolAvailable"))
+                assert not bool(error_surface.property("cropToolAvailable"))
+                assert not bool(pdf_surface.property("cropToolAvailable"))
+                assert pdf_surface.findChild(QObject, "graphNodeMediaCropButton") is not None
+            """,
+        )
+
+    def test_crop_mode_reports_host_interaction_lock(self) -> None:
+        self._run_qml_probe(
+            "media-crop-lock",
+            """
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "locking-preview.png"
+                make_png(image_path, "#2c85bf")
+
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": image_panel_payload(
+                            {
+                                "source_path": str(image_path),
+                                "caption": "",
+                                "fit_mode": "contain",
+                            }
+                        ),
+                    },
+                )
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                wait_for_preview(surface)
+                surface.setProperty("cropModeActive", True)
+                app.processEvents()
+
+                assert bool(surface.property("blocksHostInteraction"))
             """,
         )
 

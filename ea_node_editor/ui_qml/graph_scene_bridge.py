@@ -925,6 +925,42 @@ class GraphSceneBridge(QObject):
         self._rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
+    @pyqtSlot(str, "QVariantMap", result=bool)
+    def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
+        if self._model is None or self._registry is None:
+            return False
+        workspace = self._model.project.workspaces.get(self._workspace_id)
+        if workspace is None:
+            return False
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return False
+        spec = self._registry.get_spec(node.type_id)
+        normalized_updates: dict[str, Any] = {}
+        for raw_key, raw_value in dict(values or {}).items():
+            key = str(raw_key or "")
+            if not key:
+                continue
+            try:
+                normalized = self._registry.normalize_property_value(node.type_id, key, raw_value)
+            except KeyError:
+                continue
+            current_value = node.properties.get(key, _MISSING)
+            if current_value is not _MISSING and current_value == normalized:
+                continue
+            normalized_updates[key] = normalized
+        if not normalized_updates:
+            return False
+
+        history_before = self._capture_history_snapshot()
+        for key, normalized in normalized_updates.items():
+            self._model.set_node_property(self._workspace_id, node_id, key, normalized)
+        if "title" in normalized_updates:
+            self._sync_surface_title(node, spec)
+        self._rebuild_models()
+        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        return True
+
     @pyqtSlot("QVariant", result="QVariantMap")
     def normalize_node_visual_style(self, visual_style: Any) -> dict[str, Any]:
         return normalize_visual_style_payload(visual_style)

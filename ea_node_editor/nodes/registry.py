@@ -227,6 +227,8 @@ class NodeRegistry:
             raise ValueError(
                 f"Node {type_id} property {prop.key} inspector_editor has invalid value: {inspector_editor}"
             )
+        if not isinstance(prop.inspector_visible, bool):
+            raise TypeError(f"Node {type_id} property {prop.key} inspector_visible must be bool")
         enum_values = tuple(prop.enum_values)
         if prop.type == "enum":
             if not enum_values:

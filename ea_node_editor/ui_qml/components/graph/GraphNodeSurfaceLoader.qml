@@ -18,6 +18,10 @@ Item {
             return Number(host.surfaceMetrics.body_height || 0.0);
         return 0.0;
     }
+    readonly property bool blocksHostInteraction: loader.item ? Boolean(loader.item.blocksHostInteraction) : false
+    readonly property var hoverActionHitRect: loader.item && loader.item.hoverActionHitRect
+        ? loader.item.hoverActionHitRect
+        : Qt.rect(0, 0, 0, 0)
 
     function _loadedSurfaceKey(family, _variant) {
         var normalizedFamily = String(family || "standard");
@@ -30,6 +34,11 @@ Item {
         if (normalizedFamily === "media")
             return "media";
         return "standard";
+    }
+
+    function triggerHoverAction() {
+        if (loader.item && loader.item.triggerHoverAction)
+            loader.item.triggerHoverAction();
     }
 
     Loader {
