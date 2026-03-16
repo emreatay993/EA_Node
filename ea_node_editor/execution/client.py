@@ -24,6 +24,8 @@ from ea_node_editor.execution.protocol import (
 )
 from ea_node_editor.execution.worker import worker_main
 
+_LISTENER_SHUTDOWN_SENTINEL = {"type": "__listener_shutdown__"}
+
 
 class ProcessExecutionClient:
     _TERMINAL_EVENT_TYPES = {"run_completed", "run_failed", "run_stopped"}
@@ -144,6 +146,10 @@ class ProcessExecutionClient:
 
     def shutdown(self) -> None:
         self._running = False
+        try:
+            self._event_queue.put_nowait(dict(_LISTENER_SHUTDOWN_SENTINEL))
+        except Exception:
+            pass
         with self._state_lock:
             process = self._process
             self._active_run_id = ""
@@ -158,6 +164,10 @@ class ProcessExecutionClient:
             self._process = None
         if self._listener_thread.is_alive():
             self._listener_thread.join(timeout=1.0)
+        self._close_queue(self._command_queue)
+        self._close_queue(self._event_queue)
+        if self._listener_thread.is_alive():
+            self._listener_thread.join(timeout=0.5)
 
     def _check_worker_health(self) -> None:
         with self._state_lock:
@@ -208,6 +218,8 @@ class ProcessExecutionClient:
                 self._check_worker_health()
                 continue
 
+            if event == _LISTENER_SHUTDOWN_SENTINEL:
+                break
             if not isinstance(event, dict):
                 self._emit_protocol_error("Received non-dictionary event from worker.")
                 continue
@@ -228,3 +240,14 @@ class ProcessExecutionClient:
                     if not self._active_run_id or self._active_run_id == event_run_id:
                         self._active_run_id = ""
                         self._active_workspace_id = ""
+
+    @staticmethod
+    def _close_queue(queue_obj: mp.Queue) -> None:
+        try:
+            queue_obj.close()
+        except Exception:
+            pass
+        try:
+            queue_obj.join_thread()
+        except Exception:
+            pass

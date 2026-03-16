@@ -4,14 +4,38 @@ import copy
 import gc
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from PyQt6.QtCore import QObject, QMetaObject, Qt, Q_ARG
+from PyQt6.QtCore import QEvent, QObject, QMetaObject, Qt, QUrl, Q_ARG
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from ea_node_editor.custom_workflows import import_custom_workflow_file
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.conftest import ShellTestEnvironment
+
+
+class _ShellTestExecutionClient:
+    def __init__(self) -> None:
+        self._callbacks: list[object] = []
+
+    def subscribe(self, callback) -> None:  # noqa: ANN001
+        self._callbacks.append(callback)
+
+    def start_run(self, project_path: str, workspace_id: str, trigger=None) -> str:  # noqa: ANN001
+        return ""
+
+    def pause_run(self, run_id: str) -> None:
+        return None
+
+    def resume_run(self, run_id: str) -> None:
+        return None
+
+    def stop_run(self, run_id: str) -> None:
+        return None
+
+    def shutdown(self) -> None:
+        self._callbacks.clear()
 
 
 def _action_shortcuts(action) -> set[str]:  # noqa: ANN001
@@ -30,10 +54,19 @@ class MainWindowShellTestBase(unittest.TestCase):
 
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
-        self.app.sendPostedEvents()
+        self.app.setQuitOnLastWindowClosed(False)
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        gc.collect()
         self._env = ShellTestEnvironment()
         self._env.start()
+        self._execution_client_patch = patch(
+            "ea_node_editor.ui.shell.window.ProcessExecutionClient",
+            _ShellTestExecutionClient,
+        )
+        self._execution_client_patch.start()
         self._temp_dir = self._env._temp_dir
         self._session_path = self._env.session_path
         self._autosave_path = self._env.autosave_path
@@ -53,11 +86,21 @@ class MainWindowShellTestBase(unittest.TestCase):
             if timer is not None:
                 timer.stop()
         window.close()
+        quick_widget = getattr(window, "quick_widget", None)
+        if quick_widget is not None:
+            window.takeCentralWidget()
+            quick_widget.setSource(QUrl())
+            quick_widget.hide()
+            quick_widget.deleteLater()
+            window.quick_widget = None
         window.deleteLater()
         self.window = None
-        self.app.sendPostedEvents()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.app.processEvents()
+        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
         self._env.stop()
+        self._execution_client_patch.stop()
         gc.collect()
 
     def _active_workspace(self):

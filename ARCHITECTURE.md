@@ -7,6 +7,7 @@ It is a practical map for engineers working in this repository.
 ## What this app does
 EA Node Editor is a desktop visual workflow editor that:
 - lets users build node graphs on a QML canvas,
+- supports passive visual authoring families for flowcharts, planning boards, annotations, and local media panels on the same canvas,
 - supports nested subnode scopes (graph hierarchy),
 - executes workflows in a separate worker process,
 - persists projects as versioned `.sfe` JSON,
@@ -33,17 +34,27 @@ The app is split into clear parts:
 Design intent:
 - QML renders and captures interaction.
 - `GraphCanvas.qml` composes focused canvas modules (`GraphCanvasBackground`, `GraphCanvasDropPreview`, `GraphCanvasMinimapOverlay`, `GraphCanvasInputLayers`, `GraphCanvasContextMenus`) plus `GraphCanvasLogic.js`.
+- `GraphCanvas.qml` routes node rendering through `GraphNodeHost.qml` + `GraphNodeSurfaceLoader.qml`, so `NodeCard.qml` remains the stable standard-node contract while passive `flowchart`, `planning`, `annotation`, and `media` families load specialized surfaces without reopening the canvas orchestrator.
 - shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
 - `ShellWindow` is a thin facade that delegates to controllers and bridge helpers.
 - App-wide graphics settings live in `app_preferences.json` through `AppPreferencesController`, not in project `.sfe` metadata or `last_session.json`.
 - Shared shell-theme resolution feeds both the QApplication stylesheet and QML `ThemeBridge.palette`, so shell and canvas chrome surfaces switch themes together at runtime.
 - Dedicated graph-theme resolution feeds QML `graphThemeBridge`, so `NodeCard` and `EdgeLayer` can follow the shell theme by default or switch to explicit/custom graph themes without changing canvas chrome.
 - User-facing shell surfaces prefer node titles and per-type sequential IDs; raw internal `node_id` values stay as internal references.
-- `GraphModel` remains the canonical mutable graph state.
+- `GraphModel` remains the canonical mutable graph state for both runtime nodes and passive visual nodes; passive items stay under `WorkspaceData.nodes` / `WorkspaceData.edges` instead of introducing a second artifact store.
+- Passive `flow` edges are graph-authoring artifacts only: they support labels, branch styling, and multi-incoming targets where the registry allows it, but the compiler/worker drop them before runtime execution.
 - Hierarchy is explicit via `NodeInstance.parent_node_id` and per-view `scope_path`.
 - Undo/redo is managed by `RuntimeGraphHistory` snapshots.
 - Worker process runs node execution and streams events back.
-- Serializer/migration keeps persisted projects stable across schema upgrades.
+- Serializer/migration keeps persisted projects stable across schema upgrades, including passive visual metadata and project-local `metadata.ui.passive_style_presets`.
+
+## Passive visual authoring path
+
+- Passive nodes use the same registry and serializer path as executable nodes, but `NodeTypeSpec.runtime_behavior` marks them as `passive` so they never compile into the worker graph.
+- `PortKind.flow` is the authoring-only connection kind for passive diagrams. `flow` edges remain visible, labeled, and styleable in the scene, but they do not affect Run.
+- Surface routing is declarative through `surface_family` / `surface_variant`, which keeps public QML discoverability stable while letting the graph host swap between standard cards, flowchart silhouettes, planning cards, annotation notes, and media panels.
+- Passive style editing is project-local. Node and flow-edge presets are stored under `metadata.ui.passive_style_presets` inside the `.sfe` document rather than in app-wide preferences.
+- Media panels resolve local filesystem sources only. Image panels display local image files, and PDF panels render a single-page QtPdf preview through the Python-side preview provider.
 
 ## Visual architecture maps
 If your Markdown viewer supports Mermaid, these diagrams render inline.

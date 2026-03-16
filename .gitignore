@@ -31,9 +31,27 @@ docs/specs/gui/_unzipped_preview/
 
 # Local-only specs and tests
 docs/specs/
+!docs/specs/
+docs/specs/*
+!docs/specs/requirements/
+docs/specs/requirements/*
+!docs/specs/requirements/20_UI_UX.md
+!docs/specs/requirements/30_GRAPH_MODEL.md
+!docs/specs/requirements/40_NODE_SDK.md
+!docs/specs/requirements/45_NODE_EXECUTION_MODEL.md
+!docs/specs/requirements/60_PERSISTENCE.md
+!docs/specs/requirements/90_QA_ACCEPTANCE.md
+!docs/specs/requirements/TRACEABILITY_MATRIX.md
+!docs/specs/perf/
+docs/specs/perf/*
+!docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
 tests/
 !tests/
 tests/*
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/passive_nodes/
+tests/fixtures/passive_nodes/*
 !tests/passive_property_editor_fixtures.py
 !tests/test_inspector_reflection.py
 !tests/test_main_window_shell.py
@@ -61,6 +79,9 @@ tests/main_window_shell/*
 !tests/main_window_shell/passive_image_nodes.py
 !tests/main_window_shell/passive_pdf_nodes.py
 !tests/main_window_shell/view_library_inspector.py
+!tests/fixtures/passive_nodes/reference_flowchart.sfe
+!tests/fixtures/passive_nodes/reference_preview.png
+!tests/fixtures/passive_nodes/reference_preview.pdf
 
 # Benchmark reference assets
 docs/Benchmark_Programs/
