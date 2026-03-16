@@ -863,7 +863,9 @@ Item {
         enabled: !card.surfaceInteractionLocked
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         hoverEnabled: true
-        cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+        cursorShape: card.surfaceInteractionLocked
+            ? Qt.ArrowCursor
+            : (drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
         drag.target: enabled ? card : null
         drag.axis: Drag.XAndYAxis
         propagateComposedEvents: true

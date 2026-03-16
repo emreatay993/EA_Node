@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Callable, Literal
 
 from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QCursor
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow, QMessageBox
@@ -997,6 +998,32 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     def clear_graph_hint(self) -> None:
         window_search_scope_state.clear_graph_hint(self)
+
+    def _apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
+        if getattr(self, "quick_widget", None) is None:
+            return
+        cursor = QCursor(cursor_shape)
+        self.quick_widget.setCursor(cursor)
+        quick_window = self.quick_widget.quickWindow()
+        if quick_window is not None:
+            quick_window.setCursor(cursor)
+
+    @pyqtSlot(int)
+    def set_graph_cursor_shape(self, cursor_shape: int) -> None:
+        try:
+            resolved_cursor = Qt.CursorShape(int(cursor_shape))
+        except ValueError:
+            resolved_cursor = Qt.CursorShape.ArrowCursor
+        self._apply_graph_cursor(resolved_cursor)
+
+    @pyqtSlot()
+    def clear_graph_cursor_shape(self) -> None:
+        if getattr(self, "quick_widget", None) is None:
+            return
+        self.quick_widget.unsetCursor()
+        quick_window = self.quick_widget.quickWindow()
+        if quick_window is not None:
+            quick_window.unsetCursor()
 
     def _apply_theme(self, theme_id: Any) -> str:
         resolved_theme_id = self.theme_bridge.apply_theme(theme_id)

@@ -10,6 +10,8 @@ Item {
     property real draftCropY: 0.0
     property real draftCropW: 1.0
     property real draftCropH: 1.0
+    property string hoveredCropHandle: ""
+    property string activeCropHandle: ""
     readonly property bool blocksHostInteraction: cropModeActive
     readonly property var nodeProperties: host && host.nodeData && host.nodeData.properties
         ? host.nodeData.properties
@@ -162,15 +164,27 @@ Item {
         }
         if (cropToolAvailable)
             _tryConsumePendingSurfaceAction();
+        _syncCropCursor();
     }
+
+    onCropModeActiveChanged: _syncCropCursor()
+    onHoveredCropHandleChanged: _syncCropCursor()
+    onActiveCropHandleChanged: _syncCropCursor()
 
     onSourcePathChanged: {
         if (cropModeActive)
             _cancelCropEdit();
+        _syncCropCursor();
     }
 
     Component.onCompleted: {
         _tryConsumePendingSurfaceAction();
+        _syncCropCursor();
+    }
+
+    Component.onDestruction: {
+        if (typeof mainWindow !== "undefined" && mainWindow)
+            mainWindow.clear_graph_cursor_shape();
     }
 
     Connections {
@@ -377,6 +391,8 @@ Item {
 
     function _cancelCropEdit() {
         cropModeActive = false;
+        hoveredCropHandle = "";
+        activeCropHandle = "";
         _loadDraftFromStoredCrop();
     }
 
@@ -396,6 +412,8 @@ Item {
                 return;
         }
         cropModeActive = false;
+        hoveredCropHandle = "";
+        activeCropHandle = "";
         _setDraftCropRect(rect);
     }
 
@@ -442,6 +460,23 @@ Item {
         if (handle === "top" || handle === "bottom")
             return Qt.SizeVerCursor;
         return Qt.SizeHorCursor;
+    }
+
+    function _resolvedCropCursorShape() {
+        var handle = activeCropHandle.length > 0 ? activeCropHandle : hoveredCropHandle;
+        if (handle.length > 0)
+            return _handleCursorShape(handle);
+        return Qt.ArrowCursor;
+    }
+
+    function _syncCropCursor() {
+        if (typeof mainWindow === "undefined" || !mainWindow)
+            return;
+        if (!cropModeActive || !cropToolAvailable) {
+            mainWindow.clear_graph_cursor_shape();
+            return;
+        }
+        mainWindow.set_graph_cursor_shape(_resolvedCropCursorShape());
     }
 
     function _handleX(handle, frameRect, handleSize) {
@@ -765,6 +800,12 @@ Item {
                     visible: surface.cropModeActive && surface.cropToolAvailable
                     z: 3
 
+                    HoverHandler {
+                        id: cropCursorArea
+                        objectName: "graphNodeMediaCropCursorArea"
+                        cursorShape: surface._resolvedCropCursorShape()
+                    }
+
                     Image {
                         id: cropEditImage
                         objectName: "graphNodeMediaCropEditImage"
@@ -868,7 +909,18 @@ Item {
                                 hoverEnabled: true
                                 preventStealing: true
 
+                                onEntered: {
+                                    surface.hoveredCropHandle = handleId;
+                                }
+
+                                onExited: {
+                                    if (surface.hoveredCropHandle === handleId)
+                                        surface.hoveredCropHandle = "";
+                                }
+
                                 onPressed: function(mouse) {
+                                    surface.activeCropHandle = handleId;
+                                    surface.hoveredCropHandle = handleId;
                                     var gp = mapToGlobal(mouse.x, mouse.y);
                                     parent.pressGlobalX = gp.x;
                                     parent.pressGlobalY = gp.y;
@@ -892,6 +944,16 @@ Item {
                                         parent.startCropW,
                                         parent.startCropH
                                     );
+                                }
+
+                                onReleased: function(_mouse) {
+                                    if (surface.activeCropHandle === handleId)
+                                        surface.activeCropHandle = "";
+                                }
+
+                                onCanceled: {
+                                    if (surface.activeCropHandle === handleId)
+                                        surface.activeCropHandle = "";
                                 }
                             }
                         }

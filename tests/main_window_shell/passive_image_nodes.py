@@ -310,3 +310,4 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         start_point = QPoint(round(scene_point.x()), round(scene_point.y()))
         QTest.mouseMove(handle_window, start_point)
         self.assertTrue(bool(top_left_handle.property("containsMouse")))
+        self.assertEqual(self.window.quick_widget.cursor().shape(), Qt.CursorShape.SizeFDiagCursor)
