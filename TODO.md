@@ -14,3 +14,16 @@
 
 **Persistence:**
 - Custom tab order is saved and persists across sessions
+
+## ~~2. Ungroup Subnode Action~~ ✅
+
+**Goal:** Add an "Ungroup" action for subnodes, accessible from both the right-click context menu and the inspector properties panel.
+
+**Scope:**
+- Right-click context menu: "Ungroup Subnode" item with destructive (red) styling, placed right above "Remove Node"
+- Inspector panel: "UNGROUP" button in the Node Definition section, next to the collapse button, with destructive styling
+- Only visible when the selected node is a subnode (`core.subnode`)
+- Calls the existing ungroup logic (same as Ctrl+Shift+G)
+- No confirmation dialog — performs immediately
+
+**Status:** Implemented

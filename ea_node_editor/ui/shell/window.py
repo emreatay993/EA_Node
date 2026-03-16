@@ -1524,6 +1524,16 @@ class ShellWindow(QMainWindow):
         return bool(self.workspace_library_controller.request_remove_edge(edge_id).payload)
 
     @pyqtSlot(str, result=bool)
+    def request_ungroup_node(self, node_id: str) -> bool:
+        if not node_id:
+            return False
+        scene = self.scene
+        if scene is None:
+            return False
+        scene.select_node(node_id)
+        return self.request_ungroup_selected_nodes()
+
+    @pyqtSlot(str, result=bool)
     def request_remove_node(self, node_id: str) -> bool:
         return bool(self.workspace_library_controller.request_remove_node(node_id).payload)
 

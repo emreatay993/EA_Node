@@ -680,6 +680,20 @@ ShellCollapsibleSidePane {
                                     root.mainWindowRef.set_selected_node_collapsed(!root.mainWindowRef.selected_node_collapsed)
                                 }
                             }
+
+                            InspectorButton {
+                                objectName: "inspectorUngroupButton"
+                                visible: root.canManageSubnodePorts
+                                compact: true
+                                destructive: true
+                                text: "UNGROUP"
+                                tooltipText: "Ungroup this subnode, moving its children to the parent scope"
+                                onClicked: {
+                                    if (!root.mainWindowRef)
+                                        return
+                                    root.mainWindowRef.request_ungroup_selected_nodes()
+                                }
+                            }
                         }
 
                         Flow {
