@@ -131,6 +131,7 @@ class PassiveVisualMetadataTests(unittest.TestCase):
 
     def test_fragment_duplicate_and_custom_workflow_snapshot_preserve_visual_metadata(self) -> None:
         source_id, target_id, edge_id = self._create_labeled_flow_edge()
+        self.model.set_node_size(self.workspace.workspace_id, source_id, 360.0, 240.0)
         self.scene.select_node(source_id, False)
         self.scene.select_node(
             next(
@@ -146,6 +147,8 @@ class PassiveVisualMetadataTests(unittest.TestCase):
         assert fragment is not None
         fragment_node = next(node for node in fragment["nodes"] if node["ref_id"] == source_id)
         self.assertEqual(fragment_node["visual_style"], {"fill": "#ffeaa7", "outline": {"width": 2}})
+        self.assertEqual(fragment_node["custom_width"], 360.0)
+        self.assertEqual(fragment_node["custom_height"], 240.0)
         self.assertEqual(fragment["edges"][0]["label"], "Primary path")
         self.assertEqual(
             fragment["edges"][0]["visual_style"],
@@ -171,6 +174,8 @@ class PassiveVisualMetadataTests(unittest.TestCase):
             if node_id in duplicated_ids and node.visual_style == {"fill": "#ffeaa7", "outline": {"width": 2}}
         )
         self.assertEqual(duplicated_source.visual_style, {"fill": "#ffeaa7", "outline": {"width": 2}})
+        self.assertEqual(duplicated_source.custom_width, 360.0)
+        self.assertEqual(duplicated_source.custom_height, 240.0)
 
         shell_id = self.scene.add_node_from_type("core.subnode", 520.0, 40.0)
         source_node = self.workspace.nodes[source_id]
@@ -190,6 +195,8 @@ class PassiveVisualMetadataTests(unittest.TestCase):
             snapshot_node["visual_style"],
             source_node.visual_style,
         )
+        self.assertEqual(snapshot_node["custom_width"], 360.0)
+        self.assertEqual(snapshot_node["custom_height"], 240.0)
         self.assertEqual(snapshot["fragment"]["edges"][0]["label"], "Primary path")
         self.assertEqual(
             snapshot["fragment"]["edges"][0]["visual_style"],

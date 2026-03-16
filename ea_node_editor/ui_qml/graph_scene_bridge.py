@@ -1584,6 +1584,25 @@ class GraphSceneBridge(QObject):
             edges=fragment_data["edges"],
         )
 
+    @staticmethod
+    def _node_from_fragment_payload(node_payload: dict[str, Any]) -> NodeInstance:
+        return NodeInstance(
+            node_id=str(node_payload.get("ref_id", "")),
+            type_id=str(node_payload.get("type_id", "")),
+            title=str(node_payload.get("title", "")),
+            x=float(node_payload.get("x", 0.0)),
+            y=float(node_payload.get("y", 0.0)),
+            collapsed=bool(node_payload.get("collapsed", False)),
+            properties=dict(node_payload.get("properties", {})),
+            exposed_ports=dict(node_payload.get("exposed_ports", {})),
+            visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
+            parent_node_id=node_payload.get("parent_node_id"),
+            custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
+            custom_height=(
+                float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None
+            ),
+        )
+
     def _fragment_bounds(self, nodes_payload: list[dict[str, Any]]) -> QRectF | None:
         if self._registry is None:
             return None
@@ -1598,18 +1617,7 @@ class GraphSceneBridge(QObject):
                 node_specs[ref_id] = self._registry.get_spec(type_id)
             except KeyError:
                 return None
-            node = NodeInstance(
-                node_id=ref_id,
-                type_id=type_id,
-                title=str(node_payload.get("title", "")),
-                x=float(node_payload.get("x", 0.0)),
-                y=float(node_payload.get("y", 0.0)),
-                collapsed=bool(node_payload.get("collapsed", False)),
-                properties=dict(node_payload.get("properties", {})),
-                exposed_ports=dict(node_payload.get("exposed_ports", {})),
-                visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
-                parent_node_id=node_payload.get("parent_node_id"),
-            )
+            node = self._node_from_fragment_payload(node_payload)
             fragment_nodes[ref_id] = node
 
         bounds: QRectF | None = None
@@ -1638,18 +1646,7 @@ class GraphSceneBridge(QObject):
                 node_specs[ref_id] = self._registry.get_spec(type_id)
             except KeyError:
                 return False
-            fragment_nodes[ref_id] = NodeInstance(
-                node_id=ref_id,
-                type_id=type_id,
-                title=str(node_payload.get("title", "")),
-                x=float(node_payload.get("x", 0.0)),
-                y=float(node_payload.get("y", 0.0)),
-                collapsed=bool(node_payload.get("collapsed", False)),
-                properties=dict(node_payload.get("properties", {})),
-                exposed_ports=dict(node_payload.get("exposed_ports", {})),
-                visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
-                parent_node_id=node_payload.get("parent_node_id"),
-            )
+            fragment_nodes[ref_id] = self._node_from_fragment_payload(node_payload)
 
         occupied_single_target_ports: set[tuple[str, str]] = set()
         for edge_payload in fragment_payload["edges"]:

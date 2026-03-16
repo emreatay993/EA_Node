@@ -109,6 +109,11 @@ def _normalize_node_entry(raw_node: Any) -> dict[str, Any] | None:
         y = float(raw_node.get("y", 0.0))
     except (TypeError, ValueError):
         return None
+    try:
+        custom_width = float(raw_node["custom_width"]) if raw_node.get("custom_width") is not None else None
+        custom_height = float(raw_node["custom_height"]) if raw_node.get("custom_height") is not None else None
+    except (TypeError, ValueError):
+        return None
 
     raw_exposed_ports = raw_node.get("exposed_ports", {})
     if not isinstance(raw_exposed_ports, dict):
@@ -141,6 +146,8 @@ def _normalize_node_entry(raw_node: Any) -> dict[str, Any] | None:
         "exposed_ports": normalized_exposed_ports,
         "visual_style": normalize_visual_style_payload(raw_node.get("visual_style")),
         "parent_node_id": parent_node_id,
+        "custom_width": custom_width,
+        "custom_height": custom_height,
     }
 
 

@@ -122,6 +122,8 @@ def build_subtree_fragment_payload_data(
                 "exposed_ports": dict(node.exposed_ports),
                 "visual_style": copy.deepcopy(node.visual_style),
                 "parent_node_id": node.parent_node_id,
+                "custom_width": float(node.custom_width) if node.custom_width is not None else None,
+                "custom_height": float(node.custom_height) if node.custom_height is not None else None,
             }
         )
     if not nodes_payload:
@@ -236,6 +238,12 @@ def insert_graph_fragment(
             visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
         )
         created.collapsed = bool(node_payload.get("collapsed", False))
+        created.custom_width = (
+            float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None
+        )
+        created.custom_height = (
+            float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None
+        )
         node_id_map[source_node_id] = created.node_id
         inserted_node_ids.append(created.node_id)
 
