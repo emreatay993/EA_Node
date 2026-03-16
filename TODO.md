@@ -2,30 +2,7 @@
 
 ## Open
 
-### 1. Image Crop Button on Image Panel Node
-
-**Goal:** Add an inline crop tool to image panel nodes, allowing users to non-destructively crop images directly on the canvas.
-
-**UI:**
-- A crop button icon (from the existing `uiIcons` set) appears at the **top-right** corner of the image panel node
-- The button is **only visible on hover** (hidden by default)
-
-**Crop Behavior:**
-- Clicking the button activates an **inline crop UI** with drag handles directly on the image
-- The crop region is **free-form** (no aspect ratio constraint)
-- Users drag corners/edges to define the crop rectangle
-
-**Storage (Non-Destructive):**
-- Crop parameters (`crop_x`, `crop_y`, `crop_w`, `crop_h`) stored as **node properties**
-- The original image file on disk is **never modified**
-- The crop is applied at render time by adjusting the visible region of the image
-
-**Key Files:**
-- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` — hover button overlay and inline crop UI
-- `ea_node_editor/nodes/builtins/passive_media.py` — new crop rect node properties
-- `ea_node_editor/ui_qml/graph_surface_metrics.py` — layout adjustments if needed
-
-### 2. Expand/Collapse Button on Image Panel Node
+### 1. Expand/Collapse Button on Image Panel Node
 
 **Goal:** Allow users to expand an image panel node to fill the canvas area for a larger view, then collapse it back to its original size.
 
@@ -46,27 +23,42 @@
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` — hover button and expand/collapse logic
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` — node size/position management for expand/collapse
 
-### 3. Global Input-Layer Pattern for Interactive Node Surfaces
+### 2. Finish the Shared Input-Layer Pattern for Interactive Node Surfaces
 
-**Goal:** Define a clean, reusable input-layer pattern so future interactive nodes do not regress into cursor conflicts, swallowed clicks, or drag layers fighting with embedded controls.
+**Status:** Partially implemented
 
-**Problem Statement:**
-- Full-overlay `MouseArea` items are swallowing left-clicks in several interactive-node scenarios
-- Nested controls and crop/resize handles can expose the right local cursor shape, while the user still sees a host-level drag cursor
-- Each new interactive surface is re-solving pointer ownership ad hoc instead of following one codebase-wide rule
+**What Exists Today:**
+- The media crop surface already exposes a reusable host/surface contract for interactive surfaces
+- `GraphNodeSurfaceLoader.qml` forwards `blocksHostInteraction` and `hoverActionHitRect` from the loaded surface
+- `GraphNodeHost.qml` disables host drag, resize, and port interactions while a surface owns the interaction
+- The crop surface explicitly takes cursor ownership during crop mode and yields it back when the mode ends
 
-**Desired Outcome:**
-- Establish a shared pattern for hover-only overlays versus click/drag-capable overlays
-- Make cursor ownership explicit when a surface enters an interaction mode
-- Ensure host drag/resize layers yield cleanly to embedded buttons, handles, editors, and future interactive node tools
+**Remaining Goal:** Generalize and document that pattern so future interactive nodes do not regress into cursor conflicts, swallowed clicks, or drag layers fighting with embedded controls.
+
+**Remaining Work:**
+- Establish the preferred pattern for hover-only overlays versus click/drag-capable overlays across all interactive surfaces
+- Document cursor ownership rules when a surface enters an interaction mode
+- Audit existing interactive nodes so host drag/resize layers yield cleanly to embedded buttons, handles, editors, and future interactive node tools
 - Document the preferred primitives (`MouseArea` with `acceptedButtons: Qt.NoButton`, `HoverHandler`, explicit host locks, etc.) and where each should be used
 
 **Key Files:**
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` — host drag/resize layers and cursor ownership
+- `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml` — current host/surface interaction contract
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` — current crop-overlay case study
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml` — canvas-wide input layering conventions
 
 ## Implemented
+
+### Image Crop Button on Image Panel Node
+
+**Status:** Implemented on `main`
+
+**Summary:**
+- Image panel nodes expose a hover-only crop button in the top-right corner
+- Clicking the button enters inline crop mode with free-form edge/corner handles
+- Crop parameters are stored as hidden node properties (`crop_x`, `crop_y`, `crop_w`, `crop_h`)
+- Cropping is non-destructive and applied at render time without modifying the source image on disk
+- Crop mode locks host drag/resize/port interactions and owns the cursor until editing ends
 
 ### Drag-and-Drop Tab Reordering
 
