@@ -86,9 +86,11 @@
 - `ea_node_editor/ui/shell/window.py` — inspector APIs and graph-surface-specific browse bridge
 - `docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md` — packet history for the interaction-bridge migration
 
-### 4. Show Windows Folder Node
+### 4. Show Folder Node
 
-**Goal:** Add a `Show Windows Folder` node that can display folder contents in a Windows Explorer-style view and launch files/folders through the OS.
+**Goal:** Add a `Show Folder` node that can display folder contents in a Windows Explorer-style view and launch files/folders through the OS.
+
+**Scope for Initial Implementation:** Windows-specific behavior is acceptable for now. Cross-platform support can be tracked separately as a later enhancement.
 
 **Properties/Features:**
 - It accepts file paths as optional
@@ -97,6 +99,16 @@
 - It lists the contents of that folder as it is shown from OS explorer (like Windows's own file explorer)
 - Users can use the right-click action on a file to `Open in Explorer` to open the folder or subfolder containing the selected file
 - If a file is double-clicked it is opened in the default application specified by the OS
+
+### 5. Extend Show Folder Node Beyond Windows
+
+**Goal:** Add non-Windows OS support for the `Show Folder` node as a later enhancement.
+
+**Potential Follow-Up Scope:**
+- Detect the current platform and adapt shell/open behavior accordingly
+- Support native folder browsing and file launching semantics on macOS and Linux
+- Align context-menu actions with each OS's file manager expectations while preserving the existing Windows behavior
+- Keep the initial Windows-first implementation stable while expanding platform coverage
 
 ## Implemented
 
