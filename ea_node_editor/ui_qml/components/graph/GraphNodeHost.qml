@@ -408,6 +408,71 @@ Item {
         radius: card.resolvedCornerRadius
     }
 
+    // Keep body interactions below the loaded surface so local surface controls can own pointer input.
+    MouseArea {
+        id: nodeDragArea
+        objectName: "graphNodeDragArea"
+        z: 1.5
+        anchors.fill: parent
+        enabled: !card.surfaceInteractionLocked
+        acceptedButtons: Qt.LeftButton | Qt.RightButton
+        hoverEnabled: true
+        cursorShape: card.surfaceInteractionLocked
+            ? Qt.ArrowCursor
+            : (drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+        drag.target: enabled ? card : null
+        drag.axis: Drag.XAndYAxis
+        propagateComposedEvents: true
+        property bool dragMoved: false
+
+        onPressed: {
+            if (mouse.button === Qt.LeftButton && card._pointInHoverAction(mouse.x, mouse.y)) {
+                mouse.accepted = false;
+                return;
+            }
+            if (mouse.button === Qt.RightButton) {
+                card.nodeContextRequested(card.nodeData.node_id, mouse.x, mouse.y);
+                mouse.accepted = true;
+                return;
+            }
+            dragMoved = false;
+        }
+        onClicked: {
+            if (mouse.button !== Qt.LeftButton)
+                return;
+            var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
+            card.nodeClicked(card.nodeData.node_id, additive);
+        }
+        onDoubleClicked: {
+            if (mouse.button !== Qt.LeftButton)
+                return;
+            card.nodeOpenRequested(card.nodeData.node_id);
+        }
+        onPositionChanged: {
+            if (!drag.active)
+                return;
+            dragMoved = true;
+            card.dragOffsetChanged(
+                card.nodeData.node_id,
+                card.x - card.worldOffset - card.nodeData.x,
+                card.y - card.worldOffset - card.nodeData.y
+            );
+        }
+        onReleased: {
+            if (mouse.button !== Qt.LeftButton)
+                return;
+            card.dragFinished(
+                card.nodeData.node_id,
+                card.x - card.worldOffset,
+                card.y - card.worldOffset,
+                dragMoved
+            );
+        }
+        onCanceled: {
+            card.dragCanceled(card.nodeData.node_id);
+        }
+    }
+
     Item {
         id: surfaceLayer
         z: 2
@@ -863,70 +928,6 @@ Item {
                     renderType: card.nodeTextRenderType
                 }
             }
-        }
-    }
-
-    MouseArea {
-        id: nodeDragArea
-        objectName: "graphNodeDragArea"
-        z: 2
-        anchors.fill: parent
-        enabled: !card.surfaceInteractionLocked
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        hoverEnabled: true
-        cursorShape: card.surfaceInteractionLocked
-            ? Qt.ArrowCursor
-            : (drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-        drag.target: enabled ? card : null
-        drag.axis: Drag.XAndYAxis
-        propagateComposedEvents: true
-        property bool dragMoved: false
-
-        onPressed: {
-            if (mouse.button === Qt.LeftButton && card._pointInHoverAction(mouse.x, mouse.y)) {
-                mouse.accepted = false;
-                return;
-            }
-            if (mouse.button === Qt.RightButton) {
-                card.nodeContextRequested(card.nodeData.node_id, mouse.x, mouse.y);
-                mouse.accepted = true;
-                return;
-            }
-            dragMoved = false;
-        }
-        onClicked: {
-            if (mouse.button !== Qt.LeftButton)
-                return;
-            var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
-            card.nodeClicked(card.nodeData.node_id, additive);
-        }
-        onDoubleClicked: {
-            if (mouse.button !== Qt.LeftButton)
-                return;
-            card.nodeOpenRequested(card.nodeData.node_id);
-        }
-        onPositionChanged: {
-            if (!drag.active)
-                return;
-            dragMoved = true;
-            card.dragOffsetChanged(
-                card.nodeData.node_id,
-                card.x - card.worldOffset - card.nodeData.x,
-                card.y - card.worldOffset - card.nodeData.y
-            );
-        }
-        onReleased: {
-            if (mouse.button !== Qt.LeftButton)
-                return;
-            card.dragFinished(
-                card.nodeData.node_id,
-                card.x - card.worldOffset,
-                card.y - card.worldOffset,
-                dragMoved
-            );
-        }
-        onCanceled: {
-            card.dragCanceled(card.nodeData.node_id);
         }
     }
 

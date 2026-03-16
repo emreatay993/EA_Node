@@ -252,6 +252,76 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_routes_body_click_open_and_context_from_below_surface_layer(self) -> None:
+        self._run_qml_probe(
+            "host-body-interactions-below-surface",
+            """
+            from PyQt6.QtCore import QPoint, QPointF, Qt
+            from PyQt6.QtQml import QQmlProperty
+            from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
+
+            payload = node_payload()
+            payload["inline_properties"] = []
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            drag_area = host.findChild(QObject, "graphNodeDragArea")
+
+            assert loader is not None
+            assert drag_area is not None
+
+            surface_layer = loader.parentItem()
+            assert surface_layer is not None
+            assert float(surface_layer.property("z")) > float(drag_area.property("z"))
+            assert abs(float(drag_area.property("width")) - float(host.property("width"))) < 0.5
+            assert abs(float(drag_area.property("height")) - float(host.property("height"))) < 0.5
+
+            drag_target = QQmlProperty.read(drag_area, "drag.target")
+            assert drag_target is not None
+            assert drag_target.property("objectName") == "graphNodeCard"
+            assert drag_target.property("nodeData")["node_id"] == "node_surface_host_test"
+
+            window = QQuickWindow()
+            window.resize(480, 360)
+            host.setParentItem(window.contentItem())
+            window.show()
+            app.processEvents()
+
+            clicked = []
+            opened = []
+            contexts = []
+            host.nodeClicked.connect(lambda node_id, additive: clicked.append((node_id, additive)))
+            host.nodeOpenRequested.connect(lambda node_id: opened.append(node_id))
+            host.nodeContextRequested.connect(lambda node_id, local_x, local_y: contexts.append((node_id, local_x, local_y)))
+
+            body_point = host.mapToScene(QPointF(105.0, 44.0))
+            body_click = QPoint(round(body_point.x()), round(body_point.y()))
+
+            QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, body_click)
+            app.processEvents()
+            assert clicked == [("node_surface_host_test", False)]
+
+            QTest.mouseDClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, body_click)
+            app.processEvents()
+            assert opened == ["node_surface_host_test"]
+
+            QTest.mouseClick(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, body_click)
+            app.processEvents()
+            assert len(contexts) == 1
+            assert contexts[0][0] == "node_surface_host_test"
+            assert abs(float(contexts[0][1]) - 105.0) < 0.5
+            assert abs(float(contexts[0][2]) - 44.0) < 0.5
+
+            window.close()
+            host.setParentItem(None)
+            host.deleteLater()
+            window.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_node_card_wrapper_preserves_standard_host_contract(self) -> None:
         self._run_qml_probe(
             "node-card-wrapper",
