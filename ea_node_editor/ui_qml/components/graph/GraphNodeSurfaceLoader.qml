@@ -19,6 +19,11 @@ Item {
         return 0.0;
     }
     readonly property bool blocksHostInteraction: loader.item ? Boolean(loader.item.blocksHostInteraction) : false
+    readonly property var embeddedInteractiveRects: {
+        if (!loader.item || loader.item.embeddedInteractiveRects === undefined || loader.item.embeddedInteractiveRects === null)
+            return [];
+        return loader.item.embeddedInteractiveRects;
+    }
     readonly property var hoverActionHitRect: loader.item && loader.item.hoverActionHitRect
         ? loader.item.hoverActionHitRect
         : Qt.rect(0, 0, 0, 0)

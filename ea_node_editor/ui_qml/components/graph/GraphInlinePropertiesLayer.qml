@@ -7,8 +7,32 @@ Item {
     objectName: "graphInlinePropertiesLayer"
     property Item host: null
     readonly property var inlineProperties: host ? host.inlineProperties : []
+    readonly property var embeddedInteractiveRects: root._embeddedInteractiveRects()
     implicitHeight: host ? host.inlineBodyHeight : 0
     visible: inlineProperties.length > 0
+
+    function _embeddedInteractiveRects() {
+        var rects = [];
+        if (!host || inlinePropertyRepeater.count <= 0)
+            return rects;
+        for (var index = 0; index < inlinePropertyRepeater.count; index++) {
+            var row = inlinePropertyRepeater.itemAt(index);
+            if (!row || !row.visible)
+                continue;
+            var rowWidth = Number(row.width || 0);
+            var rowHeight = Number(row.height || 0);
+            if (!(rowWidth > 0) || !(rowHeight > 0))
+                continue;
+            var topLeft = inlineControlsColumn.mapToItem(host, Number(row.x || 0), Number(row.y || 0));
+            rects.push({
+                "x": Number(topLeft.x || 0),
+                "y": Number(topLeft.y || 0),
+                "width": rowWidth,
+                "height": rowHeight
+            });
+        }
+        return rects;
+    }
 
     Column {
         id: inlineControlsColumn
@@ -22,6 +46,7 @@ Item {
         visible: inlineProperties.length > 0
 
         Repeater {
+            id: inlinePropertyRepeater
             model: inlineProperties
             delegate: Rectangle {
                 width: inlineControlsColumn.width

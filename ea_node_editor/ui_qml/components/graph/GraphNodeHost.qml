@@ -351,18 +351,39 @@ Item {
         return localX >= card.width - card._resizeHandleSize && localY >= card.height - card._resizeHandleSize;
     }
 
-    function _pointInHoverAction(localX, localY) {
-        var rect = surfaceLoader.hoverActionHitRect;
-        var rectX = Number(rect.x || 0);
-        var rectY = Number(rect.y || 0);
-        var rectWidth = Number(rect.width || 0);
-        var rectHeight = Number(rect.height || 0);
+    function _pointInRect(localX, localY, rectLike) {
+        if (!rectLike)
+            return false;
+        var rectX = Number(rectLike.x || 0);
+        var rectY = Number(rectLike.y || 0);
+        var rectWidth = Number(rectLike.width || 0);
+        var rectHeight = Number(rectLike.height || 0);
         return rectWidth > 0
             && rectHeight > 0
             && localX >= rectX
             && localX <= rectX + rectWidth
             && localY >= rectY
             && localY <= rectY + rectHeight;
+    }
+
+    function _pointInEmbeddedInteractiveRect(localX, localY) {
+        var rects = surfaceLoader.embeddedInteractiveRects;
+        if (!rects || rects.length <= 0)
+            return false;
+        for (var index = 0; index < rects.length; index++) {
+            if (card._pointInRect(localX, localY, rects[index]))
+                return true;
+        }
+        return false;
+    }
+
+    function _pointInHoverAction(localX, localY) {
+        return card._pointInRect(localX, localY, surfaceLoader.hoverActionHitRect);
+    }
+
+    function _surfaceClaimsBodyInteractionAt(localX, localY) {
+        return card._pointInEmbeddedInteractiveRect(localX, localY)
+            || card._pointInHoverAction(localX, localY);
     }
 
     HoverHandler {
@@ -426,7 +447,7 @@ Item {
         property bool dragMoved: false
 
         onPressed: {
-            if (mouse.button === Qt.LeftButton && card._pointInHoverAction(mouse.x, mouse.y)) {
+            if (card._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
                 mouse.accepted = false;
                 return;
             }
@@ -440,11 +461,15 @@ Item {
         onClicked: {
             if (mouse.button !== Qt.LeftButton)
                 return;
+            if (card._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
+                return;
             var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
             card.nodeClicked(card.nodeData.node_id, additive);
         }
         onDoubleClicked: {
             if (mouse.button !== Qt.LeftButton)
+                return;
+            if (card._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
                 return;
             card.nodeOpenRequested(card.nodeData.node_id);
         }

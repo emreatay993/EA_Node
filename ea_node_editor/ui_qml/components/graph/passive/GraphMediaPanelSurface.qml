@@ -78,6 +78,16 @@ Item {
     readonly property bool cropButtonVisible: cropToolAvailable
         && !cropModeActive
         && (host ? host.hoverActive : false)
+    readonly property var embeddedInteractiveRects: {
+        if (!cropButton.visible)
+            return [];
+        return [{
+            "x": Number(cropButton.x || 0),
+            "y": Number(cropButton.y || 0),
+            "width": Number(cropButton.width || 0),
+            "height": Number(cropButton.height || 0)
+        }];
+    }
     readonly property rect hoverActionHitRect: cropButton.visible
         ? Qt.rect(cropButton.x, cropButton.y, cropButton.width, cropButton.height)
         : Qt.rect(0, 0, 0, 0)

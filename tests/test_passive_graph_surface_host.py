@@ -23,6 +23,10 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
             from ea_node_editor.graph.model import GraphModel
             from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui.media_preview_provider import (
+                LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
+                LocalMediaPreviewImageProvider,
+            )
             from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
             from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
             from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -30,6 +34,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
+            engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
             engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
             engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
 
@@ -134,6 +139,26 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
                 visit(root)
                 return matches
+
+            def variant_value(value):
+                return value.toVariant() if hasattr(value, "toVariant") else value
+
+            def variant_list(value):
+                normalized = variant_value(value)
+                if normalized is None:
+                    return []
+                return list(normalized)
+
+            def rect_field(rect, key):
+                normalized = variant_value(rect)
+                if isinstance(normalized, dict):
+                    return float(normalized[key])
+                try:
+                    value = normalized[key]
+                except Exception:
+                    value = getattr(normalized, key)
+                value = variant_value(value)
+                return float(value() if callable(value) else value)
             """
         ) + "\n" + textwrap.dedent(body)
         env = os.environ.copy()
@@ -561,6 +586,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
                 assert bool(host.property("surfaceInteractionLocked"))
                 assert bool(loader.property("blocksHostInteraction"))
+                assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 0
                 assert drag_area is not None
                 assert resize_area is not None
                 assert not bool(drag_area.property("enabled"))
@@ -582,5 +608,76 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 assert handle_lookup["top_right"].property("cursorShape") == Qt.CursorShape.SizeBDiagCursor
                 assert handle_lookup["top"].property("cursorShape") == Qt.CursorShape.SizeVerCursor
                 assert handle_lookup["left"].property("cursorShape") == Qt.CursorShape.SizeHorCursor
+            """,
+        )
+
+    def test_media_surface_keeps_hover_action_shim_aligned_with_embedded_rect_contract(self) -> None:
+        self._run_qml_probe(
+            "media-hover-action-shim",
+            """
+            import tempfile
+            from PyQt6.QtCore import QPoint, QPointF
+            from PyQt6.QtGui import QColor, QImage
+            from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "media-hover-action.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+                media_payload["runtime_behavior"] = "passive"
+                media_payload["surface_metrics"] = {}
+                media_payload["properties"] = {
+                    "source_path": str(image_path),
+                    "caption": "",
+                    "fit_mode": "contain",
+                }
+                host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                shim_button = host.findChild(QObject, "graphNodeSurfaceHoverActionButton")
+                assert surface is not None
+                assert loader is not None
+                assert shim_button is not None
+
+                for _index in range(40):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+                assert str(surface.property("previewState")) == "ready"
+
+                window = QQuickWindow()
+                window.resize(480, 360)
+                host.setParentItem(window.contentItem())
+                window.show()
+                app.processEvents()
+
+                hover_point = host.mapToScene(QPointF(80.0, 44.0))
+                QTest.mouseMove(window, QPoint(round(hover_point.x()), round(hover_point.y())))
+                for _index in range(5):
+                    app.processEvents()
+
+                hover_rect = loader.property("hoverActionHitRect")
+                embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
+
+                assert bool(shim_button.property("visible"))
+                assert rect_field(hover_rect, "width") > 0.0
+                assert rect_field(hover_rect, "height") > 0.0
+                assert len(embedded_rects) == 1
+                assert abs(rect_field(embedded_rects[0], "x") - rect_field(hover_rect, "x")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "y") - rect_field(hover_rect, "y")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "width") - rect_field(hover_rect, "width")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "height") - rect_field(hover_rect, "height")) < 0.5
+
+                window.close()
+                host.setParentItem(None)
+                host.deleteLater()
+                window.deleteLater()
+                app.processEvents()
+                engine.deleteLater()
+                app.processEvents()
             """,
         )

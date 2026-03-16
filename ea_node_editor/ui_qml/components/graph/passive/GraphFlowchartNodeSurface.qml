@@ -5,6 +5,7 @@ Item {
     id: surface
     objectName: "graphNodeFlowchartSurface"
     property Item host: null
+    readonly property var embeddedInteractiveRects: inlinePropertiesLayer.embeddedInteractiveRects
 
     FlowchartShapeCanvas {
         anchors.fill: parent
@@ -17,6 +18,7 @@ Item {
     }
 
     GraphComponents.GraphInlinePropertiesLayer {
+        id: inlinePropertiesLayer
         anchors.fill: parent
         host: surface.host
     }
