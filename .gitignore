@@ -62,6 +62,7 @@ tests/fixtures/passive_nodes/*
 !tests/test_passive_runtime_wiring.py
 !tests/test_passive_property_editors.py
 !tests/test_passive_graph_surface_host.py
+!tests/test_graph_surface_input_controls.py
 !tests/test_passive_flowchart_catalog.py
 !tests/test_planning_annotation_catalog.py
 !tests/test_serializer.py
