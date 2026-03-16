@@ -277,6 +277,13 @@ Item {
             && _approxEqual(rect.height, 1.0);
     }
 
+    function _cropRectsEqual(a, b) {
+        return _approxEqual(Number(a.x || 0), Number(b.x || 0))
+            && _approxEqual(Number(a.y || 0), Number(b.y || 0))
+            && _approxEqual(Number(a.width || 0), Number(b.width || 0))
+            && _approxEqual(Number(a.height || 0), Number(b.height || 0));
+    }
+
     function _sourceClipRectFromNormalized(rect) {
         if (sourcePixelWidth <= 0 || sourcePixelHeight <= 0)
             return Qt.rect(0, 0, 0, 0);
@@ -385,7 +392,7 @@ Item {
                     "crop_h": rect.height
                 }
             );
-            if (!applied)
+            if (!applied && !_cropRectsEqual(rect, normalizedStoredCropRect))
                 return;
         }
         cropModeActive = false;

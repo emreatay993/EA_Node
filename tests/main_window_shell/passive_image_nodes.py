@@ -196,6 +196,45 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.app.processEvents()
         self.assertTrue(bool(surface.property("cropModeActive")))
 
+    def test_image_panel_crop_apply_closes_when_crop_is_unchanged(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+
+        image_path = Path(self._env.temp_path) / "unchanged-crop-image-node.png"
+        image = QImage(40, 20, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#2c85bf"))
+        self.assertTrue(image.save(str(image_path)))
+
+        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.set_node_property(node_id, "crop_x", 0.1)
+        self.window.scene.set_node_property(node_id, "crop_y", 0.2)
+        self.window.scene.set_node_property(node_id, "crop_w", 0.5)
+        self.window.scene.set_node_property(node_id, "crop_h", 0.6)
+        self.app.processEvents()
+
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        self._wait_for_media_preview(surface)
+        apply_button = self._graph_node_child(node_id, "graphNodeMediaCropApplyButton")
+
+        surface.setProperty("cropModeActive", True)
+        surface.setProperty("draftCropX", 0.1)
+        surface.setProperty("draftCropY", 0.2)
+        surface.setProperty("draftCropW", 0.5)
+        surface.setProperty("draftCropH", 0.6)
+        self.app.processEvents()
+        self.assertTrue(bool(surface.property("cropModeActive")))
+
+        QMetaObject.invokeMethod(apply_button, "click")
+        self.app.processEvents()
+
+        self.assertFalse(bool(surface.property("cropModeActive")))
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertAlmostEqual(float(node.properties["crop_x"]), 0.1)
+        self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
+        self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
+        self.assertAlmostEqual(float(node.properties["crop_h"]), 0.6)
+
     def test_image_panel_crop_hover_action_selects_unselected_node_without_rebuild(self) -> None:
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
         other_node_id = self.window.scene.add_node_from_type("core.start", x=420.0, y=80.0)
