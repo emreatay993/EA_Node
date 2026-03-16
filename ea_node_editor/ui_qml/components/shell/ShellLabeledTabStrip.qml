@@ -18,6 +18,7 @@ RowLayout {
     property string createButtonText: ""
     property bool createButtonAccentOutline: false
     property var contextMenuItemData: null
+    property var tabSlots: []
     readonly property var themePalette: themeBridge.palette
     readonly property bool compactDensity: String(root.densityPreset).toLowerCase() === "compact"
     readonly property int contextMenuRowHeight: 29
@@ -53,12 +54,115 @@ RowLayout {
 
     readonly property bool canReorderTabs: root.model && root.model.length !== undefined && root.model.length > 1
 
-    function tabWidthForItem(itemData) {
-        var label = ""
+    function tabLabelForItem(itemData) {
         if (itemData && itemData[root.tabLabelKey] !== undefined)
-            label = String(itemData[root.tabLabelKey])
-        labelMetrics.text = label
+            return String(itemData[root.tabLabelKey])
+        return ""
+    }
+
+    function tabWidthForItem(itemData) {
+        labelMetrics.text = root.tabLabelForItem(itemData)
         return Math.max(root.effectiveMinTabWidth, labelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
+    }
+
+    function orderedTabSlots() {
+        var slots = []
+        for (var index = 0; index < root.tabSlots.length; index += 1) {
+            var child = root.tabSlots[index]
+            if (!child || child.width <= 0 || !child.visible)
+                continue
+            slots.push(child)
+        }
+        slots.sort(function(a, b) { return a.x - b.x })
+        return slots
+    }
+
+    function reorderTargetIndexForCenterX(slots, centerX) {
+        var targetIndex = slots.length - 1
+        for (var slotIndex = 0; slotIndex < slots.length; slotIndex += 1) {
+            var midpoint = slots[slotIndex].x + (slots[slotIndex].width / 2)
+            if (centerX <= midpoint) {
+                targetIndex = slotIndex
+                break
+            }
+        }
+        return targetIndex
+    }
+
+    function updateTabReorderTarget(tabButton) {
+        if (!root.canReorderTabs || !tabButton || !tabsList.contentItem)
+            return
+        var slots = root.orderedTabSlots()
+        if (!slots.length)
+            return
+        var centerPoint = tabButton.mapToItem(tabsList.contentItem, tabButton.width / 2, tabButton.height / 2)
+        var targetIndex = root.reorderTargetIndexForCenterX(slots, centerPoint.x)
+        if (targetIndex < 0 || targetIndex === tabButton.visualIndex)
+            return
+        visualModel.items.move(tabButton.visualIndex, targetIndex)
+    }
+
+    function setTabSlotRegistration(slot, registered) {
+        if (!slot)
+            return
+        var nextSlots = []
+        var exists = false
+        for (var index = 0; index < root.tabSlots.length; index += 1) {
+            var current = root.tabSlots[index]
+            if (!current)
+                continue
+            if (current === slot) {
+                exists = true
+                if (!registered)
+                    continue
+            }
+            nextSlots.push(current)
+        }
+        if (registered && !exists)
+            nextSlots.push(slot)
+        root.tabSlots = nextSlots
+    }
+
+    function registerTabSlot(slot) {
+        root.setTabSlotRegistration(slot, true)
+    }
+
+    function unregisterTabSlot(slot) {
+        root.setTabSlotRegistration(slot, false)
+    }
+
+    function dragMinimumXForSlot(slot) {
+        if (!slot || slot.draggingInOverlay)
+            return 0
+        return -slot.x
+    }
+
+    function dragMaximumXForSlot(slot) {
+        if (!slot)
+            return 0
+        var maxOffset = dragOverlay.width - slot.buttonWidth
+        if (slot.draggingInOverlay)
+            return Math.max(0, maxOffset)
+        return Math.max(0, maxOffset - slot.x)
+    }
+
+    function resetDraggedTabPosition(tabButton) {
+        if (!tabButton)
+            return
+        tabButton.x = 0
+        tabButton.y = 0
+    }
+
+    function finalizeTabDrag(tabButton) {
+        if (!tabButton)
+            return
+        var didReorder = tabButton.dragStartIndex >= 0 && tabButton.dragStartIndex !== tabButton.visualIndex
+        tabButton.suppressClick = didReorder || tabButton.dragging
+        var fromIndex = tabButton.dragStartIndex
+        var toIndex = tabButton.visualIndex
+        tabButton.dragStartIndex = -1
+        if (fromIndex >= 0 && fromIndex !== toIndex)
+            root.tabMoveRequested(fromIndex, toIndex, tabButton.itemData)
     }
 
     function openContextMenu(itemData, positionX, positionY) {
@@ -118,36 +222,28 @@ RowLayout {
             DelegateModel {
                 id: visualModel
                 model: root.model || []
-                delegate: DropArea {
-                    id: tabDropArea
+                delegate: Item {
+                    id: tabSlot
                     property int visualIndex: DelegateModel.itemsIndex
                     property var itemData: modelData
                     readonly property int buttonWidth: root.tabWidthForItem(itemData)
+                    readonly property bool draggingInOverlay: tabButton.parent === dragOverlay
+                    // Allow non-leftmost tabs to move left before the overlay reparenting kicks in.
+                    readonly property real dragMinimumX: root.dragMinimumXForSlot(tabSlot)
+                    readonly property real dragMaximumX: root.dragMaximumXForSlot(tabSlot)
                     width: buttonWidth
                     height: root.tabHeight
-
-                    onEntered: function(drag) {
-                        if (!root.canReorderTabs || drag.source === null)
-                            return
-                        var fromIndex = Number(drag.source.visualIndex)
-                        var toIndex = Number(tabDropArea.visualIndex)
-                        if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex))
-                            return
-                        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex)
-                            return
-                        visualModel.items.move(fromIndex, toIndex)
-                    }
+                    Component.onCompleted: root.registerTabSlot(tabSlot)
+                    Component.onDestruction: root.unregisterTabSlot(tabSlot)
 
                     Rectangle {
                         id: tabButton
-                        width: tabDropArea.buttonWidth
+                        width: tabSlot.buttonWidth
                         height: root.tabHeight
-                        x: 0
-                        y: 0
                         property int dragStartIndex: -1
                         property bool suppressClick: false
-                        property int visualIndex: tabDropArea.visualIndex
-                        property var itemData: tabDropArea.itemData
+                        property int visualIndex: tabSlot.visualIndex
+                        property var itemData: tabSlot.itemData
                         property bool active: typeof root.isTabActive === "function"
                             ? !!root.isTabActive(itemData)
                             : false
@@ -164,13 +260,17 @@ RowLayout {
                             : (dragArea.containsMouse
                                 ? root.themePalette.input_border
                                 : root.themePalette.border)
-                        Drag.active: root.canReorderTabs && dragArea.drag.active
-                        Drag.source: tabDropArea
-                        Drag.hotSpot.x: dragArea.mouseX
-                        Drag.hotSpot.y: dragArea.mouseY
                         z: dragging ? 200 : 0
                         scale: dragging ? 1.02 : 1.0
                         opacity: dragging ? 0.98 : 1.0
+                        onXChanged: {
+                            if (tabButton.dragging)
+                                root.updateTabReorderTarget(tabButton)
+                        }
+                        onDraggingChanged: {
+                            if (!tabButton.dragging)
+                                root.resetDraggedTabPosition(tabButton)
+                        }
 
                         Behavior on scale {
                             NumberAnimation {
@@ -187,18 +287,14 @@ RowLayout {
                             }
                             PropertyChanges {
                                 target: tabButton
-                                width: tabDropArea.buttonWidth
+                                width: tabSlot.buttonWidth
                                 height: root.tabHeight
                             }
                         }
 
                         Text {
                             anchors.centerIn: parent
-                            text: String(
-                                tabButton.itemData && tabButton.itemData[root.tabLabelKey] !== undefined
-                                    ? tabButton.itemData[root.tabLabelKey]
-                                    : ""
-                            )
+                            text: root.tabLabelForItem(tabButton.itemData)
                             color: active
                                 ? root.themePalette.tab_selected_fg
                                 : root.themePalette.tab_fg
@@ -216,8 +312,8 @@ RowLayout {
                                 : Qt.PointingHandCursor
                             drag.target: root.canReorderTabs ? tabButton : null
                             drag.axis: Drag.XAxis
-                            drag.minimumX: 0
-                            drag.maximumX: Math.max(0, dragOverlay.width - tabDropArea.buttonWidth)
+                            drag.minimumX: tabSlot.dragMinimumX
+                            drag.maximumX: tabSlot.dragMaximumX
                             onPressed: function(mouse) {
                                 if (mouse.button === Qt.LeftButton) {
                                     tabButton.dragStartIndex = tabButton.visualIndex
@@ -227,15 +323,7 @@ RowLayout {
                             onReleased: function(mouse) {
                                 if (mouse.button !== Qt.LeftButton)
                                     return
-                                var didReorder = tabButton.dragStartIndex >= 0 && tabButton.dragStartIndex !== tabButton.visualIndex
-                                tabButton.suppressClick = didReorder || tabButton.dragging
-                                if (tabButton.dragging)
-                                    tabButton.Drag.drop()
-                                var fromIndex = tabButton.dragStartIndex
-                                var toIndex = tabButton.visualIndex
-                                tabButton.dragStartIndex = -1
-                                if (fromIndex >= 0 && fromIndex !== toIndex)
-                                    root.tabMoveRequested(fromIndex, toIndex, tabButton.itemData)
+                                root.finalizeTabDrag(tabButton)
                             }
                             onCanceled: {
                                 tabButton.dragStartIndex = -1

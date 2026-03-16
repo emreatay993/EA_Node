@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from PyQt6.QtCore import QObject, QMetaObject
+from PyQt6.QtQml import QJSValue
 from PyQt6.QtTest import QTest
 
 
@@ -719,3 +720,22 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
             [third_workspace_id, first_workspace_id, second_workspace_id],
         )
         self.assertEqual(self.window.workspace_manager.active_workspace_id(), third_workspace_id)
+
+    def test_qml_workspace_tabs_allow_leftward_drag_from_non_leftmost_slots(self) -> None:
+        self.window.workspace_manager.create_workspace("Second")
+        self.window.workspace_manager.create_workspace("Third")
+        self.window._refresh_workspace_tabs()
+        QTest.qWait(150)
+        self.app.processEvents()
+
+        strip = self._inspector_object("workspaceControlsStrip")
+        slots = strip.property("tabSlots")
+        if isinstance(slots, QJSValue):
+            slots = slots.toVariant()
+        self.assertGreaterEqual(len(slots), 3)
+
+        slots = sorted(slots, key=lambda slot: float(slot.property("x")))
+        self.assertAlmostEqual(float(slots[0].property("dragMinimumX")), 0.0, places=4)
+        self.assertLess(float(slots[1].property("dragMinimumX")), 0.0)
+        self.assertLess(float(slots[2].property("dragMinimumX")), 0.0)
+        self.assertGreater(float(slots[1].property("dragMaximumX")), 0.0)
