@@ -34,10 +34,37 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
                 return item
         self.fail(f"Could not find {object_name!r} for node {node_id!r}.")
 
+    def _graph_node_child_with_property(
+        self,
+        node_id: str,
+        object_name: str,
+        property_name: str,
+        expected_value: str,
+    ) -> QQuickItem:
+        card = self._graph_node_card(node_id)
+        for item in self._walk_items(card):
+            if item.objectName() != object_name:
+                continue
+            if str(item.property(property_name)) == expected_value:
+                return item
+        self.fail(
+            f"Could not find {object_name!r} for node {node_id!r} "
+            f"with {property_name!r}={expected_value!r}."
+        )
+
     @staticmethod
     def _item_scene_center(item: QQuickItem) -> QPoint:
         scene_point = item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5))
         return QPoint(round(scene_point.x()), round(scene_point.y()))
+
+    def _wait_for_media_preview(self, surface: QQuickItem, timeout_ms: int = 2000) -> None:
+        attempts = max(1, timeout_ms // 25)
+        for _ in range(attempts):
+            self.app.processEvents()
+            if str(surface.property("previewState")) == "ready":
+                return
+            QTest.qWait(25)
+        self.fail("Timed out waiting for media preview to become ready.")
 
     def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
         root_object = self.window.quick_widget.rootObject()
@@ -190,3 +217,36 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.assertEqual(len(nodes_changed), nodes_count_before)
         self.assertEqual(self.window.scene.selected_node_id(), node_id)
         self.assertTrue(bool(surface.property("cropModeActive")))
+
+    def test_image_panel_crop_handles_report_expected_cursor_and_hover(self) -> None:
+        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+
+        image_path = Path(self._env.temp_path) / "draggable-crop-handles.png"
+        image = QImage(40, 20, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#2c85bf"))
+        self.assertTrue(image.save(str(image_path)))
+
+        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        self._wait_for_media_preview(surface)
+
+        surface.setProperty("cropModeActive", True)
+        self.app.processEvents()
+
+        top_left_handle = self._graph_node_child_with_property(
+            node_id,
+            "graphNodeMediaCropHandleMouseArea",
+            "handleId",
+            "top_left",
+        )
+        self.assertEqual(
+            top_left_handle.property("cursorShape"),
+            Qt.CursorShape.SizeFDiagCursor,
+        )
+
+        handle_window = top_left_handle.window()
+        self.assertIsNotNone(handle_window)
+        start_point = self._item_scene_center(top_left_handle)
+        QTest.mouseMove(handle_window, start_point)
+        self.assertTrue(bool(top_left_handle.property("containsMouse")))

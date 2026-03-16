@@ -426,6 +426,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             "media-host-lock",
             """
             import tempfile
+            from PyQt6.QtCore import Qt
             from PyQt6.QtGui import QColor, QImage
 
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -471,5 +472,16 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 assert len(output_areas) >= 1
                 assert not bool(input_areas[0].property("enabled"))
                 assert not bool(output_areas[0].property("enabled"))
+
+                handle_areas = named_child_items(host, "graphNodeMediaCropHandleMouseArea")
+                handle_lookup = {
+                    str(item.property("handleId")): item
+                    for item in handle_areas
+                }
+                assert len(handle_lookup) == 8
+                assert handle_lookup["top_left"].property("cursorShape") == Qt.CursorShape.SizeFDiagCursor
+                assert handle_lookup["top_right"].property("cursorShape") == Qt.CursorShape.SizeBDiagCursor
+                assert handle_lookup["top"].property("cursorShape") == Qt.CursorShape.SizeVerCursor
+                assert handle_lookup["left"].property("cursorShape") == Qt.CursorShape.SizeHorCursor
             """,
         )

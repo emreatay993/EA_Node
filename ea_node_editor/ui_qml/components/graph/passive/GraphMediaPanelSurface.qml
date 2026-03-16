@@ -687,14 +687,6 @@ Item {
                     visible: surface.cropModeActive && surface.cropToolAvailable
                     z: 3
 
-                    MouseArea {
-                        anchors.fill: parent
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        hoverEnabled: true
-                        preventStealing: true
-                        onPressed: function(mouse) { mouse.accepted = true; }
-                    }
-
                     Image {
                         id: cropEditImage
                         objectName: "graphNodeMediaCropEditImage"
@@ -768,6 +760,8 @@ Item {
                         ]
 
                         delegate: Rectangle {
+                            objectName: "graphNodeMediaCropHandle"
+                            property string handleId: String(modelData || "")
                             property real pressGlobalX: 0
                             property real pressGlobalY: 0
                             property real startCropX: 0
@@ -781,13 +775,15 @@ Item {
                             color: surface.cropHandleFillColor
                             border.width: 2
                             border.color: surface.cropHandleBorderColor
-                            x: surface._handleX(modelData, surface.draftDisplayCropRect, width)
-                            y: surface._handleY(modelData, surface.draftDisplayCropRect, height)
+                            x: surface._handleX(handleId, surface.draftDisplayCropRect, width)
+                            y: surface._handleY(handleId, surface.draftDisplayCropRect, height)
 
                             MouseArea {
+                                objectName: "graphNodeMediaCropHandleMouseArea"
+                                property string handleId: parent.handleId
                                 anchors.fill: parent
                                 acceptedButtons: Qt.LeftButton
-                                cursorShape: surface._handleCursorShape(parent.modelData)
+                                cursorShape: surface._handleCursorShape(handleId)
                                 hoverEnabled: true
                                 preventStealing: true
 
@@ -807,7 +803,7 @@ Item {
                                         return;
                                     var gp = mapToGlobal(mouse.x, mouse.y);
                                     surface._updateDraftFromHandle(
-                                        parent.modelData,
+                                        handleId,
                                         gp.x - parent.pressGlobalX,
                                         gp.y - parent.pressGlobalY,
                                         parent.startCropX,
