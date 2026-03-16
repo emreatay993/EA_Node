@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QRectF
 
+from ea_node_editor.ui.shell.window_library_inspector import build_user_facing_node_instance_number
 from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
 from ea_node_editor.ui_qml.viewport_bridge import FRAME_PADDING_PX
 
@@ -168,6 +169,10 @@ class WorkspaceViewNavOps:
                 type_id = str(node.type_id)
                 type_id_lower = type_id.lower()
                 node_id = str(node.node_id)
+                instance_number = build_user_facing_node_instance_number(
+                    node=node,
+                    workflow_nodes=workspace.nodes,
+                )
                 rank = self.graph_search_rank(
                     normalized_query,
                     title=node_title_lower,
@@ -187,6 +192,8 @@ class WorkspaceViewNavOps:
                             "node_id": node_id,
                             "node_title": node_title,
                             "display_name": display_name,
+                            "instance_number": int(instance_number),
+                            "instance_label": f"ID {instance_number}",
                             "type_id": type_id,
                         },
                     )

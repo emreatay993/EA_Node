@@ -153,7 +153,7 @@ Rectangle {
                             + "  |  "
                             + String(modelData.display_name || "")
                             + "  |  "
-                            + String(modelData.type_id || "")
+                            + String(modelData.instance_label || "")
                         color: index === root.mainWindowRef.graph_search_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.muted_fg

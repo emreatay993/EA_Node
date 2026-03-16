@@ -287,8 +287,8 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
 
         metadata = {item["label"]: item["value"] for item in self.window.selected_node_header_items}
         self.assertEqual(metadata["Category"], "Core")
-        self.assertEqual(metadata["Type"], "core.start")
         self.assertEqual(metadata["ID"], "2")
+        self.assertEqual(set(metadata), {"Category", "ID"})
         self.assertNotEqual(first_node_id, second_node_id)
 
     def test_qml_pin_inspector_updates_parent_shell_ports(self) -> None:

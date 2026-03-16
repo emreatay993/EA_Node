@@ -128,6 +128,26 @@ class MainWindowShellGraphCanvasHostTests(MainWindowShellTestBase):
         self.assertEqual(self._workspace_state(), before_state)
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_depth)
 
+    def test_graph_search_results_use_user_facing_instance_ids_for_duplicate_nodes(self) -> None:
+        first_node_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        second_node_id = self.window.scene.add_node_from_type("core.start", x=260.0, y=40.0)
+        self.window.scene.set_node_title(first_node_id, "Duplicate Search Alpha")
+        self.window.scene.set_node_title(second_node_id, "Duplicate Search Beta")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("duplicate search")
+        self.app.processEvents()
+
+        results_by_id = {
+            item["node_id"]: item
+            for item in self.window.graph_search_results
+        }
+        self.assertEqual(results_by_id[first_node_id]["instance_number"], 1)
+        self.assertEqual(results_by_id[first_node_id]["instance_label"], "ID 1")
+        self.assertEqual(results_by_id[second_node_id]["instance_number"], 2)
+        self.assertEqual(results_by_id[second_node_id]["instance_label"], "ID 2")
+
 
 class _SubprocessShellWindowTest(unittest.TestCase):
     def __init__(self, target: str) -> None:
