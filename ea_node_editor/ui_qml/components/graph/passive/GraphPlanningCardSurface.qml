@@ -11,7 +11,7 @@ Item {
     readonly property color panelFillColor: host && host.hasPassiveFillOverride
         ? host.surfaceColor
         : Qt.darker(host ? host.surfaceColor : "#1b1d22", 1.06)
-    readonly property color panelBorderColor: host && host.nodeData && host.nodeData.selected
+    readonly property color panelBorderColor: host && host.isSelected
         ? host.selectedOutlineColor
         : (host && host.hasPassiveBorderOverride
             ? host.outlineColor

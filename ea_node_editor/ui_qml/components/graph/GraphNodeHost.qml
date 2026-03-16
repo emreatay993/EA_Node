@@ -30,6 +30,11 @@ Item {
     readonly property var portKindPalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.port_kind_palette
         : ({})
+    readonly property var selectedNodeLookup: canvasItem && canvasItem.sceneBridge
+        ? canvasItem.sceneBridge.selected_node_lookup
+        : ({})
+    readonly property bool isSelected: !!nodeData
+        && Boolean(selectedNodeLookup[String(nodeData.node_id || "")])
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
@@ -225,8 +230,8 @@ Item {
         return card.nodeData.ports.filter(function(port) { return port.direction === "out"; });
     }
     readonly property real resolvedBorderWidth: card.isPassiveNode
-        ? (card.nodeData && card.nodeData.selected ? Math.max(2.0, card.passiveBorderWidth) : card.passiveBorderWidth)
-        : (card.nodeData && card.nodeData.selected ? 2.0 : 1.0)
+        ? (card.isSelected ? Math.max(2.0, card.passiveBorderWidth) : card.passiveBorderWidth)
+        : (card.isSelected ? 2.0 : 1.0)
     readonly property real resolvedCornerRadius: card.isPassiveNode ? card.passiveCornerRadius : 6.0
 
     function localPortPoint(direction, rowIndex) {
@@ -358,7 +363,7 @@ Item {
     readonly property bool hoverActive: cardHoverHandler.hovered || nodeDragArea.containsMouse || resizeDragArea.containsMouse
     readonly property bool surfaceHoverActionHovered: surfaceHoverActionArea.visible && Boolean(surfaceHoverActionArea.hovered)
 
-    z: card.nodeData && card.nodeData.selected ? 30 : 20
+    z: card.isSelected ? 30 : 20
     x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
     y: (card.nodeData ? card.nodeData.y : 0.0) + card.worldOffset
     transform: Translate {
@@ -390,7 +395,7 @@ Item {
         visible: card._useHostChrome
         color: card.surfaceColor
         border.width: card.resolvedBorderWidth
-        border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
+        border.color: card.isSelected ? card.selectedOutlineColor : card.outlineColor
         radius: card.resolvedCornerRadius
     }
 
@@ -526,7 +531,7 @@ Item {
                     property bool hoveredState: card.isHoveredPort("in", modelData.key)
                     property bool pendingState: card.isPendingPort("in", modelData.key)
                     property bool dragSourceState: card.isDragSourcePort("in", modelData.key)
-                    property bool selectedState: card.isFlowchartSurface && card.nodeData && card.nodeData.selected
+                    property bool selectedState: card.isFlowchartSurface && card.isSelected
                     property bool attentionState: hoveredState || pendingState || dragSourceState
                     property bool interactiveState: attentionState || selectedState
                     property bool connectedState: card.isConnectedPort(modelData)
@@ -686,7 +691,7 @@ Item {
                     property bool hoveredState: card.isHoveredPort("out", modelData.key)
                     property bool pendingState: card.isPendingPort("out", modelData.key)
                     property bool dragSourceState: card.isDragSourcePort("out", modelData.key)
-                    property bool selectedState: card.isFlowchartSurface && card.nodeData && card.nodeData.selected
+                    property bool selectedState: card.isFlowchartSurface && card.isSelected
                     property bool attentionState: hoveredState || pendingState || dragSourceState
                     property bool interactiveState: attentionState || selectedState
                     property bool connectedState: card.isConnectedPort(modelData)

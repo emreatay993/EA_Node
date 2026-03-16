@@ -105,7 +105,7 @@ Item {
     readonly property color panelFillColor: host && host.hasPassiveFillOverride
         ? host.surfaceColor
         : Qt.darker(host ? host.surfaceColor : "#1b1d22", 1.03)
-    readonly property color panelBorderColor: host && host.nodeData && host.nodeData.selected
+    readonly property color panelBorderColor: host && host.isSelected
         ? host.selectedOutlineColor
         : (host && host.hasPassiveBorderOverride
             ? host.outlineColor
@@ -141,6 +141,15 @@ Item {
 
     Component.onCompleted: {
         _tryConsumePendingSurfaceAction();
+    }
+
+    Connections {
+        target: host
+
+        function onIsSelectedChanged() {
+            if (host && host.isSelected)
+                surface._tryConsumePendingSurfaceAction();
+        }
     }
 
     function _tryConsumePendingSurfaceAction() {
@@ -301,7 +310,7 @@ Item {
             return;
         var nodeId = host && host.nodeData ? String(host.nodeData.node_id || "") : "";
         var needsSelection = nodeId.length > 0
-            && host && host.nodeData && !host.nodeData.selected;
+            && host && !host.isSelected;
         if (needsSelection && typeof sceneBridge !== "undefined" && sceneBridge) {
             sceneBridge.set_pending_surface_action(nodeId);
             sceneBridge.select_node(nodeId, false);

@@ -54,20 +54,12 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
 
         self.window.scene.select_nodes_in_rect(0.0, 0.0, 280.0, 180.0)
         self.app.processEvents()
-        selected_after_replace = {
-            item["node_id"]
-            for item in self.window.scene.nodes_model
-            if item["selected"]
-        }
+        selected_after_replace = set(self.window.scene.selected_node_lookup)
         self.assertEqual(selected_after_replace, {node_a})
 
         self.window.scene.select_nodes_in_rect(300.0, 0.0, 700.0, 200.0, True)
         self.app.processEvents()
-        selected_after_additive = {
-            item["node_id"]
-            for item in self.window.scene.nodes_model
-            if item["selected"]
-        }
+        selected_after_additive = set(self.window.scene.selected_node_lookup)
         self.assertEqual(selected_after_additive, {node_a, node_b})
 
     def test_qml_parallel_edges_between_same_nodes_use_distinct_lanes(self) -> None:

@@ -26,6 +26,7 @@ Rectangle {
     readonly property color minimapNodeBorderColor: themePalette.muted_fg
     readonly property color viewportRectFillColor: Qt.alpha(themePalette.accent, 0.18)
     readonly property color viewportRectBorderColor: themePalette.accent
+    readonly property var selectedNodeLookup: root.sceneBridge ? root.sceneBridge.selected_node_lookup : ({})
 
     z: 140
     visible: root.canvasItem ? root.canvasItem.minimapVisible : true
@@ -230,13 +231,16 @@ Rectangle {
         Repeater {
             model: root.sceneBridge ? root.sceneBridge.minimap_nodes_model : []
             delegate: Rectangle {
+                readonly property bool selectedState: Boolean(
+                    root.selectedNodeLookup[String(modelData.node_id || "")]
+                )
                 x: minimapViewport.sceneToMinimapX(modelData.x)
                 y: minimapViewport.sceneToMinimapY(modelData.y)
                 width: Math.max(2, modelData.width * minimapViewport.scaleValue())
                 height: Math.max(2, modelData.height * minimapViewport.scaleValue())
-                color: modelData.selected ? root.minimapNodeSelectedColor : root.minimapNodeColor
-                border.width: modelData.selected ? 1.2 : 1
-                border.color: modelData.selected
+                color: selectedState ? root.minimapNodeSelectedColor : root.minimapNodeColor
+                border.width: selectedState ? 1.2 : 1
+                border.color: selectedState
                     ? root.minimapNodeSelectedBorderColor
                     : root.minimapNodeBorderColor
                 radius: 1

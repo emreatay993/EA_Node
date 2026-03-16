@@ -519,6 +519,71 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.clearSelection()
         self.assertEqual(events[-1], "")
 
+    def test_selection_only_updates_do_not_rebuild_models(self) -> None:
+        node_a = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        node_b = self.scene.add_node_from_type("core.end", 320.0, 40.0)
+        node_c = self.scene.add_node_from_type("core.logger", 640.0, 80.0)
+
+        baseline_nodes = copy.deepcopy(self.scene.nodes_model)
+        baseline_minimap = copy.deepcopy(self.scene.minimap_nodes_model)
+        nodes_changed: list[str] = []
+        edges_changed: list[str] = []
+        selection_events: list[dict[str, bool]] = []
+        node_selected_events: list[str] = []
+        self.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
+        self.scene.edges_changed.connect(lambda: edges_changed.append("edges"))
+        self.scene.selection_changed.connect(
+            lambda: selection_events.append(dict(self.scene.selected_node_lookup))
+        )
+        self.scene.node_selected.connect(node_selected_events.append)
+
+        self.scene.select_node(node_b)
+        self.assertEqual(self.scene.selected_node_id(), node_b)
+        self.assertEqual(self.scene.selected_node_lookup, {node_b: True})
+        self.assertEqual(selection_events[-1], {node_b: True})
+        self.assertEqual(node_selected_events[-1], node_b)
+        self.assertEqual(nodes_changed, [])
+        self.assertEqual(edges_changed, [])
+        self.assertEqual(self.scene.nodes_model, baseline_nodes)
+        self.assertEqual(self.scene.minimap_nodes_model, baseline_minimap)
+
+        selection_count_before = len(selection_events)
+        node_selected_count_before = len(node_selected_events)
+        self.scene.select_node(node_b)
+        self.assertEqual(len(selection_events), selection_count_before)
+        self.assertEqual(len(node_selected_events), node_selected_count_before)
+        self.assertEqual(nodes_changed, [])
+        self.assertEqual(edges_changed, [])
+
+        self.scene.select_node(node_a, True)
+        self.assertEqual(self.scene.selected_node_lookup, {node_b: True, node_a: True})
+        self.assertEqual(selection_events[-1], {node_b: True, node_a: True})
+        self.assertEqual(node_selected_events[-1], node_a)
+        self.assertEqual(nodes_changed, [])
+        self.assertEqual(edges_changed, [])
+        self.assertEqual(self.scene.nodes_model, baseline_nodes)
+        self.assertEqual(self.scene.minimap_nodes_model, baseline_minimap)
+
+        self.scene.clearSelection()
+        self.assertEqual(self.scene.selected_node_lookup, {})
+        self.assertEqual(selection_events[-1], {})
+        self.assertEqual(node_selected_events[-1], "")
+        self.assertEqual(nodes_changed, [])
+        self.assertEqual(edges_changed, [])
+        self.assertEqual(self.scene.nodes_model, baseline_nodes)
+        self.assertEqual(self.scene.minimap_nodes_model, baseline_minimap)
+
+        focused_center = self.scene.focus_node(node_c)
+        self.assertIsNotNone(focused_center)
+        self.assertEqual(self.scene.selected_node_id(), node_c)
+        self.assertEqual(self.scene.selected_node_lookup, {node_c: True})
+        self.assertEqual(selection_events[-1], {node_c: True})
+        self.assertEqual(node_selected_events[-1], node_c)
+        self.assertEqual(nodes_changed, [])
+        self.assertEqual(edges_changed, [])
+        self.assertEqual(self.scene.nodes_model, baseline_nodes)
+        self.assertEqual(self.scene.minimap_nodes_model, baseline_minimap)
+
     def test_connect_move_and_remove_keep_model_and_scene_in_sync(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
         target_id = self.scene.add_node_from_type("core.end", 320.0, 40.0)
@@ -952,8 +1017,9 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         minimap_payload = {item["node_id"]: item for item in self.scene.minimap_nodes_model}
         self.assertIn(node_a, minimap_payload)
         self.assertIn(node_b, minimap_payload)
-        self.assertFalse(minimap_payload[node_a]["selected"])
-        self.assertTrue(minimap_payload[node_b]["selected"])
+        self.assertNotIn("selected", minimap_payload[node_a])
+        self.assertNotIn("selected", minimap_payload[node_b])
+        self.assertEqual(self.scene.selected_node_lookup, {node_b: True})
 
         workspace_bounds = self.scene.workspace_scene_bounds_payload
         node_a_bounds = self.scene.node_bounds(node_a)

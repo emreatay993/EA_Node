@@ -9,7 +9,7 @@ Item {
         : ({})
     readonly property string annotationVariant: host ? String(host.surfaceVariant || "") : ""
     readonly property color noteFillColor: _noteFillColor()
-    readonly property color noteBorderColor: host && host.nodeData && host.nodeData.selected
+    readonly property color noteBorderColor: host && host.isSelected
         ? host.selectedOutlineColor
         : (host && host.hasPassiveBorderOverride
             ? host.outlineColor

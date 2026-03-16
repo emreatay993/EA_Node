@@ -11,7 +11,7 @@ Item {
         variant: host ? host.surfaceVariant : ""
         fillColor: host ? host.surfaceColor : "#1b1d22"
         strokeColor: host
-            ? (host.nodeData && host.nodeData.selected ? host.selectedOutlineColor : host.outlineColor)
+            ? (host.isSelected ? host.selectedOutlineColor : host.outlineColor)
             : "#3a3d45"
         strokeWidth: host ? Number(host.resolvedBorderWidth || 1) : 1
     }

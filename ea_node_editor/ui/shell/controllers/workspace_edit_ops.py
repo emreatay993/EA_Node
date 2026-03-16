@@ -200,6 +200,7 @@ class WorkspaceEditOps:
         if not removed:
             return ControllerResult(False, "Subnode port could not be removed.", payload=False)
 
+        self._host.selected_node_changed.emit()
         self._controller.refresh_workspace_tabs()
         return ControllerResult(True, payload=True)
 

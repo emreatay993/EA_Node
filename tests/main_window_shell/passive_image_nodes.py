@@ -156,3 +156,37 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         QMetaObject.invokeMethod(hover_action_button, "click")
         self.app.processEvents()
         self.assertTrue(bool(surface.property("cropModeActive")))
+
+    def test_image_panel_crop_hover_action_selects_unselected_node_without_rebuild(self) -> None:
+        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        other_node_id = self.window.scene.add_node_from_type("core.start", x=420.0, y=80.0)
+
+        image_path = Path(self._env.temp_path) / "unselected-crop-button.png"
+        image = QImage(40, 20, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#2c85bf"))
+        self.assertTrue(image.save(str(image_path)))
+
+        self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.focus_node(other_node_id)
+        self.app.processEvents()
+
+        card = self._graph_node_card(node_id)
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        hover_action_button = self._graph_node_child(node_id, "graphNodeSurfaceHoverActionButton")
+        self.assertFalse(bool(surface.property("cropModeActive")))
+        self.assertNotEqual(self.window.scene.selected_node_id(), node_id)
+
+        nodes_changed: list[str] = []
+        self.window.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
+
+        QTest.mouseMove(self.window.quick_widget, self._item_scene_center(card))
+        self.app.processEvents()
+        self.assertTrue(bool(hover_action_button.property("visible")))
+
+        nodes_count_before = len(nodes_changed)
+        QMetaObject.invokeMethod(hover_action_button, "click")
+        self.app.processEvents()
+
+        self.assertEqual(len(nodes_changed), nodes_count_before)
+        self.assertEqual(self.window.scene.selected_node_id(), node_id)
+        self.assertTrue(bool(surface.property("cropModeActive")))
