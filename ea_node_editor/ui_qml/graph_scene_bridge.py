@@ -143,6 +143,7 @@ class GraphSceneBridge(QObject):
     scope_changed = pyqtSignal()
     nodes_changed = pyqtSignal()
     edges_changed = pyqtSignal()
+    pending_surface_action_changed = pyqtSignal()
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -156,6 +157,7 @@ class GraphSceneBridge(QObject):
         self._minimap_nodes_payload: list[dict[str, Any]] = []
         self._edges_payload: list[dict[str, Any]] = []
         self._graph_theme_bridge: GraphThemeBridge | None = None
+        self._pending_surface_action_node_id: str = ""
 
     @property
     def workspace_id(self) -> str:
@@ -168,6 +170,24 @@ class GraphSceneBridge(QObject):
     @pyqtProperty("QVariantList", notify=edges_changed)
     def edges_model(self) -> list[dict[str, Any]]:
         return self._edges_payload
+
+    @pyqtProperty(str, notify=pending_surface_action_changed)
+    def pending_surface_action_node_id(self) -> str:
+        return self._pending_surface_action_node_id
+
+    @pyqtSlot(str)
+    def set_pending_surface_action(self, node_id: str) -> None:
+        if self._pending_surface_action_node_id != node_id:
+            self._pending_surface_action_node_id = node_id
+            self.pending_surface_action_changed.emit()
+
+    @pyqtSlot(str, result=bool)
+    def consume_pending_surface_action(self, node_id: str) -> bool:
+        if self._pending_surface_action_node_id == node_id and node_id:
+            self._pending_surface_action_node_id = ""
+            self.pending_surface_action_changed.emit()
+            return True
+        return False
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def minimap_nodes_model(self) -> list[dict[str, Any]]:

@@ -356,6 +356,7 @@ Item {
     }
 
     readonly property bool hoverActive: cardHoverHandler.hovered || nodeDragArea.containsMouse || resizeDragArea.containsMouse
+    readonly property bool surfaceHoverActionHovered: surfaceHoverActionArea.visible && Boolean(surfaceHoverActionArea.hovered)
 
     z: card.nodeData && card.nodeData.selected ? 30 : 20
     x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
@@ -486,6 +487,7 @@ Item {
         y: Number(surfaceLoader.hoverActionHitRect.y || 0)
         width: Number(surfaceLoader.hoverActionHitRect.width || 0)
         height: Number(surfaceLoader.hoverActionHitRect.height || 0)
+        opacity: 0.0
         hoverEnabled: true
         focusPolicy: Qt.NoFocus
         padding: 0

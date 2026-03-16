@@ -126,13 +126,33 @@ Item {
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     onCropToolAvailableChanged: {
-        if (!cropToolAvailable && cropModeActive)
+        if (!cropToolAvailable && cropModeActive) {
             _cancelCropEdit();
+            return;
+        }
+        if (cropToolAvailable)
+            _tryConsumePendingSurfaceAction();
     }
 
     onSourcePathChanged: {
         if (cropModeActive)
             _cancelCropEdit();
+    }
+
+    Component.onCompleted: {
+        _tryConsumePendingSurfaceAction();
+    }
+
+    function _tryConsumePendingSurfaceAction() {
+        if (!cropToolAvailable || cropModeActive)
+            return;
+        var nodeId = host && host.nodeData ? String(host.nodeData.node_id || "") : "";
+        if (nodeId.length > 0 && typeof sceneBridge !== "undefined" && sceneBridge) {
+            if (sceneBridge.consume_pending_surface_action(nodeId)) {
+                _loadDraftFromStoredCrop();
+                cropModeActive = true;
+            }
+        }
     }
 
     function _rawValue(key, fallback) {
@@ -279,8 +299,16 @@ Item {
     function _beginCropEdit() {
         if (!cropToolAvailable)
             return;
-        if (typeof sceneBridge !== "undefined" && sceneBridge && host && host.nodeData) {
-            sceneBridge.select_node(String(host.nodeData.node_id || ""), false);
+        var nodeId = host && host.nodeData ? String(host.nodeData.node_id || "") : "";
+        var needsSelection = nodeId.length > 0
+            && host && host.nodeData && !host.nodeData.selected;
+        if (needsSelection && typeof sceneBridge !== "undefined" && sceneBridge) {
+            sceneBridge.set_pending_surface_action(nodeId);
+            sceneBridge.select_node(nodeId, false);
+            return;
+        }
+        if (typeof sceneBridge !== "undefined" && sceneBridge && nodeId.length > 0) {
+            sceneBridge.select_node(nodeId, false);
         }
         _loadDraftFromStoredCrop();
         cropModeActive = true;
@@ -461,8 +489,13 @@ Item {
         id: control
         property string iconName: ""
         property int iconSize: 14
-        property color iconColor: surface.cropButtonIconColor
-        property color labelColor: surface.cropButtonIconColor
+        property bool externalHover: false
+        readonly property bool hoverVisualActive: hovered || externalHover
+        readonly property color resolvedForegroundColor: hoverVisualActive
+            ? "#4DA8DA"
+            : surface.cropButtonIconColor
+        property color iconColor: resolvedForegroundColor
+        property color labelColor: resolvedForegroundColor
         readonly property string resolvedIconSource: surface._iconSource(iconName, iconSize, String(iconColor))
         implicitHeight: 24
         implicitWidth: Math.max(28, contentRow.implicitWidth + 14)
@@ -505,14 +538,16 @@ Item {
         background: Rectangle {
             radius: 6
             color: control.down
-                ? Qt.alpha(surface.panelFillColor, 0.96)
-                : (control.hovered
-                    ? Qt.alpha(surface.panelFillColor, 0.9)
+                ? Qt.alpha("#4DA8DA", 0.35)
+                : (control.hoverVisualActive
+                    ? Qt.alpha("#4DA8DA", 0.22)
                     : Qt.alpha(surface.panelFillColor, 0.82))
-            border.width: 1
+            border.width: control.hoverVisualActive ? 1.5 : 1
             border.color: control.down
-                ? Qt.alpha(surface.cropFrameColor, 0.95)
-                : Qt.alpha(surface.panelBorderColor, control.hovered ? 0.95 : 0.82)
+                ? Qt.alpha("#4DA8DA", 0.95)
+                : (control.hoverVisualActive
+                    ? Qt.alpha("#4DA8DA", 0.85)
+                    : Qt.alpha(surface.panelBorderColor, 0.82))
         }
     }
 
@@ -532,6 +567,7 @@ Item {
         enabled: visible
         iconName: "crop"
         iconSize: 14
+        externalHover: host ? Boolean(host.surfaceHoverActionHovered) : false
         anchors.right: parent.right
         anchors.rightMargin: 10
         y: host
