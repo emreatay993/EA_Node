@@ -33,6 +33,11 @@
 - `REQ-UI-018`: node and edge visuals shall resolve through dedicated graph-theme tokens while canvas chrome (background, grid, minimap, marquee, and drop-preview) stays on the shell-theme path.
 - `REQ-UI-019`: `ShellWindow` shall expose `show_graph_theme_editor_dialog()` and provide a graph-theme manager/editor that groups built-in read-only themes and editable custom themes with create, duplicate, rename, delete, use-selected, and token-editing workflows.
 
+## Passive Visual Authoring UX Surfaces
+- `REQ-UI-020`: graph canvas node rendering shall route through a host/factory surface split that keeps the standard node contract stable while loading `flowchart`, `planning`, `annotation`, and `media` passive families by `surface_family` / `surface_variant`.
+- `REQ-UI-021`: passive nodes and `flow` edges shall expose style edit/reset/copy/paste workflows plus project-local preset CRUD from the shell/canvas context-menu path.
+- `REQ-UI-022`: passive image and PDF media panels shall preview local filesystem sources and keep those previews after save/reopen.
+
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.
 - `AC-REQ-UI-005-01`: Switching views restores stored zoom and pan center.
@@ -46,3 +51,6 @@
 - `AC-REQ-UI-017-01`: `stitch_dark` and `stitch_light` both render shell and graph-canvas chrome surfaces without breaking existing shell/canvas contracts.
 - `AC-REQ-UI-018-01`: `NodeCard` and `EdgeLayer` follow the active graph theme while background/grid/minimap/drop-preview chrome stay on the shell-theme path.
 - `AC-REQ-UI-019-01`: the graph-theme manager keeps built-in themes read-only, persists custom-theme library edits, and only live-applies token edits when the edited theme is the active explicit custom theme.
+- `AC-REQ-UI-020-01`: standard executable nodes and passive flowchart/planning/annotation/media nodes all render through the shared host without breaking existing `graphNodeCard` / `graphCanvas` discoverability contracts.
+- `AC-REQ-UI-021-01`: passive node and `flow` edge context menus can apply, copy/paste, reset, and persist project-local presets without changing executable-node theming behavior.
+- `AC-REQ-UI-022-01`: reopening a project restores passive image and PDF previews for valid local sources and keeps the authored captions and fit/page settings.

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 from PyQt6.QtCore import QObject
 from PyQt6.QtQuick import QQuickItem
@@ -16,6 +20,15 @@ from tests.main_window_shell.passive_property_editors import *  # noqa: F401,F40
 from tests.main_window_shell.passive_image_nodes import *  # noqa: F401,F403
 from tests.main_window_shell.passive_pdf_nodes import *  # noqa: F401,F403
 from tests.main_window_shell.view_library_inspector import *  # noqa: F401,F403
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SHELL_TEST_RUNNER = (
+    "import sys, unittest; "
+    "target = sys.argv[1]; "
+    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
+    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
+    "sys.exit(0 if result.wasSuccessful() else 1)"
+)
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QQuickItem]:
@@ -114,6 +127,64 @@ class MainWindowShellGraphCanvasHostTests(MainWindowShellTestBase):
         self.assertFalse(pasted)
         self.assertEqual(self._workspace_state(), before_state)
         self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), before_depth)
+
+
+class _SubprocessShellWindowTest(unittest.TestCase):
+    def __init__(self, target: str) -> None:
+        super().__init__(methodName="runTest")
+        self._target = target
+
+    def id(self) -> str:
+        return self._target
+
+    def __str__(self) -> str:
+        return self._target
+
+    def shortDescription(self) -> str:
+        return self._target
+
+    def runTest(self) -> None:
+        env = os.environ.copy()
+        env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        result = subprocess.run(
+            [sys.executable, "-c", _SHELL_TEST_RUNNER, self._target],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        output = "\n".join(
+            part.strip()
+            for part in (result.stdout, result.stderr)
+            if part and part.strip()
+        )
+        self.fail(
+            f"Subprocess shell test failed for {self._target} "
+            f"(exit={result.returncode}).\n{output}"
+        )
+
+
+def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(FrameRateSamplerTests))
+
+    shell_classes: list[type[MainWindowShellTestBase]] = []
+    for candidate in globals().values():
+        if not isinstance(candidate, type):
+            continue
+        if not issubclass(candidate, MainWindowShellTestBase):
+            continue
+        if candidate is MainWindowShellTestBase:
+            continue
+        shell_classes.append(candidate)
+
+    for case_type in sorted(shell_classes, key=lambda item: (item.__module__, item.__name__)):
+        for test_name in loader.getTestCaseNames(case_type):
+            target = f"{case_type.__module__}.{case_type.__qualname__}.{test_name}"
+            suite.addTest(_SubprocessShellWindowTest(target))
+    return suite
 
 
 if __name__ == "__main__":
