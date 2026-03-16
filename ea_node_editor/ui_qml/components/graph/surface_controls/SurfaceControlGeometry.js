@@ -23,14 +23,24 @@ function normalizedRect(rectLike) {
 function rectFromItem(item, hostItem) {
     if (!item || !hostItem || !item.visible)
         return null;
+    var localX = _number(item.x, 0);
+    var localY = _number(item.y, 0);
+    var dependencyX = localX;
+    var dependencyY = localY;
+    var ancestor = item.parent;
+    while (ancestor && ancestor !== hostItem) {
+        dependencyX += _number(ancestor.x, 0);
+        dependencyY += _number(ancestor.y, 0);
+        ancestor = ancestor.parent;
+    }
     var width = _number(item.width, 0);
     var height = _number(item.height, 0);
     if (!(width > 0) || !(height > 0))
         return null;
     var topLeft = item.mapToItem(hostItem, 0, 0);
     return normalizedRect({
-        "x": topLeft.x,
-        "y": topLeft.y,
+        "x": _number(topLeft.x, dependencyX),
+        "y": _number(topLeft.y, dependencyY),
         "width": width,
         "height": height
     });

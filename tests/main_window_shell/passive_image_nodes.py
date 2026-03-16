@@ -123,6 +123,46 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.assertGreater(float(node_payload["height"]), initial_height)
         self.assertAlmostEqual(float(updated_card.height()), float(node_payload["height"]), places=3)
 
+    def test_image_panel_inline_path_editor_commits_without_node_drag(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        picked_path = Path(self._env.temp_path) / "graph-inline-picked-image.png"
+        image = QImage(18, 12, QImage.Format.Format_ARGB32)
+        image.fill(QColor("#2c85bf"))
+        self.assertTrue(image.save(str(picked_path)))
+
+        path_editor = self._graph_node_child_with_property(
+            node_id,
+            "graphNodeInlinePathEditor",
+            "propertyKey",
+            "source_path",
+        )
+        browse_button = self._graph_node_child_with_property(
+            node_id,
+            "graphNodeInlinePathBrowseButton",
+            "propertyKey",
+            "source_path",
+        )
+        self.assertTrue(bool(path_editor.property("visible")))
+        self.assertTrue(bool(browse_button.property("visible")))
+        workspace = self.window.model.project.workspaces[workspace_id]
+        initial_x = float(workspace.nodes[node_id].x)
+        initial_y = float(workspace.nodes[node_id].y)
+
+        with patch("ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName", return_value=(str(picked_path), "")):
+            QMetaObject.invokeMethod(browse_button, "click")
+            self.app.processEvents()
+
+        node = workspace.nodes[node_id]
+        self.assertEqual(self.window.scene.selected_node_id(), node_id)
+        self.assertEqual(node.properties["source_path"], str(picked_path))
+        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertAlmostEqual(float(node.x), initial_x, places=6)
+        self.assertAlmostEqual(float(node.y), initial_y, places=6)
+
     def test_image_panel_crop_apply_persists_hidden_normalized_rect(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
