@@ -86,6 +86,18 @@
 - `ea_node_editor/ui/shell/window.py` — inspector APIs and graph-surface-specific browse bridge
 - `docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md` — packet history for the interaction-bridge migration
 
+### 4. Show Windows Folder Node
+
+**Goal:** Add a `Show Windows Folder` node that can display folder contents in a Windows Explorer-style view and launch files/folders through the OS.
+
+**Properties/Features:**
+- It accepts file paths as optional
+- The node is expandable to full view via the existing overlay button that is generally used for this purpose
+- Users can browse to their own file paths if they wish
+- It lists the contents of that folder as it is shown from OS explorer (like Windows's own file explorer)
+- Users can use the right-click action on a file to `Open in Explorer` to open the folder or subfolder containing the selected file
+- If a file is double-clicked it is opened in the default application specified by the OS
+
 ## Implemented
 
 ### Image Crop Button on Image Panel Node
