@@ -1,5 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
+import "../surface_controls" as GraphSurfaceControls
+import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
 Item {
     id: surface
@@ -78,19 +80,18 @@ Item {
     readonly property bool cropButtonVisible: cropToolAvailable
         && !cropModeActive
         && (host ? host.hoverActive : false)
-    readonly property var embeddedInteractiveRects: {
-        if (!cropButton.visible)
-            return [];
-        return [{
-            "x": Number(cropButton.x || 0),
-            "y": Number(cropButton.y || 0),
-            "width": Number(cropButton.width || 0),
-            "height": Number(cropButton.height || 0)
-        }];
+    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(cropButton.interactiveRect)
+    readonly property rect hoverActionHitRect: {
+        var rectLike = cropButton.interactiveRect;
+        if (!rectLike)
+            return Qt.rect(0, 0, 0, 0);
+        return Qt.rect(
+            Number(rectLike.x || 0),
+            Number(rectLike.y || 0),
+            Number(rectLike.width || 0),
+            Number(rectLike.height || 0)
+        );
     }
-    readonly property rect hoverActionHitRect: cropButton.visible
-        ? Qt.rect(cropButton.x, cropButton.y, cropButton.width, cropButton.height)
-        : Qt.rect(0, 0, 0, 0)
     readonly property real cropHandleSize: 12
     readonly property real cropHandleHitSlop: 8
     readonly property var cropDisplayRect: _containRect(
@@ -591,72 +592,6 @@ Item {
         };
     }
 
-    component SurfaceButton : Button {
-        id: control
-        property string iconName: ""
-        property int iconSize: 14
-        property bool externalHover: false
-        readonly property bool hoverVisualActive: hovered || externalHover
-        readonly property color resolvedForegroundColor: hoverVisualActive
-            ? "#4DA8DA"
-            : surface.cropButtonIconColor
-        property color iconColor: resolvedForegroundColor
-        property color labelColor: resolvedForegroundColor
-        readonly property string resolvedIconSource: surface._iconSource(iconName, iconSize, String(iconColor))
-        implicitHeight: 24
-        implicitWidth: Math.max(28, contentRow.implicitWidth + 14)
-        padding: 0
-        hoverEnabled: true
-
-        contentItem: Item {
-            implicitWidth: contentRow.implicitWidth
-            implicitHeight: contentRow.implicitHeight
-
-            Row {
-                id: contentRow
-                anchors.centerIn: parent
-                spacing: control.text.length > 0 && control.resolvedIconSource.length > 0 ? 6 : 0
-
-                Image {
-                    visible: control.resolvedIconSource.length > 0
-                    source: control.resolvedIconSource
-                    width: control.iconSize
-                    height: control.iconSize
-                    fillMode: Image.PreserveAspectFit
-                    smooth: true
-                    mipmap: true
-                    sourceSize.width: control.iconSize
-                    sourceSize.height: control.iconSize
-                }
-
-                Text {
-                    visible: control.text.length > 0
-                    text: control.text
-                    color: control.labelColor
-                    font.pixelSize: 10
-                    font.bold: true
-                    verticalAlignment: Text.AlignVCenter
-                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                }
-            }
-        }
-
-        background: Rectangle {
-            radius: 6
-            color: control.down
-                ? Qt.alpha("#4DA8DA", 0.35)
-                : (control.hoverVisualActive
-                    ? Qt.alpha("#4DA8DA", 0.22)
-                    : Qt.alpha(surface.panelFillColor, 0.82))
-            border.width: control.hoverVisualActive ? 1.5 : 1
-            border.color: control.down
-                ? Qt.alpha("#4DA8DA", 0.95)
-                : (control.hoverVisualActive
-                    ? Qt.alpha("#4DA8DA", 0.85)
-                    : Qt.alpha(surface.panelBorderColor, 0.82))
-        }
-    }
-
     Rectangle {
         anchors.fill: parent
         radius: host ? Number(host.resolvedCornerRadius || 6) : 6
@@ -665,15 +600,23 @@ Item {
         border.color: surface.panelBorderColor
     }
 
-    SurfaceButton {
+    GraphSurfaceControls.GraphSurfaceButton {
         id: cropButton
         objectName: "graphNodeMediaCropButton"
         z: 6
+        host: surface.host
         visible: surface.cropButtonVisible
         enabled: visible
         iconName: "crop"
         iconSize: 14
+        iconSourceResolver: function(name, size, color) {
+            return surface._iconSource(name, size, color);
+        }
         externalHover: host ? Boolean(host.surfaceHoverActionHovered) : false
+        accentColor: "#4DA8DA"
+        foregroundColor: surface.cropButtonIconColor
+        baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
+        baseBorderColor: Qt.alpha(surface.panelBorderColor, 0.82)
         anchors.right: parent.right
         anchors.rightMargin: 10
         y: host
@@ -977,15 +920,23 @@ Item {
                         spacing: 6
                         z: 5
 
-                        SurfaceButton {
+                        GraphSurfaceControls.GraphSurfaceButton {
                             objectName: "graphNodeMediaCropApplyButton"
+                            host: surface.host
                             text: "Apply"
+                            foregroundColor: surface.cropButtonIconColor
+                            baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
+                            baseBorderColor: Qt.alpha(surface.panelBorderColor, 0.82)
                             onClicked: surface._applyCropEdit()
                         }
 
-                        SurfaceButton {
+                        GraphSurfaceControls.GraphSurfaceButton {
                             objectName: "graphNodeMediaCropCancelButton"
+                            host: surface.host
                             text: "Cancel"
+                            foregroundColor: surface.cropButtonIconColor
+                            baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
+                            baseBorderColor: Qt.alpha(surface.panelBorderColor, 0.82)
                             onClicked: surface._cancelCropEdit()
                         }
                     }
