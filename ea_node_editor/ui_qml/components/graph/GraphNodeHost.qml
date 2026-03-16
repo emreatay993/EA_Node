@@ -173,6 +173,7 @@ Item {
         bool dragActive
     )
     signal portDragCanceled(string nodeId, string portKey, string direction)
+    signal surfaceControlInteractionStarted(string nodeId)
     signal inlinePropertyCommitted(string nodeId, string key, var value)
     signal portHoverChanged(
         string nodeId,
@@ -322,6 +323,12 @@ Item {
         if (value === undefined || value === null)
             return "";
         return String(value);
+    }
+
+    function browseNodePropertyPath(key, currentPath) {
+        if (!card.nodeData || !card.canvasItem || !card.canvasItem.browseNodePropertyPath)
+            return "";
+        return String(card.canvasItem.browseNodePropertyPath(card.nodeData.node_id, key, currentPath) || "");
     }
 
     function _styleString(value) {

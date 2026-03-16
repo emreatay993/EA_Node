@@ -6,6 +6,7 @@ import subprocess
 import sys
 import textwrap
 import unittest
+from unittest.mock import patch
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,6 +37,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
 
             repo_root = Path.cwd()
             components_dir = repo_root / "ea_node_editor" / "ui_qml" / "components"
+            graph_canvas_qml_path = components_dir / "GraphCanvas.qml"
             graph_node_host_qml_path = components_dir / "graph" / "GraphNodeHost.qml"
 
             def create_component(path, initial_properties):
@@ -270,6 +272,193 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_routes_surface_control_edits_by_explicit_node_id(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-surface-control-bridge",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
+
+            class SceneBridgeStub(QObject):
+                nodes_changed = pyqtSignal()
+                edges_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self.select_calls = []
+                    self.set_node_property_calls = []
+                    self._nodes_model = [node_payload()]
+                    self._selected_node_lookup = {}
+
+                @pyqtProperty("QVariantList", notify=nodes_changed)
+                def nodes_model(self):
+                    return self._nodes_model
+
+                @pyqtProperty("QVariantList", notify=edges_changed)
+                def edges_model(self):
+                    return []
+
+                @pyqtProperty("QVariantMap", notify=nodes_changed)
+                def selected_node_lookup(self):
+                    return self._selected_node_lookup
+
+                @pyqtSlot(str)
+                @pyqtSlot(str, bool)
+                def select_node(self, node_id, additive=False):
+                    normalized_node_id = str(node_id or "")
+                    self.select_calls.append((normalized_node_id, bool(additive)))
+                    self._selected_node_lookup = {normalized_node_id: True} if normalized_node_id else {}
+                    self.nodes_changed.emit()
+
+                @pyqtSlot(str, str, "QVariant")
+                def set_node_property(self, node_id, key, value):
+                    self.set_node_property_calls.append((str(node_id or ""), str(key or ""), variant_value(value)))
+
+                @pyqtSlot(str, str, result=bool)
+                def are_port_kinds_compatible(self, _source_kind, _target_kind):
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def are_data_types_compatible(self, _source_type, _target_type):
+                    return True
+
+            class MainWindowBridgeStub(QObject):
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                def __init__(self):
+                    super().__init__()
+                    self.set_selected_node_property_calls = []
+
+                @pyqtSlot(str, "QVariant")
+                def set_selected_node_property(self, key, value):
+                    self.set_selected_node_property_calls.append((str(key or ""), variant_value(value)))
+
+            scene_bridge = SceneBridgeStub()
+            window_bridge = MainWindowBridgeStub()
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene_bridge,
+                    "mainWindowBridge": window_bridge,
+                },
+            )
+            def walk_items(item):
+                yield item
+                for child in item.childItems():
+                    yield from walk_items(child)
+
+            node_card = next((item for item in walk_items(canvas) if item.objectName() == "graphNodeCard"), None)
+            assert node_card is not None
+
+            canvas.setProperty(
+                "pendingConnectionPort",
+                {
+                    "node_id": "pending-node",
+                    "port_key": "exec_out",
+                    "direction": "out",
+                    "allow_multiple_connections": False,
+                    "scene_x": 10.0,
+                    "scene_y": 12.0,
+                },
+            )
+            canvas.setProperty(
+                "wireDragState",
+                {
+                    "node_id": "pending-node",
+                    "port_key": "exec_out",
+                    "source_direction": "out",
+                    "start_x": 10.0,
+                    "start_y": 12.0,
+                    "cursor_x": 20.0,
+                    "cursor_y": 30.0,
+                    "press_screen_x": 40.0,
+                    "press_screen_y": 50.0,
+                    "active": True,
+                },
+            )
+            canvas.setProperty(
+                "wireDropCandidate",
+                {
+                    "node_id": "candidate-node",
+                    "port_key": "exec_in",
+                    "direction": "in",
+                    "scene_x": 20.0,
+                    "scene_y": 30.0,
+                    "valid_drop": True,
+                },
+            )
+            canvas.setProperty("edgeContextVisible", True)
+            canvas.setProperty("nodeContextVisible", True)
+            canvas.setProperty("selectedEdgeIds", ["edge-1"])
+            app.processEvents()
+
+            node_card.surfaceControlInteractionStarted.emit("node_surface_contract_test")
+            app.processEvents()
+
+            assert scene_bridge.select_calls == [("node_surface_contract_test", False)]
+            assert canvas.property("pendingConnectionPort") is None
+            assert canvas.property("wireDragState") is None
+            assert canvas.property("wireDropCandidate") is None
+            assert not bool(canvas.property("edgeContextVisible"))
+            assert not bool(canvas.property("nodeContextVisible"))
+            assert variant_list(canvas.property("selectedEdgeIds")) == []
+
+            node_card.inlinePropertyCommitted.emit(
+                "node_surface_contract_test",
+                "message",
+                "updated from graph surface",
+            )
+            app.processEvents()
+
+            assert scene_bridge.set_node_property_calls == [
+                ("node_surface_contract_test", "message", "updated from graph surface")
+            ]
+            assert window_bridge.set_selected_node_property_calls == []
+            assert scene_bridge.select_calls == [
+                ("node_surface_contract_test", False),
+                ("node_surface_contract_test", False),
+            ]
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_media_whole_surface_lock_remains_independent_from_local_interactive_rects(self) -> None:
         self._run_qml_probe(
             "media-whole-surface-lock",
@@ -339,6 +528,49 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 app.processEvents()
             """,
         )
+
+    def test_graph_scene_bridge_exposes_set_node_property_as_qml_slot(self) -> None:
+        from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+        bridge = GraphSceneBridge()
+        meta_object = bridge.metaObject()
+        method_signatures = [
+            bytes(meta_object.method(index).methodSignature()).decode("utf-8")
+            for index in range(meta_object.methodOffset(), meta_object.methodCount())
+        ]
+        self.assertIn("set_node_property(QString,QString,QVariant)", method_signatures)
+
+    def test_shell_window_browse_node_property_path_uses_explicit_node_id(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        from ea_node_editor.ui.shell.window import ShellWindow
+
+        app = QApplication.instance() or QApplication([])
+        window = ShellWindow()
+        try:
+            image_node_id = window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+            logger_node_id = window.scene.add_node_from_type("core.logger", x=360.0, y=80.0)
+            self.assertTrue(image_node_id)
+            self.assertTrue(logger_node_id)
+            app.processEvents()
+
+            picked_path = str(_REPO_ROOT / "tests" / "fixtures" / "graph-surface-picked-path.png")
+            with patch(
+                "ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName",
+                return_value=(picked_path, ""),
+            ) as dialog_mock:
+                self.assertEqual(window.browse_selected_node_property_path("source_path", ""), "")
+                self.assertEqual(
+                    window.browse_node_property_path(image_node_id, "source_path", ""),
+                    picked_path,
+                )
+                self.assertEqual(dialog_mock.call_count, 1)
+
+            self.assertEqual(window.browse_node_property_path(logger_node_id, "message", ""), "")
+        finally:
+            window.close()
+            window.deleteLater()
+            app.processEvents()
 
 
 if __name__ == "__main__":

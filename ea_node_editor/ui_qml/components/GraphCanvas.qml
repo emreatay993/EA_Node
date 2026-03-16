@@ -277,6 +277,44 @@ Item {
         return true;
     }
 
+    function prepareNodeSurfaceControlInteraction(nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return false;
+        root._closeContextMenus();
+        root.cancelWireDrag();
+        root.clearPendingConnection();
+        root.clearEdgeSelection();
+        if (sceneBridge)
+            sceneBridge.select_node(normalized, false);
+        return true;
+    }
+
+    function commitNodeSurfaceProperty(nodeId, key, value) {
+        var normalizedNodeId = String(nodeId || "").trim();
+        var normalizedKey = String(key || "").trim();
+        if (!normalizedNodeId || !normalizedKey)
+            return false;
+        root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
+        if (!sceneBridge || !sceneBridge.set_node_property)
+            return false;
+        sceneBridge.set_node_property(normalizedNodeId, normalizedKey, value);
+        return true;
+    }
+
+    function browseNodePropertyPath(nodeId, key, currentPath) {
+        var normalizedNodeId = String(nodeId || "").trim();
+        var normalizedKey = String(key || "").trim();
+        if (!normalizedNodeId || !normalizedKey || !mainWindowBridge || !mainWindowBridge.browse_node_property_path)
+            return "";
+        root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
+        return String(mainWindowBridge.browse_node_property_path(
+            normalizedNodeId,
+            normalizedKey,
+            String(currentPath || "")
+        ) || "");
+    }
+
     function selectedNodeIds() {
         var nodes = sceneBridge ? sceneBridge.nodes_model : [];
         var selected = [];
@@ -1295,15 +1333,12 @@ Item {
                         edgeLayer.requestRedraw();
                     }
                 }
+                onSurfaceControlInteractionStarted: function(nodeId) {
+                    root.prepareNodeSurfaceControlInteraction(nodeId);
+                }
                 onInlinePropertyCommitted: function(nodeId, key, value) {
-                    root.forceActiveFocus();
-                    root._closeContextMenus();
-                    root.clearPendingConnection();
-                    root.clearEdgeSelection();
-                    if (sceneBridge)
-                        sceneBridge.select_node(nodeId, false);
-                    if (mainWindowBridge)
-                        mainWindowBridge.set_selected_node_property(key, value);
+                    if (root.commitNodeSurfaceProperty(nodeId, key, value))
+                        root.forceActiveFocus();
                 }
             }
         }

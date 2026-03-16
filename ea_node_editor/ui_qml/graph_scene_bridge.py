@@ -969,6 +969,12 @@ class GraphSceneBridge(QObject):
         self._rebuild_models()
         self._record_history(ACTION_TOGGLE_COLLAPSED, history_before)
 
+    def _notify_selected_node_context_updated(self, node_id: str) -> None:
+        normalized_node_id = str(node_id or "").strip()
+        if normalized_node_id and normalized_node_id in self._selected_node_lookup:
+            self.node_selected.emit(normalized_node_id)
+
+    @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         if self._model is None or self._registry is None:
             return
@@ -984,6 +990,7 @@ class GraphSceneBridge(QObject):
         if key == "title":
             self._sync_surface_title(node, spec)
         self._rebuild_models()
+        self._notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
     @pyqtSlot(str, "QVariantMap", result=bool)
@@ -1019,6 +1026,7 @@ class GraphSceneBridge(QObject):
         if "title" in normalized_updates:
             self._sync_surface_title(node, spec)
         self._rebuild_models()
+        self._notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
         return True
 

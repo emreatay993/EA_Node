@@ -11,6 +11,16 @@ Item {
     implicitHeight: host ? host.inlineBodyHeight : 0
     visible: inlineProperties.length > 0
 
+    function _beginInteraction() {
+        if (host && host.nodeData)
+            host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
+    }
+
+    function _commitInlineProperty(key, value) {
+        if (host && host.nodeData)
+            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), key, value);
+    }
+
     function _embeddedInteractiveRects() {
         var rects = [];
         if (!host || inlinePropertyRepeater.count <= 0)
@@ -74,9 +84,12 @@ Item {
                         visible: modelData.inline_editor === "toggle"
                         enabled: !modelData.overridden_by_input
                         checked: !!modelData.value
+                        onPressedChanged: {
+                            if (pressed)
+                                root._beginInteraction();
+                        }
                         onClicked: {
-                            if (host && host.nodeData)
-                                host.inlinePropertyCommitted(host.nodeData.node_id, modelData.key, checked);
+                            root._commitInlineProperty(modelData.key, checked);
                         }
                     }
 
@@ -91,11 +104,15 @@ Item {
                             var matchIndex = values.indexOf(value);
                             return matchIndex >= 0 ? matchIndex : 0;
                         }
+                        onPressedChanged: {
+                            if (pressed)
+                                root._beginInteraction();
+                        }
                         onActivated: {
                             var values = modelData.enum_values || [];
-                            if (!host || !host.nodeData || currentIndex < 0 || currentIndex >= values.length)
+                            if (currentIndex < 0 || currentIndex >= values.length)
                                 return;
-                            host.inlinePropertyCommitted(host.nodeData.node_id, modelData.key, String(values[currentIndex]));
+                            root._commitInlineProperty(modelData.key, String(values[currentIndex]));
                         }
                     }
 
@@ -111,13 +128,15 @@ Item {
                             border.color: host ? host.inlineInputBorderColor : "#4a4f5a"
                             radius: 3
                         }
+                        onActiveFocusChanged: {
+                            if (activeFocus)
+                                root._beginInteraction();
+                        }
                         onAccepted: {
-                            if (host && host.nodeData)
-                                host.inlinePropertyCommitted(host.nodeData.node_id, modelData.key, text);
+                            root._commitInlineProperty(modelData.key, text);
                         }
                         onEditingFinished: {
-                            if (host && host.nodeData)
-                                host.inlinePropertyCommitted(host.nodeData.node_id, modelData.key, text);
+                            root._commitInlineProperty(modelData.key, text);
                         }
                     }
 
