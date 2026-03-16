@@ -114,13 +114,6 @@ RowLayout {
             anchors.topMargin: root.cardVerticalPadding
             anchors.bottomMargin: root.cardVerticalPadding
             spacing: root.cardSpacing
-            move: Transition {
-                NumberAnimation {
-                    properties: "x,y"
-                    duration: 140
-                    easing.type: Easing.OutCubic
-                }
-            }
 
             DelegateModel {
                 id: visualModel
@@ -147,8 +140,12 @@ RowLayout {
 
                     Rectangle {
                         id: tabButton
-                        anchors.fill: parent
+                        width: tabDropArea.buttonWidth
+                        height: root.tabHeight
+                        x: 0
+                        y: 0
                         property int dragStartIndex: -1
+                        property bool suppressClick: false
                         property int visualIndex: tabDropArea.visualIndex
                         property var itemData: tabDropArea.itemData
                         property bool active: typeof root.isTabActive === "function"
@@ -168,23 +165,25 @@ RowLayout {
                                 ? root.themePalette.input_border
                                 : root.themePalette.border)
                         Drag.active: root.canReorderTabs && dragArea.drag.active
-                        Drag.source: tabButton
+                        Drag.source: tabDropArea
                         Drag.hotSpot.x: dragArea.mouseX
                         Drag.hotSpot.y: dragArea.mouseY
-                        z: dragging ? 20 : 0
+                        z: dragging ? 200 : 0
+                        scale: dragging ? 1.02 : 1.0
+                        opacity: dragging ? 0.98 : 1.0
+
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: 120
+                                easing.type: Easing.OutCubic
+                            }
+                        }
 
                         states: State {
                             when: tabButton.dragging
                             ParentChange {
                                 target: tabButton
                                 parent: dragOverlay
-                            }
-                            AnchorChanges {
-                                target: tabButton
-                                anchors.left: undefined
-                                anchors.right: undefined
-                                anchors.top: undefined
-                                anchors.bottom: undefined
                             }
                             PropertyChanges {
                                 target: tabButton
@@ -220,12 +219,16 @@ RowLayout {
                             drag.minimumX: 0
                             drag.maximumX: Math.max(0, dragOverlay.width - tabDropArea.buttonWidth)
                             onPressed: function(mouse) {
-                                if (mouse.button === Qt.LeftButton)
+                                if (mouse.button === Qt.LeftButton) {
                                     tabButton.dragStartIndex = tabButton.visualIndex
+                                    tabButton.suppressClick = false
+                                }
                             }
                             onReleased: function(mouse) {
                                 if (mouse.button !== Qt.LeftButton)
                                     return
+                                var didReorder = tabButton.dragStartIndex >= 0 && tabButton.dragStartIndex !== tabButton.visualIndex
+                                tabButton.suppressClick = didReorder || tabButton.dragging
                                 if (tabButton.dragging)
                                     tabButton.Drag.drop()
                                 var fromIndex = tabButton.dragStartIndex
@@ -234,8 +237,16 @@ RowLayout {
                                 if (fromIndex >= 0 && fromIndex !== toIndex)
                                     root.tabMoveRequested(fromIndex, toIndex, tabButton.itemData)
                             }
+                            onCanceled: {
+                                tabButton.dragStartIndex = -1
+                                tabButton.suppressClick = false
+                            }
                             onClicked: function(mouse) {
                                 if (mouse.button === Qt.LeftButton) {
+                                    if (tabButton.suppressClick) {
+                                        tabButton.suppressClick = false
+                                        return
+                                    }
                                     root.tabActivated(tabButton.itemData)
                                     return
                                 }
@@ -249,8 +260,31 @@ RowLayout {
                 }
             }
 
-            Repeater {
+            ListView {
+                id: tabsList
+                orientation: ListView.Horizontal
+                interactive: false
+                spacing: root.cardSpacing
+                clip: false
+                implicitWidth: contentWidth
+                implicitHeight: root.tabHeight
+                width: contentWidth
+                height: root.tabHeight
                 model: visualModel
+                displaced: Transition {
+                    NumberAnimation {
+                        properties: "x,y"
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                moveDisplaced: Transition {
+                    NumberAnimation {
+                        properties: "x,y"
+                        duration: 180
+                        easing.type: Easing.OutCubic
+                    }
+                }
             }
 
             ShellCreateButton {
@@ -270,8 +304,10 @@ RowLayout {
 
         Item {
             id: dragOverlay
-            anchors.fill: stripRow
-            anchors.rightMargin: createButton.width + stripRow.spacing
+            x: stripRow.x
+            y: stripRow.y
+            width: tabsList.width
+            height: tabsList.height
             z: 100
         }
     }
