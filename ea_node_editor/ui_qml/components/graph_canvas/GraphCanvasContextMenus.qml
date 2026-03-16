@@ -77,6 +77,7 @@ Item {
             { "actionId": "copy_node_style", "text": "Copy Style", "visible": nodeContextPopup.isPassiveNode },
             { "actionId": "paste_node_style", "text": "Paste Style", "visible": nodeContextPopup.isPassiveNode },
             { "actionId": "rename_node", "text": "Rename Node" },
+            { "actionId": "ungroup_subnode", "text": "Ungroup Subnode", "visible": nodeContextPopup.canEnterScope, "destructive": true },
             { "actionId": "remove_node", "text": "Remove Node", "destructive": true }
         ]
         onActionTriggered: function(actionId) {
@@ -103,6 +104,8 @@ Item {
                 root.mainWindowBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "rename_node") {
                 root.mainWindowBridge.request_rename_node(root.canvasItem.nodeContextNodeId)
+            } else if (actionId === "ungroup_subnode") {
+                root.mainWindowBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "remove_node") {
                 root.mainWindowBridge.request_remove_node(root.canvasItem.nodeContextNodeId)
                 root.canvasItem.clearEdgeSelection()

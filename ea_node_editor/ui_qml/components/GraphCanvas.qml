@@ -1068,8 +1068,8 @@ Item {
             return;
         root.forceActiveFocus();
         var menuHeight = _nodeSupportsPassiveStyle(nodeId)
-            ? (_nodeCanEnterScope(nodeId) ? 304 : 232)
-            : (_nodeCanEnterScope(nodeId) ? 152 : 80);
+            ? (_nodeCanEnterScope(nodeId) ? 340 : 232)
+            : (_nodeCanEnterScope(nodeId) ? 188 : 80);
         var position = _clampMenuPosition(x, y, 206, menuHeight);
         _closeContextMenus();
         root.nodeContextNodeId = nodeId;
