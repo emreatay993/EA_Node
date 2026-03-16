@@ -1,0 +1,3 @@
+# Local development and packaging environment.
+# Installs the app, optional Excel/HPC dependencies, pytest, and PyInstaller.
+.[dev]
