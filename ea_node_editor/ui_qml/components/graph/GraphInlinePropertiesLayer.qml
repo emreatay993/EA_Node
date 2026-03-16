@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import "surface_controls" as SurfaceControls
 import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
 Item {
@@ -8,7 +9,23 @@ Item {
     objectName: "graphInlinePropertiesLayer"
     property Item host: null
     readonly property var inlineProperties: host ? host.inlineProperties : []
-    readonly property var embeddedInteractiveRects: root._embeddedInteractiveRects()
+    readonly property real _interactiveRectGeometryKey: {
+        var total = inlinePropertyRepeater.count;
+        total += inlineControlsColumn.x + inlineControlsColumn.y + inlineControlsColumn.width + inlineControlsColumn.height;
+        for (var index = 0; index < inlinePropertyRepeater.count; index++) {
+            var row = inlinePropertyRepeater.itemAt(index);
+            if (!row)
+                continue;
+            total += row.x + row.y + row.width + row.height;
+            total += row.childrenRect.x + row.childrenRect.y + row.childrenRect.width + row.childrenRect.height;
+            total += row.visible ? 1 : 0;
+        }
+        return total;
+    }
+    readonly property var embeddedInteractiveRects: {
+        var _geometryKey = root._interactiveRectGeometryKey;
+        return root._embeddedInteractiveRects();
+    }
     implicitHeight: host ? host.inlineBodyHeight : 0
     visible: inlineProperties.length > 0
 
@@ -25,17 +42,16 @@ Item {
     function _embeddedInteractiveRects() {
         if (!host || inlinePropertyRepeater.count <= 0)
             return [];
-        return SurfaceControlGeometry.collectVisibleItemRects(root._inlineInteractiveItems(), host);
-    }
-
-    function _inlineInteractiveItems() {
-        var items = [];
+        var rectLists = [];
         for (var index = 0; index < inlinePropertyRepeater.count; index++) {
             var row = inlinePropertyRepeater.itemAt(index);
-            if (row && row.visible)
-                items.push(row);
+            if (!row || !row.visible)
+                continue;
+            var rectList = row.currentInteractiveRectList();
+            if (rectList && rectList.length > 0)
+                rectLists.push(rectList);
         }
-        return items;
+        return SurfaceControlGeometry.combineRectLists(rectLists);
     }
 
     Column {
@@ -53,11 +69,18 @@ Item {
             id: inlinePropertyRepeater
             model: inlineProperties
             delegate: Rectangle {
+                id: inlineRow
                 width: inlineControlsColumn.width
                 height: host ? host._inlineRowHeight : 26
                 radius: 4
                 color: host ? host.inlineRowColor : "#24262c"
                 border.color: host ? host.inlineRowBorderColor : "#4a4f5a"
+                function currentInteractiveRectList() {
+                    return SurfaceControlGeometry.collectVisibleItemRects(
+                        [toggleEditor, enumEditor, valueEditor],
+                        root.host
+                    );
+                }
 
                 RowLayout {
                     anchors.fill: parent
@@ -74,23 +97,25 @@ Item {
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
 
-                    CheckBox {
+                    SurfaceControls.GraphSurfaceCheckBox {
+                        id: toggleEditor
                         visible: modelData.inline_editor === "toggle"
                         enabled: !modelData.overridden_by_input
                         checked: !!modelData.value
-                        onPressedChanged: {
-                            if (pressed)
-                                root._beginInteraction();
-                        }
+                        host: root.host
+                        text: ""
+                        onControlStarted: root._beginInteraction()
                         onClicked: {
                             root._commitInlineProperty(modelData.key, checked);
                         }
                     }
 
-                    ComboBox {
+                    SurfaceControls.GraphSurfaceComboBox {
+                        id: enumEditor
                         visible: modelData.inline_editor === "enum"
                         Layout.fillWidth: true
                         enabled: !modelData.overridden_by_input
+                        host: root.host
                         model: modelData.enum_values || []
                         currentIndex: {
                             var values = modelData.enum_values || [];
@@ -98,10 +123,7 @@ Item {
                             var matchIndex = values.indexOf(value);
                             return matchIndex >= 0 ? matchIndex : 0;
                         }
-                        onPressedChanged: {
-                            if (pressed)
-                                root._beginInteraction();
-                        }
+                        onControlStarted: root._beginInteraction()
                         onActivated: {
                             var values = modelData.enum_values || [];
                             if (currentIndex < 0 || currentIndex >= values.length)
@@ -110,22 +132,14 @@ Item {
                         }
                     }
 
-                    TextField {
+                    SurfaceControls.GraphSurfaceTextField {
+                        id: valueEditor
                         visible: modelData.inline_editor === "text" || modelData.inline_editor === "number"
                         Layout.fillWidth: true
                         enabled: !modelData.overridden_by_input
+                        host: root.host
                         text: host ? host.inlineEditorText(modelData) : ""
-                        selectByMouse: true
-                        color: host ? host.inlineInputTextColor : "#f0f2f5"
-                        background: Rectangle {
-                            color: host ? host.inlineInputBackgroundColor : "#22242a"
-                            border.color: host ? host.inlineInputBorderColor : "#4a4f5a"
-                            radius: 3
-                        }
-                        onActiveFocusChanged: {
-                            if (activeFocus)
-                                root._beginInteraction();
-                        }
+                        onControlStarted: root._beginInteraction()
                         onAccepted: {
                             root._commitInlineProperty(modelData.key, text);
                         }

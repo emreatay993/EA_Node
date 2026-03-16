@@ -171,10 +171,70 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
 
             assert len(embedded_rects) == 1
-            assert rect_field(embedded_rects[0], "x") >= 8.0
+            assert rect_field(embedded_rects[0], "x") > 80.0
             assert rect_field(embedded_rects[0], "y") >= 30.0
-            assert rect_field(embedded_rects[0], "width") > 150.0
-            assert rect_field(embedded_rects[0], "height") >= 26.0
+            assert rect_field(embedded_rects[0], "width") > 80.0
+            assert rect_field(embedded_rects[0], "width") < 120.0
+            assert rect_field(embedded_rects[0], "height") >= 18.0
+            """,
+        )
+
+    def test_surface_loader_tracks_control_scoped_rects_for_all_core_inline_editors(self) -> None:
+        self._run_qml_probe(
+            "loader-core-inline-editor-rects",
+            """
+            payload = node_payload()
+            payload["inline_properties"] = [
+                {
+                    "key": "enabled",
+                    "label": "Enabled",
+                    "inline_editor": "toggle",
+                    "value": True,
+                    "overridden_by_input": False,
+                    "input_port_label": "enabled",
+                },
+                {
+                    "key": "mode",
+                    "label": "Mode",
+                    "inline_editor": "enum",
+                    "value": "two",
+                    "enum_values": ["one", "two", "three"],
+                    "overridden_by_input": False,
+                    "input_port_label": "mode",
+                },
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "inline_editor": "text",
+                    "value": "log message",
+                    "overridden_by_input": False,
+                    "input_port_label": "message",
+                },
+                {
+                    "key": "count",
+                    "label": "Count",
+                    "inline_editor": "number",
+                    "value": "5",
+                    "overridden_by_input": False,
+                    "input_port_label": "count",
+                },
+            ]
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            assert loader is not None
+
+            embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(embedded_rects) == 4
+
+            xs = [rect_field(rect, "x") for rect in embedded_rects]
+            widths = [rect_field(rect, "width") for rect in embedded_rects]
+            ys = [rect_field(rect, "y") for rect in embedded_rects]
+
+            assert all(x > 80.0 for x in xs)
+            assert widths[0] < 40.0
+            assert all(width > 80.0 for width in widths[1:])
+            assert ys == sorted(ys)
             """,
         )
 
@@ -193,6 +253,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
             assert len(embedded_rects) == 1
             row_rect = embedded_rects[0]
+            assert rect_field(row_rect, "x") > 80.0
 
             window = QQuickWindow()
             window.resize(480, 360)
@@ -203,7 +264,9 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             inside_point = host.mapToScene(
                 QPointF(rect_field(row_rect, "x") + 8.0, rect_field(row_rect, "y") + rect_field(row_rect, "height") * 0.5)
             )
-            body_point = host.mapToScene(QPointF(rect_field(row_rect, "x") - 4.0, rect_field(row_rect, "y") + 6.0))
+            body_point = host.mapToScene(
+                QPointF(rect_field(row_rect, "x") - 8.0, rect_field(row_rect, "y") + rect_field(row_rect, "height") * 0.5)
+            )
 
             clicked = []
             opened = []

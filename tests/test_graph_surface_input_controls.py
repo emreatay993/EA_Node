@@ -16,12 +16,13 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             """
             import QtQuick 2.15
             import QtQuick.Controls 2.15
+            import "ea_node_editor/ui_qml/components/graph" as GraphComponents
             import "ea_node_editor/ui_qml/components/graph/surface_controls" as GraphSurfaceControls
 
             Item {
                 id: root
                 width: 240
-                height: 160
+                height: 280
                 objectName: "probeRoot"
 
                 Item {
@@ -108,6 +109,82 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
                             checked: true
                             text: ""
                         }
+                    }
+                }
+
+                Item {
+                    id: inlineHost
+                    objectName: "probeInlineHost"
+                    y: 132
+                    width: 220
+                    height: 132
+                    property var inlineProperties: [
+                        {
+                            "key": "enabled",
+                            "label": "Enabled",
+                            "inline_editor": "toggle",
+                            "value": true,
+                            "overridden_by_input": false,
+                            "input_port_label": "enabled"
+                        },
+                        {
+                            "key": "mode",
+                            "label": "Mode",
+                            "inline_editor": "enum",
+                            "value": "two",
+                            "enum_values": ["one", "two", "three"],
+                            "overridden_by_input": false,
+                            "input_port_label": "mode"
+                        },
+                        {
+                            "key": "message",
+                            "label": "Message",
+                            "inline_editor": "text",
+                            "value": "hello",
+                            "overridden_by_input": false,
+                            "input_port_label": "message"
+                        },
+                        {
+                            "key": "count",
+                            "label": "Count",
+                            "inline_editor": "number",
+                            "value": 7,
+                            "overridden_by_input": false,
+                            "input_port_label": "count"
+                        }
+                    ]
+                    property var nodeData: ({ "node_id": "probe_node" })
+                    property int inlineBodyHeight: 132
+                    property color inlineRowColor: "#24262c"
+                    property color inlineRowBorderColor: "#4a4f5a"
+                    property color inlineLabelColor: "#d0d5de"
+                    property color inlineDrivenTextColor: "#bdc5d3"
+                    property color inlineInputBackgroundColor: "#223344"
+                    property color inlineInputBorderColor: "#556677"
+                    property color inlineInputTextColor: "#ddeeff"
+                    property color selectedOutlineColor: "#66ccff"
+                    property color surfaceColor: "#111111"
+                    property int nodeTextRenderType: Text.QtRendering
+                    property int _inlineRowSpacing: 4
+                    property int _inlineRowHeight: 26
+                    property var surfaceMetrics: ({
+                        "body_left_margin": 8,
+                        "body_right_margin": 8,
+                        "body_top": 30
+                    })
+
+                    signal surfaceControlInteractionStarted(string nodeId)
+                    signal inlinePropertyCommitted(string nodeId, string key, var value)
+
+                    function inlineEditorText(modelData) {
+                        return String(modelData.value === undefined || modelData.value === null ? "" : modelData.value);
+                    }
+
+                    GraphComponents.GraphInlinePropertiesLayer {
+                        id: inlineLayer
+                        objectName: "probeInlineLayer"
+                        anchors.fill: parent
+                        host: inlineHost
                     }
                 }
 
@@ -325,6 +402,29 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert check_starts == ["started"]
             window.close()
             app.processEvents()
+            """,
+        )
+
+    def test_inline_properties_layer_publishes_control_scoped_rects_for_core_editors(self) -> None:
+        self._run_qml_probe(
+            "inline-layer-core-editors",
+            """
+            root = load_probe()
+            inline_layer = named_item(root, "probeInlineLayer")
+
+            rects = variant_list(inline_layer.property("embeddedInteractiveRects"))
+            assert len(rects) == 4
+
+            xs = [rect_field(rect, "x") for rect in rects]
+            widths = [rect_field(rect, "width") for rect in rects]
+            ys = [rect_field(rect, "y") for rect in rects]
+
+            assert all(x > 90.0 for x in xs)
+            assert widths[0] < 40.0
+            assert widths[1] > 90.0
+            assert widths[2] > 90.0
+            assert widths[3] > 90.0
+            assert ys == sorted(ys)
             """,
         )
 
