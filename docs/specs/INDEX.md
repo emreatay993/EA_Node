@@ -36,6 +36,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 28. [GRAPH_THEME Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_theme/GRAPH_THEME_STATUS.md)
 29. [PASSIVE_NODES Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/passive_nodes/PASSIVE_NODES_MANIFEST.md)
 30. [PASSIVE_NODES Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/passive_nodes/PASSIVE_NODES_STATUS.md)
+31. [GRAPH_SURFACE_INPUT Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_MANIFEST.md)
+32. [GRAPH_SURFACE_INPUT Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md)
 
 ## ADRs
 

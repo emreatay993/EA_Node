@@ -33,6 +33,10 @@ docs/specs/gui/_unzipped_preview/
 docs/specs/
 !docs/specs/
 docs/specs/*
+!docs/specs/work_packets/
+docs/specs/work_packets/*
+!docs/specs/work_packets/graph_surface_input/
+!docs/specs/work_packets/graph_surface_input/*
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md
