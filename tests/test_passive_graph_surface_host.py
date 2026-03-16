@@ -225,6 +225,33 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_standard_host_keeps_port_labels_tied_to_port_handles(self) -> None:
+        self._run_qml_probe(
+            "port-label-geometry-host",
+            """
+            payload = node_payload()
+            payload["width"] = 320.0
+            payload["surface_metrics"]["default_width"] = 320.0
+            payload["ports"][0]["label"] = "in"
+            payload["ports"][1]["label"] = "out"
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            input_dot = named_child_items(host, "graphNodeInputPortDot")[0]
+            output_dot = named_child_items(host, "graphNodeOutputPortDot")[0]
+            input_label = named_child_items(host, "graphNodeInputPortLabel")[0]
+            output_label = named_child_items(host, "graphNodeOutputPortLabel")[0]
+
+            gap = float(host.property("_portLabelGap"))
+            max_width = float(host.property("_portLabelMaxWidth"))
+            output_implicit_width = float(output_label.property("implicitWidth"))
+
+            assert abs(input_label.x() - (input_dot.x() + input_dot.width() + gap)) < 0.5
+            assert abs((output_label.x() + output_label.width()) - (output_dot.x() - gap)) < 0.5
+            assert output_label.width() < max_width
+            assert abs(output_label.width() - output_implicit_width) < 0.5
+            """,
+        )
+
     def test_node_card_wrapper_preserves_standard_host_contract(self) -> None:
         self._run_qml_probe(
             "node-card-wrapper",

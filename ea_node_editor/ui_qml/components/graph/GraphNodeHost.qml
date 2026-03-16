@@ -260,6 +260,15 @@ Item {
         };
     }
 
+    function portLabelWidth(labelImplicitWidth, availableWidth) {
+        var implicitValue = Number(labelImplicitWidth);
+        if (!isFinite(implicitValue) || implicitValue < 0.0)
+            implicitValue = 0.0;
+        var maxWidth = Math.max(0.0, Number(card._portLabelMaxWidth));
+        var clampedAvailable = Math.max(0.0, Number(availableWidth));
+        return Math.max(0.0, Math.min(implicitValue, maxWidth, clampedAvailable));
+    }
+
     function basePortColor(portKind) {
         var palette = card.portKindPalette || {};
         if (portKind === "flow")
@@ -661,10 +670,11 @@ Item {
                 Text {
                     objectName: "graphNodeInputPortLabel"
                     property int effectiveRenderType: renderType
+                    readonly property real availableWidth: Math.max(0, card.width - x - 4)
                     visible: card._portLabelsVisible
                     anchors.verticalCenter: parent.verticalCenter
                     x: Math.max(0, inputDot.x + inputDot.width + card._portLabelGap)
-                    width: Math.max(0, Math.min(card._portLabelMaxWidth, card.width - x - 4))
+                    width: card.portLabelWidth(implicitWidth, availableWidth)
                     text: modelData.label || modelData.key
                     color: card.portLabelColor
                     font.pixelSize: 10
@@ -840,10 +850,11 @@ Item {
                 Text {
                     objectName: "graphNodeOutputPortLabel"
                     property int effectiveRenderType: renderType
+                    readonly property real availableWidth: Math.max(0, outputDot.x - card._portLabelGap - 4)
                     visible: card._portLabelsVisible
                     anchors.verticalCenter: parent.verticalCenter
-                    x: 4
-                    width: Math.max(0, Math.min(card._portLabelMaxWidth, outputDot.x - card._portLabelGap - x))
+                    width: card.portLabelWidth(implicitWidth, availableWidth)
+                    x: Math.max(4, outputDot.x - card._portLabelGap - width)
                     text: modelData.label || modelData.key
                     color: card.portLabelColor
                     font.pixelSize: 10
