@@ -1,7 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
-import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 
 Item {
     id: root
@@ -23,19 +22,26 @@ Item {
     }
 
     function _embeddedInteractiveRects() {
+        var rects = [];
         if (!host || inlinePropertyRepeater.count <= 0)
-            return [];
-        return SurfaceControlGeometry.collectVisibleItemRects(root._inlineInteractiveItems(), host);
-    }
-
-    function _inlineInteractiveItems() {
-        var items = [];
+            return rects;
         for (var index = 0; index < inlinePropertyRepeater.count; index++) {
             var row = inlinePropertyRepeater.itemAt(index);
-            if (row && row.visible)
-                items.push(row);
+            if (!row || !row.visible)
+                continue;
+            var rowWidth = Number(row.width || 0);
+            var rowHeight = Number(row.height || 0);
+            if (!(rowWidth > 0) || !(rowHeight > 0))
+                continue;
+            var topLeft = inlineControlsColumn.mapToItem(host, Number(row.x || 0), Number(row.y || 0));
+            rects.push({
+                "x": Number(topLeft.x || 0),
+                "y": Number(topLeft.y || 0),
+                "width": rowWidth,
+                "height": rowHeight
+            });
         }
-        return items;
+        return rects;
     }
 
     Column {
