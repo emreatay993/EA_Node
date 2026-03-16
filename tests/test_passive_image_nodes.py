@@ -427,9 +427,9 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
             """,
         )
 
-    def test_crop_rect_applies_source_clip_for_ready_images(self) -> None:
+    def test_crop_rect_applies_render_geometry_for_ready_images(self) -> None:
         self._run_qml_probe(
-            "media-crop-clip",
+            "media-crop-render",
             """
             with tempfile.TemporaryDirectory() as temp_dir:
                 image_path = Path(temp_dir) / "cropped-preview.png"
@@ -454,14 +454,26 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                     },
                 )
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
+                applied_viewport = host.findChild(QObject, "graphNodeMediaAppliedImageViewport")
+                applied_image = host.findChild(QObject, "graphNodeMediaAppliedImage")
                 wait_for_preview(surface)
 
                 assert surface.property("previewState") == "ready"
                 assert bool(surface.property("hasEffectiveCrop"))
+                assert applied_viewport is not None
+                assert applied_image is not None
                 assert float(surface.property("appliedClipX")) == 10.0
                 assert float(surface.property("appliedClipY")) == 2.0
                 assert float(surface.property("appliedClipWidth")) == 20.0
                 assert float(surface.property("appliedClipHeight")) == 8.0
+                assert round(float(applied_viewport.property("x")), 3) == 0.0
+                assert round(float(applied_viewport.property("y")), 3) == 36.4
+                assert round(float(applied_viewport.property("width")), 3) == 268.0
+                assert round(float(applied_viewport.property("height")), 3) == 107.2
+                assert round(float(applied_image.property("x")), 3) == -134.0
+                assert round(float(applied_image.property("y")), 3) == -26.8
+                assert round(float(applied_image.property("width")), 3) == 536.0
+                assert round(float(applied_image.property("height")), 3) == 268.0
             """,
         )
 

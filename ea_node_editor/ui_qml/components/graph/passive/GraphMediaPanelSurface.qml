@@ -79,6 +79,8 @@ Item {
     readonly property rect hoverActionHitRect: cropButton.visible
         ? Qt.rect(cropButton.x, cropButton.y, cropButton.width, cropButton.height)
         : Qt.rect(0, 0, 0, 0)
+    readonly property real cropHandleSize: 12
+    readonly property real cropHandleHitSlop: 8
     readonly property var cropDisplayRect: _containRect(
         previewViewport.width,
         previewViewport.height,
@@ -92,6 +94,34 @@ Item {
         draftCropH,
         cropDisplayRect
     )
+    readonly property real effectivePreviewSourceWidth: sourcePixelWidth > 0
+        ? sourcePixelWidth * Number(normalizedStoredCropRect.width || 0)
+        : 0
+    readonly property real effectivePreviewSourceHeight: sourcePixelHeight > 0
+        ? sourcePixelHeight * Number(normalizedStoredCropRect.height || 0)
+        : 0
+    readonly property var appliedPreviewRect: _fitRect(
+        previewViewport.width,
+        previewViewport.height,
+        effectivePreviewSourceWidth,
+        effectivePreviewSourceHeight,
+        appliedFitMode
+    )
+    readonly property real appliedPreviewScale: {
+        if (!(effectivePreviewSourceWidth > 0) || !(effectivePreviewSourceHeight > 0))
+            return 0.0;
+        if (appliedFitMode === "original")
+            return 1.0;
+        return Number(appliedPreviewRect.width || 0) / effectivePreviewSourceWidth;
+    }
+    readonly property real appliedFullImageWidth: sourcePixelWidth > 0
+        ? sourcePixelWidth * appliedPreviewScale
+        : 0
+    readonly property real appliedFullImageHeight: sourcePixelHeight > 0
+        ? sourcePixelHeight * appliedPreviewScale
+        : 0
+    readonly property real appliedImageOffsetX: -Number(normalizedStoredCropRect.x || 0) * appliedFullImageWidth
+    readonly property real appliedImageOffsetY: -Number(normalizedStoredCropRect.y || 0) * appliedFullImageHeight
     readonly property string previewHintText: {
         if (isPdfPanel) {
             if (previewState === "error")
@@ -258,14 +288,25 @@ Item {
         );
     }
 
-    function _containRect(containerWidth, containerHeight, sourceWidth, sourceHeight) {
+    function _fitRect(containerWidth, containerHeight, sourceWidth, sourceHeight, fitMode) {
         var cw = Math.max(0.0, Number(containerWidth || 0));
         var ch = Math.max(0.0, Number(containerHeight || 0));
         var sw = Math.max(0.0, Number(sourceWidth || 0));
         var sh = Math.max(0.0, Number(sourceHeight || 0));
         if (!(cw > 0.0) || !(ch > 0.0) || !(sw > 0.0) || !(sh > 0.0))
             return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0};
-        var scale = Math.min(cw / sw, ch / sh);
+        var normalizedMode = String(fitMode || "contain").trim().toLowerCase();
+        if (normalizedMode === "original") {
+            return {
+                "x": (cw - sw) * 0.5,
+                "y": (ch - sh) * 0.5,
+                "width": sw,
+                "height": sh
+            };
+        }
+        var scale = normalizedMode === "cover"
+            ? Math.max(cw / sw, ch / sh)
+            : Math.min(cw / sw, ch / sh);
         var widthValue = sw * scale;
         var heightValue = sh * scale;
         return {
@@ -274,6 +315,10 @@ Item {
             "width": widthValue,
             "height": heightValue
         };
+    }
+
+    function _containRect(containerWidth, containerHeight, sourceWidth, sourceHeight) {
+        return _fitRect(containerWidth, containerHeight, sourceWidth, sourceHeight, "contain");
     }
 
     function _displayCropRect(x, y, w, h, imageRect) {
@@ -676,8 +721,34 @@ Item {
                     height: surface.originalModeActive
                         ? Math.max(1, implicitHeight)
                         : parent.height
-                    visible: surface.previewState === "ready" && !surface.cropModeActive
+                    visible: surface.isPdfPanel && surface.previewState === "ready" && !surface.cropModeActive
                     smooth: true
+                }
+
+                Item {
+                    id: appliedImageViewport
+                    objectName: "graphNodeMediaAppliedImageViewport"
+                    x: Number(surface.appliedPreviewRect.x || 0)
+                    y: Number(surface.appliedPreviewRect.y || 0)
+                    width: Math.max(0, Number(surface.appliedPreviewRect.width || 0))
+                    height: Math.max(0, Number(surface.appliedPreviewRect.height || 0))
+                    visible: !surface.isPdfPanel && surface.previewState === "ready" && !surface.cropModeActive
+                    clip: true
+
+                    Image {
+                        id: appliedImage
+                        objectName: "graphNodeMediaAppliedImage"
+                        x: Number(surface.appliedImageOffsetX || 0)
+                        y: Number(surface.appliedImageOffsetY || 0)
+                        width: Math.max(0, Number(surface.appliedFullImageWidth || 0))
+                        height: Math.max(0, Number(surface.appliedFullImageHeight || 0))
+                        asynchronous: false
+                        cache: true
+                        mipmap: true
+                        fillMode: Image.Stretch
+                        source: surface.previewSourceUrl
+                        smooth: true
+                    }
                 }
 
                 Item {
@@ -768,8 +839,8 @@ Item {
                             property real startCropY: 0
                             property real startCropW: 1
                             property real startCropH: 1
-                            width: 12
-                            height: 12
+                            width: surface.cropHandleSize
+                            height: surface.cropHandleSize
                             radius: 3
                             z: 4
                             color: surface.cropHandleFillColor
@@ -781,7 +852,10 @@ Item {
                             MouseArea {
                                 objectName: "graphNodeMediaCropHandleMouseArea"
                                 property string handleId: parent.handleId
-                                anchors.fill: parent
+                                x: -surface.cropHandleHitSlop
+                                y: -surface.cropHandleHitSlop
+                                width: parent.width + surface.cropHandleHitSlop * 2
+                                height: parent.height + surface.cropHandleHitSlop * 2
                                 acceptedButtons: Qt.LeftButton
                                 cursorShape: surface._handleCursorShape(handleId)
                                 hoverEnabled: true

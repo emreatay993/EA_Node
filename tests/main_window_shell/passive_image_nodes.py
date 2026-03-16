@@ -137,7 +137,12 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.app.processEvents()
 
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        self._wait_for_media_preview(surface)
         apply_button = self._graph_node_child(node_id, "graphNodeMediaCropApplyButton")
+        applied_viewport = self._graph_node_child(node_id, "graphNodeMediaAppliedImageViewport")
+        applied_image = self._graph_node_child(node_id, "graphNodeMediaAppliedImage")
+        initial_applied_width = float(applied_image.width())
+        initial_applied_x = float(applied_image.x())
 
         surface.setProperty("cropModeActive", True)
         surface.setProperty("draftCropX", 0.1)
@@ -154,6 +159,13 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
         self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
         self.assertAlmostEqual(float(node.properties["crop_h"]), 0.6)
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        applied_viewport = self._graph_node_child(node_id, "graphNodeMediaAppliedImageViewport")
+        applied_image = self._graph_node_child(node_id, "graphNodeMediaAppliedImage")
+        self.assertTrue(bool(surface.property("hasEffectiveCrop")))
+        self.assertGreater(float(applied_image.width()), initial_applied_width)
+        self.assertLess(float(applied_image.x()), initial_applied_x)
+        self.assertGreater(float(applied_viewport.width()), 0.0)
         self.assertEqual(
             {item["key"] for item in self.window.selected_node_property_items},
             {"source_path", "caption", "fit_mode"},
@@ -240,13 +252,22 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
             "handleId",
             "top_left",
         )
+        top_left_visual = self._graph_node_child_with_property(
+            node_id,
+            "graphNodeMediaCropHandle",
+            "handleId",
+            "top_left",
+        )
         self.assertEqual(
             top_left_handle.property("cursorShape"),
             Qt.CursorShape.SizeFDiagCursor,
         )
+        self.assertGreater(float(top_left_handle.width()), float(top_left_visual.width()))
+        self.assertGreater(float(top_left_handle.height()), float(top_left_visual.height()))
 
         handle_window = top_left_handle.window()
         self.assertIsNotNone(handle_window)
-        start_point = self._item_scene_center(top_left_handle)
+        scene_point = top_left_visual.mapToScene(QPointF(top_left_visual.width() + 4, top_left_visual.height() * 0.5))
+        start_point = QPoint(round(scene_point.x()), round(scene_point.y()))
         QTest.mouseMove(handle_window, start_point)
         self.assertTrue(bool(top_left_handle.property("containsMouse")))

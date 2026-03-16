@@ -479,6 +479,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     for item in handle_areas
                 }
                 assert len(handle_lookup) == 8
+                assert float(handle_lookup["top_left"].property("width")) > 12.0
+                assert float(handle_lookup["top_left"].property("height")) > 12.0
                 assert handle_lookup["top_left"].property("cursorShape") == Qt.CursorShape.SizeFDiagCursor
                 assert handle_lookup["top_right"].property("cursorShape") == Qt.CursorShape.SizeBDiagCursor
                 assert handle_lookup["top"].property("cursorShape") == Qt.CursorShape.SizeVerCursor
