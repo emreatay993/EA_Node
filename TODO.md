@@ -47,6 +47,45 @@
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` — current crop-overlay case study
 - `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml` — canvas-wide input layering conventions
 
+### 3. Keep Legacy Selected-Node Routing Inspector-Only
+
+**Status:** Partially implemented
+
+**Goal:** Do not use the legacy selected-node property path for graph-surface controls. Graph-surface commits and browse actions should always route by explicit `nodeId`, while the selected-node APIs remain available for the inspector until the final migration/removal pass.
+
+**Why This Matters:**
+- Embedded controls on graph surfaces can claim focus before the old selected-node state has updated
+- Explicit `nodeId` routing prevents edits from landing on the wrong node when the user interacts with a non-selected node
+- Decoupling graph-surface editing from inspector selection keeps the interaction model predictable and reduces hidden state dependencies
+
+**Advantages of the Explicit `nodeId` Path:**
+- More correct for inline graph editing because the target node is supplied directly
+- Less fragile than routing through whatever node happens to be selected
+- Easier to reuse for future graph-surface editors such as `path` and `textarea`
+- Cleaner separation of responsibilities: graph surface owns local editing, inspector owns selected-node editing
+
+**Guardrails:**
+- Do not introduce new graph-surface controls that call `set_selected_node_property(...)`
+- Do not introduce new graph-surface browse flows that call `browse_selected_node_property_path(...)`
+- Keep legacy selected-node APIs stable for inspector usage until the dedicated cleanup/removal packet
+- When graph-surface controls begin interaction, select/focus the node and clear transient canvas state, but still commit by explicit `nodeId`
+
+**Current Preferred APIs for Graph Surfaces:**
+- `sceneBridge.set_node_property(nodeId, key, value)`
+- `mainWindow.browse_node_property_path(nodeId, key, currentPath)`
+
+**Legacy APIs That Should Stay Inspector-Only:**
+- `mainWindow.set_selected_node_property(key, value)`
+- `mainWindow.browse_selected_node_property_path(key, currentPath)`
+
+**Key Files:**
+- `ea_node_editor/ui_qml/components/GraphCanvas.qml` — graph-surface interaction preparation and explicit `nodeId` routing
+- `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` — host-level surface control bridge seam
+- `ea_node_editor/ui_qml/components/graph/GraphInlinePropertiesLayer.qml` — current inline surface editors
+- `ea_node_editor/ui_qml/graph_scene_bridge.py` — QML-invokable node property bridge
+- `ea_node_editor/ui/shell/window.py` — inspector APIs and graph-surface-specific browse bridge
+- `docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md` — packet history for the interaction-bridge migration
+
 ## Implemented
 
 ### Image Crop Button on Image Panel Node
