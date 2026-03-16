@@ -227,6 +227,7 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             assert len(named_child_items(host, "graphNodeOutputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 1
             assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
+            assert host.findChild(QObject, "graphFlowchartVectorShape") is not None
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeOutputPortLabel"))
             """,
@@ -256,6 +257,7 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             assert not bool(drop_preview.property("previewUsesHostChrome"))
             assert not bool(drop_preview.property("previewPortLabelsEnabled"))
             assert len(named_child_items(drop_preview, "graphFlowchartSilhouette")) >= 1
+            assert len(named_child_items(drop_preview, "graphFlowchartVectorShape")) >= 1
             assert len(named_child_items(drop_preview, "graphCanvasDropPreviewInputPortDot")) == 1
             assert len(named_child_items(drop_preview, "graphCanvasDropPreviewOutputPortDot")) == 2
             assert not any(item.isVisible() for item in named_child_items(drop_preview, "graphCanvasDropPreviewInputPortLabel"))

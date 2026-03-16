@@ -163,6 +163,7 @@ Item {
 
     MouseArea {
         id: panArea
+        objectName: "graphCanvasPanArea"
         parent: root.canvasItem
         anchors.fill: parent
         z: -10
@@ -178,11 +179,15 @@ Item {
             panning = true;
             lastX = mouse.x;
             lastY = mouse.y;
+            if (root.canvasItem)
+                root.canvasItem.beginViewportInteraction();
         }
 
         onPositionChanged: {
             if (!panning || !root.viewBridge)
                 return;
+            if (root.canvasItem)
+                root.canvasItem.noteViewportInteraction();
             var dx = (mouse.x - lastX) / Math.max(0.1, root.viewBridge.zoom_value);
             var dy = (mouse.y - lastY) / Math.max(0.1, root.viewBridge.zoom_value);
             root.viewBridge.pan_by(-dx, -dy);
@@ -192,6 +197,14 @@ Item {
 
         onReleased: {
             panning = false;
+            if (root.canvasItem)
+                root.canvasItem.finishViewportInteractionSoon();
+        }
+
+        onCanceled: {
+            panning = false;
+            if (root.canvasItem)
+                root.canvasItem.finishViewportInteractionSoon();
         }
     }
 }

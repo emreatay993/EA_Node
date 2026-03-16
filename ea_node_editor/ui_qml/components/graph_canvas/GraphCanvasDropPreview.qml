@@ -29,6 +29,7 @@ Rectangle {
     readonly property color effectivePreviewTitleColor: previewIsFlowchart ? flowchartPreviewTitleColor : previewTitleColor
     readonly property bool previewPortLabelsEnabled: !previewIsFlowchart
         && (root.canvasItem ? root.canvasItem.previewPortLabelsVisible() : false)
+    readonly property int previewTextRenderType: Text.CurveRendering
 
     function _scaledMetric(value, fallback) {
         var numeric = Number(value);
@@ -102,6 +103,7 @@ Rectangle {
         horizontalAlignment: Boolean(root.previewMetrics.title_centered) ? Text.AlignHCenter : Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+        renderType: root.previewTextRenderType
     }
 
     Repeater {
@@ -141,6 +143,7 @@ Rectangle {
                 color: root.previewLabelColor
                 font.pixelSize: Math.max(7, Math.min(11, 10 * root.previewZoom))
                 elide: Text.ElideRight
+                renderType: root.previewTextRenderType
             }
         }
     }
@@ -183,6 +186,7 @@ Rectangle {
                 font.pixelSize: Math.max(7, Math.min(11, 10 * root.previewZoom))
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideLeft
+                renderType: root.previewTextRenderType
             }
         }
     }

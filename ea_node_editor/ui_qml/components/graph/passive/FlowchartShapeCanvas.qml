@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Shapes 1.15
 
 Item {
     id: root
@@ -7,6 +8,8 @@ Item {
     property color fillColor: "#1b1d22"
     property color strokeColor: "#3a3d45"
     property real strokeWidth: 1.0
+    readonly property string outlinePathData: _outlinePathData()
+    readonly property string detailPathData: _detailPathData()
 
     function _normalizedVariant() {
         var normalized = String(root.variant || "").trim().toLowerCase();
@@ -18,200 +21,246 @@ Item {
         return "process";
     }
 
-    function _requestPaint() {
-        shapeCanvas.requestPaint();
+    function _fmt(value) {
+        var numeric = Number(value);
+        if (!isFinite(numeric))
+            numeric = 0.0;
+        return numeric.toFixed(3);
     }
 
-    function _traceRect(ctx, left, top, right, bottom) {
-        ctx.moveTo(left, top);
-        ctx.lineTo(right, top);
-        ctx.lineTo(right, bottom);
-        ctx.lineTo(left, bottom);
-        ctx.closePath();
+    function _bounds() {
+        var inset = Math.max(0.5, root.strokeWidth * 0.5);
+        var left = inset;
+        var top = inset;
+        var right = Math.max(left + 1.0, root.width - inset);
+        var bottom = Math.max(top + 1.0, root.height - inset);
+        return {
+            "left": left,
+            "top": top,
+            "right": right,
+            "bottom": bottom,
+            "widthValue": Math.max(1.0, right - left),
+            "heightValue": Math.max(1.0, bottom - top),
+            "centerX": (left + right) * 0.5,
+            "centerY": (top + bottom) * 0.5
+        };
     }
 
-    function _traceEllipse(ctx, cx, cy, rx, ry) {
-        var kappa = 0.552284749831;
-        var ox = rx * kappa;
-        var oy = ry * kappa;
-        ctx.moveTo(cx - rx, cy);
-        ctx.bezierCurveTo(cx - rx, cy - oy, cx - ox, cy - ry, cx, cy - ry);
-        ctx.bezierCurveTo(cx + ox, cy - ry, cx + rx, cy - oy, cx + rx, cy);
-        ctx.bezierCurveTo(cx + rx, cy + oy, cx + ox, cy + ry, cx, cy + ry);
-        ctx.bezierCurveTo(cx - ox, cy + ry, cx - rx, cy + oy, cx - rx, cy);
-        ctx.closePath();
+    function _moveTo(x, y) {
+        return "M " + _fmt(x) + " " + _fmt(y);
     }
 
-    function _traceTopHalfEllipse(ctx, cx, cy, rx, ry) {
-        var kappa = 0.552284749831;
-        var ox = rx * kappa;
-        var oy = ry * kappa;
-        ctx.moveTo(cx - rx, cy);
-        ctx.bezierCurveTo(cx - rx, cy - oy, cx - ox, cy - ry, cx, cy - ry);
-        ctx.bezierCurveTo(cx + ox, cy - ry, cx + rx, cy - oy, cx + rx, cy);
+    function _lineTo(x, y) {
+        return "L " + _fmt(x) + " " + _fmt(y);
     }
 
-    function _traceBottomHalfEllipseFromRight(ctx, cx, cy, rx, ry) {
-        var kappa = 0.552284749831;
-        var ox = rx * kappa;
-        var oy = ry * kappa;
-        ctx.moveTo(cx + rx, cy);
-        ctx.bezierCurveTo(cx + rx, cy + oy, cx + ox, cy + ry, cx, cy + ry);
-        ctx.bezierCurveTo(cx - ox, cy + ry, cx - rx, cy + oy, cx - rx, cy);
+    function _cubicTo(c1x, c1y, c2x, c2y, x, y) {
+        return "C "
+            + _fmt(c1x) + " " + _fmt(c1y) + " "
+            + _fmt(c2x) + " " + _fmt(c2y) + " "
+            + _fmt(x) + " " + _fmt(y);
     }
 
-    function _traceTerminator(ctx, left, top, right, bottom) {
-        var heightValue = Math.max(0.0, bottom - top);
-        var widthValue = Math.max(0.0, right - left);
-        var radius = Math.min(heightValue * 0.5, widthValue * 0.5);
-        var centerY = top + heightValue * 0.5;
-        ctx.moveTo(left + radius, top);
-        ctx.lineTo(right - radius, top);
-        ctx.arc(right - radius, centerY, radius, -Math.PI / 2.0, Math.PI / 2.0, false);
-        ctx.lineTo(left + radius, bottom);
-        ctx.arc(left + radius, centerY, radius, Math.PI / 2.0, (Math.PI * 3.0) / 2.0, false);
-        ctx.closePath();
+    function _arcTo(rx, ry, largeArc, sweep, x, y) {
+        return "A "
+            + _fmt(rx) + " " + _fmt(ry) + " 0 "
+            + (largeArc ? "1" : "0") + " "
+            + (sweep ? "1" : "0") + " "
+            + _fmt(x) + " " + _fmt(y);
     }
 
-    function _traceDecision(ctx, left, top, right, bottom) {
-        var centerX = (left + right) * 0.5;
-        var centerY = (top + bottom) * 0.5;
-        ctx.moveTo(centerX, top);
-        ctx.lineTo(right, centerY);
-        ctx.lineTo(centerX, bottom);
-        ctx.lineTo(left, centerY);
-        ctx.closePath();
+    function _closePath() {
+        return "Z";
     }
 
-    function _traceDocument(ctx, left, top, right, bottom) {
-        var widthValue = Math.max(0.0, right - left);
-        var heightValue = Math.max(0.0, bottom - top);
-        var waveDepth = Math.min(heightValue * 0.11, 10.0 + root.strokeWidth * 1.5);
-        var waveBase = bottom - waveDepth * 0.58;
-        var waveCrest = bottom - waveDepth * 1.08;
-        var waveTrough = bottom - waveDepth * 0.12;
-        ctx.moveTo(left, top);
-        ctx.lineTo(right, top);
-        ctx.lineTo(right, waveBase);
-        ctx.bezierCurveTo(
-            right - widthValue * 0.17,
-            waveTrough,
-            left + widthValue * 0.7,
-            waveTrough,
-            left + widthValue * 0.52,
-            waveBase - waveDepth * 0.34
-        );
-        ctx.bezierCurveTo(
-            left + widthValue * 0.33,
-            waveCrest,
-            left + widthValue * 0.14,
-            waveCrest,
-            left,
-            waveBase
-        );
-        ctx.closePath();
+    function _traceRect(bounds) {
+        return [
+            _moveTo(bounds.left, bounds.top),
+            _lineTo(bounds.right, bounds.top),
+            _lineTo(bounds.right, bounds.bottom),
+            _lineTo(bounds.left, bounds.bottom),
+            _closePath()
+        ].join(" ");
     }
 
-    function _traceInputOutput(ctx, left, top, right, bottom) {
-        var widthValue = Math.max(0.0, right - left);
-        var heightValue = Math.max(0.0, bottom - top);
-        var slant = Math.min(widthValue * 0.13, heightValue * 0.26);
-        ctx.moveTo(left + slant, top);
-        ctx.lineTo(right, top);
-        ctx.lineTo(right - slant, bottom);
-        ctx.lineTo(left, bottom);
-        ctx.closePath();
+    function _traceTerminator(bounds) {
+        var radius = Math.min(bounds.heightValue * 0.5, bounds.widthValue * 0.5);
+        return [
+            _moveTo(bounds.left + radius, bounds.top),
+            _lineTo(bounds.right - radius, bounds.top),
+            _arcTo(radius, radius, false, true, bounds.right - radius, bounds.bottom),
+            _lineTo(bounds.left + radius, bounds.bottom),
+            _arcTo(radius, radius, false, true, bounds.left + radius, bounds.top),
+            _closePath()
+        ].join(" ");
     }
 
-    function _traceDatabaseShell(ctx, left, top, right, bottom) {
-        var widthValue = Math.max(0.0, right - left);
-        var heightValue = Math.max(0.0, bottom - top);
-        var rx = widthValue * 0.5;
-        var cap = Math.min(heightValue * 0.13, 14.0 + root.strokeWidth);
-        var cx = left + rx;
-        var topCy = top + cap;
-        var bottomCy = bottom - cap;
-        _traceTopHalfEllipse(ctx, cx, topCy, rx, cap);
-        ctx.lineTo(right, bottomCy);
-        _traceBottomHalfEllipseFromRight(ctx, cx, bottomCy, rx, cap);
-        ctx.lineTo(left, topCy);
-        ctx.closePath();
+    function _traceDecision(bounds) {
+        return [
+            _moveTo(bounds.centerX, bounds.top),
+            _lineTo(bounds.right, bounds.centerY),
+            _lineTo(bounds.centerX, bounds.bottom),
+            _lineTo(bounds.left, bounds.centerY),
+            _closePath()
+        ].join(" ");
     }
 
-    Canvas {
-        id: shapeCanvas
+    function _traceDocument(bounds) {
+        var waveDepth = Math.min(bounds.heightValue * 0.11, 10.0 + root.strokeWidth * 1.5);
+        var waveBase = bounds.bottom - waveDepth * 0.58;
+        var waveCrest = bounds.bottom - waveDepth * 1.08;
+        var waveTrough = bounds.bottom - waveDepth * 0.12;
+        return [
+            _moveTo(bounds.left, bounds.top),
+            _lineTo(bounds.right, bounds.top),
+            _lineTo(bounds.right, waveBase),
+            _cubicTo(
+                bounds.right - bounds.widthValue * 0.17,
+                waveTrough,
+                bounds.left + bounds.widthValue * 0.7,
+                waveTrough,
+                bounds.left + bounds.widthValue * 0.52,
+                waveBase - waveDepth * 0.34
+            ),
+            _cubicTo(
+                bounds.left + bounds.widthValue * 0.33,
+                waveCrest,
+                bounds.left + bounds.widthValue * 0.14,
+                waveCrest,
+                bounds.left,
+                waveBase
+            ),
+            _closePath()
+        ].join(" ");
+    }
+
+    function _traceConnector(bounds) {
+        var rx = bounds.widthValue * 0.5;
+        var ry = bounds.heightValue * 0.5;
+        return [
+            _moveTo(bounds.centerX - rx, bounds.centerY),
+            _arcTo(rx, ry, true, false, bounds.centerX + rx, bounds.centerY),
+            _arcTo(rx, ry, true, false, bounds.centerX - rx, bounds.centerY),
+            _closePath()
+        ].join(" ");
+    }
+
+    function _traceInputOutput(bounds) {
+        var slant = Math.min(bounds.widthValue * 0.13, bounds.heightValue * 0.26);
+        return [
+            _moveTo(bounds.left + slant, bounds.top),
+            _lineTo(bounds.right, bounds.top),
+            _lineTo(bounds.right - slant, bounds.bottom),
+            _lineTo(bounds.left, bounds.bottom),
+            _closePath()
+        ].join(" ");
+    }
+
+    function _traceDatabaseShell(bounds) {
+        var rx = bounds.widthValue * 0.5;
+        var cap = Math.min(bounds.heightValue * 0.13, 14.0 + root.strokeWidth);
+        var topCy = bounds.top + cap;
+        var bottomCy = bounds.bottom - cap;
+        return [
+            _moveTo(bounds.left, topCy),
+            _arcTo(rx, cap, false, true, bounds.right, topCy),
+            _lineTo(bounds.right, bottomCy),
+            _arcTo(rx, cap, false, true, bounds.left, bottomCy),
+            _lineTo(bounds.left, topCy),
+            _closePath()
+        ].join(" ");
+    }
+
+    function _tracePredefinedBars(bounds) {
+        var barInset = Math.min(bounds.widthValue * 0.1, 16.0 + Math.max(0.5, root.strokeWidth * 0.5));
+        return [
+            _moveTo(bounds.left + barInset, bounds.top),
+            _lineTo(bounds.left + barInset, bounds.bottom),
+            _moveTo(bounds.right - barInset, bounds.top),
+            _lineTo(bounds.right - barInset, bounds.bottom)
+        ].join(" ");
+    }
+
+    function _traceDatabaseDetails(bounds) {
+        var rx = bounds.widthValue * 0.5;
+        var cap = Math.min(bounds.heightValue * 0.13, 14.0 + root.strokeWidth);
+        var topCy = bounds.top + cap;
+        var bottomCy = bounds.bottom - cap;
+        return [
+            _moveTo(bounds.left, topCy),
+            _arcTo(rx, cap, true, false, bounds.right, topCy),
+            _arcTo(rx, cap, true, false, bounds.left, topCy),
+            _moveTo(bounds.right, bottomCy),
+            _arcTo(rx, cap, false, true, bounds.left, bottomCy)
+        ].join(" ");
+    }
+
+    function _outlinePathData() {
+        var bounds = _bounds();
+        var variantKey = _normalizedVariant();
+        if (variantKey === "start" || variantKey === "end")
+            return _traceTerminator(bounds);
+        if (variantKey === "decision")
+            return _traceDecision(bounds);
+        if (variantKey === "document")
+            return _traceDocument(bounds);
+        if (variantKey === "connector")
+            return _traceConnector(bounds);
+        if (variantKey === "input_output")
+            return _traceInputOutput(bounds);
+        if (variantKey === "database")
+            return _traceDatabaseShell(bounds);
+        return _traceRect(bounds);
+    }
+
+    function _detailPathData() {
+        var bounds = _bounds();
+        var variantKey = _normalizedVariant();
+        if (variantKey === "predefined_process")
+            return _tracePredefinedBars(bounds);
+        if (variantKey === "database")
+            return _traceDatabaseDetails(bounds);
+        return "";
+    }
+
+    Shape {
+        id: outlineShape
+        objectName: "graphFlowchartVectorShape"
         anchors.fill: parent
         antialiasing: true
-        smooth: true
-        renderTarget: Canvas.Image
+        preferredRendererType: Shape.CurveRenderer
 
-        onPaint: {
-            var ctx = getContext("2d");
-            if (ctx.reset)
-                ctx.reset();
-            ctx.clearRect(0, 0, width, height);
+        ShapePath {
+            strokeColor: root.strokeColor
+            strokeWidth: Math.max(1.0, root.strokeWidth)
+            fillColor: root.fillColor
+            joinStyle: ShapePath.RoundJoin
+            capStyle: ShapePath.RoundCap
 
-            var inset = Math.max(0.5, root.strokeWidth * 0.5);
-            var left = inset;
-            var top = inset;
-            var right = Math.max(left + 1.0, width - inset);
-            var bottom = Math.max(top + 1.0, height - inset);
-            var variantKey = root._normalizedVariant();
-
-            ctx.fillStyle = root.fillColor;
-            ctx.strokeStyle = root.strokeColor;
-            ctx.lineWidth = Math.max(1.0, root.strokeWidth);
-            ctx.lineJoin = "round";
-            ctx.lineCap = "round";
-
-            ctx.beginPath();
-            if (variantKey === "start" || variantKey === "end")
-                root._traceTerminator(ctx, left, top, right, bottom);
-            else if (variantKey === "decision")
-                root._traceDecision(ctx, left, top, right, bottom);
-            else if (variantKey === "document")
-                root._traceDocument(ctx, left, top, right, bottom);
-            else if (variantKey === "connector")
-                root._traceEllipse(ctx, (left + right) * 0.5, (top + bottom) * 0.5, (right - left) * 0.5, (bottom - top) * 0.5);
-            else if (variantKey === "input_output")
-                root._traceInputOutput(ctx, left, top, right, bottom);
-            else if (variantKey === "database")
-                root._traceDatabaseShell(ctx, left, top, right, bottom);
-            else
-                root._traceRect(ctx, left, top, right, bottom);
-            ctx.fill();
-            ctx.stroke();
-
-            if (variantKey === "predefined_process") {
-                var barInset = Math.min((right - left) * 0.1, 16.0 + inset);
-                ctx.beginPath();
-                ctx.moveTo(left + barInset, top);
-                ctx.lineTo(left + barInset, bottom);
-                ctx.moveTo(right - barInset, top);
-                ctx.lineTo(right - barInset, bottom);
-                ctx.stroke();
-            } else if (variantKey === "database") {
-                var widthValue = Math.max(0.0, right - left);
-                var heightValue = Math.max(0.0, bottom - top);
-                var rx = widthValue * 0.5;
-                var cap = Math.min(heightValue * 0.13, 14.0 + root.strokeWidth);
-                var cx = left + rx;
-                var topCy = top + cap;
-                var bottomCy = bottom - cap;
-                ctx.beginPath();
-                root._traceEllipse(ctx, cx, topCy, rx, cap);
-                ctx.stroke();
-                ctx.beginPath();
-                root._traceBottomHalfEllipseFromRight(ctx, cx, bottomCy, rx, cap);
-                ctx.stroke();
+            PathSvg {
+                path: root.outlinePathData
             }
         }
     }
 
-    onVariantChanged: _requestPaint()
-    onFillColorChanged: _requestPaint()
-    onStrokeColorChanged: _requestPaint()
-    onStrokeWidthChanged: _requestPaint()
-    onWidthChanged: _requestPaint()
-    onHeightChanged: _requestPaint()
+    Shape {
+        id: detailShape
+        objectName: "graphFlowchartVectorDetails"
+        anchors.fill: parent
+        visible: root.detailPathData.length > 0
+        antialiasing: true
+        preferredRendererType: Shape.CurveRenderer
+
+        ShapePath {
+            strokeColor: root.strokeColor
+            strokeWidth: Math.max(1.0, root.strokeWidth)
+            fillColor: "transparent"
+            joinStyle: ShapePath.RoundJoin
+            capStyle: ShapePath.RoundCap
+
+            PathSvg {
+                path: root.detailPathData
+            }
+        }
+    }
 }

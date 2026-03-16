@@ -29,6 +29,7 @@ Item {
     property string nodeContextNodeId: ""
     property real contextMenuX: 0
     property real contextMenuY: 0
+    property bool interactionActive: false
     property bool minimapExpanded: mainWindowBridge ? Boolean(mainWindowBridge.graphics_minimap_expanded) : true
     readonly property bool showGrid: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true
     readonly property bool minimapVisible: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true
@@ -36,6 +37,8 @@ Item {
     readonly property int shadowStrength: mainWindowBridge ? mainWindowBridge.graphics_shadow_strength : 70
     readonly property int shadowSoftness: mainWindowBridge ? mainWindowBridge.graphics_shadow_softness : 50
     readonly property int shadowOffset: mainWindowBridge ? mainWindowBridge.graphics_shadow_offset : 4
+    readonly property bool highQualityRendering: !root.interactionActive
+    readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
     readonly property real worldOffset: worldSize / 2
@@ -55,6 +58,25 @@ Item {
             return;
         }
         root.minimapExpanded = nextExpanded;
+    }
+
+    function beginViewportInteraction() {
+        if (!root.interactionActive)
+            root.interactionActive = true;
+        interactionIdleTimer.stop();
+    }
+
+    function finishViewportInteractionSoon() {
+        if (!root.interactionActive) {
+            interactionIdleTimer.stop();
+            return;
+        }
+        interactionIdleTimer.restart();
+    }
+
+    function noteViewportInteraction() {
+        root.beginViewportInteraction();
+        interactionIdleTimer.restart();
     }
 
     function screenToSceneX(screenX) {
@@ -85,6 +107,7 @@ Item {
         var deltaY = _wheelDeltaY(eventObj);
         if (Math.abs(deltaY) < 0.001)
             return false;
+        root.noteViewportInteraction();
 
         var cursorX = Number(eventObj && eventObj.x);
         var cursorY = Number(eventObj && eventObj.y);
@@ -109,6 +132,13 @@ Item {
             viewBridge.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
         }
         return true;
+    }
+
+    Timer {
+        id: interactionIdleTimer
+        interval: root.interactionIdleDelayMs
+        repeat: false
+        onTriggered: root.interactionActive = false
     }
 
     function sceneToScreenX(sceneX) {
@@ -1150,6 +1180,7 @@ Item {
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
                 zoom: viewBridge ? viewBridge.zoom_value : 1.0
+                renderQualitySimplified: root.interactionActive
 
                 onNodeClicked: function(nodeId, additive) {
                     root.forceActiveFocus();

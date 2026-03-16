@@ -42,6 +42,7 @@ Item {
                         color: host ? host.inlineLabelColor : "#d0d5de"
                         font.pixelSize: 10
                         elide: Text.ElideRight
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
 
                     CheckBox {
@@ -102,6 +103,7 @@ Item {
                         color: host ? host.inlineDrivenTextColor : "#bdc5d3"
                         font.pixelSize: 9
                         elide: Text.ElideRight
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
                 }
             }

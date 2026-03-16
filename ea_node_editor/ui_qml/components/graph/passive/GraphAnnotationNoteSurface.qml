@@ -119,6 +119,7 @@ Item {
                     color: host ? host.scopeBadgeTextColor : "#f2f4f8"
                     font.pixelSize: Math.max(11, surface.bodyFontSize - 1)
                     font.bold: true
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                 }
             }
 
@@ -128,10 +129,13 @@ Item {
                 font.pixelSize: surface.labelFontSize
                 font.bold: true
                 opacity: 0.86
+                renderType: host ? host.nodeTextRenderType : Text.CurveRendering
             }
         }
 
             Text {
+                objectName: "graphNodeAnnotationBodyText"
+                property int effectiveRenderType: renderType
                 visible: annotationVariant !== "section_header" && surface.bodyValue.length > 0
                 width: parent.width
                 text: surface.bodyValue
@@ -141,6 +145,7 @@ Item {
                 wrapMode: Text.WordWrap
                 maximumLineCount: annotationVariant === "sticky_note" ? 5 : 4
                 elide: Text.ElideRight
+                renderType: host ? host.nodeTextRenderType : Text.CurveRendering
             }
 
             Text {
@@ -152,6 +157,7 @@ Item {
                 wrapMode: Text.WordWrap
                 maximumLineCount: 2
                 elide: Text.ElideRight
+                renderType: host ? host.nodeTextRenderType : Text.CurveRendering
             }
         }
     }

@@ -210,6 +210,7 @@ Item {
             color: surface.pdfBadgeTextColor
             font.pixelSize: 10
             font.bold: true
+            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
         }
     }
 
@@ -344,6 +345,7 @@ Item {
                         color: surface.hintTextColor
                         font.pixelSize: 11
                         text: surface.previewHintText
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
                 }
             }
@@ -352,6 +354,7 @@ Item {
         Text {
             id: captionBlock
             objectName: "graphNodeMediaCaption"
+            property int effectiveRenderType: renderType
             visible: surface.captionVisible
             width: parent.width
             text: surface.captionText
@@ -361,6 +364,7 @@ Item {
             wrapMode: Text.WordWrap
             maximumLineCount: 4
             elide: Text.ElideRight
+            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
         }
     }
 }

@@ -4,7 +4,7 @@ import QtQuick.Layouts 1.15
 import QtQuick.Effects
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
 
-Rectangle {
+Item {
     id: card
     objectName: "graphNodeCard"
     property var nodeData: null
@@ -21,6 +21,7 @@ Rectangle {
     property int shadowSoftness: 50
     property int shadowOffset: 4
     property real zoom: 1.0
+    property bool renderQualitySimplified: false
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
@@ -124,6 +125,8 @@ Rectangle {
     readonly property bool passiveFontBold: card._styleString(passiveStyle.font_weight).toLowerCase() === "bold"
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
     readonly property bool isCollapsed: !!nodeData && !!nodeData.collapsed
+    readonly property color color: card._useHostChrome ? card.surfaceColor : "transparent"
+    readonly property real radius: card._useHostChrome ? card.resolvedCornerRadius : 0
 
     signal nodeClicked(string nodeId, bool additive)
     signal nodeOpenRequested(string nodeId)
@@ -204,6 +207,11 @@ Rectangle {
     readonly property real _portLabelMaxWidth: Math.max(40.0, card.width * 0.46)
     readonly property bool _portLabelsVisible: !card.isFlowchartSurface
     readonly property bool _suppressShadow: card.isFlowchartSurface && !card.isCollapsed
+    readonly property bool _shadowVisible: card.showShadow
+        && !card._suppressShadow
+        && !card.renderQualitySimplified
+        && card._useHostChrome
+    readonly property int nodeTextRenderType: Text.CurveRendering
 
     readonly property var inputPorts: {
         if (!card.nodeData || !card.nodeData.ports)
@@ -337,24 +345,36 @@ Rectangle {
     }
     width: card._liveWidth > 0 ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
     height: card._liveHeight > 0 ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
-    color: card._useHostChrome ? card.surfaceColor : "transparent"
-    border.width: card._useHostChrome ? card.resolvedBorderWidth : 0
-    border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
-    radius: card._useHostChrome ? card.resolvedCornerRadius : 0
 
-    layer.enabled: card.showShadow && !card._suppressShadow
-    layer.effect: MultiEffect {
-        shadowEnabled: true
-        shadowBlur: card.shadowSoftness / 100.0
-        shadowColor: Qt.rgba(0, 0, 0, card.shadowStrength / 100.0)
-        shadowVerticalOffset: card.shadowOffset
-        shadowHorizontalOffset: 0
-        autoPaddingEnabled: true
+    RectangularShadow {
+        id: cardShadow
+        objectName: "graphNodeShadow"
+        visible: card._shadowVisible
+        anchors.fill: cardChrome
+        z: 0
+        offset.y: card.shadowOffset
+        blur: Math.max(0.0, Math.min(1.0, card.shadowSoftness / 100.0))
+        spread: Math.max(0.0, Math.min(1.0, card.shadowStrength / 150.0))
+        radius: card.resolvedCornerRadius
+        color: Qt.rgba(0, 0, 0, card.shadowStrength / 100.0)
+        cached: true
+    }
+
+    Rectangle {
+        id: cardChrome
+        objectName: "graphNodeChrome"
+        anchors.fill: parent
+        z: 1
+        visible: card._useHostChrome
+        color: card.surfaceColor
+        border.width: card.resolvedBorderWidth
+        border.color: card.nodeData && card.nodeData.selected ? card.selectedOutlineColor : card.outlineColor
+        radius: card.resolvedCornerRadius
     }
 
     Item {
         id: surfaceLayer
-        z: 1
+        z: 2
         anchors.fill: parent
         visible: card.nodeData ? !card.nodeData.collapsed : false
 
@@ -392,6 +412,8 @@ Rectangle {
     }
 
     Text {
+        objectName: "graphNodeTitle"
+        property int effectiveRenderType: renderType
         z: 4
         anchors.left: parent.left
         anchors.leftMargin: card._titleLeftMargin
@@ -406,6 +428,7 @@ Rectangle {
         horizontalAlignment: card._titleCentered ? Text.AlignHCenter : Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
+        renderType: card.nodeTextRenderType
     }
 
     Rectangle {
@@ -426,6 +449,7 @@ Rectangle {
             color: card.scopeBadgeTextColor
             font.pixelSize: 9
             font.bold: true
+            renderType: card.nodeTextRenderType
         }
     }
 
@@ -580,6 +604,7 @@ Rectangle {
 
                 Text {
                     objectName: "graphNodeInputPortLabel"
+                    property int effectiveRenderType: renderType
                     visible: card._portLabelsVisible
                     anchors.verticalCenter: parent.verticalCenter
                     x: Math.max(0, inputDot.x + inputDot.width + card._portLabelGap)
@@ -588,6 +613,7 @@ Rectangle {
                     color: card.portLabelColor
                     font.pixelSize: 10
                     elide: Text.ElideRight
+                    renderType: card.nodeTextRenderType
                 }
             }
         }
@@ -756,6 +782,7 @@ Rectangle {
 
                 Text {
                     objectName: "graphNodeOutputPortLabel"
+                    property int effectiveRenderType: renderType
                     visible: card._portLabelsVisible
                     anchors.verticalCenter: parent.verticalCenter
                     x: 4
@@ -765,6 +792,7 @@ Rectangle {
                     font.pixelSize: 10
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft
+                    renderType: card.nodeTextRenderType
                 }
             }
         }

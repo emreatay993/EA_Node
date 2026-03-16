@@ -181,6 +181,7 @@ Item {
                     font.pixelSize: surface.metaFontSize
                     font.bold: true
                     opacity: 0.86
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                 }
 
                 Item {
@@ -205,11 +206,14 @@ Item {
                         color: "#f5f7fb"
                         font.pixelSize: surface.chipFontSize
                         font.bold: true
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
                 }
             }
 
             Text {
+                objectName: "graphNodePlanningBodyText"
+                property int effectiveRenderType: renderType
                 visible: surface.bodyValue.length > 0
                 width: parent.width
                 text: surface.bodyValue
@@ -219,6 +223,7 @@ Item {
                 wrapMode: Text.WordWrap
                 maximumLineCount: surface.planningVariant === "milestone_card" ? 4 : 5
                 elide: Text.ElideRight
+                renderType: host ? host.nodeTextRenderType : Text.CurveRendering
             }
 
             Row {
@@ -236,6 +241,7 @@ Item {
                         color: surface.metaLabelColor
                         font.pixelSize: surface.metaFontSize
                         font.bold: true
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
 
                     Text {
@@ -246,6 +252,7 @@ Item {
                         wrapMode: Text.WordWrap
                         maximumLineCount: 2
                         elide: Text.ElideRight
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
                 }
 
@@ -259,6 +266,7 @@ Item {
                         color: surface.metaLabelColor
                         font.pixelSize: surface.metaFontSize
                         font.bold: true
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
 
                     Text {
@@ -269,6 +277,7 @@ Item {
                         wrapMode: Text.WordWrap
                         maximumLineCount: 2
                         elide: Text.ElideRight
+                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
                 }
             }
@@ -283,6 +292,7 @@ Item {
                     color: surface.metaLabelColor
                     font.pixelSize: surface.metaFontSize
                     font.bold: true
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                 }
 
                 Text {
@@ -293,6 +303,7 @@ Item {
                     wrapMode: Text.WordWrap
                     maximumLineCount: 3
                     elide: Text.ElideRight
+                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                 }
             }
         }

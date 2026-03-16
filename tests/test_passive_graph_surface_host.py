@@ -181,6 +181,50 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_uses_curve_rendering_for_node_text(self) -> None:
+        self._run_qml_probe(
+            "curve-rendering-host",
+            """
+            standard_host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            expected_render_type = standard_host.property("nodeTextRenderType")
+            title_item = standard_host.findChild(QObject, "graphNodeTitle")
+            input_labels = named_child_items(standard_host, "graphNodeInputPortLabel")
+            assert title_item is not None
+            assert len(input_labels) >= 1
+            assert title_item.property("effectiveRenderType") == expected_render_type
+            assert input_labels[0].property("effectiveRenderType") == expected_render_type
+
+            annotation_payload = node_payload(surface_family="annotation", surface_variant="sticky_note")
+            annotation_payload["runtime_behavior"] = "passive"
+            annotation_payload["properties"] = {"body": "Sticky note"}
+            annotation_host = create_component(graph_node_host_qml_path, {"nodeData": annotation_payload})
+            annotation_text = annotation_host.findChild(QObject, "graphNodeAnnotationBodyText")
+            assert annotation_text is not None
+            assert annotation_text.property("effectiveRenderType") == annotation_host.property("nodeTextRenderType")
+
+            planning_payload = node_payload(surface_family="planning", surface_variant="task_card")
+            planning_payload["runtime_behavior"] = "passive"
+            planning_payload["properties"] = {
+                "body": "Follow up with render pass",
+                "status": "in progress",
+                "owner": "Alex",
+                "due_date": "Tomorrow",
+            }
+            planning_host = create_component(graph_node_host_qml_path, {"nodeData": planning_payload})
+            planning_text = planning_host.findChild(QObject, "graphNodePlanningBodyText")
+            assert planning_text is not None
+            assert planning_text.property("effectiveRenderType") == planning_host.property("nodeTextRenderType")
+
+            media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+            media_payload["runtime_behavior"] = "passive"
+            media_payload["properties"] = {"caption": "Preview caption"}
+            media_host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
+            caption_text = media_host.findChild(QObject, "graphNodeMediaCaption")
+            assert caption_text is not None
+            assert caption_text.property("effectiveRenderType") == media_host.property("nodeTextRenderType")
+            """,
+        )
+
     def test_node_card_wrapper_preserves_standard_host_contract(self) -> None:
         self._run_qml_probe(
             "node-card-wrapper",
@@ -313,6 +357,62 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert canvas.liveDragDyForNode(node_id) == 0.0
             assert scene.nodes_model[0]["x"] == 140.0
             assert scene.nodes_model[0]["y"] == 140.0
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_temporarily_simplifies_node_shadow_during_wheel_zoom(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-shadow-quality",
+            """
+            from PyQt6.QtTest import QTest
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 1
+            node_card = node_cards[0]
+            shadow_item = node_card.findChild(QObject, "graphNodeShadow")
+            assert shadow_item is not None
+            assert bool(shadow_item.property("visible"))
+            assert not bool(canvas.property("interactionActive"))
+            assert bool(canvas.property("highQualityRendering"))
+
+            applied = canvas.applyWheelZoom(
+                {"x": 640.0, "y": 360.0, "angleDelta": {"y": 120}, "inverted": False}
+            )
+            assert applied is True
+            app.processEvents()
+            assert bool(canvas.property("interactionActive"))
+            assert not bool(canvas.property("highQualityRendering"))
+            assert not bool(shadow_item.property("visible"))
+
+            QTest.qWait(190)
+            app.processEvents()
+            assert not bool(canvas.property("interactionActive"))
+            assert bool(canvas.property("highQualityRendering"))
+            assert bool(shadow_item.property("visible"))
 
             canvas.deleteLater()
             app.processEvents()
