@@ -412,6 +412,19 @@ class WorkspaceLibraryController:
     def switch_workspace(self, workspace_id: str) -> None:
         self._view_nav_ops.switch_workspace(workspace_id)
 
+    def move_workspace(self, from_index: int, to_index: int) -> bool:
+        refs = self._host.workspace_manager.list_workspaces()
+        if len(refs) < 2:
+            return False
+        if from_index < 0 or from_index >= len(refs):
+            return False
+        bounded_index = max(0, min(int(to_index), len(refs) - 1))
+        if from_index == bounded_index:
+            return False
+        self._host.workspace_manager.move_workspace(from_index, bounded_index)
+        self.refresh_workspace_tabs()
+        return True
+
     def save_active_view_state(self) -> None:
         self._view_nav_ops.save_active_view_state()
 
@@ -592,6 +605,23 @@ class WorkspaceLibraryController:
             return False
 
         self._host.workspace_manager.rename_view(workspace_id, normalized_view_id, normalized_name)
+        self._host.workspace_state_changed.emit()
+        return True
+
+    def move_view(self, from_index: int, to_index: int) -> bool:
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        if workspace is None:
+            return False
+        workspace.ensure_default_view()
+        if len(workspace.views) < 2:
+            return False
+        if from_index < 0 or from_index >= len(workspace.views):
+            return False
+        bounded_index = max(0, min(int(to_index), len(workspace.views) - 1))
+        if from_index == bounded_index:
+            return False
+        self._host.workspace_manager.move_view(workspace_id, from_index, bounded_index)
         self._host.workspace_state_changed.emit()
         return True
 

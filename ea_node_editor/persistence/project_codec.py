@@ -38,7 +38,7 @@ class JsonProjectCodec:
             workspace.ensure_default_view()
             active_view_id = workspace.active_view_id
             if active_view_id not in workspace.views:
-                active_view_id = sorted(workspace.views)[0]
+                active_view_id = next(iter(workspace.views))
             workspaces.append(
                 {
                     "workspace_id": workspace.workspace_id,
@@ -54,9 +54,7 @@ class JsonProjectCodec:
                             "pan_y": view.pan_y,
                             "scope_path": list(normalize_scope_path(workspace, view.scope_path)),
                         }
-                        for view in sorted(
-                            workspace.views.values(), key=lambda item: item.view_id
-                        )
+                        for view in workspace.views.values()
                     ],
                     "nodes": [
                         {

@@ -202,6 +202,21 @@ class GraphModel:
             raise KeyError(f"Unknown view: {view_id}")
         workspace.views[view_id].name = new_name
 
+    def move_view(self, workspace_id: str, from_index: int, to_index: int) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        workspace.ensure_default_view()
+        if len(workspace.views) < 2:
+            return
+        if from_index < 0 or from_index >= len(workspace.views):
+            return
+        to_index = max(0, min(to_index, len(workspace.views) - 1))
+        if from_index == to_index:
+            return
+        ordered_views = list(workspace.views.items())
+        moved_view_id, moved_view = ordered_views.pop(from_index)
+        ordered_views.insert(to_index, (moved_view_id, moved_view))
+        workspace.views = dict(ordered_views)
+
     def add_node(
         self,
         workspace_id: str,

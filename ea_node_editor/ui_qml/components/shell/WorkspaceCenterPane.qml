@@ -98,6 +98,9 @@ Rectangle {
                     onTabActivated: function(itemData) {
                         root.mainWindowRef.request_switch_view(itemData.view_id)
                     }
+                    onTabMoveRequested: function(fromIndex, toIndex, _itemData) {
+                        root.mainWindowRef.request_move_view_tab(fromIndex, toIndex)
+                    }
                     onContextMenuActionRequested: function(actionId, itemData) {
                         if (actionId === "rename") {
                             root.mainWindowRef.request_rename_view(String(itemData.view_id || ""))
@@ -152,6 +155,9 @@ Rectangle {
                     }
                     onTabActivated: function(itemData) {
                         root.workspaceTabsBridgeRef.activate_workspace(itemData.workspace_id)
+                    }
+                    onTabMoveRequested: function(fromIndex, toIndex, _itemData) {
+                        root.mainWindowRef.request_move_workspace_tab(fromIndex, toIndex)
                     }
                     onContextMenuActionRequested: function(actionId, itemData) {
                         if (actionId === "rename") {

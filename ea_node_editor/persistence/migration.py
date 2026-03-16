@@ -240,7 +240,7 @@ class JsonProjectMigration:
 
         active_view_id = self._coerce_str(workspace_doc.get("active_view_id"))
         if active_view_id not in views_by_id:
-            active_view_id = sorted(views_by_id)[0]
+            active_view_id = next(iter(views_by_id))
 
         nodes_by_id: dict[str, dict[str, Any]] = {}
         node_specs: dict[str, NodeTypeSpec] = {}
@@ -384,7 +384,7 @@ class JsonProjectMigration:
             "name": self._coerce_str(workspace_doc.get("name"), "Workspace"),
             "dirty": self._coerce_bool(workspace_doc.get("dirty"), False),
             "active_view_id": active_view_id,
-            "views": [views_by_id[view_id] for view_id in sorted(views_by_id)],
+            "views": list(views_by_id.values()),
             "nodes": [nodes_by_id[node_id] for node_id in sorted(nodes_by_id)],
             "edges": [edges_by_id[edge_id] for edge_id in sorted(edges_by_id)],
         }

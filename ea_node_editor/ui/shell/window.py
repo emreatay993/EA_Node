@@ -1444,6 +1444,14 @@ class ShellWindow(QMainWindow):
     def request_rename_view(self, view_id: str) -> bool:
         return bool(self._rename_view(view_id))
 
+    @pyqtSlot(int, int, result=bool)
+    def request_move_workspace_tab(self, from_index: int, to_index: int) -> bool:
+        return bool(self.workspace_library_controller.move_workspace(from_index, to_index))
+
+    @pyqtSlot(int, int, result=bool)
+    def request_move_view_tab(self, from_index: int, to_index: int) -> bool:
+        return bool(self.workspace_library_controller.move_view(from_index, to_index))
+
     @pyqtSlot(result=bool)
     def request_align_selection_left(self) -> bool:
         return bool(self._align_selection_left())

@@ -39,6 +39,24 @@ class SerializerTests(unittest.TestCase):
         self.assertIn(node_b.node_id, loaded_ws.nodes)
         self.assertIn(edge.edge_id, loaded_ws.edges)
 
+    def test_round_trip_preserves_custom_view_order(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        first_view_id = workspace.active_view_id
+        second_view_id = model.create_view(workspace.workspace_id, name="Inspection").view_id
+        third_view_id = model.create_view(workspace.workspace_id, name="Review").view_id
+        model.move_view(workspace.workspace_id, 2, 0)
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "project.sfe"
+            serializer.save(str(path), model.project)
+            loaded = serializer.load(str(path))
+
+        loaded_workspace = loaded.workspaces[workspace.workspace_id]
+        self.assertEqual(list(loaded_workspace.views), [third_view_id, first_view_id, second_view_id])
+        self.assertEqual(loaded_workspace.active_view_id, third_view_id)
+
     def test_round_trip_preserves_node_and_edge_visual_metadata_contracts(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace

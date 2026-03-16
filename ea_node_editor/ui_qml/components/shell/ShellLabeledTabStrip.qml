@@ -1,6 +1,7 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Layouts 1.15
+import QtQml.Models 2.15
 
 RowLayout {
     id: root
@@ -46,8 +47,19 @@ RowLayout {
         : root.createButtonHorizontalPadding
 
     signal tabActivated(var itemData)
+    signal tabMoveRequested(int fromIndex, int toIndex, var itemData)
     signal contextMenuActionRequested(string actionId, var itemData)
     signal createActivated()
+
+    readonly property bool canReorderTabs: root.model && root.model.length !== undefined && root.model.length > 1
+
+    function tabWidthForItem(itemData) {
+        var label = ""
+        if (itemData && itemData[root.tabLabelKey] !== undefined)
+            label = String(itemData[root.tabLabelKey])
+        labelMetrics.text = label
+        return Math.max(root.effectiveMinTabWidth, labelMetrics.advanceWidth + root.effectiveTabHorizontalPadding)
+    }
 
     function openContextMenu(itemData, positionX, positionY) {
         var actions = root.contextMenuActions || []
@@ -102,65 +114,147 @@ RowLayout {
             anchors.topMargin: root.cardVerticalPadding
             anchors.bottomMargin: root.cardVerticalPadding
             spacing: root.cardSpacing
+            move: Transition {
+                NumberAnimation {
+                    properties: "x,y"
+                    duration: 140
+                    easing.type: Easing.OutCubic
+                }
+            }
 
-            Repeater {
-                model: root.model
-                delegate: Rectangle {
-                    id: tabButton
-                    property bool active: typeof root.isTabActive === "function"
-                        ? !!root.isTabActive(modelData)
-                        : false
+            DelegateModel {
+                id: visualModel
+                model: root.model || []
+                delegate: DropArea {
+                    id: tabDropArea
+                    property int visualIndex: DelegateModel.itemsIndex
+                    property var itemData: modelData
+                    readonly property int buttonWidth: root.tabWidthForItem(itemData)
+                    width: buttonWidth
                     height: root.tabHeight
-                    width: Math.max(root.effectiveMinTabWidth, tabLabel.implicitWidth + root.effectiveTabHorizontalPadding)
-                    radius: root.tabRadius
-                    color: active
-                        ? root.themePalette.tab_selected_bg
-                        : (tabMouse.containsMouse
-                            ? root.themePalette.hover
-                            : root.themePalette.tab_bg)
-                    border.width: 1
-                    border.color: active
-                        ? root.themePalette.accent
-                        : (tabMouse.containsMouse
-                            ? root.themePalette.input_border
-                            : root.themePalette.border)
 
-                    Text {
-                        id: tabLabel
-                        anchors.centerIn: parent
-                        text: String(
-                            modelData && modelData[root.tabLabelKey] !== undefined
-                                ? modelData[root.tabLabelKey]
-                                : ""
-                        )
-                        color: active
-                            ? root.themePalette.tab_selected_fg
-                            : root.themePalette.tab_fg
-                        font.pixelSize: root.tabFontSize
-                        font.bold: active
+                    onEntered: function(drag) {
+                        if (!root.canReorderTabs || drag.source === null)
+                            return
+                        var fromIndex = Number(drag.source.visualIndex)
+                        var toIndex = Number(tabDropArea.visualIndex)
+                        if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex))
+                            return
+                        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex)
+                            return
+                        visualModel.items.move(fromIndex, toIndex)
                     }
 
-                    MouseArea {
-                        id: tabMouse
+                    Rectangle {
+                        id: tabButton
                         anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: function(mouse) {
-                            if (mouse.button === Qt.LeftButton) {
-                                root.tabActivated(modelData)
-                                return
+                        property int dragStartIndex: -1
+                        property int visualIndex: tabDropArea.visualIndex
+                        property var itemData: tabDropArea.itemData
+                        property bool active: typeof root.isTabActive === "function"
+                            ? !!root.isTabActive(itemData)
+                            : false
+                        property bool dragging: dragArea.drag.active
+                        radius: root.tabRadius
+                        color: active
+                            ? root.themePalette.tab_selected_bg
+                            : (dragArea.containsMouse
+                                ? root.themePalette.hover
+                                : root.themePalette.tab_bg)
+                        border.width: 1
+                        border.color: active
+                            ? root.themePalette.accent
+                            : (dragArea.containsMouse
+                                ? root.themePalette.input_border
+                                : root.themePalette.border)
+                        Drag.active: root.canReorderTabs && dragArea.drag.active
+                        Drag.source: tabButton
+                        Drag.hotSpot.x: dragArea.mouseX
+                        Drag.hotSpot.y: dragArea.mouseY
+                        z: dragging ? 20 : 0
+
+                        states: State {
+                            when: tabButton.dragging
+                            ParentChange {
+                                target: tabButton
+                                parent: dragOverlay
                             }
-                            if (mouse.button === Qt.RightButton) {
-                                var popupPosition = tabButton.mapToItem(root, mouse.x, mouse.y)
-                                root.openContextMenu(modelData, popupPosition.x, popupPosition.y)
+                            AnchorChanges {
+                                target: tabButton
+                                anchors.left: undefined
+                                anchors.right: undefined
+                                anchors.top: undefined
+                                anchors.bottom: undefined
+                            }
+                            PropertyChanges {
+                                target: tabButton
+                                width: tabDropArea.buttonWidth
+                                height: root.tabHeight
+                            }
+                        }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: String(
+                                tabButton.itemData && tabButton.itemData[root.tabLabelKey] !== undefined
+                                    ? tabButton.itemData[root.tabLabelKey]
+                                    : ""
+                            )
+                            color: active
+                                ? root.themePalette.tab_selected_fg
+                                : root.themePalette.tab_fg
+                            font.pixelSize: root.tabFontSize
+                            font.bold: active
+                        }
+
+                        MouseArea {
+                            id: dragArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: root.canReorderTabs
+                                ? (dragArea.drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
+                                : Qt.PointingHandCursor
+                            drag.target: root.canReorderTabs ? tabButton : null
+                            drag.axis: Drag.XAxis
+                            drag.minimumX: 0
+                            drag.maximumX: Math.max(0, dragOverlay.width - tabDropArea.buttonWidth)
+                            onPressed: function(mouse) {
+                                if (mouse.button === Qt.LeftButton)
+                                    tabButton.dragStartIndex = tabButton.visualIndex
+                            }
+                            onReleased: function(mouse) {
+                                if (mouse.button !== Qt.LeftButton)
+                                    return
+                                if (tabButton.dragging)
+                                    tabButton.Drag.drop()
+                                var fromIndex = tabButton.dragStartIndex
+                                var toIndex = tabButton.visualIndex
+                                tabButton.dragStartIndex = -1
+                                if (fromIndex >= 0 && fromIndex !== toIndex)
+                                    root.tabMoveRequested(fromIndex, toIndex, tabButton.itemData)
+                            }
+                            onClicked: function(mouse) {
+                                if (mouse.button === Qt.LeftButton) {
+                                    root.tabActivated(tabButton.itemData)
+                                    return
+                                }
+                                if (mouse.button === Qt.RightButton) {
+                                    var popupPosition = tabButton.mapToItem(root, mouse.x, mouse.y)
+                                    root.openContextMenu(tabButton.itemData, popupPosition.x, popupPosition.y)
+                                }
                             }
                         }
                     }
                 }
             }
 
+            Repeater {
+                model: visualModel
+            }
+
             ShellCreateButton {
+                id: createButton
                 text: root.createButtonText
                 accentOutline: root.createButtonAccentOutline
                 buttonHeight: root.createButtonHeight
@@ -173,6 +267,19 @@ RowLayout {
                 onClicked: root.createActivated()
             }
         }
+
+        Item {
+            id: dragOverlay
+            anchors.fill: stripRow
+            anchors.rightMargin: createButton.width + stripRow.spacing
+            z: 100
+        }
+    }
+
+    TextMetrics {
+        id: labelMetrics
+        font.pixelSize: root.tabFontSize
+        font.bold: false
     }
 
     Popup {

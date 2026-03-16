@@ -649,6 +649,25 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
         self.assertEqual(active_items[0]["label"], "Inspection Renamed")
         self.assertEqual(self.window.active_view_name, "Inspection Renamed")
 
+    def test_request_move_view_tab_reorders_active_view_items(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        first_view_id = workspace.active_view_id
+        second_view_id = self.window.workspace_manager.create_view(workspace_id, name="Inspection")
+        third_view_id = self.window.workspace_manager.create_view(workspace_id, name="Review")
+        self.app.processEvents()
+
+        moved = self.window.request_move_view_tab(2, 0)
+        self.app.processEvents()
+
+        self.assertTrue(moved)
+        self.assertEqual(list(workspace.views), [third_view_id, first_view_id, second_view_id])
+        self.assertEqual(
+            [item["view_id"] for item in self.window.active_view_items],
+            [third_view_id, first_view_id, second_view_id],
+        )
+        self.assertEqual(workspace.active_view_id, third_view_id)
+
     def test_request_close_view_rejects_last_remaining_view(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
@@ -683,3 +702,20 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
             self.window._on_workspace_tab_close(first_index)
         self.assertNotIn(first_workspace_id, self.window.model.project.workspaces)
+
+    def test_request_move_workspace_tab_reorders_workspace_tabs(self) -> None:
+        first_workspace_id = self.window.workspace_manager.active_workspace_id()
+        second_workspace_id = self.window.workspace_manager.create_workspace("Second")
+        third_workspace_id = self.window.workspace_manager.create_workspace("Third")
+        self.window._refresh_workspace_tabs()
+        self.app.processEvents()
+
+        moved = self.window.request_move_workspace_tab(2, 0)
+        self.app.processEvents()
+
+        self.assertTrue(moved)
+        self.assertEqual(
+            [self.window.workspace_tabs.tabData(index) for index in range(self.window.workspace_tabs.count())],
+            [third_workspace_id, first_workspace_id, second_workspace_id],
+        )
+        self.assertEqual(self.window.workspace_manager.active_workspace_id(), third_workspace_id)
