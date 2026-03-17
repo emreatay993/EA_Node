@@ -1,8 +1,9 @@
 # EA Node Editor
 
-A visual node editor for building engineering dataflow pipelines. Connect nodes to
-read/write files, run calculations, monitor HPC cluster jobs, and automate
-multi-step engineering workflows -- all through a drag-and-drop canvas.
+A Windows-first visual node editor for engineering dataflow pipelines. Build
+graphs on a QML canvas, run workflows in a separate worker process, author
+passive visual layouts on the same graph, and automate file, spreadsheet,
+process, and HPC-oriented tasks from a single desktop shell.
 
 Recent UI/UX architecture highlights:
 
@@ -13,25 +14,29 @@ Recent UI/UX architecture highlights:
 - Passive visual node families now ship in the main graph model for flowcharting, planning, annotation, and local image/PDF presentation
 - Passive `flow` edges support labels and per-edge style overrides while remaining excluded from runtime compilation and worker execution
 - Passive node and flow-edge style overrides can be edited from context menus and saved as project-local presets in `.sfe` metadata
+- Graph-surface input routing now keeps host body gestures under loaded surfaces, uses `embeddedInteractiveRects` for local control ownership, and reserves `blocksHostInteraction` for whole-surface modal tools such as crop mode
 - Connection-aware quick insert from a dangling wire drag
-- Inline node controls for fast editing of selected property types
+- Shared graph-surface controls now cover inline `toggle`, `enum`, `text`, `number`, `textarea`, and `path` editors without depending on selected-node timing
 - Python-side compatibility filtering so quick insert follows the same effective-port rules as graph connections
 - Inspector and script editing surfaces now use user-facing node labels and sequential IDs instead of exposing internal `node_*` references
 
-## Quick Start
+## Getting Started
 
 ```bash
-# 1. Create a virtual environment
-python -m venv venv
-venv\Scripts\activate        # Windows
-# source venv/bin/activate   # macOS / Linux
+# 1. Create the project virtual environment (Windows-first layout)
+py -3.10 -m venv venv
 
-# 2. Install the project and its dependencies
-pip install -e ".[all,dev]"
+# 2. Install runtime + developer dependencies into that venv
+./venv/Scripts/python.exe -m pip install --upgrade pip
+./venv/Scripts/python.exe -m pip install -e ".[all,dev]"
 
-# 3. Run the application
-python main.py
+# 3. Launch the app
+./venv/Scripts/python.exe main.py
 ```
+
+- For a fuller setup and orientation guide, see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+- On Windows, user data lives under `%APPDATA%\EA_Node_Editor\` and the plugin drop-in folder is `%APPDATA%\EA_Node_Editor\plugins\`.
+- The console entry point installed by editable mode is `ea-node-editor`.
 
 ## Project Structure
 
@@ -149,15 +154,28 @@ ea_node_editor/
       GraphCanvas.qml
       graph/
         EdgeLayer.qml
+        GraphInlinePropertiesLayer.qml
         GraphNodeHost.qml
+        GraphNodeSurfaceMetrics.js
         GraphNodeSurfaceLoader.qml
         EdgeMath.js
         NodeCard.qml
         passive/
+          FlowchartShapeCanvas.qml
           GraphAnnotationNoteSurface.qml
           GraphFlowchartNodeSurface.qml
           GraphMediaPanelSurface.qml
           GraphPlanningCardSurface.qml
+        surface_controls/
+          GraphSurfaceButton.qml
+          GraphSurfaceCheckBox.qml
+          GraphSurfaceComboBox.qml
+          GraphSurfaceInteractiveRegion.qml
+          GraphSurfacePathEditor.qml
+          GraphSurfaceTextArea.qml
+          GraphSurfaceTextField.qml
+          GraphSurfaceTextareaEditor.qml
+          SurfaceControlGeometry.js
       graph_canvas/
         GraphCanvasBackground.qml
         GraphCanvasContextMenus.qml
@@ -175,10 +193,16 @@ ea_node_editor/
         NodeLibraryPane.qml
         ScriptEditorOverlay.qml
         ShellButton.qml
+        ShellCollapsibleSidePane.qml
+        ShellContextMenu.qml
+        ShellCreateButton.qml
+        ShellLabeledTabStrip.qml
         ShellRunToolbar.qml
         ShellStatusStrip.qml
         ShellTitleBar.qml
         WorkspaceCenterPane.qml
+        icons/
+          *.svg
   workspace/
     manager.py
 
@@ -188,9 +212,9 @@ docs/specs/
 
 ## Creating a Custom Node
 
-Drop a Python file into the plugins folder (`~/.ea_node_editor/plugins/` on
-Windows that is `%APPDATA%/EA_Node_Editor/plugins/`). The file should define one
-or more classes that follow the `NodePlugin` protocol:
+Drop a Python file into the plugins folder at `%APPDATA%/EA_Node_Editor/plugins/`
+(or the fallback user-data directory returned by `ea_node_editor.settings.plugins_dir()`).
+The file should define one or more classes that follow the `NodePlugin` protocol:
 
 ```python
 from ea_node_editor.nodes import node_type, in_port, out_port, prop_float
@@ -249,6 +273,16 @@ Restart the application and the node will appear in the Node Library under the
 QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest discover -s tests -v
 ```
 
+Focused graph-surface regression gate:
+
+```bash
+QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest \
+  tests.test_graph_surface_input_contract \
+  tests.test_graph_surface_input_inline \
+  tests.test_passive_graph_surface_host \
+  tests.test_passive_image_nodes -v
+```
+
 ## Interaction Notes
 
 - Graphics settings are app-wide rather than project-local, so reopening the app restores the last saved grid/minimap/snap/theme choices.
@@ -267,15 +301,19 @@ packaging, installer creation, and code signing instructions.
 
 ## Documentation
 
+- [Getting Started](docs/GETTING_STARTED.md) -- environment setup, first launch, smoke checks, and common paths
 - [Architecture Guide](ARCHITECTURE.md) -- runtime/component architecture and flow maps
 - [Architecture Diagrams](docs/architecture_diagrams/) -- generated Mermaid exports (`.mmd`, `.svg`, `.png`)
 - [Spec Pack Index](docs/specs/INDEX.md) -- requirements, ADRs, traceability
 - [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
+- [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- final host/inline/media/shell coverage and the approved shell fallback
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 
 ```bash
-python3 scripts/export_architecture_diagrams.py
+./venv/Scripts/python.exe scripts/export_architecture_diagrams.py
 ```
+
+The exporter writes `.mmd`, `.svg`, and `.png` assets into `docs/architecture_diagrams/` and uses the Kroki Mermaid rendering service, so it requires network access.

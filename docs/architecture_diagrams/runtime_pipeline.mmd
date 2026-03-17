@@ -8,7 +8,7 @@ flowchart TD
     G --> H[Load MainShell + GraphCanvas composition components]
     H --> I[Restore session and optional autosave recovery]
     I --> J[Switch workspace and restore view and scope camera]
-    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, and theme palette surfaces]
+    J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, ThemeBridge chrome palettes, and graphThemeBridge node/edge palettes]
 
     K --> L[User edits graph, searches by title or type, navigates scope, or opens Graphics Settings]
     L --> M[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
@@ -21,7 +21,7 @@ flowchart TD
     Q --> K
 
     K --> KP[Graphics Settings dialog updates app_preferences.json]
-    KP --> KR[ShellWindow reapplies graphics flags plus theme bridge and stylesheet]
+    KP --> KR[ShellWindow reapplies graphics flags plus shell theme bridge and stylesheet and resolves graphThemeBridge]
     KR --> K
 
     K --> R[Inline property payloads rendered in NodeCard]
