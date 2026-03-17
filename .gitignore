@@ -77,6 +77,7 @@ tests/fixtures/passive_nodes/*
 !tests/test_flowchart_visual_polish.py
 !tests/test_passive_image_nodes.py
 !tests/test_pdf_preview_provider.py
+!tests/graph_surface_pointer_regression.py
 !tests/main_window_shell/
 tests/main_window_shell/*
 !tests/main_window_shell/base.py
