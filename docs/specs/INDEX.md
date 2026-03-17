@@ -40,6 +40,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 32. [GRAPH_SURFACE_INPUT Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md)
 33. [SHELL_SCENE_BOUNDARY Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/shell_scene_boundary/SHELL_SCENE_BOUNDARY_MANIFEST.md)
 34. [SHELL_SCENE_BOUNDARY Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/shell_scene_boundary/SHELL_SCENE_BOUNDARY_STATUS.md)
+35. [VERIFICATION_SPEED Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/verification_speed/VERIFICATION_SPEED_MANIFEST.md)
+36. [VERIFICATION_SPEED Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/verification_speed/VERIFICATION_SPEED_STATUS.md)
 
 ## ADRs
 
