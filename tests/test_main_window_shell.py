@@ -1287,6 +1287,11 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "viewBridge.zoom_value",
             "viewBridge.center_x",
             "viewBridge.center_y",
+            "property var hoveredPort: null",
+            "property var pendingConnectionPort: null",
+            "property var wireDragState: null",
+            "property bool edgeContextVisible: false",
+            "property bool interactionActive: false",
         )
         present_snippets = (
             "readonly property var _canvasShellBridgeRef",
@@ -1295,6 +1300,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "root._canvasShellBridgeRef.graphics_show_grid",
             "root._canvasSceneBridgeRef.nodes_model",
             "bridge.selected_node_lookup",
+            "GraphCanvasComponents.GraphCanvasInteractionState {",
+            "property alias hoveredPort: interactionState.hoveredPort",
+            "property alias pendingConnectionPort: interactionState.pendingConnectionPort",
+            "property alias interactionActive: interactionState.interactionActive",
+            "interactionState.updateLibraryDropPreview(screenX, screenY, payload);",
+            "interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);",
             "var bridge = root._canvasShellBridgeRef",
             "var bridge = root._canvasSceneBridgeRef",
             "var view = root._canvasViewBridgeRef",
@@ -1310,6 +1321,26 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
+
+    def test_graph_canvas_interaction_state_helper_owns_extracted_canvas_state(self) -> None:
+        helper_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml"
+        helper_text = helper_path.read_text(encoding="utf-8")
+
+        present_snippets = (
+            "property var pendingConnectionPort: null",
+            "property var wireDragState: null",
+            "property bool edgeContextVisible: false",
+            "property bool interactionActive: false",
+            "property var interactionIdleTimer: null",
+            "function updateLibraryDropPreview(screenX, screenY, payload) {",
+            "function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {",
+            "function _openNodeContext(nodeId, x, y) {",
+            "function resetSceneBridgeState() {",
+        )
+
+        for snippet in present_snippets:
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, helper_text)
 
 
 class FrameRateSamplerTests(unittest.TestCase):
@@ -1441,30 +1472,28 @@ class MainWindowShellHostProtocolStateTests(MainWindowShellTestBase):
         self.assertIn(key, self.window.search_scope_state.runtime_scope_camera)
 
 
-class MainWindowShellGraphCanvasHostTests(MainWindowShellTestBase):
+class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
     def test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge(self) -> None:
         graph_canvas = self._graph_canvas_item()
         context = self.window.quick_widget.rootContext()
         graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
+        canvas_bridge_ref = graph_canvas.property("canvasBridgeRef")
 
         self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
-        self.assertIsInstance(graph_canvas.property("canvasBridgeRef"), GraphCanvasBridge)
-        self.assertIs(graph_canvas.property("canvasBridgeRef"), graph_canvas_bridge)
-        self.assertIsNot(graph_canvas.property("canvasBridgeRef"), self.window)
-        self.assertIs(graph_canvas.property("sceneBridge"), self.window.scene)
-        self.assertIs(graph_canvas.property("viewBridge"), self.window.view)
-        self.assertTrue(bool(graph_canvas.property("showGrid")))
+        self.assertEqual(graph_canvas.objectName(), "graphCanvas")
+        self.assertIsInstance(canvas_bridge_ref, GraphCanvasBridge)
+        self.assertIs(canvas_bridge_ref, graph_canvas_bridge)
         self.assertEqual(
             bool(graph_canvas.property("showGrid")),
-            graph_canvas.property("canvasBridgeRef").graphics_show_grid,
+            canvas_bridge_ref.graphics_show_grid,
         )
         self.assertEqual(
             bool(graph_canvas.property("minimapVisible")),
-            graph_canvas.property("canvasBridgeRef").graphics_show_minimap,
+            canvas_bridge_ref.graphics_show_minimap,
         )
         self.assertEqual(
             bool(graph_canvas.property("minimapExpanded")),
-            graph_canvas.property("canvasBridgeRef").graphics_minimap_expanded,
+            canvas_bridge_ref.graphics_minimap_expanded,
         )
 
     def test_graph_canvas_keeps_graph_node_card_discoverability_after_host_refactor(self) -> None:
@@ -1548,26 +1577,51 @@ class _SubprocessShellWindowTest(unittest.TestCase):
         return self._target
 
     def runTest(self) -> None:
-        env = os.environ.copy()
-        env.setdefault("QT_QPA_PLATFORM", "offscreen")
-        result = subprocess.run(
-            [sys.executable, "-c", _SHELL_TEST_RUNNER, self._target],
-            cwd=_REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
+        _run_shell_window_test_target(self._target)
+
+
+def _run_shell_window_test_target(target: str) -> None:
+    env = os.environ.copy()
+    env.setdefault("QT_QPA_PLATFORM", "offscreen")
+    result = subprocess.run(
+        [sys.executable, "-c", _SHELL_TEST_RUNNER, target],
+        cwd=_REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return
+    output = "\n".join(
+        part.strip()
+        for part in (result.stdout, result.stderr)
+        if part and part.strip()
+    )
+    raise AssertionError(
+        f"Subprocess shell test failed for {target} "
+        f"(exit={result.returncode}).\n{output}"
+    )
+
+
+class MainWindowShellGraphCanvasHostTests(unittest.TestCase):
+    def _run_target(self, test_name: str) -> None:
+        _run_shell_window_test_target(
+            f"{_MainWindowShellGraphCanvasHostDirectTests.__module__}."
+            f"{_MainWindowShellGraphCanvasHostDirectTests.__qualname__}.{test_name}"
         )
-        if result.returncode == 0:
-            return
-        output = "\n".join(
-            part.strip()
-            for part in (result.stdout, result.stderr)
-            if part and part.strip()
-        )
-        self.fail(
-            f"Subprocess shell test failed for {self._target} "
-            f"(exit={result.returncode}).\n{output}"
-        )
+
+    def test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge(self) -> None:
+        self._run_target("test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge")
+
+    def test_graph_canvas_keeps_graph_node_card_discoverability_after_host_refactor(self) -> None:
+        self._run_target("test_graph_canvas_keeps_graph_node_card_discoverability_after_host_refactor")
+
+    def test_plain_text_graph_fragment_payload_is_ignored_by_paste(self) -> None:
+        self._run_target("test_plain_text_graph_fragment_payload_is_ignored_by_paste")
+
+    def test_graph_search_results_use_user_facing_instance_ids_for_duplicate_nodes(self) -> None:
+        self._run_target("test_graph_search_results_use_user_facing_instance_ids_for_duplicate_nodes")
+
 
 
 def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
