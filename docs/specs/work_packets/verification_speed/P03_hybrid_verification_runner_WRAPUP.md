@@ -6,7 +6,7 @@
 - Branch Label: `codex/verification-speed/p03-hybrid-verification-runner`
 - Commit Owner: `worker`
 - Commit SHA: `7979dc379857e200aa15e7d560a54ddfa5d918a8`
-- Changed Files: `scripts/run_verification.py`, `docs/specs/work_packets/verification_speed/P03_hybrid_verification_runner_WRAPUP.md`
+- Changed Files: `scripts/run_verification.py`
 - Artifacts Produced: `scripts/run_verification.py`, `docs/specs/work_packets/verification_speed/P03_hybrid_verification_runner_WRAPUP.md`
 
 ## Verification
