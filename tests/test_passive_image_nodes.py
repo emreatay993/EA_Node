@@ -297,6 +297,15 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 image = QImage(24, 18, QImage.Format.Format_ARGB32)
                 image.fill(QColor(color_name))
                 assert image.save(str(path))
+
+            def variant_value(value):
+                return value.toVariant() if hasattr(value, "toVariant") else value
+
+            def variant_list(value):
+                normalized = variant_value(value)
+                if normalized is None:
+                    return []
+                return list(normalized)
             """
         ) + "\n" + textwrap.dedent(body)
         env = os.environ.copy()
@@ -569,6 +578,66 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 app.processEvents()
 
                 assert bool(surface.property("blocksHostInteraction"))
+                assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 10
+            """,
+        )
+
+    def test_crop_controls_publish_direct_embedded_interactive_rects(self) -> None:
+        self._run_qml_probe(
+            "media-crop-direct-rects",
+            """
+            from PyQt6.QtCore import QPoint, QPointF
+            from PyQt6.QtQuick import QQuickWindow
+            from PyQt6.QtTest import QTest
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "direct-rects.png"
+                make_png(image_path, "#2c85bf")
+
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": image_panel_payload(
+                            {
+                                "source_path": str(image_path),
+                                "caption": "",
+                                "fit_mode": "contain",
+                            }
+                        ),
+                    },
+                )
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                crop_button = host.findChild(QObject, "graphNodeMediaCropButton")
+                wait_for_preview(surface)
+                assert surface is not None
+                assert crop_button is not None
+
+                window = QQuickWindow()
+                window.resize(480, 360)
+                host.setParentItem(window.contentItem())
+                window.show()
+                app.processEvents()
+
+                hover_point = host.mapToScene(QPointF(80.0, 44.0))
+                QTest.mouseMove(window, QPoint(round(hover_point.x()), round(hover_point.y())))
+                for _index in range(5):
+                    app.processEvents()
+
+                assert bool(crop_button.property("visible"))
+                assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 1
+
+                surface.setProperty("cropModeActive", True)
+                app.processEvents()
+
+                assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 10
+
+                window.close()
+                host.setParentItem(None)
+                host.deleteLater()
+                window.deleteLater()
+                app.processEvents()
+                engine.deleteLater()
+                app.processEvents()
             """,
         )
 

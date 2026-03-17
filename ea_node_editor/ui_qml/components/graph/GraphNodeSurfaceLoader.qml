@@ -24,9 +24,6 @@ Item {
             return [];
         return loader.item.embeddedInteractiveRects;
     }
-    readonly property var hoverActionHitRect: loader.item && loader.item.hoverActionHitRect
-        ? loader.item.hoverActionHitRect
-        : Qt.rect(0, 0, 0, 0)
 
     function _loadedSurfaceKey(family, _variant) {
         var normalizedFamily = String(family || "standard");
