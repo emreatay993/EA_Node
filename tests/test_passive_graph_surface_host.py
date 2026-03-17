@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
-import subprocess
-import sys
-import textwrap
 import unittest
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+from tests.graph_surface_pointer_regression import (
+    QML_POINTER_REGRESSION_HELPERS,
+    run_qml_probe,
+)
 
 
 class PassiveGraphSurfaceHostTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
-        script = textwrap.dedent(
+        run_qml_probe(
+            self,
+            label,
             """
             from pathlib import Path
 
             from PyQt6.QtCore import QObject, QUrl
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
-            from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
 
             from ea_node_editor.graph.model import GraphModel
@@ -125,56 +124,10 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                         }
                     ],
                 }
-
-            def named_child_items(root, object_name):
-                matches = []
-
-                def visit(item):
-                    if not isinstance(item, QQuickItem):
-                        return
-                    if item.objectName() == object_name:
-                        matches.append(item)
-                    for child in item.childItems():
-                        visit(child)
-
-                visit(root)
-                return matches
-
-            def variant_value(value):
-                return value.toVariant() if hasattr(value, "toVariant") else value
-
-            def variant_list(value):
-                normalized = variant_value(value)
-                if normalized is None:
-                    return []
-                return list(normalized)
-
-            def rect_field(rect, key):
-                normalized = variant_value(rect)
-                if isinstance(normalized, dict):
-                    return float(normalized[key])
-                try:
-                    value = normalized[key]
-                except Exception:
-                    value = getattr(normalized, key)
-                value = variant_value(value)
-                return float(value() if callable(value) else value)
-            """
-        ) + "\n" + textwrap.dedent(body)
-        env = os.environ.copy()
-        env["QT_QPA_PLATFORM"] = "offscreen"
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=_REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
+            """,
+            QML_POINTER_REGRESSION_HELPERS,
+            body,
         )
-        if result.returncode != 0:
-            details = "\n".join(
-                part for part in (result.stdout.strip(), result.stderr.strip()) if part
-            )
-            self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
 
     def test_graph_node_host_loads_standard_surface_for_standard_nodes(self) -> None:
         self._run_qml_probe(
@@ -281,10 +234,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
         self._run_qml_probe(
             "host-body-interactions-below-surface",
             """
-            from PyQt6.QtCore import QPoint, QPointF, Qt
             from PyQt6.QtQml import QQmlProperty
-            from PyQt6.QtQuick import QQuickWindow
-            from PyQt6.QtTest import QTest
 
             payload = node_payload()
             payload["inline_properties"] = []
@@ -306,42 +256,23 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert drag_target.property("objectName") == "graphNodeCard"
             assert drag_target.property("nodeData")["node_id"] == "node_surface_host_test"
 
-            window = QQuickWindow()
-            window.resize(480, 360)
-            host.setParentItem(window.contentItem())
-            window.show()
-            app.processEvents()
+            window = attach_host_to_window(host)
+            body_point = host_scene_point(host, 105.0, 44.0)
+            events = host_pointer_events(host)
 
-            clicked = []
-            opened = []
-            contexts = []
-            host.nodeClicked.connect(lambda node_id, additive: clicked.append((node_id, additive)))
-            host.nodeOpenRequested.connect(lambda node_id: opened.append(node_id))
-            host.nodeContextRequested.connect(lambda node_id, local_x, local_y: contexts.append((node_id, local_x, local_y)))
+            mouse_click(window, body_point)
+            assert events["clicked"] == [("node_surface_host_test", False)]
 
-            body_point = host.mapToScene(QPointF(105.0, 44.0))
-            body_click = QPoint(round(body_point.x()), round(body_point.y()))
+            mouse_double_click(window, body_point)
+            assert events["opened"] == ["node_surface_host_test"]
 
-            QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, body_click)
-            app.processEvents()
-            assert clicked == [("node_surface_host_test", False)]
+            mouse_click(window, body_point, Qt.MouseButton.RightButton)
+            assert len(events["contexts"]) == 1
+            assert events["contexts"][0][0] == "node_surface_host_test"
+            assert abs(float(events["contexts"][0][1]) - 105.0) < 0.5
+            assert abs(float(events["contexts"][0][2]) - 44.0) < 0.5
 
-            QTest.mouseDClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, body_click)
-            app.processEvents()
-            assert opened == ["node_surface_host_test"]
-
-            QTest.mouseClick(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, body_click)
-            app.processEvents()
-            assert len(contexts) == 1
-            assert contexts[0][0] == "node_surface_host_test"
-            assert abs(float(contexts[0][1]) - 105.0) < 0.5
-            assert abs(float(contexts[0][2]) - 44.0) < 0.5
-
-            window.close()
-            host.setParentItem(None)
-            host.deleteLater()
-            window.deleteLater()
-            app.processEvents()
+            dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
             """,
@@ -618,10 +549,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             "media-direct-crop-button",
             """
             import tempfile
-            from PyQt6.QtCore import QPoint, QPointF
             from PyQt6.QtGui import QColor, QImage
-            from PyQt6.QtQuick import QQuickWindow
-            from PyQt6.QtTest import QTest
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 image_path = Path(temp_dir) / "media-hover-action.png"
@@ -651,16 +579,9 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                         break
                 assert str(surface.property("previewState")) == "ready"
 
-                window = QQuickWindow()
-                window.resize(480, 360)
-                host.setParentItem(window.contentItem())
-                window.show()
-                app.processEvents()
+                window = attach_host_to_window(host)
 
-                hover_point = host.mapToScene(QPointF(80.0, 44.0))
-                QTest.mouseMove(window, QPoint(round(hover_point.x()), round(hover_point.y())))
-                for _index in range(5):
-                    app.processEvents()
+                hover_host_local_point(window, host, 80.0, 44.0)
 
                 embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
                 crop_button_rect = crop_button.property("interactiveRect")
@@ -675,11 +596,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 assert abs(rect_field(embedded_rects[0], "width") - rect_field(crop_button_rect, "width")) < 0.5
                 assert abs(rect_field(embedded_rects[0], "height") - rect_field(crop_button_rect, "height")) < 0.5
 
-                window.close()
-                host.setParentItem(None)
-                host.deleteLater()
-                window.deleteLater()
-                app.processEvents()
+                dispose_host_window(host, window)
                 engine.deleteLater()
                 app.processEvents()
             """,

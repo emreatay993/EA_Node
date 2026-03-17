@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
-import subprocess
-import sys
 import tempfile
-import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -17,8 +13,10 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.media_preview_provider import LocalMediaPreviewImageProvider
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
-
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+from tests.graph_surface_pointer_regression import (
+    QML_POINTER_REGRESSION_HELPERS,
+    run_qml_probe,
+)
 
 
 class PassiveImageNodeCatalogTests(unittest.TestCase):
@@ -222,7 +220,9 @@ class PassiveImageNodeCatalogTests(unittest.TestCase):
 
 class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
-        script = textwrap.dedent(
+        run_qml_probe(
+            self,
+            label,
             """
             import tempfile
             from pathlib import Path
@@ -306,20 +306,10 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 if normalized is None:
                     return []
                 return list(normalized)
-            """
-        ) + "\n" + textwrap.dedent(body)
-        env = os.environ.copy()
-        env["QT_QPA_PLATFORM"] = "offscreen"
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=_REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
+            """,
+            QML_POINTER_REGRESSION_HELPERS,
+            body,
         )
-        if result.returncode != 0:
-            details = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
-            self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
 
     def test_graph_node_host_loads_media_surface_family(self) -> None:
         self._run_qml_probe(
@@ -586,10 +576,6 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
         self._run_qml_probe(
             "media-crop-direct-rects",
             """
-            from PyQt6.QtCore import QPoint, QPointF
-            from PyQt6.QtQuick import QQuickWindow
-            from PyQt6.QtTest import QTest
-
             with tempfile.TemporaryDirectory() as temp_dir:
                 image_path = Path(temp_dir) / "direct-rects.png"
                 make_png(image_path, "#2c85bf")
@@ -612,16 +598,9 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 assert surface is not None
                 assert crop_button is not None
 
-                window = QQuickWindow()
-                window.resize(480, 360)
-                host.setParentItem(window.contentItem())
-                window.show()
-                app.processEvents()
+                window = attach_host_to_window(host)
 
-                hover_point = host.mapToScene(QPointF(80.0, 44.0))
-                QTest.mouseMove(window, QPoint(round(hover_point.x()), round(hover_point.y())))
-                for _index in range(5):
-                    app.processEvents()
+                hover_host_local_point(window, host, 80.0, 44.0)
 
                 assert bool(crop_button.property("visible"))
                 assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 1
@@ -631,11 +610,7 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
 
                 assert len(variant_list(surface.property("embeddedInteractiveRects"))) == 10
 
-                window.close()
-                host.setParentItem(None)
-                host.deleteLater()
-                window.deleteLater()
-                app.processEvents()
+                dispose_host_window(host, window)
                 engine.deleteLater()
                 app.processEvents()
             """,

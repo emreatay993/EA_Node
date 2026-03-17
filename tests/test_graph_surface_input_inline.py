@@ -1,27 +1,25 @@
 from __future__ import annotations
 
-import os
-from pathlib import Path
-import subprocess
-import sys
-import textwrap
 import unittest
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
+from tests.graph_surface_pointer_regression import (
+    QML_POINTER_REGRESSION_HELPERS,
+    run_qml_probe,
+)
 
 
 class GraphSurfaceInputInlineTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
-        script = textwrap.dedent(
+        run_qml_probe(
+            self,
+            label,
             """
             from pathlib import Path
             import textwrap
 
-            from PyQt6.QtCore import QEvent, QObject, QPoint, QPointF, Qt, QUrl
+            from PyQt6.QtCore import QEvent, QObject, Qt, QUrl
             from PyQt6.QtGui import QKeyEvent
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
-            from PyQt6.QtQuick import QQuickItem, QQuickWindow
-            from PyQt6.QtTest import QTest
             from PyQt6.QtWidgets import QApplication
 
             from ea_node_editor.ui.media_preview_provider import (
@@ -57,44 +55,6 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                     raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
                 app.processEvents()
                 return obj
-
-            def variant_value(value):
-                return value.toVariant() if hasattr(value, "toVariant") else value
-
-            def variant_list(value):
-                normalized = variant_value(value)
-                if normalized is None:
-                    return []
-                return list(normalized)
-
-            def rect_field(rect, key):
-                normalized = variant_value(rect)
-                if isinstance(normalized, dict):
-                    return float(normalized[key])
-                try:
-                    value = normalized[key]
-                except Exception:
-                    value = getattr(normalized, key)
-                value = variant_value(value)
-                return float(value() if callable(value) else value)
-
-            def walk_items(item):
-                if isinstance(item, QQuickItem):
-                    yield item
-                    for child in item.childItems():
-                        yield from walk_items(child)
-
-            def named_item(root, object_name, property_key=None):
-                for child in walk_items(root):
-                    if child.objectName() != object_name:
-                        continue
-                    if property_key is None or str(child.property("propertyKey")) == property_key:
-                        return child
-                raise AssertionError(f"Missing object {object_name!r} propertyKey={property_key!r}")
-
-            def item_scene_point(item, x_factor=0.5, y_factor=0.5):
-                scene_point = item.mapToScene(QPointF(item.width() * x_factor, item.height() * y_factor))
-                return QPoint(round(scene_point.x()), round(scene_point.y()))
 
             probe_qml = textwrap.dedent(
                 '''
@@ -213,20 +173,10 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                 errors = "\\n".join(error.toString() for error in component.errors())
                 raise AssertionError("Failed to instantiate probe QML:\\n" + errors)
             app.processEvents()
-            """
-        ) + "\n" + textwrap.dedent(body)
-        env = os.environ.copy()
-        env["QT_QPA_PLATFORM"] = "offscreen"
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            cwd=_REPO_ROOT,
-            env=env,
-            capture_output=True,
-            text=True,
+            """,
+            QML_POINTER_REGRESSION_HELPERS,
+            body,
         )
-        if result.returncode != 0:
-            details = "\n".join(part for part in (result.stdout.strip(), result.stderr.strip()) if part)
-            self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
 
     def test_inline_layer_publishes_control_scoped_rects_for_path_and_textarea_editors(self) -> None:
         self._run_qml_probe(
@@ -267,11 +217,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             commits = []
             host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
 
-            window = QQuickWindow()
-            window.resize(520, 420)
-            host.setParentItem(window.contentItem())
-            window.show()
-            app.processEvents()
+            window = attach_host_to_window(host, 520, 420)
 
             textarea.forceActiveFocus()
             app.processEvents()
@@ -311,11 +257,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             app.processEvents()
 
             assert commits == [("node_inline_test", "caption", "Line one again")]
-            window.close()
-            host.setParentItem(None)
-            host.deleteLater()
-            window.deleteLater()
-            app.processEvents()
+            dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
             """,
@@ -335,14 +277,9 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
             canvas_proxy.setProperty("browseResultPath", "/tmp/selected-path.png")
 
-            window = QQuickWindow()
-            window.resize(520, 420)
-            host.setParentItem(window.contentItem())
-            window.show()
-            app.processEvents()
+            window = attach_host_to_window(host, 520, 420)
 
-            QTest.mouseClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, item_scene_point(browse_button))
-            app.processEvents()
+            mouse_click(window, item_scene_point(browse_button))
 
             browse_call = variant_value(canvas_proxy.property("lastBrowseCall"))
             assert browse_call["nodeId"] == "node_inline_test"
@@ -351,11 +288,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert interactions == ["node_inline_test"]
             assert commits == [("node_inline_test", "source_path", "/tmp/selected-path.png")]
 
-            window.close()
-            host.setParentItem(None)
-            host.deleteLater()
-            window.deleteLater()
-            app.processEvents()
+            dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
             """,
