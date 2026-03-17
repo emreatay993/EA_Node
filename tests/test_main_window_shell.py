@@ -1416,6 +1416,8 @@ class MainWindowShellGraphCanvasHostTests(MainWindowShellTestBase):
 
 
 class _SubprocessShellWindowTest(unittest.TestCase):
+    __test__ = False
+
     def __init__(self, target: str) -> None:
         super().__init__(methodName="runTest")
         self._target = target
