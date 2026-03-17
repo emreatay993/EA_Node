@@ -583,10 +583,12 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 resize_area = host.findChild(QObject, "graphNodeResizeDragArea")
                 input_areas = named_child_items(host, "graphNodeInputPortMouseArea")
                 output_areas = named_child_items(host, "graphNodeOutputPortMouseArea")
+                embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
 
                 assert bool(host.property("surfaceInteractionLocked"))
                 assert bool(loader.property("blocksHostInteraction"))
-                assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 0
+                assert host.findChild(QObject, "graphNodeSurfaceHoverActionButton") is None
+                assert len(embedded_rects) == 10
                 assert drag_area is not None
                 assert resize_area is not None
                 assert not bool(drag_area.property("enabled"))
@@ -611,9 +613,9 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_media_surface_keeps_hover_action_shim_aligned_with_embedded_rect_contract(self) -> None:
+    def test_media_surface_publishes_direct_crop_button_rect_without_host_hover_proxy(self) -> None:
         self._run_qml_probe(
-            "media-hover-action-shim",
+            "media-direct-crop-button",
             """
             import tempfile
             from PyQt6.QtCore import QPoint, QPointF
@@ -638,10 +640,10 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
                 surface = host.findChild(QObject, "graphNodeMediaSurface")
                 loader = host.findChild(QObject, "graphNodeSurfaceLoader")
-                shim_button = host.findChild(QObject, "graphNodeSurfaceHoverActionButton")
+                crop_button = host.findChild(QObject, "graphNodeMediaCropButton")
                 assert surface is not None
                 assert loader is not None
-                assert shim_button is not None
+                assert crop_button is not None
 
                 for _index in range(40):
                     app.processEvents()
@@ -660,17 +662,18 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 for _index in range(5):
                     app.processEvents()
 
-                hover_rect = loader.property("hoverActionHitRect")
                 embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
+                crop_button_rect = crop_button.property("interactiveRect")
 
-                assert bool(shim_button.property("visible"))
-                assert rect_field(hover_rect, "width") > 0.0
-                assert rect_field(hover_rect, "height") > 0.0
+                assert host.findChild(QObject, "graphNodeSurfaceHoverActionButton") is None
+                assert loader.metaObject().indexOfProperty("hoverActionHitRect") == -1
+                assert surface.metaObject().indexOfProperty("hoverActionHitRect") == -1
+                assert bool(crop_button.property("visible"))
                 assert len(embedded_rects) == 1
-                assert abs(rect_field(embedded_rects[0], "x") - rect_field(hover_rect, "x")) < 0.5
-                assert abs(rect_field(embedded_rects[0], "y") - rect_field(hover_rect, "y")) < 0.5
-                assert abs(rect_field(embedded_rects[0], "width") - rect_field(hover_rect, "width")) < 0.5
-                assert abs(rect_field(embedded_rects[0], "height") - rect_field(hover_rect, "height")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "x") - rect_field(crop_button_rect, "x")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "y") - rect_field(crop_button_rect, "y")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "width") - rect_field(crop_button_rect, "width")) < 0.5
+                assert abs(rect_field(embedded_rects[0], "height") - rect_field(crop_button_rect, "height")) < 0.5
 
                 window.close()
                 host.setParentItem(None)

@@ -81,24 +81,17 @@ Item {
         && !cropModeActive
         && (host ? host.hoverActive : false)
     readonly property bool inlineEditorsVisible: !!(host && host.isSelected) && !cropModeActive
+    readonly property var cropHandleEmbeddedInteractiveRects: _cropHandleEmbeddedInteractiveRects()
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [
             cropButton.embeddedInteractiveRects,
             inlinePathEditor.embeddedInteractiveRects,
-            inlineCaptionEditor.embeddedInteractiveRects
+            inlineCaptionEditor.embeddedInteractiveRects,
+            cropApplyButton.embeddedInteractiveRects,
+            cropCancelButton.embeddedInteractiveRects,
+            cropHandleEmbeddedInteractiveRects
         ]
     )
-    readonly property rect hoverActionHitRect: {
-        var rectLike = cropButton.interactiveRect;
-        if (!rectLike)
-            return Qt.rect(0, 0, 0, 0);
-        return Qt.rect(
-            Number(rectLike.x || 0),
-            Number(rectLike.y || 0),
-            Number(rectLike.width || 0),
-            Number(rectLike.height || 0)
-        );
-    }
     readonly property real cropHandleSize: 12
     readonly property real cropHandleHitSlop: 8
     readonly property var cropDisplayRect: _containRect(
@@ -388,6 +381,23 @@ Item {
         };
     }
 
+    function _cropHandleEmbeddedInteractiveRects() {
+        var frameX = Number(draftDisplayCropRect.x || 0);
+        var frameY = Number(draftDisplayCropRect.y || 0);
+        var frameWidth = Number(draftDisplayCropRect.width || 0);
+        var frameHeight = Number(draftDisplayCropRect.height || 0);
+        if (!cropModeActive || !cropToolAvailable || !(frameWidth > 0) || !(frameHeight > 0))
+            return [];
+        var rectLists = [];
+        for (var index = 0; index < cropHandleRepeater.count; index++) {
+            var handleItem = cropHandleRepeater.itemAt(index);
+            if (!handleItem || handleItem.embeddedInteractiveRects === undefined || handleItem.embeddedInteractiveRects === null)
+                continue;
+            rectLists.push(handleItem.embeddedInteractiveRects);
+        }
+        return SurfaceControlGeometry.combineRectLists(rectLists);
+    }
+
     function _iconSource(name, size, color) {
         if (typeof uiIcons === "undefined" || !uiIcons || !uiIcons.has(name))
             return "";
@@ -635,7 +645,6 @@ Item {
         iconSourceResolver: function(name, size, color) {
             return surface._iconSource(name, size, color);
         }
-        externalHover: host ? Boolean(host.surfaceHoverActionHovered) : false
         accentColor: "#4DA8DA"
         foregroundColor: surface.cropButtonIconColor
         baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
@@ -648,6 +657,7 @@ Item {
             : 6
         implicitWidth: 28
         text: ""
+        onControlStarted: surface._beginInlineInteraction()
         onClicked: surface.triggerHoverAction()
     }
 
@@ -866,6 +876,7 @@ Item {
                     }
 
                     Repeater {
+                        id: cropHandleRepeater
                         model: [
                             "top_left",
                             "top",
@@ -886,17 +897,28 @@ Item {
                             property real startCropY: 0
                             property real startCropW: 1
                             property real startCropH: 1
+                            readonly property var embeddedInteractiveRects: handleInteractiveRegion.embeddedInteractiveRects
                             width: surface.cropHandleSize
                             height: surface.cropHandleSize
                             radius: 3
                             z: 4
+                            visible: surface.cropModeActive && surface.cropToolAvailable
                             color: surface.cropHandleFillColor
                             border.width: 2
                             border.color: surface.cropHandleBorderColor
                             x: surface._handleX(handleId, surface.draftDisplayCropRect, width)
                             y: surface._handleY(handleId, surface.draftDisplayCropRect, height)
 
+                            GraphSurfaceControls.GraphSurfaceInteractiveRegion {
+                                id: handleInteractiveRegion
+                                host: surface.host
+                                targetItem: handleMouseArea
+                                enabled: parent.visible
+                                onControlStarted: surface._beginInlineInteraction()
+                            }
+
                             MouseArea {
+                                id: handleMouseArea
                                 objectName: "graphNodeMediaCropHandleMouseArea"
                                 property string handleId: parent.handleId
                                 x: -surface.cropHandleHitSlop
@@ -918,6 +940,7 @@ Item {
                                 }
 
                                 onPressed: function(mouse) {
+                                    handleInteractiveRegion.beginControl();
                                     surface.activeCropHandle = handleId;
                                     surface.hoveredCropHandle = handleId;
                                     var gp = mapToGlobal(mouse.x, mouse.y);
@@ -967,22 +990,30 @@ Item {
                         z: 5
 
                         GraphSurfaceControls.GraphSurfaceButton {
+                            id: cropApplyButton
                             objectName: "graphNodeMediaCropApplyButton"
                             host: surface.host
+                            visible: surface.cropModeActive && surface.cropToolAvailable
+                            enabled: visible
                             text: "Apply"
                             foregroundColor: surface.cropButtonIconColor
                             baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
                             baseBorderColor: Qt.alpha(surface.panelBorderColor, 0.82)
+                            onControlStarted: surface._beginInlineInteraction()
                             onClicked: surface._applyCropEdit()
                         }
 
                         GraphSurfaceControls.GraphSurfaceButton {
+                            id: cropCancelButton
                             objectName: "graphNodeMediaCropCancelButton"
                             host: surface.host
+                            visible: surface.cropModeActive && surface.cropToolAvailable
+                            enabled: visible
                             text: "Cancel"
                             foregroundColor: surface.cropButtonIconColor
                             baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
                             baseBorderColor: Qt.alpha(surface.panelBorderColor, 0.82)
+                            onControlStarted: surface._beginInlineInteraction()
                             onClicked: surface._cancelCropEdit()
                         }
                     }

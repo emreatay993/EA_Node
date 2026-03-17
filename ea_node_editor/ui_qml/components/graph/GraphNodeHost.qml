@@ -384,13 +384,8 @@ Item {
         return false;
     }
 
-    function _pointInHoverAction(localX, localY) {
-        return card._pointInRect(localX, localY, surfaceLoader.hoverActionHitRect);
-    }
-
     function _surfaceClaimsBodyInteractionAt(localX, localY) {
-        return card._pointInEmbeddedInteractiveRect(localX, localY)
-            || card._pointInHoverAction(localX, localY);
+        return card._pointInEmbeddedInteractiveRect(localX, localY);
     }
 
     HoverHandler {
@@ -398,7 +393,6 @@ Item {
     }
 
     readonly property bool hoverActive: cardHoverHandler.hovered || nodeDragArea.containsMouse || resizeDragArea.containsMouse
-    readonly property bool surfaceHoverActionHovered: surfaceHoverActionArea.visible && Boolean(surfaceHoverActionArea.hovered)
 
     z: card.isSelected ? 30 : 20
     x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
@@ -583,34 +577,6 @@ Item {
             font.pixelSize: 9
             font.bold: true
             renderType: card.nodeTextRenderType
-        }
-    }
-
-    Button {
-        id: surfaceHoverActionArea
-        objectName: "graphNodeSurfaceHoverActionButton"
-        z: 6
-        visible: !card.surfaceInteractionLocked
-            && Number(surfaceLoader.hoverActionHitRect.width || 0) > 0
-            && Number(surfaceLoader.hoverActionHitRect.height || 0) > 0
-        enabled: visible
-        x: Number(surfaceLoader.hoverActionHitRect.x || 0)
-        y: Number(surfaceLoader.hoverActionHitRect.y || 0)
-        width: Number(surfaceLoader.hoverActionHitRect.width || 0)
-        height: Number(surfaceLoader.hoverActionHitRect.height || 0)
-        opacity: 0.0
-        hoverEnabled: true
-        focusPolicy: Qt.NoFocus
-        padding: 0
-
-        contentItem: Item {
-        }
-
-        background: Item {
-        }
-
-        onClicked: {
-            surfaceLoader.triggerHoverAction();
         }
     }
 

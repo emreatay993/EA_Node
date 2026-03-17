@@ -57,6 +57,13 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         scene_point = item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5))
         return QPoint(round(scene_point.x()), round(scene_point.y()))
 
+    def _item_widget_center(self, item: QQuickItem) -> QPoint:
+        item_window = item.window()
+        self.assertIsNotNone(item_window)
+        scene_point = self._item_scene_center(item)
+        global_point = item_window.mapToGlobal(scene_point)
+        return self.window.quick_widget.mapFromGlobal(global_point)
+
     def _wait_for_media_preview(self, surface: QQuickItem, timeout_ms: int = 2000) -> None:
         attempts = max(1, timeout_ms // 25)
         for _ in range(attempts):
@@ -211,9 +218,10 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
             {"source_path", "caption", "fit_mode"},
         )
 
-    def test_image_panel_crop_hover_action_button_triggers_crop_mode(self) -> None:
+    def test_image_panel_crop_button_click_does_not_start_host_drag(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
-        self.window.scene.focus_node(node_id)
+        other_node_id = self.window.scene.add_node_from_type("core.start", x=420.0, y=80.0)
 
         image_path = Path(self._env.temp_path) / "clickable-crop-button.png"
         image = QImage(40, 20, QImage.Format.Format_ARGB32)
@@ -221,20 +229,36 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.assertTrue(image.save(str(image_path)))
 
         self.window.scene.set_node_property(node_id, "source_path", str(image_path))
+        self.window.scene.focus_node(other_node_id)
         self.app.processEvents()
 
         card = self._graph_node_card(node_id)
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
-        hover_action_button = self._graph_node_child(node_id, "graphNodeSurfaceHoverActionButton")
+        crop_button = self._graph_node_child(node_id, "graphNodeMediaCropButton")
+        workspace = self.window.model.project.workspaces[workspace_id]
+        initial_x = float(workspace.nodes[node_id].x)
+        initial_y = float(workspace.nodes[node_id].y)
+        nodes_changed: list[str] = []
+        self.window.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
+
         self.assertFalse(bool(surface.property("cropModeActive")))
+        self.assertNotEqual(self.window.scene.selected_node_id(), node_id)
 
-        QTest.mouseMove(self.window.quick_widget, self._item_scene_center(card))
+        QTest.mouseMove(self.window.quick_widget, self._item_widget_center(card))
         self.app.processEvents()
-        self.assertTrue(bool(hover_action_button.property("visible")))
+        self.assertTrue(bool(crop_button.property("visible")))
 
-        QMetaObject.invokeMethod(hover_action_button, "click")
+        nodes_count_before = len(nodes_changed)
+        QMetaObject.invokeMethod(crop_button, "click")
         self.app.processEvents()
+
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        node = workspace.nodes[node_id]
+        self.assertEqual(len(nodes_changed), nodes_count_before)
+        self.assertEqual(self.window.scene.selected_node_id(), node_id)
         self.assertTrue(bool(surface.property("cropModeActive")))
+        self.assertAlmostEqual(float(node.x), initial_x, places=6)
+        self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
     def test_image_panel_crop_apply_closes_when_crop_is_unchanged(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -275,39 +299,70 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
         self.assertAlmostEqual(float(node.properties["crop_h"]), 0.6)
 
-    def test_image_panel_crop_hover_action_selects_unselected_node_without_rebuild(self) -> None:
+    def test_image_panel_crop_apply_and_cancel_clicks_bypass_host_drag(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
-        other_node_id = self.window.scene.add_node_from_type("core.start", x=420.0, y=80.0)
+        self.window.scene.focus_node(node_id)
 
-        image_path = Path(self._env.temp_path) / "unselected-crop-button.png"
+        image_path = Path(self._env.temp_path) / "apply-cancel-crop-button.png"
         image = QImage(40, 20, QImage.Format.Format_ARGB32)
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(image_path)))
 
         self.window.scene.set_node_property(node_id, "source_path", str(image_path))
-        self.window.scene.focus_node(other_node_id)
         self.app.processEvents()
 
-        card = self._graph_node_card(node_id)
         surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
-        hover_action_button = self._graph_node_child(node_id, "graphNodeSurfaceHoverActionButton")
+        self._wait_for_media_preview(surface)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        initial_x = float(workspace.nodes[node_id].x)
+        initial_y = float(workspace.nodes[node_id].y)
+
+        surface.setProperty("cropModeActive", True)
+        surface.setProperty("draftCropX", 0.1)
+        surface.setProperty("draftCropY", 0.2)
+        surface.setProperty("draftCropW", 0.5)
+        surface.setProperty("draftCropH", 0.6)
+        self.app.processEvents()
+
+        apply_button = self._graph_node_child(node_id, "graphNodeMediaCropApplyButton")
+        self.assertTrue(bool(apply_button.property("visible")))
+
+        QMetaObject.invokeMethod(apply_button, "click")
+        self.app.processEvents()
+
+        node = workspace.nodes[node_id]
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
         self.assertFalse(bool(surface.property("cropModeActive")))
-        self.assertNotEqual(self.window.scene.selected_node_id(), node_id)
+        self.assertAlmostEqual(float(node.properties["crop_x"]), 0.1)
+        self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
+        self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
+        self.assertAlmostEqual(float(node.properties["crop_h"]), 0.6)
+        self.assertAlmostEqual(float(node.x), initial_x, places=6)
+        self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
-        nodes_changed: list[str] = []
-        self.window.scene.nodes_changed.connect(lambda: nodes_changed.append("nodes"))
-
-        QTest.mouseMove(self.window.quick_widget, self._item_scene_center(card))
+        surface.setProperty("cropModeActive", True)
+        surface.setProperty("draftCropX", 0.2)
+        surface.setProperty("draftCropY", 0.1)
+        surface.setProperty("draftCropW", 0.4)
+        surface.setProperty("draftCropH", 0.7)
         self.app.processEvents()
-        self.assertTrue(bool(hover_action_button.property("visible")))
 
-        nodes_count_before = len(nodes_changed)
-        QMetaObject.invokeMethod(hover_action_button, "click")
+        cancel_button = self._graph_node_child(node_id, "graphNodeMediaCropCancelButton")
+        self.assertTrue(bool(cancel_button.property("visible")))
+
+        QMetaObject.invokeMethod(cancel_button, "click")
         self.app.processEvents()
 
-        self.assertEqual(len(nodes_changed), nodes_count_before)
-        self.assertEqual(self.window.scene.selected_node_id(), node_id)
-        self.assertTrue(bool(surface.property("cropModeActive")))
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        node = workspace.nodes[node_id]
+        self.assertFalse(bool(surface.property("cropModeActive")))
+        self.assertAlmostEqual(float(node.properties["crop_x"]), 0.1)
+        self.assertAlmostEqual(float(node.properties["crop_y"]), 0.2)
+        self.assertAlmostEqual(float(node.properties["crop_w"]), 0.5)
+        self.assertAlmostEqual(float(node.properties["crop_h"]), 0.6)
+        self.assertAlmostEqual(float(node.x), initial_x, places=6)
+        self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
     def test_image_panel_crop_handles_report_expected_cursor_and_hover(self) -> None:
         node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
