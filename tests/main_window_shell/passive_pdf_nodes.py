@@ -4,9 +4,10 @@ import gc
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtCore import QMarginsF, QMetaObject, QRectF
+from PyQt6.QtCore import QMarginsF, QMetaObject, QPoint, QPointF, QRectF, Qt
 from PyQt6.QtGui import QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtQuick import QQuickItem
+from PyQt6.QtTest import QTest
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
 
@@ -31,6 +32,39 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         yield item
         for child in item.childItems():
             yield from self._walk_items(child)
+
+    def _graph_node_card(self, node_id: str) -> QQuickItem:
+        graph_canvas = self._graph_canvas_item()
+        for item in self._walk_items(graph_canvas):
+            if item.objectName() != "graphNodeCard":
+                continue
+            node_data = item.property("nodeData") or {}
+            if str(node_data.get("node_id", "")) == node_id:
+                return item
+        self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
+
+    def _graph_node_child_with_property(
+        self,
+        node_id: str,
+        object_name: str,
+        property_name: str,
+        expected_value: str,
+    ) -> QQuickItem:
+        card = self._graph_node_card(node_id)
+        for item in self._walk_items(card):
+            if item.objectName() != object_name:
+                continue
+            if str(item.property(property_name)) == expected_value:
+                return item
+        self.fail(
+            f"Could not find {object_name!r} for node {node_id!r} "
+            f"with {property_name!r}={expected_value!r}."
+        )
+
+    @staticmethod
+    def _item_scene_center(item: QQuickItem) -> QPoint:
+        scene_point = item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5))
+        return QPoint(round(scene_point.x()), round(scene_point.y()))
 
     def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
         root_object = self.window.quick_widget.rootObject()
@@ -83,6 +117,47 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         self.assertEqual(str(path_editor.property("text")), str(picked_path))
         self.assertEqual(preview_info["state"], "ready")
         self.assertEqual(preview_info["page_count"], 2)
+
+    def test_pdf_panel_inline_path_editor_commits_without_node_drag(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("passive.media.pdf_panel", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        picked_path = Path(self._env.temp_path) / "graph-inline-picked.pdf"
+        _write_pdf(picked_path, page_count=2)
+
+        path_editor = self._graph_node_child_with_property(
+            node_id,
+            "graphNodeInlinePathEditor",
+            "propertyKey",
+            "source_path",
+        )
+        browse_button = self._graph_node_child_with_property(
+            node_id,
+            "graphNodeInlinePathBrowseButton",
+            "propertyKey",
+            "source_path",
+        )
+        self.assertTrue(bool(path_editor.property("visible")))
+        self.assertTrue(bool(browse_button.property("visible")))
+        workspace = self.window.model.project.workspaces[workspace_id]
+        initial_x = float(workspace.nodes[node_id].x)
+        initial_y = float(workspace.nodes[node_id].y)
+
+        with patch("ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName", return_value=(str(picked_path), "")):
+            QMetaObject.invokeMethod(browse_button, "click")
+            self.app.processEvents()
+
+        node = workspace.nodes[node_id]
+        preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
+        self.assertEqual(self.window.scene.selected_node_id(), node_id)
+        self.assertEqual(node.properties["source_path"], str(picked_path))
+        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertEqual(preview_info["state"], "ready")
+        self.assertEqual(preview_info["page_count"], 2)
+        self.assertAlmostEqual(float(node.x), initial_x, places=6)
+        self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
     def test_pdf_panel_out_of_range_page_is_rewritten_after_pdf_resolves(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

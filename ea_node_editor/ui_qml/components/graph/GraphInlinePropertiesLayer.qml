@@ -9,6 +9,7 @@ Item {
     objectName: "graphInlinePropertiesLayer"
     property Item host: null
     readonly property var inlineProperties: host ? host.inlineProperties : []
+    readonly property real _textareaRowHeight: 104
     readonly property real _interactiveRectGeometryKey: {
         var total = inlinePropertyRepeater.count;
         total += inlineControlsColumn.x + inlineControlsColumn.y + inlineControlsColumn.width + inlineControlsColumn.height;
@@ -19,6 +20,14 @@ Item {
             total += row.x + row.y + row.width + row.height;
             total += row.childrenRect.x + row.childrenRect.y + row.childrenRect.width + row.childrenRect.height;
             total += row.visible ? 1 : 0;
+            var rectList = row.currentInteractiveRectList();
+            for (var rectIndex = 0; rectIndex < rectList.length; rectIndex++) {
+                var rect = rectList[rectIndex];
+                total += Number(rect.x || 0)
+                    + Number(rect.y || 0)
+                    + Number(rect.width || 0)
+                    + Number(rect.height || 0);
+            }
         }
         return total;
     }
@@ -37,6 +46,12 @@ Item {
     function _commitInlineProperty(key, value) {
         if (host && host.nodeData)
             host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), key, value);
+    }
+
+    function _rowHeightFor(modelData) {
+        if (modelData && modelData.inline_editor === "textarea")
+            return root._textareaRowHeight;
+        return host ? host._inlineRowHeight : 26;
     }
 
     function _embeddedInteractiveRects() {
@@ -71,14 +86,19 @@ Item {
             delegate: Rectangle {
                 id: inlineRow
                 width: inlineControlsColumn.width
-                height: host ? host._inlineRowHeight : 26
+                height: root._rowHeightFor(modelData)
                 radius: 4
                 color: host ? host.inlineRowColor : "#24262c"
                 border.color: host ? host.inlineRowBorderColor : "#4a4f5a"
                 function currentInteractiveRectList() {
-                    return SurfaceControlGeometry.collectVisibleItemRects(
-                        [toggleEditor, enumEditor, valueEditor],
-                        root.host
+                    return SurfaceControlGeometry.combineRectLists(
+                        [
+                            toggleEditor.embeddedInteractiveRects,
+                            enumEditor.embeddedInteractiveRects,
+                            valueEditor.embeddedInteractiveRects,
+                            pathEditor.embeddedInteractiveRects,
+                            textareaEditor.embeddedInteractiveRects
+                        ]
                     );
                 }
 
@@ -90,6 +110,9 @@ Item {
 
                     Text {
                         Layout.preferredWidth: 78
+                        Layout.alignment: modelData.inline_editor === "textarea"
+                            ? Qt.AlignTop
+                            : Qt.AlignVCenter
                         text: String(modelData.label || modelData.key || "")
                         color: host ? host.inlineLabelColor : "#d0d5de"
                         font.pixelSize: 10
@@ -145,6 +168,45 @@ Item {
                         }
                         onEditingFinished: {
                             root._commitInlineProperty(modelData.key, text);
+                        }
+                    }
+
+                    SurfaceControls.GraphSurfacePathEditor {
+                        id: pathEditor
+                        visible: modelData.inline_editor === "path"
+                        Layout.fillWidth: true
+                        enabled: !modelData.overridden_by_input
+                        host: root.host
+                        propertyKey: String(modelData.key || "")
+                        committedText: host ? host.inlineEditorText(modelData) : ""
+                        fieldObjectName: "graphNodeInlinePathEditor"
+                        browseButtonObjectName: "graphNodeInlinePathBrowseButton"
+                        browsePathResolver: function(currentPath) {
+                            if (!host || !host.browseNodePropertyPath)
+                                return "";
+                            return host.browseNodePropertyPath(modelData.key, currentPath);
+                        }
+                        onControlStarted: root._beginInteraction()
+                        onCommitRequested: function(value) {
+                            root._commitInlineProperty(modelData.key, value);
+                        }
+                    }
+
+                    SurfaceControls.GraphSurfaceTextareaEditor {
+                        id: textareaEditor
+                        visible: modelData.inline_editor === "textarea"
+                        Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
+                        enabled: !modelData.overridden_by_input
+                        host: root.host
+                        propertyKey: String(modelData.key || "")
+                        committedText: host ? host.inlineEditorText(modelData) : ""
+                        fieldObjectName: "graphNodeInlineTextareaEditor"
+                        applyButtonObjectName: "graphNodeInlineTextareaApplyButton"
+                        resetButtonObjectName: "graphNodeInlineTextareaResetButton"
+                        onControlStarted: root._beginInteraction()
+                        onCommitRequested: function(value) {
+                            root._commitInlineProperty(modelData.key, value);
                         }
                     }
 

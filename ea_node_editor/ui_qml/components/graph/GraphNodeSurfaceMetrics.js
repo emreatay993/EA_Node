@@ -10,6 +10,7 @@ var STANDARD_HEADER_TOP_MARGIN = 4.0;
 var STANDARD_BODY_TOP = 30.0;
 var STANDARD_PORT_HEIGHT = 18.0;
 var STANDARD_INLINE_ROW_HEIGHT = 26.0;
+var STANDARD_INLINE_TEXTAREA_ROW_HEIGHT = 104.0;
 var STANDARD_INLINE_ROW_SPACING = 4.0;
 var STANDARD_INLINE_SECTION_PADDING = 8.0;
 var STANDARD_PORT_CENTER_OFFSET = 6.0;
@@ -48,7 +49,14 @@ function inlineBodyHeight(node) {
     var count = inlineProperties.length;
     if (count <= 0)
         return 0.0;
-    return 8.0 + count * 26.0 + Math.max(0, count - 1) * 4.0;
+    var rowHeight = 0.0;
+    for (var i = 0; i < inlineProperties.length; i++) {
+        var propertyItem = inlineProperties[i];
+        rowHeight += String(propertyItem && propertyItem.inline_editor || "").toLowerCase() === "textarea"
+            ? STANDARD_INLINE_TEXTAREA_ROW_HEIGHT
+            : STANDARD_INLINE_ROW_HEIGHT;
+    }
+    return STANDARD_INLINE_SECTION_PADDING + rowHeight + Math.max(0, count - 1) * STANDARD_INLINE_ROW_SPACING;
 }
 
 function _visiblePortCounts(node) {

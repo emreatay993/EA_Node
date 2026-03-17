@@ -80,7 +80,14 @@ Item {
     readonly property bool cropButtonVisible: cropToolAvailable
         && !cropModeActive
         && (host ? host.hoverActive : false)
-    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(cropButton.interactiveRect)
+    readonly property bool inlineEditorsVisible: !!(host && host.isSelected) && !cropModeActive
+    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
+        [
+            cropButton.embeddedInteractiveRects,
+            inlinePathEditor.embeddedInteractiveRects,
+            inlineCaptionEditor.embeddedInteractiveRects
+        ]
+    )
     readonly property rect hoverActionHitRect: {
         var rectLike = cropButton.interactiveRect;
         if (!rectLike)
@@ -229,6 +236,22 @@ Item {
         if (value === undefined || value === null)
             return "";
         return String(value);
+    }
+
+    function _beginInlineInteraction() {
+        if (host && host.nodeData)
+            host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
+    }
+
+    function _commitInlineProperty(key, value) {
+        if (host && host.nodeData)
+            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), key, value);
+    }
+
+    function _browseInlinePropertyPath(key, currentPath) {
+        if (!host || !host.browseNodePropertyPath)
+            return "";
+        return String(host.browseNodePropertyPath(key, currentPath) || "");
     }
 
     function _numberValue(key, fallback) {
@@ -684,6 +707,29 @@ Item {
             Item {
                 anchors.fill: parent
 
+                GraphSurfaceControls.GraphSurfacePathEditor {
+                    id: inlinePathEditor
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 8
+                    z: 4
+                    visible: surface.inlineEditorsVisible
+                    enabled: visible
+                    host: surface.host
+                    propertyKey: "source_path"
+                    committedText: surface.sourcePath
+                    fieldObjectName: "graphNodeInlinePathEditor"
+                    browseButtonObjectName: "graphNodeInlinePathBrowseButton"
+                    browsePathResolver: function(currentPath) {
+                        return surface._browseInlinePropertyPath("source_path", currentPath);
+                    }
+                    onControlStarted: surface._beginInlineInteraction()
+                    onCommitRequested: function(value) {
+                        surface._commitInlineProperty("source_path", value);
+                    }
+                }
+
                 Image {
                     id: sourceImageProbe
                     visible: false
@@ -1023,6 +1069,27 @@ Item {
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
                 }
+
+                GraphSurfaceControls.GraphSurfaceTextareaEditor {
+                    id: inlineCaptionEditor
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.margins: 8
+                    z: 4
+                    visible: surface.inlineEditorsVisible
+                    enabled: visible
+                    host: surface.host
+                    propertyKey: "caption"
+                    committedText: surface.captionText
+                    fieldObjectName: "graphNodeInlineTextareaEditor"
+                    applyButtonObjectName: "graphNodeInlineTextareaApplyButton"
+                    resetButtonObjectName: "graphNodeInlineTextareaResetButton"
+                    onControlStarted: surface._beginInlineInteraction()
+                    onCommitRequested: function(value) {
+                        surface._commitInlineProperty("caption", value);
+                    }
+                }
             }
         }
 
@@ -1030,7 +1097,7 @@ Item {
             id: captionBlock
             objectName: "graphNodeMediaCaption"
             property int effectiveRenderType: renderType
-            visible: surface.captionVisible
+            visible: surface.captionVisible && !surface.inlineEditorsVisible
             width: parent.width
             text: surface.captionText
             color: surface.captionTextColor

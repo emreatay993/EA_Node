@@ -22,6 +22,7 @@ STANDARD_HEADER_TOP_MARGIN = 4.0
 STANDARD_BODY_TOP = 30.0
 STANDARD_PORT_HEIGHT = 18.0
 STANDARD_INLINE_ROW_HEIGHT = 26.0
+STANDARD_INLINE_TEXTAREA_ROW_HEIGHT = 104.0
 STANDARD_INLINE_ROW_SPACING = 4.0
 STANDARD_INLINE_SECTION_PADDING = 8.0
 STANDARD_PORT_CENTER_OFFSET = 6.0
@@ -408,13 +409,21 @@ _MEDIA_VARIANT_LAYOUTS: dict[str, _MediaPanelLayout] = {
 
 
 def standard_inline_body_height(spec: NodeTypeSpec) -> float:
-    inline_count = len(inline_property_specs(spec))
-    if inline_count <= 0:
+    inline_specs = inline_property_specs(spec)
+    if len(inline_specs) <= 0:
         return 0.0
+    row_height = 0.0
+    for property_spec in inline_specs:
+        editor = str(property_spec.inline_editor or "").strip().lower()
+        row_height += (
+            STANDARD_INLINE_TEXTAREA_ROW_HEIGHT
+            if editor == "textarea"
+            else STANDARD_INLINE_ROW_HEIGHT
+        )
     return (
         STANDARD_INLINE_SECTION_PADDING
-        + inline_count * STANDARD_INLINE_ROW_HEIGHT
-        + max(0, inline_count - 1) * STANDARD_INLINE_ROW_SPACING
+        + row_height
+        + max(0, len(inline_specs) - 1) * STANDARD_INLINE_ROW_SPACING
     )
 
 
