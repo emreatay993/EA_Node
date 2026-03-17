@@ -4,7 +4,7 @@
 
 - Packet: `P05`
 - Branch Label: `codex/verification-speed/p05-docs-traceability`
-- Commit Owner: `Codex`
+- Commit Owner: `worker`
 - Commit SHA: `e32921986d5585a6ddd3d03cebbc9427cd6f9ba6`
 - Changed Files: `.gitignore`, `README.md`, `docs/GETTING_STARTED.md`, `docs/specs/requirements/90_QA_ACCEPTANCE.md`, `docs/specs/requirements/TRACEABILITY_MATRIX.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`
 - Artifacts Produced: `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, `docs/specs/work_packets/verification_speed/P05_docs_traceability_WRAPUP.md`
@@ -41,4 +41,4 @@ Ready for manual testing
 
 ## Ready for Integration
 
-Yes: the packet stays inside the allowed documentation scope, the new QA matrix is tracked explicitly, the shell isolation rules and baseline caveats are documented in the canonical QA pack, and both packet verification commands plus the review gate passed.
+- Yes: the packet stays inside the allowed documentation scope, the new QA matrix is tracked explicitly, the shell isolation rules and baseline caveats are documented in the canonical QA pack, and both packet verification commands plus the review gate passed.
