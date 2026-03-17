@@ -47,10 +47,11 @@
 - `scripts/run_verification.py` applies `QT_QPA_PLATFORM=offscreen` to its
   child verification commands, so the top-level runner invocations do not need
   extra environment variables.
-- `pytest-xdist` is declared in `pyproject.toml` and `requirements.txt`, but it
-  was not installed in the project venv on `2026-03-17`. `fast` mode therefore
-  falls back to serial pytest and prints the runner notice instead of adding
-  `-n auto`.
+- `pytest-xdist` is declared in `pyproject.toml` and `requirements.txt`, and it
+  is installed in the project venv as of `2026-03-17`. `fast` mode therefore
+  uses `-n auto` on this machine. If the plugin is unavailable in another
+  environment, `scripts/run_verification.py` still falls back to serial pytest
+  and prints the runner notice.
 
 ## Known Baseline Caveats
 
@@ -66,4 +67,4 @@
 
 | Command | Result | Notes |
 |---|---|---|
-| `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated the `fast`, `gui`, `slow`, and isolated shell-wrapper phases; each pytest phase included all four `--ignore=` entries, and the fast phase printed the serial fallback notice because `pytest-xdist` is not installed in the current project venv |
+| `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated the `fast`, `gui`, `slow`, and isolated shell-wrapper phases; each pytest phase included all four `--ignore=` entries, and the fast phase now emits `-n auto` because `pytest-xdist` is installed in the current project venv |
