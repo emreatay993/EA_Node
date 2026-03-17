@@ -9,6 +9,7 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
+from tests.qt_wait import wait_for_condition_or_raise
 
 
 class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
@@ -65,13 +66,13 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         return self.window.quick_widget.mapFromGlobal(global_point)
 
     def _wait_for_media_preview(self, surface: QQuickItem, timeout_ms: int = 2000) -> None:
-        attempts = max(1, timeout_ms // 25)
-        for _ in range(attempts):
-            self.app.processEvents()
-            if str(surface.property("previewState")) == "ready":
-                return
-            QTest.qWait(25)
-        self.fail("Timed out waiting for media preview to become ready.")
+        wait_for_condition_or_raise(
+            lambda: str(surface.property("previewState")) == "ready",
+            timeout_ms=timeout_ms,
+            poll_interval_ms=25,
+            app=self.app,
+            timeout_message="Timed out waiting for media preview to become ready.",
+        )
 
     def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
         root_object = self.window.quick_widget.rootObject()

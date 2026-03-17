@@ -484,7 +484,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
         self._run_qml_probe(
             "graph-canvas-shadow-quality",
             """
-            from PyQt6.QtTest import QTest
+            from tests.qt_wait import wait_for_condition_or_raise
 
             model = GraphModel()
             registry = build_default_registry()
@@ -523,8 +523,16 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert not bool(canvas.property("highQualityRendering"))
             assert not bool(shadow_item.property("visible"))
 
-            QTest.qWait(190)
-            app.processEvents()
+            wait_for_condition_or_raise(
+                lambda: (
+                    not bool(canvas.property("interactionActive"))
+                    and bool(canvas.property("highQualityRendering"))
+                    and bool(shadow_item.property("visible"))
+                ),
+                timeout_ms=190,
+                app=app,
+                timeout_message="Timed out waiting for wheel-zoom rendering quality to recover.",
+            )
             assert not bool(canvas.property("interactionActive"))
             assert bool(canvas.property("highQualityRendering"))
             assert bool(shadow_item.property("visible"))

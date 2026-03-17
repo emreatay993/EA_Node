@@ -1,24 +1,14 @@
 from __future__ import annotations
 
-import time
 from unittest.mock import patch
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
+from tests.qt_wait import wait_for_condition_or_raise
 from PyQt6.QtCore import QObject, QMetaObject
 from PyQt6.QtQml import QJSValue
-from PyQt6.QtTest import QTest
 
 
 class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
-    def _wait_for_pane_width(self, pane: QObject, predicate, *, timeout_ms: int = 2500) -> None:  # noqa: ANN001
-        deadline = time.monotonic() + timeout_ms / 1000.0
-        while time.monotonic() < deadline:
-            self.app.processEvents()
-            if predicate(float(pane.property("width"))):
-                return
-            QTest.qWait(20)
-        self.fail(f"Pane width did not satisfy predicate within {timeout_ms}ms: {pane.property('width')}")
-
     def _inspector_object(self, name: str) -> QObject:
         root_object = self.window.quick_widget.rootObject()
         self.assertIsNotNone(root_object)
@@ -38,12 +28,28 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
         for pane in (library_pane, inspector_pane):
             self.assertFalse(bool(pane.property("paneCollapsed")))
             QMetaObject.invokeMethod(pane, "collapsePane")
-            self._wait_for_pane_width(pane, lambda width: width <= 1.0)
+            wait_for_condition_or_raise(
+                lambda pane=pane: float(pane.property("width")) <= 1.0,
+                timeout_ms=2500,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message=lambda pane=pane: (
+                    f"Pane width did not satisfy predicate within 2500ms: {pane.property('width')}"
+                ),
+            )
             self.assertTrue(bool(pane.property("paneCollapsed")))
             self.assertLessEqual(float(pane.property("width")), 1.0)
 
             QMetaObject.invokeMethod(pane, "expandPane")
-            self._wait_for_pane_width(pane, lambda width: width > 200.0)
+            wait_for_condition_or_raise(
+                lambda pane=pane: float(pane.property("width")) > 200.0,
+                timeout_ms=2500,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message=lambda pane=pane: (
+                    f"Pane width did not satisfy predicate within 2500ms: {pane.property('width')}"
+                ),
+            )
             self.assertFalse(bool(pane.property("paneCollapsed")))
             self.assertGreater(float(pane.property("width")), 200.0)
 
@@ -717,16 +723,35 @@ class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
         self.window.workspace_manager.create_workspace("Second")
         self.window.workspace_manager.create_workspace("Third")
         self.window._refresh_workspace_tabs()
-        QTest.qWait(150)
-        self.app.processEvents()
 
         strip = self._inspector_object("workspaceControlsStrip")
-        slots = strip.property("tabSlots")
-        if isinstance(slots, QJSValue):
-            slots = slots.toVariant()
-        self.assertGreaterEqual(len(slots), 3)
 
-        slots = sorted(slots, key=lambda slot: float(slot.property("x")))
+        def ordered_tab_slots() -> list[QObject]:
+            slots = strip.property("tabSlots")
+            if isinstance(slots, QJSValue):
+                slots = slots.toVariant()
+            return sorted(slots or [], key=lambda slot: float(slot.property("x")))
+
+        def drag_bounds_ready() -> bool:
+            slots = ordered_tab_slots()
+            if len(slots) < 3:
+                return False
+            return (
+                float(slots[1].property("dragMinimumX")) < 0.0
+                and float(slots[2].property("dragMinimumX")) < 0.0
+                and float(slots[1].property("dragMaximumX")) > 0.0
+            )
+
+        wait_for_condition_or_raise(
+            drag_bounds_ready,
+            timeout_ms=150,
+            poll_interval_ms=10,
+            app=self.app,
+            timeout_message="Timed out waiting for workspace tab drag bounds to settle.",
+        )
+
+        slots = ordered_tab_slots()
+        self.assertGreaterEqual(len(slots), 3)
         self.assertAlmostEqual(float(slots[0].property("dragMinimumX")), 0.0, places=4)
         self.assertLess(float(slots[1].property("dragMinimumX")), 0.0)
         self.assertLess(float(slots[2].property("dragMinimumX")), 0.0)
