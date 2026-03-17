@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var workspaceBridgeRef: shellWorkspaceBridge
     readonly property var themePalette: themeBridge.palette
 
     Layout.fillWidth: true
@@ -27,7 +28,7 @@ Rectangle {
         Item { Layout.fillWidth: true }
 
         Text {
-            text: root.mainWindowRef.project_display_name
+            text: root.workspaceBridgeRef.project_display_name
             color: root.themePalette.muted_fg
             font.pixelSize: 11
         }

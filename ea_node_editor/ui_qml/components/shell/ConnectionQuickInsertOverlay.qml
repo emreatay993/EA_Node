@@ -6,6 +6,7 @@ Rectangle {
     id: root
     objectName: "connectionQuickInsertOverlay"
     property var mainWindowRef
+    readonly property var shellLibraryBridgeRef: shellLibraryBridge
     readonly property var themePalette: themeBridge.palette
 
     function _wheelDeltaY(wheel) {
@@ -39,7 +40,7 @@ Rectangle {
         )
     }
 
-    visible: !!root.mainWindowRef && root.mainWindowRef.connection_quick_insert_open
+    visible: root.shellLibraryBridgeRef.connection_quick_insert_open
     width: Math.min(parent.width * 0.34, 360)
     height: quickInsertContent.implicitHeight + 20
     color: themePalette.panel_alt_bg
@@ -51,15 +52,15 @@ Rectangle {
     activeFocusOnTab: visible
 
     x: {
-        if (!parent || !root.mainWindowRef)
+        if (!parent)
             return 0
-        var preferred = Number(root.mainWindowRef.connection_quick_insert_overlay_x || 0) + 12
+        var preferred = Number(root.shellLibraryBridgeRef.connection_quick_insert_overlay_x || 0) + 12
         return Math.max(8, Math.min(parent.width - width - 8, preferred))
     }
     y: {
-        if (!parent || !root.mainWindowRef)
+        if (!parent)
             return 0
-        var preferred = Number(root.mainWindowRef.connection_quick_insert_overlay_y || 0) + 12
+        var preferred = Number(root.shellLibraryBridgeRef.connection_quick_insert_overlay_y || 0) + 12
         return Math.max(8, Math.min(parent.height - height - 8, preferred))
     }
 
@@ -75,10 +76,10 @@ Rectangle {
     Connections {
         target: quickInsertField
         function onActiveFocusChanged() {
-            if (!quickInsertField.activeFocus && root.visible && root.mainWindowRef)
+            if (!quickInsertField.activeFocus && root.visible)
                 Qt.callLater(function() {
-                    if (!quickInsertField.activeFocus && root.visible && root.mainWindowRef)
-                        root.mainWindowRef.request_close_connection_quick_insert()
+                    if (!quickInsertField.activeFocus && root.visible)
+                        root.shellLibraryBridgeRef.request_close_connection_quick_insert()
                 })
         }
     }
@@ -94,9 +95,9 @@ Rectangle {
     }
 
     Connections {
-        target: root.mainWindowRef
+        target: root.shellLibraryBridgeRef
         function onConnection_quick_insert_changed() {
-            var index = Number(root.mainWindowRef.connection_quick_insert_highlight_index)
+            var index = Number(root.shellLibraryBridgeRef.connection_quick_insert_highlight_index)
             if (!root.visible || index < 0 || index >= quickInsertResults.count)
                 return
             quickInsertResults.positionViewAtIndex(index, ListView.Contain)
@@ -133,7 +134,7 @@ Rectangle {
         Text {
             width: parent.width
             visible: text.length > 0
-            text: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_source_summary : ""
+            text: root.shellLibraryBridgeRef.connection_quick_insert_source_summary
             color: root.themePalette.muted_fg
             font.pixelSize: 10
             elide: Text.ElideRight
@@ -142,10 +143,10 @@ Rectangle {
         TextField {
             id: quickInsertField
             width: parent.width
-            placeholderText: (root.mainWindowRef && root.mainWindowRef.connection_quick_insert_is_canvas_mode)
+            placeholderText: root.shellLibraryBridgeRef.connection_quick_insert_is_canvas_mode
                 ? "Search nodes..."
                 : "Insert compatible node..."
-            text: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_query : ""
+            text: root.shellLibraryBridgeRef.connection_quick_insert_query
             selectByMouse: true
             color: root.themePalette.input_fg
             placeholderTextColor: root.themePalette.muted_fg
@@ -155,25 +156,25 @@ Rectangle {
                 border.color: root.themePalette.input_border
                 radius: 4
             }
-            onTextChanged: root.mainWindowRef.set_connection_quick_insert_query(text)
+            onTextChanged: root.shellLibraryBridgeRef.set_connection_quick_insert_query(text)
             Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Up) {
-                    root.mainWindowRef.request_connection_quick_insert_move(-1)
+                    root.shellLibraryBridgeRef.request_connection_quick_insert_move(-1)
                     event.accepted = true
                     return
                 }
                 if (event.key === Qt.Key_Down) {
-                    root.mainWindowRef.request_connection_quick_insert_move(1)
+                    root.shellLibraryBridgeRef.request_connection_quick_insert_move(1)
                     event.accepted = true
                     return
                 }
                 if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                    root.mainWindowRef.request_connection_quick_insert_accept()
+                    root.shellLibraryBridgeRef.request_connection_quick_insert_accept()
                     event.accepted = true
                     return
                 }
                 if (event.key === Qt.Key_Escape) {
-                    root.mainWindowRef.request_close_connection_quick_insert()
+                    root.shellLibraryBridgeRef.request_close_connection_quick_insert()
                     event.accepted = true
                 }
             }
@@ -184,22 +185,22 @@ Rectangle {
             width: parent.width
             height: visible ? Math.min(
                 280,
-                Math.max(64, root.mainWindowRef.connection_quick_insert_results.length * 66)
+                Math.max(64, root.shellLibraryBridgeRef.connection_quick_insert_results.length * 66)
             ) : 0
             clip: true
             spacing: 2
-            model: root.mainWindowRef ? root.mainWindowRef.connection_quick_insert_results : []
+            model: root.shellLibraryBridgeRef.connection_quick_insert_results
             visible: model.length > 0
 
             delegate: Rectangle {
                 width: ListView.view.width
                 height: 64
                 radius: 3
-                color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                color: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index
                     ? root.themePalette.accent_strong
                     : (resultMouse.containsMouse ? root.themePalette.hover : "transparent")
-                border.width: index === root.mainWindowRef.connection_quick_insert_highlight_index ? 1 : 0
-                border.color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                border.width: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index ? 1 : 0
+                border.color: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index
                     ? root.themePalette.accent
                     : "transparent"
 
@@ -214,11 +215,11 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: String(modelData.display_name || "")
-                        color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                        color: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.app_fg
                         font.pixelSize: 12
-                        font.bold: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                        font.bold: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index
                         elide: Text.ElideRight
                     }
 
@@ -227,7 +228,7 @@ Rectangle {
                         text: String(modelData.category || "")
                             + "  |  "
                             + String(modelData.type_id || "")
-                        color: index === root.mainWindowRef.connection_quick_insert_highlight_index
+                        color: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.muted_fg
                         font.pixelSize: 10
@@ -248,18 +249,17 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton
-                    onEntered: root.mainWindowRef.request_connection_quick_insert_highlight(index)
-                    onClicked: root.mainWindowRef.request_connection_quick_insert_choose(index)
+                    onEntered: root.shellLibraryBridgeRef.request_connection_quick_insert_highlight(index)
+                    onClicked: root.shellLibraryBridgeRef.request_connection_quick_insert_choose(index)
                 }
             }
         }
 
         Text {
-            visible: root.mainWindowRef
-                && root.mainWindowRef.connection_quick_insert_results.length === 0
+            visible: root.shellLibraryBridgeRef.connection_quick_insert_results.length === 0
             width: parent.width
             wrapMode: Text.WordWrap
-            text: (root.mainWindowRef && root.mainWindowRef.connection_quick_insert_is_canvas_mode)
+            text: root.shellLibraryBridgeRef.connection_quick_insert_is_canvas_mode
                 ? "No matching nodes."
                 : "No compatible nodes."
             color: root.themePalette.muted_fg

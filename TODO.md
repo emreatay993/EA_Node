@@ -86,7 +86,54 @@
 - Align context-menu actions with each OS's file manager expectations while preserving the existing Windows behavior
 - Keep the initial Windows-first implementation stable while expanding platform coverage
 
+### 5. Serializer Passive Image Panel Crop Defaults Regression
+
+**Status:** Known baseline issue, separate from `SHELL_SCENE_BOUNDARY`
+
+**Goal:** Keep passive image-panel round trips from gaining default crop metadata when the authored node did not store crop fields.
+
+**Current Failure Signal:**
+- `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
+- Current baseline behavior adds `crop_x`, `crop_y`, `crop_w`, and `crop_h` during round-trip normalization
+
+**Guardrails:**
+- Do not fold this repair into shell/scene/QML boundary packets
+- Treat any fix as persistence/schema follow-up work with its own regression slice
+
+**Key Files:**
+- `tests/test_serializer.py`
+- `ea_node_editor/persistence/{migration.py,project_codec.py,serializer.py}`
+
+### 6. Windows Qt/QML Multi-`ShellWindow` Lifetime Instability
+
+**Status:** Known baseline test-environment issue
+
+**Goal:** Make repeated shell-backed test construction reliable without depending on per-suite subprocess isolation, or formally keep isolation as the supported harness contract.
+
+**Current Symptoms:**
+- Some shell-backed tests can hit Windows Qt/QML access violations when multiple `ShellWindow()` instances are created sequentially in one interpreter process
+
+**Guardrails:**
+- Keep shell-backed suites on fresh-process `unittest` invocations
+- Preserve the existing subprocess-isolation loaders until the underlying Qt/QML lifetime issue is understood
+
+**Key Files:**
+- `tests/test_main_window_shell.py`
+- `tests/test_shell_run_controller.py`
+- `tests/test_graph_theme_shell.py`
+- `ea_node_editor/ui/shell/window.py`
+
 ## Implemented
+
+### Shell/Scene/QML Boundary Ownership Refactor
+
+**Status:** Implemented via the `SHELL_SCENE_BOUNDARY` packet set
+
+**Summary:**
+- QML shell-owned library/search/hint, workspace/run/title/console, inspector, and GraphCanvas host concerns now route through focused bridge facades instead of growing `ShellWindow` further
+- `GraphCanvas.qml` keeps its stable root contract while using `graphCanvasBridge` for shell-owned canvas integration
+- `GraphSceneBridge` keeps its public slot/property contract while delegating scope/selection, mutation/history, and payload/theme/media responsibilities to focused helper modules
+- Final approved boundary regression commands and environment notes are recorded in `docs/specs/work_packets/shell_scene_boundary/SHELL_SCENE_BOUNDARY_QA_MATRIX.md`
 
 ### Image Crop Button on Image Panel Node
 

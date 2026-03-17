@@ -6,6 +6,7 @@ import ".." as Components
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var sceneBridgeRef
     property var viewBridgeRef
     property var workspaceTabsBridgeRef
@@ -13,9 +14,7 @@ Rectangle {
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette
-    readonly property string tabStripDensityPreset: mainWindowRef
-        ? String(mainWindowRef.graphics_tab_strip_density || "compact")
-        : "compact"
+    readonly property string tabStripDensityPreset: String(root.workspaceBridgeRef.graphics_tab_strip_density || "compact")
     readonly property bool compactTabStripDensity: root.tabStripDensityPreset === "compact"
 
     Layout.fillWidth: true
@@ -51,7 +50,7 @@ Rectangle {
                     }
 
                     Repeater {
-                        model: root.mainWindowRef.active_scope_breadcrumb_items
+                        model: root.workspaceBridgeRef.active_scope_breadcrumb_items
                         delegate: Row {
                             spacing: 2
 
@@ -66,8 +65,8 @@ Rectangle {
                             ShellButton {
                                 text: String(modelData.label || "")
                                 implicitHeight: 22
-                                selectedStyle: index === root.mainWindowRef.active_scope_breadcrumb_items.length - 1
-                                onClicked: root.mainWindowRef.request_open_scope_breadcrumb(
+                                selectedStyle: index === root.workspaceBridgeRef.active_scope_breadcrumb_items.length - 1
+                                onClicked: root.workspaceBridgeRef.request_open_scope_breadcrumb(
                                     String(modelData.node_id || "")
                                 )
                             }
@@ -83,7 +82,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                     densityPreset: root.tabStripDensityPreset
                     titleText: "VIEWS"
-                    model: root.mainWindowRef.active_view_items
+                    model: root.workspaceBridgeRef.active_view_items
                     minTabWidth: 56
                     tabHorizontalPadding: 20
                     contextMenuActions: [
@@ -96,20 +95,20 @@ Rectangle {
                         return !!itemData.active
                     }
                     onTabActivated: function(itemData) {
-                        root.mainWindowRef.request_switch_view(itemData.view_id)
+                        root.workspaceBridgeRef.request_switch_view(itemData.view_id)
                     }
                     onTabMoveRequested: function(fromIndex, toIndex, _itemData) {
-                        root.mainWindowRef.request_move_view_tab(fromIndex, toIndex)
+                        root.workspaceBridgeRef.request_move_view_tab(fromIndex, toIndex)
                     }
                     onContextMenuActionRequested: function(actionId, itemData) {
                         if (actionId === "rename") {
-                            root.mainWindowRef.request_rename_view(String(itemData.view_id || ""))
+                            root.workspaceBridgeRef.request_rename_view(String(itemData.view_id || ""))
                             return
                         }
                         if (actionId === "delete")
-                            root.mainWindowRef.request_close_view(String(itemData.view_id || ""))
+                            root.workspaceBridgeRef.request_close_view(String(itemData.view_id || ""))
                     }
-                    onCreateActivated: root.mainWindowRef.request_create_view()
+                    onCreateActivated: root.workspaceBridgeRef.request_create_view()
                 }
             }
         }
@@ -142,7 +141,7 @@ Rectangle {
                     Layout.alignment: Qt.AlignVCenter
                     densityPreset: root.tabStripDensityPreset
                     titleText: "WORKSPACES"
-                    model: root.workspaceTabsBridgeRef.tabs
+                    model: root.workspaceBridgeRef.workspace_tabs
                     minTabWidth: 132
                     tabHorizontalPadding: 24
                     contextMenuActions: [
@@ -151,23 +150,23 @@ Rectangle {
                     ]
                     createButtonText: "New Workspace"
                     isTabActive: function(itemData) {
-                        return itemData.workspace_id === root.mainWindowRef.active_workspace_id
+                        return itemData.workspace_id === root.workspaceBridgeRef.active_workspace_id
                     }
                     onTabActivated: function(itemData) {
-                        root.workspaceTabsBridgeRef.activate_workspace(itemData.workspace_id)
+                        root.workspaceBridgeRef.activate_workspace(itemData.workspace_id)
                     }
                     onTabMoveRequested: function(fromIndex, toIndex, _itemData) {
-                        root.mainWindowRef.request_move_workspace_tab(fromIndex, toIndex)
+                        root.workspaceBridgeRef.request_move_workspace_tab(fromIndex, toIndex)
                     }
                     onContextMenuActionRequested: function(actionId, itemData) {
                         if (actionId === "rename") {
-                            root.mainWindowRef.request_rename_workspace_by_id(String(itemData.workspace_id || ""))
+                            root.workspaceBridgeRef.request_rename_workspace_by_id(String(itemData.workspace_id || ""))
                             return
                         }
                         if (actionId === "delete")
-                            root.mainWindowRef.request_close_workspace_by_id(String(itemData.workspace_id || ""))
+                            root.workspaceBridgeRef.request_close_workspace_by_id(String(itemData.workspace_id || ""))
                     }
-                    onCreateActivated: root.mainWindowRef.request_create_workspace()
+                    onCreateActivated: root.workspaceBridgeRef.request_create_workspace()
                 }
 
                 Item { Layout.fillWidth: true }
@@ -201,19 +200,19 @@ Rectangle {
                             onClicked: consoleTabs.currentIndex = 0
                         }
                         ShellButton {
-                            text: "Errors (" + root.consoleBridgeRef.error_count_value + ")"
+                            text: "Errors (" + root.workspaceBridgeRef.error_count_value + ")"
                             selectedStyle: consoleTabs.currentIndex === 1
                             onClicked: consoleTabs.currentIndex = 1
                         }
                         ShellButton {
-                            text: "Warnings (" + root.consoleBridgeRef.warning_count_value + ")"
+                            text: "Warnings (" + root.workspaceBridgeRef.warning_count_value + ")"
                             selectedStyle: consoleTabs.currentIndex === 2
                             onClicked: consoleTabs.currentIndex = 2
                         }
                         Item { Layout.fillWidth: true }
                         ShellButton {
                             text: "Clear"
-                            onClicked: root.consoleBridgeRef.clear_all()
+                            onClicked: root.workspaceBridgeRef.clear_all()
                         }
                     }
                 }
@@ -225,7 +224,7 @@ Rectangle {
 
                     TextArea {
                         readOnly: true
-                        text: root.consoleBridgeRef.output_text
+                        text: root.workspaceBridgeRef.output_text
                         color: root.themePalette.app_fg
                         font.family: "Consolas"
                         font.pixelSize: 12
@@ -234,7 +233,7 @@ Rectangle {
                     }
                     TextArea {
                         readOnly: true
-                        text: root.consoleBridgeRef.errors_text
+                        text: root.workspaceBridgeRef.errors_text
                         color: "#F7A1A1"
                         font.family: "Consolas"
                         font.pixelSize: 12
@@ -243,7 +242,7 @@ Rectangle {
                     }
                     TextArea {
                         readOnly: true
-                        text: root.consoleBridgeRef.warnings_text
+                        text: root.workspaceBridgeRef.warnings_text
                         color: "#E6D28D"
                         font.family: "Consolas"
                         font.pixelSize: 12

@@ -9,6 +9,7 @@ Item {
     property var mainWindowBridge: null
     property var sceneBridge: null
     property var viewBridge: null
+    readonly property var canvasBridgeRef: (typeof graphCanvasBridge !== "undefined" && graphCanvasBridge) ? graphCanvasBridge : null
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
@@ -30,13 +31,13 @@ Item {
     property real contextMenuX: 0
     property real contextMenuY: 0
     property bool interactionActive: false
-    property bool minimapExpanded: mainWindowBridge ? Boolean(mainWindowBridge.graphics_minimap_expanded) : true
-    readonly property bool showGrid: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true
-    readonly property bool minimapVisible: mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true
-    readonly property bool nodeShadowEnabled: mainWindowBridge ? Boolean(mainWindowBridge.graphics_node_shadow) : true
-    readonly property int shadowStrength: mainWindowBridge ? mainWindowBridge.graphics_shadow_strength : 70
-    readonly property int shadowSoftness: mainWindowBridge ? mainWindowBridge.graphics_shadow_softness : 50
-    readonly property int shadowOffset: mainWindowBridge ? mainWindowBridge.graphics_shadow_offset : 4
+    property bool minimapExpanded: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_minimap_expanded) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_minimap_expanded) : true)
+    readonly property bool showGrid: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_show_grid) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true)
+    readonly property bool minimapVisible: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_show_minimap) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true)
+    readonly property bool nodeShadowEnabled: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_node_shadow) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_node_shadow) : true)
+    readonly property int shadowStrength: root.canvasBridgeRef ? root.canvasBridgeRef.graphics_shadow_strength : (mainWindowBridge ? mainWindowBridge.graphics_shadow_strength : 70)
+    readonly property int shadowSoftness: root.canvasBridgeRef ? root.canvasBridgeRef.graphics_shadow_softness : (mainWindowBridge ? mainWindowBridge.graphics_shadow_softness : 50)
+    readonly property int shadowOffset: root.canvasBridgeRef ? root.canvasBridgeRef.graphics_shadow_offset : (mainWindowBridge ? mainWindowBridge.graphics_shadow_offset : 4)
     readonly property bool highQualityRendering: !root.interactionActive
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
@@ -53,8 +54,9 @@ Item {
 
     function toggleMinimapExpanded() {
         var nextExpanded = !root.minimapExpanded;
-        if (mainWindowBridge && mainWindowBridge.set_graphics_minimap_expanded) {
-            mainWindowBridge.set_graphics_minimap_expanded(nextExpanded);
+        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        if (bridge && bridge.set_graphics_minimap_expanded) {
+            bridge.set_graphics_minimap_expanded(nextExpanded);
             return;
         }
         root.minimapExpanded = nextExpanded;
@@ -80,20 +82,22 @@ Item {
     }
 
     function screenToSceneX(screenX) {
+        var view = root.canvasBridgeRef || viewBridge;
         return GraphCanvasLogic.screenToSceneX(
             screenX,
-            (viewBridge ? viewBridge.center_x : 0.0),
+            (view ? view.center_x : 0.0),
             root.width,
-            (viewBridge ? viewBridge.zoom_value : 1.0)
+            (view ? view.zoom_value : 1.0)
         );
     }
 
     function screenToSceneY(screenY) {
+        var view = root.canvasBridgeRef || viewBridge;
         return GraphCanvasLogic.screenToSceneY(
             screenY,
-            (viewBridge ? viewBridge.center_y : 0.0),
+            (view ? view.center_y : 0.0),
             root.height,
-            (viewBridge ? viewBridge.zoom_value : 1.0)
+            (view ? view.zoom_value : 1.0)
         );
     }
 
@@ -102,7 +106,8 @@ Item {
     }
 
     function applyWheelZoom(eventObj) {
-        if (!viewBridge)
+        var view = root.canvasBridgeRef || viewBridge;
+        if (!view)
             return false;
         var deltaY = _wheelDeltaY(eventObj);
         if (Math.abs(deltaY) < 0.001)
@@ -124,12 +129,18 @@ Item {
             steps = deltaY > 0 ? 1.0 : -1.0;
         steps = Math.max(-1.0, Math.min(1.0, steps));
         var factor = Math.pow(1.15, steps);
-        viewBridge.adjust_zoom(factor);
+        if (view.adjust_zoom)
+            view.adjust_zoom(factor);
+        else if (viewBridge && viewBridge.adjust_zoom)
+            viewBridge.adjust_zoom(factor);
 
         if (hasCursor) {
             var sceneAfterX = screenToSceneX(cursorX);
             var sceneAfterY = screenToSceneY(cursorY);
-            viewBridge.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
+            if (view.pan_by)
+                view.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
+            else if (viewBridge && viewBridge.pan_by)
+                viewBridge.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
         }
         return true;
     }
@@ -142,29 +153,31 @@ Item {
     }
 
     function sceneToScreenX(sceneX) {
+        var view = root.canvasBridgeRef || viewBridge;
         return GraphCanvasLogic.sceneToScreenX(
             sceneX,
-            (viewBridge ? viewBridge.center_x : 0.0),
+            (view ? view.center_x : 0.0),
             root.width,
-            (viewBridge ? viewBridge.zoom_value : 1.0)
+            (view ? view.zoom_value : 1.0)
         );
     }
 
     function sceneToScreenY(sceneY) {
+        var view = root.canvasBridgeRef || viewBridge;
         return GraphCanvasLogic.sceneToScreenY(
             sceneY,
-            (viewBridge ? viewBridge.center_y : 0.0),
+            (view ? view.center_y : 0.0),
             root.height,
-            (viewBridge ? viewBridge.zoom_value : 1.0)
+            (view ? view.zoom_value : 1.0)
         );
     }
 
     function snapToGridEnabled() {
-        return mainWindowBridge ? Boolean(mainWindowBridge.snap_to_grid_enabled) : false;
+        return root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.snap_to_grid_enabled) : (mainWindowBridge ? Boolean(mainWindowBridge.snap_to_grid_enabled) : false);
     }
 
     function snapGridSize() {
-        return GraphCanvasLogic.normalizeSnapGridSize(mainWindowBridge ? mainWindowBridge.snap_grid_size : 20.0);
+        return GraphCanvasLogic.normalizeSnapGridSize(root.canvasBridgeRef ? root.canvasBridgeRef.snap_grid_size : (mainWindowBridge ? mainWindowBridge.snap_grid_size : 20.0));
     }
 
     function snapToGridValue(value) {
@@ -217,7 +230,7 @@ Item {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return null;
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (node && node.node_id === normalized)
@@ -263,12 +276,13 @@ Item {
     }
 
     function requestOpenSubnodeScope(nodeId) {
-        if (!mainWindowBridge)
+        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        if (!bridge || !bridge.request_open_subnode_scope)
             return false;
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return false;
-        var opened = mainWindowBridge.request_open_subnode_scope(normalized);
+        var opened = bridge.request_open_subnode_scope(normalized);
         if (!opened)
             return false;
         root.clearEdgeSelection();
@@ -285,8 +299,9 @@ Item {
         root.cancelWireDrag();
         root.clearPendingConnection();
         root.clearEdgeSelection();
-        if (sceneBridge)
-            sceneBridge.select_node(normalized, false);
+        var bridge = root.canvasBridgeRef || sceneBridge;
+        if (bridge && bridge.select_node)
+            bridge.select_node(normalized, false);
         return true;
     }
 
@@ -296,19 +311,21 @@ Item {
         if (!normalizedNodeId || !normalizedKey)
             return false;
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
-        if (!sceneBridge || !sceneBridge.set_node_property)
+        var bridge = root.canvasBridgeRef || sceneBridge;
+        if (!bridge || !bridge.set_node_property)
             return false;
-        sceneBridge.set_node_property(normalizedNodeId, normalizedKey, value);
+        bridge.set_node_property(normalizedNodeId, normalizedKey, value);
         return true;
     }
 
     function browseNodePropertyPath(nodeId, key, currentPath) {
         var normalizedNodeId = String(nodeId || "").trim();
         var normalizedKey = String(key || "").trim();
-        if (!normalizedNodeId || !normalizedKey || !mainWindowBridge || !mainWindowBridge.browse_node_property_path)
+        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        if (!normalizedNodeId || !normalizedKey || !bridge || !bridge.browse_node_property_path)
             return "";
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
-        return String(mainWindowBridge.browse_node_property_path(
+        return String(bridge.browse_node_property_path(
             normalizedNodeId,
             normalizedKey,
             String(currentPath || "")
@@ -316,12 +333,25 @@ Item {
     }
 
     function selectedNodeIds() {
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
+        var selectedLookup = null;
+        if (root.canvasBridgeRef && typeof root.canvasBridgeRef.selected_node_lookup !== "undefined")
+            selectedLookup = root.canvasBridgeRef.selected_node_lookup || ({});
+        else if (sceneBridge && typeof sceneBridge.selected_node_lookup !== "undefined")
+            selectedLookup = sceneBridge.selected_node_lookup || ({});
         var selected = [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
-            if (node && node.selected)
-                selected.push(node.node_id);
+            var nodeId = node ? String(node.node_id || "").trim() : "";
+            if (!nodeId)
+                continue;
+            if (selectedLookup !== null) {
+                if (Boolean(selectedLookup[nodeId]))
+                    selected.push(nodeId);
+                continue;
+            }
+            if (node.selected)
+                selected.push(nodeId);
         }
         return selected;
     }
@@ -414,43 +444,36 @@ Item {
     }
 
     function _portKind(nodeId, portKey) {
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
-        for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            if (!node || node.node_id !== nodeId)
-                continue;
-            var ports = node.ports || [];
-            for (var j = 0; j < ports.length; j++) {
-                var port = ports[j];
-                if (port && port.key === portKey)
-                    return port.kind || "";
-            }
+        var node = _sceneNodePayload(nodeId);
+        if (!node)
             return "";
+        var ports = node.ports || [];
+        for (var i = 0; i < ports.length; i++) {
+            var port = ports[i];
+            if (port && port.key === portKey)
+                return port.kind || "";
         }
         return "";
     }
 
     function _portDataType(nodeId, portKey) {
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
-        for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            if (!node || node.node_id !== nodeId)
-                continue;
-            var ports = node.ports || [];
-            for (var j = 0; j < ports.length; j++) {
-                var port = ports[j];
-                if (port && port.key === portKey)
-                    return port.data_type || "any";
-            }
+        var node = _sceneNodePayload(nodeId);
+        if (!node)
             return "any";
+        var ports = node.ports || [];
+        for (var i = 0; i < ports.length; i++) {
+            var port = ports[i];
+            if (port && port.key === portKey)
+                return port.data_type || "any";
         }
         return "any";
     }
 
     function _arePortKindsCompatible(sourceKind, targetKind) {
-        if (!sceneBridge)
+        var bridge = root.canvasBridgeRef || sceneBridge;
+        if (!bridge || !bridge.are_port_kinds_compatible)
             return false;
-        return sceneBridge.are_port_kinds_compatible(String(sourceKind || ""), String(targetKind || ""));
+        return bridge.are_port_kinds_compatible(String(sourceKind || ""), String(targetKind || ""));
     }
 
     function _isDropAllowed(sourceDrag, candidate) {
@@ -475,7 +498,7 @@ Item {
         if (!sourceDrag)
             return null;
 
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
         var threshold = Number(thresholdOverride);
         if (!(threshold > 0.0))
             threshold = 14.0;
@@ -522,9 +545,10 @@ Item {
     }
 
     function _areDataTypesCompatible(sourceType, targetType) {
-        if (!sceneBridge)
+        var bridge = root.canvasBridgeRef || sceneBridge;
+        if (!bridge || !bridge.are_data_types_compatible)
             return false;
-        return sceneBridge.are_data_types_compatible(String(sourceType || ""), String(targetType || ""));
+        return bridge.are_data_types_compatible(String(sourceType || ""), String(targetType || ""));
     }
 
     function _portsCompatibleForAuto(sourcePort, targetPort) {
@@ -541,18 +565,14 @@ Item {
     }
 
     function _scenePortData(nodeId, portKey) {
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
-        for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            if (!node || node.node_id !== nodeId)
-                continue;
-            var ports = node.ports || [];
-            for (var j = 0; j < ports.length; j++) {
-                var port = ports[j];
-                if (port && port.key === portKey)
-                    return port;
-            }
+        var node = _sceneNodePayload(nodeId);
+        if (!node)
             return null;
+        var ports = node.ports || [];
+        for (var i = 0; i < ports.length; i++) {
+            var port = ports[i];
+            if (port && port.key === portKey)
+                return port;
         }
         return null;
     }
@@ -595,7 +615,7 @@ Item {
         if (!nodePorts.length)
             return null;
 
-        var nodes = sceneBridge ? sceneBridge.nodes_model : [];
+        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
         var threshold = 12.0;
         var best = null;
         var bestDistance = Number.POSITIVE_INFINITY;
@@ -718,19 +738,22 @@ Item {
     }
 
     function previewNodeScreenWidth() {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        var view = root.canvasBridgeRef || viewBridge;
+        var zoom = view ? view.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
         return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_width, zoom);
     }
 
     function previewNodeScreenHeight() {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        var view = root.canvasBridgeRef || viewBridge;
+        var zoom = view ? view.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
         return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_height, zoom);
     }
 
     function previewPortLabelsVisible() {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
+        var view = root.canvasBridgeRef || viewBridge;
+        var zoom = view ? view.zoom_value : 1.0;
         return GraphCanvasLogic.previewPortLabelsVisible(zoom, root.previewNodeScreenWidth());
     }
 
@@ -766,7 +789,8 @@ Item {
     }
 
     function performLibraryDrop(screenX, screenY, payload) {
-        if (!payload || !mainWindowBridge || !payload.type_id) {
+        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        if (!payload || !bridge || !bridge.request_drop_node_from_library || !payload.type_id) {
             clearLibraryDropPreview();
             return;
         }
@@ -774,7 +798,7 @@ Item {
         root._closeContextMenus();
         root.clearPendingConnection();
         var target = root._computeLibraryDropTarget(screenX, screenY, payload);
-        mainWindowBridge.request_drop_node_from_library(
+        bridge.request_drop_node_from_library(
             String(payload.type_id || ""),
             root.screenToSceneX(screenX),
             root.screenToSceneY(screenY),
@@ -949,6 +973,7 @@ Item {
     }
 
     function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
+        var bridge = root.canvasBridgeRef || mainWindowBridge;
         var state = root.wireDragState;
         if (!state)
             return;
@@ -994,20 +1019,20 @@ Item {
         }
 
         var candidate = root.wireDropCandidate;
-        if (candidate && candidate.valid_drop && mainWindowBridge) {
-            mainWindowBridge.request_connect_ports(
+        if (candidate && candidate.valid_drop && bridge && bridge.request_connect_ports) {
+            bridge.request_connect_ports(
                 finalState.node_id,
                 finalState.port_key,
                 candidate.node_id,
                 candidate.port_key
             );
-        } else if (mainWindowBridge) {
+        } else if (bridge && bridge.request_open_connection_quick_insert) {
             var overlayPoint = root.mapToItem(
                 root.overlayHostItem ? root.overlayHostItem : root,
                 Number(screenX),
                 Number(screenY)
             );
-            mainWindowBridge.request_open_connection_quick_insert(
+            bridge.request_open_connection_quick_insert(
                 finalState.node_id,
                 finalState.port_key,
                 finalState.cursor_x,
@@ -1027,6 +1052,7 @@ Item {
     }
 
     function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) {
+        var bridge = root.canvasBridgeRef || mainWindowBridge;
         root.forceActiveFocus();
         root._closeContextMenus();
         var clickedPort = _scenePortData(nodeId, portKey);
@@ -1074,8 +1100,8 @@ Item {
         };
         var candidate = clicked;
         candidate.valid_drop = _isDropAllowed(sourceDrag, candidate);
-        if (candidate.valid_drop && mainWindowBridge) {
-            var created = mainWindowBridge.request_connect_ports(
+        if (candidate.valid_drop && bridge && bridge.request_connect_ports) {
+            var created = bridge.request_connect_ports(
                 pending.node_id,
                 pending.port_key,
                 clicked.node_id,
@@ -1094,7 +1120,7 @@ Item {
     }
 
     function _syncEdgePayload() {
-        root.edgePayload = sceneBridge ? sceneBridge.edges_model : [];
+        root.edgePayload = root.canvasBridgeRef ? root.canvasBridgeRef.edges_model : (sceneBridge ? sceneBridge.edges_model : []);
         pruneSelectedEdges();
         edgeLayer.requestRedraw();
     }
@@ -1161,7 +1187,7 @@ Item {
         viewBridge: root.viewBridge
         sceneBridge: root.sceneBridge
         edges: root.edgePayload
-        nodes: sceneBridge ? sceneBridge.nodes_model : []
+        nodes: root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : [])
         dragOffsets: root.liveDragOffsets
         liveNodeSizes: root.liveResizeDimensions
         selectedEdgeIds: root.selectedEdgeIds
@@ -1196,12 +1222,12 @@ Item {
         width: root.worldSize
         height: root.worldSize
         transformOrigin: Item.TopLeft
-        scale: viewBridge ? viewBridge.zoom_value : 1.0
-        x: root.width * 0.5 - ((viewBridge ? viewBridge.center_x : 0) + root.worldOffset) * scale
-        y: root.height * 0.5 - ((viewBridge ? viewBridge.center_y : 0) + root.worldOffset) * scale
+        scale: root.canvasBridgeRef ? root.canvasBridgeRef.zoom_value : (viewBridge ? viewBridge.zoom_value : 1.0)
+        x: root.width * 0.5 - ((root.canvasBridgeRef ? root.canvasBridgeRef.center_x : (viewBridge ? viewBridge.center_x : 0)) + root.worldOffset) * scale
+        y: root.height * 0.5 - ((root.canvasBridgeRef ? root.canvasBridgeRef.center_y : (viewBridge ? viewBridge.center_y : 0)) + root.worldOffset) * scale
 
         Repeater {
-            model: sceneBridge ? sceneBridge.nodes_model : []
+            model: root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : [])
             delegate: GraphComponents.GraphNodeHost {
                 id: nodeCard
                 nodeData: modelData
@@ -1217,18 +1243,19 @@ Item {
                 shadowStrength: root.shadowStrength
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
-                zoom: viewBridge ? viewBridge.zoom_value : 1.0
+                zoom: root.canvasBridgeRef ? root.canvasBridgeRef.zoom_value : (viewBridge ? viewBridge.zoom_value : 1.0)
                 renderQualitySimplified: root.interactionActive
 
                 onNodeClicked: function(nodeId, additive) {
+                    var bridge = root.canvasBridgeRef || sceneBridge;
                     root.forceActiveFocus();
                     root._closeContextMenus();
                     root.clearPendingConnection();
-                    if (!sceneBridge)
+                    if (!bridge || !bridge.select_node)
                         return;
                     if (!additive)
                         root.clearEdgeSelection();
-                    sceneBridge.select_node(nodeId, additive);
+                    bridge.select_node(nodeId, additive);
                 }
                 onNodeContextRequested: function(nodeId, localX, localY) {
                     var point = nodeCard.mapToItem(root, localX, localY);
@@ -1245,6 +1272,7 @@ Item {
                     );
                 }
                 onDragFinished: function(nodeId, finalX, finalY, _moved) {
+                    var bridge = root.canvasBridgeRef || sceneBridge;
                     var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
                     var anchorPayload = root._sceneNodePayload(nodeId);
                     var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
@@ -1267,19 +1295,20 @@ Item {
                     var movedByCommit = Math.abs(deltaX) >= 0.01 || Math.abs(deltaY) >= 0.01;
 
                     root.clearLiveDragOffsets();
-                    if (!sceneBridge)
+                    if (!bridge)
                         return;
                     if (dragNodeIds.length > 1) {
-                        movedByCommit = sceneBridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY);
+                        movedByCommit = bridge.move_nodes_by_delta ? bridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY) : false;
                         if (movedByCommit)
                             root.clearEdgeSelection();
                         return;
                     }
 
-                    sceneBridge.move_node(nodeId, finalSnappedX, finalSnappedY);
-                    if (movedByCommit) {
+                    if (bridge.move_node)
+                        bridge.move_node(nodeId, finalSnappedX, finalSnappedY);
+                    if (movedByCommit && bridge.select_node) {
                         root.clearEdgeSelection();
-                        sceneBridge.select_node(nodeId, false);
+                        bridge.select_node(nodeId, false);
                     }
                 }
                 onDragCanceled: function(_nodeId) {
@@ -1289,9 +1318,11 @@ Item {
                     root.setLiveResizeDimensions(nodeId, newWidth, newHeight, active);
                 }
                 onResizeFinished: function(nodeId, newWidth, newHeight) {
+                    var bridge = root.canvasBridgeRef || sceneBridge;
                     root.setLiveResizeDimensions(nodeId, newWidth, newHeight, false);
-                    if (!sceneBridge) return;
-                    sceneBridge.resize_node(nodeId, newWidth, newHeight);
+                    if (!bridge || !bridge.resize_node)
+                        return;
+                    bridge.resize_node(nodeId, newWidth, newHeight);
                 }
                 onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
                     root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
@@ -1369,30 +1400,43 @@ Item {
     }
 
     Connections {
-        target: sceneBridge
-        function onEdges_changed() {
+        target: root.canvasBridgeRef ? root.canvasBridgeRef : sceneBridge
+        ignoreUnknownSignals: true
+        function _handleSceneMutation() {
             root.liveDragOffsets = ({});
             root.liveResizeDimensions = ({});
             root._clearWireDragState();
             root._syncEdgePayload();
         }
+        function onScene_edges_changed() {
+            _handleSceneMutation();
+        }
+        function onScene_nodes_changed() {
+            _handleSceneMutation();
+        }
+        function onEdges_changed() {
+            _handleSceneMutation();
+        }
         function onNodes_changed() {
-            root.liveDragOffsets = ({});
-            root.liveResizeDimensions = ({});
-            root._clearWireDragState();
-            root._syncEdgePayload();
+            _handleSceneMutation();
         }
     }
 
     Connections {
-        target: viewBridge
-        function onZoom_changed() {
+        target: root.canvasBridgeRef ? root.canvasBridgeRef : viewBridge
+        ignoreUnknownSignals: true
+        function _handleViewStateChanged() {
             backgroundLayer.requestGridRedraw();
             edgeLayer.requestRedraw();
         }
+        function onView_state_changed() {
+            _handleViewStateChanged();
+        }
+        function onZoom_changed() {
+            _handleViewStateChanged();
+        }
         function onCenter_changed() {
-            backgroundLayer.requestGridRedraw();
-            edgeLayer.requestRedraw();
+            _handleViewStateChanged();
         }
     }
 
@@ -1408,12 +1452,14 @@ Item {
     }
 
     onWidthChanged: {
-        if (viewBridge)
-            viewBridge.set_viewport_size(width, height);
+        var view = root.canvasBridgeRef || viewBridge;
+        if (view && view.set_viewport_size)
+            view.set_viewport_size(width, height);
     }
 
     onHeightChanged: {
-        if (viewBridge)
-            viewBridge.set_viewport_size(width, height);
+        var view = root.canvasBridgeRef || viewBridge;
+        if (view && view.set_viewport_size)
+            view.set_viewport_size(width, height);
     }
 }

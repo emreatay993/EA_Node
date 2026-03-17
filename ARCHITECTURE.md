@@ -49,6 +49,17 @@ Design intent:
 - Worker process runs node execution and streams events back.
 - Serializer/migration keeps persisted projects stable across schema upgrades, including passive visual metadata and project-local `metadata.ui.passive_style_presets`.
 
+## Shell/scene boundary ownership
+
+- `MainShell.qml` remains the composition root for shell chrome and shell-owned overlays, but those QML surfaces now prefer focused facades over raw compatibility objects.
+- `shellLibraryBridge` owns library search/filter state, graph-search results, quick-insert candidates, and hint/insert shell overlays for QML consumers.
+- `shellWorkspaceBridge` owns workspace tabs, title/run/console state, and other shell-chrome workflows that belong to the main shell rather than the scene bridge.
+- `shellInspectorBridge` owns inspector-facing selection metadata, property-edit affordances, and exposed-port presentation for inspector QML surfaces.
+- `graphCanvasBridge` carries shell-owned canvas-host concerns back into `ShellWindow` while preserving the stable `graphCanvas` root contract methods used by drops, hit testing, and minimap toggles.
+- `GraphSceneBridge` remains the stable public scene contract for node/edge payloads and QML-invokable scene slots, but internal responsibility is split behind helper seams in `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder`.
+- `ThemeBridge` continues to own shell/canvas chrome tokens, while `graphThemeBridge` owns node/edge theming so shell-theme and graph-theme responsibilities stay separate.
+- Raw context properties such as `mainWindow`, `sceneBridge`, and `viewBridge` remain available as compatibility seams only; new QML ownership should land on the focused bridges above.
+
 ## Passive visual authoring path
 
 - Passive nodes use the same registry and serializer path as executable nodes, but `NodeTypeSpec.runtime_behavior` marks them as `passive` so they never compile into the worker graph.
@@ -277,18 +288,20 @@ sequenceDiagram
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
 - controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
-- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, console/status/script/workspace models),
+- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `GraphCanvasBridge`, console/status/script/workspace models),
 - execution client (`ProcessExecutionClient`) and event subscription.
 4. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap, shell-theme, and graph-theme state before the shell is shown.
-5. QML shell is loaded (`ui_qml/MainShell.qml`) with context properties and a composed `GraphCanvas` surface.
+5. QML shell is loaded (`ui_qml/MainShell.qml`) with focused facade context properties, compatibility raw context properties, and a composed `GraphCanvas` surface.
 6. `GraphCanvas` composes dedicated background/minimap/input/context/drop-preview modules.
 7. Session restore + optional autosave recovery runs, then active workspace/view/scope are bound.
 
 ## Main runtime flows
 ### 1) Graph editing, hierarchy, and view sync
 - `GraphCanvasInputLayers`, `NodeCard`, and `EdgeLayer` capture pointer/keyboard interactions and issue `request_*` calls.
-- Shell delegates edits/navigation to `WorkspaceLibraryController` and helper ops.
+- Shell-owned library/search/hint, workspace/run/title/console, and inspector panes talk to `shellLibraryBridge`, `shellWorkspaceBridge`, and `shellInspectorBridge`, which delegate to `ShellWindow` controllers and compatibility APIs.
+- `graphCanvasBridge` carries shell-owned canvas-host integration back into `ShellWindow` without reopening the public `GraphCanvas` root contract.
 - `GraphSceneBridge` applies scoped mutations to `GraphModel` (only nodes in active scope).
+- `GraphSceneBridge` plus `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder` own scope state, history grouping, and payload/theme/media construction before payloads reach QML.
 - `GraphSceneBridge` and edge-routing helpers shape node accents and edge colors from the active graph theme before payloads reach QML.
 - Scope breadcrumbs and per-view `scope_path` are updated and persisted.
 - `RuntimeGraphHistory` records snapshots for undo/redo.
@@ -297,14 +310,14 @@ sequenceDiagram
 ### 1a) Connection-aware quick insert
 - A port drag begins and ends entirely in `NodeCard` plus `GraphCanvas`.
 - If a drag is released over a valid compatible port, normal `request_connect_ports()` flow runs.
-- If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `ShellWindow`.
+- If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `graphCanvasBridge` and `shellLibraryBridge`.
 - `ShellWindow` builds source-port context using effective port resolution and asks `window_library_inspector.py` for compatible node-library results.
 - Quick insert acceptance reuses `request_drop_node_from_library(..., target_mode="port", ...)`, so insertion and auto-connect still flow through `WorkspaceDropConnectOps`.
 
 ### 1b) Inline node controls
 - `PropertySpec.inline_editor` declares whether a property can render inside `NodeCard`.
 - `GraphSceneBridge` includes lightweight `inline_properties` in each node payload.
-- `NodeCard` renders a fast subset of editors inline and routes commits back through the same selected-node property path used by `InspectorPane`.
+- `NodeCard` renders a fast subset of editors inline and routes graph-surface commits through explicit `nodeId` bridge APIs instead of depending on selected-node timing.
 - The inspector remains the complete editing surface for richer editors such as multiline/script/json/path properties and resolves user-facing metadata such as per-type sequential IDs instead of exposing raw internal node references.
 
 ### 2) Search and scope navigation
@@ -370,6 +383,8 @@ sequenceDiagram
 - `ThemeBridge.palette` exposes shared resolved shell-theme tokens to QML shell and canvas-chrome surfaces while QApplication uses the same theme registry for QWidget styling.
 - Graph theme bridge contract:
 - `graphThemeBridge` exposes node, edge, category-accent, and port-kind palettes to QML graph item surfaces without changing canvas chrome tokens.
+- QML shell boundary contract:
+- `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, and `graphCanvasBridge` partition shell-owned QML concerns while raw context properties remain compatibility-only until the remaining consumers are retired.
 
 ## Key architecture rules currently enforced
 1. UI responsiveness through process isolation
@@ -402,7 +417,7 @@ sequenceDiagram
 - `ea_node_editor/ui/shell/window.py`: QMainWindow/QML facade and slot surface.
 - `ea_node_editor/ui/shell/controllers/`: app-preferences, run, project-session, and workspace-library orchestration + ops.
 - `ea_node_editor/ui/shell/window_search_scope_state.py`: graph search/scope camera/snap state helpers.
-- `ea_node_editor/ui_qml/`: QML shell/canvas UI and Python bridge/state models.
+- `ea_node_editor/ui_qml/`: QML shell/canvas UI, focused shell boundary facades, graph-scene helper seams, and Python bridge/state models.
 - `ea_node_editor/ui_qml/components/shell/`: modular shell composition components extracted from `MainShell.qml`.
 - `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`: compatibility-aware quick insert overlay.
 - `ea_node_editor/ui_qml/components/graph_canvas/`: modular GraphCanvas layers/overlays/helpers.
@@ -425,6 +440,8 @@ sequenceDiagram
 - Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py`.
 - Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.
+- Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,graph_canvas_bridge.py}` plus the corresponding `ui_qml/components/shell/*` consumers.
+- Change graph-scene internal boundary ownership: `ea_node_editor/ui_qml/{graph_scene_bridge.py,graph_scene_scope_selection.py,graph_scene_mutation_history.py,graph_scene_payload_builder.py}`.
 - Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.
 - Change quick insert result ranking/filtering or inline property payload generation: `ea_node_editor/ui/shell/window.py` and `ea_node_editor/ui/shell/window_library_inspector.py`.
 - Change custom workflow metadata/file format: `ea_node_editor/custom_workflows/codec.py` and `file_codec.py`.

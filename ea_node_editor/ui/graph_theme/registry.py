@@ -5,6 +5,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import asdict, dataclass, fields
 from typing import Any
 
+from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.ui.graph_theme.palettes import (
     AMETHYST_CATEGORY_ACCENT_TOKENS,
     AMETHYST_DARK_EDGE_TOKENS,
@@ -51,7 +52,6 @@ from ea_node_editor.ui.graph_theme.tokens import (
 )
 from ea_node_editor.ui.theme.registry import resolve_theme_id
 
-DEFAULT_GRAPH_THEME_ID = "graph_stitch_dark"
 CUSTOM_GRAPH_THEME_ID_PREFIX = "custom_graph_theme_"
 DEFAULT_CUSTOM_GRAPH_THEME_LABEL = "Custom Graph Theme"
 

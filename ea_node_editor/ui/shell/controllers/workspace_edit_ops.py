@@ -315,8 +315,10 @@ class WorkspaceEditOps:
 
     def selected_node_bounds_payload(self) -> list[tuple[float, float, float, float]]:
         bounds_payload: list[tuple[float, float, float, float]] = []
+        selected_node_lookup = self._host.scene.selected_node_lookup
         for node_payload in self._host.scene.nodes_model:
-            if not bool(node_payload.get("selected", False)):
+            node_id = str(node_payload.get("node_id", "")).strip()
+            if not node_id or not bool(selected_node_lookup.get(node_id, False)):
                 continue
             width = float(node_payload.get("width", 0.0))
             height = float(node_payload.get("height", 0.0))

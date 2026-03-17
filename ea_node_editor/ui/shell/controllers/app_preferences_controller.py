@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.persistence.utils import merge_defaults, write_json_atomic
+from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
@@ -16,7 +17,6 @@ from ea_node_editor.settings import (
     app_preferences_path,
 )
 from ea_node_editor.ui.graph_theme import (
-    DEFAULT_GRAPH_THEME_ID,
     create_blank_custom_graph_theme,
     duplicate_graph_theme_as_custom,
     graph_theme_choices as available_graph_theme_choices,

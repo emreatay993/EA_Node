@@ -6,6 +6,7 @@ ShellCollapsibleSidePane {
     id: root
     objectName: "libraryPane"
     property var mainWindowRef
+    readonly property var shellLibraryBridgeRef: shellLibraryBridge
     property var graphCanvasRef
     property var popupHostItem
     property var collapsedCategories: ({})
@@ -76,7 +77,7 @@ ShellCollapsibleSidePane {
                 border.color: root.themePalette.input_border
                 radius: 3
             }
-            onTextChanged: root.mainWindowRef.set_library_query(text)
+            onTextChanged: root.shellLibraryBridgeRef.set_library_query(text)
         },
 
         ListView {
@@ -84,7 +85,7 @@ ShellCollapsibleSidePane {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            model: root.mainWindowRef.grouped_node_library_items
+            model: root.shellLibraryBridgeRef.grouped_node_library_items
             spacing: 0
             Component.onCompleted: root.ensureCollapsedDefaults(model)
             onModelChanged: root.ensureCollapsedDefaults(model)
@@ -238,7 +239,7 @@ ShellCollapsibleSidePane {
                                 !root.isCategoryCollapsed(modelData.category)
                             )
                         } else {
-                            root.mainWindowRef.request_add_node_from_library(modelData.type_id)
+                            root.shellLibraryBridgeRef.request_add_node_from_library(modelData.type_id)
                         }
                     }
 
@@ -256,7 +257,7 @@ ShellCollapsibleSidePane {
     ]
 
     Connections {
-        target: root.mainWindowRef
+        target: root.shellLibraryBridgeRef
         function onLibraryPaneResetRequested() {
             root.resetCollapsedState()
         }

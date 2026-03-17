@@ -6,6 +6,7 @@ import "MainShellUtils.js" as MainShellUtils
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var scriptEditorBridgeRef
     property var scriptHighlighterBridgeRef
     readonly property var themePalette: themeBridge.palette
@@ -51,7 +52,7 @@ Rectangle {
                 }
                 ShellButton {
                     text: "X"
-                    onClicked: root.mainWindowRef.set_script_editor_panel_visible(false)
+                    onClicked: root.workspaceBridgeRef.set_script_editor_panel_visible(false)
                 }
             }
         }

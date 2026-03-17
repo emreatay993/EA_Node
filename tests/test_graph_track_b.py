@@ -607,6 +607,29 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertIsNone(self.scene.node_item(source_id))
         self.assertIsNone(self.scene.edge_item(new_edge_id))
 
+    def test_resize_node_clamps_to_surface_minimum_and_records_history(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        node_id = self.scene.add_node_from_type("core.logger", 20.0, 30.0)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.resize_node(node_id, 10.0, 5.0)
+
+        node = workspace.nodes[node_id]
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertGreaterEqual(float(node.custom_width or 0.0), 120.0)
+        self.assertGreaterEqual(float(node.custom_height or 0.0), 50.0)
+
+        payload = next(item for item in self.scene.nodes_model if item["node_id"] == node_id)
+        self.assertAlmostEqual(payload["width"], float(node.custom_width or 0.0), places=6)
+        self.assertAlmostEqual(payload["height"], float(node.custom_height or 0.0), places=6)
+
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertIsNone(workspace.nodes[node_id].custom_width)
+        self.assertIsNone(workspace.nodes[node_id].custom_height)
+
     def test_collapse_expand_updates_node_payload(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
         self.scene.set_node_collapsed(source_id, True)
@@ -650,6 +673,32 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
         self.assertEqual(edge_payload[edge_id]["source_port_kind"], "exec")
         self.assertEqual(edge_payload[edge_id]["target_port_kind"], "exec")
+
+    def test_style_mutations_update_payload_and_record_history(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        target_id = self.scene.add_node_from_type("core.end", 320.0, 40.0)
+        edge_id = self.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_visual_style(source_id, {"fill": "#102030", "badge": {"shape": "pill"}})
+        self.scene.set_edge_label(edge_id, "Primary path")
+        self.scene.set_edge_visual_style(edge_id, {"stroke": "dashed", "arrow": {"kind": "none"}})
+
+        self.assertEqual(history.undo_depth(self.workspace_id), 3)
+
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}
+        self.assertEqual(
+            node_payload[source_id]["visual_style"],
+            {"fill": "#102030", "badge": {"shape": "pill"}},
+        )
+        self.assertEqual(edge_payload[edge_id]["label"], "Primary path")
+        self.assertEqual(
+            edge_payload[edge_id]["visual_style"],
+            {"stroke": "dashed", "arrow": {"kind": "none"}},
+        )
 
     def test_flowchart_scene_payloads_publish_family_metrics_and_shape_aware_anchors(self) -> None:
         self.registry.register(_TrackBFlowchartDecisionNode)
@@ -1239,6 +1288,49 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             if edge.source_node_id == duplicated_source_id and edge.source_port_key == "trigger"
         ]
         self.assertEqual(duplicated_external_edges, [])
+
+    def test_paste_subgraph_fragment_centers_selection_and_records_single_history_entry(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        source_id = self.scene.add_node_from_type("core.start", 10.0, 20.0)
+        target_id = self.scene.add_node_from_type("core.end", 280.0, 40.0)
+        self.scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.scene.select_node(source_id, False)
+        self.scene.select_node(target_id, True)
+        fragment = self.scene.serialize_selected_subgraph_fragment()
+        self.assertIsNotNone(fragment)
+        history.clear_workspace(self.workspace_id)
+
+        pasted = self.scene.paste_subgraph_fragment(fragment, 620.0, 240.0)
+        self.assertTrue(pasted)
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+
+        pasted_ids = [item.node.node_id for item in self.scene.selectedItems()]
+        self.assertEqual(len(pasted_ids), 2)
+        self.assertEqual({source_id, target_id} & set(pasted_ids), set())
+        self.assertEqual(len(workspace.nodes), 4)
+        self.assertEqual(len(workspace.edges), 2)
+
+        selection_bounds = self.scene.selection_bounds()
+        self.assertIsNotNone(selection_bounds)
+        assert selection_bounds is not None
+        self.assertAlmostEqual(selection_bounds.center().x(), 620.0, places=6)
+        self.assertAlmostEqual(selection_bounds.center().y(), 240.0, places=6)
+
+        pasted_edge_count = len(
+            [
+                edge
+                for edge in workspace.edges.values()
+                if edge.source_node_id in pasted_ids and edge.target_node_id in pasted_ids
+            ]
+        )
+        self.assertEqual(pasted_edge_count, 1)
+
+        self.assertIsNotNone(history.undo_workspace(self.workspace_id, workspace))
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        self.assertEqual(len(workspace.nodes), 2)
+        self.assertEqual(len(workspace.edges), 1)
 
     def test_duplicate_selected_subgraph_treats_selected_subnode_shell_as_subtree_root(self) -> None:
         history = RuntimeGraphHistory()

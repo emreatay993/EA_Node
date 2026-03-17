@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from PyQt6.QtCore import QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCursor
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
@@ -39,13 +39,9 @@ from ea_node_editor.ui.graph_theme import (
     serialize_custom_graph_themes,
 )
 from ea_node_editor.ui.graph_interactions import GraphInteractions
-from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID, UiIconImageProvider, UiIconRegistryBridge
-from ea_node_editor.ui.media_preview_provider import (
-    LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
-    LocalMediaPreviewImageProvider,
-)
+from ea_node_editor.ui.icon_registry import UiIconImageProvider, UiIconRegistryBridge
+from ea_node_editor.ui.media_preview_provider import LocalMediaPreviewImageProvider
 from ea_node_editor.ui.pdf_preview_provider import (
-    LOCAL_PDF_PREVIEW_PROVIDER_ID,
     LocalPdfPreviewImageProvider,
     describe_pdf_preview,
 )
@@ -85,6 +81,10 @@ from ea_node_editor.ui.shell import window_search_scope_state
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.shell_context_bootstrap import (
+    bootstrap_shell_qml_context,
+    create_shell_context_bridges,
+)
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
@@ -219,6 +219,11 @@ class ShellWindow(QMainWindow):
         self.execution_client = ProcessExecutionClient()
         self.execution_client.subscribe(self.execution_event.emit)
         self.execution_event.connect(self._handle_execution_event, Qt.ConnectionType.QueuedConnection)
+        self._shell_context_bridges = create_shell_context_bridges(self)
+        self.shell_library_bridge = self._shell_context_bridges.shell_library_bridge
+        self.shell_workspace_bridge = self._shell_context_bridges.shell_workspace_bridge
+        self.shell_inspector_bridge = self._shell_context_bridges.shell_inspector_bridge
+        self.graph_canvas_bridge = self._shell_context_bridges.graph_canvas_bridge
 
         self._create_actions()
         self._build_menu_bar()
@@ -393,41 +398,7 @@ class ShellWindow(QMainWindow):
 
     def _build_qml_shell(self) -> None:
         self.quick_widget = QQuickWidget(self)
-        self.quick_widget.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
-
-        self.quick_widget.engine().addImageProvider(UI_ICON_PROVIDER_ID, self._ui_icon_image_provider)
-        self.quick_widget.engine().addImageProvider(
-            LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
-            self._local_media_preview_provider,
-        )
-        self.quick_widget.engine().addImageProvider(
-            LOCAL_PDF_PREVIEW_PROVIDER_ID,
-            self._local_pdf_preview_provider,
-        )
-        context = self.quick_widget.rootContext()
-        context.setContextProperty("mainWindow", self)
-        context.setContextProperty("sceneBridge", self.scene)
-        context.setContextProperty("viewBridge", self.view)
-        context.setContextProperty("consoleBridge", self.console_panel)
-        context.setContextProperty("scriptEditorBridge", self.script_editor)
-        context.setContextProperty("scriptHighlighterBridge", self.script_highlighter)
-        context.setContextProperty("themeBridge", self.theme_bridge)
-        context.setContextProperty("graphThemeBridge", self.graph_theme_bridge)
-        context.setContextProperty("workspaceTabsBridge", self.workspace_tabs)
-        context.setContextProperty("uiIcons", self.ui_icons)
-        context.setContextProperty("statusEngine", self.status_engine)
-        context.setContextProperty("statusJobs", self.status_jobs)
-        context.setContextProperty("statusMetrics", self.status_metrics)
-        context.setContextProperty("statusNotifications", self.status_notifications)
-
-        qml_path = Path(__file__).resolve().parents[2] / "ui_qml" / "MainShell.qml"
-        self.quick_widget.setSource(QUrl.fromLocalFile(str(qml_path)))
-        quick_window = self.quick_widget.quickWindow()
-        if quick_window is not None:
-            quick_window.afterRendering.connect(
-                self._record_render_frame,
-                Qt.ConnectionType.QueuedConnection,
-            )
+        bootstrap_shell_qml_context(self, self.quick_widget, self._shell_context_bridges)
         if self.quick_widget.status() == QQuickWidget.Status.Error:
             formatted_errors = "\n".join(error.toString() for error in self.quick_widget.errors()).strip()
             message = formatted_errors or "Unknown QML load error."

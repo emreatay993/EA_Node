@@ -7,14 +7,23 @@ ShellCollapsibleSidePane {
     id: root
     objectName: "inspectorPane"
     property var mainWindowRef
+    readonly property var inspectorBridgeRef: shellInspectorBridge
     property string activePortDirection: "in"
     property string selectedPortKey: ""
     property string editingPortKey: ""
     property string editingPortLabel: ""
-    readonly property bool hasSelectedNode: !!root.mainWindowRef && root.mainWindowRef.has_selected_node
-    readonly property bool isPinInspector: !!root.mainWindowRef && root.mainWindowRef.selected_node_is_subnode_pin
+    readonly property bool hasSelectedNode: !!root.inspectorBridgeRef && root.inspectorBridgeRef.has_selected_node
+    readonly property bool isPinInspector: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_is_subnode_pin
     readonly property bool showPortSection: root.hasSelectedNode && !root.isPinInspector
-    readonly property bool canManageSubnodePorts: !!root.mainWindowRef && root.mainWindowRef.selected_node_is_subnode_shell
+    readonly property bool canManageSubnodePorts: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_is_subnode_shell
+    readonly property string selectedNodeTitle: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_title : ""
+    readonly property string selectedNodeSubtitle: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_subtitle : ""
+    readonly property bool selectedNodeCollapsible: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_collapsible
+    readonly property bool selectedNodeCollapsed: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_collapsed
+    readonly property var selectedNodePortItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_port_items || []) : []
+    readonly property var selectedNodeHeaderItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_header_items || []) : []
+    readonly property var selectedNodePropertyItems: root.inspectorBridgeRef ? (root.inspectorBridgeRef.selected_node_property_items || []) : []
+    readonly property var pinDataTypeOptions: root.inspectorBridgeRef ? (root.inspectorBridgeRef.pin_data_type_options || []) : []
     readonly property var visiblePortItems: root.portItemsForDirection(activePortDirection)
     readonly property int inputPortCount: root.portItemsForDirection("in").length
     readonly property int outputPortCount: root.portItemsForDirection("out").length
@@ -32,7 +41,7 @@ ShellCollapsibleSidePane {
 
     function portItemsForDirection(direction) {
         var normalizedDirection = String(direction || "").toLowerCase()
-        var items = root.mainWindowRef ? (root.mainWindowRef.selected_node_port_items || []) : []
+        var items = root.selectedNodePortItems
         var filtered = []
         for (var index = 0; index < items.length; ++index) {
             var item = items[index]
@@ -61,7 +70,7 @@ ShellCollapsibleSidePane {
         var normalizedKey = String(portKey || "")
         if (!normalizedKey.length)
             return null
-        var items = root.mainWindowRef ? (root.mainWindowRef.selected_node_port_items || []) : []
+        var items = root.selectedNodePortItems
         for (var index = 0; index < items.length; ++index) {
             var item = items[index]
             if (!item)
@@ -89,9 +98,9 @@ ShellCollapsibleSidePane {
 
     function addSubnodePort(direction) {
         var normalizedDirection = String(direction || "").toLowerCase()
-        if (!root.mainWindowRef)
+        if (!root.inspectorBridgeRef)
             return
-        var createdPortKey = root.mainWindowRef.request_add_selected_subnode_pin(normalizedDirection)
+        var createdPortKey = root.inspectorBridgeRef.request_add_selected_subnode_pin(normalizedDirection)
         if (!String(createdPortKey || "").length)
             return
         activePortDirection = normalizedDirection
@@ -119,8 +128,8 @@ ShellCollapsibleSidePane {
         var normalizedKey = String(portKey || "")
         if (editingPortKey !== normalizedKey)
             return
-        if (root.mainWindowRef)
-            root.mainWindowRef.set_selected_port_label(normalizedKey, String(label || ""))
+        if (root.inspectorBridgeRef)
+            root.inspectorBridgeRef.set_selected_port_label(normalizedKey, String(label || ""))
         editingPortKey = ""
         editingPortLabel = ""
     }
@@ -141,19 +150,19 @@ ShellCollapsibleSidePane {
 
     function deleteSelectedPort() {
         var normalizedKey = String(selectedPortKey || "")
-        if (!root.mainWindowRef || !normalizedKey.length)
+        if (!root.inspectorBridgeRef || !normalizedKey.length)
             return
         focusInspectorBackground()
-        root.mainWindowRef.request_remove_selected_port(normalizedKey)
+        root.inspectorBridgeRef.request_remove_selected_port(normalizedKey)
     }
 
     onVisiblePortItemsChanged: syncSelectedPortSelection()
     onShowPortSectionChanged: syncSelectedPortSelection()
 
     Connections {
-        target: root.mainWindowRef
+        target: root.inspectorBridgeRef
 
-        function onSelectedNodeChanged() {
+        function onInspectorStateChanged() {
             root.syncSelectedPortSelection()
         }
     }
@@ -648,7 +657,7 @@ ShellCollapsibleSidePane {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: root.mainWindowRef ? root.mainWindowRef.selected_node_title : ""
+                                    text: root.selectedNodeTitle
                                     color: root.themePalette.panel_title_fg
                                     font.pixelSize: 18
                                     font.bold: true
@@ -658,7 +667,7 @@ ShellCollapsibleSidePane {
                                 Text {
                                     Layout.fillWidth: true
                                     visible: text.length > 0
-                                    text: root.mainWindowRef ? root.mainWindowRef.selected_node_subtitle : ""
+                                    text: root.selectedNodeSubtitle
                                     wrapMode: Text.WordWrap
                                     color: root.themePalette.muted_fg
                                     font.pixelSize: 11
@@ -667,17 +676,19 @@ ShellCollapsibleSidePane {
 
                             InspectorButton {
                                 objectName: "inspectorCollapseButton"
-                                visible: root.mainWindowRef && root.mainWindowRef.selected_node_collapsible
+                                visible: root.selectedNodeCollapsible
                                 compact: true
-                                selectedStyle: root.mainWindowRef && root.mainWindowRef.selected_node_collapsed
-                                text: root.mainWindowRef && root.mainWindowRef.selected_node_collapsed ? "EXPAND" : "COLLAPSE"
-                                tooltipText: root.mainWindowRef && root.mainWindowRef.selected_node_collapsed
+                                selectedStyle: root.selectedNodeCollapsed
+                                text: root.selectedNodeCollapsed ? "EXPAND" : "COLLAPSE"
+                                tooltipText: root.selectedNodeCollapsed
                                     ? "Expand the selected node body"
                                     : "Collapse the selected node body"
                                 onClicked: {
-                                    if (!root.mainWindowRef)
+                                    if (!root.inspectorBridgeRef)
                                         return
-                                    root.mainWindowRef.set_selected_node_collapsed(!root.mainWindowRef.selected_node_collapsed)
+                                    root.inspectorBridgeRef.set_selected_node_collapsed(
+                                        !root.selectedNodeCollapsed
+                                    )
                                 }
                             }
 
@@ -689,9 +700,9 @@ ShellCollapsibleSidePane {
                                 text: "UNGROUP"
                                 tooltipText: "Ungroup this subnode, moving its children to the parent scope"
                                 onClicked: {
-                                    if (!root.mainWindowRef)
+                                    if (!root.inspectorBridgeRef)
                                         return
-                                    root.mainWindowRef.request_ungroup_selected_nodes()
+                                    root.inspectorBridgeRef.request_ungroup_selected_nodes()
                                 }
                             }
                         }
@@ -700,10 +711,10 @@ ShellCollapsibleSidePane {
                             id: metadataFlow
                             width: parent.width
                             spacing: 6
-                            visible: root.mainWindowRef && root.mainWindowRef.selected_node_header_items.length > 0
+                            visible: root.selectedNodeHeaderItems.length > 0
 
                             Repeater {
-                                model: root.mainWindowRef ? root.mainWindowRef.selected_node_header_items : []
+                                model: root.selectedNodeHeaderItems
 
                                 delegate: InspectorMetadataChip {
                                     labelText: String(modelData.label || "")
@@ -738,7 +749,7 @@ ShellCollapsibleSidePane {
                         }
 
                         Repeater {
-                            model: root.mainWindowRef ? root.mainWindowRef.selected_node_property_items : []
+                            model: root.selectedNodePropertyItems
 
                             delegate: Column {
                                 width: parent.width
@@ -774,8 +785,8 @@ ShellCollapsibleSidePane {
                                             id: boolToggle
                                             checked: !!modelData.value
                                             onToggled: {
-                                                if (root.mainWindowRef)
-                                                    root.mainWindowRef.set_selected_node_property(modelData.key, checked)
+                                                if (root.inspectorBridgeRef)
+                                                    root.inspectorBridgeRef.set_selected_node_property(modelData.key, checked)
                                             }
                                         }
 
@@ -800,37 +811,36 @@ ShellCollapsibleSidePane {
                                     }
                                     onActivated: {
                                         var values = modelData.enum_values || []
-                                        if (!root.mainWindowRef || currentIndex < 0 || currentIndex >= values.length)
+                                        if (!root.inspectorBridgeRef || currentIndex < 0 || currentIndex >= values.length)
                                             return
-                                        root.mainWindowRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
+                                        root.inspectorBridgeRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
                                     }
                                 }
-
                                 InspectorEditableComboBox {
                                     id: pinDataTypeEditor
                                     width: parent.width
                                     visible: root.isPinInspector
                                         && String(modelData.key || "") === "data_type"
-                                    model: root.mainWindowRef ? root.mainWindowRef.pin_data_type_options : []
+                                    model: root.pinDataTypeOptions
                                     currentIndex: {
-                                        var values = root.mainWindowRef ? (root.mainWindowRef.pin_data_type_options || []) : []
+                                        var values = root.pinDataTypeOptions
                                         var value = String(modelData.value || "").toLowerCase()
                                         return values.indexOf(value)
                                     }
                                     Component.onCompleted: editText = String(modelData.value || "")
                                     onActivated: {
-                                        var values = root.mainWindowRef ? (root.mainWindowRef.pin_data_type_options || []) : []
-                                        if (!root.mainWindowRef || currentIndex < 0 || currentIndex >= values.length)
+                                        var values = root.pinDataTypeOptions
+                                        if (!root.inspectorBridgeRef || currentIndex < 0 || currentIndex >= values.length)
                                             return
-                                        root.mainWindowRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
+                                        root.inspectorBridgeRef.set_selected_node_property(modelData.key, String(values[currentIndex]))
                                     }
                                     onAccepted: {
-                                        if (root.mainWindowRef)
-                                            root.mainWindowRef.set_selected_node_property(modelData.key, editText)
+                                        if (root.inspectorBridgeRef)
+                                            root.inspectorBridgeRef.set_selected_node_property(modelData.key, editText)
                                     }
                                     onActiveFocusChanged: {
-                                        if (!activeFocus && root.mainWindowRef)
-                                            root.mainWindowRef.set_selected_node_property(modelData.key, editText)
+                                        if (!activeFocus && root.inspectorBridgeRef)
+                                            root.inspectorBridgeRef.set_selected_node_property(modelData.key, editText)
                                     }
                                 }
 
@@ -851,9 +861,9 @@ ShellCollapsibleSidePane {
                                     }
 
                                     function commitDraft() {
-                                        if (!root.mainWindowRef)
+                                        if (!root.inspectorBridgeRef)
                                             return
-                                        root.mainWindowRef.set_selected_node_property(propertyKey, draftText)
+                                        root.inspectorBridgeRef.set_selected_node_property(propertyKey, draftText)
                                     }
 
                                     onCommittedTextChanged: {
@@ -930,12 +940,12 @@ ShellCollapsibleSidePane {
                                         Layout.fillWidth: true
                                         text: MainShellUtils.toEditorText(modelData)
                                         onAccepted: {
-                                            if (root.mainWindowRef)
-                                                root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                            if (root.inspectorBridgeRef)
+                                                root.inspectorBridgeRef.set_selected_node_property(modelData.key, text)
                                         }
                                         onEditingFinished: {
-                                            if (root.mainWindowRef)
-                                                root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                            if (root.inspectorBridgeRef)
+                                                root.inspectorBridgeRef.set_selected_node_property(modelData.key, text)
                                         }
                                     }
 
@@ -945,16 +955,16 @@ ShellCollapsibleSidePane {
                                         compact: true
                                         text: "Browse"
                                         onClicked: {
-                                            if (!root.mainWindowRef)
+                                            if (!root.inspectorBridgeRef)
                                                 return
-                                            var selectedPath = root.mainWindowRef.browse_selected_node_property_path(
+                                            var selectedPath = root.inspectorBridgeRef.browse_selected_node_property_path(
                                                 String(modelData.key || ""),
                                                 pathEditor.text
                                             )
                                             if (!String(selectedPath || "").length)
                                                 return
                                             pathEditor.text = String(selectedPath)
-                                            root.mainWindowRef.set_selected_node_property(modelData.key, pathEditor.text)
+                                            root.inspectorBridgeRef.set_selected_node_property(modelData.key, pathEditor.text)
                                         }
                                     }
                                 }
@@ -965,12 +975,12 @@ ShellCollapsibleSidePane {
                                         && modelData.editor_mode === "text"
                                     text: MainShellUtils.toEditorText(modelData)
                                     onAccepted: {
-                                        if (root.mainWindowRef)
-                                            root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                        if (root.inspectorBridgeRef)
+                                            root.inspectorBridgeRef.set_selected_node_property(modelData.key, text)
                                     }
                                     onEditingFinished: {
-                                        if (root.mainWindowRef)
-                                            root.mainWindowRef.set_selected_node_property(modelData.key, text)
+                                        if (root.inspectorBridgeRef)
+                                            root.inspectorBridgeRef.set_selected_node_property(modelData.key, text)
                                     }
                                 }
                             }
@@ -1072,8 +1082,8 @@ ShellCollapsibleSidePane {
                                             checked: !!modelData.exposed
                                             onClicked: root.selectPort(modelData.key)
                                             onToggled: {
-                                                if (root.mainWindowRef)
-                                                    root.mainWindowRef.set_selected_port_exposed(modelData.key, checked)
+                                                if (root.inspectorBridgeRef)
+                                                    root.inspectorBridgeRef.set_selected_port_exposed(modelData.key, checked)
                                             }
                                         }
 

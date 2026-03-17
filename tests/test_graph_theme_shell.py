@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import unittest
 from unittest.mock import patch
 
 from PyQt6.QtWidgets import QDialog
@@ -18,6 +23,15 @@ from ea_node_editor.ui.graph_theme import (
 from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.theme import build_theme_stylesheet
 from tests.main_window_shell.base import MainWindowShellTestBase
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_SHELL_TEST_RUNNER = (
+    "import sys, unittest; "
+    "target = sys.argv[1]; "
+    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
+    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
+    "sys.exit(0 if result.wasSuccessful() else 1)"
+)
 
 
 class GraphThemeShellTests(MainWindowShellTestBase):
@@ -142,3 +156,52 @@ class GraphThemeShellTests(MainWindowShellTestBase):
         edges_payload = {item["edge_id"]: item for item in self.window.scene.edges_model}
         self.assertEqual(nodes_payload[start_id]["accent"], GRAPH_CATEGORY_ACCENT_TOKENS_V1.core)
         self.assertEqual(edges_payload[edge_id]["color"], GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1.warning_stroke)
+
+
+class _SubprocessShellWindowTest(unittest.TestCase):
+    def __init__(self, target: str) -> None:
+        super().__init__(methodName="runTest")
+        self._target = target
+
+    def id(self) -> str:
+        return self._target
+
+    def __str__(self) -> str:
+        return self._target
+
+    def shortDescription(self) -> str:
+        return self._target
+
+    def runTest(self) -> None:
+        env = os.environ.copy()
+        env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        result = subprocess.run(
+            [sys.executable, "-c", _SHELL_TEST_RUNNER, self._target],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        output = "\n".join(
+            part.strip()
+            for part in (result.stdout, result.stderr)
+            if part and part.strip()
+        )
+        self.fail(
+            f"Subprocess shell test failed for {self._target} "
+            f"(exit={result.returncode}).\n{output}"
+        )
+
+
+def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
+    suite = unittest.TestSuite()
+    for test_name in loader.getTestCaseNames(GraphThemeShellTests):
+        target = f"{GraphThemeShellTests.__module__}.{GraphThemeShellTests.__qualname__}.{test_name}"
+        suite.addTest(_SubprocessShellWindowTest(target))
+    return suite
+
+
+if __name__ == "__main__":
+    unittest.main()

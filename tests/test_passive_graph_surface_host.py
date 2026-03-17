@@ -418,6 +418,68 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_drag_moves_all_selected_nodes_together(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-multi-drag-selection",
+            """
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            first_node_id = scene.add_node_from_type("core.logger", 120.0, 140.0)
+            second_node_id = scene.add_node_from_type("core.start", 320.0, 180.0)
+            scene.select_node(first_node_id, False)
+            scene.select_node(second_node_id, True)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = {
+                card.property("nodeData")["node_id"]: card
+                for card in named_child_items(canvas, "graphNodeCard")
+            }
+            assert set(scene.selected_node_lookup) == {first_node_id, second_node_id}
+            drag_node_ids = canvas.dragNodeIdsForAnchor(second_node_id)
+            if hasattr(drag_node_ids, "toVariant"):
+                drag_node_ids = drag_node_ids.toVariant()
+            assert list(drag_node_ids) == [second_node_id, first_node_id]
+
+            before = {item["node_id"]: (item["x"], item["y"]) for item in scene.nodes_model}
+            node_cards[second_node_id].dragOffsetChanged.emit(second_node_id, 25.0, 15.0)
+            app.processEvents()
+            assert canvas.liveDragDxForNode(first_node_id) == 25.0
+            assert canvas.liveDragDyForNode(first_node_id) == 15.0
+            assert canvas.liveDragDxForNode(second_node_id) == 25.0
+            assert canvas.liveDragDyForNode(second_node_id) == 15.0
+
+            node_cards[second_node_id].dragFinished.emit(second_node_id, 345.0, 195.0, True)
+            app.processEvents()
+            after = {item["node_id"]: (item["x"], item["y"]) for item in scene.nodes_model}
+
+            assert canvas.liveDragDxForNode(first_node_id) == 0.0
+            assert canvas.liveDragDyForNode(first_node_id) == 0.0
+            assert canvas.liveDragDxForNode(second_node_id) == 0.0
+            assert canvas.liveDragDyForNode(second_node_id) == 0.0
+            assert after[first_node_id] == (before[first_node_id][0] + 25.0, before[first_node_id][1] + 15.0)
+            assert after[second_node_id] == (before[second_node_id][0] + 25.0, before[second_node_id][1] + 15.0)
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_temporarily_simplifies_node_shadow_during_wheel_zoom(self) -> None:
         self._run_qml_probe(
             "graph-canvas-shadow-quality",

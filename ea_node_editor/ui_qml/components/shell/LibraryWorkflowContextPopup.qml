@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 Item {
     id: root
     property var mainWindowRef
+    readonly property var shellLibraryBridgeRef: shellLibraryBridge
     property string libraryContextWorkflowId: ""
     property string libraryContextWorkflowScope: "local"
     readonly property var contextMenuActions: [
@@ -55,15 +56,15 @@ Item {
             actions: root.contextMenuActions
             onActionTriggered: function(actionId) {
                 if (actionId === "rename") {
-                    root.mainWindowRef.request_rename_custom_workflow_from_library(
+                    root.shellLibraryBridgeRef.request_rename_custom_workflow_from_library(
                         root.libraryContextWorkflowId,
                         root.libraryContextWorkflowScope
                     )
                 } else if (actionId === "scope") {
                     var nextScope = root.libraryContextWorkflowScope === "global" ? "local" : "global"
-                    root.mainWindowRef.request_set_custom_workflow_scope(root.libraryContextWorkflowId, nextScope)
+                    root.shellLibraryBridgeRef.request_set_custom_workflow_scope(root.libraryContextWorkflowId, nextScope)
                 } else if (actionId === "delete") {
-                    root.mainWindowRef.request_delete_custom_workflow_from_library(
+                    root.shellLibraryBridgeRef.request_delete_custom_workflow_from_library(
                         root.libraryContextWorkflowId,
                         root.libraryContextWorkflowScope
                     )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from ea_node_editor.ui.graph_theme import DEFAULT_GRAPH_THEME_ID
+from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 
 APP_NAME = "EA Node Editor"
 APP_ID = "com.ea.node_editor"

@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var viewBridgeRef
     property var scriptEditorBridgeRef
     readonly property var themePalette: themeBridge.palette
@@ -21,16 +22,16 @@ Rectangle {
 
         ShellButton {
             iconName: "run"
-            onClicked: root.mainWindowRef.request_run_workflow()
+            onClicked: root.workspaceBridgeRef.request_run_workflow()
         }
         ShellButton {
             iconName: "pause"
             tooltipText: "Pause / Resume"
-            onClicked: root.mainWindowRef.request_toggle_run_pause()
+            onClicked: root.workspaceBridgeRef.request_toggle_run_pause()
         }
         ShellButton {
             iconName: "stop"
-            onClicked: root.mainWindowRef.request_stop_workflow()
+            onClicked: root.workspaceBridgeRef.request_stop_workflow()
         }
         Item { Layout.fillWidth: true }
         Text {
@@ -41,12 +42,12 @@ Rectangle {
         Rectangle { Layout.preferredWidth: 1; Layout.fillHeight: true; color: root.themePalette.border }
         ShellButton {
             text: "Settings"
-            onClicked: root.mainWindowRef.show_workflow_settings_dialog()
+            onClicked: root.workspaceBridgeRef.show_workflow_settings_dialog()
         }
         ShellButton {
             text: root.scriptEditorBridgeRef.visible ? "Hide Script" : "Script"
             selectedStyle: root.scriptEditorBridgeRef.visible
-            onClicked: root.mainWindowRef.set_script_editor_panel_visible()
+            onClicked: root.workspaceBridgeRef.set_script_editor_panel_visible()
         }
     }
 }

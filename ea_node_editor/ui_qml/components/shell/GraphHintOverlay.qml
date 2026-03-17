@@ -4,10 +4,11 @@ Rectangle {
     id: root
     objectName: "graphHintOverlay"
     property var mainWindowRef
+    readonly property var shellLibraryBridgeRef: shellLibraryBridge
     property bool graphSearchVisible: false
     readonly property var themePalette: themeBridge.palette
 
-    visible: root.mainWindowRef.graph_hint_visible && !root.graphSearchVisible
+    visible: root.shellLibraryBridgeRef.graph_hint_visible && !root.graphSearchVisible
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.bottom: parent.bottom
     anchors.bottomMargin: 32
@@ -23,7 +24,7 @@ Rectangle {
         id: graphHintText
         anchors.centerIn: parent
         width: parent.width - 24
-        text: root.mainWindowRef.graph_hint_message
+        text: root.shellLibraryBridgeRef.graph_hint_message
         color: root.themePalette.panel_title_fg
         font.pixelSize: 12
         horizontalAlignment: Text.AlignHCenter

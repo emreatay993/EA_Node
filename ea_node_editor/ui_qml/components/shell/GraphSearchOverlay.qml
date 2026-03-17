@@ -5,9 +5,10 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     property var mainWindowRef
+    readonly property var shellLibraryBridgeRef: shellLibraryBridge
     readonly property var themePalette: themeBridge.palette
 
-    visible: root.mainWindowRef.graph_search_open
+    visible: root.shellLibraryBridgeRef.graph_search_open
     anchors.horizontalCenter: parent.horizontalCenter
     anchors.verticalCenter: parent.verticalCenter
     width: Math.min(parent.width * 0.62, 760)
@@ -30,9 +31,9 @@ Rectangle {
     }
 
     Connections {
-        target: root.mainWindowRef
+        target: root.shellLibraryBridgeRef
         function onGraph_search_changed() {
-            var index = Number(root.mainWindowRef.graph_search_highlight_index)
+            var index = Number(root.shellLibraryBridgeRef.graph_search_highlight_index)
             if (!root.visible || index < 0 || index >= graphSearchResultsList.count)
                 return
             graphSearchResultsList.positionViewAtIndex(index, ListView.Contain)
@@ -70,7 +71,7 @@ Rectangle {
             id: graphSearchField
             width: parent.width
             placeholderText: "Search title or node type"
-            text: root.mainWindowRef.graph_search_query
+            text: root.shellLibraryBridgeRef.graph_search_query
             selectByMouse: true
             color: root.themePalette.input_fg
             placeholderTextColor: root.themePalette.muted_fg
@@ -80,25 +81,25 @@ Rectangle {
                 border.color: root.themePalette.input_border
                 radius: 4
             }
-            onTextChanged: root.mainWindowRef.set_graph_search_query(text)
+            onTextChanged: root.shellLibraryBridgeRef.set_graph_search_query(text)
             Keys.onPressed: function(event) {
                 if (event.key === Qt.Key_Up) {
-                    root.mainWindowRef.request_graph_search_move(-1)
+                    root.shellLibraryBridgeRef.request_graph_search_move(-1)
                     event.accepted = true
                     return
                 }
                 if (event.key === Qt.Key_Down) {
-                    root.mainWindowRef.request_graph_search_move(1)
+                    root.shellLibraryBridgeRef.request_graph_search_move(1)
                     event.accepted = true
                     return
                 }
                 if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                    root.mainWindowRef.request_graph_search_accept()
+                    root.shellLibraryBridgeRef.request_graph_search_accept()
                     event.accepted = true
                     return
                 }
                 if (event.key === Qt.Key_Escape) {
-                    root.mainWindowRef.request_close_graph_search()
+                    root.shellLibraryBridgeRef.request_close_graph_search()
                     event.accepted = true
                 }
             }
@@ -109,22 +110,22 @@ Rectangle {
             width: parent.width
             height: visible ? Math.min(
                 320,
-                Math.max(44, root.mainWindowRef.graph_search_results.length * 44)
+                Math.max(44, root.shellLibraryBridgeRef.graph_search_results.length * 44)
             ) : 0
             clip: true
             spacing: 2
-            model: root.mainWindowRef.graph_search_results
-            visible: root.mainWindowRef.graph_search_results.length > 0
+            model: root.shellLibraryBridgeRef.graph_search_results
+            visible: root.shellLibraryBridgeRef.graph_search_results.length > 0
 
             delegate: Rectangle {
                 width: ListView.view.width
                 height: 42
                 radius: 3
-                color: index === root.mainWindowRef.graph_search_highlight_index
+                color: index === root.shellLibraryBridgeRef.graph_search_highlight_index
                     ? root.themePalette.accent_strong
                     : (resultMouse.containsMouse ? root.themePalette.hover : "transparent")
-                border.width: index === root.mainWindowRef.graph_search_highlight_index ? 1 : 0
-                border.color: index === root.mainWindowRef.graph_search_highlight_index
+                border.width: index === root.shellLibraryBridgeRef.graph_search_highlight_index ? 1 : 0
+                border.color: index === root.shellLibraryBridgeRef.graph_search_highlight_index
                     ? root.themePalette.accent
                     : "transparent"
 
@@ -139,11 +140,11 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: String(modelData.node_title || "")
-                        color: index === root.mainWindowRef.graph_search_highlight_index
+                        color: index === root.shellLibraryBridgeRef.graph_search_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.app_fg
                         font.pixelSize: 12
-                        font.bold: index === root.mainWindowRef.graph_search_highlight_index
+                        font.bold: index === root.shellLibraryBridgeRef.graph_search_highlight_index
                         elide: Text.ElideRight
                     }
 
@@ -154,7 +155,7 @@ Rectangle {
                             + String(modelData.display_name || "")
                             + "  |  "
                             + String(modelData.instance_label || "")
-                        color: index === root.mainWindowRef.graph_search_highlight_index
+                        color: index === root.shellLibraryBridgeRef.graph_search_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.muted_fg
                         font.pixelSize: 10
@@ -167,15 +168,15 @@ Rectangle {
                     anchors.fill: parent
                     hoverEnabled: true
                     acceptedButtons: Qt.LeftButton
-                    onEntered: root.mainWindowRef.request_graph_search_highlight(index)
-                    onClicked: root.mainWindowRef.request_graph_search_jump(index)
+                    onEntered: root.shellLibraryBridgeRef.request_graph_search_highlight(index)
+                    onClicked: root.shellLibraryBridgeRef.request_graph_search_jump(index)
                 }
             }
         }
 
         Text {
-            visible: root.mainWindowRef.graph_search_query.length > 0
-                && root.mainWindowRef.graph_search_results.length === 0
+            visible: root.shellLibraryBridgeRef.graph_search_query.length > 0
+                && root.shellLibraryBridgeRef.graph_search_results.length === 0
             text: "No matching nodes."
             color: root.themePalette.muted_fg
             font.pixelSize: 11
