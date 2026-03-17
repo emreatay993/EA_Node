@@ -1,21 +1,44 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Literal
+from typing import Any, Literal, Protocol
 
 from ea_node_editor.ui.icon_registry import qicon
 from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_action_state
+from ea_node_editor.ui.shell.state import ShellRunState
 
-if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
+
+class _RunControllerHostProtocol(Protocol):
+    run_state: ShellRunState
+    project_path: str
+    workspace_manager: Any
+    serializer: Any
+    model: Any
+    project_session_controller: Any
+    console_panel: Any
+    execution_client: Any
+    workspace_library_controller: Any
+    action_stop: Any
+    action_pause: Any
+    _RUN_SCOPED_EVENT_TYPES: set[str]
+
+    def update_notification_counters(self, warning_count: int, error_count: int) -> None: ...
+
+    def update_engine_status(self, state: str, details: str) -> None: ...
+
+    def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None: ...
 
 
 class RunController:
-    def __init__(self, host: ShellWindow) -> None:
+    def __init__(self, host: _RunControllerHostProtocol) -> None:
         self._host = host
 
+    @property
+    def _state(self) -> ShellRunState:
+        return self._host.run_state
+
     def run_workflow(self) -> None:
-        if self._host._active_run_id:
-            if self._host._engine_state_value == "paused":
+        if self._state.active_run_id:
+            if self._state.engine_state_value == "paused":
                 self.resume_workflow()
             else:
                 self._host.console_panel.append_log("warning", "A workflow run is already active.")
@@ -46,35 +69,35 @@ class RunController:
             )
             self.set_run_ui_state("error", "Start Failed", 0, 0, 0, 1, clear_run=True)
             return
-        self._host._active_run_id = run_id
-        self._host._active_run_workspace_id = workspace_id
+        self._state.active_run_id = run_id
+        self._state.active_run_workspace_id = workspace_id
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def toggle_pause_resume(self) -> None:
-        if not self._host._active_run_id:
+        if not self._state.active_run_id:
             return
-        if self._host._engine_state_value == "paused":
+        if self._state.engine_state_value == "paused":
             self.resume_workflow()
-        elif self._host._engine_state_value == "running":
+        elif self._state.engine_state_value == "running":
             self.pause_workflow()
 
     def pause_workflow(self) -> None:
-        if not self._host._active_run_id or self._host._engine_state_value != "running":
+        if not self._state.active_run_id or self._state.engine_state_value != "running":
             return
-        self._host.execution_client.pause_run(self._host._active_run_id)
+        self._host.execution_client.pause_run(self._state.active_run_id)
         self._host.update_engine_status("running", "Pausing")
 
     def resume_workflow(self) -> None:
-        if not self._host._active_run_id or self._host._engine_state_value != "paused":
+        if not self._state.active_run_id or self._state.engine_state_value != "paused":
             return
-        self._host.execution_client.resume_run(self._host._active_run_id)
+        self._host.execution_client.resume_run(self._state.active_run_id)
         self._host.update_engine_status("running", "Resuming")
 
     def stop_workflow(self) -> None:
-        if not self._host._active_run_id:
+        if not self._state.active_run_id:
             return
-        self._host.execution_client.stop_run(self._host._active_run_id)
-        if self._host._engine_state_value == "paused":
+        self._host.execution_client.stop_run(self._state.active_run_id)
+        if self._state.engine_state_value == "paused":
             self._host.update_engine_status("paused", "Stopping")
         else:
             self._host.update_engine_status("running", "Stopping")
@@ -84,7 +107,7 @@ class RunController:
         event_type = str(event.get("type", ""))
         if not event_targets_active_run(
             event,
-            active_run_id=self._host._active_run_id,
+            active_run_id=self._state.active_run_id,
             run_scoped_event_types=self._host._RUN_SCOPED_EVENT_TYPES,
         ):
             return
@@ -136,8 +159,8 @@ class RunController:
             )
 
     def clear_active_run(self) -> None:
-        self._host._active_run_id = ""
-        self._host._active_run_workspace_id = ""
+        self._state.active_run_id = ""
+        self._state.active_run_workspace_id = ""
 
     def set_run_ui_state(
         self,
@@ -150,7 +173,7 @@ class RunController:
         *,
         clear_run: bool = False,
     ) -> None:
-        self._host._engine_state_value = state
+        self._state.engine_state_value = state
         self._host.update_engine_status(state, details)
         self._host.update_job_counters(running, queued, done, failed)
         if clear_run:
@@ -158,7 +181,7 @@ class RunController:
         self.update_run_actions()
 
     def update_run_actions(self) -> None:
-        can_pause, pause_label = run_action_state(self._host._active_run_id, self._host._engine_state_value)
+        can_pause, pause_label = run_action_state(self._state.active_run_id, self._state.engine_state_value)
         self._host.action_stop.setEnabled(True)
         self._host.action_pause.setEnabled(can_pause)
         self._host.action_pause.setText(pause_label)

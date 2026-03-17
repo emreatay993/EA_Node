@@ -74,6 +74,13 @@ class WorkspaceEditOps:
         self._host = host
         self._controller = controller
 
+    @property
+    def _graph_interactions(self):
+        graph_interactions = getattr(self._host, "graph_interactions", None)
+        if graph_interactions is not None:
+            return graph_interactions
+        return self._host._graph_interactions
+
     def set_selected_node_property(self, key: str, value: Any) -> None:
         selected = self._controller.selected_node_context()
         if selected is None:
@@ -475,19 +482,19 @@ class WorkspaceEditOps:
         return True
 
     def request_connect_ports(self, node_a_id: str, port_a: str, node_b_id: str, port_b: str) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.connect_ports(node_a_id, port_a, node_b_id, port_b)
+        result = self._graph_interactions.connect_ports(node_a_id, port_a, node_b_id, port_b)
         if result.ok:
             self._controller.refresh_workspace_tabs()
         return ControllerResult(result.ok, result.message, payload=result.ok)
 
     def request_remove_edge(self, edge_id: str) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.remove_edge(edge_id)
+        result = self._graph_interactions.remove_edge(edge_id)
         if result.ok:
             self._controller.refresh_workspace_tabs()
         return ControllerResult(result.ok, result.message, payload=result.ok)
 
     def request_remove_node(self, node_id: str) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.remove_node(node_id)
+        result = self._graph_interactions.remove_node(node_id)
         if result.ok:
             self._host.selected_node_changed.emit()
             self._controller.refresh_workspace_tabs()
@@ -505,14 +512,14 @@ class WorkspaceEditOps:
         new_title, ok = QInputDialog.getText(self._host, "Rename Node", "New name:", text=node.title)
         if not ok:
             return ControllerResult(False, payload=False)
-        result = self._host._graph_interactions.rename_node(node.node_id, new_title)
+        result = self._graph_interactions.rename_node(node.node_id, new_title)
         if result.ok:
             self._host.selected_node_changed.emit()
             self._controller.refresh_workspace_tabs()
         return ControllerResult(result.ok, result.message, payload=result.ok)
 
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
-        result = self._host._graph_interactions.delete_selected_items(edge_ids)
+        result = self._graph_interactions.delete_selected_items(edge_ids)
         if result.ok:
             self._host.selected_node_changed.emit()
             self._controller.refresh_workspace_tabs()

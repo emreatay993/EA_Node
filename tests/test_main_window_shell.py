@@ -1325,6 +1325,44 @@ class MainWindowShellContextBootstrapTests(MainWindowShellTestBase):
         self.assertIs(graph_canvas_bridge.view_bridge, self.window.view)
 
 
+class MainWindowShellHostProtocolStateTests(MainWindowShellTestBase):
+    def test_search_scope_state_tracks_graph_search_quick_insert_and_hints(self) -> None:
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("core.start")
+        self.app.processEvents()
+
+        graph_search_state = self.window.search_scope_state.graph_search
+        self.assertTrue(graph_search_state.open)
+        self.assertEqual(graph_search_state.query, "core.start")
+        self.assertEqual(graph_search_state.results, self.window.graph_search_results)
+
+        self.window.request_open_canvas_quick_insert(40.0, 55.0, 120.0, 180.0)
+        self.app.processEvents()
+
+        quick_insert_state = self.window.search_scope_state.connection_quick_insert
+        self.assertTrue(quick_insert_state.open)
+        self.assertEqual(quick_insert_state.context["mode"], "canvas_insert")
+        self.assertEqual(quick_insert_state.context["overlay_x"], 120.0)
+        self.assertEqual(quick_insert_state.results, self.window.connection_quick_insert_results)
+
+        self.window.show_graph_hint("Packet hint", 500)
+        self.assertEqual(self.window.search_scope_state.graph_hint_message, "Packet hint")
+        self.window.clear_graph_hint()
+        self.assertEqual(self.window.search_scope_state.graph_hint_message, "")
+
+    def test_scope_camera_cache_is_owned_by_search_scope_state(self) -> None:
+        self.window.view.set_zoom(1.35)
+        self.window.view.centerOn(140.0, -75.0)
+
+        self.window._remember_scope_camera()
+
+        key = self.window._active_scope_camera_key()
+        self.assertIsNotNone(key)
+        if key is None:
+            self.fail("Expected active scope camera key")
+        self.assertIn(key, self.window.search_scope_state.runtime_scope_camera)
+
+
 class MainWindowShellGraphCanvasHostTests(MainWindowShellTestBase):
     def test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge(self) -> None:
         graph_canvas = self._graph_canvas_item()

@@ -110,6 +110,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
 
         self.window._autosave_tick()
         self.assertTrue(self._autosave_path.exists())
+        self.assertTrue(self.window.project_session_state.last_autosave_fingerprint)
 
         autosave_doc = json.loads(self._autosave_path.read_text(encoding="utf-8"))
         workspace_docs = {
@@ -271,6 +272,20 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             finally:
                 self._dispose_secondary_window(restored)
 
+    def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
+        base_path = self._session_path.with_name("packet_recent")
+        paths = [
+            str(base_path.with_name("alpha")),
+            str(base_path.with_name("beta.sfe")),
+            str(base_path.with_name("alpha.sfe")),
+        ]
+
+        normalized = self.window.project_session_controller.set_recent_project_paths(paths, persist=False)
+
+        self.assertEqual(normalized, [str(base_path.with_name("alpha.sfe")), str(base_path.with_name("beta.sfe"))])
+        self.assertEqual(self.window.project_session_state.recent_project_paths, normalized)
+        self.assertEqual(self.window.recent_project_paths, normalized)
+
 
 class ShellProjectSessionControllerTests(unittest.TestCase):
     maxDiff = None
@@ -317,6 +332,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_recovery_prompt_is_deferred_until_main_window_is_visible(self) -> None:
         self._run_scenario("test_recovery_prompt_is_deferred_until_main_window_is_visible")
+
+    def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
+        self._run_scenario("test_recent_project_paths_are_owned_by_explicit_session_state")
 
 
 def load_tests(loader, _tests, _pattern):  # noqa: ANN001

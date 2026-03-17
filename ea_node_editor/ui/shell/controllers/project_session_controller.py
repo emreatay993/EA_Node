@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import Any, Iterable, Protocol
 
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
@@ -10,17 +10,42 @@ from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.persistence.utils import merge_defaults
 from ea_node_editor.settings import DEFAULT_UI_STATE, DEFAULT_WORKFLOW_SETTINGS
 from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
+from ea_node_editor.ui.shell.state import ShellProjectSessionState
 from ea_node_editor.workspace.manager import WorkspaceManager
 
-if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.window import ShellWindow
+
+class _ProjectSessionHostProtocol(Protocol):
+    project_session_state: ShellProjectSessionState
+    session_store: SessionAutosaveStore
+    registry: Any
+    model: GraphModel
+    workspace_manager: WorkspaceManager
+    runtime_history: Any
+    serializer: Any
+    workspace_library_controller: Any
+    script_editor: Any
+    action_toggle_script_editor: Any
+    scene: Any
+    project_meta_changed: Any
+
+    project_path: str
+
+    def _refresh_recent_projects_menu(self) -> None: ...
+
+    def _prompt_recover_autosave(self): ...
+
+    def isVisible(self) -> bool: ...
 
 
 class ProjectSessionController:
     _RECENT_PROJECT_LIMIT = 10
 
-    def __init__(self, host: ShellWindow) -> None:
+    def __init__(self, host: _ProjectSessionHostProtocol) -> None:
         self._host = host
+
+    @property
+    def _session_state(self) -> ShellProjectSessionState:
+        return self._host.project_session_state
 
     @classmethod
     def _normalize_project_path(cls, path: str | Path | object) -> str:
@@ -53,7 +78,7 @@ class ProjectSessionController:
 
     def set_recent_project_paths(self, paths: Iterable[object], *, persist: bool = True) -> list[str]:
         normalized_paths = self._normalized_recent_project_paths(paths)
-        self._host.recent_project_paths = normalized_paths
+        self._session_state.recent_project_paths = normalized_paths
         self._refresh_recent_projects_menu()
         if persist:
             self.persist_session()
@@ -62,15 +87,15 @@ class ProjectSessionController:
     def add_recent_project_path(self, path: str | Path, *, persist: bool = True) -> list[str]:
         normalized_path = self._normalize_project_path(path)
         if not normalized_path:
-            return list(self._host.recent_project_paths)
-        existing_paths = list(self._host.recent_project_paths)
+            return list(self._session_state.recent_project_paths)
+        existing_paths = list(self._session_state.recent_project_paths)
         return self.set_recent_project_paths([normalized_path, *existing_paths], persist=persist)
 
     def remove_recent_project_path(self, path: str | Path, *, persist: bool = True) -> list[str]:
         normalized_path = self._normalize_project_path(path)
         if not normalized_path:
-            return list(self._host.recent_project_paths)
-        filtered_paths = [item for item in self._host.recent_project_paths if item != normalized_path]
+            return list(self._session_state.recent_project_paths)
+        filtered_paths = [item for item in self._session_state.recent_project_paths if item != normalized_path]
         return self.set_recent_project_paths(filtered_paths, persist=persist)
 
     def clear_recent_projects(self) -> None:
@@ -153,11 +178,11 @@ class ProjectSessionController:
         self._install_project(project, project_path=str(resolved_path))
         self.ensure_project_metadata_defaults()
         try:
-            self._host._last_manual_save_ts = resolved_path.stat().st_mtime
+            self._session_state.last_manual_save_ts = resolved_path.stat().st_mtime
         except OSError:
-            self._host._last_manual_save_ts = time.time()
+            self._session_state.last_manual_save_ts = time.time()
         self.discard_autosave_snapshot()
-        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
         self.add_recent_project_path(str(resolved_path), persist=False)
@@ -180,14 +205,14 @@ class ProjectSessionController:
         saved_path = Path(path).with_suffix(".sfe")
         self._host.project_path = str(saved_path)
         try:
-            self._host._last_manual_save_ts = saved_path.stat().st_mtime
+            self._session_state.last_manual_save_ts = saved_path.stat().st_mtime
         except OSError:
-            self._host._last_manual_save_ts = time.time()
+            self._session_state.last_manual_save_ts = time.time()
         for workspace in self._host.model.project.workspaces.values():
             workspace.dirty = False
         self._host.workspace_library_controller.refresh_workspace_tabs()
         self.discard_autosave_snapshot()
-        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
         self.add_recent_project_path(str(saved_path), persist=False)
@@ -198,9 +223,9 @@ class ProjectSessionController:
         project = ProjectData(project_id="proj_local", name="untitled")
         self._install_project(project, project_path="")
         self.ensure_project_metadata_defaults()
-        self._host._last_manual_save_ts = 0.0
+        self._session_state.last_manual_save_ts = 0.0
         self.discard_autosave_snapshot()
-        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
         self._host.workspace_library_controller.refresh_workspace_tabs()
@@ -240,9 +265,11 @@ class ProjectSessionController:
         return True
 
     def restore_session(self) -> None:
-        session = self._host._session_store.load_session_payload()
+        session = self._host.session_store.load_session_payload()
         session_project_path = str(session.get("project_path", "")).strip()
-        self._host._last_manual_save_ts = SessionAutosaveStore.coerce_timestamp(session.get("last_manual_save_ts", 0.0))
+        self._session_state.last_manual_save_ts = SessionAutosaveStore.coerce_timestamp(
+            session.get("last_manual_save_ts", 0.0)
+        )
         self.set_recent_project_paths(session.get("recent_project_paths", []), persist=False)
 
         restored = False
@@ -250,8 +277,8 @@ class ProjectSessionController:
             try:
                 project = self._host.serializer.load(session_project_path)
                 self._install_project(project, project_path=session_project_path)
-                self._host._last_manual_save_ts = max(
-                    self._host._last_manual_save_ts,
+                self._session_state.last_manual_save_ts = max(
+                    self._session_state.last_manual_save_ts,
                     Path(session_project_path).stat().st_mtime,
                 )
                 restored = True
@@ -282,29 +309,29 @@ class ProjectSessionController:
         self.ensure_project_metadata_defaults()
         if self._host.project_path:
             self.add_recent_project_path(self._host.project_path, persist=False)
-        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
         self._refresh_recent_projects_menu()
         self._host.project_meta_changed.emit()
 
     def discard_autosave_snapshot(self) -> None:
-        self._host._session_store.discard_autosave_snapshot()
-        self._host._last_autosave_fingerprint = ""
+        self._host.session_store.discard_autosave_snapshot()
+        self._session_state.last_autosave_fingerprint = ""
 
     def recover_autosave_if_newer(self) -> ProjectData | None:
         from PyQt6.QtWidgets import QMessageBox
 
-        recovered_project = self._host._session_store.load_recoverable_autosave(
+        recovered_project = self._host.session_store.load_recoverable_autosave(
             current_project_doc=self._host.serializer.to_document(self._host.model.project),
             project_path=self._host.project_path,
-            last_manual_save_ts=self._host._last_manual_save_ts,
+            last_manual_save_ts=self._session_state.last_manual_save_ts,
         )
         if recovered_project is None:
             return None
 
         if not self._host.isVisible():
-            self._host._autosave_recovery_deferred = True
+            self._session_state.autosave_recovery_deferred = True
             return None
 
         choice = self._host._prompt_recover_autosave()
@@ -329,9 +356,9 @@ class ProjectSessionController:
         return QMessageBox.StandardButton(dialog.exec())
 
     def process_deferred_autosave_recovery(self) -> None:
-        if not self._host._autosave_recovery_deferred:
+        if not self._session_state.autosave_recovery_deferred:
             return
-        self._host._autosave_recovery_deferred = False
+        self._session_state.autosave_recovery_deferred = False
         recovered_project = self.recover_autosave_if_newer()
         if recovered_project is None:
             return
@@ -340,7 +367,7 @@ class ProjectSessionController:
         self._host.workspace_library_controller.refresh_workspace_tabs()
         self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
         self.restore_script_editor_state()
-        self._host._last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
         self.persist_session()
@@ -349,9 +376,9 @@ class ProjectSessionController:
         try:
             self._host.workspace_library_controller.save_active_view_state()
             project_doc = self._host.serializer.to_document(self._host.model.project)
-            self._host._last_autosave_fingerprint = self._host._session_store.autosave_if_changed(
+            self._session_state.last_autosave_fingerprint = self._host.session_store.autosave_if_changed(
                 project_doc=project_doc,
-                last_fingerprint=self._host._last_autosave_fingerprint,
+                last_fingerprint=self._session_state.last_autosave_fingerprint,
             )
             self.persist_session(project_doc=project_doc)
         except Exception:  # noqa: BLE001
@@ -362,11 +389,11 @@ class ProjectSessionController:
         self.persist_script_editor_state()
         document = project_doc if isinstance(project_doc, dict) else self._host.serializer.to_document(self._host.model.project)
         try:
-            self._host._session_store.persist_session(
+            self._host.session_store.persist_session(
                 project_path=self._host.project_path,
-                last_manual_save_ts=self._host._last_manual_save_ts,
+                last_manual_save_ts=self._session_state.last_manual_save_ts,
                 project_doc=document,
-                recent_project_paths=list(self._host.recent_project_paths),
+                recent_project_paths=list(self._session_state.recent_project_paths),
             )
         except Exception:  # noqa: BLE001
             return

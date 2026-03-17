@@ -66,6 +66,9 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertIn("[stderr] warn_ui_0", output_text)
         self.assertNotIn("should_not_appear", output_text)
         self.assertEqual(self.window._engine_state_value, "running")
+        self.assertEqual(self.window.run_state.active_run_id, "run_live")
+        self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
+        self.assertEqual(self.window.run_state.engine_state_value, "running")
 
     def test_stale_run_events_do_not_mutate_active_run_ui(self) -> None:
         self.window._active_run_id = "run_live"
@@ -88,6 +91,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window._engine_state_value, "running")
         self.assertEqual(self.window.status_jobs.text(), "R:1 Q:0 D:0 F:0")
         self.assertEqual(self.window.console_panel.error_count, initial_error_count)
+        self.assertEqual(self.window.run_state.active_run_id, "run_live")
+        self.assertEqual(self.window.run_state.engine_state_value, "running")
 
     def test_failure_focus_reveals_parent_chain_when_present(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -140,6 +145,9 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         errors_text = self.window.console_panel.errors_text
         self.assertIn("RuntimeError: boom", errors_text)
         self.assertIn("traceback: line 1", errors_text)
+        self.assertEqual(self.window.run_state.active_run_id, "")
+        self.assertEqual(self.window.run_state.active_run_workspace_id, "")
+        self.assertEqual(self.window.run_state.engine_state_value, "error")
         critical.assert_called_once()
         critical_args = critical.call_args.args
         self.assertEqual(critical_args[1], "Workflow Error")

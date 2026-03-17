@@ -77,8 +77,8 @@ from ea_node_editor.ui.shell.window_library_inspector import (
     build_selected_node_property_items,
     library_item_matches_filters,
 )
-from ea_node_editor.ui.shell import window_search_scope_state
 from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.shell_context_bootstrap import (
@@ -151,6 +151,10 @@ class ShellWindow(QMainWindow):
         self.resize(1600, 900)
 
         self.state = ShellState()
+        self.project_session_state = self.state.project_session
+        self.library_filter_state = self.state.library_filters
+        self.run_state = self.state.run
+        self.search_scope_state = self.state.search_scope
         self.registry: NodeRegistry = build_default_registry()
         self.serializer = JsonProjectSerializer(self.registry)
         self._session_store = SessionAutosaveStore(
@@ -158,6 +162,7 @@ class ShellWindow(QMainWindow):
             session_path_provider=recent_session_path,
             autosave_path_provider=autosave_project_path,
         )
+        self.session_store = self._session_store
         self.model = GraphModel(ProjectData(project_id="proj_local", name="untitled"))
         self.workspace_manager = WorkspaceManager(self.model)
         self.runtime_history = RuntimeGraphHistory()
@@ -170,6 +175,7 @@ class ShellWindow(QMainWindow):
             registry=self.registry,
             history=self.runtime_history,
         )
+        self.graph_interactions = self._graph_interactions
         self.console_panel = ConsoleModel(self)
         self.script_editor = ScriptEditorModel(self)
         self.script_highlighter = QmlScriptSyntaxBridge(self)
@@ -183,24 +189,14 @@ class ShellWindow(QMainWindow):
         self.status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", self)
         self.status_notifications = StatusItemModel("N", "W:0 E:0", self)
         self._frame_rate_sampler = FrameRateSampler()
-        self._graph_search_open = False
-        self._graph_search_query = ""
-        self._graph_search_results: list[dict[str, Any]] = []
-        self._graph_search_highlight_index = -1
-        self._connection_quick_insert_open = False
-        self._connection_quick_insert_query = ""
-        self._connection_quick_insert_results: list[dict[str, Any]] = []
-        self._connection_quick_insert_highlight_index = -1
-        self._connection_quick_insert_context: dict[str, Any] | None = None
-        self._graph_hint_message = ""
         self._graphics_show_grid = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])
         self._graphics_show_minimap = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])
-        self._graphics_minimap_expanded = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"])
+        self.search_scope_state.graphics_minimap_expanded = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"])
         self._graphics_node_shadow = bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["node_shadow"])
         self._graphics_shadow_strength = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])
         self._graphics_shadow_softness = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_softness"])
         self._graphics_shadow_offset = int(DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
-        self._snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
+        self.search_scope_state.snap_to_grid_enabled = bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"])
         self._graphics_tab_strip_density = str(DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
         self._active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self.theme_bridge = ThemeBridge(self, theme_id=self._active_theme_id)
@@ -209,7 +205,7 @@ class ShellWindow(QMainWindow):
             theme_id=default_graph_theme_id_for_shell_theme(self._active_theme_id),
         )
         self.scene.bind_graph_theme_bridge(self.graph_theme_bridge)
-        self._runtime_scope_camera: dict[tuple[str, str, tuple[str, ...]], tuple[float, float, float]] = {}
+        self.search_scope_controller = WindowSearchScopeController(self, self.search_scope_state)
 
         self.workspace_library_controller = WorkspaceLibraryController(self)
         self.project_session_controller = ProjectSessionController(self)
@@ -255,102 +251,102 @@ class ShellWindow(QMainWindow):
 
     @property
     def project_path(self) -> str:
-        return self.state.project_path
+        return self.project_session_state.project_path
 
     @project_path.setter
     def project_path(self, value: str) -> None:
-        self.state.project_path = str(value)
+        self.project_session_state.project_path = str(value)
 
     @property
     def recent_project_paths(self) -> list[str]:
-        return list(self.state.recent_project_paths)
+        return list(self.project_session_state.recent_project_paths)
 
     @recent_project_paths.setter
     def recent_project_paths(self, value: list[str]) -> None:
-        self.state.recent_project_paths = [str(path) for path in value]
+        self.project_session_state.recent_project_paths = [str(path) for path in value]
 
     @property
     def _library_query(self) -> str:
-        return self.state.library_query
+        return self.library_filter_state.library_query
 
     @_library_query.setter
     def _library_query(self, value: str) -> None:
-        self.state.library_query = str(value)
+        self.library_filter_state.library_query = str(value)
 
     @property
     def _library_category(self) -> str:
-        return self.state.library_category
+        return self.library_filter_state.library_category
 
     @_library_category.setter
     def _library_category(self, value: str) -> None:
-        self.state.library_category = str(value)
+        self.library_filter_state.library_category = str(value)
 
     @property
     def _library_data_type(self) -> str:
-        return self.state.library_data_type
+        return self.library_filter_state.library_data_type
 
     @_library_data_type.setter
     def _library_data_type(self, value: str) -> None:
-        self.state.library_data_type = str(value)
+        self.library_filter_state.library_data_type = str(value)
 
     @property
     def _library_direction(self) -> str:
-        return self.state.library_direction
+        return self.library_filter_state.library_direction
 
     @_library_direction.setter
     def _library_direction(self, value: str) -> None:
-        self.state.library_direction = str(value)
+        self.library_filter_state.library_direction = str(value)
 
     @property
     def _active_run_id(self) -> str:
-        return self.state.active_run_id
+        return self.run_state.active_run_id
 
     @_active_run_id.setter
     def _active_run_id(self, value: str) -> None:
-        self.state.active_run_id = str(value)
+        self.run_state.active_run_id = str(value)
 
     @property
     def _active_run_workspace_id(self) -> str:
-        return self.state.active_run_workspace_id
+        return self.run_state.active_run_workspace_id
 
     @_active_run_workspace_id.setter
     def _active_run_workspace_id(self, value: str) -> None:
-        self.state.active_run_workspace_id = str(value)
+        self.run_state.active_run_workspace_id = str(value)
 
     @property
     def _engine_state_value(self) -> Literal["ready", "running", "paused", "error"]:
-        return self.state.engine_state_value
+        return self.run_state.engine_state_value
 
     @_engine_state_value.setter
     def _engine_state_value(self, value: Literal["ready", "running", "paused", "error"] | str) -> None:
         normalized = str(value)
         if normalized not in {"ready", "running", "paused", "error"}:
             normalized = "ready"
-        self.state.engine_state_value = normalized  # type: ignore[assignment]
+        self.run_state.engine_state_value = normalized  # type: ignore[assignment]
 
     @property
     def _last_manual_save_ts(self) -> float:
-        return self.state.last_manual_save_ts
+        return self.project_session_state.last_manual_save_ts
 
     @_last_manual_save_ts.setter
     def _last_manual_save_ts(self, value: float) -> None:
-        self.state.last_manual_save_ts = float(value)
+        self.project_session_state.last_manual_save_ts = float(value)
 
     @property
     def _last_autosave_fingerprint(self) -> str:
-        return self.state.last_autosave_fingerprint
+        return self.project_session_state.last_autosave_fingerprint
 
     @_last_autosave_fingerprint.setter
     def _last_autosave_fingerprint(self, value: str) -> None:
-        self.state.last_autosave_fingerprint = str(value)
+        self.project_session_state.last_autosave_fingerprint = str(value)
 
     @property
     def _autosave_recovery_deferred(self) -> bool:
-        return self.state.autosave_recovery_deferred
+        return self.project_session_state.autosave_recovery_deferred
 
     @_autosave_recovery_deferred.setter
     def _autosave_recovery_deferred(self, value: bool) -> None:
-        self.state.autosave_recovery_deferred = bool(value)
+        self.project_session_state.autosave_recovery_deferred = bool(value)
 
     def _create_actions(self) -> None:
         create_window_actions(self)
@@ -480,49 +476,49 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty(bool, notify=graph_search_changed)
     def graph_search_open(self) -> bool:
-        return bool(self._graph_search_open)
+        return bool(self.search_scope_state.graph_search.open)
 
     @pyqtProperty(str, notify=graph_search_changed)
     def graph_search_query(self) -> str:
-        return self._graph_search_query
+        return self.search_scope_state.graph_search.query
 
     @pyqtProperty("QVariantList", notify=graph_search_changed)
     def graph_search_results(self) -> list[dict[str, Any]]:
-        return list(self._graph_search_results)
+        return list(self.search_scope_state.graph_search.results)
 
     @pyqtProperty(int, notify=graph_search_changed)
     def graph_search_highlight_index(self) -> int:
-        return int(self._graph_search_highlight_index)
+        return int(self.search_scope_state.graph_search.highlight_index)
 
     @pyqtProperty(bool, notify=connection_quick_insert_changed)
     def connection_quick_insert_open(self) -> bool:
-        return bool(self._connection_quick_insert_open)
+        return bool(self.search_scope_state.connection_quick_insert.open)
 
     @pyqtProperty(str, notify=connection_quick_insert_changed)
     def connection_quick_insert_query(self) -> str:
-        return str(self._connection_quick_insert_query)
+        return str(self.search_scope_state.connection_quick_insert.query)
 
     @pyqtProperty("QVariantList", notify=connection_quick_insert_changed)
     def connection_quick_insert_results(self) -> list[dict[str, Any]]:
-        return list(self._connection_quick_insert_results)
+        return list(self.search_scope_state.connection_quick_insert.results)
 
     @pyqtProperty(int, notify=connection_quick_insert_changed)
     def connection_quick_insert_highlight_index(self) -> int:
-        return int(self._connection_quick_insert_highlight_index)
+        return int(self.search_scope_state.connection_quick_insert.highlight_index)
 
     @pyqtProperty(float, notify=connection_quick_insert_changed)
     def connection_quick_insert_overlay_x(self) -> float:
-        context = self._connection_quick_insert_context or {}
+        context = self.search_scope_state.connection_quick_insert.context or {}
         return float(context.get("overlay_x", 0.0))
 
     @pyqtProperty(float, notify=connection_quick_insert_changed)
     def connection_quick_insert_overlay_y(self) -> float:
-        context = self._connection_quick_insert_context or {}
+        context = self.search_scope_state.connection_quick_insert.context or {}
         return float(context.get("overlay_y", 0.0))
 
     @pyqtProperty(str, notify=connection_quick_insert_changed)
     def connection_quick_insert_source_summary(self) -> str:
-        context = self._connection_quick_insert_context or {}
+        context = self.search_scope_state.connection_quick_insert.context or {}
         node_title = str(context.get("node_title", "")).strip()
         port_label = str(context.get("port_label", "")).strip()
         data_type = str(context.get("data_type", "")).strip()
@@ -535,16 +531,16 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty(bool, notify=connection_quick_insert_changed)
     def connection_quick_insert_is_canvas_mode(self) -> bool:
-        context = self._connection_quick_insert_context or {}
+        context = self.search_scope_state.connection_quick_insert.context or {}
         return str(context.get("mode", "")).strip() == "canvas_insert"
 
     @pyqtProperty(str, notify=graph_hint_changed)
     def graph_hint_message(self) -> str:
-        return str(self._graph_hint_message)
+        return str(self.search_scope_state.graph_hint_message)
 
     @pyqtProperty(bool, notify=graph_hint_changed)
     def graph_hint_visible(self) -> bool:
-        return bool(self._graph_hint_message.strip())
+        return bool(self.search_scope_state.graph_hint_message.strip())
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_grid(self) -> bool:
@@ -556,7 +552,7 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_minimap_expanded(self) -> bool:
-        return bool(self._graphics_minimap_expanded)
+        return bool(self.search_scope_state.graphics_minimap_expanded)
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_shadow(self) -> bool:
@@ -584,7 +580,7 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
-        return bool(self._snap_to_grid_enabled)
+        return bool(self.search_scope_state.snap_to_grid_enabled)
 
     @pyqtProperty(float, constant=True)
     def snap_grid_size(self) -> float:
@@ -789,8 +785,7 @@ class ShellWindow(QMainWindow):
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
     ) -> None:
-        window_search_scope_state.set_graph_search_state(
-            self,
+        self.search_scope_controller.set_graph_search_state(
             open_=open_,
             query=query,
             results=results,
@@ -798,7 +793,7 @@ class ShellWindow(QMainWindow):
         )
 
     def _refresh_graph_search_results(self, query: str) -> None:
-        window_search_scope_state.refresh_graph_search_results(self, query)
+        self.search_scope_controller.refresh_graph_search_results(query)
 
     def _set_connection_quick_insert_state(
         self,
@@ -809,30 +804,32 @@ class ShellWindow(QMainWindow):
         highlight_index: int | None = None,
         context: dict[str, Any] | None | object = _UNSET,
     ) -> None:
+        quick_insert = self.search_scope_state.connection_quick_insert
         changed = False
         if open_ is not None:
             normalized_open = bool(open_)
-            if normalized_open != self._connection_quick_insert_open:
-                self._connection_quick_insert_open = normalized_open
+            if normalized_open != quick_insert.open:
+                quick_insert.open = normalized_open
                 changed = True
         if query is not None:
             normalized_query = str(query)
-            if normalized_query != self._connection_quick_insert_query:
-                self._connection_quick_insert_query = normalized_query
+            if normalized_query != quick_insert.query:
+                quick_insert.query = normalized_query
                 changed = True
         if results is not None:
-            if results != self._connection_quick_insert_results:
-                self._connection_quick_insert_results = list(results)
+            normalized_results = list(results)
+            if normalized_results != quick_insert.results:
+                quick_insert.results = normalized_results
                 changed = True
         if highlight_index is not None:
             normalized_index = int(highlight_index)
-            if normalized_index != self._connection_quick_insert_highlight_index:
-                self._connection_quick_insert_highlight_index = normalized_index
+            if normalized_index != quick_insert.highlight_index:
+                quick_insert.highlight_index = normalized_index
                 changed = True
         if context is not _UNSET:
             normalized_context = dict(context) if isinstance(context, dict) else None
-            if normalized_context != self._connection_quick_insert_context:
-                self._connection_quick_insert_context = normalized_context
+            if normalized_context != quick_insert.context:
+                quick_insert.context = normalized_context
                 changed = True
         if changed:
             self.connection_quick_insert_changed.emit()
@@ -880,7 +877,8 @@ class ShellWindow(QMainWindow):
         }
 
     def _refresh_connection_quick_insert_results(self, query: str) -> None:
-        context = self._connection_quick_insert_context
+        quick_insert = self.search_scope_state.connection_quick_insert
+        context = quick_insert.context
         if context is None:
             self._set_connection_quick_insert_state(query=str(query), results=[], highlight_index=-1)
             return
@@ -905,8 +903,8 @@ class ShellWindow(QMainWindow):
                 limit=self._CONNECTION_QUICK_INSERT_LIMIT,
             )
         highlight_index = 0 if results else -1
-        if 0 <= self._connection_quick_insert_highlight_index < len(results):
-            highlight_index = self._connection_quick_insert_highlight_index
+        if 0 <= quick_insert.highlight_index < len(results):
+            highlight_index = quick_insert.highlight_index
         self._set_connection_quick_insert_state(
             query=normalized_query,
             results=results,
@@ -914,16 +912,16 @@ class ShellWindow(QMainWindow):
         )
 
     def _active_scope_camera_key(self, scope_path: tuple[str, ...] | None = None) -> tuple[str, str, tuple[str, ...]] | None:
-        return window_search_scope_state.active_scope_camera_key(self, scope_path)
+        return self.search_scope_controller.active_scope_camera_key(scope_path)
 
     def _remember_scope_camera(self, scope_path: tuple[str, ...] | None = None) -> None:
-        window_search_scope_state.remember_scope_camera(self, scope_path)
+        self.search_scope_controller.remember_scope_camera(scope_path)
 
     def _restore_scope_camera(self, scope_path: tuple[str, ...] | None = None) -> bool:
-        return bool(window_search_scope_state.restore_scope_camera(self, scope_path))
+        return bool(self.search_scope_controller.restore_scope_camera(scope_path))
 
     def _navigate_scope(self, navigate_fn: Callable[[], bool]) -> bool:
-        return bool(window_search_scope_state.navigate_scope(self, navigate_fn))
+        return bool(self.search_scope_controller.navigate_scope(navigate_fn))
 
     def _on_scene_scope_changed(self) -> None:
         self.request_close_connection_quick_insert()
@@ -966,20 +964,20 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(bool)
     def set_snap_to_grid_enabled(self, enabled: bool) -> None:
-        window_search_scope_state.set_snap_to_grid_enabled(self, enabled)
+        self.search_scope_controller.set_snap_to_grid_enabled(enabled)
 
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
-        window_search_scope_state.set_graphics_minimap_expanded(self, expanded)
+        self.search_scope_controller.set_graphics_minimap_expanded(expanded)
 
     @pyqtSlot(str)
     @pyqtSlot(str, int)
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
-        window_search_scope_state.show_graph_hint(self, message, timeout_ms)
+        self.search_scope_controller.show_graph_hint(message, timeout_ms)
 
     @pyqtSlot()
     def clear_graph_hint(self) -> None:
-        window_search_scope_state.clear_graph_hint(self)
+        self.search_scope_controller.clear_graph_hint()
 
     def _apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
         if getattr(self, "quick_widget", None) is None:
@@ -1031,7 +1029,7 @@ class ShellWindow(QMainWindow):
         changed = False
         show_grid = bool(canvas.get("show_grid", self._graphics_show_grid))
         show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
-        minimap_expanded = bool(canvas.get("minimap_expanded", self._graphics_minimap_expanded))
+        minimap_expanded = bool(canvas.get("minimap_expanded", self.search_scope_state.graphics_minimap_expanded))
         node_shadow = bool(canvas.get("node_shadow", self._graphics_node_shadow))
         shadow_strength = int(canvas.get("shadow_strength", self._graphics_shadow_strength))
         shadow_softness = int(canvas.get("shadow_softness", self._graphics_shadow_softness))
@@ -1063,8 +1061,8 @@ class ShellWindow(QMainWindow):
         if self._graphics_show_minimap != show_minimap:
             self._graphics_show_minimap = show_minimap
             changed = True
-        if self._graphics_minimap_expanded != minimap_expanded:
-            self._graphics_minimap_expanded = minimap_expanded
+        if self.search_scope_state.graphics_minimap_expanded != minimap_expanded:
+            self.search_scope_state.graphics_minimap_expanded = minimap_expanded
             changed = True
         if self._graphics_node_shadow != node_shadow:
             self._graphics_node_shadow = node_shadow
@@ -1087,9 +1085,8 @@ class ShellWindow(QMainWindow):
         if previous_graph_theme_id != self.graph_theme_bridge.theme_id:
             changed = True
 
-        window_search_scope_state.set_snap_to_grid_enabled(
-            self,
-            bool(interaction.get("snap_to_grid", self._snap_to_grid_enabled)),
+        self.search_scope_controller.set_snap_to_grid_enabled(
+            bool(interaction.get("snap_to_grid", self.search_scope_state.snap_to_grid_enabled)),
             persist=False,
         )
         if changed:
@@ -1099,14 +1096,14 @@ class ShellWindow(QMainWindow):
             "canvas": {
                 "show_grid": bool(self._graphics_show_grid),
                 "show_minimap": bool(self._graphics_show_minimap),
-                "minimap_expanded": bool(self._graphics_minimap_expanded),
+                "minimap_expanded": bool(self.search_scope_state.graphics_minimap_expanded),
                 "node_shadow": bool(self._graphics_node_shadow),
                 "shadow_strength": int(self._graphics_shadow_strength),
                 "shadow_softness": int(self._graphics_shadow_softness),
                 "shadow_offset": int(self._graphics_shadow_offset),
             },
             "interaction": {
-                "snap_to_grid": bool(self._snap_to_grid_enabled),
+                "snap_to_grid": bool(self.search_scope_state.snap_to_grid_enabled),
             },
             "shell": {
                 "tab_strip_density": str(self._graphics_tab_strip_density),
@@ -1162,7 +1159,7 @@ class ShellWindow(QMainWindow):
             context=context,
         )
         self._refresh_connection_quick_insert_results("")
-        if not self._connection_quick_insert_results:
+        if not self.search_scope_state.connection_quick_insert.results:
             message = (
                 "This input is already connected."
                 if str(context.get("direction", "")).strip().lower() == "in"
@@ -1211,45 +1208,49 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str)
     def set_connection_quick_insert_query(self, query: str) -> None:
-        if not self._connection_quick_insert_open:
+        if not self.search_scope_state.connection_quick_insert.open:
             return
         self._refresh_connection_quick_insert_results(query)
 
     @pyqtSlot(int)
     def request_connection_quick_insert_move(self, delta: int) -> None:
-        if not self._connection_quick_insert_open or not self._connection_quick_insert_results:
+        quick_insert = self.search_scope_state.connection_quick_insert
+        if not quick_insert.open or not quick_insert.results:
             return
-        current = self._connection_quick_insert_highlight_index
+        current = quick_insert.highlight_index
         if current < 0:
             current = 0
-        next_index = max(0, min(len(self._connection_quick_insert_results) - 1, current + int(delta)))
+        next_index = max(0, min(len(quick_insert.results) - 1, current + int(delta)))
         self._set_connection_quick_insert_state(highlight_index=next_index)
 
     @pyqtSlot(int)
     def request_connection_quick_insert_highlight(self, index: int) -> None:
-        if not self._connection_quick_insert_open:
+        quick_insert = self.search_scope_state.connection_quick_insert
+        if not quick_insert.open:
             return
-        if index < 0 or index >= len(self._connection_quick_insert_results):
+        if index < 0 or index >= len(quick_insert.results):
             return
         self._set_connection_quick_insert_state(highlight_index=int(index))
 
     @pyqtSlot(result=bool)
     def request_connection_quick_insert_accept(self) -> bool:
-        if not self._connection_quick_insert_open or not self._connection_quick_insert_results:
+        quick_insert = self.search_scope_state.connection_quick_insert
+        if not quick_insert.open or not quick_insert.results:
             return False
-        index = self._connection_quick_insert_highlight_index
-        if index < 0 or index >= len(self._connection_quick_insert_results):
+        index = quick_insert.highlight_index
+        if index < 0 or index >= len(quick_insert.results):
             index = 0
         return self.request_connection_quick_insert_choose(index)
 
     @pyqtSlot(int, result=bool)
     def request_connection_quick_insert_choose(self, index: int) -> bool:
-        if index < 0 or index >= len(self._connection_quick_insert_results):
+        quick_insert = self.search_scope_state.connection_quick_insert
+        if index < 0 or index >= len(quick_insert.results):
             return False
-        context = self._connection_quick_insert_context
+        context = quick_insert.context
         if context is None:
             return False
-        selected_item = self._connection_quick_insert_results[index]
+        selected_item = quick_insert.results[index]
         scene_x = float(context.get("scene_x", 0.0))
         scene_y = float(context.get("scene_y", 0.0))
         if str(context.get("mode", "")).strip() == "canvas_insert":
@@ -1282,25 +1283,25 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str)
     def set_graph_search_query(self, query: str) -> None:
-        if not self._graph_search_open:
+        if not self.search_scope_state.graph_search.open:
             return
         self._refresh_graph_search_results(query)
 
     @pyqtSlot(int)
     def request_graph_search_move(self, delta: int) -> None:
-        window_search_scope_state.request_graph_search_move(self, delta)
+        self.search_scope_controller.request_graph_search_move(delta)
 
     @pyqtSlot(int)
     def request_graph_search_highlight(self, index: int) -> None:
-        window_search_scope_state.request_graph_search_highlight(self, index)
+        self.search_scope_controller.request_graph_search_highlight(index)
 
     @pyqtSlot(result=bool)
     def request_graph_search_accept(self) -> bool:
-        return bool(window_search_scope_state.request_graph_search_accept(self))
+        return bool(self.search_scope_controller.request_graph_search_accept())
 
     @pyqtSlot(int, result=bool)
     def request_graph_search_jump(self, index: int) -> bool:
-        return bool(window_search_scope_state.request_graph_search_jump(self, index))
+        return bool(self.search_scope_controller.request_graph_search_jump(index))
 
     @pyqtSlot(str)
     def request_add_node_from_library(self, type_id: str) -> None:
@@ -1487,8 +1488,8 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(result=bool)
     def request_toggle_snap_to_grid(self) -> bool:
-        self.set_snap_to_grid_enabled(not self._snap_to_grid_enabled)
-        return bool(self._snap_to_grid_enabled)
+        self.set_snap_to_grid_enabled(not self.search_scope_state.snap_to_grid_enabled)
+        return bool(self.search_scope_state.snap_to_grid_enabled)
 
     @pyqtSlot()
     def request_connect_selected_nodes(self) -> None:

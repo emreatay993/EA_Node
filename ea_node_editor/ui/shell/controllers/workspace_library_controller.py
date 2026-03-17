@@ -572,14 +572,9 @@ class WorkspaceLibraryController:
         if active_view_closed:
             self.restore_active_view_state()
             self._host.scene.sync_scope_with_active_view()
-            self._host._restore_scope_camera()
+            self._host.search_scope_controller.restore_scope_camera()
 
-        stale_scope_keys = [
-            key for key in self._host._runtime_scope_camera
-            if key[0] == workspace_id and key[1] == normalized_view_id
-        ]
-        for key in stale_scope_keys:
-            del self._host._runtime_scope_camera[key]
+        self._host.search_scope_controller.discard_scope_camera_for_view(workspace_id, normalized_view_id)
 
         self._host.workspace_state_changed.emit()
         return True
