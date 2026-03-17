@@ -219,7 +219,12 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """
             host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            gesture_layer = host.findChild(QObject, "graphNodeHostGestureLayer")
+            drag_area = host.findChild(QObject, "graphNodeDragArea")
             assert loader is not None
+            assert gesture_layer is not None
+            assert drag_area is not None
+            assert drag_area.parentItem().objectName() == "graphNodeHostGestureLayer"
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
             assert len(embedded_rects) == 1

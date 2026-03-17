@@ -230,6 +230,38 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_exposes_split_helper_layers_with_stable_stacking(self) -> None:
+        self._run_qml_probe(
+            "host-split-helper-layers",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            header_layer = host.findChild(QObject, "graphNodeHeaderLayer")
+            gesture_layer = host.findChild(QObject, "graphNodeHostGestureLayer")
+            ports_layer = host.findChild(QObject, "graphNodePortsLayer")
+            resize_handle = host.findChild(QObject, "graphNodeResizeHandle")
+            drag_area = host.findChild(QObject, "graphNodeDragArea")
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+
+            assert background_layer is not None
+            assert header_layer is not None
+            assert gesture_layer is not None
+            assert ports_layer is not None
+            assert resize_handle is not None
+            assert loader is not None
+            assert drag_area is not None
+            assert drag_area.parentItem().objectName() == "graphNodeHostGestureLayer"
+
+            surface_layer = loader.parentItem()
+            assert surface_layer is not None
+            assert float(background_layer.property("z")) < float(surface_layer.property("z"))
+            assert float(gesture_layer.property("z")) < float(surface_layer.property("z"))
+            assert float(header_layer.property("z")) > float(surface_layer.property("z"))
+            assert float(ports_layer.property("z")) > float(header_layer.property("z"))
+            assert float(resize_handle.property("z")) > float(ports_layer.property("z"))
+            """,
+        )
+
     def test_graph_node_host_routes_body_click_open_and_context_from_below_surface_layer(self) -> None:
         self._run_qml_probe(
             "host-body-interactions-below-surface",
@@ -240,10 +272,13 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             payload["inline_properties"] = []
             host = create_component(graph_node_host_qml_path, {"nodeData": payload})
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            gesture_layer = host.findChild(QObject, "graphNodeHostGestureLayer")
             drag_area = host.findChild(QObject, "graphNodeDragArea")
 
             assert loader is not None
+            assert gesture_layer is not None
             assert drag_area is not None
+            assert drag_area.parentItem().objectName() == "graphNodeHostGestureLayer"
 
             surface_layer = loader.parentItem()
             assert surface_layer is not None

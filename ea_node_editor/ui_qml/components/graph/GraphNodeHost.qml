@@ -1,8 +1,6 @@
 import QtQuick 2.15
-import QtQuick.Controls 2.15
-import QtQuick.Layouts 1.15
-import QtQuick.Effects
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
+import "GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 
 Item {
     id: card
@@ -353,150 +351,56 @@ Item {
     }
 
     function _isResizeHandlePoint(localX, localY) {
-        if (!card.nodeData || card.nodeData.collapsed)
-            return false;
-        return localX >= card.width - card._resizeHandleSize && localY >= card.height - card._resizeHandleSize;
+        return GraphNodeHostHitTesting.resizeHandleContainsPoint(
+            localX,
+            localY,
+            card.width,
+            card.height,
+            card._resizeHandleSize,
+            card.nodeData ? Boolean(card.nodeData.collapsed) : true
+        );
     }
 
     function _pointInRect(localX, localY, rectLike) {
-        if (!rectLike)
-            return false;
-        var rectX = Number(rectLike.x || 0);
-        var rectY = Number(rectLike.y || 0);
-        var rectWidth = Number(rectLike.width || 0);
-        var rectHeight = Number(rectLike.height || 0);
-        return rectWidth > 0
-            && rectHeight > 0
-            && localX >= rectX
-            && localX <= rectX + rectWidth
-            && localY >= rectY
-            && localY <= rectY + rectHeight;
+        return GraphNodeHostHitTesting.pointInRect(localX, localY, rectLike);
     }
 
     function _pointInEmbeddedInteractiveRect(localX, localY) {
-        var rects = surfaceLoader.embeddedInteractiveRects;
-        if (!rects || rects.length <= 0)
-            return false;
-        for (var index = 0; index < rects.length; index++) {
-            if (card._pointInRect(localX, localY, rects[index]))
-                return true;
-        }
-        return false;
+        return GraphNodeHostHitTesting.pointInAnyRect(localX, localY, surfaceLoader.embeddedInteractiveRects);
     }
 
     function _surfaceClaimsBodyInteractionAt(localX, localY) {
-        return card._pointInEmbeddedInteractiveRect(localX, localY);
+        return GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, surfaceLoader.embeddedInteractiveRects);
     }
 
     HoverHandler {
         id: cardHoverHandler
     }
 
-    readonly property bool hoverActive: cardHoverHandler.hovered || nodeDragArea.containsMouse || resizeDragArea.containsMouse
+    readonly property bool hoverActive: cardHoverHandler.hovered
+        || hostGestureLayer.containsMouse
+        || resizeHandle.containsMouse
 
     z: card.isSelected ? 30 : 20
     x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
     y: (card.nodeData ? card.nodeData.y : 0.0) + card.worldOffset
     transform: Translate {
-        x: nodeDragArea.drag.active ? 0 : card.liveDragDx
-        y: nodeDragArea.drag.active ? 0 : card.liveDragDy
+        x: hostGestureLayer.dragActive ? 0 : card.liveDragDx
+        y: hostGestureLayer.dragActive ? 0 : card.liveDragDy
     }
     width: card._liveWidth > 0 ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
     height: card._liveHeight > 0 ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
 
-    RectangularShadow {
-        id: cardShadow
-        objectName: "graphNodeShadow"
-        visible: card._shadowVisible
-        anchors.fill: cardChrome
-        z: 0
-        offset.y: card.shadowOffset
-        blur: Math.max(0.0, Math.min(1.0, card.shadowSoftness / 100.0))
-        spread: Math.max(0.0, Math.min(1.0, card.shadowStrength / 150.0))
-        radius: card.resolvedCornerRadius
-        color: Qt.rgba(0, 0, 0, card.shadowStrength / 100.0)
-        cached: true
-    }
-
-    Rectangle {
-        id: cardChrome
-        objectName: "graphNodeChrome"
+    GraphNodeChromeBackground {
         anchors.fill: parent
-        z: 1
-        visible: card._useHostChrome
-        color: card.surfaceColor
-        border.width: card.resolvedBorderWidth
-        border.color: card.isSelected ? card.selectedOutlineColor : card.outlineColor
-        radius: card.resolvedCornerRadius
+        host: card
     }
 
     // Keep body interactions below the loaded surface so local surface controls can own pointer input.
-    MouseArea {
-        id: nodeDragArea
-        objectName: "graphNodeDragArea"
-        z: 1.5
+    GraphNodeHostGestureLayer {
+        id: hostGestureLayer
         anchors.fill: parent
-        enabled: !card.surfaceInteractionLocked
-        acceptedButtons: Qt.LeftButton | Qt.RightButton
-        hoverEnabled: true
-        cursorShape: card.surfaceInteractionLocked
-            ? Qt.ArrowCursor
-            : (drag.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor)
-        drag.target: enabled ? card : null
-        drag.axis: Drag.XAndYAxis
-        propagateComposedEvents: true
-        property bool dragMoved: false
-
-        onPressed: {
-            if (card._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
-                mouse.accepted = false;
-                return;
-            }
-            if (mouse.button === Qt.RightButton) {
-                card.nodeContextRequested(card.nodeData.node_id, mouse.x, mouse.y);
-                mouse.accepted = true;
-                return;
-            }
-            dragMoved = false;
-        }
-        onClicked: {
-            if (mouse.button !== Qt.LeftButton)
-                return;
-            if (card._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
-                return;
-            var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
-            card.nodeClicked(card.nodeData.node_id, additive);
-        }
-        onDoubleClicked: {
-            if (mouse.button !== Qt.LeftButton)
-                return;
-            if (card._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
-                return;
-            card.nodeOpenRequested(card.nodeData.node_id);
-        }
-        onPositionChanged: {
-            if (!drag.active)
-                return;
-            dragMoved = true;
-            card.dragOffsetChanged(
-                card.nodeData.node_id,
-                card.x - card.worldOffset - card.nodeData.x,
-                card.y - card.worldOffset - card.nodeData.y
-            );
-        }
-        onReleased: {
-            if (mouse.button !== Qt.LeftButton)
-                return;
-            card.dragFinished(
-                card.nodeData.node_id,
-                card.x - card.worldOffset,
-                card.y - card.worldOffset,
-                dragMoved
-            );
-        }
-        onCanceled: {
-            card.dragCanceled(card.nodeData.node_id);
-        }
+        host: card
     }
 
     Item {
@@ -515,499 +419,20 @@ Item {
         }
     }
 
-    Rectangle {
-        z: 3
-        visible: card._showAccentBar
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        height: 4
-        radius: 4
-        color: card.nodeData ? card.nodeData.accent : "#4AA9D6"
-    }
-
-    Rectangle {
-        z: 3
-        visible: card._showHeaderBackground
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.top: parent.top
-        anchors.topMargin: Number(surfaceMetrics.header_top_margin)
-        height: Number(surfaceMetrics.header_height)
-        color: card.headerColor
-        border.color: card.outlineColor
-    }
-
-    Text {
-        objectName: "graphNodeTitle"
-        property int effectiveRenderType: renderType
-        z: 4
-        anchors.left: parent.left
-        anchors.leftMargin: card._titleLeftMargin
-        anchors.right: parent.right
-        anchors.rightMargin: card._titleRightMargin + (card.canEnterScope ? 56 : 0)
-        y: card._titleTop
-        height: card._titleHeight
-        text: card.nodeData ? card.nodeData.title : ""
-        color: card.headerTextColor
-        font.pixelSize: card.isPassiveNode ? card.passiveFontPixelSize : 12
-        font.bold: card.isPassiveNode ? card.passiveFontBold : true
-        horizontalAlignment: card._titleCentered ? Text.AlignHCenter : Text.AlignLeft
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
-        renderType: card.nodeTextRenderType
-    }
-
-    Rectangle {
-        z: 4
-        visible: card.canEnterScope
-        anchors.right: parent.right
-        anchors.rightMargin: 8
-        y: card._titleTop + Math.max(0, (card._titleHeight - height) * 0.5)
-        width: 48
-        height: 16
-        radius: 8
-        color: card.scopeBadgeColor
-        border.color: card.scopeBadgeBorderColor
-
-        Text {
-            anchors.centerIn: parent
-            text: "OPEN"
-            color: card.scopeBadgeTextColor
-            font.pixelSize: 9
-            font.bold: true
-            renderType: card.nodeTextRenderType
-        }
-    }
-
-    Item {
-        id: portLayer
-        z: 5
+    GraphNodeHeaderLayer {
         anchors.fill: parent
-        visible: card.nodeData ? !card.nodeData.collapsed : false
-
-        Repeater {
-            model: card.inputPorts
-            delegate: Item {
-                property int rowIndex: index
-                readonly property var portPoint: card.localPortPoint("in", rowIndex)
-                readonly property real dotDiameter: inputDot.width
-                x: 0
-                y: portPoint.y - height * 0.5
-                width: card.width
-                height: Math.max(dotDiameter, 18)
-
-                Rectangle {
-                    id: inputDot
-                    objectName: "graphNodeInputPortDot"
-                    property bool hoveredState: card.isHoveredPort("in", modelData.key)
-                    property bool pendingState: card.isPendingPort("in", modelData.key)
-                    property bool dragSourceState: card.isDragSourcePort("in", modelData.key)
-                    property bool selectedState: card.isFlowchartSurface && card.isSelected
-                    property bool attentionState: hoveredState || pendingState || dragSourceState
-                    property bool interactiveState: attentionState || selectedState
-                    property bool connectedState: card.isConnectedPort(modelData)
-                    property color portColor: card.basePortColor(modelData.kind)
-                    property real restDiameter: card.isFlowchartSurface
-                        ? (connectedState ? card.flowchartConnectedPortDiameter : card.flowchartRestPortDiameter)
-                        : 8
-                    property real activeDiameter: card.isFlowchartSurface
-                        ? (attentionState ? card.flowchartInteractivePortDiameter : card.flowchartSelectedPortDiameter)
-                        : 14
-                    property real ringDiameter: card.isFlowchartSurface ? card.flowchartInteractiveRingDiameter : (attentionState ? 18 : 12)
-                    x: parent.portPoint.x - width * 0.5
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: interactiveState ? activeDiameter : restDiameter
-                    height: width
-                    radius: width * 0.5
-                    color: card.isFlowchartSurface
-                        ? (attentionState
-                            ? card.portInteractiveFillColor
-                            : ((selectedState || connectedState) ? card.flowchartConnectedPortFillColor : "transparent"))
-                        : (interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent"))
-                    border.width: card.isFlowchartSurface ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
-                    border.color: attentionState
-                        ? card.portInteractiveBorderColor
-                        : (card.isFlowchartSurface && selectedState ? card.selectedOutlineColor : portColor)
-
-                    Rectangle {
-                        objectName: "graphNodeInputPortRing"
-                        anchors.centerIn: parent
-                        visible: !card.isFlowchartSurface || inputDot.attentionState
-                        width: inputDot.ringDiameter
-                        height: inputDot.ringDiameter
-                        radius: width * 0.5
-                        z: -1
-                        color: inputDot.attentionState ? card.portInteractiveRingFillColor : "transparent"
-                        border.width: inputDot.attentionState ? 1 : 0
-                        border.color: inputDot.attentionState ? card.portInteractiveRingBorderColor : "transparent"
-                    }
-
-                    MouseArea {
-                        id: inputPortMouse
-                        objectName: "graphNodeInputPortMouseArea"
-                        enabled: !card.surfaceInteractionLocked
-                        property real pressStartX: 0
-                        property real pressStartY: 0
-                        property bool movedState: false
-                        x: -9
-                        y: -9
-                        width: parent.width + 18
-                        height: parent.height + 18
-                        acceptedButtons: Qt.LeftButton
-                        hoverEnabled: true
-                        preventStealing: true
-                        cursorShape: Qt.PointingHandCursor
-                        onPressed: {
-                            if (mouse.button !== Qt.LeftButton)
-                                return;
-                            pressStartX = mouse.x;
-                            pressStartY = mouse.y;
-                            movedState = false;
-                            var scenePos = card.portScenePos("in", rowIndex);
-                            var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
-                            card.portDragStarted(
-                                card.nodeData.node_id,
-                                modelData.key,
-                                "in",
-                                scenePos.x,
-                                scenePos.y,
-                                pointerPos.x,
-                                pointerPos.y
-                            );
-                            mouse.accepted = true;
-                        }
-                        onPositionChanged: {
-                            if (!pressed)
-                                return;
-                            if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
-                                || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
-                                movedState = true;
-                            }
-                            var scenePos = card.portScenePos("in", rowIndex);
-                            var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
-                            card.portDragMoved(
-                                card.nodeData.node_id,
-                                modelData.key,
-                                "in",
-                                scenePos.x,
-                                scenePos.y,
-                                pointerPos.x,
-                                pointerPos.y,
-                                movedState
-                            );
-                        }
-                        onReleased: {
-                            var scenePos = card.portScenePos("in", rowIndex);
-                            var pointerPos = card._pointerInCanvas(inputPortMouse, mouse);
-                            card.portDragFinished(
-                                card.nodeData.node_id,
-                                modelData.key,
-                                "in",
-                                scenePos.x,
-                                scenePos.y,
-                                pointerPos.x,
-                                pointerPos.y,
-                                movedState
-                            );
-                            if (!movedState) {
-                                card.portClicked(card.nodeData.node_id, modelData.key, "in", scenePos.x, scenePos.y);
-                            }
-                            movedState = false;
-                        }
-                        onCanceled: {
-                            card.portDragCanceled(card.nodeData.node_id, modelData.key, "in");
-                            movedState = false;
-                        }
-                        onEntered: {
-                            var pos = card.portScenePos("in", rowIndex);
-                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "in", pos.x, pos.y, true);
-                        }
-                        onExited: {
-                            var pos = card.portScenePos("in", rowIndex);
-                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "in", pos.x, pos.y, false);
-                        }
-                    }
-                }
-
-                Text {
-                    objectName: "graphNodeInputPortLabel"
-                    property int effectiveRenderType: renderType
-                    readonly property real availableWidth: Math.max(0, card.width - x - 4)
-                    visible: card._portLabelsVisible
-                    anchors.verticalCenter: parent.verticalCenter
-                    x: Math.max(0, inputDot.x + inputDot.width + card._portLabelGap)
-                    width: card.portLabelWidth(implicitWidth, availableWidth)
-                    text: modelData.label || modelData.key
-                    color: card.portLabelColor
-                    font.pixelSize: 10
-                    elide: Text.ElideRight
-                    renderType: card.nodeTextRenderType
-                }
-            }
-        }
-
-        Repeater {
-            model: card.outputPorts
-            delegate: Item {
-                property int rowIndex: index
-                readonly property var portPoint: card.localPortPoint("out", rowIndex)
-                readonly property real dotDiameter: outputDot.width
-                x: 0
-                y: portPoint.y - height * 0.5
-                width: card.width
-                height: Math.max(dotDiameter, 18)
-
-                Rectangle {
-                    id: outputDot
-                    objectName: "graphNodeOutputPortDot"
-                    property bool hoveredState: card.isHoveredPort("out", modelData.key)
-                    property bool pendingState: card.isPendingPort("out", modelData.key)
-                    property bool dragSourceState: card.isDragSourcePort("out", modelData.key)
-                    property bool selectedState: card.isFlowchartSurface && card.isSelected
-                    property bool attentionState: hoveredState || pendingState || dragSourceState
-                    property bool interactiveState: attentionState || selectedState
-                    property bool connectedState: card.isConnectedPort(modelData)
-                    property color portColor: card.basePortColor(modelData.kind)
-                    property real restDiameter: card.isFlowchartSurface
-                        ? (connectedState ? card.flowchartConnectedPortDiameter : card.flowchartRestPortDiameter)
-                        : 8
-                    property real activeDiameter: card.isFlowchartSurface
-                        ? (attentionState ? card.flowchartInteractivePortDiameter : card.flowchartSelectedPortDiameter)
-                        : 14
-                    property real ringDiameter: card.isFlowchartSurface ? card.flowchartInteractiveRingDiameter : (attentionState ? 18 : 12)
-                    x: parent.portPoint.x - width * 0.5
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: interactiveState ? activeDiameter : restDiameter
-                    height: width
-                    radius: width * 0.5
-                    color: card.isFlowchartSurface
-                        ? (attentionState
-                            ? card.portInteractiveFillColor
-                            : ((selectedState || connectedState) ? card.flowchartConnectedPortFillColor : "transparent"))
-                        : (interactiveState ? card.portInteractiveFillColor : (connectedState ? portColor : "transparent"))
-                    border.width: card.isFlowchartSurface ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
-                    border.color: attentionState
-                        ? card.portInteractiveBorderColor
-                        : (card.isFlowchartSurface && selectedState ? card.selectedOutlineColor : portColor)
-
-                    Rectangle {
-                        objectName: "graphNodeOutputPortRing"
-                        anchors.centerIn: parent
-                        visible: !card.isFlowchartSurface || outputDot.attentionState
-                        width: outputDot.ringDiameter
-                        height: outputDot.ringDiameter
-                        radius: width * 0.5
-                        z: -1
-                        color: outputDot.attentionState ? card.portInteractiveRingFillColor : "transparent"
-                        border.width: outputDot.attentionState ? 1 : 0
-                        border.color: outputDot.attentionState ? card.portInteractiveRingBorderColor : "transparent"
-                    }
-
-                    MouseArea {
-                        id: outputPortMouse
-                        objectName: "graphNodeOutputPortMouseArea"
-                        enabled: !card.surfaceInteractionLocked
-                        property real pressStartX: 0
-                        property real pressStartY: 0
-                        property bool movedState: false
-                        property bool hoverActive: false
-                        x: -9
-                        y: -9
-                        width: parent.width + 18
-                        height: parent.height + 18
-                        acceptedButtons: Qt.LeftButton
-                        hoverEnabled: true
-                        preventStealing: true
-                        cursorShape: Qt.PointingHandCursor
-                        function updateHoverState(localX, localY) {
-                            var nextHover = !card._isResizeHandlePoint(localX, localY);
-                            if (hoverActive === nextHover)
-                                return;
-                            hoverActive = nextHover;
-                            var pos = card.portScenePos("out", rowIndex);
-                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, nextHover);
-                        }
-                        onPressed: {
-                            if (mouse.button !== Qt.LeftButton)
-                                return;
-                            var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
-                            if (card._isResizeHandlePoint(localPoint.x, localPoint.y)) {
-                                mouse.accepted = false;
-                                return;
-                            }
-                            pressStartX = mouse.x;
-                            pressStartY = mouse.y;
-                            movedState = false;
-                            var scenePos = card.portScenePos("out", rowIndex);
-                            var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
-                            card.portDragStarted(
-                                card.nodeData.node_id,
-                                modelData.key,
-                                "out",
-                                scenePos.x,
-                                scenePos.y,
-                                pointerPos.x,
-                                pointerPos.y
-                            );
-                            mouse.accepted = true;
-                        }
-                        onPositionChanged: {
-                            var localPoint = outputPortMouse.mapToItem(card, mouse.x, mouse.y);
-                            updateHoverState(localPoint.x, localPoint.y);
-                            if (!pressed)
-                                return;
-                            if (Math.abs(mouse.x - pressStartX) >= card._portDragThreshold
-                                || Math.abs(mouse.y - pressStartY) >= card._portDragThreshold) {
-                                movedState = true;
-                            }
-                            var scenePos = card.portScenePos("out", rowIndex);
-                            var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
-                            card.portDragMoved(
-                                card.nodeData.node_id,
-                                modelData.key,
-                                "out",
-                                scenePos.x,
-                                scenePos.y,
-                                pointerPos.x,
-                                pointerPos.y,
-                                movedState
-                            );
-                        }
-                        onReleased: {
-                            var scenePos = card.portScenePos("out", rowIndex);
-                            var pointerPos = card._pointerInCanvas(outputPortMouse, mouse);
-                            card.portDragFinished(
-                                card.nodeData.node_id,
-                                modelData.key,
-                                "out",
-                                scenePos.x,
-                                scenePos.y,
-                                pointerPos.x,
-                                pointerPos.y,
-                                movedState
-                            );
-                            if (!movedState) {
-                                card.portClicked(card.nodeData.node_id, modelData.key, "out", scenePos.x, scenePos.y);
-                            }
-                            movedState = false;
-                        }
-                        onCanceled: {
-                            card.portDragCanceled(card.nodeData.node_id, modelData.key, "out");
-                            movedState = false;
-                        }
-                        onEntered: {
-                            var localPoint = outputPortMouse.mapToItem(card, outputPortMouse.mouseX, outputPortMouse.mouseY);
-                            updateHoverState(localPoint.x, localPoint.y);
-                        }
-                        onExited: {
-                            if (!hoverActive)
-                                return;
-                            hoverActive = false;
-                            var pos = card.portScenePos("out", rowIndex);
-                            card.portHoverChanged(card.nodeData.node_id, modelData.key, "out", pos.x, pos.y, false);
-                        }
-                    }
-                }
-
-                Text {
-                    objectName: "graphNodeOutputPortLabel"
-                    property int effectiveRenderType: renderType
-                    readonly property real availableWidth: Math.max(0, outputDot.x - card._portLabelGap - 4)
-                    visible: card._portLabelsVisible
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: card.portLabelWidth(implicitWidth, availableWidth)
-                    x: Math.max(4, outputDot.x - card._portLabelGap - width)
-                    text: modelData.label || modelData.key
-                    color: card.portLabelColor
-                    font.pixelSize: 10
-                    horizontalAlignment: Text.AlignRight
-                    elide: Text.ElideLeft
-                    renderType: card.nodeTextRenderType
-                }
-            }
-        }
+        host: card
     }
 
-    Canvas {
-        id: resizeGrip
-        z: 6
-        width: card._resizeHandleSize
-        height: card._resizeHandleSize
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
-        visible: card.nodeData ? (!card.nodeData.collapsed && !card.surfaceInteractionLocked) : false
-        onPaint: {
-            var ctx = getContext("2d");
-            ctx.clearRect(0, 0, width, height);
-            ctx.strokeStyle = card.outlineColor;
-            ctx.lineWidth = 1.2;
-            ctx.lineCap = "round";
-            for (var i = 1; i <= 3; i++) {
-                var off = i * 3.5;
-                ctx.beginPath();
-                ctx.moveTo(width - off, height - 1);
-                ctx.lineTo(width - 1, height - off);
-                ctx.stroke();
-            }
-        }
+    GraphNodePortsLayer {
+        anchors.fill: parent
+        host: card
     }
 
-    MouseArea {
-        id: resizeDragArea
-        objectName: "graphNodeResizeDragArea"
-        z: 5
-        width: card._resizeHandleSize
-        height: card._resizeHandleSize
+    GraphNodeResizeHandle {
+        id: resizeHandle
         anchors.right: parent.right
         anchors.bottom: parent.bottom
-        visible: card.nodeData ? (!card.nodeData.collapsed && !card.surfaceInteractionLocked) : false
-        enabled: !card.surfaceInteractionLocked
-        hoverEnabled: true
-        cursorShape: Qt.SizeFDiagCursor
-        preventStealing: true
-        property real pressGlobalX: 0
-        property real pressGlobalY: 0
-        property real pressWidth: 0
-        property real pressHeight: 0
-
-        onPressed: function(mouse) {
-            var gp = mapToGlobal(mouse.x, mouse.y);
-            pressGlobalX = gp.x;
-            pressGlobalY = gp.y;
-            pressWidth = card.width;
-            pressHeight = card.height;
-            card._liveWidth = pressWidth;
-            card._liveHeight = pressHeight;
-            card.resizePreviewChanged(card.nodeData.node_id, pressWidth, pressHeight, true);
-            mouse.accepted = true;
-        }
-        onPositionChanged: function(mouse) {
-            if (!pressed)
-                return;
-            var gp = mapToGlobal(mouse.x, mouse.y);
-            var dw = (gp.x - pressGlobalX) / card.zoom;
-            var dh = (gp.y - pressGlobalY) / card.zoom;
-            card._liveWidth = Math.max(card._minNodeWidth, pressWidth + dw);
-            card._liveHeight = Math.max(card._minNodeHeight, pressHeight + dh);
-            card.resizePreviewChanged(card.nodeData.node_id, card._liveWidth, card._liveHeight, true);
-        }
-        onReleased: function(_mouse) {
-            if (card._liveWidth <= 0)
-                return;
-            var finalWidth = card._liveWidth;
-            var finalHeight = card._liveHeight;
-            card._liveWidth = 0;
-            card._liveHeight = 0;
-            card.resizePreviewChanged(card.nodeData.node_id, finalWidth, finalHeight, false);
-            card.resizeFinished(card.nodeData.node_id, finalWidth, finalHeight);
-        }
-        onCanceled: {
-            var fallbackWidth = card._liveWidth > 0 ? card._liveWidth : card.width;
-            var fallbackHeight = card._liveHeight > 0 ? card._liveHeight : card.height;
-            card._liveWidth = 0;
-            card._liveHeight = 0;
-            card.resizePreviewChanged(card.nodeData.node_id, fallbackWidth, fallbackHeight, false);
-        }
+        host: card
     }
 }
