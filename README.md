@@ -270,8 +270,35 @@ Restart the application and the node will appear in the Node Library under the
 ## Running Tests
 
 ```bash
-QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest discover -s tests -v
+./venv/Scripts/python.exe scripts/run_verification.py --mode fast
 ```
+
+Use the repo-owned runner for the default day-to-day loop. It keeps the
+`fast`, `gui`, `slow`, and `full` workflow stable, applies
+`QT_QPA_PLATFORM=offscreen` to its child verification commands, and reserves
+the shell-wrapper suites for isolated `unittest` execution in `full` mode.
+
+Inspect or run the full workflow with:
+
+```bash
+./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run
+./venv/Scripts/python.exe scripts/run_verification.py --mode full
+```
+
+- `fast` targets `pytest -m "not gui and not slow"` and uses `pytest-xdist`
+  when it is available in the project venv, with automatic serial fallback
+  when it is not installed.
+- `gui` and `slow` keep the QML-heavy phases explicit:
+  `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` and
+  `./venv/Scripts/python.exe scripts/run_verification.py --mode slow`.
+- `full` runs the three pytest phases first, then reruns
+  `tests.test_main_window_shell`, `tests.test_script_editor_dock`,
+  `tests.test_shell_run_controller`, and
+  `tests.test_shell_project_session_controller` in separate `unittest`
+  processes to preserve the approved shell isolation model.
+- See `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` for the approved mode
+  shapes, shell fallback commands, baseline timings, and the current
+  serializer caveat.
 
 Focused graph-surface regression gate:
 
@@ -309,6 +336,7 @@ packaging, installer creation, and code signing instructions.
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- final host/inline/media/shell coverage and the approved shell fallback
+- [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, shell isolation rules, and current baseline caveats
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 

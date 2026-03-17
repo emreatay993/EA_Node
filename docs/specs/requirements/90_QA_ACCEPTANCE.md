@@ -17,8 +17,14 @@
 - `REQ-QA-012`: the repo shall carry a reference passive workspace plus a short manual visual checklist for reopen, media-preview, and preset-round-trip verification.
 - `REQ-QA-013`: a graph-surface input regression gate shall cover host body routing, embedded interactive-rect ownership, modal whole-surface locks, shared inline editors, media-surface controls, and graph-surface shell workflows; if an aggregate shell wrapper is unstable, the approved fresh-process fallback shall be recorded alongside a complete targeted matrix.
 
+## Verification Workflow
+- `REQ-QA-014`: the repo shall document `scripts/run_verification.py` as the developer-oriented verification entry point with stable `fast`, `gui`, `slow`, and `full` modes.
+- `REQ-QA-015`: the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution inside the documented `full` workflow rather than the pytest phases.
+- `REQ-QA-016`: the documented verification workflow shall record the current `pytest-xdist` parallel-versus-serial fallback expectation for the project venv.
+- `REQ-QA-017`: the documented verification workflow shall keep unresolved out-of-scope baseline failures explicit in the QA matrix instead of claiming a fully green aggregate when known baselines remain open.
+
 ## Acceptance
-- `AC-REQ-QA-001-01`: Included unit tests pass in CI/local runner.
+- `AC-REQ-QA-001-01`: Included unit tests pass in CI/local runner, and the documented local default loop is `./venv/Scripts/python.exe scripts/run_verification.py --mode fast`.
 - `AC-REQ-QA-004-01`: Workspace actions preserve correct tab-state and model state.
 - `AC-REQ-QA-007-01`: Failed run centers node and reports exception details.
 - `AC-REQ-QA-008-01`: `venv/Scripts/python.exe -m unittest tests.test_serializer tests.test_graph_track_b tests.test_main_window_shell tests.test_workspace_library_controller_unit tests.test_execution_worker -v` passes without regressions.
@@ -27,3 +33,7 @@
 - `AC-REQ-QA-011-01`: `QT_QPA_PLATFORM=offscreen venv/Scripts/python.exe -m unittest tests.test_registry_validation tests.test_registry_filters tests.test_serializer tests.test_serializer_schema_migration tests.test_execution_worker tests.test_graph_track_b tests.test_main_window_shell tests.test_inspector_reflection tests.test_passive_node_contracts tests.test_passive_runtime_wiring tests.test_passive_visual_metadata tests.test_passive_property_editors tests.test_passive_graph_surface_host tests.test_flow_edge_labels tests.test_flowchart_surfaces tests.test_passive_flowchart_catalog tests.test_flowchart_visual_polish tests.test_planning_annotation_catalog tests.test_passive_style_dialogs tests.test_passive_style_presets tests.test_passive_image_nodes tests.test_pdf_preview_provider -v` passes without regressions.
 - `AC-REQ-QA-012-01`: `tests/fixtures/passive_nodes/reference_flowchart.sfe` plus `docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md` provide a repeatable manual check for passive-only save/load, labeled `flow` edges, media previews, and style-preset reopen behavior.
 - `AC-REQ-QA-013-01`: `QT_QPA_PLATFORM=offscreen venv/Scripts/python.exe -m unittest tests.test_graph_surface_input_contract tests.test_graph_surface_input_inline tests.test_passive_graph_surface_host tests.test_passive_image_nodes -v`, `QT_QPA_PLATFORM=offscreen venv/Scripts/python.exe -m unittest tests.main_window_shell.passive_image_nodes -v`, and `QT_QPA_PLATFORM=offscreen venv/Scripts/python.exe -m unittest tests.main_window_shell.passive_pdf_nodes -v` pass without regressions, or the approved fresh-process fallback recorded in `docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md` covers the same matrix completely.
+- `AC-REQ-QA-014-01`: `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` enumerates the approved `fast`, `gui`, `slow`, and `full` workflow recorded in `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`.
+- `AC-REQ-QA-015-01`: the documented `full` workflow keeps `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` on separate `unittest` commands after the pytest phases.
+- `AC-REQ-QA-016-01`: `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` records the current `pytest-xdist` fallback expectation for the project venv.
+- `AC-REQ-QA-017-01`: `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` records the unresolved `passive_image_panel_properties_and_size` serializer baseline when it is still open.
