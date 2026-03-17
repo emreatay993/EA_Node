@@ -16,6 +16,7 @@ flowchart LR
     GC --> EDGE[EdgeLayer]
     GC --> NODECARD[NodeCard]
     GC --> TBRIDGE[ThemeBridge palette]
+    GC --> GTBRIDGE[graphThemeBridge node/edge palette]
     NODECARD --> INS
     NODECARD --> SW
 
@@ -34,6 +35,8 @@ flowchart LR
     SW --> INSPECTOR_HELPERS[window_library_inspector presentation identity helpers]
     SW --> TBRIDGE
     SW --> THEME[theme registry and stylesheet builder]
+    SW --> GTBRIDGE
+    SW --> GTHEME[graph theme registry/runtime]
 
     SW --> GS[GraphSceneBridge]
     SW --> VP[ViewportBridge]
