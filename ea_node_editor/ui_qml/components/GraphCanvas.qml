@@ -10,6 +10,9 @@ Item {
     property var sceneBridge: null
     property var viewBridge: null
     readonly property var canvasBridgeRef: (typeof graphCanvasBridge !== "undefined" && graphCanvasBridge) ? graphCanvasBridge : null
+    readonly property var _canvasShellBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.mainWindowBridge
+    readonly property var _canvasSceneBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.sceneBridge
+    readonly property var _canvasViewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.viewBridge
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
@@ -31,13 +34,13 @@ Item {
     property real contextMenuX: 0
     property real contextMenuY: 0
     property bool interactionActive: false
-    property bool minimapExpanded: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_minimap_expanded) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_minimap_expanded) : true)
-    readonly property bool showGrid: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_show_grid) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_grid) : true)
-    readonly property bool minimapVisible: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_show_minimap) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_show_minimap) : true)
-    readonly property bool nodeShadowEnabled: root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.graphics_node_shadow) : (mainWindowBridge ? Boolean(mainWindowBridge.graphics_node_shadow) : true)
-    readonly property int shadowStrength: root.canvasBridgeRef ? root.canvasBridgeRef.graphics_shadow_strength : (mainWindowBridge ? mainWindowBridge.graphics_shadow_strength : 70)
-    readonly property int shadowSoftness: root.canvasBridgeRef ? root.canvasBridgeRef.graphics_shadow_softness : (mainWindowBridge ? mainWindowBridge.graphics_shadow_softness : 50)
-    readonly property int shadowOffset: root.canvasBridgeRef ? root.canvasBridgeRef.graphics_shadow_offset : (mainWindowBridge ? mainWindowBridge.graphics_shadow_offset : 4)
+    property bool minimapExpanded: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_minimap_expanded) : true
+    readonly property bool showGrid: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_grid) : true
+    readonly property bool minimapVisible: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_minimap) : true
+    readonly property bool nodeShadowEnabled: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_node_shadow) : true
+    readonly property int shadowStrength: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_strength : 70
+    readonly property int shadowSoftness: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_softness : 50
+    readonly property int shadowOffset: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_offset : 4
     readonly property bool highQualityRendering: !root.interactionActive
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
@@ -54,7 +57,7 @@ Item {
 
     function toggleMinimapExpanded() {
         var nextExpanded = !root.minimapExpanded;
-        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        var bridge = root._canvasShellBridgeRef;
         if (bridge && bridge.set_graphics_minimap_expanded) {
             bridge.set_graphics_minimap_expanded(nextExpanded);
             return;
@@ -82,7 +85,7 @@ Item {
     }
 
     function screenToSceneX(screenX) {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         return GraphCanvasLogic.screenToSceneX(
             screenX,
             (view ? view.center_x : 0.0),
@@ -92,7 +95,7 @@ Item {
     }
 
     function screenToSceneY(screenY) {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         return GraphCanvasLogic.screenToSceneY(
             screenY,
             (view ? view.center_y : 0.0),
@@ -106,7 +109,7 @@ Item {
     }
 
     function applyWheelZoom(eventObj) {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         if (!view)
             return false;
         var deltaY = _wheelDeltaY(eventObj);
@@ -131,16 +134,12 @@ Item {
         var factor = Math.pow(1.15, steps);
         if (view.adjust_zoom)
             view.adjust_zoom(factor);
-        else if (viewBridge && viewBridge.adjust_zoom)
-            viewBridge.adjust_zoom(factor);
 
         if (hasCursor) {
             var sceneAfterX = screenToSceneX(cursorX);
             var sceneAfterY = screenToSceneY(cursorY);
             if (view.pan_by)
                 view.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
-            else if (viewBridge && viewBridge.pan_by)
-                viewBridge.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
         }
         return true;
     }
@@ -153,7 +152,7 @@ Item {
     }
 
     function sceneToScreenX(sceneX) {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         return GraphCanvasLogic.sceneToScreenX(
             sceneX,
             (view ? view.center_x : 0.0),
@@ -163,7 +162,7 @@ Item {
     }
 
     function sceneToScreenY(sceneY) {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         return GraphCanvasLogic.sceneToScreenY(
             sceneY,
             (view ? view.center_y : 0.0),
@@ -173,11 +172,11 @@ Item {
     }
 
     function snapToGridEnabled() {
-        return root.canvasBridgeRef ? Boolean(root.canvasBridgeRef.snap_to_grid_enabled) : (mainWindowBridge ? Boolean(mainWindowBridge.snap_to_grid_enabled) : false);
+        return root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.snap_to_grid_enabled) : false;
     }
 
     function snapGridSize() {
-        return GraphCanvasLogic.normalizeSnapGridSize(root.canvasBridgeRef ? root.canvasBridgeRef.snap_grid_size : (mainWindowBridge ? mainWindowBridge.snap_grid_size : 20.0));
+        return GraphCanvasLogic.normalizeSnapGridSize(root._canvasShellBridgeRef ? root._canvasShellBridgeRef.snap_grid_size : 20.0);
     }
 
     function snapToGridValue(value) {
@@ -230,7 +229,7 @@ Item {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return null;
-        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
+        var nodes = root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (node && node.node_id === normalized)
@@ -276,7 +275,7 @@ Item {
     }
 
     function requestOpenSubnodeScope(nodeId) {
-        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        var bridge = root._canvasShellBridgeRef;
         if (!bridge || !bridge.request_open_subnode_scope)
             return false;
         var normalized = String(nodeId || "").trim();
@@ -299,7 +298,7 @@ Item {
         root.cancelWireDrag();
         root.clearPendingConnection();
         root.clearEdgeSelection();
-        var bridge = root.canvasBridgeRef || sceneBridge;
+        var bridge = root._canvasSceneBridgeRef;
         if (bridge && bridge.select_node)
             bridge.select_node(normalized, false);
         return true;
@@ -311,7 +310,7 @@ Item {
         if (!normalizedNodeId || !normalizedKey)
             return false;
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
-        var bridge = root.canvasBridgeRef || sceneBridge;
+        var bridge = root._canvasSceneBridgeRef;
         if (!bridge || !bridge.set_node_property)
             return false;
         bridge.set_node_property(normalizedNodeId, normalizedKey, value);
@@ -321,7 +320,7 @@ Item {
     function browseNodePropertyPath(nodeId, key, currentPath) {
         var normalizedNodeId = String(nodeId || "").trim();
         var normalizedKey = String(key || "").trim();
-        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        var bridge = root._canvasShellBridgeRef;
         if (!normalizedNodeId || !normalizedKey || !bridge || !bridge.browse_node_property_path)
             return "";
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
@@ -333,12 +332,11 @@ Item {
     }
 
     function selectedNodeIds() {
-        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
+        var bridge = root._canvasSceneBridgeRef;
+        var nodes = bridge ? bridge.nodes_model : [];
         var selectedLookup = null;
-        if (root.canvasBridgeRef && typeof root.canvasBridgeRef.selected_node_lookup !== "undefined")
-            selectedLookup = root.canvasBridgeRef.selected_node_lookup || ({});
-        else if (sceneBridge && typeof sceneBridge.selected_node_lookup !== "undefined")
-            selectedLookup = sceneBridge.selected_node_lookup || ({});
+        if (bridge && typeof bridge.selected_node_lookup !== "undefined")
+            selectedLookup = bridge.selected_node_lookup || ({});
         var selected = [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
@@ -470,7 +468,7 @@ Item {
     }
 
     function _arePortKindsCompatible(sourceKind, targetKind) {
-        var bridge = root.canvasBridgeRef || sceneBridge;
+        var bridge = root._canvasSceneBridgeRef;
         if (!bridge || !bridge.are_port_kinds_compatible)
             return false;
         return bridge.are_port_kinds_compatible(String(sourceKind || ""), String(targetKind || ""));
@@ -498,7 +496,7 @@ Item {
         if (!sourceDrag)
             return null;
 
-        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
+        var nodes = root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : [];
         var threshold = Number(thresholdOverride);
         if (!(threshold > 0.0))
             threshold = 14.0;
@@ -545,7 +543,7 @@ Item {
     }
 
     function _areDataTypesCompatible(sourceType, targetType) {
-        var bridge = root.canvasBridgeRef || sceneBridge;
+        var bridge = root._canvasSceneBridgeRef;
         if (!bridge || !bridge.are_data_types_compatible)
             return false;
         return bridge.are_data_types_compatible(String(sourceType || ""), String(targetType || ""));
@@ -615,7 +613,7 @@ Item {
         if (!nodePorts.length)
             return null;
 
-        var nodes = root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : []);
+        var nodes = root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : [];
         var threshold = 12.0;
         var best = null;
         var bestDistance = Number.POSITIVE_INFINITY;
@@ -738,21 +736,21 @@ Item {
     }
 
     function previewNodeScreenWidth() {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         var zoom = view ? view.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
         return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_width, zoom);
     }
 
     function previewNodeScreenHeight() {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         var zoom = view ? view.zoom_value : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
         return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_height, zoom);
     }
 
     function previewPortLabelsVisible() {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         var zoom = view ? view.zoom_value : 1.0;
         return GraphCanvasLogic.previewPortLabelsVisible(zoom, root.previewNodeScreenWidth());
     }
@@ -789,7 +787,7 @@ Item {
     }
 
     function performLibraryDrop(screenX, screenY, payload) {
-        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        var bridge = root._canvasShellBridgeRef;
         if (!payload || !bridge || !bridge.request_drop_node_from_library || !payload.type_id) {
             clearLibraryDropPreview();
             return;
@@ -973,7 +971,7 @@ Item {
     }
 
     function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
-        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        var bridge = root._canvasShellBridgeRef;
         var state = root.wireDragState;
         if (!state)
             return;
@@ -1052,7 +1050,7 @@ Item {
     }
 
     function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) {
-        var bridge = root.canvasBridgeRef || mainWindowBridge;
+        var bridge = root._canvasShellBridgeRef;
         root.forceActiveFocus();
         root._closeContextMenus();
         var clickedPort = _scenePortData(nodeId, portKey);
@@ -1120,7 +1118,7 @@ Item {
     }
 
     function _syncEdgePayload() {
-        root.edgePayload = root.canvasBridgeRef ? root.canvasBridgeRef.edges_model : (sceneBridge ? sceneBridge.edges_model : []);
+        root.edgePayload = root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.edges_model : [];
         pruneSelectedEdges();
         edgeLayer.requestRedraw();
     }
@@ -1187,7 +1185,7 @@ Item {
         viewBridge: root.viewBridge
         sceneBridge: root.sceneBridge
         edges: root.edgePayload
-        nodes: root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : [])
+        nodes: root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : []
         dragOffsets: root.liveDragOffsets
         liveNodeSizes: root.liveResizeDimensions
         selectedEdgeIds: root.selectedEdgeIds
@@ -1222,12 +1220,12 @@ Item {
         width: root.worldSize
         height: root.worldSize
         transformOrigin: Item.TopLeft
-        scale: root.canvasBridgeRef ? root.canvasBridgeRef.zoom_value : (viewBridge ? viewBridge.zoom_value : 1.0)
-        x: root.width * 0.5 - ((root.canvasBridgeRef ? root.canvasBridgeRef.center_x : (viewBridge ? viewBridge.center_x : 0)) + root.worldOffset) * scale
-        y: root.height * 0.5 - ((root.canvasBridgeRef ? root.canvasBridgeRef.center_y : (viewBridge ? viewBridge.center_y : 0)) + root.worldOffset) * scale
+        scale: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0
+        x: root.width * 0.5 - ((root._canvasViewBridgeRef ? root._canvasViewBridgeRef.center_x : 0) + root.worldOffset) * scale
+        y: root.height * 0.5 - ((root._canvasViewBridgeRef ? root._canvasViewBridgeRef.center_y : 0) + root.worldOffset) * scale
 
         Repeater {
-            model: root.canvasBridgeRef ? root.canvasBridgeRef.nodes_model : (sceneBridge ? sceneBridge.nodes_model : [])
+            model: root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : []
             delegate: GraphComponents.GraphNodeHost {
                 id: nodeCard
                 nodeData: modelData
@@ -1243,11 +1241,11 @@ Item {
                 shadowStrength: root.shadowStrength
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
-                zoom: root.canvasBridgeRef ? root.canvasBridgeRef.zoom_value : (viewBridge ? viewBridge.zoom_value : 1.0)
+                zoom: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0
                 renderQualitySimplified: root.interactionActive
 
                 onNodeClicked: function(nodeId, additive) {
-                    var bridge = root.canvasBridgeRef || sceneBridge;
+                    var bridge = root._canvasSceneBridgeRef;
                     root.forceActiveFocus();
                     root._closeContextMenus();
                     root.clearPendingConnection();
@@ -1272,7 +1270,7 @@ Item {
                     );
                 }
                 onDragFinished: function(nodeId, finalX, finalY, _moved) {
-                    var bridge = root.canvasBridgeRef || sceneBridge;
+                    var bridge = root._canvasSceneBridgeRef;
                     var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
                     var anchorPayload = root._sceneNodePayload(nodeId);
                     var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
@@ -1318,7 +1316,7 @@ Item {
                     root.setLiveResizeDimensions(nodeId, newWidth, newHeight, active);
                 }
                 onResizeFinished: function(nodeId, newWidth, newHeight) {
-                    var bridge = root.canvasBridgeRef || sceneBridge;
+                    var bridge = root._canvasSceneBridgeRef;
                     root.setLiveResizeDimensions(nodeId, newWidth, newHeight, false);
                     if (!bridge || !bridge.resize_node)
                         return;
@@ -1400,7 +1398,7 @@ Item {
     }
 
     Connections {
-        target: root.canvasBridgeRef ? root.canvasBridgeRef : sceneBridge
+        target: root._canvasSceneBridgeRef
         ignoreUnknownSignals: true
         function _handleSceneMutation() {
             root.liveDragOffsets = ({});
@@ -1423,7 +1421,7 @@ Item {
     }
 
     Connections {
-        target: root.canvasBridgeRef ? root.canvasBridgeRef : viewBridge
+        target: root._canvasViewBridgeRef
         ignoreUnknownSignals: true
         function _handleViewStateChanged() {
             backgroundLayer.requestGridRedraw();
@@ -1452,13 +1450,13 @@ Item {
     }
 
     onWidthChanged: {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         if (view && view.set_viewport_size)
             view.set_viewport_size(width, height);
     }
 
     onHeightChanged: {
-        var view = root.canvasBridgeRef || viewBridge;
+        var view = root._canvasViewBridgeRef;
         if (view && view.set_viewport_size)
             view.set_viewport_size(width, height);
     }

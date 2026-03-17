@@ -695,15 +695,16 @@ class ShellInspectorBridgeTests(unittest.TestCase):
 
 
 class GraphCanvasBridgeTests(unittest.TestCase):
-    def test_bridge_derives_shell_host_from_parent_wrapper_and_forwards_canvas_calls(self) -> None:
+    def test_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
         host = _GraphCanvasShellHostStub()
         parent = _GraphCanvasParentStub(host)
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
-        bridge = GraphCanvasBridge(parent, scene_bridge=scene, view_bridge=view)
+        bridge = GraphCanvasBridge(parent, shell_window=host, scene_bridge=scene, view_bridge=view)
 
         self.assertIs(bridge.parent(), parent)
         self.assertIs(bridge.shell_window, host)
+        self.assertIsNot(bridge.shell_window, bridge.parent())
         self.assertIs(bridge.scene_bridge, scene)
         self.assertIs(bridge.view_bridge, view)
         self.assertTrue(bridge.graphics_minimap_expanded)
@@ -803,7 +804,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         host = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
-        bridge = GraphCanvasBridge(host, scene_bridge=scene, view_bridge=view)
+        bridge = GraphCanvasBridge(host, shell_window=host, scene_bridge=scene, view_bridge=view)
         seen = {
             "graphics_preferences_changed": 0,
             "snap_to_grid_changed": 0,
@@ -849,7 +850,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         host = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
-        bridge = GraphCanvasBridge(host, scene_bridge=scene, view_bridge=view)
+        bridge = GraphCanvasBridge(host, shell_window=host, scene_bridge=scene, view_bridge=view)
 
         self.assertEqual(bridge.selected_node_lookup, {"node-1": True})
 
@@ -858,6 +859,23 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             bridge.selected_node_lookup,
             {"node-1": True, "node-2": True},
         )
+
+    def test_bridge_keeps_safe_defaults_without_shell_host(self) -> None:
+        scene = _GraphCanvasSceneBridgeStub()
+        view = _GraphCanvasViewBridgeStub()
+        bridge = GraphCanvasBridge(scene_bridge=scene, view_bridge=view)
+
+        self.assertIsNone(bridge.shell_window)
+        self.assertTrue(bridge.graphics_minimap_expanded)
+        self.assertTrue(bridge.graphics_show_grid)
+        self.assertTrue(bridge.graphics_show_minimap)
+        self.assertTrue(bridge.graphics_node_shadow)
+        self.assertEqual(bridge.graphics_shadow_strength, 70)
+        self.assertEqual(bridge.graphics_shadow_softness, 50)
+        self.assertEqual(bridge.graphics_shadow_offset, 4)
+        self.assertFalse(bridge.snap_to_grid_enabled)
+        self.assertEqual(bridge.snap_grid_size, 20.0)
+        self.assertFalse(bridge.request_open_subnode_scope("subnode-1"))
 
 
 class ShellWorkspaceBridgeTests(unittest.TestCase):
@@ -1229,9 +1247,69 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 with self.subTest(path=relative_path, snippet=snippet, expectation="absent"):
                     self.assertNotIn(snippet, qml_text)
 
-            for snippet in present_snippets:
-                with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
-                    self.assertIn(snippet, qml_text)
+        for snippet in present_snippets:
+            with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+                self.assertIn(snippet, qml_text)
+
+
+class GraphCanvasQmlBoundaryTests(unittest.TestCase):
+    def test_graph_canvas_routes_owned_concerns_through_bridge_first_refs(self) -> None:
+        qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/GraphCanvas.qml"
+        qml_text = qml_path.read_text(encoding="utf-8")
+
+        absent_snippets = (
+            "mainWindowBridge.graphics_minimap_expanded",
+            "mainWindowBridge.graphics_show_grid",
+            "mainWindowBridge.graphics_show_minimap",
+            "mainWindowBridge.graphics_node_shadow",
+            "mainWindowBridge.graphics_shadow_strength",
+            "mainWindowBridge.graphics_shadow_softness",
+            "mainWindowBridge.graphics_shadow_offset",
+            "mainWindowBridge.snap_to_grid_enabled",
+            "mainWindowBridge.snap_grid_size",
+            "mainWindowBridge.request_open_subnode_scope",
+            "mainWindowBridge.browse_node_property_path",
+            "mainWindowBridge.request_drop_node_from_library",
+            "mainWindowBridge.request_connect_ports",
+            "mainWindowBridge.request_open_connection_quick_insert",
+            "sceneBridge.nodes_model",
+            "sceneBridge.selected_node_lookup",
+            "sceneBridge.select_node",
+            "sceneBridge.set_node_property",
+            "sceneBridge.are_port_kinds_compatible",
+            "sceneBridge.are_data_types_compatible",
+            "sceneBridge.move_nodes_by_delta",
+            "sceneBridge.move_node",
+            "sceneBridge.resize_node",
+            "viewBridge.adjust_zoom",
+            "viewBridge.pan_by",
+            "viewBridge.set_viewport_size",
+            "viewBridge.zoom_value",
+            "viewBridge.center_x",
+            "viewBridge.center_y",
+        )
+        present_snippets = (
+            "readonly property var _canvasShellBridgeRef",
+            "readonly property var _canvasSceneBridgeRef",
+            "readonly property var _canvasViewBridgeRef",
+            "root._canvasShellBridgeRef.graphics_show_grid",
+            "root._canvasSceneBridgeRef.nodes_model",
+            "bridge.selected_node_lookup",
+            "var bridge = root._canvasShellBridgeRef",
+            "var bridge = root._canvasSceneBridgeRef",
+            "var view = root._canvasViewBridgeRef",
+            "scale: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0",
+            "target: root._canvasSceneBridgeRef",
+            "target: root._canvasViewBridgeRef",
+        )
+
+        for snippet in absent_snippets:
+            with self.subTest(snippet=snippet, expectation="absent"):
+                self.assertNotIn(snippet, qml_text)
+
+        for snippet in present_snippets:
+            with self.subTest(snippet=snippet, expectation="present"):
+                self.assertIn(snippet, qml_text)
 
 
 class FrameRateSamplerTests(unittest.TestCase):
@@ -1501,6 +1579,7 @@ def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
     suite.addTests(loader.loadTestsFromTestCase(ShellLibraryBridgeQmlBoundaryTests))
     suite.addTests(loader.loadTestsFromTestCase(ShellInspectorBridgeQmlBoundaryTests))
     suite.addTests(loader.loadTestsFromTestCase(ShellWorkspaceBridgeQmlBoundaryTests))
+    suite.addTests(loader.loadTestsFromTestCase(GraphCanvasQmlBoundaryTests))
 
     shell_classes: list[type[MainWindowShellTestBase]] = []
     for candidate in globals().values():

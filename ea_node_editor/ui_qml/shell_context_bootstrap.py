@@ -53,6 +53,7 @@ def create_shell_context_bridges(host: "ShellWindow") -> ShellContextBridges:
         ),
         graph_canvas_bridge=GraphCanvasBridge(
             host,
+            shell_window=host,
             scene_bridge=host.scene,
             view_bridge=host.view,
         ),
