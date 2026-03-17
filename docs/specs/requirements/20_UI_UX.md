@@ -37,6 +37,7 @@
 - `REQ-UI-020`: graph canvas node rendering shall route through a host/factory surface split that keeps the standard node contract stable while loading `flowchart`, `planning`, `annotation`, and `media` passive families by `surface_family` / `surface_variant`.
 - `REQ-UI-021`: passive nodes and `flow` edges shall expose style edit/reset/copy/paste workflows plus project-local preset CRUD from the shell/canvas context-menu path.
 - `REQ-UI-022`: passive image and PDF media panels shall preview local filesystem sources and keep those previews after save/reopen.
+- `REQ-UI-023`: interactive graph surfaces shall follow the locked host/surface input pattern: node-body interactions stay under the loaded surface, ordinary controls publish `embeddedInteractiveRects`, whole-surface modal tools use `blocksHostInteraction`, and reusable controls come from `ea_node_editor/ui_qml/components/graph/surface_controls/` without reopening the public `graphNodeCard` / `graphCanvas` contract.
 
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.
@@ -54,3 +55,4 @@
 - `AC-REQ-UI-020-01`: standard executable nodes and passive flowchart/planning/annotation/media nodes all render through the shared host without breaking existing `graphNodeCard` / `graphCanvas` discoverability contracts.
 - `AC-REQ-UI-021-01`: passive node and `flow` edge context menus can apply, copy/paste, reset, and persist project-local presets without changing executable-node theming behavior.
 - `AC-REQ-UI-022-01`: reopening a project restores passive image and PDF previews for valid local sources and keeps the authored captions and fit/page settings.
+- `AC-REQ-UI-023-01`: host, inline-control, media-surface, and shell graph-surface regressions pass without reintroducing hover-proxy shims or click-swallowing overlays, and the final matrix is recorded in `docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md`.

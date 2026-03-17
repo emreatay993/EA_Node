@@ -23,31 +23,7 @@
 - `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` — hover button and expand/collapse logic
 - `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` — node size/position management for expand/collapse
 
-### 2. Finish the Shared Input-Layer Pattern for Interactive Node Surfaces
-
-**Status:** Partially implemented
-
-**What Exists Today:**
-- The media crop surface already exposes a reusable host/surface contract for interactive surfaces
-- `GraphNodeSurfaceLoader.qml` forwards `blocksHostInteraction` and `hoverActionHitRect` from the loaded surface
-- `GraphNodeHost.qml` disables host drag, resize, and port interactions while a surface owns the interaction
-- The crop surface explicitly takes cursor ownership during crop mode and yields it back when the mode ends
-
-**Remaining Goal:** Generalize and document that pattern so future interactive nodes do not regress into cursor conflicts, swallowed clicks, or drag layers fighting with embedded controls.
-
-**Remaining Work:**
-- Establish the preferred pattern for hover-only overlays versus click/drag-capable overlays across all interactive surfaces
-- Document cursor ownership rules when a surface enters an interaction mode
-- Audit existing interactive nodes so host drag/resize layers yield cleanly to embedded buttons, handles, editors, and future interactive node tools
-- Document the preferred primitives (`MouseArea` with `acceptedButtons: Qt.NoButton`, `HoverHandler`, explicit host locks, etc.) and where each should be used
-
-**Key Files:**
-- `ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml` — host drag/resize layers and cursor ownership
-- `ea_node_editor/ui_qml/components/graph/GraphNodeSurfaceLoader.qml` — current host/surface interaction contract
-- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml` — current crop-overlay case study
-- `ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml` — canvas-wide input layering conventions
-
-### 3. Keep Legacy Selected-Node Routing Inspector-Only
+### 2. Keep Legacy Selected-Node Routing Inspector-Only
 
 **Status:** Partially implemented
 
@@ -86,7 +62,7 @@
 - `ea_node_editor/ui/shell/window.py` — inspector APIs and graph-surface-specific browse bridge
 - `docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md` — packet history for the interaction-bridge migration
 
-### 4. Show Folder Node
+### 3. Show Folder Node
 
 **Goal:** Add a `Show Folder` node that can display folder contents in a Windows Explorer-style view and launch files/folders through the OS.
 
@@ -100,7 +76,7 @@
 - Users can use the right-click action on a file to `Open in Explorer` to open the folder or subfolder containing the selected file
 - If a file is double-clicked it is opened in the default application specified by the OS
 
-### 5. Extend Show Folder Node Beyond Windows
+### 4. Extend Show Folder Node Beyond Windows
 
 **Goal:** Add non-Windows OS support for the `Show Folder` node as a later enhancement.
 
@@ -122,6 +98,17 @@
 - Crop parameters are stored as hidden node properties (`crop_x`, `crop_y`, `crop_w`, `crop_h`)
 - Cropping is non-destructive and applied at render time without modifying the source image on disk
 - Crop mode locks host drag/resize/port interactions and owns the cursor until editing ends
+
+### Graph-Surface Input Routing Pattern
+
+**Status:** Implemented via the `GRAPH_SURFACE_INPUT` packet set
+
+**Summary:**
+- `GraphNodeHost.qml` keeps node-body drag/select/open/context routing underneath the loaded surface instead of above it
+- `GraphNodeSurfaceLoader.qml` publishes `embeddedInteractiveRects` for local control ownership and `blocksHostInteraction` for whole-surface modal locks
+- Shared graph-surface buttons and editors live under `ea_node_editor/ui_qml/components/graph/surface_controls/` so future surfaces can reuse the locked interaction pattern
+- Hover-only affordances now use hover-safe primitives instead of invisible click-swallowing overlays or host hover-proxy shims
+- Final regression coverage and the approved shell fallback are recorded in `docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md`
 
 ### Drag-and-Drop Tab Reordering
 
