@@ -52,6 +52,7 @@ docs/specs/requirements/*
 !docs/specs/perf/
 docs/specs/perf/*
 !docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
+!docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md
 tests/
 !tests/
 tests/*

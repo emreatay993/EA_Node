@@ -45,8 +45,27 @@ You should see:
 Create a quick regression pass before doing larger changes:
 
 ```bash
-QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest discover -s tests -v
+./venv/Scripts/python.exe scripts/run_verification.py --mode fast
 ```
+
+Before merge, inspect or run the full workflow:
+
+```bash
+./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run
+./venv/Scripts/python.exe scripts/run_verification.py --mode full
+```
+
+- The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
+  commands and falls back to serial pytest automatically when `pytest-xdist`
+  is not installed in the project venv.
+- `full` keeps `tests.test_main_window_shell`, `tests.test_script_editor_dock`,
+  `tests.test_shell_run_controller`, and
+  `tests.test_shell_project_session_controller` on isolated module-level
+  `unittest` execution after the pytest phases.
+- The known serializer baseline
+  `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
+  remains a separate persistence follow-up; do not treat it as resolved by the
+  verification runner docs.
 
 If you only need the graph-surface gate:
 
@@ -77,6 +96,7 @@ Manual passive-media fixture:
 - [docs/specs/INDEX.md](./specs/INDEX.md): canonical requirements, ADRs, and traceability
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
 - [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and approved shell fallback
+- [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, shell isolation rules, baseline timings, and current caveats
 
 ## Updating Architecture Diagrams
 
