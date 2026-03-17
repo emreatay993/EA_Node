@@ -68,13 +68,22 @@ class NodeRegistry:
         prop_spec = self._property_spec(type_id, key)
         return self._coerce_property_value(prop_spec, value, strict=False)
 
-    def normalize_properties(self, type_id: str, values: dict[str, Any] | None) -> dict[str, Any]:
+    def normalize_properties(
+        self,
+        type_id: str,
+        values: dict[str, Any] | None,
+        *,
+        include_defaults: bool = True,
+    ) -> dict[str, Any]:
         provided = dict(values or {})
         spec = self.get_spec(type_id)
         normalized: dict[str, Any] = {}
         for prop in spec.properties:
-            source = provided[prop.key] if prop.key in provided else prop.default
-            normalized[prop.key] = self._coerce_property_value(prop, source, strict=False)
+            if prop.key in provided:
+                normalized[prop.key] = self._coerce_property_value(prop, provided[prop.key], strict=False)
+                continue
+            if include_defaults:
+                normalized[prop.key] = self._coerce_property_value(prop, prop.default, strict=False)
         return normalized
 
     def filter_nodes(

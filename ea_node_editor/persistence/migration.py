@@ -267,7 +267,11 @@ class JsonProjectMigration:
                 "x": self._coerce_float(node_doc.get("x"), 0.0),
                 "y": self._coerce_float(node_doc.get("y"), 0.0),
                 "collapsed": self._coerce_bool(node_doc.get("collapsed"), False),
-                "properties": self._registry.normalize_properties(type_id, self.as_dict(node_doc.get("properties"))),
+                "properties": self._registry.normalize_properties(
+                    type_id,
+                    self.as_dict(node_doc.get("properties")),
+                    include_defaults=False,
+                ),
                 "exposed_ports": normalized_exposed_ports,
                 "visual_style": self.as_dict(node_doc.get("visual_style")),
                 "parent_node_id": self._coerce_str(node_doc.get("parent_node_id")) or None,

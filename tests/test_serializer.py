@@ -230,6 +230,47 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(loaded_node.custom_width, 348.0)
         self.assertEqual(loaded_node.custom_height, 258.0)
 
+    def test_load_preserves_sparse_passive_image_panel_properties_while_coercing_present_values(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        serializer = JsonProjectSerializer(build_default_registry())
+        doc = serializer.to_document(model.project)
+        workspace_doc = next(ws for ws in doc["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        workspace_doc["nodes"].append(
+            {
+                "node_id": "node_image_panel_sparse",
+                "type_id": "passive.media.image_panel",
+                "title": "Image Panel",
+                "x": 25.0,
+                "y": 45.0,
+                "collapsed": False,
+                "properties": {
+                    "source_path": r"C:\fixtures\diagram.png",
+                    "fit_mode": "cover",
+                    "crop_w": "0.5",
+                    "crop_h": None,
+                },
+                "exposed_ports": {},
+                "visual_style": {},
+                "parent_node_id": None,
+                "custom_width": 348.0,
+                "custom_height": 258.0,
+            }
+        )
+
+        loaded = serializer.from_document(doc)
+
+        loaded_node = loaded.workspaces[workspace.workspace_id].nodes["node_image_panel_sparse"]
+        self.assertEqual(
+            loaded_node.properties,
+            {
+                "source_path": r"C:\fixtures\diagram.png",
+                "fit_mode": "cover",
+                "crop_w": 0.5,
+                "crop_h": 1.0,
+            },
+        )
+
     def test_round_trip_preserves_passive_pdf_panel_properties_and_size(self) -> None:
         model = GraphModel()
         workspace = model.active_workspace
