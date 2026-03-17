@@ -16,6 +16,60 @@ from ea_node_editor.app import APP_STYLESHEET  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
+# Centralized pytest selection markers
+# ---------------------------------------------------------------------------
+
+_GUI_TEST_PATHS = frozenset(
+    {
+        "tests/test_flow_edge_labels.py",
+        "tests/test_flowchart_surfaces.py",
+        "tests/test_flowchart_visual_polish.py",
+        "tests/test_graph_surface_input_contract.py",
+        "tests/test_graph_surface_input_controls.py",
+        "tests/test_graph_surface_input_inline.py",
+        "tests/test_graph_theme_editor_dialog.py",
+        "tests/test_graph_theme_shell.py",
+        "tests/test_graph_track_b.py",
+        "tests/test_graphics_settings_dialog.py",
+        "tests/test_main_window_shell.py",
+        "tests/test_passive_graph_surface_host.py",
+        "tests/test_passive_image_nodes.py",
+        "tests/test_passive_style_dialogs.py",
+        "tests/test_passive_style_presets.py",
+        "tests/test_pdf_preview_provider.py",
+        "tests/test_planning_annotation_catalog.py",
+        "tests/test_script_editor_dock.py",
+        "tests/test_shell_project_session_controller.py",
+        "tests/test_shell_run_controller.py",
+        "tests/test_shell_theme.py",
+        "tests/test_workflow_settings_dialog.py",
+    }
+)
+
+_SLOW_TEST_PATHS = frozenset({"tests/test_track_h_perf_harness.py"})
+
+
+def _nodeid_test_path(nodeid: str) -> str:
+    return nodeid.split("::", 1)[0].replace("\\", "/")
+
+
+def _add_marker_if_missing(item: pytest.Item, marker_name: str) -> None:
+    if item.get_closest_marker(marker_name) is None:
+        item.add_marker(getattr(pytest.mark, marker_name))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    _ = config
+    for item in items:
+        test_path = _nodeid_test_path(item.nodeid)
+        if test_path in _GUI_TEST_PATHS:
+            _add_marker_if_missing(item, "gui")
+        if test_path in _SLOW_TEST_PATHS:
+            _add_marker_if_missing(item, "slow")
+
+
+# ---------------------------------------------------------------------------
 # Session-scoped QApplication
 # ---------------------------------------------------------------------------
 
