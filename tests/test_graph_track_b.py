@@ -228,6 +228,26 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertFalse(self.bridge.graphics_minimap_expanded)
         self.assertFalse(bool(self.canvas.property("minimapExpanded")))
 
+    def test_viewport_applies_zoom_and_center_updates_without_forcing_viewport_cache_mode(self) -> None:
+        world = self.canvas.findChild(QObject, "graphCanvasWorld")
+        self.assertIsNotNone(world)
+        self.assertFalse(bool(self.canvas.property("interactionActive")))
+        self.assertFalse(bool(self.canvas.property("viewportInteractionWorldCacheActive")))
+        self.assertTrue(bool(self.canvas.property("highQualityRendering")))
+
+        self.view.set_zoom(2.5)
+        self.view.centerOn(12.0, 18.0)
+        self.app.processEvents()
+
+        self.assertFalse(bool(self.canvas.property("interactionActive")))
+        self.assertFalse(bool(self.canvas.property("viewportInteractionWorldCacheActive")))
+        self.assertTrue(bool(self.canvas.property("highQualityRendering")))
+        self.assertAlmostEqual(float(world.property("scale")), 2.5, places=6)
+        expected_x = 1280.0 * 0.5 - ((12.0 + float(self.canvas.property("worldOffset"))) * 2.5)
+        expected_y = 720.0 * 0.5 - ((18.0 + float(self.canvas.property("worldOffset"))) * 2.5)
+        self.assertAlmostEqual(float(world.property("x")), expected_x, places=6)
+        self.assertAlmostEqual(float(world.property("y")), expected_y, places=6)
+
     def test_canvas_qml_theme_surfaces_follow_runtime_theme_changes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
         minimap_overlay = self.canvas.findChild(QObject, "graphCanvasMinimapOverlay")

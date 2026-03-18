@@ -28,7 +28,8 @@ Item {
     readonly property int shadowStrength: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_strength : 70
     readonly property int shadowSoftness: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_softness : 50
     readonly property int shadowOffset: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_offset : 4
-    readonly property bool highQualityRendering: !root.interactionActive
+    readonly property bool viewportInteractionWorldCacheActive: interactionState.viewportInteractionCacheActive
+    readonly property bool highQualityRendering: !root.viewportInteractionWorldCacheActive
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
@@ -97,7 +98,7 @@ Item {
         id: interactionIdleTimer
         interval: root.interactionIdleDelayMs
         repeat: false
-        onTriggered: interactionState.interactionActive = false
+        onTriggered: interactionState.endViewportInteraction()
     }
 
     function screenToSceneX(screenX) {
@@ -730,7 +731,8 @@ Item {
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
                 zoom: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0
-                renderQualitySimplified: root.interactionActive
+                renderQualitySimplified: root.viewportInteractionWorldCacheActive
+                viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
 
                 onNodeClicked: function(nodeId, additive) {
                     var bridge = root._canvasSceneBridgeRef;

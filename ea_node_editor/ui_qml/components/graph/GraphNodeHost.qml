@@ -20,6 +20,7 @@ Item {
     property int shadowOffset: 4
     property real zoom: 1.0
     property bool renderQualitySimplified: false
+    property bool viewportInteractionCacheActive: false
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
@@ -398,6 +399,11 @@ Item {
         && !card.isCollapsed
         && !card.surfaceInteractionLocked
         && (card._hostHoverActive || card._resizeInteractionActive)
+
+    // Cache each node as a texture only while the viewport is moving so pan/zoom can reuse node content.
+    layer.enabled: card.viewportInteractionCacheActive
+    layer.smooth: card.viewportInteractionCacheActive
+    layer.mipmap: card.viewportInteractionCacheActive
 
     z: card.isSelected ? 30 : 20
     x: (card._liveGeometryActive ? card._liveX : (card.nodeData ? card.nodeData.x : 0.0)) + card.worldOffset

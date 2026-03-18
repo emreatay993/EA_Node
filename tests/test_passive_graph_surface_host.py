@@ -720,6 +720,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             node_card = node_cards[0]
             shadow_item = node_card.findChild(QObject, "graphNodeShadow")
             assert shadow_item is not None
+            assert not bool(canvas.property("viewportInteractionWorldCacheActive"))
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
             assert bool(shadow_item.property("visible"))
             assert not bool(canvas.property("interactionActive"))
             assert bool(canvas.property("highQualityRendering"))
@@ -730,7 +732,9 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert applied is True
             app.processEvents()
             assert bool(canvas.property("interactionActive"))
+            assert bool(canvas.property("viewportInteractionWorldCacheActive"))
             assert not bool(canvas.property("highQualityRendering"))
+            assert bool(node_card.property("viewportInteractionCacheActive"))
             assert not bool(shadow_item.property("visible"))
 
             wait_for_condition_or_raise(
@@ -744,8 +748,80 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 timeout_message="Timed out waiting for wheel-zoom rendering quality to recover.",
             )
             assert not bool(canvas.property("interactionActive"))
+            assert not bool(canvas.property("viewportInteractionWorldCacheActive"))
             assert bool(canvas.property("highQualityRendering"))
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
             assert bool(shadow_item.property("visible"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_temporarily_simplifies_node_shadow_during_wheel_zoom_only_for_viewport_interaction_not_port_drag(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-cache-scope",
+            """
+            from PyQt6.QtCore import QPointF
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 1
+            node_card = node_cards[0]
+            node_payload = node_card.property("nodeData")
+            output_dot = named_child_items(node_card, "graphNodeOutputPortDot")[0]
+            dot_center = output_dot.mapToItem(
+                canvas,
+                QPointF(output_dot.width() * 0.5, output_dot.height() * 0.5),
+            )
+            scene_x = canvas.screenToSceneX(dot_center.x())
+            scene_y = canvas.screenToSceneY(dot_center.y())
+
+            assert not bool(canvas.property("interactionActive"))
+            assert not bool(canvas.property("viewportInteractionWorldCacheActive"))
+            assert bool(canvas.property("highQualityRendering"))
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
+
+            canvas.beginPortWireDrag(
+                str(node_payload["node_id"]),
+                "exec_out",
+                "out",
+                scene_x,
+                scene_y,
+                dot_center.x(),
+                dot_center.y(),
+            )
+            app.processEvents()
+
+            assert canvas.property("wireDragState") is not None
+            assert not bool(canvas.property("interactionActive"))
+            assert not bool(canvas.property("viewportInteractionWorldCacheActive"))
+            assert bool(canvas.property("highQualityRendering"))
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
+
+            assert canvas.cancelWireDrag() is True
+            app.processEvents()
+            assert canvas.property("wireDragState") is None
 
             canvas.deleteLater()
             app.processEvents()

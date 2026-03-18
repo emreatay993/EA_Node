@@ -28,6 +28,7 @@ QtObject {
     property real contextMenuX: 0
     property real contextMenuY: 0
     property bool interactionActive: false
+    readonly property bool viewportInteractionCacheActive: root.interactionActive
 
     function _requestEdgeRedraw() {
         if (root.edgeLayerItem && root.edgeLayerItem.requestRedraw)
@@ -801,6 +802,12 @@ QtObject {
         root.beginViewportInteraction();
         if (root.interactionIdleTimer)
             root.interactionIdleTimer.restart();
+    }
+
+    function endViewportInteraction() {
+        if (root.interactionIdleTimer)
+            root.interactionIdleTimer.stop();
+        root.interactionActive = false;
     }
 
     function resetSceneBridgeState() {
