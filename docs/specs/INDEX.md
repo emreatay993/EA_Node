@@ -42,6 +42,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 34. [SHELL_SCENE_BOUNDARY Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/shell_scene_boundary/SHELL_SCENE_BOUNDARY_STATUS.md)
 35. [VERIFICATION_SPEED Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/verification_speed/VERIFICATION_SPEED_MANIFEST.md)
 36. [VERIFICATION_SPEED Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/verification_speed/VERIFICATION_SPEED_STATUS.md)
+37. [ARCH_SECOND_PASS Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_second_pass/ARCH_SECOND_PASS_MANIFEST.md)
+38. [ARCH_SECOND_PASS Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_second_pass/ARCH_SECOND_PASS_STATUS.md)
 
 ## ADRs
 
