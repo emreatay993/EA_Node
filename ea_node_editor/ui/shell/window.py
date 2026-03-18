@@ -3,34 +3,46 @@ from __future__ import annotations
 import copy
 import json
 import os
+from dataclasses import dataclass, fields
 from pathlib import Path
 from typing import Any, Callable, Literal
 
 from PyQt6.QtCore import QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCursor
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
+from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow, QMessageBox
 
-from ea_node_editor.graph.effective_ports import find_port, port_kind
 from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.graph.effective_ports import find_port, port_kind
+from ea_node_editor.graph.model import GraphModel, ProjectData
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_TYPE_ID,
 )
+from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.settings import (
+    AUTOSAVE_INTERVAL_MS,
     autosave_project_path,
     DEFAULT_GRAPHICS_SETTINGS,
     recent_session_path,
 )
+from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
+from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.graph_theme import (
+    default_graph_theme_id_for_shell_theme,
     resolve_graph_theme_id,
     serialize_custom_graph_themes,
 )
+from ea_node_editor.ui.icon_registry import UiIconImageProvider, UiIconRegistryBridge
+from ea_node_editor.ui.media_preview_provider import LocalMediaPreviewImageProvider
 from ea_node_editor.ui.pdf_preview_provider import (
+    LocalPdfPreviewImageProvider,
     describe_pdf_preview,
 )
 from ea_node_editor.ui.dialogs.passive_style_controls import (
@@ -38,10 +50,16 @@ from ea_node_editor.ui.dialogs.passive_style_controls import (
     normalize_passive_node_style_payload,
 )
 from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
+from ea_node_editor.ui.shell.controllers import (
+    AppPreferencesController,
+    ProjectSessionController,
+    RunController,
+    WorkspaceLibraryController,
+)
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
+from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
+from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
-from ea_node_editor.ui.shell.window_bootstrap import bootstrap_shell_window
-from ea_node_editor.ui.theme import build_theme_stylesheet
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_canvas_quick_insert_items,
     build_connection_quick_insert_items,
@@ -58,6 +76,26 @@ from ea_node_editor.ui.shell.window_library_inspector import (
     build_selected_node_property_items,
     library_item_matches_filters,
 )
+from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
+from ea_node_editor.ui.theme import build_theme_stylesheet
+from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
+from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
+from ea_node_editor.ui_qml.shell_context_bootstrap import (
+    ShellContextBridges,
+    bootstrap_shell_qml_context,
+    create_shell_context_bridges,
+)
+from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
+from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
+from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
+from ea_node_editor.ui_qml.status_model import StatusItemModel
+from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
+from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
+from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
+from ea_node_editor.workspace.manager import WorkspaceManager
 
 
 def _configure_qtquick_backend() -> None:
@@ -77,6 +115,249 @@ _UNSET = object()
 _PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
 _FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
 _STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
+
+
+@dataclass(frozen=True, slots=True)
+class _ShellPrimitiveBundle:
+    registry: object
+    serializer: JsonProjectSerializer
+    _session_store: object
+    session_store: object
+    model: GraphModel
+    workspace_manager: WorkspaceManager
+    runtime_history: RuntimeGraphHistory
+    scene: GraphSceneBridge
+    view: ViewportBridge
+    _graph_interactions: GraphInteractions
+    graph_interactions: GraphInteractions
+    console_panel: ConsoleModel
+    script_editor: ScriptEditorModel
+    script_highlighter: QmlScriptSyntaxBridge
+    workspace_tabs: WorkspaceTabsModel
+    ui_icons: UiIconRegistryBridge
+    _ui_icon_image_provider: UiIconImageProvider
+    _local_media_preview_provider: LocalMediaPreviewImageProvider
+    _local_pdf_preview_provider: LocalPdfPreviewImageProvider
+    status_engine: StatusItemModel
+    status_jobs: StatusItemModel
+    status_metrics: StatusItemModel
+    status_notifications: StatusItemModel
+    _frame_rate_sampler: FrameRateSampler
+    theme_bridge: ThemeBridge
+    graph_theme_bridge: GraphThemeBridge
+
+
+@dataclass(frozen=True, slots=True)
+class _ShellControllerBundle:
+    search_scope_controller: WindowSearchScopeController
+    workspace_library_controller: WorkspaceLibraryController
+    project_session_controller: ProjectSessionController
+    run_controller: RunController
+    app_preferences_controller: AppPreferencesController
+    execution_client: object
+
+
+@dataclass(frozen=True, slots=True)
+class _ShellContextBridgeBundle:
+    _shell_context_bridges: ShellContextBridges
+    shell_library_bridge: ShellLibraryBridge
+    shell_workspace_bridge: ShellWorkspaceBridge
+    shell_inspector_bridge: ShellInspectorBridge
+    graph_canvas_bridge: object
+
+
+@dataclass(frozen=True, slots=True)
+class _ShellTimerBundle:
+    metrics_timer: QTimer
+    graph_hint_timer: QTimer
+    autosave_timer: QTimer
+
+
+def _bootstrap_shell_window(host: "ShellWindow") -> None:
+    _configure_shell_window_host(host)
+    _initialize_shell_window_state(host)
+    _apply_bootstrap_bundle(host, _create_shell_primitive_bundle(host))
+    _apply_bootstrap_bundle(host, _create_shell_controller_bundle(host))
+    _apply_bootstrap_bundle(host, _create_shell_context_bridge_bundle(host))
+    _run_shell_startup_sequence(host)
+    _apply_bootstrap_bundle(host, _create_shell_timer_bundle(host))
+    _finalize_shell_window_bootstrap(host)
+
+
+def _configure_shell_window_host(host: "ShellWindow") -> None:
+    host.setWindowTitle("EA Node Editor")
+    host.resize(1600, 900)
+
+
+def _initialize_shell_window_state(host: "ShellWindow") -> None:
+    host.state = ShellState()
+    host.project_session_state = host.state.project_session
+    host.library_filter_state = host.state.library_filters
+    host.run_state = host.state.run
+    host.search_scope_state = host.state.search_scope
+
+    graphics_settings = DEFAULT_GRAPHICS_SETTINGS
+    host._graphics_show_grid = bool(graphics_settings["canvas"]["show_grid"])
+    host._graphics_show_minimap = bool(graphics_settings["canvas"]["show_minimap"])
+    host.search_scope_state.graphics_minimap_expanded = bool(graphics_settings["canvas"]["minimap_expanded"])
+    host._graphics_node_shadow = bool(graphics_settings["canvas"]["node_shadow"])
+    host._graphics_shadow_strength = int(graphics_settings["canvas"]["shadow_strength"])
+    host._graphics_shadow_softness = int(graphics_settings["canvas"]["shadow_softness"])
+    host._graphics_shadow_offset = int(graphics_settings["canvas"]["shadow_offset"])
+    host.search_scope_state.snap_to_grid_enabled = bool(graphics_settings["interaction"]["snap_to_grid"])
+    host._graphics_tab_strip_density = str(graphics_settings["shell"]["tab_strip_density"])
+    host._active_theme_id = str(graphics_settings["theme"]["theme_id"])
+
+
+def _create_shell_primitive_bundle(host: "ShellWindow") -> _ShellPrimitiveBundle:
+    registry = build_default_registry()
+    serializer = JsonProjectSerializer(registry)
+    session_store = host._create_session_store(serializer)
+    model = GraphModel(ProjectData(project_id="proj_local", name="untitled"))
+    workspace_manager = WorkspaceManager(model)
+    runtime_history = RuntimeGraphHistory()
+    scene = GraphSceneBridge(host)
+    scene.bind_runtime_history(runtime_history)
+    view = ViewportBridge(host)
+    graph_interactions = GraphInteractions(
+        scene=scene,
+        registry=registry,
+        history=runtime_history,
+    )
+    console_panel = ConsoleModel(host)
+    script_editor = ScriptEditorModel(host)
+    script_highlighter = QmlScriptSyntaxBridge(host)
+    workspace_tabs = WorkspaceTabsModel(host)
+    ui_icons = UiIconRegistryBridge(host)
+    ui_icon_image_provider = UiIconImageProvider()
+    local_media_preview_provider = LocalMediaPreviewImageProvider()
+    local_pdf_preview_provider = LocalPdfPreviewImageProvider()
+    status_engine = StatusItemModel("E", "Ready", host)
+    status_jobs = StatusItemModel("J", "R:0 Q:0 D:0 F:0", host)
+    status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", host)
+    status_notifications = StatusItemModel("N", "W:0 E:0", host)
+    frame_rate_sampler = FrameRateSampler()
+    theme_bridge = ThemeBridge(host, theme_id=host._active_theme_id)
+    graph_theme_bridge = GraphThemeBridge(
+        host,
+        theme_id=default_graph_theme_id_for_shell_theme(host._active_theme_id),
+    )
+    scene.bind_graph_theme_bridge(graph_theme_bridge)
+    return _ShellPrimitiveBundle(
+        registry=registry,
+        serializer=serializer,
+        _session_store=session_store,
+        session_store=session_store,
+        model=model,
+        workspace_manager=workspace_manager,
+        runtime_history=runtime_history,
+        scene=scene,
+        view=view,
+        _graph_interactions=graph_interactions,
+        graph_interactions=graph_interactions,
+        console_panel=console_panel,
+        script_editor=script_editor,
+        script_highlighter=script_highlighter,
+        workspace_tabs=workspace_tabs,
+        ui_icons=ui_icons,
+        _ui_icon_image_provider=ui_icon_image_provider,
+        _local_media_preview_provider=local_media_preview_provider,
+        _local_pdf_preview_provider=local_pdf_preview_provider,
+        status_engine=status_engine,
+        status_jobs=status_jobs,
+        status_metrics=status_metrics,
+        status_notifications=status_notifications,
+        _frame_rate_sampler=frame_rate_sampler,
+        theme_bridge=theme_bridge,
+        graph_theme_bridge=graph_theme_bridge,
+    )
+
+
+def _create_shell_controller_bundle(host: "ShellWindow") -> _ShellControllerBundle:
+    search_scope_controller = WindowSearchScopeController(host, host.search_scope_state)
+    workspace_library_controller = WorkspaceLibraryController(host)
+    project_session_controller = ProjectSessionController(host)
+    run_controller = RunController(host)
+    app_preferences_controller = AppPreferencesController()
+    execution_client = host._create_execution_client()
+    execution_client.subscribe(host.execution_event.emit)
+    host.execution_event.connect(host._handle_execution_event, Qt.ConnectionType.QueuedConnection)
+    return _ShellControllerBundle(
+        search_scope_controller=search_scope_controller,
+        workspace_library_controller=workspace_library_controller,
+        project_session_controller=project_session_controller,
+        run_controller=run_controller,
+        app_preferences_controller=app_preferences_controller,
+        execution_client=execution_client,
+    )
+
+
+def _create_shell_context_bridge_bundle(host: "ShellWindow") -> _ShellContextBridgeBundle:
+    shell_context_bridges = create_shell_context_bridges(host)
+    return _ShellContextBridgeBundle(
+        _shell_context_bridges=shell_context_bridges,
+        shell_library_bridge=shell_context_bridges.shell_library_bridge,
+        shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
+        shell_inspector_bridge=shell_context_bridges.shell_inspector_bridge,
+        graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
+    )
+
+
+def _run_shell_startup_sequence(host: "ShellWindow") -> None:
+    host._create_actions()
+    host._build_menu_bar()
+    host.app_preferences_controller.load_into_host(host)
+    host._wire_signals()
+    host.quick_widget = _build_shell_qml_widget(host)
+    host._restore_session()
+    host._ensure_project_metadata_defaults()
+    host._refresh_workspace_tabs()
+    host._switch_workspace(host.workspace_manager.active_workspace_id())
+    host._restore_script_editor_state()
+
+
+def _build_shell_qml_widget(host: "ShellWindow"):
+    widget = QQuickWidget(host)
+    bootstrap_shell_qml_context(host, widget, host._shell_context_bridges)
+    if widget.status() == QQuickWidget.Status.Error:
+        formatted_errors = "\n".join(error.toString() for error in widget.errors()).strip()
+        message = formatted_errors or "Unknown QML load error."
+        host.console_panel.append_log("error", f"Failed to load MainShell.qml.\n{message}")
+        QMessageBox.critical(host, "UI Load Error", f"Could not load the main UI.\n\n{message}")
+    host.setCentralWidget(widget)
+    return widget
+
+
+def _create_shell_timer_bundle(host: "ShellWindow") -> _ShellTimerBundle:
+    metrics_timer = QTimer(host)
+    metrics_timer.setInterval(1000)
+    metrics_timer.timeout.connect(host._update_metrics)
+    metrics_timer.start()
+
+    graph_hint_timer = QTimer(host)
+    graph_hint_timer.setSingleShot(True)
+    graph_hint_timer.timeout.connect(host.clear_graph_hint)
+
+    autosave_timer = QTimer(host)
+    autosave_timer.setInterval(AUTOSAVE_INTERVAL_MS)
+    autosave_timer.timeout.connect(host._autosave_tick)
+    autosave_timer.start()
+
+    return _ShellTimerBundle(
+        metrics_timer=metrics_timer,
+        graph_hint_timer=graph_hint_timer,
+        autosave_timer=autosave_timer,
+    )
+
+
+def _finalize_shell_window_bootstrap(host: "ShellWindow") -> None:
+    host._set_run_ui_state("ready", "Idle", 0, 0, 0, 0, clear_run=True)
+    host._update_metrics()
+
+
+def _apply_bootstrap_bundle(host: "ShellWindow", bundle: object) -> None:
+    for field in fields(bundle):
+        setattr(host, field.name, getattr(bundle, field.name))
 
 
 class ShellWindow(QMainWindow):
@@ -113,7 +394,7 @@ class ShellWindow(QMainWindow):
 
     def __init__(self) -> None:
         super().__init__()
-        bootstrap_shell_window(self)
+        _bootstrap_shell_window(self)
 
     @property
     def project_path(self) -> str:
