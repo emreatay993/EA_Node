@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF, QRectF
@@ -60,7 +59,8 @@ from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.runtime_history import WorkspaceSnapshot
-    from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+    from ea_node_editor.ui_qml.graph_scene_bridge import _GraphSceneContext
+    from ea_node_editor.ui_qml.graph_scene_scope_selection import GraphSceneScopeSelection
 
 _MISSING = object()
 _DUPLICATE_OFFSET_X = 40.0
@@ -69,22 +69,29 @@ _SNAP_GRID_SIZE = 20.0
 
 
 class GraphSceneMutationHistory:
-    def __init__(self, bridge: GraphSceneBridge) -> None:
-        self._bridge = bridge
+    def __init__(
+        self,
+        scene_context: _GraphSceneContext,
+        scope_selection: GraphSceneScopeSelection,
+    ) -> None:
+        self._scene_context = scene_context
+        self._scope_selection = scope_selection
 
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
-        return self._create_node_from_type(
+        return self.create_node_from_type(
             type_id=type_id,
             x=float(x),
             y=float(y),
-            parent_node_id=scope_parent_id(self._bridge._scope_path),
+            parent_node_id=scope_parent_id(self._scene_context.scope_path),
             select_node=True,
         )
 
     def add_subnode_shell_pin(self, shell_node_id: str, pin_type_id: str) -> str:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return ""
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return ""
         shell_node = workspace.nodes.get(str(shell_node_id).strip())
@@ -102,7 +109,7 @@ class GraphSceneMutationHistory:
             node.properties[SUBNODE_PIN_LABEL_PROPERTY] = plan.label
             shell_node.exposed_ports[node.node_id] = True
 
-        return self._create_node_from_type(
+        return self.create_node_from_type(
             type_id=plan.pin_type_id,
             x=plan.x,
             y=plan.y,
@@ -111,7 +118,7 @@ class GraphSceneMutationHistory:
             configure_node=_configure_pin,
         )
 
-    def _create_node_from_type(
+    def create_node_from_type(
         self,
         *,
         type_id: str,
@@ -121,14 +128,14 @@ class GraphSceneMutationHistory:
         select_node: bool,
         configure_node: Callable[[NodeInstance, WorkspaceData, NodeRegistry], None] | None = None,
     ) -> str:
-        model, registry = self._bridge._require_bound()
-        workspace = model.project.workspaces.get(self._bridge._workspace_id)
+        model, registry = self._scene_context.require_bound()
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return ""
         history_before = self._capture_history_snapshot()
         spec = registry.get_spec(type_id)
         node = model.add_node(
-            self._bridge._workspace_id,
+            self._scene_context.workspace_id,
             type_id=type_id,
             title=spec.display_name,
             x=float(x),
@@ -139,10 +146,10 @@ class GraphSceneMutationHistory:
         node.parent_node_id = parent_node_id
         if configure_node is not None:
             configure_node(node, workspace, registry)
-        self._bridge._sync_surface_title(node, spec)
+        self._scene_context.sync_surface_title(node, spec)
         if select_node:
-            self._bridge._set_selected_node_ids([node.node_id], workspace=workspace)
-        self._bridge._rebuild_models()
+            self._scope_selection.set_selected_node_ids([node.node_id], workspace=workspace)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_ADD_NODE, history_before)
         return node.node_id
 
@@ -153,17 +160,19 @@ class GraphSceneMutationHistory:
         target_node_id: str,
         target_port: str,
     ) -> bool:
-        if self._bridge._registry is None or self._bridge._model is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if registry is None or model is None:
             return False
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return False
         source_node = self._node(source_node_id)
         target_node = self._node(target_node_id)
         if source_node is None or target_node is None:
             return False
-        source_spec = self._bridge._registry.get_spec(source_node.type_id)
-        target_spec = self._bridge._registry.get_spec(target_node.type_id)
+        source_spec = registry.get_spec(source_node.type_id)
+        target_spec = registry.get_spec(target_node.type_id)
         try:
             source_kind = port_kind(
                 node=source_node,
@@ -205,15 +214,15 @@ class GraphSceneMutationHistory:
         return are_data_types_compatible(str(source_type), str(target_type))
 
     def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> str:
-        model, registry = self._bridge._require_bound()
+        model, registry = self._scene_context.require_bound()
         history_before = self._capture_history_snapshot()
-        workspace = model.project.workspaces[self._bridge._workspace_id]
+        workspace = model.project.workspaces[self._scene_context.workspace_id]
         source_node = self._node_or_raise(source_node_id)
         target_node = self._node_or_raise(target_node_id)
-        if not is_node_in_scope(workspace, source_node_id, self._bridge._scope_path) or not is_node_in_scope(
+        if not is_node_in_scope(workspace, source_node_id, self._scene_context.scope_path) or not is_node_in_scope(
             workspace,
             target_node_id,
-            self._bridge._scope_path,
+            self._scene_context.scope_path,
         ):
             raise ValueError("Connections are only allowed for nodes in the active scope.")
         source_spec = registry.get_spec(source_node.type_id)
@@ -261,23 +270,23 @@ class GraphSceneMutationHistory:
             raise ValueError(f"Target input port already has a connection: {target_node_id}.{target_port}")
 
         edge = model.add_edge(
-            self._bridge._workspace_id,
+            self._scene_context.workspace_id,
             source_node_id=source_node_id,
             source_port_key=source_port,
             target_node_id=target_node_id,
             target_port_key=target_port,
         )
-        self._bridge._rebuild_models()
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_ADD_EDGE, history_before)
         return edge.edge_id
 
     def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
-        model, registry = self._bridge._require_bound()
-        workspace = model.project.workspaces[self._bridge._workspace_id]
-        if not is_node_in_scope(workspace, node_a_id, self._bridge._scope_path) or not is_node_in_scope(
+        model, registry = self._scene_context.require_bound()
+        workspace = model.project.workspaces[self._scene_context.workspace_id]
+        if not is_node_in_scope(workspace, node_a_id, self._scene_context.scope_path) or not is_node_in_scope(
             workspace,
             node_b_id,
-            self._bridge._scope_path,
+            self._scene_context.scope_path,
         ):
             raise ValueError("Selected nodes must be in the active scope.")
         node_a = workspace.nodes[node_a_id]
@@ -323,60 +332,63 @@ class GraphSceneMutationHistory:
         raise ValueError("Selected nodes do not have compatible out/in ports.")
 
     def remove_edge(self, edge_id: str) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None or edge_id not in workspace.edges:
             return
         edge = workspace.edges.get(edge_id)
         if edge is None:
             return
-        if not is_node_in_scope(workspace, edge.source_node_id, self._bridge._scope_path):
+        if not is_node_in_scope(workspace, edge.source_node_id, self._scene_context.scope_path):
             return
-        if not is_node_in_scope(workspace, edge.target_node_id, self._bridge._scope_path):
+        if not is_node_in_scope(workspace, edge.target_node_id, self._scene_context.scope_path):
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.remove_edge(self._bridge._workspace_id, edge_id)
-        self._bridge._rebuild_models()
+        model.remove_edge(self._scene_context.workspace_id, edge_id)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_REMOVE_EDGE, history_before)
 
-    def _remove_node(self, node_id: str, *, require_visible: bool) -> bool:
-        if self._bridge._model is None:
+    def remove_node_with_policy(self, node_id: str, *, require_visible: bool) -> bool:
+        model = self._scene_context.model
+        if model is None:
             return False
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None or node_id not in workspace.nodes:
             return False
-        if require_visible and not is_node_in_scope(workspace, node_id, self._bridge._scope_path):
+        if require_visible and not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
             return False
         history_before = self._capture_history_snapshot()
-        self._bridge._model.remove_node(self._bridge._workspace_id, node_id)
-        self._bridge._set_selected_node_ids(
-            [value for value in self._bridge._selected_node_ids if value != node_id],
+        model.remove_node(self._scene_context.workspace_id, node_id)
+        self._scope_selection.set_selected_node_ids(
+            [value for value in self._scene_context.selected_node_ids if value != node_id],
             workspace=workspace,
         )
-        self._bridge._rebuild_models()
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_REMOVE_NODE, history_before)
         return True
 
     def remove_node(self, node_id: str) -> None:
-        self._remove_node(node_id, require_visible=True)
+        self.remove_node_with_policy(node_id, require_visible=True)
 
     def remove_workspace_node(self, node_id: str) -> bool:
-        return self._remove_node(node_id, require_visible=False)
+        return self.remove_node_with_policy(node_id, require_visible=False)
 
     def focus_node(self, node_id: str) -> QPointF | None:
-        item = self._bridge.node_item(node_id)
+        item = self._scope_selection.node_item(node_id)
         if item is None:
             return None
-        selection_changed = self._bridge._set_selected_node_ids([node_id])
+        selection_changed = self._scope_selection.set_selected_node_ids([node_id])
         if not selection_changed:
-            self._bridge.node_selected.emit(node_id)
+            self._scene_context.emit_node_selected(node_id)
         return item.sceneBoundingRect().center()
 
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
         node = workspace.nodes.get(node_id)
@@ -386,54 +398,58 @@ class GraphSceneMutationHistory:
         if bool(node.collapsed) == normalized_collapsed:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_collapsed(
-            self._bridge._workspace_id,
+        model.set_node_collapsed(
+            self._scene_context.workspace_id,
             node_id,
             normalized_collapsed,
         )
-        self._bridge._rebuild_models()
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_TOGGLE_COLLAPSED, history_before)
 
-    def _notify_selected_node_context_updated(self, node_id: str) -> None:
+    def notify_selected_node_context_updated(self, node_id: str) -> None:
         normalized_node_id = str(node_id or "").strip()
-        if normalized_node_id and normalized_node_id in self._bridge._selected_node_lookup:
-            self._bridge.node_selected.emit(normalized_node_id)
+        if normalized_node_id and normalized_node_id in self._scene_context.selected_node_lookup:
+            self._scene_context.emit_node_selected(normalized_node_id)
 
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return
-        workspace = self._bridge._model.project.workspaces[self._bridge._workspace_id]
+        workspace = model.project.workspaces[self._scene_context.workspace_id]
         node = workspace.nodes[node_id]
-        spec = self._bridge._registry.get_spec(node.type_id)
-        normalized = self._bridge._registry.normalize_property_value(node.type_id, key, value)
+        spec = registry.get_spec(node.type_id)
+        normalized = registry.normalize_property_value(node.type_id, key, value)
         current_value = node.properties.get(key, _MISSING)
         if current_value is not _MISSING and current_value == normalized:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_property(self._bridge._workspace_id, node_id, key, normalized)
+        model.set_node_property(self._scene_context.workspace_id, node_id, key, normalized)
         if key == "title":
-            self._bridge._sync_surface_title(node, spec)
-        self._bridge._rebuild_models()
-        self._notify_selected_node_context_updated(node_id)
+            self._scene_context.sync_surface_title(node, spec)
+        self._scene_context.rebuild_models()
+        self.notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
     def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return False
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return False
         node = workspace.nodes.get(node_id)
         if node is None:
             return False
-        spec = self._bridge._registry.get_spec(node.type_id)
+        spec = registry.get_spec(node.type_id)
         normalized_updates: dict[str, Any] = {}
         for raw_key, raw_value in dict(values or {}).items():
             key = str(raw_key or "")
             if not key:
                 continue
             try:
-                normalized = self._bridge._registry.normalize_property_value(node.type_id, key, raw_value)
+                normalized = registry.normalize_property_value(node.type_id, key, raw_value)
             except KeyError:
                 continue
             current_value = node.properties.get(key, _MISSING)
@@ -445,11 +461,11 @@ class GraphSceneMutationHistory:
 
         history_before = self._capture_history_snapshot()
         for key, normalized in normalized_updates.items():
-            self._bridge._model.set_node_property(self._bridge._workspace_id, node_id, key, normalized)
+            model.set_node_property(self._scene_context.workspace_id, node_id, key, normalized)
         if "title" in normalized_updates:
-            self._bridge._sync_surface_title(node, spec)
-        self._bridge._rebuild_models()
-        self._notify_selected_node_context_updated(node_id)
+            self._scene_context.sync_surface_title(node, spec)
+        self._scene_context.rebuild_models()
+        self.notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
         return True
 
@@ -458,9 +474,10 @@ class GraphSceneMutationHistory:
         return normalize_visual_style_payload(visual_style)
 
     def set_node_visual_style(self, node_id: str, visual_style: Any) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
         node = workspace.nodes.get(node_id)
@@ -470,30 +487,32 @@ class GraphSceneMutationHistory:
         if node.visual_style == normalized:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_visual_style(self._bridge._workspace_id, node_id, normalized)
-        self._bridge._rebuild_models()
+        model.set_node_visual_style(self._scene_context.workspace_id, node_id, normalized)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
     def clear_node_visual_style(self, node_id: str) -> None:
         self.set_node_visual_style(node_id, {})
 
     def set_node_title(self, node_id: str, title: str) -> None:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return
         node = self._node(node_id)
         if node is None:
             return
-        spec = self._bridge._registry.get_spec(node.type_id)
+        spec = registry.get_spec(node.type_id)
         normalized = str(title).strip()
         if not normalized:
             return
         if node.title == normalized:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_title(self._bridge._workspace_id, node_id, normalized)
-        if self._bridge._surface_title_sync_enabled(spec):
+        model.set_node_title(self._scene_context.workspace_id, node_id, normalized)
+        if self._scene_context.surface_title_sync_enabled(spec):
             node.properties["title"] = normalized
-        self._bridge._rebuild_models()
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_RENAME_NODE, history_before)
 
     @staticmethod
@@ -501,9 +520,10 @@ class GraphSceneMutationHistory:
         return normalize_edge_label(label)
 
     def set_edge_label(self, edge_id: str, label: Any) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
         edge = workspace.edges.get(edge_id)
@@ -513,8 +533,8 @@ class GraphSceneMutationHistory:
         if edge.label == normalized:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_edge_label(self._bridge._workspace_id, edge_id, normalized)
-        self._bridge._rebuild_models()
+        model.set_edge_label(self._scene_context.workspace_id, edge_id, normalized)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
     def clear_edge_label(self, edge_id: str) -> None:
@@ -525,9 +545,10 @@ class GraphSceneMutationHistory:
         return normalize_visual_style_payload(visual_style)
 
     def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
         edge = workspace.edges.get(edge_id)
@@ -537,23 +558,25 @@ class GraphSceneMutationHistory:
         if edge.visual_style == normalized:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_edge_visual_style(self._bridge._workspace_id, edge_id, normalized)
-        self._bridge._rebuild_models()
+        model.set_edge_visual_style(self._scene_context.workspace_id, edge_id, normalized)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
     def clear_edge_visual_style(self, edge_id: str) -> None:
         self.set_edge_visual_style(edge_id, {})
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
         node = workspace.nodes.get(node_id)
         if node is None:
             return
-        spec = self._bridge._registry.get_spec(node.type_id)
+        spec = registry.get_spec(node.type_id)
         port = find_port(
             node=node,
             spec=spec,
@@ -567,7 +590,7 @@ class GraphSceneMutationHistory:
         if current_exposed == normalized_exposed:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_exposed_port(self._bridge._workspace_id, node_id, key, normalized_exposed)
+        model.set_exposed_port(self._scene_context.workspace_id, node_id, key, normalized_exposed)
         if not normalized_exposed:
             affected_edges = [
                 edge_id
@@ -576,17 +599,18 @@ class GraphSceneMutationHistory:
                 or (edge.target_node_id == node_id and edge.target_port_key == key)
             ]
             for edge_id in affected_edges:
-                self._bridge._model.remove_edge(self._bridge._workspace_id, edge_id)
-        self._bridge._rebuild_models()
+                model.remove_edge(self._scene_context.workspace_id, edge_id)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
 
     def move_node(self, node_id: str, x: float, y: float) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
-        if not is_node_in_scope(workspace, node_id, self._bridge._scope_path):
+        if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
             return
         node = self._node(node_id)
         if node is None:
@@ -596,8 +620,8 @@ class GraphSceneMutationHistory:
         if float(node.x) == final_x and float(node.y) == final_y:
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_position(self._bridge._workspace_id, node_id, final_x, final_y)
-        self._bridge._rebuild_models()
+        model.set_node_position(self._scene_context.workspace_id, node_id, final_x, final_y)
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_MOVE_NODE, history_before)
 
     def resize_node(self, node_id: str, width: float, height: float) -> None:
@@ -607,17 +631,19 @@ class GraphSceneMutationHistory:
         self.set_node_geometry(node_id, float(node.x), float(node.y), width, height)
 
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None:
             return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return
         node = self._node(node_id)
         if node is None:
             return
-        if not is_node_in_scope(workspace, node_id, self._bridge._scope_path):
+        if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
             return
-        spec = self._bridge._registry.get_spec(node.type_id) if self._bridge._registry is not None else None
+        spec = registry.get_spec(node.type_id) if registry is not None else None
         min_width = 120.0
         min_height = 50.0
         if spec is not None:
@@ -636,21 +662,22 @@ class GraphSceneMutationHistory:
         ):
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_geometry(
-            self._bridge._workspace_id,
+        model.set_node_geometry(
+            self._scene_context.workspace_id,
             node_id,
             final_x,
             final_y,
             final_w,
             final_h,
         )
-        self._bridge._rebuild_models()
+        self._scene_context.rebuild_models()
         self._record_history(ACTION_RESIZE_NODE, history_before)
 
     def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return False
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return False
 
@@ -660,7 +687,7 @@ class GraphSceneMutationHistory:
             node_id = str(value).strip()
             if not node_id or node_id in seen_node_ids or node_id not in workspace.nodes:
                 continue
-            if not is_node_in_scope(workspace, node_id, self._bridge._scope_path):
+            if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
                 continue
             seen_node_ids.add(node_id)
             unique_node_ids.append(node_id)
@@ -672,13 +699,7 @@ class GraphSceneMutationHistory:
         if abs(delta_x) < 0.01 and abs(delta_y) < 0.01:
             return False
 
-        history_group = nullcontext()
-        if self._bridge._history is not None:
-            history_group = self._bridge._history.grouped_action(
-                self._bridge._workspace_id,
-                ACTION_MOVE_NODE,
-                workspace,
-            )
+        history_group = self._scene_context.grouped_history_action(ACTION_MOVE_NODE, workspace)
 
         moved_any = False
         with history_group:
@@ -690,12 +711,12 @@ class GraphSceneMutationHistory:
                 final_y = float(node.y) + delta_y
                 if float(node.x) == final_x and float(node.y) == final_y:
                     continue
-                self._bridge._model.set_node_position(self._bridge._workspace_id, node_id, final_x, final_y)
+                model.set_node_position(self._scene_context.workspace_id, node_id, final_x, final_y)
                 moved_any = True
 
         if not moved_any:
             return False
-        self._bridge._rebuild_models()
+        self._scene_context.rebuild_models()
         return True
 
     def align_selected_nodes(
@@ -741,48 +762,45 @@ class GraphSceneMutationHistory:
         )
 
     def group_selected_nodes(self) -> bool:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return False
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return False
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
         if len(selected_node_ids) < 2:
             return False
-        selection_bounds = self._bridge._scope_selection.bounds_for_node_ids(selected_node_ids)
+        selection_bounds = self._scope_selection.bounds_for_node_ids(selected_node_ids)
         if selection_bounds is None:
             return False
 
-        history_group = nullcontext()
-        if self._bridge._history is not None:
-            history_group = self._bridge._history.grouped_action(
-                self._bridge._workspace_id,
-                ACTION_ADD_NODE,
-                workspace,
-            )
+        history_group = self._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
 
         grouped = None
         with history_group:
             grouped = group_selection_into_subnode(
-                model=self._bridge._model,
-                registry=self._bridge._registry,
-                workspace_id=self._bridge._workspace_id,
+                model=model,
+                registry=registry,
+                workspace_id=self._scene_context.workspace_id,
                 selected_node_ids=selected_node_ids,
-                scope_path=self._bridge._scope_path,
+                scope_path=self._scene_context.scope_path,
                 shell_x=selection_bounds.x(),
                 shell_y=selection_bounds.y(),
             )
         if grouped is None:
             return False
 
-        self._bridge._set_selected_node_ids([grouped.shell_node_id], workspace=workspace)
-        self._bridge._rebuild_models()
+        self._scope_selection.set_selected_node_ids([grouped.shell_node_id], workspace=workspace)
+        self._scene_context.rebuild_models()
         return True
 
     def ungroup_selected_subnode(self) -> bool:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return False
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return False
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
@@ -790,26 +808,20 @@ class GraphSceneMutationHistory:
             return False
         shell_node_id = selected_node_ids[0]
 
-        history_group = nullcontext()
-        if self._bridge._history is not None:
-            history_group = self._bridge._history.grouped_action(
-                self._bridge._workspace_id,
-                ACTION_REMOVE_NODE,
-                workspace,
-            )
+        history_group = self._scene_context.grouped_history_action(ACTION_REMOVE_NODE, workspace)
 
         ungrouped = None
         with history_group:
             ungrouped = ungroup_subnode(
-                model=self._bridge._model,
-                workspace_id=self._bridge._workspace_id,
+                model=model,
+                workspace_id=self._scene_context.workspace_id,
                 shell_node_id=shell_node_id,
             )
         if ungrouped is None:
             return False
 
-        self._bridge._set_selected_node_ids(list(ungrouped.moved_node_ids), workspace=workspace)
-        self._bridge._rebuild_models()
+        self._scope_selection.set_selected_node_ids(list(ungrouped.moved_node_ids), workspace=workspace)
+        self._scene_context.rebuild_models()
         return True
 
     def duplicate_selected_subgraph(self) -> bool:
@@ -825,14 +837,15 @@ class GraphSceneMutationHistory:
         )
         if not duplicated_node_ids:
             return False
-        self._bridge._set_selected_node_ids(duplicated_node_ids)
-        self._bridge._rebuild_models()
+        self._scope_selection.set_selected_node_ids(duplicated_node_ids)
+        self._scene_context.rebuild_models()
         return True
 
     def serialize_selected_subgraph_fragment(self) -> dict[str, Any] | None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return None
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return None
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
@@ -860,23 +873,15 @@ class GraphSceneMutationHistory:
         if not pasted_node_ids:
             return False
 
-        self._bridge._set_selected_node_ids(pasted_node_ids)
-        self._bridge._rebuild_models()
+        self._scope_selection.set_selected_node_ids(pasted_node_ids)
+        self._scene_context.rebuild_models()
         return True
 
     def _node(self, node_id: str) -> NodeInstance | None:
-        if self._bridge._model is None:
-            return None
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
-        if workspace is None:
-            return None
-        return workspace.nodes.get(node_id)
+        return self._scene_context.node(node_id)
 
     def _node_or_raise(self, node_id: str) -> NodeInstance:
-        node = self._node(node_id)
-        if node is None:
-            raise KeyError(f"Unknown scene node: {node_id}")
-        return node
+        return self._scene_context.node_or_raise(node_id)
 
     def _find_model_edge_id(
         self,
@@ -885,26 +890,22 @@ class GraphSceneMutationHistory:
         target_node_id: str,
         target_port: str,
     ) -> str | None:
-        if self._bridge._model is None:
-            return None
-        workspace = self._bridge._model.project.workspaces[self._bridge._workspace_id]
-        for edge in workspace.edges.values():
-            if (
-                edge.source_node_id == source_node_id
-                and edge.source_port_key == source_port
-                and edge.target_node_id == target_node_id
-                and edge.target_port_key == target_port
-            ):
-                return edge.edge_id
-        return None
+        return self._scene_context.find_model_edge_id(
+            source_node_id,
+            source_port,
+            target_node_id,
+            target_port,
+        )
 
     def _selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
-        return self._bridge._scope_selection.selected_node_ids_in_workspace(workspace)
+        return self._scope_selection.selected_node_ids_in_workspace(workspace)
 
     def _selected_layout_metrics(self) -> tuple[WorkspaceData | None, list[LayoutNodeBounds]]:
-        if self._bridge._model is None or self._bridge._registry is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return None, []
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return None, []
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
@@ -913,7 +914,7 @@ class GraphSceneMutationHistory:
         return workspace, collect_layout_node_bounds(
             workspace=workspace,
             node_ids=selected_node_ids,
-            spec_lookup=self._bridge._registry.get_spec,
+            spec_lookup=registry.get_spec,
             size_resolver=node_size,
         )
 
@@ -929,7 +930,8 @@ class GraphSceneMutationHistory:
         snap_to_grid: bool,
         grid_size: float,
     ) -> bool:
-        if self._bridge._model is None or not updates:
+        model = self._scene_context.model
+        if model is None or not updates:
             return False
 
         final_positions = normalize_layout_position_updates(
@@ -942,18 +944,12 @@ class GraphSceneMutationHistory:
         if not final_positions:
             return False
 
-        history_group = nullcontext()
-        if self._bridge._history is not None:
-            history_group = self._bridge._history.grouped_action(
-                self._bridge._workspace_id,
-                ACTION_MOVE_NODE,
-                workspace,
-            )
+        history_group = self._scene_context.grouped_history_action(ACTION_MOVE_NODE, workspace)
 
         with history_group:
             for node_id, (final_x, final_y) in final_positions.items():
-                self._bridge._model.set_node_position(self._bridge._workspace_id, node_id, final_x, final_y)
-        self._bridge._rebuild_models()
+                model.set_node_position(self._scene_context.workspace_id, node_id, final_x, final_y)
+        self._scene_context.rebuild_models()
         return True
 
     @staticmethod
@@ -977,11 +973,12 @@ class GraphSceneMutationHistory:
         return fragment_node_from_payload(node_payload)
 
     def _fragment_bounds(self, nodes_payload: list[dict[str, Any]]) -> QRectF | None:
-        if self._bridge._registry is None:
+        registry = self._scene_context.registry
+        if registry is None:
             return None
         bounds = graph_fragment_bounds(
             nodes_payload=nodes_payload,
-            registry=self._bridge._registry,
+            registry=registry,
             size_resolver=node_size,
         )
         if bounds is None:
@@ -989,11 +986,12 @@ class GraphSceneMutationHistory:
         return QRectF(bounds.x, bounds.y, bounds.width, bounds.height)
 
     def _fragment_types_and_ports_are_valid(self, fragment_payload: dict[str, Any]) -> bool:
-        if self._bridge._registry is None:
+        registry = self._scene_context.registry
+        if registry is None:
             return False
         return graph_fragment_payload_is_valid(
             fragment_payload=fragment_payload,
-            registry=self._bridge._registry,
+            registry=registry,
         )
 
     def _insert_fragment(
@@ -1004,56 +1002,31 @@ class GraphSceneMutationHistory:
         delta_x: float,
         delta_y: float,
     ) -> list[str]:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return []
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return []
         if not self._fragment_types_and_ports_are_valid(fragment_payload):
             return []
 
-        history_group = nullcontext()
-        if self._bridge._history is not None:
-            history_group = self._bridge._history.grouped_action(
-                self._bridge._workspace_id,
-                action_type,
-                workspace,
-            )
+        history_group = self._scene_context.grouped_history_action(action_type, workspace)
 
         with history_group:
             return insert_graph_fragment(
-                model=self._bridge._model,
-                workspace_id=self._bridge._workspace_id,
+                model=model,
+                workspace_id=self._scene_context.workspace_id,
                 fragment_payload=fragment_payload,
                 delta_x=delta_x,
                 delta_y=delta_y,
             )
 
     def _capture_history_snapshot(self) -> WorkspaceSnapshot | None:
-        if self._bridge._history is None or self._bridge._model is None or not self._bridge._workspace_id:
-            return None
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
-        if workspace is None:
-            return None
-        return self._bridge._history.capture_workspace(workspace)
+        return self._scene_context.capture_history_snapshot()
 
     def _record_history(self, action_type: str, before_snapshot: WorkspaceSnapshot | None) -> None:
-        if (
-            self._bridge._history is None
-            or self._bridge._model is None
-            or before_snapshot is None
-            or not self._bridge._workspace_id
-        ):
-            return
-        workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
-        if workspace is None:
-            return
-        self._bridge._history.record_action(
-            self._bridge._workspace_id,
-            action_type,
-            before_snapshot,
-            workspace,
-        )
+        self._scene_context.record_history(action_type, before_snapshot)
 
 
 __all__ = ["GraphSceneMutationHistory"]

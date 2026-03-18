@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
@@ -21,10 +22,188 @@ from ea_node_editor.ui_qml.graph_scene_scope_selection import (
 )
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
+    from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory, WorkspaceSnapshot
     from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 _SNAP_GRID_SIZE = 20.0
+
+
+def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
+    family = str(spec.surface_family or "").strip()
+    return family in {"planning", "annotation"} and any(prop.key == "title" for prop in spec.properties)
+
+
+def _synced_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> str:
+    if not _surface_title_sync_enabled(spec):
+        return str(node.title).strip() or str(spec.display_name).strip()
+    title = str(node.properties.get("title", "")).strip()
+    return title or str(spec.display_name).strip()
+
+
+def _sync_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> None:
+    if not _surface_title_sync_enabled(spec):
+        return
+    node.title = _synced_surface_title(node, spec)
+
+
+class _GraphSceneContext:
+    def __init__(self, bridge: GraphSceneBridge, payload_builder: GraphScenePayloadBuilder) -> None:
+        self._bridge = bridge
+        self._payload_builder = payload_builder
+        self.workspace_id = ""
+        self.scope_path: ScopePath = ()
+        self.selected_node_ids: list[str] = []
+        self.selected_node_lookup: dict[str, bool] = {}
+
+    @property
+    def model(self) -> GraphModel | None:
+        return self._bridge._model
+
+    @property
+    def registry(self) -> NodeRegistry | None:
+        return self._bridge._registry
+
+    @property
+    def history(self) -> RuntimeGraphHistory | None:
+        return self._bridge._history
+
+    @property
+    def graph_theme_bridge(self) -> GraphThemeBridge | None:
+        return self._bridge._graph_theme_bridge
+
+    def require_bound(self) -> tuple[GraphModel, NodeRegistry]:
+        if self.model is None or self.registry is None:
+            raise RuntimeError("Scene is not bound")
+        return self.model, self.registry
+
+    def workspace_or_none(self) -> WorkspaceData | None:
+        if self.model is None or not self.workspace_id:
+            return None
+        return self.model.project.workspaces.get(self.workspace_id)
+
+    def current_workspace(self) -> WorkspaceData:
+        if self.model is None:
+            raise RuntimeError("Scene has no graph model")
+        return self.model.project.workspaces[self.workspace_id]
+
+    def node(self, node_id: str) -> NodeInstance | None:
+        workspace = self.workspace_or_none()
+        if workspace is None:
+            return None
+        return workspace.nodes.get(node_id)
+
+    def node_or_raise(self, node_id: str) -> NodeInstance:
+        node = self.node(node_id)
+        if node is None:
+            raise KeyError(f"Unknown scene node: {node_id}")
+        return node
+
+    def find_model_edge_id(
+        self,
+        source_node_id: str,
+        source_port: str,
+        target_node_id: str,
+        target_port: str,
+    ) -> str | None:
+        workspace = self.workspace_or_none()
+        if workspace is None:
+            return None
+        for edge in workspace.edges.values():
+            if (
+                edge.source_node_id == source_node_id
+                and edge.source_port_key == source_port
+                and edge.target_node_id == target_node_id
+                and edge.target_port_key == target_port
+            ):
+                return edge.edge_id
+        return None
+
+    def edge_item(self, edge_id: str) -> dict[str, Any] | None:
+        workspace = self.workspace_or_none()
+        if workspace is None:
+            return None
+        return self._payload_builder.edge_item(
+            workspace=workspace,
+            scope_path=self.scope_path,
+            edge_id=edge_id,
+        )
+
+    def rebuild_models(self) -> None:
+        nodes_payload, minimap_nodes_payload, edges_payload = self._payload_builder.rebuild_models(
+            model=self.model,
+            registry=self.registry,
+            workspace_id=self.workspace_id,
+            scope_path=self.scope_path,
+            graph_theme_bridge=self.graph_theme_bridge,
+        )
+        self._bridge._nodes_payload = nodes_payload
+        self._bridge._minimap_nodes_payload = minimap_nodes_payload
+        self._bridge._edges_payload = edges_payload
+        self._bridge.nodes_changed.emit()
+        self._bridge.edges_changed.emit()
+
+    def normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
+        if self.model is None or self.registry is None:
+            return
+        self._payload_builder.normalize_pdf_panel_pages(
+            model=self.model,
+            registry=self.registry,
+            workspace=workspace,
+        )
+
+    def active_graph_theme(self) -> GraphThemeDefinition:
+        return self._payload_builder.active_graph_theme(self.graph_theme_bridge)
+
+    def capture_history_snapshot(self) -> WorkspaceSnapshot | None:
+        workspace = self.workspace_or_none()
+        if self.history is None or workspace is None:
+            return None
+        return self.history.capture_workspace(workspace)
+
+    def record_history(self, action_type: str, before_snapshot: WorkspaceSnapshot | None) -> None:
+        workspace = self.workspace_or_none()
+        if self.history is None or workspace is None or before_snapshot is None:
+            return
+        self.history.record_action(
+            self.workspace_id,
+            action_type,
+            before_snapshot,
+            workspace,
+        )
+
+    def grouped_history_action(self, action_type: str, workspace: WorkspaceData):
+        if self.history is None or not self.workspace_id:
+            return nullcontext()
+        return self.history.grouped_action(
+            self.workspace_id,
+            action_type,
+            workspace,
+        )
+
+    def emit_workspace_changed(self) -> None:
+        self._bridge.workspace_changed.emit(self.workspace_id)
+
+    def emit_scope_changed(self) -> None:
+        self._bridge.scope_changed.emit()
+
+    def emit_selection_changed(self, node_id: str) -> None:
+        self._bridge.selection_changed.emit()
+        self._bridge.node_selected.emit(node_id)
+
+    def emit_node_selected(self, node_id: str) -> None:
+        self._bridge.node_selected.emit(node_id)
+
+    @staticmethod
+    def surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
+        return _surface_title_sync_enabled(spec)
+
+    @staticmethod
+    def synced_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> str:
+        return _synced_surface_title(node, spec)
+
+    @staticmethod
+    def sync_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> None:
+        _sync_surface_title(node, spec)
 
 
 class GraphSceneBridge(QObject):
@@ -41,9 +220,10 @@ class GraphSceneBridge(QObject):
         self._model: GraphModel | None = None
         self._registry: NodeRegistry | None = None
         self._history: RuntimeGraphHistory | None = None
-        self._scope_selection = GraphSceneScopeSelection(self)
-        self._mutation_history = GraphSceneMutationHistory(self)
         self._payload_builder = GraphScenePayloadBuilder()
+        self._scene_context = _GraphSceneContext(self, payload_builder=self._payload_builder)
+        self._scope_selection = GraphSceneScopeSelection(self._scene_context)
+        self._mutation_history = GraphSceneMutationHistory(self._scene_context, self._scope_selection)
         self._workspace_id = ""
         self._scope_path: ScopePath = ()
         self._selected_node_ids: list[str] = []
@@ -151,7 +331,7 @@ class GraphSceneBridge(QObject):
         return bool(self._scope_path)
 
     def _workspace_or_none(self) -> WorkspaceData | None:
-        return self._scope_selection.workspace_or_none()
+        return self._scene_context.workspace_or_none()
 
     def _active_view_state(self, workspace: WorkspaceData):
         return self._scope_selection.active_view_state(workspace)
@@ -237,15 +417,13 @@ class GraphSceneBridge(QObject):
         self._graph_theme_bridge = graph_theme_bridge
         if self._graph_theme_bridge is not None:
             self._graph_theme_bridge.changed.connect(self._on_graph_theme_changed)
-        self._rebuild_models()
+        self._scene_context.rebuild_models()
 
     def _on_graph_theme_changed(self) -> None:
-        self._rebuild_models()
+        self._scene_context.rebuild_models()
 
     def _require_bound(self) -> tuple[GraphModel, NodeRegistry]:
-        if self._model is None or self._registry is None:
-            raise RuntimeError("Scene is not bound")
-        return self._model, self._registry
+        return self._scene_context.require_bound()
 
     def set_workspace(self, model: GraphModel, registry: NodeRegistry, workspace_id: str) -> None:
         self._model = model
@@ -253,9 +431,7 @@ class GraphSceneBridge(QObject):
         self._scope_selection.set_workspace(workspace_id)
 
     def current_workspace(self) -> WorkspaceData:
-        if self._model is None:
-            raise RuntimeError("Scene has no graph model")
-        return self._model.project.workspaces[self._workspace_id]
+        return self._scene_context.current_workspace()
 
     def refresh_workspace_from_model(self, workspace_id: str) -> None:
         self._scope_selection.refresh_workspace_from_model(workspace_id)
@@ -319,14 +495,7 @@ class GraphSceneBridge(QObject):
         return self._scope_selection.node_bounds(node_id)
 
     def edge_item(self, edge_id: str) -> dict[str, Any] | None:
-        workspace = self._workspace_or_none()
-        if workspace is None:
-            return None
-        return self._payload_builder.edge_item(
-            workspace=workspace,
-            scope_path=self._scope_path,
-            edge_id=edge_id,
-        )
+        return self._scene_context.edge_item(edge_id)
 
     @pyqtSlot(str, float, float, result=str)
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
@@ -345,7 +514,7 @@ class GraphSceneBridge(QObject):
         select_node: bool,
         configure_node=None,
     ) -> str:
-        return self._mutation_history._create_node_from_type(
+        return self._mutation_history.create_node_from_type(
             type_id=type_id,
             x=x,
             y=y,
@@ -382,7 +551,7 @@ class GraphSceneBridge(QObject):
         self._mutation_history.remove_edge(edge_id)
 
     def _remove_node(self, node_id: str, *, require_visible: bool) -> bool:
-        return self._mutation_history._remove_node(node_id, require_visible=require_visible)
+        return self._mutation_history.remove_node_with_policy(node_id, require_visible=require_visible)
 
     def remove_node(self, node_id: str) -> None:
         self._mutation_history.remove_node(node_id)
@@ -401,7 +570,7 @@ class GraphSceneBridge(QObject):
         self._mutation_history.set_node_collapsed(node_id, collapsed)
 
     def _notify_selected_node_context_updated(self, node_id: str) -> None:
-        self._mutation_history._notify_selected_node_context_updated(node_id)
+        self._mutation_history.notify_selected_node_context_updated(node_id)
 
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
@@ -508,10 +677,10 @@ class GraphSceneBridge(QObject):
         return self._mutation_history.paste_subgraph_fragment(fragment_payload, center_x, center_y)
 
     def _node(self, node_id: str) -> NodeInstance | None:
-        return self._mutation_history._node(node_id)
+        return self._scene_context.node(node_id)
 
     def _node_or_raise(self, node_id: str) -> NodeInstance:
-        return self._mutation_history._node_or_raise(node_id)
+        return self._scene_context.node_or_raise(node_id)
 
     def _find_model_edge_id(
         self,
@@ -520,7 +689,7 @@ class GraphSceneBridge(QObject):
         target_node_id: str,
         target_port: str,
     ) -> str | None:
-        return self._mutation_history._find_model_edge_id(
+        return self._scene_context.find_model_edge_id(
             source_node_id,
             source_port,
             target_node_id,
@@ -528,54 +697,31 @@ class GraphSceneBridge(QObject):
         )
 
     def _selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
-        return self._mutation_history._selected_node_ids_in_workspace(workspace)
+        return self._scope_selection.selected_node_ids_in_workspace(workspace)
 
     def _bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
         return self._scope_selection.bounds_for_node_ids(node_ids)
 
     def _rebuild_models(self) -> None:
-        nodes_payload, minimap_nodes_payload, edges_payload = self._payload_builder.rebuild_models(
-            model=self._model,
-            registry=self._registry,
-            workspace_id=self._workspace_id,
-            scope_path=self._scope_path,
-            graph_theme_bridge=self._graph_theme_bridge,
-        )
-        self._nodes_payload = nodes_payload
-        self._minimap_nodes_payload = minimap_nodes_payload
-        self._edges_payload = edges_payload
-        self.nodes_changed.emit()
-        self.edges_changed.emit()
+        self._scene_context.rebuild_models()
 
     def _normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
-        if self._model is None or self._registry is None:
-            return
-        self._payload_builder.normalize_pdf_panel_pages(
-            model=self._model,
-            registry=self._registry,
-            workspace=workspace,
-        )
+        self._scene_context.normalize_pdf_panel_pages(workspace)
 
     def _active_graph_theme(self) -> GraphThemeDefinition:
-        return self._payload_builder.active_graph_theme(self._graph_theme_bridge)
+        return self._scene_context.active_graph_theme()
 
     @staticmethod
     def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
-        family = str(spec.surface_family or "").strip()
-        return family in {"planning", "annotation"} and any(prop.key == "title" for prop in spec.properties)
+        return _surface_title_sync_enabled(spec)
 
     @classmethod
     def _synced_surface_title(cls, node: NodeInstance, spec: NodeTypeSpec) -> str:
-        if not cls._surface_title_sync_enabled(spec):
-            return str(node.title).strip() or str(spec.display_name).strip()
-        title = str(node.properties.get("title", "")).strip()
-        return title or str(spec.display_name).strip()
+        return _synced_surface_title(node, spec)
 
     @classmethod
     def _sync_surface_title(cls, node: NodeInstance, spec: NodeTypeSpec) -> None:
-        if not cls._surface_title_sync_enabled(spec):
-            return
-        node.title = cls._synced_surface_title(node, spec)
+        _sync_surface_title(node, spec)
 
 
 __all__ = ["GraphSceneBridge"]

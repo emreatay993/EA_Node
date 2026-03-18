@@ -20,7 +20,7 @@ from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui_qml.edge_routing import node_size, port_scene_pos
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+    from ea_node_editor.ui_qml.graph_scene_bridge import _GraphSceneContext
 
 _MINIMAP_EMPTY_BOUNDS = QRectF(-1600.0, -900.0, 3200.0, 1800.0)
 _MINIMAP_PADDING = 220.0
@@ -53,17 +53,45 @@ class _NodeItemProxy:
 
 
 class GraphSceneScopeSelection:
-    def __init__(self, bridge: GraphSceneBridge) -> None:
-        self._bridge = bridge
-        self.workspace_id = ""
-        self.scope_path: ScopePath = ()
-        self.selected_node_ids: list[str] = []
-        self.selected_node_lookup: dict[str, bool] = {}
+    def __init__(self, scene_context: _GraphSceneContext) -> None:
+        self._scene_context = scene_context
+
+    @property
+    def workspace_id(self) -> str:
+        return self._scene_context.workspace_id
+
+    @workspace_id.setter
+    def workspace_id(self, value: str) -> None:
+        self._scene_context.workspace_id = str(value or "")
+
+    @property
+    def scope_path(self) -> ScopePath:
+        return self._scene_context.scope_path
+
+    @scope_path.setter
+    def scope_path(self, value: ScopePath) -> None:
+        self._scene_context.scope_path = tuple(str(node_id) for node_id in tuple(value or ()))
+
+    @property
+    def selected_node_ids(self) -> list[str]:
+        return self._scene_context.selected_node_ids
+
+    @selected_node_ids.setter
+    def selected_node_ids(self, value: list[str]) -> None:
+        self._scene_context.selected_node_ids = [str(node_id) for node_id in list(value or [])]
+
+    @property
+    def selected_node_lookup(self) -> dict[str, bool]:
+        return self._scene_context.selected_node_lookup
+
+    @selected_node_lookup.setter
+    def selected_node_lookup(self, value: dict[str, bool]) -> None:
+        self._scene_context.selected_node_lookup = {
+            str(node_id): bool(selected) for node_id, selected in dict(value or {}).items()
+        }
 
     def workspace_or_none(self) -> WorkspaceData | None:
-        if self._bridge._model is None or not self.workspace_id:
-            return None
-        return self._bridge._model.project.workspaces.get(self.workspace_id)
+        return self._scene_context.workspace_or_none()
 
     @staticmethod
     def active_view_state(workspace: WorkspaceData) -> ViewState | None:
@@ -114,8 +142,7 @@ class GraphSceneScopeSelection:
         self.selected_node_ids = normalized_node_ids
         self.selected_node_lookup = selected_lookup
         if emit_signals:
-            self._bridge.selection_changed.emit()
-            self._bridge.node_selected.emit(self.selected_node_id() or "")
+            self._scene_context.emit_selection_changed(self.selected_node_id() or "")
         return True
 
     def apply_scope_path(
@@ -140,9 +167,9 @@ class GraphSceneScopeSelection:
             emit_signals=emit_selection_changed,
         )
         if changed:
-            self._bridge._rebuild_models()
+            self._scene_context.rebuild_models()
             if emit_scope_changed:
-                self._bridge.scope_changed.emit()
+                self._scene_context.emit_scope_changed()
         elif selection_changed and emit_selection_changed:
             # Selection no longer lives in the node payload, so no model rebuild is needed here.
             pass
@@ -211,20 +238,24 @@ class GraphSceneScopeSelection:
 
     def set_workspace(self, workspace_id: str) -> None:
         self.workspace_id = str(workspace_id)
-        workspace = self._bridge._model.project.workspaces[self.workspace_id]
+        model = self._scene_context.model
+        if model is None:
+            return
+        workspace = model.project.workspaces[self.workspace_id]
         self.restore_scope_path_from_view(workspace)
         self.set_selected_node_ids([], workspace=workspace)
-        self._bridge._rebuild_models()
-        self._bridge.workspace_changed.emit(self.workspace_id)
-        self._bridge.scope_changed.emit()
+        self._scene_context.rebuild_models()
+        self._scene_context.emit_workspace_changed()
+        self._scene_context.emit_scope_changed()
 
     def refresh_workspace_from_model(self, workspace_id: str) -> None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        if model is None:
             return
         normalized_workspace_id = str(workspace_id).strip()
         if not normalized_workspace_id or normalized_workspace_id != self.workspace_id:
             return
-        workspace = self._bridge._model.project.workspaces.get(self.workspace_id)
+        workspace = model.project.workspaces.get(self.workspace_id)
         if workspace is None:
             return
         normalized_scope = normalize_scope_path(workspace, self.scope_path)
@@ -235,10 +266,10 @@ class GraphSceneScopeSelection:
                 persist=True,
                 emit_scope_changed=False,
             )
-            self._bridge.scope_changed.emit()
+            self._scene_context.emit_scope_changed()
         else:
             self.set_selected_node_ids(self.selected_node_ids, workspace=workspace)
-            self._bridge._rebuild_models()
+            self._scene_context.rebuild_models()
 
     def selected_node_id(self) -> str | None:
         workspace = self.workspace_or_none()
@@ -250,7 +281,7 @@ class GraphSceneScopeSelection:
         return None
 
     def selected_items(self) -> list[_SelectedNodeProxy]:
-        workspace = self._bridge.current_workspace()
+        workspace = self._scene_context.current_workspace()
         selected: list[_SelectedNodeProxy] = []
         for node_id in self.selected_node_ids:
             node = workspace.nodes.get(node_id)
@@ -317,7 +348,7 @@ class GraphSceneScopeSelection:
         workspace = self.workspace_or_none()
         if workspace is None:
             return
-        if self._bridge._node(node_id) is None:
+        if self._scene_context.node(node_id) is None:
             return
         if not is_node_in_scope(workspace, node_id, self.scope_path):
             return
@@ -338,10 +369,10 @@ class GraphSceneScopeSelection:
         y2: float,
         additive: bool = False,
     ) -> None:
-        if self._bridge._model is None or self._bridge._registry is None or not self.workspace_id:
+        if self._scene_context.model is None or self._scene_context.registry is None or not self.workspace_id:
             return
 
-        workspace = self._bridge.current_workspace()
+        workspace = self._scene_context.current_workspace()
         visible_node_ids = set(scope_node_ids(workspace, self.scope_path))
         min_x = min(float(x1), float(x2))
         max_x = max(float(x1), float(x2))
@@ -352,7 +383,7 @@ class GraphSceneScopeSelection:
         for node_id, node in workspace.nodes.items():
             if node_id not in visible_node_ids:
                 continue
-            spec = self._bridge._registry.get_spec(node.type_id)
+            spec = self._scene_context.registry.get_spec(node.type_id)
             width, height = node_size(node, spec, workspace.nodes)
             node_min_x = float(node.x)
             node_max_x = node_min_x + width
@@ -380,17 +411,19 @@ class GraphSceneScopeSelection:
         self.set_selected_node_ids(next_selected, workspace=workspace)
 
     def node_item(self, node_id: str) -> _NodeItemProxy | None:
-        if self._bridge._model is None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
             return None
-        workspace = self._bridge._model.project.workspaces.get(self.workspace_id)
-        if workspace is None or self._bridge._registry is None:
+        workspace = model.project.workspaces.get(self.workspace_id)
+        if workspace is None:
             return None
         node = workspace.nodes.get(node_id)
         if node is None:
             return None
         if not is_node_in_scope(workspace, node_id, self.scope_path):
             return None
-        spec = self._bridge._registry.get_spec(node.type_id)
+        spec = registry.get_spec(node.type_id)
         return _NodeItemProxy(node=node, spec=spec, workspace_nodes=workspace.nodes)
 
     def node_bounds(self, node_id: str) -> QRectF | None:
