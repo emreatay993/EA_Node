@@ -12,7 +12,7 @@ from ea_node_editor.ui.shell.window import (
     _PASSIVE_NODE_STYLE_CLIPBOARD_KIND,
     _STYLE_CLIPBOARD_APP_PROPERTY,
 )
-from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.main_window_shell.base import SharedMainWindowShellTestBase
 
 
 def _menu_action_texts(menu: QObject) -> list[str]:
@@ -59,7 +59,7 @@ def _style_clipboard_property_name(kind: str) -> str:
     return f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{kind}"
 
 
-class MainWindowShellPassiveStyleContextMenuTests(MainWindowShellTestBase):
+class MainWindowShellPassiveStyleContextMenuTests(SharedMainWindowShellTestBase):
     def test_passive_node_context_menu_exposes_style_actions_only_for_passive_nodes(self) -> None:
         graph_canvas = self._graph_canvas_item()
         node_context_popup = graph_canvas.findChild(QObject, "graphCanvasNodeContextPopup")

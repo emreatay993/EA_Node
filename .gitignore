@@ -96,11 +96,15 @@ tests/fixtures/passive_nodes/*
 !tests/graph_surface_pointer_regression.py
 !tests/main_window_shell/
 tests/main_window_shell/*
+!tests/main_window_shell/__init__.py
 !tests/main_window_shell/base.py
+!tests/main_window_shell/drop_connect_and_workflow_io.py
+!tests/main_window_shell/edit_clipboard_history.py
 !tests/main_window_shell/passive_style_context_menus.py
 !tests/main_window_shell/passive_property_editors.py
 !tests/main_window_shell/passive_image_nodes.py
 !tests/main_window_shell/passive_pdf_nodes.py
+!tests/main_window_shell/shell_basics_and_search.py
 !tests/main_window_shell/view_library_inspector.py
 !tests/fixtures/passive_nodes/reference_flowchart.sfe
 !tests/fixtures/passive_nodes/reference_preview.png

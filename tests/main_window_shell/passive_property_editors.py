@@ -10,7 +10,7 @@ from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.passive_property_editor_fixtures import register_passive_editor_fixture
 
 
-class MainWindowShellPassivePropertyEditorsTests(MainWindowShellTestBase):
+class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
     def setUp(self) -> None:
         super().setUp()
         register_passive_editor_fixture(self.window.registry)

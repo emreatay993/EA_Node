@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import copy
 import gc
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from PyQt6.QtCore import QEvent, QObject, QMetaObject, Qt, QUrl, Q_ARG
@@ -11,6 +9,7 @@ from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
 from ea_node_editor.custom_workflows import import_custom_workflow_file
+from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.conftest import ShellTestEnvironment
 
@@ -43,6 +42,31 @@ def _action_shortcuts(action) -> set[str]:  # noqa: ANN001
         sequence.toString(QKeySequence.SequenceFormat.PortableText)
         for sequence in action.shortcuts()
     }
+
+
+def _flush_shell_qt_events(app: QApplication) -> None:
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def _destroy_shell_window(window: ShellWindow | None) -> None:
+    if window is None:
+        return
+    for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
+        timer = getattr(window, timer_name, None)
+        if timer is not None:
+            timer.stop()
+    window.close()
+    quick_widget = getattr(window, "quick_widget", None)
+    if quick_widget is not None:
+        window.takeCentralWidget()
+        quick_widget.setSource(QUrl())
+        quick_widget.hide()
+        quick_widget.deleteLater()
+        window.quick_widget = None
+    window.deleteLater()
 
 
 class MainWindowShellTestBase(unittest.TestCase):
@@ -200,3 +224,134 @@ class MainWindowShellTestBase(unittest.TestCase):
         self.window.scene.focus_node(outer_id)
         self.app.processEvents()
         return outer_id, inner_id
+
+
+class SharedMainWindowShellTestBase(MainWindowShellTestBase):
+    _shared_env: ShellTestEnvironment | None = None
+    _shared_execution_client_patch = None
+    _shared_window: ShellWindow | None = None
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.app = QApplication.instance() or QApplication([])
+        cls.app.setQuitOnLastWindowClosed(False)
+        _flush_shell_qt_events(cls.app)
+        gc.collect()
+        cls._shared_env = ShellTestEnvironment()
+        cls._shared_env.start()
+        cls._shared_execution_client_patch = patch(
+            "ea_node_editor.ui.shell.window.ProcessExecutionClient",
+            _ShellTestExecutionClient,
+        )
+        cls._shared_execution_client_patch.start()
+        cls._temp_dir = cls._shared_env._temp_dir
+        cls._session_path = cls._shared_env.session_path
+        cls._autosave_path = cls._shared_env.autosave_path
+        cls._app_preferences_path = cls._shared_env.app_preferences_path
+        cls._global_custom_workflows_path = cls._shared_env.global_custom_workflows_path
+        cls._shared_window = cls._create_shared_window()
+        cls.window = cls._shared_window
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        try:
+            _destroy_shell_window(cls._shared_window)
+            cls._shared_window = None
+            cls.window = None
+            _flush_shell_qt_events(cls.app)
+            gc.collect()
+        finally:
+            if cls._shared_execution_client_patch is not None:
+                cls._shared_execution_client_patch.stop()
+                cls._shared_execution_client_patch = None
+            if cls._shared_env is not None:
+                cls._shared_env.stop()
+                cls._shared_env = None
+            gc.collect()
+
+    @classmethod
+    def _create_shared_window(cls) -> ShellWindow:
+        window = ShellWindow()
+        window.resize(1200, 800)
+        window.show()
+        _flush_shell_qt_events(cls.app)
+        return window
+
+    def setUp(self) -> None:
+        cls = self.__class__
+        self.app = cls.app
+        self._env = cls._shared_env
+        self._temp_dir = cls._temp_dir
+        self._session_path = cls._session_path
+        self._autosave_path = cls._autosave_path
+        self._app_preferences_path = cls._app_preferences_path
+        self._global_custom_workflows_path = cls._global_custom_workflows_path
+        self.window = cls._shared_window
+        self._reset_shared_shell_state()
+
+    def tearDown(self) -> None:
+        _flush_shell_qt_events(self.app)
+
+    def _reset_shared_shell_state(self) -> None:
+        window = self.window
+        self.assertIsNotNone(window)
+        app = self.app
+        _flush_shell_qt_events(app)
+        clipboard = app.clipboard()
+        clipboard.clear()
+
+        window.console_panel.clear_all()
+        window.update_notification_counters(0, 0)
+        window._set_run_ui_state("ready", "Idle", 0, 0, 0, 0, clear_run=True)
+        window.clear_graph_hint()
+        window._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        window._set_connection_quick_insert_state(
+            open_=False,
+            query="",
+            results=[],
+            highlight_index=-1,
+            context=None,
+        )
+        window.clear_graph_cursor_shape()
+        window.search_scope_state.runtime_scope_camera.clear()
+        window.set_library_query("")
+        window.set_library_category("")
+        window.set_library_data_type("")
+        window.set_library_direction("")
+
+        for path in (
+            self._session_path,
+            self._autosave_path,
+            self._app_preferences_path,
+            self._global_custom_workflows_path,
+        ):
+            if path is None:
+                continue
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                pass
+
+        window.app_preferences_controller.load_into_host(window)
+        window._new_project()
+        window._clear_recent_projects()
+        window._frame_rate_sampler = FrameRateSampler()
+        inspector_pane = window.quick_widget.rootObject().findChild(QObject, "inspectorPane")
+        if inspector_pane is not None:
+            inspector_pane.setProperty("activePortDirection", "in")
+            inspector_pane.setProperty("selectedPortKey", "")
+            inspector_pane.setProperty("editingPortKey", "")
+            inspector_pane.setProperty("editingPortLabel", "")
+        window.metrics_timer.start()
+        window.autosave_timer.start()
+        _flush_shell_qt_events(app)
+
+    def _reopen_shared_window(self) -> None:
+        cls = self.__class__
+        old_window = cls._shared_window
+        _destroy_shell_window(old_window)
+        _flush_shell_qt_events(cls.app)
+        new_window = cls._create_shared_window()
+        cls._shared_window = new_window
+        cls.window = new_window
+        self.window = new_window

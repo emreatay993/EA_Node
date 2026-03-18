@@ -8,7 +8,7 @@ from PyQt6.QtCore import QObject, QMetaObject
 from PyQt6.QtQml import QJSValue
 
 
-class MainWindowShellViewLibraryInspectorTests(MainWindowShellTestBase):
+class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
     def _inspector_object(self, name: str) -> QObject:
         root_object = self.window.quick_widget.rootObject()
         self.assertIsNotNone(root_object)

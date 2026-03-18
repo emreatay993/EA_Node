@@ -17,37 +17,19 @@ from tests.main_window_shell.base import *  # noqa: F401,F403
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_PDF_NODES_DIRECT"
-_SUBPROCESS_RUNNER = (
-    "import os, sys, unittest; "
-    f"os.environ[{_DIRECT_ENV!r}] = '1'; "
-    "target = sys.argv[1]; "
-    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
-    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
-    "sys.exit(0 if result.wasSuccessful() else 1)"
-)
 
 
-class _SubprocessPassivePdfNodeTest(unittest.TestCase):
+class _PytestSubprocessPassivePdfNodeClassTest(unittest.TestCase):
     __test__ = False
 
-    def __init__(self, target: str) -> None:
-        super().__init__(methodName="runTest")
-        self._target = target
+    _pytest_nodeid = "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests"
 
-    def id(self) -> str:
-        return self._target
-
-    def __str__(self) -> str:
-        return self._target
-
-    def shortDescription(self) -> str:
-        return self._target
-
-    def runTest(self) -> None:
+    def test_class_runs_in_subprocess(self) -> None:
         env = os.environ.copy()
         env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        env[_DIRECT_ENV] = "1"
         result = subprocess.run(
-            [sys.executable, "-c", _SUBPROCESS_RUNNER, self._target],
+            [sys.executable, "-m", "pytest", self._pytest_nodeid, "-q"],
             cwd=_REPO_ROOT,
             env=env,
             capture_output=True,
@@ -61,7 +43,7 @@ class _SubprocessPassivePdfNodeTest(unittest.TestCase):
             if part and part.strip()
         )
         raise AssertionError(
-            f"Subprocess passive PDF node test failed for {self._target} "
+            f"Subprocess passive PDF node test failed for {self._pytest_nodeid} "
             f"(exit={result.returncode}).\n{output}"
         )
 
@@ -82,6 +64,8 @@ def _write_pdf(path: Path, *, page_count: int = 2) -> None:
 
 
 class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
+    __test__ = os.environ.get(_DIRECT_ENV) == "1"
+
     def setUp(self) -> None:
         super().setUp()
         self._held_qml_refs: list[QQuickItem] = []
@@ -253,16 +237,14 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         self.assertEqual(preview_info["page_count"], 2)
 
 
+class MainWindowShellPassivePdfNodesSubprocessTests(_PytestSubprocessPassivePdfNodeClassTest):
+    __test__ = os.environ.get(_DIRECT_ENV) != "1"
+
+
 def load_tests(loader, standard_tests, pattern):
     if os.environ.get(_DIRECT_ENV) == "1":
         return standard_tests
 
     suite = unittest.TestSuite()
-    for test_name in sorted(name for name in dir(MainWindowShellPassivePdfNodesTests) if name.startswith("test_")):
-        suite.addTest(
-            _SubprocessPassivePdfNodeTest(
-                f"{MainWindowShellPassivePdfNodesTests.__module__}."
-                f"{MainWindowShellPassivePdfNodesTests.__qualname__}.{test_name}"
-            )
-        )
+    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellPassivePdfNodesSubprocessTests))
     return suite

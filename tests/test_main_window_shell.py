@@ -16,16 +16,9 @@ from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
-from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.main_window_shell.base import MainWindowShellTestBase, SharedMainWindowShellTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_SHELL_TEST_RUNNER = (
-    "import sys, unittest; "
-    "target = sys.argv[1]; "
-    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
-    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
-    "sys.exit(0 if result.wasSuccessful() else 1)"
-)
 _SHELL_TEST_MODULES = (
     "tests.main_window_shell.shell_basics_and_search",
     "tests.main_window_shell.drop_connect_and_workflow_io",
@@ -36,6 +29,9 @@ _SHELL_TEST_MODULES = (
     "tests.main_window_shell.passive_pdf_nodes",
     "tests.main_window_shell.view_library_inspector",
 )
+_PASSIVE_IMAGE_DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_IMAGE_NODES_DIRECT"
+_PASSIVE_PDF_DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_PDF_NODES_DIRECT"
+_GRAPH_CANVAS_HOST_DIRECT_ENV = "EA_NODE_EDITOR_GRAPH_CANVAS_HOST_DIRECT"
 
 
 def _load_shell_test_modules() -> None:
@@ -52,7 +48,22 @@ def _load_shell_test_modules() -> None:
         globals().update({name: getattr(module, name) for name in exported_names})
 
 
+def _pop_isolated_imported_shell_cases() -> dict[str, type[MainWindowShellTestBase]]:
+    isolated_cases: dict[str, type[MainWindowShellTestBase]] = {}
+    for isolated_name in (
+        "MainWindowShellPassiveImageNodesTests",
+        "MainWindowShellPassivePdfNodesTests",
+        "MainWindowShellPassiveImageNodesSubprocessTests",
+        "MainWindowShellPassivePdfNodesSubprocessTests",
+    ):
+        candidate = globals().pop(isolated_name, None)
+        if isinstance(candidate, type) and issubclass(candidate, MainWindowShellTestBase):
+            isolated_cases[isolated_name] = candidate
+    return isolated_cases
+
+
 _load_shell_test_modules()
+_ISOLATED_IMPORTED_SHELL_CASES = _pop_isolated_imported_shell_cases()
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QQuickItem]:
@@ -1527,7 +1538,7 @@ class FrameRateSamplerTests(unittest.TestCase):
         self.assertEqual(sampler.snapshot(timestamp=20.8).fps, 0.0)
 
 
-class MainWindowShellTelemetryTests(MainWindowShellTestBase):
+class MainWindowShellTelemetryTests(SharedMainWindowShellTestBase):
     def test_update_system_metrics_can_render_explicit_fps_value(self) -> None:
         self.window.update_system_metrics(37.0, 4.3, 16.0, fps=58.0)
         self.app.processEvents()
@@ -1535,7 +1546,7 @@ class MainWindowShellTelemetryTests(MainWindowShellTestBase):
         self.assertEqual(self.window.status_metrics.text(), "FPS:58 CPU:37% RAM:4.3/16.0 GB")
 
 
-class MainWindowShellBootstrapCompositionTests(MainWindowShellTestBase):
+class MainWindowShellBootstrapCompositionTests(SharedMainWindowShellTestBase):
     def test_bootstrap_starts_runtime_timers_with_expected_modes(self) -> None:
         self.assertTrue(self.window.metrics_timer.isActive())
         self.assertEqual(self.window.metrics_timer.interval(), 1000)
@@ -1544,7 +1555,7 @@ class MainWindowShellBootstrapCompositionTests(MainWindowShellTestBase):
         self.assertTrue(self.window.autosave_timer.isActive())
 
 
-class MainWindowShellContextBootstrapTests(MainWindowShellTestBase):
+class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
     def test_qml_context_preserves_legacy_context_properties_and_registers_facades(self) -> None:
         context = self.window.quick_widget.rootContext()
 
@@ -1605,7 +1616,7 @@ class MainWindowShellContextBootstrapTests(MainWindowShellTestBase):
         self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
 
 
-class MainWindowShellHostProtocolStateTests(MainWindowShellTestBase):
+class MainWindowShellHostProtocolStateTests(SharedMainWindowShellTestBase):
     def test_search_scope_state_tracks_graph_search_quick_insert_and_hints(self) -> None:
         self.window.action_graph_search.trigger()
         self.window.set_graph_search_query("core.start")
@@ -1670,6 +1681,8 @@ class MainWindowShellHostProtocolStateTests(MainWindowShellTestBase):
 
 
 class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
+    __test__ = os.environ.get(_GRAPH_CANVAS_HOST_DIRECT_ENV) == "1"
+
     def test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge(self) -> None:
         graph_canvas = self._graph_canvas_item()
         context = self.window.quick_widget.rootContext()
@@ -1760,31 +1773,24 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         self.assertEqual(results_by_id[second_node_id]["instance_label"], "ID 2")
 
 
-class _SubprocessShellWindowTest(unittest.TestCase):
+class _PytestSubprocessShellClassTest(unittest.TestCase):
     __test__ = False
 
-    def __init__(self, target: str) -> None:
-        super().__init__(methodName="runTest")
-        self._target = target
+    _pytest_nodeid = ""
+    _extra_env: dict[str, str] = {}
 
-    def id(self) -> str:
-        return self._target
-
-    def __str__(self) -> str:
-        return self._target
-
-    def shortDescription(self) -> str:
-        return self._target
-
-    def runTest(self) -> None:
-        _run_shell_window_test_target(self._target)
+    def test_class_runs_in_subprocess(self) -> None:
+        assert self._pytest_nodeid
+        _run_pytest_shell_class_nodeid(self._pytest_nodeid, extra_env=self._extra_env)
 
 
-def _run_shell_window_test_target(target: str) -> None:
+def _run_pytest_shell_class_nodeid(nodeid: str, *, extra_env: dict[str, str] | None = None) -> None:
     env = os.environ.copy()
     env.setdefault("QT_QPA_PLATFORM", "offscreen")
+    if extra_env:
+        env.update(extra_env)
     result = subprocess.run(
-        [sys.executable, "-c", _SHELL_TEST_RUNNER, target],
+        [sys.executable, "-m", "pytest", nodeid, "-q"],
         cwd=_REPO_ROOT,
         env=env,
         capture_output=True,
@@ -1798,29 +1804,27 @@ def _run_shell_window_test_target(target: str) -> None:
         if part and part.strip()
     )
     raise AssertionError(
-        f"Subprocess shell test failed for {target} "
+        f"Subprocess shell test failed for {nodeid} "
         f"(exit={result.returncode}).\n{output}"
     )
 
 
-class MainWindowShellGraphCanvasHostTests(unittest.TestCase):
-    def _run_target(self, test_name: str) -> None:
-        _run_shell_window_test_target(
-            f"{_MainWindowShellGraphCanvasHostDirectTests.__module__}."
-            f"{_MainWindowShellGraphCanvasHostDirectTests.__qualname__}.{test_name}"
-        )
+class MainWindowShellPassiveImageNodesTests(_PytestSubprocessShellClassTest):
+    __test__ = True
+    _pytest_nodeid = "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests"
+    _extra_env = {_PASSIVE_IMAGE_DIRECT_ENV: "1"}
 
-    def test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge(self) -> None:
-        self._run_target("test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge")
 
-    def test_graph_canvas_keeps_graph_node_card_discoverability_after_host_refactor(self) -> None:
-        self._run_target("test_graph_canvas_keeps_graph_node_card_discoverability_after_host_refactor")
+class MainWindowShellPassivePdfNodesTests(_PytestSubprocessShellClassTest):
+    __test__ = True
+    _pytest_nodeid = "tests/main_window_shell/passive_pdf_nodes.py::MainWindowShellPassivePdfNodesTests"
+    _extra_env = {_PASSIVE_PDF_DIRECT_ENV: "1"}
 
-    def test_plain_text_graph_fragment_payload_is_ignored_by_paste(self) -> None:
-        self._run_target("test_plain_text_graph_fragment_payload_is_ignored_by_paste")
 
-    def test_graph_search_results_use_user_facing_instance_ids_for_duplicate_nodes(self) -> None:
-        self._run_target("test_graph_search_results_use_user_facing_instance_ids_for_duplicate_nodes")
+class MainWindowShellGraphCanvasHostTests(_PytestSubprocessShellClassTest):
+    __test__ = True
+    _pytest_nodeid = "tests/test_main_window_shell.py::_MainWindowShellGraphCanvasHostDirectTests"
+    _extra_env = {_GRAPH_CANVAS_HOST_DIRECT_ENV: "1"}
 
 
 
@@ -1834,21 +1838,22 @@ def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
     suite.addTests(loader.loadTestsFromTestCase(ShellInspectorBridgeQmlBoundaryTests))
     suite.addTests(loader.loadTestsFromTestCase(ShellWorkspaceBridgeQmlBoundaryTests))
     suite.addTests(loader.loadTestsFromTestCase(GraphCanvasQmlBoundaryTests))
+    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellPassiveImageNodesTests))
+    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellPassivePdfNodesTests))
+    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellGraphCanvasHostTests))
 
-    shell_classes: list[type[MainWindowShellTestBase]] = []
+    shell_classes: list[type[SharedMainWindowShellTestBase]] = []
     for candidate in globals().values():
         if not isinstance(candidate, type):
             continue
-        if not issubclass(candidate, MainWindowShellTestBase):
+        if not issubclass(candidate, SharedMainWindowShellTestBase):
             continue
-        if candidate is MainWindowShellTestBase:
+        if candidate is SharedMainWindowShellTestBase:
             continue
         shell_classes.append(candidate)
 
     for case_type in sorted(shell_classes, key=lambda item: (item.__module__, item.__name__)):
-        for test_name in loader.getTestCaseNames(case_type):
-            target = f"{case_type.__module__}.{case_type.__qualname__}.{test_name}"
-            suite.addTest(_SubprocessShellWindowTest(target))
+        suite.addTests(loader.loadTestsFromTestCase(case_type))
     return suite
 
 
