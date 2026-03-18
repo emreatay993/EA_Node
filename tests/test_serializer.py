@@ -13,7 +13,139 @@ from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.manager import WorkspaceManager
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures" / "persistence"
+
+def _schema_v0_minimal_payload() -> dict[str, object]:
+    return {
+        "schema_version": 0,
+        "project_id": "proj_legacy_minimal",
+        "name": "Legacy Minimal",
+        "active_workspace_id": "ws_missing",
+        "workspaces": [
+            {
+                "workspace_id": "ws_a",
+                "name": "Workspace A",
+                "active_view_id": "view_missing",
+                "views": [
+                    {
+                        "view_id": "view_a1",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                        "scope_path": [None, "", "   "],
+                    }
+                ],
+                "nodes": [],
+                "edges": [],
+            },
+            {
+                "workspace_id": "ws_b",
+                "name": "Workspace B",
+                "active_view_id": "view_missing",
+                "views": [
+                    {
+                        "view_id": "view_b1",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [],
+                "edges": [],
+            },
+        ],
+    }
+
+
+def _schema_v0_inconsistent_payload() -> dict[str, object]:
+    return {
+        "schema_version": 0,
+        "project_id": "proj_legacy_inconsistent",
+        "name": "Legacy Inconsistent",
+        "active_workspace_id": "ws_legacy",
+        "workspaces": [
+            {
+                "workspace_id": "ws_legacy",
+                "name": "Legacy Workspace",
+                "active_view_id": "view_legacy",
+                "views": [
+                    {
+                        "view_id": "view_legacy",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_start",
+                        "type_id": "core.start",
+                        "title": "Start",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_out": True, "trigger": True},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_logger",
+                        "type_id": "core.logger",
+                        "title": "Logger",
+                        "x": 160.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_in": False, "message": True, "exec_out": True},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_unknown",
+                        "type_id": "core.unknown",
+                        "title": "Unknown",
+                        "x": 320.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {},
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_hidden",
+                        "source_node_id": "node_start",
+                        "source_port_key": "exec_out",
+                        "target_node_id": "node_logger",
+                        "target_port_key": "exec_in",
+                    },
+                    {
+                        "edge_id": "edge_valid",
+                        "source_node_id": "node_start",
+                        "source_port_key": "trigger",
+                        "target_node_id": "node_logger",
+                        "target_port_key": "message",
+                    },
+                    {
+                        "edge_id": "edge_duplicate",
+                        "source_node_id": "node_start",
+                        "source_port_key": "exec_out",
+                        "target_node_id": "node_logger",
+                        "target_port_key": "message",
+                    },
+                    {
+                        "edge_id": "edge_unknown",
+                        "source_node_id": "node_unknown",
+                        "source_port_key": "exec_out",
+                        "target_node_id": "node_logger",
+                        "target_port_key": "message",
+                    },
+                ],
+            }
+        ],
+    }
 
 
 class SerializerTests(unittest.TestCase):
@@ -688,7 +820,7 @@ class SerializerTests(unittest.TestCase):
 
     def test_migrate_v0_fixture_adds_defaults_and_normalizes_workspace_and_view(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
-        payload = json.loads((FIXTURES_DIR / "schema_v0_minimal.json").read_text(encoding="utf-8"))
+        payload = _schema_v0_minimal_payload()
         project = serializer.from_document(payload)
 
         self.assertEqual(project.schema_version, SCHEMA_VERSION)
@@ -701,7 +833,7 @@ class SerializerTests(unittest.TestCase):
 
     def test_migrate_v0_fixture_repairs_invalid_hidden_and_duplicate_edges(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
-        payload = json.loads((FIXTURES_DIR / "schema_v0_inconsistent.json").read_text(encoding="utf-8"))
+        payload = _schema_v0_inconsistent_payload()
         project = serializer.from_document(payload)
 
         self.assertEqual(project.schema_version, SCHEMA_VERSION)

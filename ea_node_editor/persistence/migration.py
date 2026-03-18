@@ -8,13 +8,14 @@ from ea_node_editor.graph.effective_ports import find_port as find_effective_por
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.passive_style_normalization import normalize_passive_style_presets
 from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
 from ea_node_editor.settings import (
     DEFAULT_UI_STATE,
     DEFAULT_WORKFLOW_SETTINGS,
     SCHEMA_VERSION,
 )
-from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
+from ea_node_editor.workspace.ownership import resolve_workspace_ownership
 
 
 class JsonProjectMigration:
@@ -149,21 +150,6 @@ class JsonProjectMigration:
             return list(value)
         return []
 
-    def _normalize_workspace_order(self, doc: dict[str, Any], workspace_ids: set[str]) -> list[str]:
-        order: list[str] = []
-        for source in (
-            doc.get("workspace_order"),
-            self.as_dict(doc.get("metadata")).get("workspace_order"),
-        ):
-            for workspace_id in self.as_list(source):
-                normalized_id = self._coerce_str(workspace_id)
-                if normalized_id and normalized_id in workspace_ids and normalized_id not in order:
-                    order.append(normalized_id)
-        for workspace_id in sorted(workspace_ids):
-            if workspace_id not in order:
-                order.append(workspace_id)
-        return order
-
     @staticmethod
     def normalize_metadata(source: Any, workspace_order: list[str]) -> dict[str, Any]:
         metadata = JsonProjectMigration.as_dict(source)
@@ -189,20 +175,24 @@ class JsonProjectMigration:
                 continue
             normalized_workspaces[workspace_id] = self._normalize_workspace_doc(workspace_doc, workspace_id)
 
-        workspace_order = self._normalize_workspace_order(doc, set(normalized_workspaces))
-        active_workspace_id = self._coerce_str(doc.get("active_workspace_id"))
-        if active_workspace_id not in normalized_workspaces:
-            active_workspace_id = workspace_order[0] if workspace_order else ""
+        ownership = resolve_workspace_ownership(
+            normalized_workspaces,
+            order_sources=(
+                doc.get("workspace_order"),
+                self.as_dict(doc.get("metadata")).get("workspace_order"),
+            ),
+            active_workspace_id=doc.get("active_workspace_id"),
+        )
 
-        metadata = self.normalize_metadata(doc.get("metadata"), workspace_order)
+        metadata = self.normalize_metadata(doc.get("metadata"), ownership.workspace_order)
 
         return {
             "schema_version": SCHEMA_VERSION,
             "project_id": self._coerce_str(doc.get("project_id"), "proj_unknown"),
             "name": self._coerce_str(doc.get("name"), "untitled"),
-            "active_workspace_id": active_workspace_id,
-            "workspace_order": workspace_order,
-            "workspaces": [normalized_workspaces[workspace_id] for workspace_id in workspace_order],
+            "active_workspace_id": ownership.active_workspace_id,
+            "workspace_order": ownership.workspace_order,
+            "workspaces": [normalized_workspaces[workspace_id] for workspace_id in ownership.workspace_order],
             "metadata": metadata,
         }
 

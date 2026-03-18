@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.workspace.ownership import sync_project_workspace_ownership
 
 
 @dataclass(slots=True)
@@ -15,23 +16,16 @@ class WorkspaceRef:
 class WorkspaceManager:
     def __init__(self, model: GraphModel) -> None:
         self._model = model
-        if "workspace_order" not in self._model.project.metadata:
-            self._model.project.metadata["workspace_order"] = list(self._model.project.workspaces)
-        self._normalize_order()
+        self._sync_workspace_ownership()
 
-    def _normalize_order(self) -> None:
-        order = list(self._model.project.metadata.get("workspace_order", []))
-        known = set(self._model.project.workspaces)
-        order = [workspace_id for workspace_id in order if workspace_id in known]
-        for workspace_id in self._model.project.workspaces:
-            if workspace_id not in order:
-                order.append(workspace_id)
-        self._model.project.metadata["workspace_order"] = order
+    def _sync_workspace_ownership(self) -> list[str]:
+        sync_project_workspace_ownership(self._model.project)
+        return self._model.project.metadata["workspace_order"]
 
     def list_workspaces(self) -> list[WorkspaceRef]:
-        self._normalize_order()
+        order = self._sync_workspace_ownership()
         refs: list[WorkspaceRef] = []
-        for workspace_id in self._model.project.metadata["workspace_order"]:
+        for workspace_id in order:
             workspace = self._model.project.workspaces[workspace_id]
             refs.append(
                 WorkspaceRef(
@@ -43,9 +37,8 @@ class WorkspaceManager:
         return refs
 
     def create_workspace(self, name: str | None = None) -> str:
-        self._normalize_order()
         workspace = self._model.create_workspace(name=name)
-        order = self._model.project.metadata["workspace_order"]
+        order = self._sync_workspace_ownership()
         if workspace.workspace_id not in order:
             order.append(workspace.workspace_id)
         return workspace.workspace_id
@@ -54,23 +47,22 @@ class WorkspaceManager:
         self._model.rename_workspace(workspace_id, new_name)
 
     def duplicate_workspace(self, workspace_id: str) -> str:
-        self._normalize_order()
+        source_order = list(self._sync_workspace_ownership())
         duplicated = self._model.duplicate_workspace(workspace_id)
-        order = self._model.project.metadata["workspace_order"]
+        order = self._sync_workspace_ownership()
         if duplicated.workspace_id in order:
             order.remove(duplicated.workspace_id)
         try:
-            source_index = order.index(workspace_id)
+            source_index = source_order.index(workspace_id)
         except ValueError:
             source_index = len(order) - 1
         order.insert(source_index + 1, duplicated.workspace_id)
         return duplicated.workspace_id
 
     def close_workspace(self, workspace_id: str) -> None:
-        self._normalize_order()
+        order = self._sync_workspace_ownership()
         if workspace_id not in self._model.project.workspaces:
             return
-        order = self._model.project.metadata["workspace_order"]
         was_active = self._model.project.active_workspace_id == workspace_id
         close_index = order.index(workspace_id) if workspace_id in order else -1
         self._model.close_workspace(workspace_id)
@@ -106,8 +98,7 @@ class WorkspaceManager:
         self._model.move_view(workspace_id, from_index, to_index)
 
     def move_workspace(self, from_index: int, to_index: int) -> None:
-        self._normalize_order()
-        order = self._model.project.metadata["workspace_order"]
+        order = self._sync_workspace_ownership()
         if len(order) < 2:
             return
         if from_index < 0 or from_index >= len(order):
@@ -119,11 +110,10 @@ class WorkspaceManager:
         order.insert(to_index, workspace_id)
 
     def active_workspace_id(self) -> str:
-        self._normalize_order()
+        order = self._sync_workspace_ownership()
         active_id = self._model.project.active_workspace_id
         if active_id in self._model.project.workspaces:
             return active_id
-        order = self._model.project.metadata["workspace_order"]
         fallback_id = order[0]
         self._model.set_active_workspace(fallback_id)
         return fallback_id

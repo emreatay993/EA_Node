@@ -13,27 +13,21 @@ from ea_node_editor.graph.model import (
 )
 from ea_node_editor.persistence.migration import JsonProjectMigration
 from ea_node_editor.settings import SCHEMA_VERSION
+from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
 
 
 class JsonProjectCodec:
     def to_document(self, project: ProjectData) -> dict[str, Any]:
-        workspace_order: list[str] = []
-        for workspace_id in JsonProjectMigration.as_list(project.metadata.get("workspace_order")):
-            normalized_id = self._coerce_str(workspace_id)
-            if normalized_id and normalized_id in project.workspaces and normalized_id not in workspace_order:
-                workspace_order.append(normalized_id)
-        for workspace_id in sorted(project.workspaces):
-            if workspace_id not in workspace_order:
-                workspace_order.append(workspace_id)
-
-        active_workspace_id = project.active_workspace_id
-        if active_workspace_id not in project.workspaces:
-            active_workspace_id = workspace_order[0] if workspace_order else ""
-
-        metadata = JsonProjectMigration.normalize_metadata(project.metadata, workspace_order)
+        metadata = project.metadata if isinstance(project.metadata, Mapping) else {}
+        ownership = resolve_workspace_ownership(
+            project.workspaces,
+            order_sources=(metadata.get("workspace_order"),),
+            active_workspace_id=project.active_workspace_id,
+        )
+        metadata = JsonProjectMigration.normalize_metadata(metadata, ownership.workspace_order)
 
         workspaces: list[dict[str, Any]] = []
-        for workspace_id in workspace_order:
+        for workspace_id in ownership.workspace_order:
             workspace = project.workspaces[workspace_id]
             workspace.ensure_default_view()
             active_view_id = workspace.active_view_id
@@ -95,8 +89,8 @@ class JsonProjectCodec:
             "schema_version": SCHEMA_VERSION,
             "project_id": project.project_id,
             "name": project.name,
-            "active_workspace_id": active_workspace_id,
-            "workspace_order": workspace_order,
+            "active_workspace_id": ownership.active_workspace_id,
+            "workspace_order": ownership.workspace_order,
             "workspaces": workspaces,
             "metadata": metadata,
         }
@@ -196,19 +190,11 @@ class JsonProjectCodec:
                 view.scope_path = list(normalize_scope_path(workspace, view.scope_path))
             project.workspaces[workspace.workspace_id] = workspace
         project.ensure_default_workspace()
-        workspace_order = payload.get("workspace_order")
-        if not isinstance(workspace_order, list):
-            workspace_order = project.metadata.get("workspace_order", [])
-        normalized_order: list[str] = []
-        for workspace_id in workspace_order:
-            if workspace_id in project.workspaces and workspace_id not in normalized_order:
-                normalized_order.append(workspace_id)
-        for workspace_id in project.workspaces:
-            if workspace_id not in normalized_order:
-                normalized_order.append(workspace_id)
-        project.metadata = JsonProjectMigration.normalize_metadata(project.metadata, normalized_order)
-        if project.active_workspace_id not in project.workspaces and normalized_order:
-            project.active_workspace_id = normalized_order[0]
+        ownership = sync_project_workspace_ownership(
+            project,
+            order_sources=(payload.get("workspace_order"),),
+        )
+        project.metadata = JsonProjectMigration.normalize_metadata(project.metadata, ownership.workspace_order)
         return project
 
     @staticmethod
