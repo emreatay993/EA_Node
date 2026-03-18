@@ -16,17 +16,13 @@ from typing import Sequence
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_VENV_PYTHON = REPO_ROOT / "venv" / "Scripts" / "python.exe"
 OFFSCREEN_ENV = {"QT_QPA_PLATFORM": "offscreen"}
-SHELL_WRAPPER_TEST_FILES = (
+SHELL_ISOLATION_PHASE_TEST = "tests/test_shell_isolation_phase.py"
+NON_SHELL_PYTEST_IGNORES = (
     "tests/test_main_window_shell.py",
     "tests/test_script_editor_dock.py",
     "tests/test_shell_run_controller.py",
     "tests/test_shell_project_session_controller.py",
-)
-SHELL_WRAPPER_UNITTEST_MODULES = (
-    "tests.test_main_window_shell",
-    "tests.test_script_editor_dock",
-    "tests.test_shell_run_controller",
-    "tests.test_shell_project_session_controller",
+    SHELL_ISOLATION_PHASE_TEST,
 )
 
 
@@ -51,6 +47,16 @@ def pytest_xdist_available() -> bool:
     return importlib.util.find_spec("xdist") is not None
 
 
+def resolve_max_parallel_workers() -> int:
+    if importlib.util.find_spec("psutil") is not None:
+        import psutil
+
+        resolved = psutil.cpu_count(logical=True)
+        if resolved is not None:
+            return resolved
+    return os.cpu_count() or 1
+
+
 def build_pytest_command(
     *,
     phase: str,
@@ -58,16 +64,17 @@ def build_pytest_command(
     python_exec: str,
     python_display: str,
     use_xdist: bool,
+    worker_count: int,
     notice: str | None = None,
 ) -> CommandSpec:
     argv = [python_exec, "-m", "pytest"]
     display_argv = [python_display, "-m", "pytest"]
     if use_xdist:
-        argv.extend(["-n", "auto"])
-        display_argv.extend(["-n", "auto"])
+        argv.extend(["-n", str(worker_count), "--dist", "load"])
+        display_argv.extend(["-n", str(worker_count), "--dist", "load"])
     argv.extend(["-m", marker_expression])
     display_argv.extend(["-m", marker_expression])
-    for test_file in SHELL_WRAPPER_TEST_FILES:
+    for test_file in NON_SHELL_PYTEST_IGNORES:
         ignore_arg = f"--ignore={test_file}"
         argv.append(ignore_arg)
         display_argv.append(ignore_arg)
@@ -80,21 +87,32 @@ def build_pytest_command(
     )
 
 
-def build_unittest_command(*, module: str, python_exec: str, python_display: str) -> CommandSpec:
-    # Each shell module stays in its own interpreter process to preserve isolation.
-    argv = (python_exec, "-m", "unittest", module, "-v")
-    display_argv = (python_display, "-m", "unittest", module, "-v")
+def build_shell_isolation_phase_command(
+    *,
+    python_exec: str,
+    python_display: str,
+    use_xdist: bool,
+    worker_count: int,
+    notice: str | None = None,
+) -> CommandSpec:
+    argv = [python_exec, "-m", "pytest", SHELL_ISOLATION_PHASE_TEST, "-q"]
+    display_argv = [python_display, "-m", "pytest", SHELL_ISOLATION_PHASE_TEST, "-q"]
+    if use_xdist:
+        argv.extend(["-n", str(worker_count), "--dist", "load"])
+        display_argv.extend(["-n", str(worker_count), "--dist", "load"])
     return CommandSpec(
-        phase=f"full.shell.{module}",
-        argv=argv,
-        display_argv=display_argv,
+        phase="full.shell_isolation.pytest",
+        argv=tuple(argv),
+        display_argv=tuple(display_argv),
         env=OFFSCREEN_ENV,
+        notice=notice,
     )
 
 
 def build_commands(mode: str) -> list[CommandSpec]:
     python_exec, python_display = resolve_python()
     xdist_available = pytest_xdist_available()
+    worker_count = resolve_max_parallel_workers()
     fast_notice = None
     if not xdist_available:
         fast_notice = "pytest-xdist is unavailable; falling back to serial pytest for fast mode."
@@ -105,6 +123,7 @@ def build_commands(mode: str) -> list[CommandSpec]:
         python_exec=python_exec,
         python_display=python_display,
         use_xdist=xdist_available,
+        worker_count=worker_count,
         notice=fast_notice,
     )
     gui_command = build_pytest_command(
@@ -113,6 +132,7 @@ def build_commands(mode: str) -> list[CommandSpec]:
         python_exec=python_exec,
         python_display=python_display,
         use_xdist=False,
+        worker_count=worker_count,
     )
     slow_command = build_pytest_command(
         phase="slow.pytest",
@@ -120,6 +140,19 @@ def build_commands(mode: str) -> list[CommandSpec]:
         python_exec=python_exec,
         python_display=python_display,
         use_xdist=False,
+        worker_count=worker_count,
+    )
+    shell_notice = None
+    if not xdist_available:
+        shell_notice = (
+            "pytest-xdist is unavailable; falling back to serial pytest for the shell-isolation phase."
+        )
+    shell_command = build_shell_isolation_phase_command(
+        python_exec=python_exec,
+        python_display=python_display,
+        use_xdist=xdist_available,
+        worker_count=worker_count,
+        notice=shell_notice,
     )
 
     if mode == "fast":
@@ -129,16 +162,7 @@ def build_commands(mode: str) -> list[CommandSpec]:
     if mode == "slow":
         return [slow_command]
 
-    commands = [fast_command, gui_command, slow_command]
-    commands.extend(
-        build_unittest_command(
-            module=module,
-            python_exec=python_exec,
-            python_display=python_display,
-        )
-        for module in SHELL_WRAPPER_UNITTEST_MODULES
-    )
-    return commands
+    return [fast_command, gui_command, slow_command, shell_command]
 
 
 def format_command(command: CommandSpec) -> str:
