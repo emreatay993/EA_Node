@@ -65,7 +65,7 @@ def _bootstrap_python() -> None:
     os.chdir(repo_root)
     os.execvpe(
         str(preferred_python),
-        [str(preferred_python), str(repo_root / "main.py"), *sys.argv[1:]],
+        [str(preferred_python), "main.py", *sys.argv[1:]],
         env,
     )
 

@@ -79,7 +79,7 @@ class MainBootstrapTests(unittest.TestCase):
             self.assertEqual(exec_calls[0][0], str(preferred_python))
             self.assertEqual(
                 exec_calls[0][1],
-                [str(preferred_python), str(script_path), "--example-flag", "value"],
+                [str(preferred_python), "main.py", "--example-flag", "value"],
             )
             self.assertEqual(exec_calls[0][2][main._BOOTSTRAP_SENTINEL], "1")
             chdir_mock.assert_called_once_with(repo_root)
