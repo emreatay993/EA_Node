@@ -44,6 +44,12 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 36. [VERIFICATION_SPEED Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/verification_speed/VERIFICATION_SPEED_STATUS.md)
 37. [ARCH_SECOND_PASS Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_second_pass/ARCH_SECOND_PASS_MANIFEST.md)
 38. [ARCH_SECOND_PASS Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_second_pass/ARCH_SECOND_PASS_STATUS.md)
+39. [GRAPH_CANVAS_PERF Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_canvas_perf/GRAPH_CANVAS_PERF_MANIFEST.md)
+40. [GRAPH_CANVAS_PERF Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/graph_canvas_perf/GRAPH_CANVAS_PERF_STATUS.md)
+41. [DEAD_CODE_HYGIENE Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/dead_code_hygiene/DEAD_CODE_HYGIENE_MANIFEST.md)
+42. [DEAD_CODE_HYGIENE Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/dead_code_hygiene/DEAD_CODE_HYGIENE_STATUS.md)
+43. [ARCH_THIRD_PASS Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_third_pass/ARCH_THIRD_PASS_MANIFEST.md)
+44. [ARCH_THIRD_PASS Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_third_pass/ARCH_THIRD_PASS_STATUS.md)
 
 ## ADRs
 

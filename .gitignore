@@ -44,6 +44,12 @@ docs/specs/work_packets/*
 !docs/specs/work_packets/verification_speed/*
 !docs/specs/work_packets/arch_second_pass/
 !docs/specs/work_packets/arch_second_pass/*
+!docs/specs/work_packets/graph_canvas_perf/
+!docs/specs/work_packets/graph_canvas_perf/*
+!docs/specs/work_packets/dead_code_hygiene/
+!docs/specs/work_packets/dead_code_hygiene/*
+!docs/specs/work_packets/arch_third_pass/
+!docs/specs/work_packets/arch_third_pass/*
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md
