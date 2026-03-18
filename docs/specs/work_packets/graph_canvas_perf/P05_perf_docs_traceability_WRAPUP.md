@@ -4,7 +4,7 @@
 
 - Packet: `P05`
 - Branch Label: `codex/graph-canvas-perf/p05-perf-docs-traceability`
-- Commit Owner: `executor`
+- Commit Owner: `worker`
 - Commit SHA: `519c449d5751ecb97419e9463e854f5cb5129d7b`
 - Changed Files: `.gitignore`, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md`, `docs/specs/requirements/80_PERFORMANCE.md`, `docs/specs/requirements/90_QA_ACCEPTANCE.md`, `docs/specs/requirements/TRACEABILITY_MATRIX.md`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`
 - Artifacts Produced: `docs/specs/work_packets/graph_canvas_perf/P05_perf_docs_traceability_WRAPUP.md`, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md`, `artifacts/graph_canvas_perf_docs/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graph_canvas_perf_docs/track_h_benchmark_report.json`
