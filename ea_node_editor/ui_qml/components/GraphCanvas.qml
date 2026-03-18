@@ -625,6 +625,11 @@ Item {
         edgeLayer.requestRedraw();
     }
 
+    function requestViewStateRedraw() {
+        backgroundLayer.requestGridRedraw();
+        edgeLayer.requestRedraw();
+    }
+
     function _closeContextMenus() {
         interactionState._closeContextMenus();
     }
@@ -909,18 +914,8 @@ Item {
     Connections {
         target: root._canvasViewBridgeRef
         ignoreUnknownSignals: true
-        function _handleViewStateChanged() {
-            backgroundLayer.requestGridRedraw();
-            edgeLayer.requestRedraw();
-        }
         function onView_state_changed() {
-            _handleViewStateChanged();
-        }
-        function onZoom_changed() {
-            _handleViewStateChanged();
-        }
-        function onCenter_changed() {
-            _handleViewStateChanged();
+            root.requestViewStateRedraw();
         }
     }
 

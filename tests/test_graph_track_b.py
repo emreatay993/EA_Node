@@ -339,6 +339,31 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(self.canvas.property("liveNodeGeometry"), payload)
         self.assertEqual(edge_layer.property("liveNodeGeometry"), payload)
 
+    def test_graph_canvas_coalesces_view_state_redraw_requests_per_commit(self) -> None:
+        background = self.canvas.findChild(QObject, "graphCanvasBackground")
+        edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")
+
+        self.assertIsNotNone(background)
+        self.assertIsNotNone(edge_layer)
+
+        background_redraws = int(background.property("_redrawRequestCount"))
+        edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+
+        self.view.set_zoom(1.4)
+        self.app.processEvents()
+
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+
+        background_redraws = int(background.property("_redrawRequestCount"))
+        edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+
+        self.view.centerOn(18.0, -22.0)
+        self.app.processEvents()
+
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+
     def test_a_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_NODE_CARD_QML_PATH)))
         if component.status() != QQmlComponent.Status.Ready:

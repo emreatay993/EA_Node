@@ -5,6 +5,7 @@ Item {
     id: root
     property var viewBridge: null
     property bool showGrid: true
+    property int _redrawRequestCount: 0
     readonly property var themePalette: themeBridge.palette
     readonly property color backgroundTopColor: themePalette.canvas_bg
     readonly property color backgroundBottomColor: themePalette.panel_bg
@@ -13,6 +14,7 @@ Item {
     readonly property color majorGridColor: themePalette.canvas_major_grid
 
     function requestGridRedraw() {
+        root._redrawRequestCount += 1;
         gridCanvas.requestPaint();
     }
 

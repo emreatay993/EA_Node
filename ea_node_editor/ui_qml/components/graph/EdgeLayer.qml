@@ -23,6 +23,7 @@ Item {
     property string previewEdgeId: ""
     property var dragConnection: null
     property bool inputEnabled: true
+    property int _redrawRequestCount: 0
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
@@ -39,6 +40,7 @@ Item {
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
 
     function requestRedraw() {
+        root._redrawRequestCount += 1;
         edgeCanvas.requestPaint();
     }
 
@@ -766,13 +768,4 @@ Item {
     onShellPaletteChanged: requestRedraw()
     onPortKindPaletteChanged: requestRedraw()
 
-    Connections {
-        target: root.viewBridge
-        function onZoom_changed() {
-            root.requestRedraw();
-        }
-        function onCenter_changed() {
-            root.requestRedraw();
-        }
-    }
 }
