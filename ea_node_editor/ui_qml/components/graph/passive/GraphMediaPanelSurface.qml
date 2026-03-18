@@ -155,10 +155,7 @@ Item {
         _syncCropCursor();
     }
 
-    Component.onDestruction: {
-        if (typeof mainWindow !== "undefined" && mainWindow)
-            mainWindow.clear_graph_cursor_shape();
-    }
+    Component.onDestruction: _clearGraphCursorShape()
 
     Connections {
         target: host
@@ -173,12 +170,18 @@ Item {
         if (!cropToolAvailable || cropModeActive)
             return;
         var nodeId = host && host.nodeData ? String(host.nodeData.node_id || "") : "";
-        if (nodeId.length > 0 && typeof sceneBridge !== "undefined" && sceneBridge) {
-            if (sceneBridge.consume_pending_surface_action(nodeId)) {
-                _loadDraftFromStoredCrop();
-                cropModeActive = true;
-            }
+        var canvasItem = _canvasItem();
+        if (nodeId.length > 0
+                && canvasItem
+                && canvasItem.consumePendingNodeSurfaceAction
+                && canvasItem.consumePendingNodeSurfaceAction(nodeId)) {
+            _loadDraftFromStoredCrop();
+            cropModeActive = true;
         }
+    }
+
+    function _canvasItem() {
+        return host && host.canvasItem ? host.canvasItem : null;
     }
 
     function _rawValue(key, fallback) {
@@ -251,6 +254,20 @@ Item {
         draftCropH = Number(rect.height || 1);
     }
 
+    function _setGraphCursorShape(cursorShape) {
+        var canvasItem = _canvasItem();
+        if (!canvasItem || !canvasItem.setNodeSurfaceCursorShape)
+            return false;
+        return Boolean(canvasItem.setNodeSurfaceCursorShape(cursorShape));
+    }
+
+    function _clearGraphCursorShape() {
+        var canvasItem = _canvasItem();
+        if (!canvasItem || !canvasItem.clearNodeSurfaceCursorShape)
+            return false;
+        return Boolean(canvasItem.clearNodeSurfaceCursorShape());
+    }
+
     function _loadDraftFromStoredCrop() {
         _setDraftCropRect(normalizedStoredCropRect);
     }
@@ -259,15 +276,13 @@ Item {
         if (!cropToolAvailable)
             return;
         var nodeId = host && host.nodeData ? String(host.nodeData.node_id || "") : "";
-        var needsSelection = nodeId.length > 0
-            && host && !host.isSelected;
-        if (needsSelection && typeof sceneBridge !== "undefined" && sceneBridge) {
-            sceneBridge.set_pending_surface_action(nodeId);
-            sceneBridge.select_node(nodeId, false);
+        var canvasItem = _canvasItem();
+        if (canvasItem && canvasItem.requestNodeSurfaceCropEdit && nodeId.length > 0) {
+            if (!canvasItem.requestNodeSurfaceCropEdit(nodeId))
+                return;
+        } else if (host && !host.isSelected) {
             return;
         }
-        if (typeof sceneBridge !== "undefined" && sceneBridge && nodeId.length > 0)
-            sceneBridge.select_node(nodeId, false);
         _loadDraftFromStoredCrop();
         cropModeActive = true;
     }
@@ -286,8 +301,9 @@ Item {
             draftCropW,
             draftCropH
         );
-        if (typeof sceneBridge !== "undefined" && sceneBridge && host && host.nodeData) {
-            var applied = sceneBridge.set_node_properties(
+        var canvasItem = _canvasItem();
+        if (canvasItem && canvasItem.commitNodeSurfaceProperties && host && host.nodeData) {
+            var applied = canvasItem.commitNodeSurfaceProperties(
                 String(host.nodeData.node_id || ""),
                 {
                     "crop_x": rect.x,
@@ -338,13 +354,11 @@ Item {
     }
 
     function _syncCropCursor() {
-        if (typeof mainWindow === "undefined" || !mainWindow)
-            return;
         if (!cropModeActive || !cropToolAvailable) {
-            mainWindow.clear_graph_cursor_shape();
+            _clearGraphCursorShape();
             return;
         }
-        mainWindow.set_graph_cursor_shape(_resolvedCropCursorShape());
+        _setGraphCursorShape(_resolvedCropCursorShape());
     }
 
     function _handleX(handle, frameRect, handleSize) {
@@ -356,9 +370,10 @@ Item {
     }
 
     function _describePdfPreview(source, pageNumber) {
-        if (typeof mainWindow !== "undefined" && mainWindow) {
+        var canvasItem = _canvasItem();
+        if (canvasItem && canvasItem.describeNodeSurfacePdfPreview) {
             try {
-                return mainWindow.describe_pdf_preview(String(source || ""), pageNumber);
+                return canvasItem.describeNodeSurfacePdfPreview(String(source || ""), pageNumber);
             } catch (error) {
             }
         }

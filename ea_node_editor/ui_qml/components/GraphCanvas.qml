@@ -325,6 +325,56 @@ Item {
         return true;
     }
 
+    function _nodeSurfaceSelectionBridge() {
+        var bridge = root._canvasSceneBridgeRef;
+        if (bridge && bridge.select_node)
+            return bridge;
+        bridge = root._canvasSceneCompatRef;
+        if (bridge && bridge.select_node)
+            return bridge;
+        return null;
+    }
+
+    function _nodeSurfacePendingActionBridge() {
+        var bridge = root._canvasSceneBridgeRef;
+        if (bridge && bridge.set_pending_surface_action && bridge.consume_pending_surface_action)
+            return bridge;
+        bridge = root._canvasSceneCompatRef;
+        if (bridge && bridge.set_pending_surface_action && bridge.consume_pending_surface_action)
+            return bridge;
+        return null;
+    }
+
+    function _nodeSurfacePropertyBridge() {
+        var bridge = root._canvasSceneBridgeRef;
+        if (bridge && bridge.set_node_properties)
+            return bridge;
+        bridge = root._canvasSceneCompatRef;
+        if (bridge && bridge.set_node_properties)
+            return bridge;
+        return null;
+    }
+
+    function _nodeSurfaceCursorBridge() {
+        var bridge = root._canvasShellBridgeRef;
+        if (bridge && bridge.set_graph_cursor_shape && bridge.clear_graph_cursor_shape)
+            return bridge;
+        bridge = root._canvasShellCompatRef;
+        if (bridge && bridge.set_graph_cursor_shape && bridge.clear_graph_cursor_shape)
+            return bridge;
+        return null;
+    }
+
+    function _nodeSurfacePdfPreviewBridge() {
+        var bridge = root._canvasShellBridgeRef;
+        if (bridge && bridge.describe_pdf_preview)
+            return bridge;
+        bridge = root._canvasShellCompatRef;
+        if (bridge && bridge.describe_pdf_preview)
+            return bridge;
+        return null;
+    }
+
     function prepareNodeSurfaceControlInteraction(nodeId) {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
@@ -350,6 +400,85 @@ Item {
             return false;
         bridge.set_node_property(normalizedNodeId, normalizedKey, value);
         return true;
+    }
+
+    function requestNodeSurfaceCropEdit(nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return false;
+        var selectionBridge = root._nodeSurfaceSelectionBridge();
+        var needsSelection = root.selectedNodeIds().indexOf(normalized) < 0;
+        if (needsSelection) {
+            var pendingBridge = root._nodeSurfacePendingActionBridge();
+            if (!selectionBridge || !pendingBridge)
+                return false;
+            root._closeContextMenus();
+            root.cancelWireDrag();
+            root.clearPendingConnection();
+            root.clearEdgeSelection();
+            pendingBridge.set_pending_surface_action(normalized);
+            selectionBridge.select_node(normalized, false);
+            return false;
+        }
+        root.prepareNodeSurfaceControlInteraction(normalized);
+        return true;
+    }
+
+    function consumePendingNodeSurfaceAction(nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return false;
+        var bridge = root._nodeSurfacePendingActionBridge();
+        if (!bridge)
+            return false;
+        return Boolean(bridge.consume_pending_surface_action(normalized));
+    }
+
+    function commitNodeSurfaceProperties(nodeId, properties) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return false;
+        root.prepareNodeSurfaceControlInteraction(normalized);
+        var bridge = root._nodeSurfacePropertyBridge();
+        if (bridge)
+            return Boolean(bridge.set_node_properties(normalized, properties || ({})));
+        bridge = root._canvasSceneBridgeRef;
+        if ((!bridge || !bridge.set_node_property) && root._canvasSceneCompatRef && root._canvasSceneCompatRef.set_node_property)
+            bridge = root._canvasSceneCompatRef;
+        if (!bridge || !bridge.set_node_property)
+            return false;
+        var changed = false;
+        var payload = properties || ({});
+        for (var key in payload) {
+            if (!Object.prototype.hasOwnProperty.call(payload, key))
+                continue;
+            bridge.set_node_property(normalized, key, payload[key]);
+            changed = true;
+        }
+        return changed;
+    }
+
+    function setNodeSurfaceCursorShape(cursorShape) {
+        var bridge = root._nodeSurfaceCursorBridge();
+        if (!bridge)
+            return false;
+        bridge.set_graph_cursor_shape(cursorShape);
+        return true;
+    }
+
+    function clearNodeSurfaceCursorShape() {
+        var bridge = root._nodeSurfaceCursorBridge();
+        if (!bridge)
+            return false;
+        bridge.clear_graph_cursor_shape();
+        return true;
+    }
+
+    function describeNodeSurfacePdfPreview(source, pageNumber) {
+        var bridge = root._nodeSurfacePdfPreviewBridge();
+        if (!bridge)
+            return ({});
+        return bridge.describe_pdf_preview(String(source || ""), pageNumber);
     }
 
     function browseNodePropertyPath(nodeId, key, currentPath) {

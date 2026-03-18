@@ -16,8 +16,9 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """
             from pathlib import Path
 
-            from PyQt6.QtCore import QObject, QUrl
+            from PyQt6.QtCore import QObject, QMetaObject, QUrl, pyqtSlot
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
+            from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
 
             from ea_node_editor.graph.model import GraphModel
@@ -59,6 +60,43 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
                 app.processEvents()
                 return obj
+
+            class PassiveSurfaceCanvasItem(QQuickItem):
+                def __init__(self):
+                    super().__init__()
+                    self.requested_crop_node_id = ""
+                    self.last_committed_node_id = ""
+                    self.last_committed_properties = None
+
+                @pyqtSlot(str, result=bool)
+                def requestNodeSurfaceCropEdit(self, node_id):
+                    self.requested_crop_node_id = str(node_id)
+                    return True
+
+                @pyqtSlot(str, result=bool)
+                def consumePendingNodeSurfaceAction(self, _node_id):
+                    return False
+
+                @pyqtSlot(str, "QVariantMap", result=bool)
+                def commitNodeSurfaceProperties(self, node_id, properties):
+                    self.last_committed_node_id = str(node_id)
+                    self.last_committed_properties = dict(properties or {})
+                    return True
+
+                @pyqtSlot(int, result=bool)
+                def setNodeSurfaceCursorShape(self, _cursor_shape):
+                    return True
+
+                @pyqtSlot(result=bool)
+                def clearNodeSurfaceCursorShape(self):
+                    return True
+
+                @pyqtSlot(str, "QVariant", result="QVariantMap")
+                def describeNodeSurfacePdfPreview(self, _source, _page_number):
+                    return {}
+
+            def create_surface_canvas_item():
+                return PassiveSurfaceCanvasItem()
 
             def node_payload(surface_family="standard", surface_variant=""):
                 return {
@@ -955,5 +993,69 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 dispose_host_window(host, window)
                 engine.deleteLater()
                 app.processEvents()
+            """,
+        )
+
+    def test_media_surface_routes_crop_actions_through_canvas_contract(self) -> None:
+        self._run_qml_probe(
+            "media-canvas-contract",
+            """
+            import tempfile
+            from PyQt6.QtGui import QColor, QImage
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "media-contract.png"
+                image = QImage(40, 20, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+                media_payload["runtime_behavior"] = "passive"
+                media_payload["surface_metrics"] = {}
+                media_payload["properties"] = {
+                    "source_path": str(image_path),
+                    "caption": "",
+                    "fit_mode": "contain",
+                }
+                canvas_item = create_surface_canvas_item()
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": media_payload,
+                        "canvasItem": canvas_item,
+                    },
+                )
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                apply_button = host.findChild(QObject, "graphNodeMediaCropApplyButton")
+                assert surface is not None
+                assert apply_button is not None
+
+                for _index in range(40):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+                assert str(surface.property("previewState")) == "ready"
+
+                QMetaObject.invokeMethod(surface, "triggerHoverAction")
+                app.processEvents()
+
+                assert canvas_item.requested_crop_node_id == "node_surface_host_test"
+                assert bool(surface.property("cropModeActive"))
+
+                surface.setProperty("draftCropX", 0.1)
+                surface.setProperty("draftCropY", 0.2)
+                surface.setProperty("draftCropW", 0.5)
+                surface.setProperty("draftCropH", 0.6)
+                app.processEvents()
+
+                QMetaObject.invokeMethod(apply_button, "click")
+                app.processEvents()
+
+                assert canvas_item.last_committed_node_id == "node_surface_host_test"
+                assert abs(float(canvas_item.last_committed_properties["crop_x"]) - 0.1) < 1e-6
+                assert abs(float(canvas_item.last_committed_properties["crop_y"]) - 0.2) < 1e-6
+                assert abs(float(canvas_item.last_committed_properties["crop_w"]) - 0.5) < 1e-6
+                assert abs(float(canvas_item.last_committed_properties["crop_h"]) - 0.6) < 1e-6
+                assert not bool(surface.property("cropModeActive"))
             """,
         )

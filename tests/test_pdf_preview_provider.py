@@ -273,6 +273,7 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
             from PyQt6.QtCore import QMarginsF, QObject, QRectF, QUrl, pyqtSlot
             from PyQt6.QtGui import QPainter, QPageLayout, QPageSize, QPdfWriter
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
+            from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
 
             from ea_node_editor.ui.pdf_preview_provider import (
@@ -285,17 +286,15 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
 
             app = QApplication.instance() or QApplication([])
 
-            class PdfPreviewBridge(QObject):
+            class PdfCanvasItem(QQuickItem):
                 @pyqtSlot(str, "QVariant", result="QVariantMap")
-                def describe_pdf_preview(self, source, page_number):
+                def describeNodeSurfacePdfPreview(self, source, page_number):
                     return describe_pdf_preview(source, page_number)
 
             engine = QQmlEngine()
-            pdf_preview_bridge = PdfPreviewBridge()
             engine.addImageProvider(LOCAL_PDF_PREVIEW_PROVIDER_ID, LocalPdfPreviewImageProvider())
             engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
             engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
-            engine.rootContext().setContextProperty("mainWindow", pdf_preview_bridge)
 
             repo_root = Path.cwd()
             graph_node_host_qml_path = repo_root / "ea_node_editor" / "ui_qml" / "components" / "graph" / "GraphNodeHost.qml"
@@ -396,10 +395,12 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as temp_dir:
                 pdf_path = Path(temp_dir) / "ready.pdf"
                 make_pdf(pdf_path, page_count=2)
+                ready_canvas = PdfCanvasItem()
 
                 ready_host = create_component(
                     graph_node_host_qml_path,
                     {
+                        "canvasItem": ready_canvas,
                         "nodeData": pdf_panel_payload(
                             {
                                 "source_path": str(pdf_path),
@@ -420,9 +421,11 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
                 assert badge is not None and bool(badge.property("visible"))
                 assert hint is not None and not bool(hint.property("visible"))
 
+            error_canvas = PdfCanvasItem()
             error_host = create_component(
                 graph_node_host_qml_path,
                 {
+                    "canvasItem": error_canvas,
                     "nodeData": pdf_panel_payload(
                         {
                             "source_path": "https://example.com/remote.pdf",
