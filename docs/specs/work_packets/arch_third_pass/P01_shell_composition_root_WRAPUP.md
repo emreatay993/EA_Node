@@ -5,9 +5,9 @@
 - Packet: `P01`
 - Branch Label: `codex/arch-third-pass/p01-shell-composition-root`
 - Commit Owner: `worker`
-- Commit SHA: `b9e4957bf8817861dc5267a9386b7e808d6e2d6e`
-- Changed Files: `ea_node_editor/app.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui/shell/window_bootstrap.py`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_main_bootstrap.py`, `tests/test_main_window_shell.py`, `docs/specs/work_packets/arch_third_pass/P01_shell_composition_root_WRAPUP.md`
-- Artifacts Produced: `docs/specs/work_packets/arch_third_pass/P01_shell_composition_root_WRAPUP.md`, `ea_node_editor/ui/shell/window_bootstrap.py`
+- Commit SHA: `6d12628646578c61bf16cc09bd06d20dc634ea04`
+- Changed Files: `ea_node_editor/app.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_main_bootstrap.py`, `tests/test_main_window_shell.py`
+- Artifacts Produced: `docs/specs/work_packets/arch_third_pass/P01_shell_composition_root_WRAPUP.md`
 
 ## Verification
 
@@ -26,7 +26,7 @@ Ready for manual testing
 
 ## Residual Risks
 
-- `window_bootstrap.py` now owns most shell startup sequencing, so later packets that split more controller responsibilities still need to preserve the `window.py` factory seams used by external tests for session-store and execution-client patching.
+- `window.py` now owns the composition helpers directly to satisfy packet-scope validation, so later packets that keep splitting controller/runtime concerns should preserve the narrow factory seams used by external tests for session-store and execution-client patching.
 
 ## Ready for Integration
 
