@@ -165,11 +165,6 @@ def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
 def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
     return asdict(event)
 
-
-def dict_to_event_type(payload: dict[str, Any]) -> str:
-    return str(payload.get("type", ""))
-
-
 def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
     command_type = str(payload.get("type", ""))
     if command_type == "start_run":
