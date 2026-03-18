@@ -18,7 +18,6 @@ from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition, resolve_edge_color
 from ea_node_editor.ui_qml.graph_surface_metrics import (
     node_surface_metrics,
-    standard_inline_body_height,
     surface_port_local_point,
 )
 
@@ -32,10 +31,6 @@ EDGE_PIPE_STUB_MAX = 72.0
 EDGE_PIPE_MIDDLE_MARGIN = 10.0
 _FLOW_EDGE_STROKE_PATTERNS = {"solid", "dashed", "dotted"}
 _FLOW_EDGE_ARROW_HEADS = {"filled", "open", "none"}
-
-
-def inline_body_height(spec: NodeTypeSpec) -> float:
-    return standard_inline_body_height(spec)
 
 
 def node_size(

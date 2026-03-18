@@ -2,14 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
-def input_port_is_available(workspace, node_id: str, port_key: str) -> bool:
-    for edge in workspace.edges.values():
-        if edge.target_node_id == node_id and edge.target_port_key == port_key:
-            return False
-    return True
-
-
 def pick_connection_candidate(
     *,
     parent,
