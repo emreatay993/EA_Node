@@ -91,6 +91,9 @@ class GraphCanvasBridge(QObject):
         self._resize_node: Callable[[str, float, float], None] = (
             lambda _node_id, _width, _height: None
         )
+        self._set_node_geometry: Callable[[str, float, float, float, float], None] = (
+            lambda _node_id, _x, _y, _width, _height: None
+        )
 
         if shell_window is not None:
             self._graphics_minimap_expanded = lambda: bool(shell_window.graphics_minimap_expanded)
@@ -125,6 +128,7 @@ class GraphCanvasBridge(QObject):
             self._move_nodes_by_delta = scene_bridge.move_nodes_by_delta
             self._move_node = scene_bridge.move_node
             self._resize_node = scene_bridge.resize_node
+            self._set_node_geometry = scene_bridge.set_node_geometry
 
             scene_bridge.nodes_changed.connect(self.scene_nodes_changed.emit)
             scene_bridge.edges_changed.connect(self.scene_edges_changed.emit)
@@ -340,6 +344,16 @@ class GraphCanvasBridge(QObject):
     @pyqtSlot(str, float, float)
     def resize_node(self, node_id: str, width: float, height: float) -> None:
         self._resize_node(str(node_id), float(width), float(height))
+
+    @pyqtSlot(str, float, float, float, float)
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+        self._set_node_geometry(
+            str(node_id),
+            float(x),
+            float(y),
+            float(width),
+            float(height),
+        )
 
 
 __all__ = ["GraphCanvasBridge"]

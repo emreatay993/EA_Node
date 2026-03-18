@@ -14,6 +14,7 @@ from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsD
 from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.theme import STITCH_DARK_V1, STITCH_LIGHT_V1, build_theme_stylesheet
 from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.test_main_window_shell import _named_child_items
 
 
 def _color_name(value: object, *, include_alpha: bool = False) -> str:
@@ -232,6 +233,76 @@ class ShellThemeTests(MainWindowShellTestBase):
             _color_name(marquee_rect.property("color"), include_alpha=True),
             _alpha_color_name(STITCH_LIGHT_V1.accent, 0.2),
         )
+
+    def test_canvas_qml_node_shadow_follows_runtime_graphics_settings(self) -> None:
+        self.window.scene.add_node_from_type("core.logger", 120.0, 140.0)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        node_cards = _named_child_items(graph_canvas, "graphNodeCard")
+        self.assertEqual(len(node_cards), 1)
+        node_card = node_cards[0]
+        shadow_item = node_card.findChild(QObject, "graphNodeShadow")
+        self.assertIsNotNone(shadow_item)
+
+        self.assertTrue(bool(shadow_item.property("visible")))
+
+        self.window.app_preferences_controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": True,
+                    "show_minimap": True,
+                    "minimap_expanded": True,
+                    "node_shadow": False,
+                    "shadow_strength": 15,
+                    "shadow_softness": 25,
+                    "shadow_offset": 3,
+                },
+                "interaction": {
+                    "snap_to_grid": False,
+                },
+                "theme": {
+                    "theme_id": "stitch_dark",
+                },
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertFalse(bool(shadow_item.property("visible")))
+
+        self.window.app_preferences_controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": True,
+                    "show_minimap": True,
+                    "minimap_expanded": True,
+                    "node_shadow": True,
+                    "shadow_strength": 15,
+                    "shadow_softness": 25,
+                    "shadow_offset": 3,
+                },
+                "interaction": {
+                    "snap_to_grid": False,
+                },
+                "theme": {
+                    "theme_id": "stitch_dark",
+                },
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertTrue(bool(shadow_item.property("visible")))
+
+        offset = shadow_item.property("offset")
+        self.assertAlmostEqual(float(offset.x()), 0.0, places=3)
+        self.assertAlmostEqual(float(offset.y()), 3.0, places=3)
+        self.assertAlmostEqual(float(shadow_item.property("blur")), 0.25, places=3)
+        self.assertAlmostEqual(float(shadow_item.property("spread")), 0.15, places=3)
+
+        shadow_color = QColor(shadow_item.property("color"))
+        self.assertEqual(shadow_color.alpha(), int(15 * 255 / 100))
 
     def test_inspector_cards_and_tabs_follow_runtime_theme_palette(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=80.0)

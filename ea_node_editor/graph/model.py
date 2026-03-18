@@ -261,6 +261,23 @@ class GraphModel:
         node.y = y
         workspace.dirty = True
 
+    def set_node_geometry(
+        self,
+        workspace_id: str,
+        node_id: str,
+        x: float,
+        y: float,
+        width: float | None,
+        height: float | None,
+    ) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        node = workspace.nodes[node_id]
+        node.x = x
+        node.y = y
+        node.custom_width = width
+        node.custom_height = height
+        workspace.dirty = True
+
     def set_node_size(self, workspace_id: str, node_id: str, width: float | None, height: float | None) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].custom_width = width

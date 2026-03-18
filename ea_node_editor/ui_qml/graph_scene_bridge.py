@@ -461,6 +461,10 @@ class GraphSceneBridge(QObject):
     def resize_node(self, node_id: str, width: float, height: float) -> None:
         self._mutation_history.resize_node(node_id, width, height)
 
+    @pyqtSlot(str, float, float, float, float)
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+        self._mutation_history.set_node_geometry(node_id, x, y, width, height)
+
     @pyqtSlot("QVariantList", float, float, result=bool)
     def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:
         return self._mutation_history.move_nodes_by_delta(node_ids, dx, dy)

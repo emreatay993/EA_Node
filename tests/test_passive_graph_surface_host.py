@@ -239,7 +239,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             header_layer = host.findChild(QObject, "graphNodeHeaderLayer")
             gesture_layer = host.findChild(QObject, "graphNodeHostGestureLayer")
             ports_layer = host.findChild(QObject, "graphNodePortsLayer")
-            resize_handle = host.findChild(QObject, "graphNodeResizeHandle")
+            resize_handles = named_child_items(host, "graphNodeResizeHandle")
             drag_area = host.findChild(QObject, "graphNodeDragArea")
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
 
@@ -247,7 +247,13 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert header_layer is not None
             assert gesture_layer is not None
             assert ports_layer is not None
-            assert resize_handle is not None
+            assert len(resize_handles) == 4
+            assert {str(handle.property("cornerRole")) for handle in resize_handles} == {
+                "topLeft",
+                "topRight",
+                "bottomLeft",
+                "bottomRight",
+            }
             assert loader is not None
             assert drag_area is not None
             assert drag_area.parentItem().objectName() == "graphNodeHostGestureLayer"
@@ -258,7 +264,112 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert float(gesture_layer.property("z")) < float(surface_layer.property("z"))
             assert float(header_layer.property("z")) > float(surface_layer.property("z"))
             assert float(ports_layer.property("z")) > float(header_layer.property("z"))
-            assert float(resize_handle.property("z")) > float(ports_layer.property("z"))
+            assert all(float(handle.property("z")) > float(ports_layer.property("z")) for handle in resize_handles)
+            """,
+        )
+
+    def test_graph_node_host_shows_four_resize_handles_only_on_hover_for_expanded_nodes(self) -> None:
+        self._run_qml_probe(
+            "host-hover-only-resize-handles",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            resize_handles = named_child_items(host, "graphNodeResizeHandle")
+            assert len(resize_handles) == 4
+            assert all(not bool(handle.property("visible")) for handle in resize_handles)
+
+            window = attach_host_to_window(host)
+            hover_host_local_point(window, host, 84.0, 40.0)
+
+            assert bool(host.property("hoverActive"))
+            assert all(bool(handle.property("visible")) for handle in resize_handles)
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_node_host_keeps_resize_handles_hidden_for_collapsed_nodes(self) -> None:
+        self._run_qml_probe(
+            "host-collapsed-resize-handles-hidden",
+            """
+            payload = node_payload()
+            payload["collapsed"] = True
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            resize_handles = named_child_items(host, "graphNodeResizeHandle")
+            assert len(resize_handles) == 4
+
+            window = attach_host_to_window(host)
+            hover_host_local_point(window, host, 24.0, 18.0)
+
+            assert all(not bool(handle.property("visible")) for handle in resize_handles)
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_node_host_top_left_resize_handle_previews_anchored_geometry(self) -> None:
+        self._run_qml_probe(
+            "host-top-left-resize-preview",
+            """
+            from PyQt6.QtCore import QPoint
+            from PyQt6.QtTest import QTest
+
+            payload = node_payload()
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            preview_events = []
+            finish_events = []
+            host.resizePreviewChanged.connect(
+                lambda node_id, x, y, width, height, active: preview_events.append(
+                    (node_id, x, y, width, height, active)
+                )
+            )
+            host.resizeFinished.connect(
+                lambda node_id, x, y, width, height: finish_events.append((node_id, x, y, width, height))
+            )
+
+            window = attach_host_to_window(host)
+            hover_host_local_point(window, host, 40.0, 24.0)
+
+            top_left_handle = [
+                handle
+                for handle in named_child_items(host, "graphNodeResizeHandle")
+                if str(handle.property("cornerRole")) == "topLeft"
+            ][0]
+            start_point = item_scene_point(top_left_handle)
+            end_point = QPoint(start_point.x() - 30, start_point.y() - 20)
+
+            QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start_point)
+            settle_events(2)
+            QTest.mouseMove(window, end_point)
+            settle_events(2)
+
+            assert bool(host.property("_liveGeometryActive"))
+            assert abs(float(host.x()) - 90.0) < 0.75
+            assert abs(float(host.y()) - 100.0) < 0.75
+            assert abs(float(host.width()) - 240.0) < 0.75
+            assert abs(float(host.height()) - 108.0) < 0.75
+            assert any(
+                entry[0] == "node_surface_host_test"
+                and abs(float(entry[1]) - 90.0) < 0.75
+                and abs(float(entry[2]) - 100.0) < 0.75
+                and abs(float(entry[3]) - 240.0) < 0.75
+                and abs(float(entry[4]) - 108.0) < 0.75
+                and bool(entry[5])
+                for entry in preview_events
+            )
+
+            QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, end_point)
+            settle_events(2)
+
+            assert finish_events == [("node_surface_host_test", 90.0, 100.0, 240.0, 108.0)]
+            assert not bool(host.property("_liveGeometryActive"))
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
             """,
         )
 
@@ -445,6 +556,70 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert canvas.liveDragDyForNode(node_id) == 0.0
             assert scene.nodes_model[0]["x"] == 140.0
             assert scene.nodes_model[0]["y"] == 140.0
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_routes_live_resize_geometry_through_edge_layer_and_scene_commit(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-live-resize-geometry",
+            """
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            source_node_id = scene.add_node_from_type("core.start", 40.0, 140.0)
+            target_node_id = scene.add_node_from_type("core.logger", 220.0, 140.0)
+            scene.add_edge(source_node_id, "exec_out", target_node_id, "exec_in")
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            target_card = [
+                card
+                for card in node_cards
+                if card.property("nodeData")["node_id"] == target_node_id
+            ][0]
+            edge_layer = canvas.findChild(QObject, "graphCanvasEdgeLayer")
+            assert edge_layer is not None
+
+            target_card.resizePreviewChanged.emit(target_node_id, 190.0, 120.0, 260.0, 120.0, True)
+            app.processEvents()
+
+            canvas_live_geometry = variant_value(canvas.property("liveNodeGeometry"))
+            edge_live_geometry = variant_value(edge_layer.property("liveNodeGeometry"))
+            assert canvas_live_geometry[target_node_id] == {
+                "x": 190.0,
+                "y": 120.0,
+                "width": 260.0,
+                "height": 120.0,
+            }
+            assert edge_live_geometry[target_node_id] == canvas_live_geometry[target_node_id]
+
+            target_card.resizeFinished.emit(target_node_id, 190.0, 120.0, 260.0, 120.0)
+            app.processEvents()
+
+            assert variant_value(canvas.property("liveNodeGeometry")) == {}
+            updated_target = [node for node in scene.nodes_model if node["node_id"] == target_node_id][0]
+            assert updated_target["x"] == 190.0
+            assert updated_target["y"] == 120.0
+            assert updated_target["width"] == 260.0
+            assert updated_target["height"] == 120.0
 
             canvas.deleteLater()
             app.processEvents()

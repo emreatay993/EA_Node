@@ -502,6 +502,9 @@ class _GraphCanvasSceneBridgeStub(QObject):
     def resize_node(self, node_id: str, width: float, height: float) -> None:
         self._record("resize_node", node_id, width, height)
 
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+        self._record("set_node_geometry", node_id, x, y, width, height)
+
 
 class _GraphCanvasViewBridgeStub(QObject):
     view_state_changed = pyqtSignal()
@@ -781,6 +784,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertTrue(bridge.move_nodes_by_delta(["node-1", "node-2"], 10.0, -5.0))
         bridge.move_node("node-1", 160.0, 220.0)
         bridge.resize_node("node-1", 320.0, 180.0)
+        bridge.set_node_geometry("node-1", 150.0, 210.0, 340.0, 190.0)
 
         self.assertEqual(
             host.calls,
@@ -809,6 +813,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("move_nodes_by_delta", (["node-1", "node-2"], 10.0, -5.0)),
                 ("move_node", ("node-1", 160.0, 220.0)),
                 ("resize_node", ("node-1", 320.0, 180.0)),
+                ("set_node_geometry", ("node-1", 150.0, 210.0, 340.0, 190.0)),
             ],
         )
         self.assertEqual(

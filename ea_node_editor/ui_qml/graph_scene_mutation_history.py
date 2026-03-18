@@ -601,6 +601,12 @@ class GraphSceneMutationHistory:
         self._record_history(ACTION_MOVE_NODE, history_before)
 
     def resize_node(self, node_id: str, width: float, height: float) -> None:
+        node = self._node(node_id)
+        if node is None:
+            return
+        self.set_node_geometry(node_id, float(node.x), float(node.y), width, height)
+
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
         if self._bridge._model is None:
             return
         workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
@@ -609,6 +615,8 @@ class GraphSceneMutationHistory:
         node = self._node(node_id)
         if node is None:
             return
+        if not is_node_in_scope(workspace, node_id, self._bridge._scope_path):
+            return
         spec = self._bridge._registry.get_spec(node.type_id) if self._bridge._registry is not None else None
         min_width = 120.0
         min_height = 50.0
@@ -616,12 +624,26 @@ class GraphSceneMutationHistory:
             metrics = node_surface_metrics(node, spec, workspace.nodes)
             min_width = float(metrics.min_width)
             min_height = float(metrics.min_height)
+        final_x = float(x)
+        final_y = float(y)
         final_w = max(min_width, float(width))
         final_h = max(min_height, float(height))
-        if node.custom_width == final_w and node.custom_height == final_h:
+        if (
+            float(node.x) == final_x
+            and float(node.y) == final_y
+            and node.custom_width == final_w
+            and node.custom_height == final_h
+        ):
             return
         history_before = self._capture_history_snapshot()
-        self._bridge._model.set_node_size(self._bridge._workspace_id, node_id, final_w, final_h)
+        self._bridge._model.set_node_geometry(
+            self._bridge._workspace_id,
+            node_id,
+            final_x,
+            final_y,
+            final_w,
+            final_h,
+        )
         self._bridge._rebuild_models()
         self._record_history(ACTION_RESIZE_NODE, history_before)
 

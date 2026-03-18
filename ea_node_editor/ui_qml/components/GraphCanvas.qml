@@ -16,7 +16,7 @@ Item {
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
-    property var liveResizeDimensions: ({})
+    property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
     property bool minimapExpanded: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_grid) : true
@@ -410,32 +410,34 @@ Item {
         return isFinite(value) ? value : 0.0;
     }
 
-    function setLiveResizeDimensions(nodeId, width, height, active) {
+    function setLiveNodeGeometry(nodeId, x, y, width, height, active) {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return;
         var next = {};
-        var source = root.liveResizeDimensions || {};
+        var source = root.liveNodeGeometry || {};
         for (var key in source) {
             if (Object.prototype.hasOwnProperty.call(source, key))
                 next[key] = source[key];
         }
         if (active) {
             next[normalized] = {
+                "x": Number(x),
+                "y": Number(y),
                 "width": Math.max(1.0, Number(width)),
                 "height": Math.max(1.0, Number(height))
             };
         } else {
             delete next[normalized];
         }
-        root.liveResizeDimensions = next;
+        root.liveNodeGeometry = next;
         edgeLayer.requestRedraw();
     }
 
-    function clearLiveResizeDimensions() {
-        if (!root.liveResizeDimensions || Object.keys(root.liveResizeDimensions).length === 0)
+    function clearLiveNodeGeometry() {
+        if (!root.liveNodeGeometry || Object.keys(root.liveNodeGeometry).length === 0)
             return;
-        root.liveResizeDimensions = ({});
+        root.liveNodeGeometry = ({});
         edgeLayer.requestRedraw();
     }
 
@@ -664,7 +666,7 @@ Item {
         edges: root.edgePayload
         nodes: root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : []
         dragOffsets: root.liveDragOffsets
-        liveNodeSizes: root.liveResizeDimensions
+        liveNodeGeometry: root.liveNodeGeometry
         selectedEdgeIds: root.selectedEdgeIds
         previewEdgeId: root.dropPreviewEdgeId
         dragConnection: root.wireDragPreviewConnection()
@@ -789,15 +791,22 @@ Item {
                 onDragCanceled: function(_nodeId) {
                     root.clearLiveDragOffsets();
                 }
-                onResizePreviewChanged: function(nodeId, newWidth, newHeight, active) {
-                    root.setLiveResizeDimensions(nodeId, newWidth, newHeight, active);
+                onResizePreviewChanged: function(nodeId, newX, newY, newWidth, newHeight, active) {
+                    root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, active);
                 }
-                onResizeFinished: function(nodeId, newWidth, newHeight) {
+                onResizeFinished: function(nodeId, newX, newY, newWidth, newHeight) {
                     var bridge = root._canvasSceneBridgeRef;
-                    root.setLiveResizeDimensions(nodeId, newWidth, newHeight, false);
-                    if (!bridge || !bridge.resize_node)
+                    root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, false);
+                    if (!bridge)
                         return;
-                    bridge.resize_node(nodeId, newWidth, newHeight);
+                    if (bridge.set_node_geometry) {
+                        bridge.set_node_geometry(nodeId, newX, newY, newWidth, newHeight);
+                        return;
+                    }
+                    if (bridge.move_node)
+                        bridge.move_node(nodeId, newX, newY);
+                    if (bridge.resize_node)
+                        bridge.resize_node(nodeId, newWidth, newHeight);
                 }
                 onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
                     root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
@@ -879,7 +888,7 @@ Item {
         ignoreUnknownSignals: true
         function _handleSceneMutation() {
             root.liveDragOffsets = ({});
-            root.liveResizeDimensions = ({});
+            root.liveNodeGeometry = ({});
             root._clearWireDragState();
             root._syncEdgePayload();
         }
@@ -917,7 +926,7 @@ Item {
 
     onSceneBridgeChanged: {
         root.liveDragOffsets = ({});
-        root.liveResizeDimensions = ({});
+        root.liveNodeGeometry = ({});
         interactionState.resetSceneBridgeState();
         root._syncEdgePayload();
     }

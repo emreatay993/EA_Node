@@ -18,7 +18,7 @@ Item {
     property var edges: []
     property var nodes: []
     property var dragOffsets: ({})
-    property var liveNodeSizes: ({})
+    property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
     property string previewEdgeId: ""
     property var dragConnection: null
@@ -57,12 +57,12 @@ Item {
     function _nodeMap() {
         var byId = {};
         var sceneNodes = root.nodes || [];
-        var liveSizes = root.liveNodeSizes || {};
+        var liveGeometry = root.liveNodeGeometry || {};
         for (var i = 0; i < sceneNodes.length; i++) {
             var node = sceneNodes[i];
             if (!node || !node.node_id)
                 continue;
-            var overlay = liveSizes[node.node_id];
+            var overlay = liveGeometry[node.node_id];
             if (!overlay || node.collapsed) {
                 byId[node.node_id] = node;
                 continue;
@@ -72,8 +72,14 @@ Item {
                 if (Object.prototype.hasOwnProperty.call(node, key))
                     merged[key] = node[key];
             }
+            var liveX = Number(overlay.x);
+            var liveY = Number(overlay.y);
             var liveWidth = Number(overlay.width);
             var liveHeight = Number(overlay.height);
+            if (isFinite(liveX))
+                merged.x = liveX;
+            if (isFinite(liveY))
+                merged.y = liveY;
             if (isFinite(liveWidth) && liveWidth > 0.0)
                 merged.width = liveWidth;
             if (isFinite(liveHeight) && liveHeight > 0.0)
@@ -752,7 +758,7 @@ Item {
     onEdgesChanged: requestRedraw()
     onNodesChanged: requestRedraw()
     onDragOffsetsChanged: requestRedraw()
-    onLiveNodeSizesChanged: requestRedraw()
+    onLiveNodeGeometryChanged: requestRedraw()
     onSelectedEdgeIdsChanged: requestRedraw()
     onPreviewEdgeIdChanged: requestRedraw()
     onDragConnectionChanged: requestRedraw()

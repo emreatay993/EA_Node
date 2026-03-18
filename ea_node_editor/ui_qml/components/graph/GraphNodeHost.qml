@@ -138,8 +138,8 @@ Item {
     signal dragOffsetChanged(string nodeId, real dx, real dy)
     signal dragFinished(string nodeId, real finalX, real finalY, bool moved)
     signal dragCanceled(string nodeId)
-    signal resizePreviewChanged(string nodeId, real newWidth, real newHeight, bool active)
-    signal resizeFinished(string nodeId, real newWidth, real newHeight)
+    signal resizePreviewChanged(string nodeId, real newX, real newY, real newWidth, real newHeight, bool active)
+    signal resizeFinished(string nodeId, real newX, real newY, real newWidth, real newHeight)
     signal portClicked(string nodeId, string portKey, string direction, real sceneX, real sceneY)
     signal portDragStarted(
         string nodeId,
@@ -182,6 +182,9 @@ Item {
         bool hovered
     )
 
+    property bool _liveGeometryActive: false
+    property real _liveX: 0
+    property real _liveY: 0
     property real _liveWidth: 0
     property real _liveHeight: 0
     readonly property real _minNodeWidth: Number(surfaceMetrics.min_width)
@@ -253,9 +256,11 @@ Item {
         if (!card.nodeData)
             return {"x": 0.0, "y": 0.0};
         var point = card.localPortPoint(direction, rowIndex);
+        var nodeX = card._liveGeometryActive ? Number(card._liveX) : Number(card.nodeData.x);
+        var nodeY = card._liveGeometryActive ? Number(card._liveY) : Number(card.nodeData.y);
         return {
-            "x": Number(card.nodeData.x) + point.x,
-            "y": Number(card.nodeData.y) + point.y
+            "x": nodeX + point.x,
+            "y": nodeY + point.y
         };
     }
 
@@ -377,19 +382,32 @@ Item {
         id: cardHoverHandler
     }
 
-    readonly property bool hoverActive: cardHoverHandler.hovered
-        || hostGestureLayer.containsMouse
-        || resizeHandle.containsMouse
+    readonly property bool _hostHoverActive: cardHoverHandler.hovered || hostGestureLayer.containsMouse
+    readonly property bool _resizeHandleContainsMouse: topLeftResizeHandle.containsMouse
+        || topRightResizeHandle.containsMouse
+        || bottomLeftResizeHandle.containsMouse
+        || bottomRightResizeHandle.containsMouse
+    readonly property bool _resizeInteractionActive: topLeftResizeHandle.dragActive
+        || topRightResizeHandle.dragActive
+        || bottomLeftResizeHandle.dragActive
+        || bottomRightResizeHandle.dragActive
+    readonly property bool hoverActive: card._hostHoverActive
+        || card._resizeHandleContainsMouse
+        || card._resizeInteractionActive
+    readonly property bool _resizeHandlesVisible: !!card.nodeData
+        && !card.isCollapsed
+        && !card.surfaceInteractionLocked
+        && (card._hostHoverActive || card._resizeInteractionActive)
 
     z: card.isSelected ? 30 : 20
-    x: (card.nodeData ? card.nodeData.x : 0.0) + card.worldOffset
-    y: (card.nodeData ? card.nodeData.y : 0.0) + card.worldOffset
+    x: (card._liveGeometryActive ? card._liveX : (card.nodeData ? card.nodeData.x : 0.0)) + card.worldOffset
+    y: (card._liveGeometryActive ? card._liveY : (card.nodeData ? card.nodeData.y : 0.0)) + card.worldOffset
     transform: Translate {
         x: hostGestureLayer.dragActive ? 0 : card.liveDragDx
         y: hostGestureLayer.dragActive ? 0 : card.liveDragDy
     }
-    width: card._liveWidth > 0 ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
-    height: card._liveHeight > 0 ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
+    width: card._liveGeometryActive ? card._liveWidth : (card.nodeData ? card.nodeData.width : Number(surfaceMetrics.default_width))
+    height: card._liveGeometryActive ? card._liveHeight : (card.nodeData ? card.nodeData.height : Number(surfaceMetrics.default_height))
 
     GraphNodeChromeBackground {
         anchors.fill: parent
@@ -430,9 +448,26 @@ Item {
     }
 
     GraphNodeResizeHandle {
-        id: resizeHandle
-        anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        id: topLeftResizeHandle
         host: card
+        cornerRole: "topLeft"
+    }
+
+    GraphNodeResizeHandle {
+        id: topRightResizeHandle
+        host: card
+        cornerRole: "topRight"
+    }
+
+    GraphNodeResizeHandle {
+        id: bottomLeftResizeHandle
+        host: card
+        cornerRole: "bottomLeft"
+    }
+
+    GraphNodeResizeHandle {
+        id: bottomRightResizeHandle
+        host: card
+        cornerRole: "bottomRight"
     }
 }
