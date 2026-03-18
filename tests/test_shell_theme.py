@@ -246,6 +246,7 @@ class ShellThemeTests(MainWindowShellTestBase):
         self.assertIsNotNone(shadow_item)
 
         self.assertTrue(bool(shadow_item.property("visible")))
+        self.assertAlmostEqual(float(shadow_item.property("blur")), 20.0, places=3)
 
         self.window.app_preferences_controller.set_graphics_settings(
             {
@@ -298,7 +299,7 @@ class ShellThemeTests(MainWindowShellTestBase):
         offset = shadow_item.property("offset")
         self.assertAlmostEqual(float(offset.x()), 0.0, places=3)
         self.assertAlmostEqual(float(offset.y()), 3.0, places=3)
-        self.assertAlmostEqual(float(shadow_item.property("blur")), 0.25, places=3)
+        self.assertAlmostEqual(float(shadow_item.property("blur")), 10.0, places=3)
         self.assertAlmostEqual(float(shadow_item.property("spread")), 0.15, places=3)
 
         shadow_color = QColor(shadow_item.property("color"))
