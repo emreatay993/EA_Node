@@ -4,7 +4,12 @@ from collections import defaultdict
 from typing import Any, Mapping
 
 from ea_node_editor.graph.effective_ports import find_port
-from ea_node_editor.graph.model import NodeInstance
+from ea_node_editor.graph.model import NodeInstance, node_instance_from_mapping
+from ea_node_editor.graph.normalization import (
+    accept_registry_edge,
+    resolve_registry_nodes,
+    validate_registry_edge,
+)
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_PORT_KEY,
     is_subnode_authoring_type,
@@ -159,23 +164,13 @@ def _normalize_nodes(raw_nodes: object) -> tuple[dict[str, dict[str, Any]], list
 
 
 def _materialize_nodes(nodes_by_id: Mapping[str, Mapping[str, Any]]) -> dict[str, NodeInstance]:
-    return {
-        node_id: NodeInstance(
-            node_id=node_id,
-            type_id=str(node_doc.get("type_id", "")),
-            title=str(node_doc.get("title", node_doc.get("type_id", ""))),
-            x=float(node_doc.get("x", 0.0)),
-            y=float(node_doc.get("y", 0.0)),
-            collapsed=bool(node_doc.get("collapsed", False)),
-            properties=dict(node_doc.get("properties", {})),
-            exposed_ports=dict(node_doc.get("exposed_ports", {})),
-            visual_style=dict(node_doc.get("visual_style", {})),
-            parent_node_id=_normalize_optional_id(node_doc.get("parent_node_id")),
-            custom_width=float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
-            custom_height=float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
-        )
-        for node_id, node_doc in nodes_by_id.items()
-    }
+    materialized: dict[str, NodeInstance] = {}
+    for node_id, node_doc in nodes_by_id.items():
+        node = node_instance_from_mapping(node_doc)
+        if node is None:
+            continue
+        materialized[node_id] = node
+    return materialized
 
 
 def _normalize_edges(
@@ -189,6 +184,9 @@ def _normalize_edges(
         return set()
 
     edges: set[_EdgeTuple] = set()
+    seen_connections: set[_EdgeTuple] = set()
+    occupied_single_target_ports: set[tuple[str, str]] = set()
+    resolved_nodes = resolve_registry_nodes(workspace_nodes, registry) if registry is not None else {}
     spec_cache: dict[str, NodeTypeSpec | None] = {}
     for raw_edge in raw_edges:
         if not isinstance(raw_edge, Mapping):
@@ -206,7 +204,36 @@ def _normalize_edges(
             or target_node_id not in valid_node_ids
         ):
             continue
-        if _edge_is_runtime_excluded(
+        connection = (
+            source_node_id,
+            source_port_key,
+            target_node_id,
+            target_port_key,
+        )
+
+        resolution = None
+        if source_node_id in resolved_nodes and target_node_id in resolved_nodes:
+            resolution = validate_registry_edge(
+                source_node_id=source_node_id,
+                source_port_key=source_port_key,
+                target_node_id=target_node_id,
+                target_port_key=target_port_key,
+                resolved_nodes=resolved_nodes,
+                require_source_output=True,
+                require_target_input=True,
+                require_exposed_ports=True,
+            )
+            if resolution is None:
+                continue
+            if resolution.source_port.kind == "flow" or resolution.target_port.kind == "flow":
+                continue
+            if not accept_registry_edge(
+                resolution,
+                seen_connections=seen_connections,
+                occupied_single_target_ports=occupied_single_target_ports,
+            ):
+                continue
+        elif _edge_is_runtime_excluded(
             source_node_id=source_node_id,
             source_port_key=source_port_key,
             target_node_id=target_node_id,
@@ -216,14 +243,12 @@ def _normalize_edges(
             spec_cache=spec_cache,
         ):
             continue
-        edges.add(
-            (
-                source_node_id,
-                source_port_key,
-                target_node_id,
-                target_port_key,
-            )
-        )
+        elif connection in seen_connections:
+            continue
+        else:
+            seen_connections.add(connection)
+
+        edges.add(connection)
     return edges
 
 

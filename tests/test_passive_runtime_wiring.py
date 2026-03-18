@@ -185,6 +185,64 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         )
         self.assertNotIn(passive.node_id, {node["node_id"] for node in compiled["nodes"]})
 
+    def test_compile_workspace_document_respects_registry_multiplicity_and_port_resolution(self) -> None:
+        registry = _build_runtime_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        workspace = model.active_workspace
+
+        source_a = model.add_node(workspace.workspace_id, "tests.runtime_source", "A", 0.0, 0.0)
+        source_b = model.add_node(workspace.workspace_id, "tests.runtime_source", "B", 0.0, 120.0)
+        single_sink = model.add_node(workspace.workspace_id, "tests.single_sink", "Single", 280.0, 0.0)
+        multi_sink = model.add_node(workspace.workspace_id, "tests.multi_sink", "Multi", 280.0, 160.0)
+
+        model.add_edge(workspace.workspace_id, source_a.node_id, "value", single_sink.node_id, "value")
+        model.add_edge(workspace.workspace_id, source_b.node_id, "value", single_sink.node_id, "value")
+        model.add_edge(workspace.workspace_id, source_a.node_id, "value", multi_sink.node_id, "value")
+        model.add_edge(workspace.workspace_id, source_b.node_id, "value", multi_sink.node_id, "value")
+        model.add_edge(workspace.workspace_id, source_a.node_id, "missing", multi_sink.node_id, "value")
+
+        workspace_doc = serializer.to_document(model.project)["workspaces"][0]
+        compiled = compile_workspace_document(workspace_doc, registry=registry)
+
+        self.assertEqual(
+            {node["node_id"] for node in compiled["nodes"]},
+            {source_a.node_id, source_b.node_id, single_sink.node_id, multi_sink.node_id},
+        )
+        compiled_edges = {
+            (
+                edge["source_node_id"],
+                edge["source_port_key"],
+                edge["target_node_id"],
+                edge["target_port_key"],
+            )
+            for edge in compiled["edges"]
+        }
+        self.assertEqual(
+            {
+                edge
+                for edge in compiled_edges
+                if edge[2] == multi_sink.node_id and edge[3] == "value"
+            },
+            {
+                (source_a.node_id, "value", multi_sink.node_id, "value"),
+                (source_b.node_id, "value", multi_sink.node_id, "value"),
+            },
+        )
+        single_sink_edges = {
+            edge
+            for edge in compiled_edges
+            if edge[2] == single_sink.node_id and edge[3] == "value"
+        }
+        self.assertEqual(len(single_sink_edges), 1)
+        self.assertTrue(
+            single_sink_edges
+            <= {
+                (source_a.node_id, "value", single_sink.node_id, "value"),
+                (source_b.node_id, "value", single_sink.node_id, "value"),
+            }
+        )
+
     def test_compile_workspace_document_uses_subnode_contract_without_registry(self) -> None:
         registry = build_default_registry()
         serializer = JsonProjectSerializer(registry)

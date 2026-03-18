@@ -5,18 +5,22 @@ from typing import Any
 
 from ea_node_editor.graph.hierarchy import normalize_scope_path
 from ea_node_editor.graph.model import (
-    EdgeInstance,
-    NodeInstance,
     ProjectData,
     ViewState,
     WorkspaceData,
+    edge_instance_from_mapping,
+    node_instance_from_mapping,
 )
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.migration import JsonProjectMigration
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
 
 
 class JsonProjectCodec:
+    def __init__(self, registry: NodeRegistry | None = None) -> None:
+        self._registry = registry
+
     def to_document(self, project: ProjectData) -> dict[str, Any]:
         metadata = project.metadata if isinstance(project.metadata, Mapping) else {}
         ownership = resolve_workspace_ownership(
@@ -141,50 +145,16 @@ class JsonProjectCodec:
             for node_doc in ws_doc.get("nodes", []):
                 if not isinstance(node_doc, Mapping):
                     continue
-                node_id = node_doc.get("node_id")
-                type_id = node_doc.get("type_id")
-                if not node_id or not type_id:
+                node = node_instance_from_mapping(node_doc)
+                if node is None:
                     continue
-                node = NodeInstance(
-                    node_id=str(node_id),
-                    type_id=str(type_id),
-                    title=node_doc.get("title", str(type_id)),
-                    x=float(node_doc.get("x", 0.0)),
-                    y=float(node_doc.get("y", 0.0)),
-                    collapsed=bool(node_doc.get("collapsed", False)),
-                    properties=dict(node_doc.get("properties", {})),
-                    exposed_ports=dict(node_doc.get("exposed_ports", {})),
-                    visual_style=dict(node_doc.get("visual_style", {})),
-                    parent_node_id=node_doc.get("parent_node_id"),
-                    custom_width=float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
-                    custom_height=float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
-                )
                 workspace.nodes[node.node_id] = node
             for edge_doc in ws_doc.get("edges", []):
                 if not isinstance(edge_doc, Mapping):
                     continue
-                edge_id = edge_doc.get("edge_id")
-                source_node_id = edge_doc.get("source_node_id")
-                source_port_key = edge_doc.get("source_port_key")
-                target_node_id = edge_doc.get("target_node_id")
-                target_port_key = edge_doc.get("target_port_key")
-                if (
-                    not edge_id
-                    or not source_node_id
-                    or not source_port_key
-                    or not target_node_id
-                    or not target_port_key
-                ):
+                edge = edge_instance_from_mapping(edge_doc)
+                if edge is None:
                     continue
-                edge = EdgeInstance(
-                    edge_id=str(edge_id),
-                    source_node_id=str(source_node_id),
-                    source_port_key=str(source_port_key),
-                    target_node_id=str(target_node_id),
-                    target_port_key=str(target_port_key),
-                    label=self._coerce_str(edge_doc.get("label")),
-                    visual_style=dict(edge_doc.get("visual_style", {})),
-                )
                 workspace.edges[edge.edge_id] = edge
             for view in workspace.views.values():
                 view.scope_path = list(normalize_scope_path(workspace, view.scope_path))
@@ -196,13 +166,3 @@ class JsonProjectCodec:
         )
         project.metadata = JsonProjectMigration.normalize_metadata(project.metadata, ownership.workspace_order)
         return project
-
-    @staticmethod
-    def _coerce_str(value: Any, default: str = "") -> str:
-        if isinstance(value, str):
-            stripped = value.strip()
-            return stripped if stripped else default
-        if value is None:
-            return default
-        text = str(value).strip()
-        return text if text else default

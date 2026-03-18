@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -10,6 +11,70 @@ from ea_node_editor.settings import SCHEMA_VERSION
 
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
+
+
+def _coerce_str(value: Any, default: str = "") -> str:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return stripped if stripped else default
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text if text else default
+
+
+def _coerce_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_mapping(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {str(key): item for key, item in value.items()}
+
+
+def node_instance_from_mapping(payload: Mapping[str, Any]) -> NodeInstance | None:
+    node_id = _coerce_str(payload.get("node_id"))
+    type_id = _coerce_str(payload.get("type_id"))
+    if not node_id or not type_id:
+        return None
+    parent_node_id = _coerce_str(payload.get("parent_node_id")) or None
+    return NodeInstance(
+        node_id=node_id,
+        type_id=type_id,
+        title=_coerce_str(payload.get("title"), type_id),
+        x=_coerce_float(payload.get("x"), 0.0),
+        y=_coerce_float(payload.get("y"), 0.0),
+        collapsed=bool(payload.get("collapsed", False)),
+        properties=_as_mapping(payload.get("properties")),
+        exposed_ports={key: bool(value) for key, value in _as_mapping(payload.get("exposed_ports")).items()},
+        visual_style=_as_mapping(payload.get("visual_style")),
+        parent_node_id=parent_node_id,
+        custom_width=_coerce_float(payload.get("custom_width")) if payload.get("custom_width") is not None else None,
+        custom_height=_coerce_float(payload.get("custom_height")) if payload.get("custom_height") is not None else None,
+    )
+
+
+def edge_instance_from_mapping(payload: Mapping[str, Any]) -> EdgeInstance | None:
+    edge_id = _coerce_str(payload.get("edge_id"))
+    source_node_id = _coerce_str(payload.get("source_node_id"))
+    source_port_key = _coerce_str(payload.get("source_port_key"))
+    target_node_id = _coerce_str(payload.get("target_node_id"))
+    target_port_key = _coerce_str(payload.get("target_port_key"))
+    if not edge_id or not source_node_id or not source_port_key or not target_node_id or not target_port_key:
+        return None
+    return EdgeInstance(
+        edge_id=edge_id,
+        source_node_id=source_node_id,
+        source_port_key=source_port_key,
+        target_node_id=target_node_id,
+        target_port_key=target_port_key,
+        label=_coerce_str(payload.get("label")),
+        visual_style=_as_mapping(payload.get("visual_style")),
+    )
 
 
 @dataclass(slots=True)

@@ -16,7 +16,7 @@ class JsonProjectSerializer:
     def __init__(self, registry: NodeRegistry) -> None:
         self._registry = registry
         self._migration = JsonProjectMigration(self._registry)
-        self._codec = JsonProjectCodec()
+        self._codec = JsonProjectCodec(self._registry)
 
     def load(self, path: str) -> ProjectData:
         payload = json.loads(Path(path).read_text(encoding="utf-8"))

@@ -54,6 +54,12 @@ class NodeRegistry:
         except KeyError as exc:
             raise KeyError(f"Unknown node type: {type_id}") from exc
 
+    def spec_or_none(self, type_id: str) -> NodeTypeSpec | None:
+        entry = self._entries.get(type_id)
+        if entry is None:
+            return None
+        return entry.spec
+
     def all_specs(self) -> list[NodeTypeSpec]:
         return [entry.spec for entry in self._entries.values()]
 

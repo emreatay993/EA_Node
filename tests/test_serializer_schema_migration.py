@@ -96,6 +96,104 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual([workspace["workspace_id"] for workspace in migrated["workspaces"]], ["ws_b", "ws_a"])
         self.assertEqual(migrated["active_workspace_id"], "ws_b")
 
+    def test_migrate_preserves_multiple_connections_for_allow_multiple_target_ports(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_flowchart_multi",
+            "name": "Flowchart Multi",
+            "active_workspace_id": "ws_a",
+            "workspace_order": ["ws_a"],
+            "workspaces": [
+                {
+                    "workspace_id": "ws_a",
+                    "name": "Workspace A",
+                    "active_view_id": "view_a",
+                    "views": [
+                        {
+                            "view_id": "view_a",
+                            "name": "V1",
+                            "zoom": 1.0,
+                            "pan_x": 0.0,
+                            "pan_y": 0.0,
+                        }
+                    ],
+                    "nodes": [
+                        {
+                            "node_id": "node_start_a",
+                            "type_id": "passive.flowchart.start",
+                            "title": "Start A",
+                            "x": 0.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"flow_out": True},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_start_b",
+                            "type_id": "passive.flowchart.start",
+                            "title": "Start B",
+                            "x": 0.0,
+                            "y": 120.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"flow_out": True},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_end",
+                            "type_id": "passive.flowchart.end",
+                            "title": "End",
+                            "x": 320.0,
+                            "y": 60.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"flow_in": True},
+                            "parent_node_id": None,
+                        },
+                    ],
+                    "edges": [
+                        {
+                            "edge_id": "edge_a",
+                            "source_node_id": "node_start_a",
+                            "source_port_key": "flow_out",
+                            "target_node_id": "node_end",
+                            "target_port_key": "flow_in",
+                        },
+                        {
+                            "edge_id": "edge_b",
+                            "source_node_id": "node_start_b",
+                            "source_port_key": "flow_out",
+                            "target_node_id": "node_end",
+                            "target_port_key": "flow_in",
+                        },
+                    ],
+                }
+            ],
+            "metadata": {},
+        }
+
+        project = serializer.from_document(payload)
+        workspace = project.workspaces["ws_a"]
+
+        self.assertEqual(set(workspace.edges), {"edge_a", "edge_b"})
+        self.assertEqual(
+            {
+                (
+                    edge.source_node_id,
+                    edge.source_port_key,
+                    edge.target_node_id,
+                    edge.target_port_key,
+                )
+                for edge in workspace.edges.values()
+            },
+            {
+                ("node_start_a", "flow_out", "node_end", "flow_in"),
+                ("node_start_b", "flow_out", "node_end", "flow_in"),
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

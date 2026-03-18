@@ -4,10 +4,14 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
-from ea_node_editor.graph.effective_ports import find_port as find_effective_port
-from ea_node_editor.graph.model import NodeInstance
+from ea_node_editor.graph.model import node_instance_from_mapping
+from ea_node_editor.graph.normalization import (
+    accept_registry_edge,
+    normalized_exposed_ports,
+    resolve_registry_nodes,
+    validate_registry_edge,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.passive_style_normalization import normalize_passive_style_presets
 from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
 from ea_node_editor.settings import (
@@ -233,7 +237,6 @@ class JsonProjectMigration:
             active_view_id = next(iter(views_by_id))
 
         nodes_by_id: dict[str, dict[str, Any]] = {}
-        node_specs: dict[str, NodeTypeSpec] = {}
         for node_doc in self.as_list(workspace_doc.get("nodes", [])):
             if not isinstance(node_doc, Mapping):
                 continue
@@ -241,15 +244,9 @@ class JsonProjectMigration:
             type_id = self._coerce_str(node_doc.get("type_id"))
             if not node_id or node_id in nodes_by_id or not type_id:
                 continue
-            try:
-                spec = self._registry.get_spec(type_id)
-            except KeyError:
+            spec = self._registry.spec_or_none(type_id)
+            if spec is None:
                 continue
-            raw_exposed_ports = self.as_dict(node_doc.get("exposed_ports"))
-            normalized_exposed_ports = {
-                port.key: self._coerce_bool(raw_exposed_ports.get(port.key, port.exposed), port.exposed)
-                for port in spec.ports
-            }
             nodes_by_id[node_id] = {
                 "node_id": node_id,
                 "type_id": type_id,
@@ -262,36 +259,42 @@ class JsonProjectMigration:
                     self.as_dict(node_doc.get("properties")),
                     include_defaults=False,
                 ),
-                "exposed_ports": normalized_exposed_ports,
+                "exposed_ports": {
+                    key: self._coerce_bool(value)
+                    for key, value in self.as_dict(node_doc.get("exposed_ports")).items()
+                },
                 "visual_style": self.as_dict(node_doc.get("visual_style")),
                 "parent_node_id": self._coerce_str(node_doc.get("parent_node_id")) or None,
                 "custom_width": self._coerce_float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
                 "custom_height": self._coerce_float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
             }
-            node_specs[node_id] = spec
 
         for node_id, node in nodes_by_id.items():
             parent_id = node.get("parent_node_id")
             if parent_id not in nodes_by_id or parent_id == node_id:
                 node["parent_node_id"] = None
 
-        workspace_nodes_for_ports: dict[str, NodeInstance] = {
-            node_id: NodeInstance(
-                node_id=node_id,
-                type_id=str(node["type_id"]),
-                title=str(node["title"]),
-                x=float(node["x"]),
-                y=float(node["y"]),
-                collapsed=bool(node["collapsed"]),
-                properties=dict(node["properties"]),
-                exposed_ports=dict(node["exposed_ports"]),
-                visual_style=dict(node["visual_style"]),
-                parent_node_id=node["parent_node_id"],
-            )
+        workspace_nodes_for_ports = {
+            node_id: node_instance_from_mapping(node)
             for node_id, node in nodes_by_id.items()
         }
+        workspace_nodes_for_ports = {
+            node_id: node
+            for node_id, node in workspace_nodes_for_ports.items()
+            if node is not None
+        }
+        resolved_nodes = resolve_registry_nodes(workspace_nodes_for_ports, self._registry)
+        for node_id, resolution in resolved_nodes.items():
+            normalized_ports = normalized_exposed_ports(
+                resolution,
+                workspace_nodes=workspace_nodes_for_ports,
+            )
+            nodes_by_id[node_id]["exposed_ports"] = normalized_ports
+            workspace_nodes_for_ports[node_id].exposed_ports = dict(normalized_ports)
 
-        candidate_edges: list[dict[str, Any]] = []
+        edges_by_id: dict[str, dict[str, Any]] = {}
+        seen_connections: set[tuple[str, str, str, str]] = set()
+        occupied_single_target_ports: set[tuple[str, str]] = set()
         for edge_doc in self.as_list(workspace_doc.get("edges", [])):
             if not isinstance(edge_doc, Mapping):
                 continue
@@ -308,70 +311,37 @@ class JsonProjectMigration:
                 or not target_port_key
             ):
                 continue
+            if edge_id in edges_by_id:
+                continue
             if source_node_id not in nodes_by_id or target_node_id not in nodes_by_id:
                 continue
 
-            source_spec = node_specs[source_node_id]
-            target_spec = node_specs[target_node_id]
-            source_node = workspace_nodes_for_ports[source_node_id]
-            target_node = workspace_nodes_for_ports[target_node_id]
-            source_port = find_effective_port(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=workspace_nodes_for_ports,
-                port_key=source_port_key,
+            resolution = validate_registry_edge(
+                source_node_id=source_node_id,
+                source_port_key=source_port_key,
+                target_node_id=target_node_id,
+                target_port_key=target_port_key,
+                resolved_nodes=resolved_nodes,
+                require_source_output=True,
+                require_target_input=True,
+                require_exposed_ports=True,
             )
-            target_port = find_effective_port(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=workspace_nodes_for_ports,
-                port_key=target_port_key,
-            )
-            if source_port is None or target_port is None:
-                continue
-            if source_port.direction != "out" or target_port.direction != "in":
-                continue
-            source_exposed = bool(source_port.exposed)
-            target_exposed = bool(target_port.exposed)
-            if not source_exposed or not target_exposed:
+            if resolution is None or not accept_registry_edge(
+                resolution,
+                seen_connections=seen_connections,
+                occupied_single_target_ports=occupied_single_target_ports,
+            ):
                 continue
 
-            candidate_edges.append(
-                {
-                    "edge_id": edge_id,
-                    "source_node_id": source_node_id,
-                    "source_port_key": source_port_key,
-                    "target_node_id": target_node_id,
-                    "target_port_key": target_port_key,
-                    "label": self._coerce_str(edge_doc.get("label")),
-                    "visual_style": self.as_dict(edge_doc.get("visual_style")),
-                }
-            )
-
-        edges_by_id: dict[str, dict[str, Any]] = {}
-        seen_connections: set[tuple[str, str, str, str]] = set()
-        seen_target_inputs: set[tuple[str, str]] = set()
-        for edge in candidate_edges:
-            edge_id = edge["edge_id"]
-            if edge_id in edges_by_id:
-                continue
-            connection = (
-                edge["source_node_id"],
-                edge["source_port_key"],
-                edge["target_node_id"],
-                edge["target_port_key"],
-            )
-            if connection in seen_connections:
-                continue
-            target_input = (
-                edge["target_node_id"],
-                edge["target_port_key"],
-            )
-            if target_input in seen_target_inputs:
-                continue
-            seen_connections.add(connection)
-            seen_target_inputs.add(target_input)
-            edges_by_id[edge_id] = edge
+            edges_by_id[edge_id] = {
+                "edge_id": edge_id,
+                "source_node_id": source_node_id,
+                "source_port_key": source_port_key,
+                "target_node_id": target_node_id,
+                "target_port_key": target_port_key,
+                "label": self._coerce_str(edge_doc.get("label")),
+                "visual_style": self.as_dict(edge_doc.get("visual_style")),
+            }
 
         return {
             "workspace_id": workspace_id,
