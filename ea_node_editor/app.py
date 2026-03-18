@@ -5,8 +5,8 @@ import sys
 
 from PyQt6.QtWidgets import QApplication
 
-from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import AppPreferencesController
+from ea_node_editor.ui.shell.window_bootstrap import build_and_show_shell_window
 from ea_node_editor.ui.theme import DEFAULT_THEME_ID, build_theme_stylesheet, resolve_theme_id
 
 APP_STYLESHEET = build_theme_stylesheet(DEFAULT_THEME_ID)
@@ -26,6 +26,5 @@ def run() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("EA Node Editor")
     app.setStyleSheet(build_theme_stylesheet(_startup_theme_id()))
-    window = ShellWindow()
-    window.show()
+    build_and_show_shell_window()
     return app.exec()

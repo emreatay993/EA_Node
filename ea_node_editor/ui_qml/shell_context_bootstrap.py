@@ -78,7 +78,15 @@ def _register_context_properties(
     host: "ShellWindow",
     bridges: ShellContextBridges,
 ) -> None:
-    for name, value in (
+    for name, value in shell_context_property_bindings(host, bridges):
+        context.setContextProperty(name, value)
+
+
+def shell_context_property_bindings(
+    host: "ShellWindow",
+    bridges: ShellContextBridges,
+) -> tuple[tuple[str, object], ...]:
+    return (
         ("mainWindow", host),
         ("sceneBridge", host.scene),
         ("viewBridge", host.view),
@@ -97,12 +105,24 @@ def _register_context_properties(
         ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("graphCanvasBridge", bridges.graph_canvas_bridge),
-    ):
-        context.setContextProperty(name, value)
+    )
 
 
 def _main_shell_qml_path() -> Path:
     return Path(__file__).resolve().parent / "MainShell.qml"
+
+
+def main_shell_qml_url() -> QUrl:
+    return QUrl.fromLocalFile(str(_main_shell_qml_path()))
+
+
+def _connect_after_render_callback(host: "ShellWindow", quick_widget: QQuickWidget) -> None:
+    quick_window = quick_widget.quickWindow()
+    if quick_window is not None:
+        quick_window.afterRendering.connect(
+            host._record_render_frame,
+            Qt.ConnectionType.QueuedConnection,
+        )
 
 
 def bootstrap_shell_qml_context(
@@ -113,17 +133,14 @@ def bootstrap_shell_qml_context(
     quick_widget.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
     _register_image_providers(host, quick_widget)
     _register_context_properties(quick_widget.rootContext(), host, bridges)
-    quick_widget.setSource(QUrl.fromLocalFile(str(_main_shell_qml_path())))
-    quick_window = quick_widget.quickWindow()
-    if quick_window is not None:
-        quick_window.afterRendering.connect(
-            host._record_render_frame,
-            Qt.ConnectionType.QueuedConnection,
-        )
+    quick_widget.setSource(main_shell_qml_url())
+    _connect_after_render_callback(host, quick_widget)
 
 
 __all__ = [
     "ShellContextBridges",
     "bootstrap_shell_qml_context",
     "create_shell_context_bridges",
+    "main_shell_qml_url",
+    "shell_context_property_bindings",
 ]

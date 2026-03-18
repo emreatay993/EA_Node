@@ -1510,6 +1510,15 @@ class MainWindowShellTelemetryTests(MainWindowShellTestBase):
         self.assertEqual(self.window.status_metrics.text(), "FPS:58 CPU:37% RAM:4.3/16.0 GB")
 
 
+class MainWindowShellBootstrapCompositionTests(MainWindowShellTestBase):
+    def test_bootstrap_starts_runtime_timers_with_expected_modes(self) -> None:
+        self.assertTrue(self.window.metrics_timer.isActive())
+        self.assertEqual(self.window.metrics_timer.interval(), 1000)
+        self.assertFalse(self.window.graph_hint_timer.isActive())
+        self.assertTrue(self.window.graph_hint_timer.isSingleShot())
+        self.assertTrue(self.window.autosave_timer.isActive())
+
+
 class MainWindowShellContextBootstrapTests(MainWindowShellTestBase):
     def test_qml_context_preserves_legacy_context_properties_and_registers_facades(self) -> None:
         context = self.window.quick_widget.rootContext()
@@ -1561,6 +1570,14 @@ class MainWindowShellContextBootstrapTests(MainWindowShellTestBase):
         self.assertIs(graph_canvas_bridge.shell_window, self.window)
         self.assertIs(graph_canvas_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_bridge.view_bridge, self.window.view)
+
+    def test_shell_window_keeps_bridge_aliases_in_sync_with_context_bundle(self) -> None:
+        bridges = self.window._shell_context_bridges
+
+        self.assertIs(self.window.shell_library_bridge, bridges.shell_library_bridge)
+        self.assertIs(self.window.shell_workspace_bridge, bridges.shell_workspace_bridge)
+        self.assertIs(self.window.shell_inspector_bridge, bridges.shell_inspector_bridge)
+        self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
 
 
 class MainWindowShellHostProtocolStateTests(MainWindowShellTestBase):

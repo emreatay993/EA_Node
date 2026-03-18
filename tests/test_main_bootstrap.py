@@ -5,10 +5,11 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 main = importlib.import_module("main")
+app_module = importlib.import_module("ea_node_editor.app")
 
 
 def _touch(path: Path) -> Path:
@@ -94,6 +95,37 @@ class MainBootstrapTests(unittest.TestCase):
                 main._bootstrap_python()
 
             execvpe_mock.assert_not_called()
+
+
+class AppBootstrapTests(unittest.TestCase):
+    def test_run_applies_startup_theme_and_bootstraps_shell_window(self) -> None:
+        fake_app = Mock()
+        fake_app.exec.return_value = 17
+
+        with patch.object(app_module.mp, "freeze_support") as freeze_support_mock, patch.object(
+            app_module,
+            "QApplication",
+            return_value=fake_app,
+        ) as app_ctor, patch.object(
+            app_module,
+            "_startup_theme_id",
+            return_value="packet-theme",
+        ), patch.object(
+            app_module,
+            "build_theme_stylesheet",
+            side_effect=lambda theme_id: f"stylesheet:{theme_id}",
+        ), patch.object(
+            app_module,
+            "build_and_show_shell_window",
+        ) as build_window_mock:
+            self.assertEqual(app_module.run(), 17)
+
+        freeze_support_mock.assert_called_once_with()
+        app_ctor.assert_called_once()
+        fake_app.setApplicationName.assert_called_once_with("EA Node Editor")
+        fake_app.setStyleSheet.assert_called_once_with("stylesheet:packet-theme")
+        build_window_mock.assert_called_once_with()
+        fake_app.exec.assert_called_once_with()
 
 
 if __name__ == "__main__":
