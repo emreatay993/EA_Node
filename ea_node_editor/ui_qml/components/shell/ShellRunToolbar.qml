@@ -3,7 +3,6 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
-    property var mainWindowRef
     readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var viewBridgeRef
     property var scriptEditorBridgeRef

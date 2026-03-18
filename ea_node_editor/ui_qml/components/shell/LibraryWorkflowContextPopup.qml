@@ -3,7 +3,6 @@ import QtQuick.Controls 2.15
 
 Item {
     id: root
-    property var mainWindowRef
     readonly property var shellLibraryBridgeRef: shellLibraryBridge
     property string libraryContextWorkflowId: ""
     property string libraryContextWorkflowScope: "local"

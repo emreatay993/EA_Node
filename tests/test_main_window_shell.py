@@ -1118,63 +1118,86 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
 
 class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
     def test_inspector_pane_routes_owned_concerns_through_shell_inspector_bridge(self) -> None:
-        qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell/InspectorPane.qml"
-        qml_text = qml_path.read_text(encoding="utf-8")
+        expectations = {
+            "ea_node_editor/ui_qml/components/shell/InspectorPane.qml": (
+                (
+                    "mainWindowRef.has_selected_node",
+                    "mainWindowRef.selected_node_is_subnode_pin",
+                    "mainWindowRef.selected_node_is_subnode_shell",
+                    "mainWindowRef.selected_node_port_items",
+                    "mainWindowRef.selected_node_title",
+                    "mainWindowRef.selected_node_subtitle",
+                    "mainWindowRef.selected_node_collapsible",
+                    "mainWindowRef.selected_node_collapsed",
+                    "mainWindowRef.selected_node_header_items",
+                    "mainWindowRef.selected_node_property_items",
+                    "mainWindowRef.pin_data_type_options",
+                    "mainWindowRef.request_add_selected_subnode_pin",
+                    "mainWindowRef.set_selected_port_label",
+                    "mainWindowRef.request_remove_selected_port",
+                    "mainWindowRef.set_selected_node_collapsed",
+                    "mainWindowRef.request_ungroup_selected_nodes",
+                    "mainWindowRef.set_selected_node_property",
+                    "mainWindowRef.browse_selected_node_property_path",
+                    "mainWindowRef.set_selected_port_exposed",
+                    "target: root.mainWindowRef",
+                ),
+                (
+                    "readonly property var inspectorBridgeRef: shellInspectorBridge",
+                    "root.inspectorBridgeRef.has_selected_node",
+                    "root.inspectorBridgeRef.selected_node_is_subnode_pin",
+                    "root.inspectorBridgeRef.selected_node_is_subnode_shell",
+                    "root.inspectorBridgeRef.selected_node_port_items",
+                    "root.inspectorBridgeRef.selected_node_title",
+                    "root.inspectorBridgeRef.selected_node_subtitle",
+                    "root.inspectorBridgeRef.selected_node_collapsible",
+                    "root.inspectorBridgeRef.selected_node_collapsed",
+                    "root.inspectorBridgeRef.selected_node_header_items",
+                    "root.inspectorBridgeRef.selected_node_property_items",
+                    "root.inspectorBridgeRef.pin_data_type_options",
+                    "root.inspectorBridgeRef.request_add_selected_subnode_pin",
+                    "root.inspectorBridgeRef.set_selected_port_label",
+                    "root.inspectorBridgeRef.request_remove_selected_port",
+                    "target: root.inspectorBridgeRef",
+                ),
+            ),
+            "ea_node_editor/ui_qml/components/shell/InspectorNodeDefinitionSection.qml": (
+                (
+                    "mainWindowRef.set_selected_node_collapsed",
+                    "mainWindowRef.request_ungroup_selected_nodes",
+                ),
+                (
+                    "definitionSection.pane.inspectorBridgeRef.set_selected_node_collapsed",
+                    "definitionSection.pane.inspectorBridgeRef.request_ungroup_selected_nodes",
+                ),
+            ),
+            "ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml": (
+                (
+                    "mainWindowRef.set_selected_node_property",
+                    "mainWindowRef.browse_selected_node_property_path",
+                ),
+                (
+                    "propertyEditor.pane.inspectorBridgeRef.set_selected_node_property",
+                    "propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path",
+                ),
+            ),
+            "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml": (
+                ( "mainWindowRef.set_selected_port_exposed", ),
+                ( "portRow.pane.inspectorBridgeRef.set_selected_port_exposed", ),
+            ),
+        }
 
-        absent_snippets = (
-            "mainWindowRef.has_selected_node",
-            "mainWindowRef.selected_node_is_subnode_pin",
-            "mainWindowRef.selected_node_is_subnode_shell",
-            "mainWindowRef.selected_node_port_items",
-            "mainWindowRef.selected_node_title",
-            "mainWindowRef.selected_node_subtitle",
-            "mainWindowRef.selected_node_collapsible",
-            "mainWindowRef.selected_node_collapsed",
-            "mainWindowRef.selected_node_header_items",
-            "mainWindowRef.selected_node_property_items",
-            "mainWindowRef.pin_data_type_options",
-            "mainWindowRef.request_add_selected_subnode_pin",
-            "mainWindowRef.set_selected_port_label",
-            "mainWindowRef.request_remove_selected_port",
-            "mainWindowRef.set_selected_node_collapsed",
-            "mainWindowRef.request_ungroup_selected_nodes",
-            "mainWindowRef.set_selected_node_property",
-            "mainWindowRef.browse_selected_node_property_path",
-            "mainWindowRef.set_selected_port_exposed",
-            "target: root.mainWindowRef",
-        )
-        present_snippets = (
-            "property var mainWindowRef",
-            "readonly property var inspectorBridgeRef: shellInspectorBridge",
-            "root.inspectorBridgeRef.has_selected_node",
-            "root.inspectorBridgeRef.selected_node_is_subnode_pin",
-            "root.inspectorBridgeRef.selected_node_is_subnode_shell",
-            "root.inspectorBridgeRef.selected_node_port_items",
-            "root.inspectorBridgeRef.selected_node_title",
-            "root.inspectorBridgeRef.selected_node_subtitle",
-            "root.inspectorBridgeRef.selected_node_collapsible",
-            "root.inspectorBridgeRef.selected_node_collapsed",
-            "root.inspectorBridgeRef.selected_node_header_items",
-            "root.inspectorBridgeRef.selected_node_property_items",
-            "root.inspectorBridgeRef.pin_data_type_options",
-            "root.inspectorBridgeRef.request_add_selected_subnode_pin",
-            "root.inspectorBridgeRef.set_selected_port_label",
-            "root.inspectorBridgeRef.request_remove_selected_port",
-            "root.inspectorBridgeRef.set_selected_node_collapsed",
-            "root.inspectorBridgeRef.request_ungroup_selected_nodes",
-            "root.inspectorBridgeRef.set_selected_node_property",
-            "root.inspectorBridgeRef.browse_selected_node_property_path",
-            "root.inspectorBridgeRef.set_selected_port_exposed",
-            "target: root.inspectorBridgeRef",
-        )
+        for relative_path, (absent_snippets, present_snippets) in expectations.items():
+            qml_path = _REPO_ROOT / relative_path
+            qml_text = qml_path.read_text(encoding="utf-8")
 
-        for snippet in absent_snippets:
-            with self.subTest(snippet=snippet, expectation="absent"):
-                self.assertNotIn(snippet, qml_text)
+            for snippet in absent_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="absent"):
+                    self.assertNotIn(snippet, qml_text)
 
-        for snippet in present_snippets:
-            with self.subTest(snippet=snippet, expectation="present"):
-                self.assertIn(snippet, qml_text)
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+                    self.assertIn(snippet, qml_text)
 
 
 class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):

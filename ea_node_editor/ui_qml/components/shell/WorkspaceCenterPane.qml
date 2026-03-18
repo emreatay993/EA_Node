@@ -9,8 +9,6 @@ Rectangle {
     readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var sceneBridgeRef
     property var viewBridgeRef
-    property var workspaceTabsBridgeRef
-    property var consoleBridgeRef
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette

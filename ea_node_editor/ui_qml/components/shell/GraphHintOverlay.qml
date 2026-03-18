@@ -3,7 +3,6 @@ import QtQuick 2.15
 Rectangle {
     id: root
     objectName: "graphHintOverlay"
-    property var mainWindowRef
     readonly property var shellLibraryBridgeRef: shellLibraryBridge
     property bool graphSearchVisible: false
     readonly property var themePalette: themeBridge.palette

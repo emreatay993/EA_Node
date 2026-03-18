@@ -5,7 +5,6 @@ import QtQuick.Layouts 1.15
 ShellCollapsibleSidePane {
     id: root
     objectName: "inspectorPane"
-    property var mainWindowRef
     readonly property var inspectorBridgeRef: shellInspectorBridge
     property string activePortDirection: "in"
     property string selectedPortKey: ""

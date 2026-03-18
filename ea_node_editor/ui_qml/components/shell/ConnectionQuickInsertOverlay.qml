@@ -5,7 +5,6 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     objectName: "connectionQuickInsertOverlay"
-    property var mainWindowRef
     readonly property var shellLibraryBridgeRef: shellLibraryBridge
     readonly property var themePalette: themeBridge.palette
 
