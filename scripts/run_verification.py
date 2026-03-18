@@ -17,6 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_VENV_PYTHON = REPO_ROOT / "venv" / "Scripts" / "python.exe"
 OFFSCREEN_ENV = {"QT_QPA_PLATFORM": "offscreen"}
 SHELL_ISOLATION_PHASE_TEST = "tests/test_shell_isolation_phase.py"
+MAX_GUI_PARALLEL_WORKERS = 6
 NON_SHELL_PYTEST_IGNORES = (
     "tests/test_main_window_shell.py",
     "tests/test_script_editor_dock.py",
@@ -55,6 +56,10 @@ def resolve_max_parallel_workers() -> int:
         if resolved is not None:
             return resolved
     return os.cpu_count() or 1
+
+
+def resolve_gui_parallel_workers(max_parallel_workers: int) -> int:
+    return max(1, min(max_parallel_workers, MAX_GUI_PARALLEL_WORKERS))
 
 
 def build_pytest_command(
@@ -113,6 +118,7 @@ def build_commands(mode: str) -> list[CommandSpec]:
     python_exec, python_display = resolve_python()
     xdist_available = pytest_xdist_available()
     worker_count = resolve_max_parallel_workers()
+    gui_worker_count = resolve_gui_parallel_workers(worker_count)
     fast_notice = None
     if not xdist_available:
         fast_notice = "pytest-xdist is unavailable; falling back to serial pytest for fast mode."
@@ -135,7 +141,7 @@ def build_commands(mode: str) -> list[CommandSpec]:
         python_exec=python_exec,
         python_display=python_display,
         use_xdist=xdist_available,
-        worker_count=worker_count,
+        worker_count=gui_worker_count,
         notice=gui_notice,
     )
     slow_command = build_pytest_command(

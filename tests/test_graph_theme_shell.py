@@ -20,9 +20,8 @@ from ea_node_editor.ui.graph_theme import (
     GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1,
     GRAPH_STITCH_LIGHT_NODE_TOKENS_V1,
 )
-from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.theme import build_theme_stylesheet
-from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.main_window_shell.base import SharedMainWindowShellTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SHELL_TEST_RUNNER = (
@@ -34,14 +33,10 @@ _SHELL_TEST_RUNNER = (
 )
 
 
-class GraphThemeShellTests(MainWindowShellTestBase):
+class GraphThemeShellTests(SharedMainWindowShellTestBase):
 
     def _recreate_window(self) -> None:
-        self.window.close()
-        self.app.processEvents()
-        self.window = ShellWindow()
-        self.window.show()
-        self.app.processEvents()
+        self._reopen_shared_window()
 
     def _set_graphics(self, *, theme_id: str, graph_theme: dict[str, object] | None = None) -> None:
         graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)

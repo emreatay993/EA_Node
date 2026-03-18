@@ -11,9 +11,8 @@ from PyQt6.QtWidgets import QDialog
 from ea_node_editor.app import APP_STYLESHEET
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
-from ea_node_editor.ui.shell.window import ShellWindow
 from ea_node_editor.ui.theme import STITCH_DARK_V1, STITCH_LIGHT_V1, build_theme_stylesheet
-from tests.main_window_shell.base import MainWindowShellTestBase
+from tests.main_window_shell.base import SharedMainWindowShellTestBase
 from tests.test_main_window_shell import _named_child_items
 
 
@@ -28,15 +27,10 @@ def _alpha_color_name(value: str, alpha: float) -> str:
     return _color_name(color, include_alpha=True)
 
 
-class ShellThemeTests(MainWindowShellTestBase):
+class ShellThemeTests(SharedMainWindowShellTestBase):
 
     def _recreate_window(self) -> None:
-        self.window.close()
-        self.app.processEvents()
-        self.window = ShellWindow()
-        self.window.resize(1200, 800)
-        self.window.show()
-        self.app.processEvents()
+        self._reopen_shared_window()
 
     def _apply_theme(self, theme_id: str) -> None:
         self.window.app_preferences_controller.set_graphics_settings(

@@ -60,11 +60,14 @@ Before merge, inspect or run the full workflow:
   the proof layer.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
   commands.
-- `fast`, `gui`, and the dedicated `full` shell-isolation phase use
+- `fast` and the dedicated `full` shell-isolation phase use
   `-n <resolved_count> --dist load` when `pytest-xdist` is installed in the
   project venv, where `<resolved_count>` resolves as
   `psutil.cpu_count(logical=True)` when available, else `os.cpu_count()`,
   else `1`.
+- `gui` uses the same resolution path, then caps the worker count at `6`
+  before passing `-n <gui_resolved_count> --dist load` because the QML-heavy
+  slice regresses when it over-saturates the host.
 - When `pytest-xdist` is unavailable, all xdist-enabled phases fall back to
   serial pytest automatically and the runner prints the notice.
 - `full` keeps the non-shell pytest phases first, then runs

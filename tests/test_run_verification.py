@@ -70,7 +70,7 @@ class RunVerificationTests(unittest.TestCase):
                 "-m",
                 "pytest",
                 "-n",
-                "12",
+                "6",
                 "--dist",
                 "load",
                 "-m",
@@ -98,6 +98,12 @@ class RunVerificationTests(unittest.TestCase):
             ),
             shell_command.display_argv,
         )
+
+    def test_gui_parallel_worker_count_is_capped_for_qml_heavy_phase(self) -> None:
+        self.assertEqual(1, self.runner.resolve_gui_parallel_workers(1))
+        self.assertEqual(4, self.runner.resolve_gui_parallel_workers(4))
+        self.assertEqual(6, self.runner.resolve_gui_parallel_workers(6))
+        self.assertEqual(6, self.runner.resolve_gui_parallel_workers(12))
 
     def test_gui_mode_falls_back_to_serial_with_notice_when_xdist_is_unavailable(self) -> None:
         with (

@@ -11,7 +11,7 @@
 | Mode | Command | Coverage | Notes |
 |---|---|---|---|
 | `fast` | `./venv/Scripts/python.exe scripts/run_verification.py --mode fast` | Default day-to-day pytest loop for tests that are not marked `gui` or `slow` | Uses `pytest -m "not gui and not slow"` and ignores the four shell-backed modules plus `tests/test_shell_isolation_phase.py`; when `pytest-xdist` is importable in the project venv, resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, then passes `-n <resolved_count> --dist load`; otherwise prints the serial fallback notice |
-| `gui` | `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` | QML-heavy pytest slice marked `gui and not slow` | Uses the same explicit max-worker resolution as `fast` and passes `-n <resolved_count> --dist load` when `pytest-xdist` is importable in the project venv; otherwise prints the serial fallback notice. It still ignores the four shell-backed modules plus `tests/test_shell_isolation_phase.py` |
+| `gui` | `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` | QML-heavy pytest slice marked `gui and not slow` | Resolves workers as `psutil.cpu_count(logical=True)` else `os.cpu_count()` else `1`, then caps that value at `6` and passes `-n <gui_resolved_count> --dist load` when `pytest-xdist` is importable in the project venv; otherwise prints the serial fallback notice. It still ignores the four shell-backed modules plus `tests/test_shell_isolation_phase.py` |
 | `slow` | `./venv/Scripts/python.exe scripts/run_verification.py --mode slow` | Slow pytest slice marked `slow` | Serial by design and still ignores the four shell-backed modules plus `tests/test_shell_isolation_phase.py` |
 | `full` | `./venv/Scripts/python.exe scripts/run_verification.py --mode full` | Runs `fast`, `gui`, and `slow` first, then the dedicated fresh-process shell-isolation phase | Use `--dry-run` to inspect the exact subprocess commands before execution; with `pytest-xdist`, the shell phase is `./venv/Scripts/python.exe -m pytest tests/test_shell_isolation_phase.py -q -n <resolved_count> --dist load`, else the same phase runs serially |
 
@@ -77,10 +77,11 @@
 - `pytest-xdist` is declared in `pyproject.toml` and `requirements.txt`, and it
   is installed in the project venv as of `2026-03-18`. On this machine,
   `resolve_max_parallel_workers()` resolves `12` via
-  `psutil.cpu_count(logical=True)`, so `fast`, `gui`, and the dedicated
-  shell-isolation phase emit `-n 12 --dist load`. If the plugin is unavailable
-  in another environment, `scripts/run_verification.py` still falls back to
-  serial pytest and prints the runner notice.
+  `psutil.cpu_count(logical=True)`, so `fast` and the dedicated
+  shell-isolation phase emit `-n 12 --dist load`, while `gui` caps that
+  resolved value to `6` workers. If the plugin is unavailable in another
+  environment, `scripts/run_verification.py` still falls back to serial pytest
+  and prints the runner notice.
 
 ## Companion Proof Audit
 
@@ -104,6 +105,6 @@
 
 | Command | Result | Notes |
 |---|---|---|
-| `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated `fast`, `gui`, `slow`, and the dedicated shell-isolation phase; each non-shell pytest phase included all five `--ignore=` entries, and the xdist-enabled phases emitted `-n 12 --dist load` in the current project venv |
+| `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated `fast`, `gui`, `slow`, and the dedicated shell-isolation phase; each non-shell pytest phase included all five `--ignore=` entries, `fast` and the shell-isolation phase emitted `-n 12 --dist load`, and `gui` emitted `-n 6 --dist load` in the current project venv |
 | `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_shell_isolation_phase.py -q -n 12 --dist load` | PASS | Accepted `P04` shell-isolation benchmark evidence: `26 passed in 57.27s` |
 | `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q` | PASS | The previous serializer spot-check caveat no longer reproduces in the current project venv |

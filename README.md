@@ -300,8 +300,10 @@ When you change verification docs or packet-owned proof links, audit them with:
 - `gui` and `slow` keep the QML-heavy phases explicit:
   `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` and
   `./venv/Scripts/python.exe scripts/run_verification.py --mode slow`. The
-  `gui` phase also uses `-n <resolved_count> --dist load` when
-  `pytest-xdist` is available; `slow` remains serial by design.
+  `gui` phase also uses `-n <gui_resolved_count> --dist load` when
+  `pytest-xdist` is available, where `<gui_resolved_count>` is capped at `6`
+  workers to avoid over-saturating the QML-heavy slice; `slow` remains serial
+  by design.
 - `full` runs the three non-shell pytest phases first, then executes
   `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_shell_isolation_phase.py -q -n <resolved_count> --dist load`
   as the dedicated shell-isolation phase when `pytest-xdist` is available.
