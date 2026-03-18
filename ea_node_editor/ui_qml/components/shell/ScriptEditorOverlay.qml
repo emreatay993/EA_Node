@@ -5,7 +5,6 @@ import "MainShellUtils.js" as MainShellUtils
 
 Rectangle {
     id: root
-    property var mainWindowRef
     readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var scriptEditorBridgeRef
     property var scriptHighlighterBridgeRef

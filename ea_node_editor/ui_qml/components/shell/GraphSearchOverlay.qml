@@ -4,7 +4,6 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
-    property var mainWindowRef
     readonly property var shellLibraryBridgeRef: shellLibraryBridge
     readonly property var themePalette: themeBridge.palette
 

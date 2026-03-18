@@ -14,7 +14,6 @@ Rectangle {
     LibraryWorkflowContextPopup {
         id: libraryWorkflowContextPopup
         anchors.fill: parent
-        mainWindowRef: mainWindow
     }
 
     ColumnLayout {
@@ -22,11 +21,9 @@ Rectangle {
         spacing: 0
 
         ShellTitleBar {
-            mainWindowRef: mainWindow
         }
 
         ShellRunToolbar {
-            mainWindowRef: mainWindow
             viewBridgeRef: viewBridge
             scriptEditorBridgeRef: scriptEditorBridge
         }
@@ -38,7 +35,6 @@ Rectangle {
 
             NodeLibraryPane {
                 id: libraryPane
-                mainWindowRef: mainWindow
                 graphCanvasRef: workspaceCenterPane.graphCanvasRef
                 popupHostItem: root
                 onWorkflowContextRequested: function(workflowId, workflowScope, positionX, positionY) {
@@ -51,13 +47,10 @@ Rectangle {
                 mainWindowRef: mainWindow
                 sceneBridgeRef: root.sceneBridgeRef
                 viewBridgeRef: root.viewBridgeRef
-                workspaceTabsBridgeRef: workspaceTabsBridge
-                consoleBridgeRef: consoleBridge
                 overlayHostItem: root
             }
 
             InspectorPane {
-                mainWindowRef: mainWindow
             }
         }
 
@@ -71,24 +64,20 @@ Rectangle {
 
     GraphSearchOverlay {
         id: graphSearchOverlay
-        mainWindowRef: mainWindow
     }
 
     ConnectionQuickInsertOverlay {
         id: connectionQuickInsertOverlay
-        mainWindowRef: mainWindow
     }
 
     ScriptEditorOverlay {
         id: scriptOverlay
-        mainWindowRef: mainWindow
         scriptEditorBridgeRef: scriptEditorBridge
         scriptHighlighterBridgeRef: scriptHighlighterBridge
     }
 
     GraphHintOverlay {
         id: graphHintOverlay
-        mainWindowRef: mainWindow
         graphSearchVisible: graphSearchOverlay.visible || connectionQuickInsertOverlay.visible
     }
 }
