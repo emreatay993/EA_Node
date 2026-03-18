@@ -1472,7 +1472,33 @@ class MainWindowShellHostProtocolStateTests(MainWindowShellTestBase):
         self.assertTrue(quick_insert_state.open)
         self.assertEqual(quick_insert_state.context["mode"], "canvas_insert")
         self.assertEqual(quick_insert_state.context["overlay_x"], 120.0)
+        self.assertEqual(quick_insert_state.results, [])
+        self.assertEqual(quick_insert_state.highlight_index, -1)
         self.assertEqual(quick_insert_state.results, self.window.connection_quick_insert_results)
+
+        self.window.set_connection_quick_insert_query("start")
+        self.app.processEvents()
+
+        quick_insert_state = self.window.search_scope_state.connection_quick_insert
+        self.assertEqual(quick_insert_state.query, "start")
+        self.assertEqual(quick_insert_state.highlight_index, 0)
+        self.assertGreaterEqual(len(quick_insert_state.results), 2)
+        self.assertIn(
+            "core.start",
+            {str(item.get("type_id", "")) for item in quick_insert_state.results},
+        )
+        self.assertIn(
+            "passive.flowchart.start",
+            {str(item.get("type_id", "")) for item in quick_insert_state.results},
+        )
+
+        self.window.set_connection_quick_insert_query("   ")
+        self.app.processEvents()
+
+        quick_insert_state = self.window.search_scope_state.connection_quick_insert
+        self.assertEqual(quick_insert_state.query, "   ")
+        self.assertEqual(quick_insert_state.results, [])
+        self.assertEqual(quick_insert_state.highlight_index, -1)
 
         self.window.show_graph_hint("Packet hint", 500)
         self.assertEqual(self.window.search_scope_state.graph_hint_message, "Packet hint")

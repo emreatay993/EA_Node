@@ -501,9 +501,12 @@ def build_canvas_quick_insert_items(
     query: str,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
+    normalized_query = str(query).strip()
+    if not normalized_query:
+        return []
     ranked: list[tuple[int, str, dict[str, Any]]] = []
     for item in combined_items:
-        if not _library_item_matches_query(item, query=query, compatible_ports=[]):
+        if not _library_item_matches_query(item, query=normalized_query, compatible_ports=[]):
             continue
         payload = dict(item)
         payload["compatible_ports"] = []
@@ -513,7 +516,7 @@ def build_canvas_quick_insert_items(
         ranked.append(
             (
                 _connection_quick_insert_rank(
-                    query,
+                    normalized_query,
                     display_name=str(item.get("display_name", "")),
                     type_id=str(item.get("type_id", "")),
                 ),

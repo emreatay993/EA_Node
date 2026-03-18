@@ -226,8 +226,6 @@ Rectangle {
                     Text {
                         width: parent.width
                         text: String(modelData.category || "")
-                            + "  |  "
-                            + String(modelData.type_id || "")
                         color: index === root.shellLibraryBridgeRef.connection_quick_insert_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.muted_fg
