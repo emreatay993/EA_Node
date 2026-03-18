@@ -275,8 +275,9 @@ Restart the application and the node will appear in the Node Library under the
 
 Use the repo-owned runner for the default day-to-day loop. It keeps the
 `fast`, `gui`, `slow`, and `full` workflow stable, applies
-`QT_QPA_PLATFORM=offscreen` to its child verification commands, and reserves
-the shell-wrapper suites for isolated `unittest` execution in `full` mode.
+`QT_QPA_PLATFORM=offscreen` to its child verification commands, and keeps the
+shell-backed suites on a dedicated fresh-process shell-isolation phase in
+`full` mode.
 
 Inspect or run the full workflow with:
 
@@ -291,20 +292,29 @@ When you change verification docs or packet-owned proof links, audit them with:
 ./venv/Scripts/python.exe scripts/check_traceability.py
 ```
 
-- `fast` targets `pytest -m "not gui and not slow"` and uses `pytest-xdist`
-  when it is available in the project venv, with automatic serial fallback
-  when it is not installed.
+- `fast` targets `pytest -m "not gui and not slow"` and, when
+  `pytest-xdist` is available in the project venv, resolves an explicit worker
+  count as `psutil.cpu_count(logical=True)`, else `os.cpu_count()`, else `1`,
+  then passes `-n <resolved_count> --dist load`. If `pytest-xdist` is
+  unavailable, it falls back to serial pytest and prints the runner notice.
 - `gui` and `slow` keep the QML-heavy phases explicit:
   `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` and
   `./venv/Scripts/python.exe scripts/run_verification.py --mode slow`.
-- `full` runs the three pytest phases first, then reruns
-  `tests.test_main_window_shell`, `tests.test_script_editor_dock`,
+- `full` runs the three non-shell pytest phases first, then executes
+  `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_shell_isolation_phase.py -q -n <resolved_count> --dist load`
+  as the dedicated shell-isolation phase when `pytest-xdist` is available.
+  Each parametrized target still launches its own fresh child process across
+  the `tests.test_main_window_shell`, `tests.test_script_editor_dock`,
   `tests.test_shell_run_controller`, and
-  `tests.test_shell_project_session_controller` in separate `unittest`
-  processes to preserve the approved shell isolation model.
+  `tests.test_shell_project_session_controller` catalogs; without
+  `pytest-xdist`, the same phase falls back to serial pytest and preserves the
+  fresh-process model.
+- The direct module-level shell `unittest` commands listed in
+  `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` remain supported for
+  focused reruns outside the published `full` workflow.
 - See `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` for the approved mode
-  shapes, shell isolation rules, the companion proof audit, and the current
-  baseline-status notes.
+  shapes, dedicated shell-isolation phase, benchmark evidence, companion
+  proof-audit command, and current baseline-status notes.
 
 Focused graph-surface regression gate:
 
@@ -342,7 +352,7 @@ packaging, installer creation, and code signing instructions.
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
-- [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, shell isolation rules, proof-audit command, and baseline-status notes
+- [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 

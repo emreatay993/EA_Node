@@ -39,25 +39,54 @@ DOCUMENT_RULES: dict[str, DocumentRule] = {
             "scripts/check_traceability.py",
             "Graph Surface Input QA Matrix",
             "Verification Speed QA Matrix",
+            "dedicated fresh-process shell-isolation phase",
+            "tests/test_shell_isolation_phase.py",
             "proof-audit command",
         ),
         forbidden=(
             "serializer caveat.",
+            "shell-wrapper suites for isolated `unittest` execution",
         ),
     ),
     "docs/GETTING_STARTED.md": DocumentRule(
         required=(
             "scripts/check_traceability.py",
+            "tests/test_shell_isolation_phase.py",
+            "psutil.cpu_count(logical=True)",
+            "dedicated fresh-process",
             "serializer spot-check",
             "no longer carries that",
-            "shell-module verification status",
+            "benchmark evidence",
         ),
         forbidden=(
             "remains a separate persistence follow-up",
+            "isolated module-level",
+        ),
+    ),
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": DocumentRule(
+        required=(
+            "REQ-QA-015",
+            "tests/test_shell_isolation_phase.py",
+            "psutil.cpu_count(logical=True)",
+            "AC-REQ-QA-015-01",
+            "AC-REQ-QA-016-01",
+            "REQ-QA-018",
+            "AC-REQ-QA-018-01",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "graph_canvas_perf_docs",
+        ),
+        forbidden=(
+            "the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution",
+            "on separate `unittest` commands after the pytest phases",
         ),
     ),
     "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md": DocumentRule(
         required=(
+            "dedicated shell-isolation phase",
+            "tests/test_shell_isolation_phase.py",
+            "psutil.cpu_count(logical=True)",
+            "77.776s",
+            "26 passed in 57.27s",
             "## Companion Proof Audit",
             "scripts/check_traceability.py",
             "## Current Baseline Status",
@@ -66,6 +95,8 @@ DOCUMENT_RULES: dict[str, DocumentRule] = {
             "No known out-of-scope verification baseline failures remain",
         ),
         forbidden=(
+            "isolated shell-wrapper `unittest` phase",
+            "adds `-n auto` only when `pytest-xdist` is importable in the project venv",
             "still fails because passive image-panel round-trips add default crop fields",
             "serializer baseline remains open",
         ),
@@ -111,14 +142,6 @@ DOCUMENT_RULES: dict[str, DocumentRule] = {
             "GraphCanvas.qml",
             "GRAPH_CANVAS_PERF_QA_MATRIX.md",
             "steady-state idle appearance returns automatically",
-        ),
-    ),
-    "docs/specs/requirements/90_QA_ACCEPTANCE.md": DocumentRule(
-        required=(
-            "REQ-QA-018",
-            "AC-REQ-QA-018-01",
-            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
-            "graph_canvas_perf_docs",
         ),
     ),
     "docs/specs/perf/RC_PACKAGING_REPORT.md": DocumentRule(
@@ -191,6 +214,22 @@ TRACEABILITY_ROW_RULES: dict[str, DocumentRule] = {
             "scripts/check_traceability.py",
         ),
     ),
+    "REQ-QA-015": DocumentRule(
+        required=(
+            "tests/test_shell_isolation_phase.py",
+            "README.md",
+            "docs/GETTING_STARTED.md",
+            "VERIFICATION_SPEED_QA_MATRIX.md",
+        ),
+    ),
+    "REQ-QA-016": DocumentRule(
+        required=(
+            "psutil.cpu_count(logical=True)",
+            "README.md",
+            "docs/GETTING_STARTED.md",
+            "VERIFICATION_SPEED_QA_MATRIX.md",
+        ),
+    ),
     "REQ-QA-018": DocumentRule(
         required=(
             "GRAPH_CANVAS_PERF_QA_MATRIX.md",
@@ -217,6 +256,21 @@ TRACEABILITY_ROW_RULES: dict[str, DocumentRule] = {
         required=(
             "scripts/check_traceability.py",
             "tests/test_traceability_checker.py",
+        ),
+    ),
+    "AC-REQ-QA-015-01": DocumentRule(
+        required=(
+            "./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run",
+            "tests/test_shell_isolation_phase.py",
+            "README.md",
+            "docs/GETTING_STARTED.md",
+        ),
+    ),
+    "AC-REQ-QA-016-01": DocumentRule(
+        required=(
+            "README.md",
+            "docs/GETTING_STARTED.md",
+            "VERIFICATION_SPEED_QA_MATRIX.md",
         ),
     ),
     "AC-REQ-QA-017-01": DocumentRule(

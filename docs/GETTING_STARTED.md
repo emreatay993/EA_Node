@@ -59,12 +59,23 @@ Before merge, inspect or run the full workflow:
   links, run `./venv/Scripts/python.exe scripts/check_traceability.py` to audit
   the proof layer.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
-  commands and falls back to serial pytest automatically when `pytest-xdist`
-  is not installed in the project venv.
-- `full` keeps `tests.test_main_window_shell`, `tests.test_script_editor_dock`,
+  commands.
+- `fast` and the dedicated `full` shell-isolation phase use
+  `-n <resolved_count> --dist load` when `pytest-xdist` is installed in the
+  project venv, where `<resolved_count>` resolves as
+  `psutil.cpu_count(logical=True)` when available, else `os.cpu_count()`,
+  else `1`.
+- When `pytest-xdist` is unavailable, both xdist-enabled phases fall back to
+  serial pytest automatically and the runner prints the notice.
+- `full` keeps the non-shell pytest phases first, then runs
+  `tests/test_shell_isolation_phase.py` as the dedicated fresh-process
+  shell-isolation phase; the target catalogs cover the shell-backed suites
+  from `tests.test_main_window_shell`, `tests.test_script_editor_dock`,
   `tests.test_shell_run_controller`, and
-  `tests.test_shell_project_session_controller` on isolated module-level
-  `unittest` execution after the pytest phases.
+  `tests.test_shell_project_session_controller`.
+- The direct module-level shell `unittest` commands remain supported for
+  focused manual reruns, but they are no longer the documented `full`
+  workflow.
 - The previously documented serializer spot-check
   `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
   now passes in the project venv, so the QA matrix no longer carries that
@@ -99,7 +110,7 @@ Manual passive-media fixture:
 - [docs/specs/INDEX.md](./specs/INDEX.md): canonical requirements, ADRs, and traceability
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
 - [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and shell-module verification status
-- [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, shell isolation rules, proof-audit command, and baseline-status notes
+- [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
 
 ## Updating Architecture Diagrams
 

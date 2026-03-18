@@ -116,6 +116,76 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
 
+    def test_audit_repository_reports_shell_phase_doc_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo_fixture(repo_root)
+
+            readme_path = repo_root / "README.md"
+            readme_path.write_text(
+                readme_path.read_text(encoding="utf-8").replace(
+                    "dedicated fresh-process shell-isolation phase",
+                    "shell-wrapper suites for isolated `unittest` execution",
+                ),
+                encoding="utf-8",
+            )
+
+            qa_path = repo_root / "docs/specs/requirements/90_QA_ACCEPTANCE.md"
+            qa_path.write_text(
+                qa_path.read_text(encoding="utf-8")
+                + "\n"
+                + "`REQ-QA-015`: the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution inside the documented `full` workflow rather than the pytest phases.\n",
+                encoding="utf-8",
+            )
+
+            matrix_doc = repo_root / "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md"
+            matrix_doc.write_text(
+                matrix_doc.read_text(encoding="utf-8").replace(
+                    "26 passed in 57.27s",
+                    "57.27 seconds",
+                ).replace(
+                    "phase both emit `-n 12 --dist load`.",
+                    "phase both emit `-n 12 --dist load`.\nadds `-n auto` only when `pytest-xdist` is importable in the project venv",
+                ),
+                encoding="utf-8",
+            )
+
+            traceability_matrix = repo_root / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+            traceability_matrix.write_text(
+                traceability_matrix.read_text(encoding="utf-8").replace(
+                    "| REQ-QA-015 | 90_QA_ACCEPTANCE | Dedicated shell-isolation phase in the documented `full` workflow: `scripts/run_verification.py`, `tests/test_shell_isolation_phase.py`, `tests/shell_isolation_runtime.py`, `tests/shell_isolation_main_window_targets.py`, `tests/shell_isolation_controller_targets.py`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `README.md`, `docs/GETTING_STARTED.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` |",
+                    "| REQ-QA-015 | 90_QA_ACCEPTANCE | Shell-wrapper isolation in the documented `full` workflow: `scripts/run_verification.py`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `tests/test_main_window_shell.py`, `tests/test_script_editor_dock.py`, `tests/test_shell_run_controller.py`, `tests/test_shell_project_session_controller.py`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` |",
+                ),
+                encoding="utf-8",
+            )
+
+            issues = self.checker.audit_repository(repo_root)
+
+        self.assertIn(
+            "README.md: missing required text: dedicated fresh-process shell-isolation phase",
+            issues,
+        )
+        self.assertIn(
+            "README.md: found stale text: shell-wrapper suites for isolated `unittest` execution",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/90_QA_ACCEPTANCE.md: found stale text: the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md: missing required text: 26 passed in 57.27s",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md: found stale text: adds `-n auto` only when `pytest-xdist` is importable in the project venv",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/TRACEABILITY_MATRIX.md: row REQ-QA-015 missing required text: tests/test_shell_isolation_phase.py",
+            issues,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
