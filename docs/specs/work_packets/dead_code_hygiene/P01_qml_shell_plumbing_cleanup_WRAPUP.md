@@ -5,7 +5,7 @@
 - Packet: `P01`
 - Branch Label: `codex/dead-code-hygiene/p01-qml-shell-plumbing-cleanup`
 - Commit Owner: `worker`
-- Commit SHA: `n/a`
+- Commit SHA: `965390b41f342e813ecdd8328e7e28dae033fca0`
 - Changed Files: `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml`, `ea_node_editor/ui_qml/components/shell/GraphSearchOverlay.qml`, `ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml`, `ea_node_editor/ui_qml/components/shell/GraphHintOverlay.qml`, `ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml`, `ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml`, `ea_node_editor/ui_qml/components/shell/ShellRunToolbar.qml`, `ea_node_editor/ui_qml/components/shell/ShellTitleBar.qml`, `ea_node_editor/ui_qml/components/shell/InspectorPane.qml`, `ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml`, `tests/test_main_window_shell.py`, `docs/specs/work_packets/dead_code_hygiene/P01_qml_shell_plumbing_cleanup_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/dead_code_hygiene/P01_qml_shell_plumbing_cleanup_WRAPUP.md`
 
