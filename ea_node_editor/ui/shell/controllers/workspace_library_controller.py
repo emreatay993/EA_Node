@@ -15,23 +15,19 @@ from ea_node_editor.custom_workflows import (
 )
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.model import NodeInstance
-from ea_node_editor.graph.transforms import (
-    build_subnode_custom_workflow_snapshot_data,
-)
-from ea_node_editor.nodes.builtins.subnode import (
-    SUBNODE_TYPE_ID,
-)
+from ea_node_editor.graph.transforms import build_subnode_custom_workflow_snapshot_data
+from ea_node_editor.nodes.builtins.subnode import SUBNODE_TYPE_ID
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.ui.shell.controllers.result import ControllerResult
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import WorkspaceDropConnectOps
+from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
+from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
+from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import WorkspaceViewNavOps
+from ea_node_editor.ui.shell.library_flow import pick_connection_candidate
 from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
 )
-from ea_node_editor.ui.shell.library_flow import pick_connection_candidate
-from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
-from ea_node_editor.ui.shell.controllers.workspace_edit_ops import WorkspaceEditOps
-from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import WorkspaceDropConnectOps
-from ea_node_editor.ui.shell.controllers.result import ControllerResult
-from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import WorkspaceViewNavOps
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -42,46 +38,41 @@ _WORKFLOW_SCOPE_LOCAL = "local"
 _WORKFLOW_SCOPE_GLOBAL = "global"
 
 
-class WorkspaceLibraryController:
-    def __init__(self, host: ShellWindow) -> None:
+class _WorkspaceCustomWorkflowCapability:
+    def __init__(self, host: ShellWindow, controller: WorkspaceLibraryController) -> None:
         self._host = host
-        self._view_nav_ops = WorkspaceViewNavOps(host, self)
-        self._drop_connect_ops = WorkspaceDropConnectOps(host, self)
-        self._edit_ops = WorkspaceEditOps(host, self)
-        self._io_ops = WorkspaceIOOps(host, self)
-        self._last_clipboard_fragment_signature = ""
-        self._clipboard_paste_count = 0
+        self._controller = controller
 
-    def _project_metadata(self) -> dict[str, Any]:
+    def project_metadata(self) -> dict[str, Any]:
         metadata = self._host.model.project.metadata
         if isinstance(metadata, dict):
             return metadata
         self._host.model.project.metadata = {}
         return self._host.model.project.metadata
 
-    def _custom_workflow_definitions(self) -> list[dict[str, Any]]:
-        metadata = self._project_metadata()
+    def custom_workflow_definitions(self) -> list[dict[str, Any]]:
+        metadata = self.project_metadata()
         normalized = normalize_custom_workflow_metadata(metadata.get("custom_workflows"))
         if metadata.get("custom_workflows") != normalized:
             metadata["custom_workflows"] = normalized
             self._host.model.project.metadata = metadata
         return normalized
 
-    def _set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None:
-        metadata = self._project_metadata()
+    def set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None:
+        metadata = self.project_metadata()
         metadata["custom_workflows"] = normalize_custom_workflow_metadata(definitions)
         self._host.model.project.metadata = metadata
 
     @staticmethod
-    def _global_custom_workflow_definitions() -> list[dict[str, Any]]:
+    def global_custom_workflow_definitions() -> list[dict[str, Any]]:
         return normalize_custom_workflow_metadata(load_global_custom_workflow_definitions())
 
     @staticmethod
-    def _set_global_custom_workflow_definitions(definitions: list[dict[str, Any]]) -> None:
+    def set_global_custom_workflow_definitions(definitions: list[dict[str, Any]]) -> None:
         save_global_custom_workflow_definitions(definitions)
 
     @staticmethod
-    def _upsert_workflow_definition_by_id(
+    def upsert_workflow_definition_by_id(
         definitions: list[dict[str, Any]],
         definition: dict[str, Any],
     ) -> list[dict[str, Any]]:
@@ -98,7 +89,7 @@ class WorkspaceLibraryController:
         return normalize_custom_workflow_metadata(normalized)
 
     @staticmethod
-    def _rename_workflow_definition_by_id(
+    def rename_workflow_definition_by_id(
         definitions: list[dict[str, Any]],
         workflow_id: str,
         new_name: str,
@@ -118,11 +109,11 @@ class WorkspaceLibraryController:
         return None
 
     def custom_workflow_library_items(self) -> list[dict[str, Any]]:
-        local_items = custom_workflow_library_items(self._custom_workflow_definitions())
+        local_items = custom_workflow_library_items(self.custom_workflow_definitions())
         for item in local_items:
             item["workflow_scope"] = _WORKFLOW_SCOPE_LOCAL
 
-        global_items = custom_workflow_library_items(self._global_custom_workflow_definitions())
+        global_items = custom_workflow_library_items(self.global_custom_workflow_definitions())
         for item in global_items:
             item["workflow_scope"] = _WORKFLOW_SCOPE_GLOBAL
 
@@ -145,10 +136,16 @@ class WorkspaceLibraryController:
         normalized_workflow_id = str(workflow_id or "").strip()
         if not normalized_workflow_id:
             return None
-        local_definition = find_custom_workflow_definition(self._custom_workflow_definitions(), normalized_workflow_id)
+        local_definition = find_custom_workflow_definition(
+            self.custom_workflow_definitions(),
+            normalized_workflow_id,
+        )
         if local_definition is not None:
             return local_definition
-        return find_custom_workflow_definition(self._global_custom_workflow_definitions(), normalized_workflow_id)
+        return find_custom_workflow_definition(
+            self.global_custom_workflow_definitions(),
+            normalized_workflow_id,
+        )
 
     def set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> ControllerResult[bool]:
         normalized_workflow_id = str(workflow_id or "").strip()
@@ -158,8 +155,8 @@ class WorkspaceLibraryController:
         if target_scope not in {_WORKFLOW_SCOPE_LOCAL, _WORKFLOW_SCOPE_GLOBAL}:
             return ControllerResult(False, "Custom workflow scope is invalid.", payload=False)
 
-        local_definitions = self._custom_workflow_definitions()
-        global_definitions = self._global_custom_workflow_definitions()
+        local_definitions = self.custom_workflow_definitions()
+        global_definitions = self.global_custom_workflow_definitions()
 
         if target_scope == _WORKFLOW_SCOPE_GLOBAL:
             definition = find_custom_workflow_definition(local_definitions, normalized_workflow_id)
@@ -170,12 +167,12 @@ class WorkspaceLibraryController:
                 for item in local_definitions
                 if str(item.get("workflow_id", "")).strip() != normalized_workflow_id
             ]
-            updated_global = self._upsert_workflow_definition_by_id(global_definitions, definition)
-            self._set_custom_workflow_definitions(remaining_local)
+            updated_global = self.upsert_workflow_definition_by_id(global_definitions, definition)
+            self.set_custom_workflow_definitions(remaining_local)
             try:
-                self._set_global_custom_workflow_definitions(updated_global)
+                self.set_global_custom_workflow_definitions(updated_global)
             except OSError as exc:
-                self._set_custom_workflow_definitions(local_definitions)
+                self.set_custom_workflow_definitions(local_definitions)
                 return ControllerResult(False, f"Could not save global custom workflows.\n{exc}", payload=False)
             self._host.project_meta_changed.emit()
             self._host.node_library_changed.emit()
@@ -189,12 +186,12 @@ class WorkspaceLibraryController:
             for item in global_definitions
             if str(item.get("workflow_id", "")).strip() != normalized_workflow_id
         ]
-        updated_local = self._upsert_workflow_definition_by_id(local_definitions, definition)
+        updated_local = self.upsert_workflow_definition_by_id(local_definitions, definition)
         try:
-            self._set_global_custom_workflow_definitions(remaining_global)
+            self.set_global_custom_workflow_definitions(remaining_global)
         except OSError as exc:
             return ControllerResult(False, f"Could not save global custom workflows.\n{exc}", payload=False)
-        self._set_custom_workflow_definitions(updated_local)
+        self.set_custom_workflow_definitions(updated_local)
         self._host.project_meta_changed.emit()
         self._host.node_library_changed.emit()
         return ControllerResult(True, payload=True)
@@ -211,18 +208,18 @@ class WorkspaceLibraryController:
         removed_global = False
 
         if normalized_scope in {"", _WORKFLOW_SCOPE_LOCAL}:
-            local_definitions = self._custom_workflow_definitions()
+            local_definitions = self.custom_workflow_definitions()
             remaining_local = [
                 definition
                 for definition in local_definitions
                 if str(definition.get("workflow_id", "")).strip() != normalized_workflow_id
             ]
             if len(remaining_local) != len(local_definitions):
-                self._set_custom_workflow_definitions(remaining_local)
+                self.set_custom_workflow_definitions(remaining_local)
                 removed_local = True
 
         if normalized_scope in {"", _WORKFLOW_SCOPE_GLOBAL} and not removed_local:
-            global_definitions = self._global_custom_workflow_definitions()
+            global_definitions = self.global_custom_workflow_definitions()
             remaining_global = [
                 definition
                 for definition in global_definitions
@@ -230,7 +227,7 @@ class WorkspaceLibraryController:
             ]
             if len(remaining_global) != len(global_definitions):
                 try:
-                    self._set_global_custom_workflow_definitions(remaining_global)
+                    self.set_global_custom_workflow_definitions(remaining_global)
                 except OSError as exc:
                     return ControllerResult(False, f"Could not save global custom workflows.\n{exc}", payload=False)
                 removed_global = True
@@ -255,17 +252,17 @@ class WorkspaceLibraryController:
 
         if normalized_scope == _WORKFLOW_SCOPE_GLOBAL:
             current_definition = find_custom_workflow_definition(
-                self._global_custom_workflow_definitions(),
+                self.global_custom_workflow_definitions(),
                 normalized_workflow_id,
             )
         else:
             current_definition = find_custom_workflow_definition(
-                self._custom_workflow_definitions(),
+                self.custom_workflow_definitions(),
                 normalized_workflow_id,
             )
             if current_definition is None and not normalized_scope:
                 current_definition = find_custom_workflow_definition(
-                    self._global_custom_workflow_definitions(),
+                    self.global_custom_workflow_definitions(),
                     normalized_workflow_id,
                 )
                 if current_definition is not None:
@@ -283,55 +280,55 @@ class WorkspaceLibraryController:
             return ControllerResult(False, payload=False)
 
         if normalized_scope == _WORKFLOW_SCOPE_GLOBAL:
-            updated_global = self._rename_workflow_definition_by_id(
-                self._global_custom_workflow_definitions(),
+            updated_global = self.rename_workflow_definition_by_id(
+                self.global_custom_workflow_definitions(),
                 normalized_workflow_id,
                 normalized_name,
             )
             if updated_global is None:
                 return ControllerResult(False, "Global custom workflow not found.", payload=False)
             try:
-                self._set_global_custom_workflow_definitions(updated_global)
+                self.set_global_custom_workflow_definitions(updated_global)
             except OSError as exc:
                 return ControllerResult(False, f"Could not save global custom workflows.\n{exc}", payload=False)
             self._host.node_library_changed.emit()
             return ControllerResult(True, payload=True)
 
-        updated_local = self._rename_workflow_definition_by_id(
-            self._custom_workflow_definitions(),
+        updated_local = self.rename_workflow_definition_by_id(
+            self.custom_workflow_definitions(),
             normalized_workflow_id,
             normalized_name,
         )
         if updated_local is None:
             return ControllerResult(False, "Project custom workflow not found.", payload=False)
-        self._set_custom_workflow_definitions(updated_local)
+        self.set_custom_workflow_definitions(updated_local)
         self._host.project_meta_changed.emit()
         self._host.node_library_changed.emit()
         return ControllerResult(True, payload=True)
 
     def publish_custom_workflow_from_selected_subnode(self) -> ControllerResult[bool]:
-        selected = self.selected_node_context()
+        selected = self._controller.selected_node_context()
         if selected is None:
             return ControllerResult(False, "Select a subnode shell to publish.", payload=False)
         node, _spec = selected
         if node.type_id != SUBNODE_TYPE_ID:
             return ControllerResult(False, "Selected node is not a subnode shell.", payload=False)
-        return self._publish_custom_workflow_from_shell(node.node_id)
+        return self.publish_custom_workflow_from_shell(node.node_id)
 
     def publish_custom_workflow_from_current_scope(self) -> ControllerResult[bool]:
         scope_shell_id = scope_parent_id(self._host.scene.active_scope_path)
         if not scope_shell_id:
             return ControllerResult(False, "Open a subnode scope to publish.", payload=False)
-        return self._publish_custom_workflow_from_shell(scope_shell_id)
+        return self.publish_custom_workflow_from_shell(scope_shell_id)
 
     def publish_custom_workflow_from_node(self, node_id: str) -> ControllerResult[bool]:
-        node_id = str(node_id or "").strip()
-        if not node_id:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
             return ControllerResult(False, "No node ID provided.", payload=False)
-        return self._publish_custom_workflow_from_shell(node_id)
+        return self.publish_custom_workflow_from_shell(normalized_node_id)
 
-    def _publish_custom_workflow_from_shell(self, shell_node_id: str) -> ControllerResult[bool]:
-        workspace = self.active_workspace()
+    def publish_custom_workflow_from_shell(self, shell_node_id: str) -> ControllerResult[bool]:
+        workspace = self._controller.active_workspace()
         if workspace is None:
             return ControllerResult(False, "Workspace not found.", payload=False)
         shell_node = workspace.nodes.get(str(shell_node_id).strip())
@@ -363,54 +360,33 @@ class WorkspaceLibraryController:
             return ControllerResult(False, "Subnode snapshot fragment is invalid.", payload=False)
 
         updated_definitions, _saved_definition = upsert_custom_workflow_definition(
-            self._custom_workflow_definitions(),
+            self.custom_workflow_definitions(),
             name=shell_node.title,
             description=_CUSTOM_WORKFLOW_DESCRIPTION,
             ports=copy.deepcopy(snapshot.get("ports", [])),
             fragment=normalized_fragment,
             source_shell_ref_id=shell_node.node_id,
         )
-        self._set_custom_workflow_definitions(updated_definitions)
+        self.set_custom_workflow_definitions(updated_definitions)
         self._host.project_meta_changed.emit()
         self._host.node_library_changed.emit()
         return ControllerResult(True, payload=True)
 
-    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
-        node_id = self._host.scene.selected_node_id()
-        if not node_id:
-            return None
-        workspace = self._host.model.project.workspaces.get(self._host.active_workspace_id)
-        if workspace is None:
-            return None
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            return None
-        spec = self._host.registry.get_spec(node.type_id)
-        return node, spec
 
-    def set_selected_node_property(self, key: str, value: Any) -> None:
-        self._edit_ops.set_selected_node_property(key, value)
-
-    def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
-        self._edit_ops.set_selected_port_exposed(key, exposed)
-
-    def set_selected_port_label(self, key: str, label: Any) -> bool:
-        return self._edit_ops.set_selected_port_label(key, label)
-
-    def set_selected_node_collapsed(self, collapsed: bool) -> None:
-        self._edit_ops.set_selected_node_collapsed(collapsed)
-
-    def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
-        return self._edit_ops.request_add_selected_subnode_pin(direction)
+class _WorkspaceNavigationCapability:
+    def __init__(self, host: ShellWindow, controller: WorkspaceLibraryController) -> None:
+        self._host = host
+        self._controller = controller
+        self._ops = WorkspaceViewNavOps(host, controller)
 
     def switch_workspace_by_offset(self, offset: int) -> None:
-        self._view_nav_ops.switch_workspace_by_offset(offset)
+        self._ops.switch_workspace_by_offset(offset)
 
     def refresh_workspace_tabs(self) -> None:
-        self._view_nav_ops.refresh_workspace_tabs()
+        self._ops.refresh_workspace_tabs()
 
     def switch_workspace(self, workspace_id: str) -> None:
-        self._view_nav_ops.switch_workspace(workspace_id)
+        self._ops.switch_workspace(workspace_id)
 
     def move_workspace(self, from_index: int, to_index: int) -> bool:
         refs = self._host.workspace_manager.list_workspaces()
@@ -422,68 +398,53 @@ class WorkspaceLibraryController:
         if from_index == bounded_index:
             return False
         self._host.workspace_manager.move_workspace(from_index, bounded_index)
-        self.refresh_workspace_tabs()
+        self._controller.refresh_workspace_tabs()
         return True
 
     def save_active_view_state(self) -> None:
-        self._view_nav_ops.save_active_view_state()
+        self._ops.save_active_view_state()
 
     def restore_active_view_state(self) -> None:
-        self._view_nav_ops.restore_active_view_state()
+        self._ops.restore_active_view_state()
 
     def visible_scene_rect(self) -> QRectF:
-        return self._view_nav_ops.visible_scene_rect()
+        return self._ops.visible_scene_rect()
 
     def current_workspace_scene_bounds(self) -> QRectF | None:
-        return self._view_nav_ops.current_workspace_scene_bounds()
+        return self._ops.current_workspace_scene_bounds()
 
     def selection_bounds(self) -> QRectF | None:
-        return self._view_nav_ops.selection_bounds()
+        return self._ops.selection_bounds()
 
     def frame_all(self) -> bool:
-        return self._view_nav_ops.frame_all()
+        return self._ops.frame_all()
 
     def frame_selection(self) -> bool:
-        return self._view_nav_ops.frame_selection()
+        return self._ops.frame_selection()
 
     def frame_node(self, node_id: str) -> bool:
-        return self._view_nav_ops.frame_node(node_id)
+        return self._ops.frame_node(node_id)
 
     def center_on_node(self, node_id: str) -> bool:
-        return self._view_nav_ops.center_on_node(node_id)
+        return self._ops.center_on_node(node_id)
 
     def center_on_selection(self) -> bool:
-        return self._view_nav_ops.center_on_selection()
+        return self._ops.center_on_selection()
 
-    def _frame_scene_bounds(self, bounds: QRectF | None) -> bool:
-        return self._view_nav_ops.frame_scene_bounds(bounds)
+    def frame_scene_bounds(self, bounds: QRectF | None) -> bool:
+        return self._ops.frame_scene_bounds(bounds)
 
-    @staticmethod
-    def _graph_search_rank(
-        query: str,
-        *,
-        title: str,
-        display_name: str,
-        type_id: str,
-    ) -> int | None:
-        return WorkspaceViewNavOps.graph_search_rank(
-            query,
-            title=title,
-            display_name=display_name,
-            type_id=type_id,
-        )
-
-    def search_graph_nodes(self, query: str, limit: int = _GRAPH_SEARCH_LIMIT) -> list[dict[str, Any]]:
-        return self._view_nav_ops.search_graph_nodes(query, limit)
+    def search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]:
+        return self._ops.search_graph_nodes(query, limit)
 
     def jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool:
-        return self._view_nav_ops.jump_to_graph_node(workspace_id, node_id)
+        return self._ops.jump_to_graph_node(workspace_id, node_id)
 
     def create_view(self) -> None:
-        self._view_nav_ops.create_view()
+        self._ops.create_view()
 
     def switch_view(self, view_id: str) -> None:
-        self._view_nav_ops.switch_view(view_id)
+        self._ops.switch_view(view_id)
 
     def create_workspace(self) -> None:
         from PyQt6.QtWidgets import QInputDialog
@@ -493,15 +454,15 @@ class WorkspaceLibraryController:
             return
         workspace_id = self._host.workspace_manager.create_workspace(name=name or None)
         self._host.runtime_history.clear_workspace(workspace_id)
-        self.refresh_workspace_tabs()
-        self.switch_workspace(workspace_id)
+        self._controller.refresh_workspace_tabs()
+        self._controller.switch_workspace(workspace_id)
 
     def rename_active_workspace(self) -> None:
         index = self._host.workspace_tabs.currentIndex()
         if index < 0:
             return
         workspace_id = self._host.workspace_tabs.tabData(index)
-        self.rename_workspace_by_id(workspace_id)
+        self._controller.rename_workspace_by_id(workspace_id)
 
     def rename_workspace_by_id(self, workspace_id: str) -> bool:
         from PyQt6.QtWidgets import QInputDialog
@@ -517,7 +478,7 @@ class WorkspaceLibraryController:
         if not ok or not normalized_name or normalized_name == workspace.name:
             return False
         self._host.workspace_manager.rename_workspace(normalized_workspace_id, normalized_name)
-        self.refresh_workspace_tabs()
+        self._controller.refresh_workspace_tabs()
         return True
 
     def duplicate_active_workspace(self) -> None:
@@ -529,13 +490,13 @@ class WorkspaceLibraryController:
             return
         duplicated_id = self._host.workspace_manager.duplicate_workspace(workspace_id)
         self._host.runtime_history.clear_workspace(duplicated_id)
-        self.refresh_workspace_tabs()
-        self.switch_workspace(duplicated_id)
+        self._controller.refresh_workspace_tabs()
+        self._controller.switch_workspace(duplicated_id)
 
     def close_active_workspace(self) -> None:
         index = self._host.workspace_tabs.currentIndex()
         if index >= 0:
-            self.on_workspace_tab_close(index)
+            self._controller.on_workspace_tab_close(index)
 
     def close_workspace_by_id(self, workspace_id: str) -> bool:
         normalized_workspace_id = str(workspace_id or "").strip()
@@ -549,7 +510,7 @@ class WorkspaceLibraryController:
             break
         if target_index < 0:
             return False
-        self.on_workspace_tab_close(target_index)
+        self._controller.on_workspace_tab_close(target_index)
         return normalized_workspace_id not in self._host.model.project.workspaces
 
     def close_view(self, view_id: str) -> bool:
@@ -570,12 +531,11 @@ class WorkspaceLibraryController:
         active_view_closed = workspace.active_view_id == normalized_view_id
         self._host.workspace_manager.close_view(workspace_id, normalized_view_id)
         if active_view_closed:
-            self.restore_active_view_state()
+            self._controller.restore_active_view_state()
             self._host.scene.sync_scope_with_active_view()
             self._host.search_scope_controller.restore_scope_camera()
 
         self._host.search_scope_controller.discard_scope_camera_for_view(workspace_id, normalized_view_id)
-
         self._host.workspace_state_changed.emit()
         return True
 
@@ -625,7 +585,7 @@ class WorkspaceLibraryController:
             return
         workspace_id = self._host.workspace_tabs.tabData(index)
         if workspace_id:
-            self.switch_workspace(workspace_id)
+            self._controller.switch_workspace(workspace_id)
 
     def on_workspace_tab_close(self, index: int) -> None:
         from PyQt6.QtWidgets import QMessageBox
@@ -649,26 +609,101 @@ class WorkspaceLibraryController:
             QMessageBox.warning(self._host, "Workspace", "Cannot close the last workspace.")
             return
         self._host.runtime_history.clear_workspace(workspace_id)
-        self.refresh_workspace_tabs()
-        self.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        self._controller.refresh_workspace_tabs()
+        self._controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
+
+    def focus_failed_node(self, workspace_id: str, node_id: str, error: str) -> None:
+        self._ops.focus_failed_node(workspace_id, node_id, error)
+
+    def reveal_parent_chain(self, workspace_id: str, node_id: str) -> list[str]:
+        return self._ops.reveal_parent_chain(workspace_id, node_id)
+
+
+class _WorkspaceImportExportCapability:
+    def __init__(self, host: ShellWindow, controller: WorkspaceLibraryController) -> None:
+        self._ops = WorkspaceIOOps(host, controller)
+
+    @staticmethod
+    def custom_workflow_export_label(definition: dict[str, Any]) -> str:
+        return WorkspaceIOOps.custom_workflow_export_label(definition)
+
+    @staticmethod
+    def custom_workflow_default_filename(name: object) -> str:
+        return WorkspaceIOOps.custom_workflow_default_filename(name)
+
+    def import_custom_workflow(self) -> None:
+        self._ops.import_custom_workflow()
+
+    def export_custom_workflow(self) -> None:
+        self._ops.export_custom_workflow()
+
+    def prompt_custom_workflow_export_definition(
+        self,
+        definitions: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        return self._ops.prompt_custom_workflow_export_definition(definitions)
+
+    def import_node_package(self) -> None:
+        self._ops.import_node_package()
+
+    def export_node_package(self) -> None:
+        self._ops.export_node_package()
+
+
+class _WorkspaceEditCommandCapability:
+    def __init__(self, host: ShellWindow, controller: WorkspaceLibraryController) -> None:
+        self._host = host
+        self._controller = controller
+        self._drop_connect_ops = WorkspaceDropConnectOps(host, controller)
+        self._edit_ops = WorkspaceEditOps(host, controller)
+        self._last_clipboard_fragment_signature = ""
+        self._clipboard_paste_count = 0
+
+    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
+        node_id = self._host.scene.selected_node_id()
+        if not node_id:
+            return None
+        workspace = self._host.model.project.workspaces.get(self._host.active_workspace_id)
+        if workspace is None:
+            return None
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return None
+        spec = self._host.registry.get_spec(node.type_id)
+        return node, spec
+
+    def set_selected_node_property(self, key: str, value: Any) -> None:
+        self._edit_ops.set_selected_node_property(key, value)
+
+    def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
+        self._edit_ops.set_selected_port_exposed(key, exposed)
+
+    def set_selected_port_label(self, key: str, label: Any) -> bool:
+        return self._edit_ops.set_selected_port_label(key, label)
+
+    def set_selected_node_collapsed(self, collapsed: bool) -> None:
+        self._edit_ops.set_selected_node_collapsed(collapsed)
+
+    def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
+        return self._edit_ops.request_add_selected_subnode_pin(direction)
 
     def add_node_from_library(self, type_id: str) -> None:
         center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
-        if self.insert_library_node(type_id, center.x(), center.y()):
-            self.refresh_workspace_tabs()
+        if self._controller.insert_library_node(type_id, center.x(), center.y()):
+            self._controller.refresh_workspace_tabs()
 
     def insert_library_node(self, type_id: str, x: float, y: float) -> str:
         return self._drop_connect_ops.insert_library_node(type_id, x, y)
 
-    def _insert_custom_workflow_snapshot(self, workflow_id: str, x: float, y: float) -> str:
+    def insert_custom_workflow_snapshot(self, workflow_id: str, x: float, y: float) -> str:
         return self._drop_connect_ops._insert_custom_workflow_snapshot(workflow_id, x, y)
 
     @staticmethod
-    def _normalize_custom_workflow_fragment_payload(fragment_payload: Any) -> dict[str, Any] | None:
+    def normalize_custom_workflow_fragment_payload(fragment_payload: Any) -> dict[str, Any] | None:
         return WorkspaceDropConnectOps._normalize_custom_workflow_fragment_payload(fragment_payload)
 
     @staticmethod
-    def _retarget_fragment_roots(
+    def retarget_fragment_roots(
         fragment_payload: dict[str, Any],
         *,
         target_parent_id: str | None,
@@ -679,7 +714,7 @@ class WorkspaceLibraryController:
         )
 
     @staticmethod
-    def _find_inserted_root_subnode_shell_id(
+    def find_inserted_root_subnode_shell_id(
         workspace_nodes: dict[str, NodeInstance],
         inserted_node_ids: set[str],
     ) -> str:
@@ -742,7 +777,7 @@ class WorkspaceLibraryController:
         self._edit_ops.on_node_property_changed(node_id, key, value)
 
     @staticmethod
-    def _is_direct_child_pin_node(
+    def is_direct_child_pin_node(
         node: NodeInstance | None,
         workspace_nodes: dict[str, NodeInstance],
     ) -> bool:
@@ -766,20 +801,20 @@ class WorkspaceLibraryController:
     def ungroup_selected_nodes(self) -> bool:
         return self._edit_ops.ungroup_selected_nodes()
 
-    def _run_layout_action(self, action: str | None = None, orientation: str | None = None) -> bool:
+    def run_layout_action(self, action: str | None = None, orientation: str | None = None) -> bool:
         return self._edit_ops.run_layout_action(action, orientation)
 
-    def _selected_node_bounds_payload(self) -> list[tuple[float, float, float, float]]:
+    def selected_node_bounds_payload(self) -> list[tuple[float, float, float, float]]:
         return self._edit_ops.selected_node_bounds_payload()
 
     @staticmethod
-    def _rectangles_overlap(
+    def rectangles_overlap(
         first: tuple[float, float, float, float],
         second: tuple[float, float, float, float],
     ) -> bool:
         return WorkspaceEditOps.rectangles_overlap(first, second)
 
-    def _count_overlap_pairs(self, bounds_payload: list[tuple[float, float, float, float]]) -> int:
+    def count_overlap_pairs(self, bounds_payload: list[tuple[float, float, float, float]]) -> int:
         return self._edit_ops.count_overlap_pairs(bounds_payload)
 
     def align_selection_left(self) -> bool:
@@ -800,13 +835,13 @@ class WorkspaceLibraryController:
     def distribute_selection_vertically(self) -> bool:
         return self._edit_ops.distribute_selection_vertically()
 
-    def _clipboard(self):
+    def clipboard(self):
         return self._edit_ops.clipboard()
 
-    def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
+    def write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
         return self._edit_ops.write_graph_fragment_to_clipboard(fragment_payload)
 
-    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
+    def read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
         return self._edit_ops.read_graph_fragment_from_clipboard()
 
     def copy_selected_nodes_to_clipboard(self) -> bool:
@@ -865,31 +900,433 @@ class WorkspaceLibraryController:
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
         return self._edit_ops.request_delete_selected_graph_items(edge_ids)
 
+
+class WorkspaceLibraryController:
+    def __init__(self, host: ShellWindow) -> None:
+        self._host = host
+        self._custom_workflow_capability = _WorkspaceCustomWorkflowCapability(host, self)
+        self._navigation_capability = _WorkspaceNavigationCapability(host, self)
+        self._edit_command_capability = _WorkspaceEditCommandCapability(host, self)
+        self._import_export_capability = _WorkspaceImportExportCapability(host, self)
+
+    def _project_metadata(self) -> dict[str, Any]:
+        return self._custom_workflow_capability.project_metadata()
+
+    def _custom_workflow_definitions(self) -> list[dict[str, Any]]:
+        return self._custom_workflow_capability.custom_workflow_definitions()
+
+    def _set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None:
+        self._custom_workflow_capability.set_custom_workflow_definitions(definitions)
+
+    @staticmethod
+    def _global_custom_workflow_definitions() -> list[dict[str, Any]]:
+        return _WorkspaceCustomWorkflowCapability.global_custom_workflow_definitions()
+
+    @staticmethod
+    def _set_global_custom_workflow_definitions(definitions: list[dict[str, Any]]) -> None:
+        _WorkspaceCustomWorkflowCapability.set_global_custom_workflow_definitions(definitions)
+
+    @staticmethod
+    def _upsert_workflow_definition_by_id(
+        definitions: list[dict[str, Any]],
+        definition: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        return _WorkspaceCustomWorkflowCapability.upsert_workflow_definition_by_id(definitions, definition)
+
+    @staticmethod
+    def _rename_workflow_definition_by_id(
+        definitions: list[dict[str, Any]],
+        workflow_id: str,
+        new_name: str,
+    ) -> list[dict[str, Any]] | None:
+        return _WorkspaceCustomWorkflowCapability.rename_workflow_definition_by_id(
+            definitions,
+            workflow_id,
+            new_name,
+        )
+
+    def custom_workflow_library_items(self) -> list[dict[str, Any]]:
+        return self._custom_workflow_capability.custom_workflow_library_items()
+
+    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None:
+        return self._custom_workflow_capability.resolve_custom_workflow_definition(workflow_id)
+
+    def set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> ControllerResult[bool]:
+        return self._custom_workflow_capability.set_custom_workflow_scope(workflow_id, workflow_scope)
+
+    def delete_custom_workflow(self, workflow_id: str, workflow_scope: str = "") -> ControllerResult[bool]:
+        return self._custom_workflow_capability.delete_custom_workflow(workflow_id, workflow_scope)
+
+    def rename_custom_workflow(self, workflow_id: str, workflow_scope: str = "") -> ControllerResult[bool]:
+        return self._custom_workflow_capability.rename_custom_workflow(workflow_id, workflow_scope)
+
+    def publish_custom_workflow_from_selected_subnode(self) -> ControllerResult[bool]:
+        return self._custom_workflow_capability.publish_custom_workflow_from_selected_subnode()
+
+    def publish_custom_workflow_from_current_scope(self) -> ControllerResult[bool]:
+        return self._custom_workflow_capability.publish_custom_workflow_from_current_scope()
+
+    def publish_custom_workflow_from_node(self, node_id: str) -> ControllerResult[bool]:
+        return self._custom_workflow_capability.publish_custom_workflow_from_node(node_id)
+
+    def _publish_custom_workflow_from_shell(self, shell_node_id: str) -> ControllerResult[bool]:
+        return self._custom_workflow_capability.publish_custom_workflow_from_shell(shell_node_id)
+
+    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
+        return self._edit_command_capability.selected_node_context()
+
+    def set_selected_node_property(self, key: str, value: Any) -> None:
+        self._edit_command_capability.set_selected_node_property(key, value)
+
+    def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
+        self._edit_command_capability.set_selected_port_exposed(key, exposed)
+
+    def set_selected_port_label(self, key: str, label: Any) -> bool:
+        return self._edit_command_capability.set_selected_port_label(key, label)
+
+    def set_selected_node_collapsed(self, collapsed: bool) -> None:
+        self._edit_command_capability.set_selected_node_collapsed(collapsed)
+
+    def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
+        return self._edit_command_capability.request_add_selected_subnode_pin(direction)
+
+    def switch_workspace_by_offset(self, offset: int) -> None:
+        self._navigation_capability.switch_workspace_by_offset(offset)
+
+    def refresh_workspace_tabs(self) -> None:
+        self._navigation_capability.refresh_workspace_tabs()
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        self._navigation_capability.switch_workspace(workspace_id)
+
+    def move_workspace(self, from_index: int, to_index: int) -> bool:
+        return self._navigation_capability.move_workspace(from_index, to_index)
+
+    def save_active_view_state(self) -> None:
+        self._navigation_capability.save_active_view_state()
+
+    def restore_active_view_state(self) -> None:
+        self._navigation_capability.restore_active_view_state()
+
+    def visible_scene_rect(self) -> QRectF:
+        return self._navigation_capability.visible_scene_rect()
+
+    def current_workspace_scene_bounds(self) -> QRectF | None:
+        return self._navigation_capability.current_workspace_scene_bounds()
+
+    def selection_bounds(self) -> QRectF | None:
+        return self._navigation_capability.selection_bounds()
+
+    def frame_all(self) -> bool:
+        return self._navigation_capability.frame_all()
+
+    def frame_selection(self) -> bool:
+        return self._navigation_capability.frame_selection()
+
+    def frame_node(self, node_id: str) -> bool:
+        return self._navigation_capability.frame_node(node_id)
+
+    def center_on_node(self, node_id: str) -> bool:
+        return self._navigation_capability.center_on_node(node_id)
+
+    def center_on_selection(self) -> bool:
+        return self._navigation_capability.center_on_selection()
+
+    def _frame_scene_bounds(self, bounds: QRectF | None) -> bool:
+        return self._navigation_capability.frame_scene_bounds(bounds)
+
+    @staticmethod
+    def _graph_search_rank(
+        query: str,
+        *,
+        title: str,
+        display_name: str,
+        type_id: str,
+    ) -> int | None:
+        return WorkspaceViewNavOps.graph_search_rank(
+            query,
+            title=title,
+            display_name=display_name,
+            type_id=type_id,
+        )
+
+    def search_graph_nodes(self, query: str, limit: int = _GRAPH_SEARCH_LIMIT) -> list[dict[str, Any]]:
+        return self._navigation_capability.search_graph_nodes(query, limit)
+
+    def jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool:
+        return self._navigation_capability.jump_to_graph_node(workspace_id, node_id)
+
+    def create_view(self) -> None:
+        self._navigation_capability.create_view()
+
+    def switch_view(self, view_id: str) -> None:
+        self._navigation_capability.switch_view(view_id)
+
+    def create_workspace(self) -> None:
+        self._navigation_capability.create_workspace()
+
+    def rename_active_workspace(self) -> None:
+        self._navigation_capability.rename_active_workspace()
+
+    def rename_workspace_by_id(self, workspace_id: str) -> bool:
+        return self._navigation_capability.rename_workspace_by_id(workspace_id)
+
+    def duplicate_active_workspace(self) -> None:
+        self._navigation_capability.duplicate_active_workspace()
+
+    def close_active_workspace(self) -> None:
+        self._navigation_capability.close_active_workspace()
+
+    def close_workspace_by_id(self, workspace_id: str) -> bool:
+        return self._navigation_capability.close_workspace_by_id(workspace_id)
+
+    def close_view(self, view_id: str) -> bool:
+        return self._navigation_capability.close_view(view_id)
+
+    def rename_view(self, view_id: str) -> bool:
+        return self._navigation_capability.rename_view(view_id)
+
+    def move_view(self, from_index: int, to_index: int) -> bool:
+        return self._navigation_capability.move_view(from_index, to_index)
+
+    def on_workspace_tab_changed(self, index: int) -> None:
+        self._navigation_capability.on_workspace_tab_changed(index)
+
+    def on_workspace_tab_close(self, index: int) -> None:
+        self._navigation_capability.on_workspace_tab_close(index)
+
+    def add_node_from_library(self, type_id: str) -> None:
+        self._edit_command_capability.add_node_from_library(type_id)
+
+    def insert_library_node(self, type_id: str, x: float, y: float) -> str:
+        return self._edit_command_capability.insert_library_node(type_id, x, y)
+
+    def _insert_custom_workflow_snapshot(self, workflow_id: str, x: float, y: float) -> str:
+        return self._edit_command_capability.insert_custom_workflow_snapshot(workflow_id, x, y)
+
+    @staticmethod
+    def _normalize_custom_workflow_fragment_payload(fragment_payload: Any) -> dict[str, Any] | None:
+        return _WorkspaceEditCommandCapability.normalize_custom_workflow_fragment_payload(fragment_payload)
+
+    @staticmethod
+    def _retarget_fragment_roots(
+        fragment_payload: dict[str, Any],
+        *,
+        target_parent_id: str | None,
+    ) -> dict[str, Any]:
+        return _WorkspaceEditCommandCapability.retarget_fragment_roots(
+            fragment_payload,
+            target_parent_id=target_parent_id,
+        )
+
+    @staticmethod
+    def _find_inserted_root_subnode_shell_id(
+        workspace_nodes: dict[str, NodeInstance],
+        inserted_node_ids: set[str],
+    ) -> str:
+        return _WorkspaceEditCommandCapability.find_inserted_root_subnode_shell_id(
+            workspace_nodes,
+            inserted_node_ids,
+        )
+
+    def active_workspace(self):
+        return self._edit_command_capability.active_workspace()
+
+    def clipboard_fragment_signature(self) -> str:
+        return self._edit_command_capability.clipboard_fragment_signature()
+
+    def set_clipboard_fragment_signature(self, signature: str) -> None:
+        self._edit_command_capability.set_clipboard_fragment_signature(signature)
+
+    def clipboard_paste_count(self) -> int:
+        return self._edit_command_capability.clipboard_paste_count()
+
+    def set_clipboard_paste_count(self, count: int) -> None:
+        self._edit_command_capability.set_clipboard_paste_count(count)
+
+    def prompt_connection_candidate(
+        self,
+        *,
+        title: str,
+        label: str,
+        candidates: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        return self._edit_command_capability.prompt_connection_candidate(
+            title=title,
+            label=label,
+            candidates=candidates,
+        )
+
+    def auto_connect_dropped_node_to_port(
+        self,
+        new_node_id: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> bool:
+        return self._edit_command_capability.auto_connect_dropped_node_to_port(
+            new_node_id,
+            target_node_id,
+            target_port_key,
+        )
+
+    def auto_connect_dropped_node_to_edge(self, new_node_id: str, target_edge_id: str) -> bool:
+        return self._edit_command_capability.auto_connect_dropped_node_to_edge(new_node_id, target_edge_id)
+
+    def on_scene_node_selected(self, node_id: str) -> None:
+        self._edit_command_capability.on_scene_node_selected(node_id)
+
+    def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
+        self._edit_command_capability.on_node_property_changed(node_id, key, value)
+
+    @staticmethod
+    def _is_direct_child_pin_node(
+        node: NodeInstance | None,
+        workspace_nodes: dict[str, NodeInstance],
+    ) -> bool:
+        return _WorkspaceEditCommandCapability.is_direct_child_pin_node(node, workspace_nodes)
+
+    def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None:
+        self._edit_command_capability.on_port_exposed_changed(node_id, key, exposed)
+
+    def on_node_collapse_changed(self, node_id: str, collapsed: bool) -> None:
+        self._edit_command_capability.on_node_collapse_changed(node_id, collapsed)
+
+    def connect_selected_nodes(self) -> None:
+        self._edit_command_capability.connect_selected_nodes()
+
+    def duplicate_selected_nodes(self) -> bool:
+        return self._edit_command_capability.duplicate_selected_nodes()
+
+    def group_selected_nodes(self) -> bool:
+        return self._edit_command_capability.group_selected_nodes()
+
+    def ungroup_selected_nodes(self) -> bool:
+        return self._edit_command_capability.ungroup_selected_nodes()
+
+    def _run_layout_action(self, action: str | None = None, orientation: str | None = None) -> bool:
+        return self._edit_command_capability.run_layout_action(action, orientation)
+
+    def _selected_node_bounds_payload(self) -> list[tuple[float, float, float, float]]:
+        return self._edit_command_capability.selected_node_bounds_payload()
+
+    @staticmethod
+    def _rectangles_overlap(
+        first: tuple[float, float, float, float],
+        second: tuple[float, float, float, float],
+    ) -> bool:
+        return _WorkspaceEditCommandCapability.rectangles_overlap(first, second)
+
+    def _count_overlap_pairs(self, bounds_payload: list[tuple[float, float, float, float]]) -> int:
+        return self._edit_command_capability.count_overlap_pairs(bounds_payload)
+
+    def align_selection_left(self) -> bool:
+        return self._edit_command_capability.align_selection_left()
+
+    def align_selection_right(self) -> bool:
+        return self._edit_command_capability.align_selection_right()
+
+    def align_selection_top(self) -> bool:
+        return self._edit_command_capability.align_selection_top()
+
+    def align_selection_bottom(self) -> bool:
+        return self._edit_command_capability.align_selection_bottom()
+
+    def distribute_selection_horizontally(self) -> bool:
+        return self._edit_command_capability.distribute_selection_horizontally()
+
+    def distribute_selection_vertically(self) -> bool:
+        return self._edit_command_capability.distribute_selection_vertically()
+
+    def _clipboard(self):
+        return self._edit_command_capability.clipboard()
+
+    def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
+        return self._edit_command_capability.write_graph_fragment_to_clipboard(fragment_payload)
+
+    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
+        return self._edit_command_capability.read_graph_fragment_from_clipboard()
+
+    def copy_selected_nodes_to_clipboard(self) -> bool:
+        return self._edit_command_capability.copy_selected_nodes_to_clipboard()
+
+    def cut_selected_nodes_to_clipboard(self) -> bool:
+        return self._edit_command_capability.cut_selected_nodes_to_clipboard()
+
+    def paste_nodes_from_clipboard(self) -> bool:
+        return self._edit_command_capability.paste_nodes_from_clipboard()
+
+    def undo(self) -> bool:
+        return self._edit_command_capability.undo()
+
+    def redo(self) -> bool:
+        return self._edit_command_capability.redo()
+
+    def request_drop_node_from_library(
+        self,
+        type_id: str,
+        scene_x: float,
+        scene_y: float,
+        target_mode: str,
+        target_node_id: str,
+        target_port_key: str,
+        target_edge_id: str,
+    ) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_drop_node_from_library(
+            type_id,
+            scene_x,
+            scene_y,
+            target_mode,
+            target_node_id,
+            target_port_key,
+            target_edge_id,
+        )
+
+    def request_connect_ports(self, node_a_id: str, port_a: str, node_b_id: str, port_b: str) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_connect_ports(node_a_id, port_a, node_b_id, port_b)
+
+    def request_remove_edge(self, edge_id: str) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_remove_edge(edge_id)
+
+    def request_remove_node(self, node_id: str) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_remove_node(node_id)
+
+    def request_rename_node(self, node_id: str) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_rename_node(node_id)
+
+    def request_rename_selected_port(self, key: str) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_rename_selected_port(key)
+
+    def request_remove_selected_port(self, key: str) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_remove_selected_port(key)
+
+    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
+        return self._edit_command_capability.request_delete_selected_graph_items(edge_ids)
+
     def focus_failed_node(self, workspace_id: str, node_id: str, error: str) -> None:
-        self._view_nav_ops.focus_failed_node(workspace_id, node_id, error)
+        self._navigation_capability.focus_failed_node(workspace_id, node_id, error)
 
     def reveal_parent_chain(self, workspace_id: str, node_id: str) -> list[str]:
-        return self._view_nav_ops.reveal_parent_chain(workspace_id, node_id)
+        return self._navigation_capability.reveal_parent_chain(workspace_id, node_id)
 
     @staticmethod
     def _custom_workflow_export_label(definition: dict[str, Any]) -> str:
-        return WorkspaceIOOps.custom_workflow_export_label(definition)
+        return _WorkspaceImportExportCapability.custom_workflow_export_label(definition)
 
     @staticmethod
     def _custom_workflow_default_filename(name: object) -> str:
-        return WorkspaceIOOps.custom_workflow_default_filename(name)
+        return _WorkspaceImportExportCapability.custom_workflow_default_filename(name)
 
     def import_custom_workflow(self) -> None:
-        self._io_ops.import_custom_workflow()
+        self._import_export_capability.import_custom_workflow()
 
     def export_custom_workflow(self) -> None:
-        self._io_ops.export_custom_workflow()
+        self._import_export_capability.export_custom_workflow()
 
     def _prompt_custom_workflow_export_definition(self, definitions: list[dict[str, Any]]) -> dict[str, Any] | None:
-        return self._io_ops.prompt_custom_workflow_export_definition(definitions)
+        return self._import_export_capability.prompt_custom_workflow_export_definition(definitions)
 
     def import_node_package(self) -> None:
-        self._io_ops.import_node_package()
+        self._import_export_capability.import_node_package()
 
     def export_node_package(self) -> None:
-        self._io_ops.export_node_package()
+        self._import_export_capability.export_node_package()
