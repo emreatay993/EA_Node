@@ -1,10 +1,10 @@
 # Verification Speed QA Matrix
 
-- Updated: `2026-03-17`
+- Updated: `2026-03-18`
 - Packet set: `VERIFICATION_SPEED` (`P01` through `P05`)
 - Scope: published developer-facing verification workflow after the pytest
   phase split, shell-wrapper collection hygiene, hybrid runner, and GUI
-  wait-helper cleanup.
+  wait-helper cleanup, plus the P08 proof-layer refresh.
 
 ## Approved Verification Workflow
 
@@ -48,23 +48,32 @@
   child verification commands, so the top-level runner invocations do not need
   extra environment variables.
 - `pytest-xdist` is declared in `pyproject.toml` and `requirements.txt`, and it
-  is installed in the project venv as of `2026-03-17`. `fast` mode therefore
+  is installed in the project venv as of `2026-03-18`. `fast` mode therefore
   uses `-n auto` on this machine. If the plugin is unavailable in another
   environment, `scripts/run_verification.py` still falls back to serial pytest
   and prints the runner notice.
 
-## Known Baseline Caveats
+## Companion Proof Audit
+
+- `./venv/Scripts/python.exe scripts/check_traceability.py` validates the
+  packet-owned proof layer in `README.md`, `docs/GETTING_STARTED.md`,
+  `docs/specs/requirements/TRACEABILITY_MATRIX.md`, and the packet-owned docs
+  under `docs/specs/perf/`.
+- Run the checker after editing verification docs, archived QA evidence
+  summaries, or packet-owned traceability references.
+
+## Current Baseline Status
 
 - `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
-  still fails because passive image-panel round-trips add default crop fields.
-  The `VERIFICATION_SPEED` packet set keeps that persistence failure
-  out-of-scope.
-- Do not claim that the overall pytest corpus is fully green while that
-  serializer baseline remains open. The runner documentation only changes the
-  workflow and traceability around the existing baseline.
+  passed on `2026-03-18`, so the earlier passive image-panel serializer caveat
+  is retired.
+- No known out-of-scope verification baseline failures remain in this matrix.
+  If a new environment-specific failure appears, record it here before claiming
+  the aggregate workflow is fully green.
 
-## 2026-03-17 Verification Result
+## 2026-03-18 Verification Results
 
 | Command | Result | Notes |
 |---|---|---|
-| `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated the `fast`, `gui`, `slow`, and isolated shell-wrapper phases; each pytest phase included all four `--ignore=` entries, and the fast phase now emits `-n auto` because `pytest-xdist` is installed in the current project venv |
+| `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated the `fast`, `gui`, `slow`, and isolated shell-wrapper phases; each pytest phase included all four `--ignore=` entries, and the fast phase emitted `-n auto` because `pytest-xdist` is installed in the current project venv |
+| `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q` | PASS | The previous serializer spot-check caveat no longer reproduces in the current project venv |

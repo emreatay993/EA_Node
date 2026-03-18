@@ -1,0 +1,254 @@
+#!/usr/bin/env python3
+"""Validate the packet-owned verification traceability layer."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import sys
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+REQUIRED_ARTIFACTS = (
+    "README.md",
+    "docs/GETTING_STARTED.md",
+    "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+    "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
+    "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md",
+    "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md",
+    "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md",
+    "docs/specs/perf/RC_PACKAGING_REPORT.md",
+    "docs/specs/perf/PILOT_SIGNOFF.md",
+    "scripts/check_traceability.py",
+    "tests/test_traceability_checker.py",
+)
+
+
+@dataclass(frozen=True)
+class DocumentRule:
+    required: tuple[str, ...] = ()
+    forbidden: tuple[str, ...] = ()
+
+
+DOCUMENT_RULES: dict[str, DocumentRule] = {
+    "README.md": DocumentRule(
+        required=(
+            "scripts/check_traceability.py",
+            "Graph Surface Input QA Matrix",
+            "Verification Speed QA Matrix",
+            "proof-audit command",
+        ),
+        forbidden=(
+            "serializer caveat.",
+        ),
+    ),
+    "docs/GETTING_STARTED.md": DocumentRule(
+        required=(
+            "scripts/check_traceability.py",
+            "serializer spot-check",
+            "no longer carries that",
+            "shell-module verification status",
+        ),
+        forbidden=(
+            "remains a separate persistence follow-up",
+        ),
+    ),
+    "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md": DocumentRule(
+        required=(
+            "## Companion Proof Audit",
+            "scripts/check_traceability.py",
+            "## Current Baseline Status",
+            "earlier passive image-panel serializer caveat",
+            "is retired.",
+            "No known out-of-scope verification baseline failures remain",
+        ),
+        forbidden=(
+            "still fails because passive image-panel round-trips add default crop fields",
+            "serializer baseline remains open",
+        ),
+    ),
+    "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md": DocumentRule(
+        required=(
+            "## Shell Verification Policy",
+            "Both module-level shell wrappers passed directly",
+        ),
+        forbidden=(
+            "wrapper instability (`code 5`)",
+            "approved fresh-process fallback completed",
+        ),
+    ),
+    "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md": DocumentRule(
+        required=(
+            "Evidence Status: Historical offscreen harness baseline restored from repo",
+            "Current Constraint: P08 did not rerun the performance harness.",
+            "## Archived 2026-03-01 Snapshot",
+        ),
+    ),
+    "docs/specs/perf/RC_PACKAGING_REPORT.md": DocumentRule(
+        required=(
+            "Evidence Status: Archived RC packaging smoke snapshot restored from repo",
+            "Current Constraint: P08 did not rerun packaging.",
+            "## Archived 2026-03-01 Snapshot",
+        ),
+    ),
+    "docs/specs/perf/PILOT_SIGNOFF.md": DocumentRule(
+        required=(
+            "Evidence Status: Archived packaged desktop pilot sign-off restored from repo",
+            "Current Constraint: P08 did not rerun the packaged pilot.",
+            "## Archived 2026-03-01 Snapshot",
+        ),
+    ),
+}
+
+TRACEABILITY_ROW_RULES: dict[str, DocumentRule] = {
+    "REQ-PERF-001": DocumentRule(
+        required=(
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "archived `2026-03-01` benchmark snapshot",
+        ),
+    ),
+    "AC-REQ-QA-001-02": DocumentRule(
+        required=(
+            "RC_PACKAGING_REPORT.md",
+            "archived `2026-03-01` build/smoke summary",
+        ),
+    ),
+    "AC-REQ-QA-001-03": DocumentRule(
+        required=(
+            "PILOT_SIGNOFF.md",
+            "archived `2026-03-01` run",
+        ),
+    ),
+    "REQ-QA-013": DocumentRule(
+        required=(
+            "scripts/check_traceability.py",
+            "tests/test_traceability_checker.py",
+            "GRAPH_SURFACE_INPUT_QA_MATRIX.md",
+        ),
+    ),
+    "REQ-QA-014": DocumentRule(
+        required=(
+            "scripts/check_traceability.py",
+            "tests/test_traceability_checker.py",
+            "VERIFICATION_SPEED_QA_MATRIX.md",
+        ),
+    ),
+    "REQ-QA-017": DocumentRule(
+        required=(
+            "Current verification baseline-status notes and proof audit",
+            "scripts/check_traceability.py",
+        ),
+    ),
+    "AC-REQ-UI-023-01": DocumentRule(
+        required=(
+            "Locked graph-surface host/inline/media/shell regression matrix and proof audit",
+            "tests/test_traceability_checker.py",
+        ),
+    ),
+    "AC-REQ-QA-013-01": DocumentRule(
+        required=(
+            "Current graph-surface regression commands and refreshed matrix",
+            "scripts/check_traceability.py",
+        ),
+        forbidden=(
+            "approved fresh-process shell fallback",
+        ),
+    ),
+    "AC-REQ-QA-014-01": DocumentRule(
+        required=(
+            "scripts/check_traceability.py",
+            "tests/test_traceability_checker.py",
+        ),
+    ),
+    "AC-REQ-QA-017-01": DocumentRule(
+        required=(
+            "Current verification baseline-status note and proof audit",
+            "scripts/check_traceability.py",
+        ),
+        forbidden=(
+            "Recorded serializer baseline caveat",
+        ),
+    ),
+}
+
+
+def read_text(path: Path) -> str:
+    return path.read_text(encoding="utf-8-sig")
+
+
+def find_traceability_row(matrix_text: str, row_id: str) -> str | None:
+    for line in matrix_text.splitlines():
+        if line.startswith(f"| {row_id} |"):
+            return line
+    return None
+
+
+def audit_repository(repo_root: Path) -> list[str]:
+    issues: list[str] = []
+    matrix_text: str | None = None
+
+    for relative_path in REQUIRED_ARTIFACTS:
+        path = repo_root / relative_path
+        if not path.exists():
+            issues.append(f"Missing required artifact: {relative_path}")
+
+    for relative_path, rule in DOCUMENT_RULES.items():
+        path = repo_root / relative_path
+        if not path.exists():
+            continue
+        text = read_text(path)
+        for snippet in rule.required:
+            if snippet not in text:
+                issues.append(f"{relative_path}: missing required text: {snippet}")
+        for snippet in rule.forbidden:
+            if snippet in text:
+                issues.append(f"{relative_path}: found stale text: {snippet}")
+        if relative_path == "docs/specs/requirements/TRACEABILITY_MATRIX.md":
+            matrix_text = text
+
+    if matrix_text is None:
+        matrix_path = repo_root / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        if matrix_path.exists():
+            matrix_text = read_text(matrix_path)
+
+    if matrix_text is None:
+        issues.append("Missing required artifact: docs/specs/requirements/TRACEABILITY_MATRIX.md")
+        return issues
+
+    for row_id, rule in TRACEABILITY_ROW_RULES.items():
+        row = find_traceability_row(matrix_text, row_id)
+        if row is None:
+            issues.append(
+                "docs/specs/requirements/TRACEABILITY_MATRIX.md: "
+                f"missing row: {row_id}"
+            )
+            continue
+        for snippet in rule.required:
+            if snippet not in row:
+                issues.append(
+                    "docs/specs/requirements/TRACEABILITY_MATRIX.md: "
+                    f"row {row_id} missing required text: {snippet}"
+                )
+        for snippet in rule.forbidden:
+            if snippet in row:
+                issues.append(
+                    "docs/specs/requirements/TRACEABILITY_MATRIX.md: "
+                    f"row {row_id} found stale text: {snippet}"
+                )
+
+    return issues
+
+
+def main() -> int:
+    issues = audit_repository(REPO_ROOT)
+    if issues:
+        print("TRACEABILITY CHECK FAILED")
+        for issue in issues:
+            print(f"- {issue}")
+        return 1
+    print("TRACEABILITY CHECK PASS")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -55,6 +55,9 @@ Before merge, inspect or run the full workflow:
 ./venv/Scripts/python.exe scripts/run_verification.py --mode full
 ```
 
+- After editing packet-owned verification docs, perf reports, or traceability
+  links, run `./venv/Scripts/python.exe scripts/check_traceability.py` to audit
+  the proof layer.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
   commands and falls back to serial pytest automatically when `pytest-xdist`
   is not installed in the project venv.
@@ -62,10 +65,10 @@ Before merge, inspect or run the full workflow:
   `tests.test_shell_run_controller`, and
   `tests.test_shell_project_session_controller` on isolated module-level
   `unittest` execution after the pytest phases.
-- The known serializer baseline
+- The previously documented serializer spot-check
   `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
-  remains a separate persistence follow-up; do not treat it as resolved by the
-  verification runner docs.
+  now passes in the project venv, so the QA matrix no longer carries that
+  caveat as an open out-of-scope baseline.
 
 If you only need the graph-surface gate:
 
@@ -95,8 +98,8 @@ Manual passive-media fixture:
 - [ARCHITECTURE.md](../ARCHITECTURE.md): runtime architecture, QML composition, and Mermaid diagrams
 - [docs/specs/INDEX.md](./specs/INDEX.md): canonical requirements, ADRs, and traceability
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
-- [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and approved shell fallback
-- [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, shell isolation rules, baseline timings, and current caveats
+- [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and shell-module verification status
+- [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, shell isolation rules, proof-audit command, and baseline-status notes
 
 ## Updating Architecture Diagrams
 

@@ -285,6 +285,12 @@ Inspect or run the full workflow with:
 ./venv/Scripts/python.exe scripts/run_verification.py --mode full
 ```
 
+When you change verification docs or packet-owned proof links, audit them with:
+
+```bash
+./venv/Scripts/python.exe scripts/check_traceability.py
+```
+
 - `fast` targets `pytest -m "not gui and not slow"` and uses `pytest-xdist`
   when it is available in the project venv, with automatic serial fallback
   when it is not installed.
@@ -297,8 +303,8 @@ Inspect or run the full workflow with:
   `tests.test_shell_project_session_controller` in separate `unittest`
   processes to preserve the approved shell isolation model.
 - See `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` for the approved mode
-  shapes, shell fallback commands, baseline timings, and the current
-  serializer caveat.
+  shapes, shell isolation rules, the companion proof audit, and the current
+  baseline-status notes.
 
 Focused graph-surface regression gate:
 
@@ -335,8 +341,8 @@ packaging, installer creation, and code signing instructions.
 - [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
-- [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- final host/inline/media/shell coverage and the approved shell fallback
-- [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, shell isolation rules, and current baseline caveats
+- [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
+- [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, shell isolation rules, proof-audit command, and baseline-status notes
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 
