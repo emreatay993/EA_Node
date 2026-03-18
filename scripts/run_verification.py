@@ -116,6 +116,9 @@ def build_commands(mode: str) -> list[CommandSpec]:
     fast_notice = None
     if not xdist_available:
         fast_notice = "pytest-xdist is unavailable; falling back to serial pytest for fast mode."
+    gui_notice = None
+    if not xdist_available:
+        gui_notice = "pytest-xdist is unavailable; falling back to serial pytest for gui mode."
 
     fast_command = build_pytest_command(
         phase="fast.pytest",
@@ -131,8 +134,9 @@ def build_commands(mode: str) -> list[CommandSpec]:
         marker_expression="gui and not slow",
         python_exec=python_exec,
         python_display=python_display,
-        use_xdist=False,
+        use_xdist=xdist_available,
         worker_count=worker_count,
+        notice=gui_notice,
     )
     slow_command = build_pytest_command(
         phase="slow.pytest",

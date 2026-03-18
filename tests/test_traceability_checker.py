@@ -144,8 +144,8 @@ class TraceabilityCheckerTests(unittest.TestCase):
                     "26 passed in 57.27s",
                     "57.27 seconds",
                 ).replace(
-                    "phase both emit `-n 12 --dist load`.",
-                    "phase both emit `-n 12 --dist load`.\nadds `-n auto` only when `pytest-xdist` is importable in the project venv",
+                    "phase emit `-n 12 --dist load`.",
+                    "phase emit `-n 12 --dist load`.\nadds `-n auto` only when `pytest-xdist` is importable in the project venv",
                 ),
                 encoding="utf-8",
             )
