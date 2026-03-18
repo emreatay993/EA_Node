@@ -3,7 +3,6 @@ import QtQuick.Controls 2.15
 
 InspectorSectionCard {
     id: portSection
-    property var pane
 
     objectName: "inspectorPortManagementCard"
     width: parent ? parent.width : implicitWidth

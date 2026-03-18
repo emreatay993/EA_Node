@@ -4,7 +4,6 @@ import QtQuick.Layouts 1.15
 
 InspectorSectionCard {
     id: definitionSection
-    property var pane
 
     objectName: "inspectorNodeDefinitionCard"
     width: parent ? parent.width : implicitWidth
