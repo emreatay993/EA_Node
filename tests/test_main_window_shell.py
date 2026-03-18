@@ -1063,6 +1063,7 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
         expectations = {
             "ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml": (
                 (
+                    "property var mainWindowRef",
                     "mainWindowRef.set_library_query",
                     "mainWindowRef.grouped_node_library_items",
                     "mainWindowRef.request_add_node_from_library",
@@ -1072,6 +1073,7 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/LibraryWorkflowContextPopup.qml": (
                 (
+                    "property var mainWindowRef",
                     "mainWindowRef.request_rename_custom_workflow_from_library",
                     "mainWindowRef.request_set_custom_workflow_scope",
                     "mainWindowRef.request_delete_custom_workflow_from_library",
@@ -1080,6 +1082,7 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/GraphSearchOverlay.qml": (
                 (
+                    "property var mainWindowRef",
                     "mainWindowRef.graph_search_",
                     "mainWindowRef.set_graph_search_query",
                     "mainWindowRef.request_graph_search_",
@@ -1089,6 +1092,7 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/ConnectionQuickInsertOverlay.qml": (
                 (
+                    "property var mainWindowRef",
                     "mainWindowRef.connection_quick_insert_",
                     "mainWindowRef.set_connection_quick_insert_query",
                     "mainWindowRef.request_close_connection_quick_insert",
@@ -1098,7 +1102,10 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
                 ("shellLibraryBridgeRef",),
             ),
             "ea_node_editor/ui_qml/components/shell/GraphHintOverlay.qml": (
-                ("mainWindowRef.graph_hint_",),
+                (
+                    "property var mainWindowRef",
+                    "mainWindowRef.graph_hint_",
+                ),
                 ("shellLibraryBridgeRef",),
             ),
         }
@@ -1121,6 +1128,7 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
         expectations = {
             "ea_node_editor/ui_qml/components/shell/InspectorPane.qml": (
                 (
+                    "property var mainWindowRef",
                     "mainWindowRef.has_selected_node",
                     "mainWindowRef.selected_node_is_subnode_pin",
                     "mainWindowRef.selected_node_is_subnode_shell",
@@ -1204,7 +1212,10 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
     def test_workspace_run_title_and_console_qml_routes_owned_concerns_through_shell_workspace_bridge(self) -> None:
         expectations = {
             "ea_node_editor/ui_qml/components/shell/ShellTitleBar.qml": (
-                ("mainWindowRef.project_display_name",),
+                (
+                    "property var mainWindowRef",
+                    "mainWindowRef.project_display_name",
+                ),
                 (
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
                     "root.workspaceBridgeRef.project_display_name",
@@ -1212,6 +1223,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             ),
             "ea_node_editor/ui_qml/components/shell/ShellRunToolbar.qml": (
                 (
+                    "property var mainWindowRef",
                     "mainWindowRef.request_run_workflow",
                     "mainWindowRef.request_toggle_run_pause",
                     "mainWindowRef.request_stop_workflow",
@@ -1219,6 +1231,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "mainWindowRef.set_script_editor_panel_visible",
                 ),
                 (
+                    "property var viewBridgeRef",
+                    "property var scriptEditorBridgeRef",
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
                     "root.workspaceBridgeRef.request_run_workflow",
                     "root.workspaceBridgeRef.request_toggle_run_pause",
@@ -1243,6 +1257,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "mainWindowRef.request_rename_workspace_by_id",
                     "mainWindowRef.request_close_workspace_by_id",
                     "mainWindowRef.request_create_workspace",
+                    "property var workspaceTabsBridgeRef",
+                    "property var consoleBridgeRef",
                     "workspaceTabsBridgeRef.tabs",
                     "workspaceTabsBridgeRef.activate_workspace",
                     "consoleBridgeRef.error_count_value",
@@ -1253,6 +1269,10 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "consoleBridgeRef.warnings_text",
                 ),
                 (
+                    "property var mainWindowRef",
+                    "property var sceneBridgeRef",
+                    "property var viewBridgeRef",
+                    "property var overlayHostItem",
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
                     "root.workspaceBridgeRef.active_scope_breadcrumb_items",
@@ -1279,8 +1299,13 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 ),
             ),
             "ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml": (
-                ("mainWindowRef.set_script_editor_panel_visible(false)",),
                 (
+                    "property var mainWindowRef",
+                    "mainWindowRef.set_script_editor_panel_visible(false)",
+                ),
+                (
+                    "property var scriptEditorBridgeRef",
+                    "property var scriptHighlighterBridgeRef",
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
                     "root.workspaceBridgeRef.set_script_editor_panel_visible(false)",
                 ),
@@ -1295,9 +1320,38 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 with self.subTest(path=relative_path, snippet=snippet, expectation="absent"):
                     self.assertNotIn(snippet, qml_text)
 
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+                    self.assertIn(snippet, qml_text)
+
+    def test_main_shell_keeps_only_the_remaining_live_shell_plumbing_assignments(self) -> None:
+        qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/MainShell.qml"
+        qml_text = qml_path.read_text(encoding="utf-8")
+
+        absent_snippets = (
+            "workspaceTabsBridgeRef: workspaceTabsBridge",
+            "consoleBridgeRef: consoleBridge",
+        )
+        present_snippets = (
+            "WorkspaceCenterPane {",
+            "mainWindowRef: mainWindow",
+            "sceneBridgeRef: root.sceneBridgeRef",
+            "viewBridgeRef: root.viewBridgeRef",
+            "overlayHostItem: root",
+            "viewBridgeRef: viewBridge",
+            "scriptEditorBridgeRef: scriptEditorBridge",
+            "scriptHighlighterBridgeRef: scriptHighlighterBridge",
+        )
+
+        for snippet in absent_snippets:
+            with self.subTest(snippet=snippet, expectation="absent"):
+                self.assertNotIn(snippet, qml_text)
+
         for snippet in present_snippets:
-            with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+            with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
+
+        self.assertEqual(qml_text.count("mainWindowRef: mainWindow"), 1)
 
 
 class GraphCanvasQmlBoundaryTests(unittest.TestCase):
@@ -1389,6 +1443,33 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, helper_text)
+
+    def test_overlay_host_item_plumbing_remains_live_for_canvas_overlay_paths(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/MainShell.qml": (
+                "WorkspaceCenterPane {",
+                "overlayHostItem: root",
+            ),
+            "ea_node_editor/ui_qml/components/shell/WorkspaceCenterPane.qml": (
+                "property var overlayHostItem",
+                "overlayHostItem: root.overlayHostItem",
+            ),
+            "ea_node_editor/ui_qml/components/GraphCanvas.qml": (
+                "property var overlayHostItem: null",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInputLayers.qml": (
+                "var overlayHost = root.canvasItem.overlayHostItem || root.canvasItem;",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml": (
+                "root.canvasItem.overlayHostItem ? root.canvasItem.overlayHostItem : root.canvasItem",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
 
 
 class FrameRateSamplerTests(unittest.TestCase):
