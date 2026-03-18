@@ -6,20 +6,45 @@ import "graph_canvas/GraphCanvasLogic.js" as GraphCanvasLogic
 Item {
     id: root
     objectName: "graphCanvas"
+    property var canvasBridge: null
     property var mainWindowBridge: null
     property var sceneBridge: null
     property var viewBridge: null
-    readonly property var canvasBridgeRef: (typeof graphCanvasBridge !== "undefined" && graphCanvasBridge) ? graphCanvasBridge : null
+    readonly property var canvasBridgeRef: root.canvasBridge
+        ? root.canvasBridge
+        : ((typeof graphCanvasBridge !== "undefined" && graphCanvasBridge) ? graphCanvasBridge : null)
     readonly property var _canvasShellBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.mainWindowBridge
     readonly property var _canvasSceneBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.sceneBridge
     readonly property var _canvasViewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.viewBridge
+    readonly property var _canvasShellCompatRef: root.mainWindowBridge ? root.mainWindowBridge : root._canvasShellBridgeRef
+    readonly property var _canvasSceneCompatRef: root.sceneBridge ? root.sceneBridge : root._canvasSceneBridgeRef
+    readonly property var _canvasViewCompatRef: root.viewBridge ? root.viewBridge : root._canvasViewBridgeRef
+    readonly property var _canvasSelectionBridgeRef: root._canvasSceneBridgeRef
+        && root._canvasSceneBridgeRef.select_nodes_in_rect
+        && root._canvasSceneBridgeRef.clear_selection
+        ? root._canvasSceneBridgeRef
+        : root._canvasSceneCompatRef
+    readonly property var _canvasMinimapSceneBridgeRef: root._canvasSceneBridgeRef
+        && typeof root._canvasSceneBridgeRef.workspace_scene_bounds_payload !== "undefined"
+        && typeof root._canvasSceneBridgeRef.minimap_nodes_model !== "undefined"
+        ? root._canvasSceneBridgeRef
+        : root._canvasSceneCompatRef
+    readonly property var _canvasVisibleRectBridgeRef: root._canvasViewBridgeRef
+        && typeof root._canvasViewBridgeRef.visible_scene_rect_payload !== "undefined"
+        ? root._canvasViewBridgeRef
+        : root._canvasViewCompatRef
+    readonly property var _canvasMinimapViewBridgeRef: root._canvasViewBridgeRef
+        && typeof root._canvasViewBridgeRef.visible_scene_rect_payload !== "undefined"
+        && root._canvasViewBridgeRef.center_on_scene_point
+        ? root._canvasViewBridgeRef
+        : root._canvasViewCompatRef
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
-    readonly property var visibleSceneRectPayload: root._canvasViewBridgeRef
-        ? root._canvasViewBridgeRef.visible_scene_rect_payload
+    readonly property var visibleSceneRectPayload: root._canvasVisibleRectBridgeRef
+        ? root._canvasVisibleRectBridgeRef.visible_scene_rect_payload
         : ({})
     property bool minimapExpanded: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_grid) : true
@@ -662,7 +687,7 @@ Item {
         id: backgroundLayer
         objectName: "graphCanvasBackground"
         anchors.fill: parent
-        viewBridge: root.viewBridge
+        viewBridge: root._canvasViewBridgeRef
         showGrid: root.showGrid
     }
 
@@ -670,8 +695,8 @@ Item {
         id: edgeLayer
         objectName: "graphCanvasEdgeLayer"
         anchors.fill: parent
-        viewBridge: root.viewBridge
-        sceneBridge: root.sceneBridge
+        viewBridge: root._canvasViewBridgeRef
+        sceneBridge: root._canvasSceneBridgeRef
         edges: root.edgePayload
         nodes: root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : []
         dragOffsets: root.liveDragOffsets
@@ -700,7 +725,7 @@ Item {
         id: dragNodePreview
         objectName: "graphCanvasDropPreview"
         canvasItem: root
-        viewBridge: root.viewBridge
+        viewBridge: root._canvasViewBridgeRef
     }
 
     Item {
@@ -874,24 +899,24 @@ Item {
         id: minimapOverlay
         objectName: "graphCanvasMinimapOverlay"
         canvasItem: root
-        sceneBridge: root.sceneBridge
-        viewBridge: root.viewBridge
+        sceneBridge: root._canvasMinimapSceneBridgeRef
+        viewBridge: root._canvasMinimapViewBridgeRef
     }
 
     GraphCanvasComponents.GraphCanvasInputLayers {
         id: inputLayers
         objectName: "graphCanvasInputLayers"
         canvasItem: root
-        mainWindowBridge: root.mainWindowBridge
-        sceneBridge: root.sceneBridge
-        viewBridge: root.viewBridge
+        mainWindowBridge: root._canvasShellCompatRef
+        sceneBridge: root._canvasSelectionBridgeRef
+        viewBridge: root._canvasViewBridgeRef
     }
 
     GraphCanvasComponents.GraphCanvasContextMenus {
         id: contextMenus
         objectName: "graphCanvasContextMenus"
         canvasItem: root
-        mainWindowBridge: root.mainWindowBridge
+        mainWindowBridge: root._canvasShellCompatRef
     }
 
     Connections {
@@ -925,12 +950,15 @@ Item {
         }
     }
 
-    onSceneBridgeChanged: {
+    function _resetCanvasSceneState() {
         root.liveDragOffsets = ({});
         root.liveNodeGeometry = ({});
         interactionState.resetSceneBridgeState();
         root._syncEdgePayload();
     }
+
+    onCanvasBridgeChanged: root._resetCanvasSceneState()
+    onSceneBridgeChanged: root._resetCanvasSceneState()
 
     onWidthChanged: {
         var view = root._canvasViewBridgeRef;

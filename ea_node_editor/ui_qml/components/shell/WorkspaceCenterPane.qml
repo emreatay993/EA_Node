@@ -5,10 +5,11 @@ import ".." as Components
 
 Rectangle {
     id: root
-    property var mainWindowRef
     readonly property var workspaceBridgeRef: shellWorkspaceBridge
-    property var sceneBridgeRef
-    property var viewBridgeRef
+    property var graphCanvasBridgeRef
+    property var canvasShellCompatRef
+    property var canvasSceneCompatRef
+    property var canvasViewCompatRef
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette
@@ -115,9 +116,10 @@ Rectangle {
             id: graphCanvas
             Layout.fillWidth: true
             Layout.fillHeight: true
-            mainWindowBridge: root.mainWindowRef
-            sceneBridge: root.sceneBridgeRef
-            viewBridge: root.viewBridgeRef
+            canvasBridge: root.graphCanvasBridgeRef
+            mainWindowBridge: root.canvasShellCompatRef
+            sceneBridge: root.canvasSceneCompatRef
+            viewBridge: root.canvasViewCompatRef
             overlayHostItem: root.overlayHostItem
         }
 

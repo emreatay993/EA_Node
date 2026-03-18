@@ -1267,11 +1267,15 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "consoleBridgeRef.output_text",
                     "consoleBridgeRef.errors_text",
                     "consoleBridgeRef.warnings_text",
-                ),
-                (
                     "property var mainWindowRef",
                     "property var sceneBridgeRef",
                     "property var viewBridgeRef",
+                ),
+                (
+                    "property var graphCanvasBridgeRef",
+                    "property var canvasShellCompatRef",
+                    "property var canvasSceneCompatRef",
+                    "property var canvasViewCompatRef",
                     "property var overlayHostItem",
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
@@ -1296,6 +1300,10 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "root.workspaceBridgeRef.output_text",
                     "root.workspaceBridgeRef.errors_text",
                     "root.workspaceBridgeRef.warnings_text",
+                    "canvasBridge: root.graphCanvasBridgeRef",
+                    "mainWindowBridge: root.canvasShellCompatRef",
+                    "sceneBridge: root.canvasSceneCompatRef",
+                    "viewBridge: root.canvasViewCompatRef",
                 ),
             ),
             "ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml": (
@@ -1331,14 +1339,23 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         absent_snippets = (
             "workspaceTabsBridgeRef: workspaceTabsBridge",
             "consoleBridgeRef: consoleBridge",
-        )
-        present_snippets = (
-            "WorkspaceCenterPane {",
             "mainWindowRef: mainWindow",
             "sceneBridgeRef: root.sceneBridgeRef",
             "viewBridgeRef: root.viewBridgeRef",
-            "overlayHostItem: root",
             "viewBridgeRef: viewBridge",
+        )
+        present_snippets = (
+            "readonly property var canvasBridgeRef",
+            "readonly property var canvasShellCompatRef",
+            "readonly property var canvasSceneCompatRef",
+            "readonly property var canvasViewCompatRef",
+            "WorkspaceCenterPane {",
+            "graphCanvasBridgeRef: root.canvasBridgeRef",
+            "canvasShellCompatRef: root.canvasShellCompatRef",
+            "canvasSceneCompatRef: root.canvasSceneCompatRef",
+            "canvasViewCompatRef: root.canvasViewCompatRef",
+            "overlayHostItem: root",
+            "viewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.canvasViewCompatRef",
             "scriptEditorBridgeRef: scriptEditorBridge",
             "scriptHighlighterBridgeRef: scriptHighlighterBridge",
         )
@@ -1350,8 +1367,6 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
-
-        self.assertEqual(qml_text.count("mainWindowRef: mainWindow"), 1)
 
 
 class GraphCanvasQmlBoundaryTests(unittest.TestCase):
@@ -1396,9 +1411,13 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property bool interactionActive: false",
         )
         present_snippets = (
+            "property var canvasBridge: null",
             "readonly property var _canvasShellBridgeRef",
             "readonly property var _canvasSceneBridgeRef",
             "readonly property var _canvasViewBridgeRef",
+            "readonly property var _canvasShellCompatRef",
+            "readonly property var _canvasSceneCompatRef",
+            "readonly property var _canvasViewCompatRef",
             "root._canvasShellBridgeRef.graphics_show_grid",
             "root._canvasSceneBridgeRef.nodes_model",
             "bridge.selected_node_lookup",
@@ -1412,6 +1431,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "var bridge = root._canvasSceneBridgeRef",
             "var view = root._canvasViewBridgeRef",
             "scale: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0",
+            "viewBridge: root._canvasViewBridgeRef",
+            "sceneBridge: root._canvasSceneBridgeRef",
+            "mainWindowBridge: root._canvasShellCompatRef",
+            "sceneBridge: root._canvasSelectionBridgeRef",
+            "sceneBridge: root._canvasMinimapSceneBridgeRef",
+            "viewBridge: root._canvasMinimapViewBridgeRef",
             "target: root._canvasSceneBridgeRef",
             "target: root._canvasViewBridgeRef",
         )
@@ -1649,10 +1674,13 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         graph_canvas = self._graph_canvas_item()
         context = self.window.quick_widget.rootContext()
         graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
+        canvas_bridge = graph_canvas.property("canvasBridge")
         canvas_bridge_ref = graph_canvas.property("canvasBridgeRef")
 
         self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
         self.assertEqual(graph_canvas.objectName(), "graphCanvas")
+        self.assertIsInstance(canvas_bridge, GraphCanvasBridge)
+        self.assertIs(canvas_bridge, graph_canvas_bridge)
         self.assertIsInstance(canvas_bridge_ref, GraphCanvasBridge)
         self.assertIs(canvas_bridge_ref, graph_canvas_bridge)
         self.assertEqual(

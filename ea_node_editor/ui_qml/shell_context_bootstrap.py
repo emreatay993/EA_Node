@@ -86,26 +86,31 @@ def shell_context_property_bindings(
     host: "ShellWindow",
     bridges: ShellContextBridges,
 ) -> tuple[tuple[str, object], ...]:
-    return (
-        ("mainWindow", host),
-        ("sceneBridge", host.scene),
-        ("viewBridge", host.view),
-        ("consoleBridge", host.console_panel),
-        ("scriptEditorBridge", host.script_editor),
-        ("scriptHighlighterBridge", host.script_highlighter),
-        ("themeBridge", host.theme_bridge),
-        ("graphThemeBridge", host.graph_theme_bridge),
-        ("workspaceTabsBridge", host.workspace_tabs),
-        ("uiIcons", host.ui_icons),
-        ("statusEngine", host.status_engine),
-        ("statusJobs", host.status_jobs),
-        ("statusMetrics", host.status_metrics),
-        ("statusNotifications", host.status_notifications),
+    bridge_first_bindings = (
         ("shellLibraryBridge", bridges.shell_library_bridge),
         ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("graphCanvasBridge", bridges.graph_canvas_bridge),
     )
+    shared_service_bindings = (
+        ("scriptEditorBridge", host.script_editor),
+        ("scriptHighlighterBridge", host.script_highlighter),
+        ("themeBridge", host.theme_bridge),
+        ("graphThemeBridge", host.graph_theme_bridge),
+        ("uiIcons", host.ui_icons),
+        ("statusEngine", host.status_engine),
+        ("statusJobs", host.status_jobs),
+        ("statusMetrics", host.status_metrics),
+        ("statusNotifications", host.status_notifications),
+    )
+    compatibility_bindings = (
+        ("mainWindow", host),
+        ("sceneBridge", host.scene),
+        ("viewBridge", host.view),
+        ("consoleBridge", host.console_panel),
+        ("workspaceTabsBridge", host.workspace_tabs),
+    )
+    return bridge_first_bindings + shared_service_bindings + compatibility_bindings
 
 
 def _main_shell_qml_path() -> Path:

@@ -8,8 +8,18 @@ Rectangle {
     id: root
     readonly property var themePalette: themeBridge.palette
     color: themePalette.app_bg
-    property var sceneBridgeRef: sceneBridge
-    property var viewBridgeRef: viewBridge
+    readonly property var canvasBridgeRef: (typeof graphCanvasBridge !== "undefined" && graphCanvasBridge)
+        ? graphCanvasBridge
+        : null
+    readonly property var canvasShellCompatRef: (typeof mainWindow !== "undefined" && mainWindow)
+        ? mainWindow
+        : null
+    readonly property var canvasSceneCompatRef: (typeof sceneBridge !== "undefined" && sceneBridge)
+        ? sceneBridge
+        : null
+    readonly property var canvasViewCompatRef: (typeof viewBridge !== "undefined" && viewBridge)
+        ? viewBridge
+        : null
 
     LibraryWorkflowContextPopup {
         id: libraryWorkflowContextPopup
@@ -24,7 +34,7 @@ Rectangle {
         }
 
         ShellRunToolbar {
-            viewBridgeRef: viewBridge
+            viewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.canvasViewCompatRef
             scriptEditorBridgeRef: scriptEditorBridge
         }
 
@@ -44,9 +54,10 @@ Rectangle {
 
             WorkspaceCenterPane {
                 id: workspaceCenterPane
-                mainWindowRef: mainWindow
-                sceneBridgeRef: root.sceneBridgeRef
-                viewBridgeRef: root.viewBridgeRef
+                graphCanvasBridgeRef: root.canvasBridgeRef
+                canvasShellCompatRef: root.canvasShellCompatRef
+                canvasSceneCompatRef: root.canvasSceneCompatRef
+                canvasViewCompatRef: root.canvasViewCompatRef
                 overlayHostItem: root
             }
 
