@@ -99,6 +99,137 @@ class ExecutionWorkerTests(unittest.TestCase):
         self.assertEqual(failed[0]["node_id"], script.node_id)
         self.assertIn("RuntimeError: boom", failed[0]["traceback"])
 
+    def test_run_workflow_exec_node_pulls_pure_data_dependencies(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        constant = model.add_node(
+            ws.workspace_id,
+            "core.constant",
+            "Constant",
+            100,
+            -80,
+            properties={"value": "from_constant"},
+        )
+        logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 200, 0)
+        end = model.add_node(ws.workspace_id, "core.end", "End", 320, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, constant.node_id, "value", logger.node_id, "message")
+
+        event_queue: queue.Queue = queue.Queue()
+        serializer = JsonProjectSerializer(build_default_registry())
+        run_workflow(
+            {
+                "run_id": "run_dependency_pull",
+                "workspace_id": ws.workspace_id,
+                "project_doc": serializer.to_document(model.project),
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        started_indexes = {
+            str(event.get("node_id", "")): index
+            for index, event in enumerate(events)
+            if str(event.get("type", "")) == "node_started"
+        }
+        self.assertIn(constant.node_id, started_indexes)
+        self.assertIn(logger.node_id, started_indexes)
+        self.assertLess(started_indexes[constant.node_id], started_indexes[logger.node_id])
+
+        logger_logs = [
+            str(event.get("message", ""))
+            for event in events
+            if str(event.get("type", "")) == "log" and str(event.get("node_id", "")) == logger.node_id
+        ]
+        self.assertIn("from_constant", logger_logs)
+
+    def test_run_workflow_executes_pure_only_workspace_explicitly(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        constant = model.add_node(
+            ws.workspace_id,
+            "core.constant",
+            "Constant",
+            80,
+            0,
+            properties={"value": 42},
+        )
+
+        event_queue: queue.Queue = queue.Queue()
+        serializer = JsonProjectSerializer(build_default_registry())
+        run_workflow(
+            {
+                "run_id": "run_pure_only",
+                "workspace_id": ws.workspace_id,
+                "project_doc": serializer.to_document(model.project),
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        event_types = [str(event.get("type", "")) for event in events]
+        self.assertIn("run_completed", event_types)
+        self.assertTrue(
+            any(
+                str(event.get("type", "")) == "node_started"
+                and str(event.get("node_id", "")) == constant.node_id
+                for event in events
+            )
+        )
+        completed = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_completed"
+            and str(event.get("node_id", "")) == constant.node_id
+        )
+        self.assertEqual(completed["outputs"]["value"], 42)
+
+    def test_run_workflow_skips_action_nodes_without_exec_trigger(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        logger = model.add_node(
+            ws.workspace_id,
+            "core.logger",
+            "Logger",
+            120,
+            0,
+            properties={"message": "should_not_run"},
+        )
+
+        event_queue: queue.Queue = queue.Queue()
+        serializer = JsonProjectSerializer(build_default_registry())
+        run_workflow(
+            {
+                "run_id": "run_no_exec_trigger",
+                "workspace_id": ws.workspace_id,
+                "project_doc": serializer.to_document(model.project),
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        event_types = [str(event.get("type", "")) for event in events]
+        self.assertIn("run_completed", event_types)
+        self.assertFalse(
+            any(
+                str(event.get("type", "")) == "node_started"
+                and str(event.get("node_id", "")) == logger.node_id
+                for event in events
+            )
+        )
+        self.assertFalse(
+            any(
+                str(event.get("type", "")) == "log"
+                and str(event.get("node_id", "")) == logger.node_id
+                for event in events
+            )
+        )
+
     def test_run_workflow_emits_pause_resume_and_stop_transitions(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
