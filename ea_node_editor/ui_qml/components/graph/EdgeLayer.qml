@@ -20,10 +20,12 @@ Item {
     property var dragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
+    property var visibleSceneRectPayload: ({})
     property string previewEdgeId: ""
     property var dragConnection: null
     property bool inputEnabled: true
     property int _redrawRequestCount: 0
+    property real viewportCullMarginPx: 96.0
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
@@ -54,6 +56,77 @@ Item {
         var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
         var centerY = viewBridge ? viewBridge.center_y : 0.0;
         return root.height * 0.5 + (worldY - centerY) * zoom;
+    }
+
+    function _zoomValue() {
+        var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;
+        if (!isFinite(zoom) || zoom <= 0.0001)
+            return 1.0;
+        return zoom;
+    }
+
+    function _screenMarginToScene(screenMarginPx) {
+        return Math.max(0.0, Number(screenMarginPx || 0.0)) / root._zoomValue();
+    }
+
+    function _expandedVisibleSceneBounds() {
+        var payload = root.visibleSceneRectPayload;
+        if ((!payload || payload.width === undefined || payload.height === undefined) && root.viewBridge)
+            payload = root.viewBridge.visible_scene_rect_payload;
+        if (!payload)
+            return null;
+        var x = Number(payload.x);
+        var y = Number(payload.y);
+        var width = Number(payload.width);
+        var height = Number(payload.height);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height) || width <= 0.0 || height <= 0.0)
+            return null;
+        var sceneMargin = root._screenMarginToScene(root.viewportCullMarginPx);
+        return {
+            "left": x - sceneMargin,
+            "top": y - sceneMargin,
+            "right": x + width + sceneMargin,
+            "bottom": y + height + sceneMargin
+        };
+    }
+
+    function _rectIntersects(a, b) {
+        if (!a || !b)
+            return true;
+        return a.left <= b.right
+            && a.right >= b.left
+            && a.top <= b.bottom
+            && a.bottom >= b.top;
+    }
+
+    function _sceneBoundsForPoints(points) {
+        if (!points || !points.length)
+            return null;
+        var minX = Number.POSITIVE_INFINITY;
+        var minY = Number.POSITIVE_INFINITY;
+        var maxX = Number.NEGATIVE_INFINITY;
+        var maxY = Number.NEGATIVE_INFINITY;
+        for (var i = 0; i < points.length; i++) {
+            var point = points[i];
+            if (!point)
+                continue;
+            var x = Number(point.x);
+            var y = Number(point.y);
+            if (!isFinite(x) || !isFinite(y))
+                continue;
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+        if (!isFinite(minX) || !isFinite(minY) || !isFinite(maxX) || !isFinite(maxY))
+            return null;
+        return {
+            "left": minX,
+            "top": minY,
+            "right": maxX,
+            "bottom": maxY
+        };
     }
 
     function _nodeMap() {
@@ -289,6 +362,30 @@ Item {
             "c2y": c2yWorld,
             "route": edge.route,
             "pipe_points": pipePoints
+        };
+    }
+
+    function _geometrySceneBounds(geometry) {
+        if (!geometry)
+            return null;
+        if (geometry.route === "pipe")
+            return root._sceneBoundsForPoints(geometry.pipe_points || []);
+        return root._sceneBoundsForPoints([
+            {"x": geometry.sx, "y": geometry.sy},
+            {"x": geometry.c1x, "y": geometry.c1y},
+            {"x": geometry.c2x, "y": geometry.c2y},
+            {"x": geometry.tx, "y": geometry.ty}
+        ]);
+    }
+
+    function _edgeCullState(edge, nodeById, viewportBounds) {
+        var geometry = root._edgeGeometry(edge, nodeById);
+        var sceneBounds = root._geometrySceneBounds(geometry);
+        var visibleBounds = viewportBounds || root._expandedVisibleSceneBounds();
+        var culled = sceneBounds && visibleBounds ? !root._rectIntersects(sceneBounds, visibleBounds) : false;
+        return {
+            "culled": culled,
+            "geometry": culled ? null : geometry
         };
     }
 
@@ -529,8 +626,9 @@ Item {
         return (root.selectedEdgeIds || []).indexOf(edgeId) >= 0;
     }
 
-    function _edgeDistanceAtScreen(edge, screenX, screenY, nodeById) {
-        var geometry = _edgeGeometry(edge, nodeById);
+    function _edgeDistanceAtScreen(geometry, screenX, screenY) {
+        if (!geometry)
+            return Number.POSITIVE_INFINITY;
         if (geometry.route === "pipe") {
             var screenPoints = [];
             var pipePoints = geometry.pipe_points || [];
@@ -565,12 +663,16 @@ Item {
         if (!edgesList.length)
             return "";
         var nodeById = _nodeMap();
+        var viewportBounds = root._expandedVisibleSceneBounds();
         var bestId = "";
         var bestDistance = Number.POSITIVE_INFINITY;
         var threshold = 8.0;
         for (var i = edgesList.length - 1; i >= 0; i--) {
             var edge = edgesList[i];
-            var distance = _edgeDistanceAtScreen(edge, screenX, screenY, nodeById);
+            var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
+            if (cullState.culled || !cullState.geometry)
+                continue;
+            var distance = _edgeDistanceAtScreen(cullState.geometry, screenX, screenY);
             if (distance < bestDistance && distance <= threshold) {
                 bestDistance = distance;
                 bestId = edge.edge_id;
@@ -590,10 +692,14 @@ Item {
             var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
             var edgesList = root.edges || [];
             var nodeById = root._nodeMap();
+            var viewportBounds = root._expandedVisibleSceneBounds();
 
             for (var i = 0; i < edgesList.length; i++) {
                 var edge = edgesList[i];
-                var geometry = root._edgeGeometry(edge, nodeById);
+                var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
+                if (cullState.culled || !cullState.geometry)
+                    continue;
+                var geometry = cullState.geometry;
                 var selected = root._isSelected(edge.edge_id);
                 var previewed = root.previewEdgeId && root.previewEdgeId === edge.edge_id;
                 var flowEdge = root._edgeIsFlow(edge);
@@ -672,6 +778,7 @@ Item {
         id: flowLabelLayer
         anchors.fill: parent
         readonly property var nodeById: root._nodeMap()
+        readonly property var viewportBounds: root._expandedVisibleSceneBounds()
 
         Repeater {
             model: root.edges || []
@@ -681,10 +788,15 @@ Item {
                 property var edgeData: modelData
                 property string labelText: root._edgeLabelText(edgeData)
                 property string labelMode: root._flowLabelMode(edgeData)
+                property bool labelRequested: labelMode !== "hidden"
+                property var cullState: labelRequested
+                    ? root._edgeCullState(edgeData, flowLabelLayer.nodeById, flowLabelLayer.viewportBounds)
+                    : null
+                property bool culledByViewport: labelRequested && cullState ? Boolean(cullState.culled) : false
                 property bool pillVisible: labelMode === "pill"
                 property real anchorScreenX: labelAnchor ? labelAnchor.screen_x : 0.0
                 property real anchorScreenY: labelAnchor ? labelAnchor.screen_y : 0.0
-                property var geometry: labelMode === "hidden" ? null : root._edgeGeometry(edgeData, flowLabelLayer.nodeById)
+                property var geometry: labelRequested && !culledByViewport && cullState ? cullState.geometry : null
                 property var pathAnchor: geometry ? root._edgeAnchor(geometry, 0.5) : null
                 property real edgeScreenX: pathAnchor ? root.sceneToScreenX(pathAnchor.x) : 0.0
                 property real edgeScreenY: pathAnchor ? root.sceneToScreenY(pathAnchor.y) : 0.0
@@ -697,7 +809,7 @@ Item {
                 property real horizontalPadding: pillVisible ? 9.0 : 1.0
                 property real verticalPadding: pillVisible ? 5.0 : 0.0
                 property real maximumTextWidth: pillVisible ? 180.0 : 110.0
-                visible: labelMode !== "hidden" && labelAnchor !== null
+                visible: labelRequested && !culledByViewport && labelAnchor !== null
                 width: labelTextItem.width + horizontalPadding * 2.0
                 height: labelTextItem.height + verticalPadding * 2.0
                 x: anchorScreenX - width * 0.5

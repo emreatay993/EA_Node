@@ -18,6 +18,9 @@ Item {
     property var liveDragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
+    readonly property var visibleSceneRectPayload: root._canvasViewBridgeRef
+        ? root._canvasViewBridgeRef.visible_scene_rect_payload
+        : ({})
     property bool minimapExpanded: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_grid) : true
     readonly property bool minimapVisible: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_minimap) : true
@@ -673,6 +676,7 @@ Item {
         dragOffsets: root.liveDragOffsets
         liveNodeGeometry: root.liveNodeGeometry
         selectedEdgeIds: root.selectedEdgeIds
+        visibleSceneRectPayload: root.visibleSceneRectPayload
         previewEdgeId: root.dropPreviewEdgeId
         dragConnection: root.wireDragPreviewConnection()
         inputEnabled: !(root.edgeContextVisible || root.nodeContextVisible)

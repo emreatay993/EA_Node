@@ -339,6 +339,20 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(self.canvas.property("liveNodeGeometry"), payload)
         self.assertEqual(edge_layer.property("liveNodeGeometry"), payload)
 
+    def test_graph_canvas_propagates_visible_scene_rect_payload_to_edge_layer(self) -> None:
+        edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")
+        self.assertIsNotNone(edge_layer)
+
+        payload = edge_layer.property("visibleSceneRectPayload")
+        self.assertEqual(payload, {"x": -640.0, "y": -360.0, "width": 1280.0, "height": 720.0})
+
+        self.view.set_zoom(2.0)
+        self.view.centerOn(120.0, -60.0)
+        self.app.processEvents()
+
+        payload = edge_layer.property("visibleSceneRectPayload")
+        self.assertEqual(payload, {"x": -200.0, "y": -240.0, "width": 640.0, "height": 360.0})
+
     def test_graph_canvas_coalesces_view_state_redraw_requests_per_commit(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
         edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")

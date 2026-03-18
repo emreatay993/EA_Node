@@ -254,6 +254,57 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_flow_edge_labels_cull_offscreen_edges_until_viewport_moves(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-label-viewport-cull",
+            """
+            off_source_id = scene.add_node_from_type("tests.flow_edge_label_probe_node", 4200.0, 3300.0)
+            off_target_id = scene.add_node_from_type("tests.flow_edge_label_probe_node", 4680.0, 3420.0)
+            off_edge_id = scene.add_edge(off_source_id, "flow_out", off_target_id, "flow_in")
+            scene.set_edge_label(off_edge_id, "Offscreen path")
+            scene.set_edge_visual_style(
+                off_edge_id,
+                {
+                    "stroke_pattern": "dashed",
+                    "arrow_head": "open",
+                    "stroke_width": 3,
+                    "stroke_color": "#335577",
+                    "label_text_color": "#f0f4fb",
+                    "label_background_color": "#223344",
+                },
+            )
+            app.processEvents()
+
+            labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")
+            assert len(labels) == 2
+            labels_by_text = {item.property("labelText"): item for item in labels}
+            assert set(labels_by_text) == {"Primary path", "Offscreen path"}
+
+            visible_label = labels_by_text["Primary path"]
+            culled_label = labels_by_text["Offscreen path"]
+            assert visible_label.isVisible()
+            assert not culled_label.isVisible()
+            assert bool(culled_label.property("culledByViewport"))
+            assert culled_label.property("geometry") is None
+            assert culled_label.property("labelAnchor") is None
+            assert not bool(culled_label.property("hitTestMatches"))
+
+            view.centerOn(4440.0, 3360.0)
+            app.processEvents()
+
+            assert culled_label.isVisible()
+            assert not bool(culled_label.property("culledByViewport"))
+            assert culled_label.property("geometry") is not None
+            assert culled_label.property("labelAnchor") is not None
+            assert not visible_label.isVisible()
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
