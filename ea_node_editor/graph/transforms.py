@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass
-from typing import Any, Sequence
+import math
+from typing import Any, Callable, Mapping, Sequence
 
 from ea_node_editor.graph.effective_ports import (
     effective_ports as resolve_effective_ports,
@@ -10,23 +11,28 @@ from ea_node_editor.graph.effective_ports import (
     is_subnode_pin_type,
 )
 from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id, subtree_node_ids
-from ea_node_editor.graph.model import EdgeInstance, GraphModel, WorkspaceData
+from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_PIN_KIND_PROPERTY,
-    SUBNODE_PIN_KIND_VALUES,
     SUBNODE_PIN_LABEL_PROPERTY,
     SUBNODE_PIN_PORT_KEY,
     SUBNODE_TYPE_ID,
+    default_subnode_pin_label,
+    is_subnode_shell_type,
+    normalize_subnode_pin_data_type,
+    normalize_subnode_pin_kind,
+    resolve_subnode_pin_definition,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import NodeTypeSpec
 
 _PIN_OFFSET_X = 220.0
 _PIN_ROW_STEP = 70.0
-_FLOW_KINDS = frozenset({"exec", "completed", "failed"})
 _FRAGMENT_EXTERNAL_PARENT_PREFIX = "__ea_external_parent__:"
+_DEFAULT_LAYOUT_GRID_SIZE = 20.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -44,12 +50,232 @@ class UngroupSubnodeResult:
 
 
 @dataclass(slots=True, frozen=True)
+class LayoutNodeBounds:
+    node_id: str
+    x: float
+    y: float
+    width: float
+    height: float
+
+    @property
+    def left(self) -> float:
+        return self.x
+
+    @property
+    def right(self) -> float:
+        return self.x + self.width
+
+    @property
+    def top(self) -> float:
+        return self.y
+
+    @property
+    def bottom(self) -> float:
+        return self.y + self.height
+
+
+@dataclass(slots=True, frozen=True)
+class GraphFragmentBounds:
+    x: float
+    y: float
+    width: float
+    height: float
+
+    @property
+    def center_x(self) -> float:
+        return self.x + (self.width * 0.5)
+
+    @property
+    def center_y(self) -> float:
+        return self.y + (self.height * 0.5)
+
+
+@dataclass(slots=True, frozen=True)
+class SubnodeShellPinPlan:
+    pin_type_id: str
+    label: str
+    x: float
+    y: float
+
+
+@dataclass(slots=True, frozen=True)
 class _BoundaryEdge:
     edge: EdgeInstance
     pin_type_id: str
     label: str
     kind: str
     data_type: str
+
+
+def plan_subnode_shell_pin_addition(
+    *,
+    workspace: WorkspaceData,
+    shell_node_id: object,
+    pin_type_id: object,
+) -> SubnodeShellPinPlan | None:
+    normalized_shell_node_id = str(shell_node_id).strip()
+    normalized_pin_type_id = str(pin_type_id).strip()
+    if not normalized_shell_node_id or not normalized_pin_type_id:
+        return None
+
+    shell_node = workspace.nodes.get(normalized_shell_node_id)
+    if shell_node is None or not is_subnode_shell_type(shell_node.type_id):
+        return None
+    if normalized_pin_type_id not in {SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID}:
+        return None
+
+    same_direction_pins: list[NodeInstance] = []
+    for candidate in workspace.nodes.values():
+        if candidate.parent_node_id != shell_node.node_id:
+            continue
+        if str(candidate.type_id).strip() != normalized_pin_type_id:
+            continue
+        same_direction_pins.append(candidate)
+
+    base_label = default_subnode_pin_label(normalized_pin_type_id)
+    existing_labels = {
+        resolve_subnode_pin_definition(candidate.type_id, candidate.properties).label.strip().lower()
+        for candidate in same_direction_pins
+    }
+    pin_label = base_label
+    suffix = 2
+    while pin_label.strip().lower() in existing_labels:
+        pin_label = f"{base_label} {suffix}"
+        suffix += 1
+
+    y_positions = [float(candidate.y) for candidate in same_direction_pins]
+    pin_y = (max(y_positions) + 90.0) if y_positions else (float(shell_node.y) + 60.0)
+    pin_x = float(shell_node.x) + (40.0 if normalized_pin_type_id == SUBNODE_INPUT_TYPE_ID else 360.0)
+    return SubnodeShellPinPlan(
+        pin_type_id=normalized_pin_type_id,
+        label=pin_label,
+        x=pin_x,
+        y=pin_y,
+    )
+
+
+def collect_layout_node_bounds(
+    *,
+    workspace: WorkspaceData,
+    node_ids: Sequence[str],
+    spec_lookup: Callable[[str], NodeTypeSpec],
+    size_resolver: Callable[[NodeInstance, NodeTypeSpec, Mapping[str, NodeInstance]], tuple[float, float]],
+) -> list[LayoutNodeBounds]:
+    layout_nodes: list[LayoutNodeBounds] = []
+    for node_id in node_ids:
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            continue
+        spec = spec_lookup(node.type_id)
+        width, height = size_resolver(node, spec, workspace.nodes)
+        layout_nodes.append(
+            LayoutNodeBounds(
+                node_id=node_id,
+                x=float(node.x),
+                y=float(node.y),
+                width=float(width),
+                height=float(height),
+            )
+        )
+    return layout_nodes
+
+
+def snap_coordinate(value: float, grid_size: float, *, default_step: float = _DEFAULT_LAYOUT_GRID_SIZE) -> float:
+    step = float(grid_size)
+    if not math.isfinite(step) or step <= 0.0:
+        step = float(default_step)
+    target = float(value)
+    if not math.isfinite(target):
+        return 0.0
+    return round(target / step) * step
+
+
+def build_alignment_position_updates(
+    *,
+    layout_nodes: Sequence[LayoutNodeBounds],
+    alignment: str,
+) -> dict[str, tuple[float, float]]:
+    normalized_alignment = str(alignment).strip().lower()
+    if normalized_alignment not in {"left", "right", "top", "bottom"}:
+        return {}
+    if len(layout_nodes) < 2:
+        return {}
+
+    updates: dict[str, tuple[float, float]] = {}
+    if normalized_alignment == "left":
+        target_left = min(node.left for node in layout_nodes)
+        for node in layout_nodes:
+            updates[node.node_id] = (target_left, node.y)
+    elif normalized_alignment == "right":
+        target_right = max(node.right for node in layout_nodes)
+        for node in layout_nodes:
+            updates[node.node_id] = (target_right - node.width, node.y)
+    elif normalized_alignment == "top":
+        target_top = min(node.top for node in layout_nodes)
+        for node in layout_nodes:
+            updates[node.node_id] = (node.x, target_top)
+    else:
+        target_bottom = max(node.bottom for node in layout_nodes)
+        for node in layout_nodes:
+            updates[node.node_id] = (node.x, target_bottom - node.height)
+    return updates
+
+
+def build_distribution_position_updates(
+    *,
+    layout_nodes: Sequence[LayoutNodeBounds],
+    orientation: str,
+) -> dict[str, tuple[float, float]]:
+    normalized_orientation = str(orientation).strip().lower()
+    if normalized_orientation not in {"horizontal", "vertical"}:
+        return {}
+    if len(layout_nodes) < 3:
+        return {}
+
+    updates: dict[str, tuple[float, float]] = {}
+    if normalized_orientation == "horizontal":
+        ordered = sorted(layout_nodes, key=lambda node: (node.left, node.top, node.node_id))
+        total_span = ordered[-1].right - ordered[0].left
+        total_size = sum(node.width for node in ordered)
+        gap = (total_span - total_size) / float(len(ordered) - 1)
+        cursor = ordered[0].right + gap
+        for node in ordered[1:-1]:
+            updates[node.node_id] = (cursor, node.y)
+            cursor += node.width + gap
+    else:
+        ordered = sorted(layout_nodes, key=lambda node: (node.top, node.left, node.node_id))
+        total_span = ordered[-1].bottom - ordered[0].top
+        total_size = sum(node.height for node in ordered)
+        gap = (total_span - total_size) / float(len(ordered) - 1)
+        cursor = ordered[0].bottom + gap
+        for node in ordered[1:-1]:
+            updates[node.node_id] = (node.x, cursor)
+            cursor += node.height + gap
+    return updates
+
+
+def normalize_layout_position_updates(
+    *,
+    workspace: WorkspaceData,
+    updates: Mapping[str, tuple[float, float]],
+    snap_to_grid: bool,
+    grid_size: float,
+    default_grid_size: float = _DEFAULT_LAYOUT_GRID_SIZE,
+) -> dict[str, tuple[float, float]]:
+    final_positions: dict[str, tuple[float, float]] = {}
+    for node_id, (x_value, y_value) in updates.items():
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            continue
+        final_x = float(x_value)
+        final_y = float(y_value)
+        if snap_to_grid:
+            final_x = snap_coordinate(final_x, grid_size, default_step=default_grid_size)
+            final_y = snap_coordinate(final_y, grid_size, default_step=default_grid_size)
+        if float(node.x) == final_x and float(node.y) == final_y:
+            continue
+        final_positions[node_id] = (final_x, final_y)
+    return final_positions
 
 
 def encode_fragment_external_parent_id(parent_node_id: object) -> str | None:
@@ -82,7 +308,7 @@ def expand_subtree_fragment_node_ids(
         if node is None:
             continue
         fragment_ids = [node_id]
-        if node.type_id == SUBNODE_TYPE_ID:
+        if is_subnode_shell_type(node.type_id):
             fragment_ids = subtree_node_ids(workspace, [node_id])
         for fragment_id in fragment_ids:
             if fragment_id in seen_expanded or fragment_id not in workspace.nodes:
@@ -163,7 +389,7 @@ def build_subnode_custom_workflow_snapshot_data(
     if not normalized_shell_node_id:
         return None
     shell_node = workspace.nodes.get(normalized_shell_node_id)
-    if shell_node is None or shell_node.type_id != SUBNODE_TYPE_ID:
+    if shell_node is None or not is_subnode_shell_type(shell_node.type_id):
         return None
     try:
         shell_spec = registry.get_spec(shell_node.type_id)
@@ -198,6 +424,127 @@ def build_subnode_custom_workflow_snapshot_data(
         "ports": ports_payload,
         "fragment": fragment_payload,
     }
+
+
+def fragment_node_from_payload(node_payload: Mapping[str, Any]) -> NodeInstance:
+    return NodeInstance(
+        node_id=str(node_payload.get("ref_id", "")),
+        type_id=str(node_payload.get("type_id", "")),
+        title=str(node_payload.get("title", "")),
+        x=float(node_payload.get("x", 0.0)),
+        y=float(node_payload.get("y", 0.0)),
+        collapsed=bool(node_payload.get("collapsed", False)),
+        properties=dict(node_payload.get("properties", {})),
+        exposed_ports=dict(node_payload.get("exposed_ports", {})),
+        visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
+        parent_node_id=node_payload.get("parent_node_id"),
+        custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
+        custom_height=float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None,
+    )
+
+
+def graph_fragment_bounds(
+    *,
+    nodes_payload: Sequence[Mapping[str, Any]],
+    registry: NodeRegistry,
+    size_resolver: Callable[[NodeInstance, NodeTypeSpec, Mapping[str, NodeInstance]], tuple[float, float]],
+) -> GraphFragmentBounds | None:
+    fragment_nodes: dict[str, NodeInstance] = {}
+    node_specs: dict[str, NodeTypeSpec] = {}
+    for node_payload in nodes_payload:
+        ref_id = str(node_payload.get("ref_id", "")).strip()
+        type_id = str(node_payload.get("type_id", "")).strip()
+        if not ref_id or not type_id:
+            return None
+        try:
+            node_specs[ref_id] = registry.get_spec(type_id)
+        except KeyError:
+            return None
+        fragment_nodes[ref_id] = fragment_node_from_payload(node_payload)
+
+    min_x: float | None = None
+    min_y: float | None = None
+    max_x: float | None = None
+    max_y: float | None = None
+    for node_id, node in fragment_nodes.items():
+        spec = node_specs[node_id]
+        width, height = size_resolver(node, spec, fragment_nodes)
+        node_left = float(node.x)
+        node_top = float(node.y)
+        node_right = node_left + float(width)
+        node_bottom = node_top + float(height)
+        min_x = node_left if min_x is None else min(min_x, node_left)
+        min_y = node_top if min_y is None else min(min_y, node_top)
+        max_x = node_right if max_x is None else max(max_x, node_right)
+        max_y = node_bottom if max_y is None else max(max_y, node_bottom)
+
+    if min_x is None or min_y is None or max_x is None or max_y is None:
+        return None
+    return GraphFragmentBounds(
+        x=min_x,
+        y=min_y,
+        width=max(0.0, max_x - min_x),
+        height=max(0.0, max_y - min_y),
+    )
+
+
+def graph_fragment_payload_is_valid(
+    *,
+    fragment_payload: Mapping[str, Any],
+    registry: NodeRegistry,
+) -> bool:
+    raw_nodes = fragment_payload.get("nodes")
+    raw_edges = fragment_payload.get("edges")
+    if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
+        return False
+
+    node_specs: dict[str, NodeTypeSpec] = {}
+    fragment_nodes: dict[str, NodeInstance] = {}
+    for node_payload in raw_nodes:
+        ref_id = str(node_payload.get("ref_id", "")).strip()
+        type_id = str(node_payload.get("type_id", "")).strip()
+        if not ref_id or not type_id:
+            return False
+        try:
+            node_specs[ref_id] = registry.get_spec(type_id)
+        except KeyError:
+            return False
+        fragment_nodes[ref_id] = fragment_node_from_payload(node_payload)
+
+    occupied_single_target_ports: set[tuple[str, str]] = set()
+    for edge_payload in raw_edges:
+        source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
+        target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
+        source_port_key = str(edge_payload.get("source_port_key", "")).strip()
+        target_port_key = str(edge_payload.get("target_port_key", "")).strip()
+        source_node = fragment_nodes.get(source_ref_id)
+        target_node = fragment_nodes.get(target_ref_id)
+        source_spec = node_specs.get(source_ref_id)
+        target_spec = node_specs.get(target_ref_id)
+        if source_node is None or target_node is None or source_spec is None or target_spec is None:
+            return False
+        source_port = find_port(
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=fragment_nodes,
+            port_key=source_port_key,
+        )
+        target_port = find_port(
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=fragment_nodes,
+            port_key=target_port_key,
+        )
+        if source_port is None or target_port is None:
+            return False
+        if source_port.direction != "out" or target_port.direction != "in":
+            return False
+        target_key = (target_ref_id, target_port_key)
+        if not target_port.allow_multiple_connections and target_key in occupied_single_target_ports:
+            return False
+        if not target_port.allow_multiple_connections:
+            occupied_single_target_ports.add(target_key)
+    return True
 
 
 def insert_graph_fragment(
@@ -347,7 +694,7 @@ def _remap_fragment_edge_port_key(
     if endpoint_node is None:
         return port_key
     # Subnode shell edge port keys are child pin node ids; remap those ids with the fragment map.
-    if endpoint_node.type_id != SUBNODE_TYPE_ID:
+    if not is_subnode_shell_type(endpoint_node.type_id):
         return port_key
     return node_id_map.get(port_key, port_key)
 
@@ -509,7 +856,7 @@ def ungroup_subnode(
     if not normalized_shell_id:
         return None
     shell = workspace.nodes.get(normalized_shell_id)
-    if shell is None or shell.type_id != SUBNODE_TYPE_ID:
+    if shell is None or not is_subnode_shell_type(shell.type_id):
         return None
 
     direct_children = [
@@ -749,13 +1096,8 @@ def _pin_signature_for_inner_port(
         return default_signature
 
     label = str(port.label).strip() or default_label
-    kind = str(port.kind).strip().lower()
-    if kind not in set(SUBNODE_PIN_KIND_VALUES):
-        kind = "data"
-
-    data_type = str(port.data_type).strip().lower() or "any"
-    if kind in _FLOW_KINDS:
-        data_type = "any"
+    kind = normalize_subnode_pin_kind(port.kind)
+    data_type = normalize_subnode_pin_data_type(kind, port.data_type)
     return label, kind, data_type
 
 
@@ -785,16 +1127,12 @@ def _create_boundary_pin(
         exposed_ports={},
     )
     pin.parent_node_id = shell_node_id
-    pin.properties[SUBNODE_PIN_LABEL_PROPERTY] = str(label).strip() or pin_defaults.get(SUBNODE_PIN_LABEL_PROPERTY, "")
+    pin.properties[SUBNODE_PIN_LABEL_PROPERTY] = str(label).strip() or default_subnode_pin_label(pin_type_id)
 
-    normalized_kind = str(kind).strip().lower()
-    if normalized_kind not in set(SUBNODE_PIN_KIND_VALUES):
-        normalized_kind = "data"
+    normalized_kind = normalize_subnode_pin_kind(kind)
     pin.properties[SUBNODE_PIN_KIND_PROPERTY] = normalized_kind
 
-    normalized_data_type = str(data_type).strip().lower() or "any"
-    if normalized_kind in _FLOW_KINDS:
-        normalized_data_type = "any"
+    normalized_data_type = normalize_subnode_pin_data_type(normalized_kind, data_type)
     pin.properties[SUBNODE_PIN_DATA_TYPE_PROPERTY] = normalized_data_type
 
     # Keep shell ports exposed by default when deriving pins from a grouped boundary.
@@ -813,13 +1151,25 @@ def _edge_sort_key(edge: EdgeInstance) -> tuple[str, str, str, str, str]:
 
 
 __all__ = [
+    "GraphFragmentBounds",
     "GroupSubnodeResult",
+    "LayoutNodeBounds",
+    "SubnodeShellPinPlan",
     "UngroupSubnodeResult",
+    "build_alignment_position_updates",
+    "build_distribution_position_updates",
     "build_subnode_custom_workflow_snapshot_data",
     "build_subtree_fragment_payload_data",
+    "collect_layout_node_bounds",
     "encode_fragment_external_parent_id",
     "expand_subtree_fragment_node_ids",
+    "fragment_node_from_payload",
+    "graph_fragment_bounds",
+    "graph_fragment_payload_is_valid",
     "group_selection_into_subnode",
     "insert_graph_fragment",
+    "normalize_layout_position_updates",
+    "plan_subnode_shell_pin_addition",
+    "snap_coordinate",
     "ungroup_subnode",
 ]

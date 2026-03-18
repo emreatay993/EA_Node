@@ -43,7 +43,7 @@ class GraphSceneBridge(QObject):
         self._history: RuntimeGraphHistory | None = None
         self._scope_selection = GraphSceneScopeSelection(self)
         self._mutation_history = GraphSceneMutationHistory(self)
-        self._payload_builder = GraphScenePayloadBuilder(self)
+        self._payload_builder = GraphScenePayloadBuilder()
         self._workspace_id = ""
         self._scope_path: ScopePath = ()
         self._selected_node_ids: list[str] = []
@@ -319,7 +319,14 @@ class GraphSceneBridge(QObject):
         return self._scope_selection.node_bounds(node_id)
 
     def edge_item(self, edge_id: str) -> dict[str, Any] | None:
-        return self._payload_builder.edge_item(edge_id)
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return None
+        return self._payload_builder.edge_item(
+            workspace=workspace,
+            scope_path=self._scope_path,
+            edge_id=edge_id,
+        )
 
     @pyqtSlot(str, float, float, result=str)
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
@@ -519,77 +526,34 @@ class GraphSceneBridge(QObject):
     def _selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
         return self._mutation_history._selected_node_ids_in_workspace(workspace)
 
-    def _selected_layout_metrics(self):
-        return self._mutation_history._selected_layout_metrics()
-
-    @staticmethod
-    def _snap_coordinate(value: float, grid_size: float) -> float:
-        return GraphSceneMutationHistory._snap_coordinate(value, grid_size)
-
-    def _apply_layout_updates(
-        self,
-        workspace: WorkspaceData,
-        updates: dict[str, tuple[float, float]],
-        *,
-        snap_to_grid: bool,
-        grid_size: float,
-    ) -> bool:
-        return self._mutation_history._apply_layout_updates(
-            workspace,
-            updates,
-            snap_to_grid=snap_to_grid,
-            grid_size=grid_size,
-        )
-
-    def _build_subgraph_fragment_payload(
-        self,
-        workspace: WorkspaceData,
-        node_ids: list[str],
-    ) -> dict[str, Any] | None:
-        return self._mutation_history._build_subgraph_fragment_payload(workspace, node_ids)
-
-    @staticmethod
-    def _node_from_fragment_payload(node_payload: dict[str, Any]) -> NodeInstance:
-        return GraphSceneMutationHistory._node_from_fragment_payload(node_payload)
-
-    def _fragment_bounds(self, nodes_payload: list[dict[str, Any]]) -> QRectF | None:
-        return self._mutation_history._fragment_bounds(nodes_payload)
-
-    def _fragment_types_and_ports_are_valid(self, fragment_payload: dict[str, Any]) -> bool:
-        return self._mutation_history._fragment_types_and_ports_are_valid(fragment_payload)
-
-    def _insert_fragment(
-        self,
-        fragment_payload: dict[str, Any],
-        *,
-        action_type: str,
-        delta_x: float,
-        delta_y: float,
-    ) -> list[str]:
-        return self._mutation_history._insert_fragment(
-            fragment_payload,
-            action_type=action_type,
-            delta_x=delta_x,
-            delta_y=delta_y,
-        )
-
     def _bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
-        return self._mutation_history._bounds_for_node_ids(node_ids)
-
-    def _capture_history_snapshot(self):
-        return self._mutation_history._capture_history_snapshot()
-
-    def _record_history(self, action_type: str, before_snapshot) -> None:
-        self._mutation_history._record_history(action_type, before_snapshot)
+        return self._scope_selection.bounds_for_node_ids(node_ids)
 
     def _rebuild_models(self) -> None:
-        self._payload_builder.rebuild_models()
+        nodes_payload, minimap_nodes_payload, edges_payload = self._payload_builder.rebuild_models(
+            model=self._model,
+            registry=self._registry,
+            workspace_id=self._workspace_id,
+            scope_path=self._scope_path,
+            graph_theme_bridge=self._graph_theme_bridge,
+        )
+        self._nodes_payload = nodes_payload
+        self._minimap_nodes_payload = minimap_nodes_payload
+        self._edges_payload = edges_payload
+        self.nodes_changed.emit()
+        self.edges_changed.emit()
 
     def _normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
-        self._payload_builder.normalize_pdf_panel_pages(workspace)
+        if self._model is None or self._registry is None:
+            return
+        self._payload_builder.normalize_pdf_panel_pages(
+            model=self._model,
+            registry=self._registry,
+            workspace=workspace,
+        )
 
     def _active_graph_theme(self) -> GraphThemeDefinition:
-        return self._payload_builder.active_graph_theme()
+        return self._payload_builder.active_graph_theme(self._graph_theme_bridge)
 
     @staticmethod
     def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:

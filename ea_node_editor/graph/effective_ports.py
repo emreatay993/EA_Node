@@ -5,14 +5,10 @@ from typing import Iterable, Mapping
 
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.builtins.subnode import (
-    SUBNODE_INPUT_TYPE_ID,
-    SUBNODE_OUTPUT_TYPE_ID,
-    SUBNODE_PIN_DATA_TYPE_PROPERTY,
-    SUBNODE_PIN_KIND_PROPERTY,
-    SUBNODE_PIN_KIND_VALUES,
-    SUBNODE_PIN_LABEL_PROPERTY,
     SUBNODE_PIN_PORT_KEY,
-    SUBNODE_TYPE_ID,
+    is_subnode_pin_type as _is_subnode_pin_type,
+    is_subnode_shell_type as _is_subnode_shell_type,
+    resolve_subnode_pin_definition,
 )
 from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
 
@@ -32,11 +28,11 @@ class EffectivePort:
 
 
 def is_subnode_shell_type(type_id: str) -> bool:
-    return str(type_id) == SUBNODE_TYPE_ID
+    return _is_subnode_shell_type(type_id)
 
 
 def is_subnode_pin_type(type_id: str) -> bool:
-    return str(type_id) in {SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID}
+    return _is_subnode_pin_type(type_id)
 
 
 def are_port_kinds_compatible(source_kind: str, target_kind: str) -> bool:
@@ -248,43 +244,39 @@ def _subnode_shell_ports(
 
     ports: list[EffectivePort] = []
     for pin_node in child_pins:
-        pin_port = _subnode_pin_port(node=pin_node)
-        shell_direction = "in" if pin_node.type_id == SUBNODE_INPUT_TYPE_ID else "out"
+        pin_definition = resolve_subnode_pin_definition(
+            pin_node.type_id,
+            pin_node.properties,
+        )
+        shell_direction = pin_definition.shell_port_direction
         shell_key = pin_node.node_id
         ports.append(
             EffectivePort(
                 key=shell_key,
-                label=pin_port.label,
+                label=pin_definition.label,
                 direction=shell_direction,
-                kind=pin_port.kind,
-                data_type=pin_port.data_type,
+                kind=pin_definition.kind,
+                data_type=pin_definition.data_type,
                 required=shell_direction == "in",
                 exposed=bool(node.exposed_ports.get(shell_key, True)),
-                allow_multiple_connections=bool(pin_port.allow_multiple_connections),
+                allow_multiple_connections=False,
             )
         )
     return tuple(ports)
 
 
 def _subnode_pin_port(*, node: NodeInstance) -> EffectivePort:
-    default_label = "Input" if node.type_id == SUBNODE_INPUT_TYPE_ID else "Output"
-    label = str(node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, default_label)).strip() or default_label
-
-    kind_value = str(node.properties.get(SUBNODE_PIN_KIND_PROPERTY, "data")).strip().lower()
-    if kind_value not in set(SUBNODE_PIN_KIND_VALUES):
-        kind_value = "data"
-    data_type = str(node.properties.get(SUBNODE_PIN_DATA_TYPE_PROPERTY, "any")).strip().lower() or "any"
-    if kind_value in _FLOW_KINDS:
-        data_type = "any"
-
-    direction = "out" if node.type_id == SUBNODE_INPUT_TYPE_ID else "in"
+    pin_definition = resolve_subnode_pin_definition(
+        node.type_id,
+        node.properties,
+    )
     return EffectivePort(
         key=SUBNODE_PIN_PORT_KEY,
-        label=label,
-        direction=direction,
-        kind=kind_value,
-        data_type=data_type,
-        required=direction == "in",
+        label=pin_definition.label,
+        direction=pin_definition.pin_port_direction,
+        kind=pin_definition.kind,
+        data_type=pin_definition.data_type,
+        required=pin_definition.pin_port_direction == "in",
         exposed=bool(node.exposed_ports.get(SUBNODE_PIN_PORT_KEY, True)),
         allow_multiple_connections=False,
     )

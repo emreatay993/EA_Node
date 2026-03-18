@@ -6,15 +6,15 @@ from typing import Any, Mapping
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.builtins.subnode import (
-    SUBNODE_INPUT_TYPE_ID,
-    SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_PORT_KEY,
-    SUBNODE_TYPE_ID,
+    is_subnode_authoring_type,
+    is_subnode_input_type,
+    is_subnode_output_type,
+    is_subnode_shell_type,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 
-_COMPILE_ONLY_TYPES = frozenset({SUBNODE_TYPE_ID, SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID})
 _EdgeTuple = tuple[str, str, str, str]
 
 
@@ -38,9 +38,9 @@ def compile_workspace_document(
     for node_id, node_doc in nodes_by_id.items():
         type_id = str(node_doc.get("type_id", ""))
         parent_id = _normalize_optional_id(node_doc.get("parent_node_id"))
-        if type_id == SUBNODE_INPUT_TYPE_ID and parent_id and _node_type(nodes_by_id, parent_id) == SUBNODE_TYPE_ID:
+        if is_subnode_input_type(type_id) and parent_id and is_subnode_shell_type(_node_type(nodes_by_id, parent_id)):
             input_pins_by_shell[parent_id].add(node_id)
-        elif type_id == SUBNODE_OUTPUT_TYPE_ID and parent_id and _node_type(nodes_by_id, parent_id) == SUBNODE_TYPE_ID:
+        elif is_subnode_output_type(type_id) and parent_id and is_subnode_shell_type(_node_type(nodes_by_id, parent_id)):
             output_pin_parent[node_id] = parent_id
 
     compiled_edges = _compile_edges(
@@ -96,7 +96,7 @@ def _compile_edges(
         additions: set[_EdgeTuple] = set()
         for source_node_id, source_port_key, target_node_id, target_port_key in compiled_edges:
             target_type_id = _node_type(nodes_by_id, target_node_id)
-            if target_type_id == SUBNODE_TYPE_ID:
+            if is_subnode_shell_type(target_type_id):
                 if target_port_key not in input_pins_by_shell.get(target_node_id, set()):
                     continue
                 for next_target_node_id, next_target_port_key in outgoing_by_source.get(
@@ -113,7 +113,7 @@ def _compile_edges(
                     )
                 continue
 
-            if target_type_id == SUBNODE_OUTPUT_TYPE_ID and target_port_key == SUBNODE_PIN_PORT_KEY:
+            if is_subnode_output_type(target_type_id) and target_port_key == SUBNODE_PIN_PORT_KEY:
                 shell_node_id = output_pin_parent.get(target_node_id, "")
                 if not shell_node_id:
                     continue
@@ -282,7 +282,7 @@ def _node_runtime_behavior(node_doc: Mapping[str, Any], registry: NodeRegistry |
     spec = _node_spec(type_id, registry=registry, spec_cache={})
     if spec is not None:
         return str(spec.runtime_behavior)
-    if type_id in _COMPILE_ONLY_TYPES:
+    if is_subnode_authoring_type(type_id):
         return "compile_only"
     return "active"
 

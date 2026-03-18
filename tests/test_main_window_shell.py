@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 import subprocess
 import sys
@@ -16,14 +17,6 @@ from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 from tests.main_window_shell.base import MainWindowShellTestBase
-from tests.main_window_shell.shell_basics_and_search import *  # noqa: F401,F403
-from tests.main_window_shell.drop_connect_and_workflow_io import *  # noqa: F401,F403
-from tests.main_window_shell.edit_clipboard_history import *  # noqa: F401,F403
-from tests.main_window_shell.passive_style_context_menus import *  # noqa: F401,F403
-from tests.main_window_shell.passive_property_editors import *  # noqa: F401,F403
-from tests.main_window_shell.passive_image_nodes import *  # noqa: F401,F403
-from tests.main_window_shell.passive_pdf_nodes import *  # noqa: F401,F403
-from tests.main_window_shell.view_library_inspector import *  # noqa: F401,F403
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SHELL_TEST_RUNNER = (
@@ -33,6 +26,33 @@ _SHELL_TEST_RUNNER = (
     "result = unittest.TextTestRunner(verbosity=2).run(suite); "
     "sys.exit(0 if result.wasSuccessful() else 1)"
 )
+_SHELL_TEST_MODULES = (
+    "tests.main_window_shell.shell_basics_and_search",
+    "tests.main_window_shell.drop_connect_and_workflow_io",
+    "tests.main_window_shell.edit_clipboard_history",
+    "tests.main_window_shell.passive_style_context_menus",
+    "tests.main_window_shell.passive_property_editors",
+    "tests.main_window_shell.passive_image_nodes",
+    "tests.main_window_shell.passive_pdf_nodes",
+    "tests.main_window_shell.view_library_inspector",
+)
+
+
+def _load_shell_test_modules() -> None:
+    for module_name in _SHELL_TEST_MODULES:
+        try:
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name != module_name:
+                raise
+            continue
+        exported_names = getattr(module, "__all__", None)
+        if exported_names is None:
+            exported_names = [name for name in module.__dict__ if not name.startswith("_")]
+        globals().update({name: getattr(module, name) for name in exported_names})
+
+
+_load_shell_test_modules()
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QQuickItem]:

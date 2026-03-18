@@ -954,6 +954,35 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(pin_payload[0]["kind"], "exec")
         self.assertEqual(pin_payload[0]["data_type"], "any")
 
+    def test_add_subnode_shell_pin_uses_unique_labels_and_exposes_shell_ports(self) -> None:
+        shell_id = self.scene.add_node_from_type("core.subnode", 200.0, 120.0)
+        first_input_id = self.scene.add_subnode_shell_pin(shell_id, "core.subnode_input")
+        second_input_id = self.scene.add_subnode_shell_pin(shell_id, "core.subnode_input")
+        output_id = self.scene.add_subnode_shell_pin(shell_id, "core.subnode_output")
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        shell_node = workspace.nodes[shell_id]
+        self.assertTrue(first_input_id)
+        self.assertTrue(second_input_id)
+        self.assertTrue(output_id)
+        self.assertEqual(workspace.nodes[first_input_id].parent_node_id, shell_id)
+        self.assertEqual(workspace.nodes[second_input_id].parent_node_id, shell_id)
+        self.assertEqual(workspace.nodes[output_id].parent_node_id, shell_id)
+        self.assertEqual(workspace.nodes[first_input_id].properties["label"], "Input")
+        self.assertEqual(workspace.nodes[second_input_id].properties["label"], "Input 2")
+        self.assertEqual(workspace.nodes[output_id].properties["label"], "Output")
+        self.assertTrue(bool(shell_node.exposed_ports[first_input_id]))
+        self.assertTrue(bool(shell_node.exposed_ports[second_input_id]))
+        self.assertTrue(bool(shell_node.exposed_ports[output_id]))
+        self.assertLess(float(workspace.nodes[first_input_id].x), float(workspace.nodes[output_id].x))
+        self.assertLess(float(workspace.nodes[first_input_id].y), float(workspace.nodes[second_input_id].y))
+
+        shell_payload = next(item for item in self.scene.nodes_model if item["node_id"] == shell_id)
+        shell_ports = {port["key"]: port for port in shell_payload["ports"]}
+        self.assertEqual(shell_ports[first_input_id]["label"], "Input")
+        self.assertEqual(shell_ports[second_input_id]["label"], "Input 2")
+        self.assertEqual(shell_ports[output_id]["label"], "Output")
+
     def test_scope_navigation_filters_nodes_edges_and_assigns_new_nodes_to_active_scope(self) -> None:
         shell_id = self.scene.add_node_from_type("core.subnode", 200.0, 120.0)
         root_source_id = self.scene.add_node_from_type("core.start", 20.0, 30.0)

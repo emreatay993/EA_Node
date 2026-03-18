@@ -3,9 +3,12 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_edges, scope_node_ids
-from ea_node_editor.graph.model import WorkspaceData
+from ea_node_editor.graph.model import GraphModel, WorkspaceData
+from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.graph_theme import (
     DEFAULT_GRAPH_THEME_ID,
@@ -19,21 +22,23 @@ from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 if TYPE_CHECKING:
-    from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+    from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 
 class GraphScenePayloadBuilder:
-    def __init__(self, bridge: GraphSceneBridge) -> None:
-        self._bridge = bridge
-
-    def edge_item(self, edge_id: str) -> dict[str, Any] | None:
-        workspace = self._bridge.current_workspace()
+    def edge_item(
+        self,
+        *,
+        workspace: WorkspaceData,
+        scope_path: ScopePath,
+        edge_id: str,
+    ) -> dict[str, Any] | None:
         edge = workspace.edges.get(edge_id)
         if edge is None:
             return None
-        if not is_node_in_scope(workspace, edge.source_node_id, self._bridge._scope_path):
+        if not is_node_in_scope(workspace, edge.source_node_id, scope_path):
             return None
-        if not is_node_in_scope(workspace, edge.target_node_id, self._bridge._scope_path):
+        if not is_node_in_scope(workspace, edge.target_node_id, scope_path):
             return None
         return {
             "edge_id": edge.edge_id,
@@ -45,30 +50,40 @@ class GraphScenePayloadBuilder:
             "visual_style": copy.deepcopy(edge.visual_style),
         }
 
-    def rebuild_models(self) -> None:
-        if self._bridge._model is None or self._bridge._registry is None or not self._bridge._workspace_id:
-            self._bridge._nodes_payload = []
-            self._bridge._minimap_nodes_payload = []
-            self._bridge._edges_payload = []
-            self._bridge.nodes_changed.emit()
-            self._bridge.edges_changed.emit()
-            return
+    def rebuild_models(
+        self,
+        *,
+        model: GraphModel | None,
+        registry: NodeRegistry | None,
+        workspace_id: str,
+        scope_path: ScopePath,
+        graph_theme_bridge: GraphThemeBridge | None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        if model is None or registry is None or not workspace_id:
+            return [], [], []
 
-        workspace = self._bridge._model.project.workspaces[self._bridge._workspace_id]
-        self.normalize_pdf_panel_pages(workspace)
-        nodes_payload, minimap_nodes_payload, edges_payload = self._build_payload_models(workspace)
+        workspace = model.project.workspaces[workspace_id]
+        self.normalize_pdf_panel_pages(
+            model=model,
+            registry=registry,
+            workspace=workspace,
+        )
+        return self._build_payload_models(
+            workspace=workspace,
+            registry=registry,
+            scope_path=scope_path,
+            graph_theme=self.active_graph_theme(graph_theme_bridge),
+        )
 
-        self._bridge._nodes_payload = nodes_payload
-        self._bridge._minimap_nodes_payload = minimap_nodes_payload
-        self._bridge._edges_payload = edges_payload
-        self._bridge.nodes_changed.emit()
-        self._bridge.edges_changed.emit()
-
-    def normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
-        if self._bridge._model is None or self._bridge._registry is None:
-            return
+    def normalize_pdf_panel_pages(
+        self,
+        *,
+        model: GraphModel,
+        registry: NodeRegistry,
+        workspace: WorkspaceData,
+    ) -> None:
         for node in workspace.nodes.values():
-            spec = self._bridge._registry.get_spec(node.type_id)
+            spec = registry.get_spec(node.type_id)
             if str(spec.surface_family or "").strip() != "media":
                 continue
             if str(spec.surface_variant or "").strip() != "pdf_panel":
@@ -82,26 +97,30 @@ class GraphScenePayloadBuilder:
             current_page_number = node.properties.get("page_number")
             if current_page_number == resolved_page_number:
                 continue
-            self._bridge._model.set_node_property(
+            model.set_node_property(
                 workspace.workspace_id,
                 node.node_id,
                 "page_number",
                 resolved_page_number,
             )
 
-    def active_graph_theme(self) -> GraphThemeDefinition:
-        if self._bridge._graph_theme_bridge is None:
+    @staticmethod
+    def active_graph_theme(graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
+        if graph_theme_bridge is None:
             return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
-        return resolve_graph_theme(self._bridge._graph_theme_bridge.theme)
+        return resolve_graph_theme(graph_theme_bridge.theme)
 
     def _build_payload_models(
         self,
+        *,
         workspace: WorkspaceData,
+        registry: NodeRegistry,
+        scope_path: ScopePath,
+        graph_theme: GraphThemeDefinition,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-        visible_node_ids = scope_node_ids(workspace, self._bridge._scope_path)
-        workspace_edges = scope_edges(workspace, self._bridge._scope_path)
+        visible_node_ids = scope_node_ids(workspace, scope_path)
+        workspace_edges = scope_edges(workspace, scope_path)
         port_connection_counts = self._port_connection_counts(workspace_edges)
-        graph_theme = self.active_graph_theme()
 
         nodes_payload: list[dict[str, Any]] = []
         minimap_nodes_payload: list[dict[str, Any]] = []
@@ -109,7 +128,7 @@ class GraphScenePayloadBuilder:
 
         for node_id in visible_node_ids:
             node = workspace.nodes[node_id]
-            spec = self._bridge._registry.get_spec(node.type_id)
+            spec = registry.get_spec(node.type_id)
             node_specs[node_id] = spec
             nodes_payload.append(
                 self._build_node_payload(
@@ -179,7 +198,7 @@ class GraphScenePayloadBuilder:
             "surface_variant": spec.surface_variant,
             "surface_metrics": surface_metrics.to_payload(),
             "visual_style": copy.deepcopy(node.visual_style),
-            "can_enter_scope": node.type_id == "core.subnode",
+            "can_enter_scope": is_subnode_shell_type(node.type_id),
             "ports": self._build_ports_payload(
                 node=node,
                 spec=spec,

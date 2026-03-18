@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import copy
 from contextlib import nullcontext
-from dataclasses import dataclass
-import math
 from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF, QRectF
@@ -20,19 +17,26 @@ from ea_node_editor.graph.effective_ports import (
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_parent_id
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.graph.transforms import (
+    LayoutNodeBounds,
+    build_alignment_position_updates,
+    build_distribution_position_updates,
     build_subtree_fragment_payload_data,
+    collect_layout_node_bounds,
+    fragment_node_from_payload,
+    graph_fragment_bounds,
+    graph_fragment_payload_is_valid,
     group_selection_into_subnode,
     insert_graph_fragment,
+    normalize_layout_position_updates,
+    plan_subnode_shell_pin_addition,
+    snap_coordinate,
     ungroup_subnode,
 )
 from ea_node_editor.nodes.builtins.subnode import (
-    SUBNODE_INPUT_TYPE_ID,
-    SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_LABEL_PROPERTY,
-    SUBNODE_TYPE_ID,
+    is_subnode_shell_type,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     normalize_edge_label,
@@ -64,31 +68,6 @@ _DUPLICATE_OFFSET_Y = 40.0
 _SNAP_GRID_SIZE = 20.0
 
 
-@dataclass(slots=True)
-class _LayoutNodeMetrics:
-    node_id: str
-    x: float
-    y: float
-    width: float
-    height: float
-
-    @property
-    def left(self) -> float:
-        return self.x
-
-    @property
-    def right(self) -> float:
-        return self.x + self.width
-
-    @property
-    def top(self) -> float:
-        return self.y
-
-    @property
-    def bottom(self) -> float:
-        return self.y + self.height
-
-
 class GraphSceneMutationHistory:
     def __init__(self, bridge: GraphSceneBridge) -> None:
         self._bridge = bridge
@@ -109,45 +88,24 @@ class GraphSceneMutationHistory:
         if workspace is None:
             return ""
         shell_node = workspace.nodes.get(str(shell_node_id).strip())
-        if shell_node is None or shell_node.type_id != SUBNODE_TYPE_ID:
+        if shell_node is None or not is_subnode_shell_type(shell_node.type_id):
             return ""
-
-        normalized_pin_type = str(pin_type_id).strip()
-        if normalized_pin_type not in {SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID}:
+        plan = plan_subnode_shell_pin_addition(
+            workspace=workspace,
+            shell_node_id=shell_node_id,
+            pin_type_id=pin_type_id,
+        )
+        if plan is None:
             return ""
-
-        direct_child_pins = [
-            candidate
-            for candidate in workspace.nodes.values()
-            if candidate.parent_node_id == shell_node.node_id
-            and candidate.type_id in {SUBNODE_INPUT_TYPE_ID, SUBNODE_OUTPUT_TYPE_ID}
-        ]
-        same_direction_pins = [
-            candidate for candidate in direct_child_pins if candidate.type_id == normalized_pin_type
-        ]
-        base_label = "Input" if normalized_pin_type == SUBNODE_INPUT_TYPE_ID else "Output"
-        existing_labels = {
-            str(candidate.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip().lower()
-            for candidate in same_direction_pins
-        }
-        pin_label = base_label
-        suffix = 2
-        while pin_label.strip().lower() in existing_labels:
-            pin_label = f"{base_label} {suffix}"
-            suffix += 1
-
-        y_positions = [float(candidate.y) for candidate in same_direction_pins]
-        pin_y = (max(y_positions) + 90.0) if y_positions else (float(shell_node.y) + 60.0)
-        pin_x = float(shell_node.x) + (40.0 if normalized_pin_type == SUBNODE_INPUT_TYPE_ID else 360.0)
 
         def _configure_pin(node: NodeInstance, _workspace: WorkspaceData, _registry: NodeRegistry) -> None:
-            node.properties[SUBNODE_PIN_LABEL_PROPERTY] = pin_label
+            node.properties[SUBNODE_PIN_LABEL_PROPERTY] = plan.label
             shell_node.exposed_ports[node.node_id] = True
 
         return self._create_node_from_type(
-            type_id=normalized_pin_type,
-            x=pin_x,
-            y=pin_y,
+            type_id=plan.pin_type_id,
+            x=plan.x,
+            y=plan.y,
             parent_node_id=shell_node.node_id,
             select_node=False,
             configure_node=_configure_pin,
@@ -725,30 +683,13 @@ class GraphSceneMutationHistory:
         snap_to_grid: bool = False,
         grid_size: float = _SNAP_GRID_SIZE,
     ) -> bool:
-        normalized_alignment = str(alignment).strip().lower()
-        if normalized_alignment not in {"left", "right", "top", "bottom"}:
-            return False
         workspace, selected = self._selected_layout_metrics()
-        if workspace is None or len(selected) < 2:
+        if workspace is None:
             return False
-
-        updates: dict[str, tuple[float, float]] = {}
-        if normalized_alignment == "left":
-            target_left = min(node.left for node in selected)
-            for node in selected:
-                updates[node.node_id] = (target_left, node.y)
-        elif normalized_alignment == "right":
-            target_right = max(node.right for node in selected)
-            for node in selected:
-                updates[node.node_id] = (target_right - node.width, node.y)
-        elif normalized_alignment == "top":
-            target_top = min(node.top for node in selected)
-            for node in selected:
-                updates[node.node_id] = (node.x, target_top)
-        else:
-            target_bottom = max(node.bottom for node in selected)
-            for node in selected:
-                updates[node.node_id] = (node.x, target_bottom - node.height)
+        updates = build_alignment_position_updates(
+            layout_nodes=selected,
+            alignment=alignment,
+        )
         return self._apply_layout_updates(
             workspace,
             updates,
@@ -763,32 +704,13 @@ class GraphSceneMutationHistory:
         snap_to_grid: bool = False,
         grid_size: float = _SNAP_GRID_SIZE,
     ) -> bool:
-        normalized_orientation = str(orientation).strip().lower()
-        if normalized_orientation not in {"horizontal", "vertical"}:
-            return False
         workspace, selected = self._selected_layout_metrics()
-        if workspace is None or len(selected) < 3:
+        if workspace is None:
             return False
-
-        updates: dict[str, tuple[float, float]] = {}
-        if normalized_orientation == "horizontal":
-            ordered = sorted(selected, key=lambda node: (node.left, node.top, node.node_id))
-            total_span = ordered[-1].right - ordered[0].left
-            total_size = sum(node.width for node in ordered)
-            gap = (total_span - total_size) / float(len(ordered) - 1)
-            cursor = ordered[0].right + gap
-            for node in ordered[1:-1]:
-                updates[node.node_id] = (cursor, node.y)
-                cursor += node.width + gap
-        else:
-            ordered = sorted(selected, key=lambda node: (node.top, node.left, node.node_id))
-            total_span = ordered[-1].bottom - ordered[0].top
-            total_size = sum(node.height for node in ordered)
-            gap = (total_span - total_size) / float(len(ordered) - 1)
-            cursor = ordered[0].bottom + gap
-            for node in ordered[1:-1]:
-                updates[node.node_id] = (node.x, cursor)
-                cursor += node.height + gap
+        updates = build_distribution_position_updates(
+            layout_nodes=selected,
+            orientation=orientation,
+        )
         return self._apply_layout_updates(
             workspace,
             updates,
@@ -805,7 +727,7 @@ class GraphSceneMutationHistory:
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
         if len(selected_node_ids) < 2:
             return False
-        selection_bounds = self._bounds_for_node_ids(selected_node_ids)
+        selection_bounds = self._bridge._scope_selection.bounds_for_node_ids(selected_node_ids)
         if selection_bounds is None:
             return False
 
@@ -957,7 +879,7 @@ class GraphSceneMutationHistory:
     def _selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
         return self._bridge._scope_selection.selected_node_ids_in_workspace(workspace)
 
-    def _selected_layout_metrics(self) -> tuple[WorkspaceData | None, list[_LayoutNodeMetrics]]:
+    def _selected_layout_metrics(self) -> tuple[WorkspaceData | None, list[LayoutNodeBounds]]:
         if self._bridge._model is None or self._bridge._registry is None:
             return None, []
         workspace = self._bridge._model.project.workspaces.get(self._bridge._workspace_id)
@@ -966,33 +888,16 @@ class GraphSceneMutationHistory:
         selected_node_ids = self._selected_node_ids_in_workspace(workspace)
         if not selected_node_ids:
             return workspace, []
-        layout_nodes: list[_LayoutNodeMetrics] = []
-        for node_id in selected_node_ids:
-            node = workspace.nodes.get(node_id)
-            if node is None:
-                continue
-            spec = self._bridge._registry.get_spec(node.type_id)
-            width, height = node_size(node, spec, workspace.nodes)
-            layout_nodes.append(
-                _LayoutNodeMetrics(
-                    node_id=node_id,
-                    x=float(node.x),
-                    y=float(node.y),
-                    width=float(width),
-                    height=float(height),
-                )
-            )
-        return workspace, layout_nodes
+        return workspace, collect_layout_node_bounds(
+            workspace=workspace,
+            node_ids=selected_node_ids,
+            spec_lookup=self._bridge._registry.get_spec,
+            size_resolver=node_size,
+        )
 
     @staticmethod
     def _snap_coordinate(value: float, grid_size: float) -> float:
-        step = float(grid_size)
-        if not math.isfinite(step) or step <= 0.0:
-            step = _SNAP_GRID_SIZE
-        target = float(value)
-        if not math.isfinite(target):
-            return 0.0
-        return round(target / step) * step
+        return snap_coordinate(value, grid_size, default_step=_SNAP_GRID_SIZE)
 
     def _apply_layout_updates(
         self,
@@ -1005,20 +910,13 @@ class GraphSceneMutationHistory:
         if self._bridge._model is None or not updates:
             return False
 
-        final_positions: dict[str, tuple[float, float]] = {}
-        for node_id, (x_value, y_value) in updates.items():
-            node = workspace.nodes.get(node_id)
-            if node is None:
-                continue
-            final_x = float(x_value)
-            final_y = float(y_value)
-            if snap_to_grid:
-                final_x = self._snap_coordinate(final_x, grid_size)
-                final_y = self._snap_coordinate(final_y, grid_size)
-            if float(node.x) == final_x and float(node.y) == final_y:
-                continue
-            final_positions[node_id] = (final_x, final_y)
-
+        final_positions = normalize_layout_position_updates(
+            workspace=workspace,
+            updates=updates,
+            snap_to_grid=snap_to_grid,
+            grid_size=grid_size,
+            default_grid_size=_SNAP_GRID_SIZE,
+        )
         if not final_positions:
             return False
 
@@ -1054,102 +952,27 @@ class GraphSceneMutationHistory:
 
     @staticmethod
     def _node_from_fragment_payload(node_payload: dict[str, Any]) -> NodeInstance:
-        return NodeInstance(
-            node_id=str(node_payload.get("ref_id", "")),
-            type_id=str(node_payload.get("type_id", "")),
-            title=str(node_payload.get("title", "")),
-            x=float(node_payload.get("x", 0.0)),
-            y=float(node_payload.get("y", 0.0)),
-            collapsed=bool(node_payload.get("collapsed", False)),
-            properties=dict(node_payload.get("properties", {})),
-            exposed_ports=dict(node_payload.get("exposed_ports", {})),
-            visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
-            parent_node_id=node_payload.get("parent_node_id"),
-            custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
-            custom_height=(
-                float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None
-            ),
-        )
+        return fragment_node_from_payload(node_payload)
 
     def _fragment_bounds(self, nodes_payload: list[dict[str, Any]]) -> QRectF | None:
         if self._bridge._registry is None:
             return None
-        fragment_nodes: dict[str, NodeInstance] = {}
-        node_specs: dict[str, NodeTypeSpec] = {}
-        for node_payload in nodes_payload:
-            ref_id = str(node_payload.get("ref_id", "")).strip()
-            type_id = str(node_payload.get("type_id", "")).strip()
-            if not ref_id or not type_id:
-                return None
-            try:
-                node_specs[ref_id] = self._bridge._registry.get_spec(type_id)
-            except KeyError:
-                return None
-            node = self._node_from_fragment_payload(node_payload)
-            fragment_nodes[ref_id] = node
-
-        bounds: QRectF | None = None
-        for node_id, node in fragment_nodes.items():
-            spec = node_specs[node_id]
-            width, height = node_size(node, spec, fragment_nodes)
-            node_rect = QRectF(float(node.x), float(node.y), float(width), float(height))
-            if bounds is None:
-                bounds = QRectF(node_rect)
-            else:
-                bounds = bounds.united(node_rect)
-        return bounds
+        bounds = graph_fragment_bounds(
+            nodes_payload=nodes_payload,
+            registry=self._bridge._registry,
+            size_resolver=node_size,
+        )
+        if bounds is None:
+            return None
+        return QRectF(bounds.x, bounds.y, bounds.width, bounds.height)
 
     def _fragment_types_and_ports_are_valid(self, fragment_payload: dict[str, Any]) -> bool:
         if self._bridge._registry is None:
             return False
-
-        node_specs: dict[str, NodeTypeSpec] = {}
-        fragment_nodes: dict[str, NodeInstance] = {}
-        for node_payload in fragment_payload["nodes"]:
-            ref_id = str(node_payload.get("ref_id", "")).strip()
-            type_id = str(node_payload.get("type_id", "")).strip()
-            if not ref_id or not type_id:
-                return False
-            try:
-                node_specs[ref_id] = self._bridge._registry.get_spec(type_id)
-            except KeyError:
-                return False
-            fragment_nodes[ref_id] = self._node_from_fragment_payload(node_payload)
-
-        occupied_single_target_ports: set[tuple[str, str]] = set()
-        for edge_payload in fragment_payload["edges"]:
-            source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
-            target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
-            source_port_key = str(edge_payload.get("source_port_key", "")).strip()
-            target_port_key = str(edge_payload.get("target_port_key", "")).strip()
-            source_node = fragment_nodes.get(source_ref_id)
-            target_node = fragment_nodes.get(target_ref_id)
-            source_spec = node_specs.get(source_ref_id)
-            target_spec = node_specs.get(target_ref_id)
-            if source_node is None or target_node is None or source_spec is None or target_spec is None:
-                return False
-            source_port = find_port(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=fragment_nodes,
-                port_key=source_port_key,
-            )
-            target_port = find_port(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=fragment_nodes,
-                port_key=target_port_key,
-            )
-            if source_port is None or target_port is None:
-                return False
-            if source_port.direction != "out" or target_port.direction != "in":
-                return False
-            target_key = (target_ref_id, target_port_key)
-            if not target_port.allow_multiple_connections and target_key in occupied_single_target_ports:
-                return False
-            if not target_port.allow_multiple_connections:
-                occupied_single_target_ports.add(target_key)
-        return True
+        return graph_fragment_payload_is_valid(
+            fragment_payload=fragment_payload,
+            registry=self._bridge._registry,
+        )
 
     def _insert_fragment(
         self,
@@ -1183,18 +1006,6 @@ class GraphSceneMutationHistory:
                 delta_x=delta_x,
                 delta_y=delta_y,
             )
-
-    def _bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
-        bounds: QRectF | None = None
-        for node_id in node_ids:
-            node_bounds = self._bridge.node_bounds(node_id)
-            if node_bounds is None:
-                continue
-            if bounds is None:
-                bounds = QRectF(node_bounds)
-                continue
-            bounds = bounds.united(node_bounds)
-        return bounds
 
     def _capture_history_snapshot(self) -> WorkspaceSnapshot | None:
         if self._bridge._history is None or self._bridge._model is None or not self._bridge._workspace_id:

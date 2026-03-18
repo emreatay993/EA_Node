@@ -185,6 +185,67 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         )
         self.assertNotIn(passive.node_id, {node["node_id"] for node in compiled["nodes"]})
 
+    def test_compile_workspace_document_uses_subnode_contract_without_registry(self) -> None:
+        registry = build_default_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        workspace = model.active_workspace
+
+        source = model.add_node(workspace.workspace_id, "core.start", "Start", 0.0, 0.0)
+        shell = model.add_node(workspace.workspace_id, "core.subnode", "Shell", 260.0, 40.0)
+        pin_in = model.add_node(
+            workspace.workspace_id,
+            "core.subnode_input",
+            "Input",
+            40.0,
+            80.0,
+            properties={"label": "In", "kind": "exec", "data_type": "str"},
+        )
+        inner = model.add_node(workspace.workspace_id, "core.logger", "Inner", 360.0, 100.0)
+        pin_out = model.add_node(
+            workspace.workspace_id,
+            "core.subnode_output",
+            "Output",
+            520.0,
+            80.0,
+            properties={"label": "Out", "kind": "exec", "data_type": "str"},
+        )
+        target = model.add_node(workspace.workspace_id, "core.end", "End", 760.0, 40.0)
+
+        workspace.nodes[pin_in.node_id].parent_node_id = shell.node_id
+        workspace.nodes[inner.node_id].parent_node_id = shell.node_id
+        workspace.nodes[pin_out.node_id].parent_node_id = shell.node_id
+
+        model.add_edge(workspace.workspace_id, source.node_id, "exec_out", shell.node_id, pin_in.node_id)
+        model.add_edge(workspace.workspace_id, pin_in.node_id, "pin", inner.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, inner.node_id, "exec_out", pin_out.node_id, "pin")
+        model.add_edge(workspace.workspace_id, shell.node_id, pin_out.node_id, target.node_id, "exec_in")
+
+        workspace_doc = serializer.to_document(model.project)["workspaces"][0]
+        compiled = compile_workspace_document(workspace_doc, registry=None)
+
+        self.assertEqual(
+            {node["node_id"] for node in compiled["nodes"]},
+            {source.node_id, inner.node_id, target.node_id},
+        )
+        self.assertCountEqual(
+            compiled["edges"],
+            [
+                {
+                    "source_node_id": inner.node_id,
+                    "source_port_key": "exec_out",
+                    "target_node_id": target.node_id,
+                    "target_port_key": "exec_in",
+                },
+                {
+                    "source_node_id": source.node_id,
+                    "source_port_key": "exec_out",
+                    "target_node_id": inner.node_id,
+                    "target_port_key": "exec_in",
+                },
+            ],
+        )
+
     def test_fragment_validation_respects_registry_connection_multiplicity(self) -> None:
         registry = _build_runtime_registry()
         model = GraphModel()

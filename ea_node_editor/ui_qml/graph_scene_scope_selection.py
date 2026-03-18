@@ -15,6 +15,7 @@ from ea_node_editor.graph.hierarchy import (
     subnode_scope_path,
 )
 from ea_node_editor.graph.model import NodeInstance, ViewState, WorkspaceData
+from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui_qml.edge_routing import node_size, port_scene_pos
 
@@ -174,7 +175,7 @@ class GraphSceneScopeSelection:
         if not normalized_node_id:
             return False
         node = workspace.nodes.get(normalized_node_id)
-        if node is None or node.type_id != "core.subnode":
+        if node is None or not is_subnode_shell_type(node.type_id):
             return False
         if not is_node_in_scope(workspace, normalized_node_id, self.scope_path):
             return False
@@ -264,7 +265,7 @@ class GraphSceneScopeSelection:
         visible_node_ids = scope_node_ids(workspace, self.scope_path)
         if not visible_node_ids:
             return None
-        return self._bridge._bounds_for_node_ids(visible_node_ids)
+        return self.bounds_for_node_ids(visible_node_ids)
 
     def workspace_scene_bounds_with_fallback(self) -> QRectF:
         bounds = self.workspace_scene_bounds()
@@ -304,7 +305,7 @@ class GraphSceneScopeSelection:
         selected_node_ids = self.selected_node_ids_in_workspace(workspace)
         if not selected_node_ids:
             return None
-        return self._bridge._bounds_for_node_ids(selected_node_ids)
+        return self.bounds_for_node_ids(selected_node_ids)
 
     def clear_selection(self) -> None:
         self.set_selected_node_ids([])
@@ -397,6 +398,18 @@ class GraphSceneScopeSelection:
         if item is None:
             return None
         return QRectF(item.sceneBoundingRect())
+
+    def bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
+        bounds: QRectF | None = None
+        for node_id in node_ids:
+            node_bounds = self.node_bounds(node_id)
+            if node_bounds is None:
+                continue
+            if bounds is None:
+                bounds = QRectF(node_bounds)
+                continue
+            bounds = bounds.united(node_bounds)
+        return bounds
 
     def selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
         selected_node_ids: list[str] = []
