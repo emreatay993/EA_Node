@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import math
 import textwrap
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from ea_node_editor.graph.effective_ports import port_direction, visible_ports
@@ -11,41 +13,6 @@ from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.media_preview_provider import local_image_dimensions
 from ea_node_editor.ui.pdf_preview_provider import local_pdf_page_dimensions
-
-STANDARD_DEFAULT_WIDTH = 210.0
-STANDARD_MIN_WIDTH = 120.0
-STANDARD_MIN_HEIGHT = 50.0
-STANDARD_COLLAPSED_WIDTH = 130.0
-STANDARD_COLLAPSED_HEIGHT = 36.0
-STANDARD_HEADER_HEIGHT = 24.0
-STANDARD_HEADER_TOP_MARGIN = 4.0
-STANDARD_BODY_TOP = 30.0
-STANDARD_PORT_HEIGHT = 18.0
-STANDARD_INLINE_ROW_HEIGHT = 26.0
-STANDARD_INLINE_TEXTAREA_ROW_HEIGHT = 104.0
-STANDARD_INLINE_ROW_SPACING = 4.0
-STANDARD_INLINE_SECTION_PADDING = 8.0
-STANDARD_PORT_CENTER_OFFSET = 6.0
-STANDARD_PORT_SIDE_MARGIN = 8.0
-STANDARD_PORT_DOT_RADIUS = 3.5
-STANDARD_RESIZE_HANDLE_SIZE = 16.0
-STANDARD_BOTTOM_PADDING = 8.0
-
-FLOWCHART_COLLAPSED_WIDTH = 140.0
-FLOWCHART_COLLAPSED_HEIGHT = 40.0
-FLOWCHART_TITLE_HEIGHT = 24.0
-FLOWCHART_PORT_HEIGHT = 18.0
-FLOWCHART_PORT_CENTER_OFFSET = 6.0
-FLOWCHART_PORT_DOT_RADIUS = 4.0
-FLOWCHART_RESIZE_HANDLE_SIZE = 16.0
-FLOWCHART_INLINE_GAP = 8.0
-FLOWCHART_PORT_SECTION_TOP = 12.0
-
-PASSIVE_SURFACE_RESIZE_HANDLE_SIZE = 16.0
-MEDIA_CAPTION_SPACING = 10.0
-MEDIA_CAPTION_MAX_LINES = 4
-MEDIA_CAPTION_LINE_HEIGHT_FACTOR = 1.3
-MEDIA_CAPTION_CHAR_WIDTH_FACTOR = 0.55
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,252 +127,177 @@ class _MediaPanelLayout:
     title_centered: bool = False
 
 
-_FLOWCHART_VARIANT_LAYOUTS: dict[str, _FlowchartVariantLayout] = {
-    "start": _FlowchartVariantLayout(
-        default_width=228.0,
-        min_width=152.0,
-        min_height=78.0,
-        title_top=18.0,
-        title_left_margin=34.0,
-        title_right_margin=34.0,
-        body_left_margin=30.0,
-        body_right_margin=30.0,
-        body_bottom_margin=16.0,
-    ),
-    "end": _FlowchartVariantLayout(
-        default_width=228.0,
-        min_width=152.0,
-        min_height=78.0,
-        title_top=18.0,
-        title_left_margin=34.0,
-        title_right_margin=34.0,
-        body_left_margin=30.0,
-        body_right_margin=30.0,
-        body_bottom_margin=16.0,
-    ),
-    "process": _FlowchartVariantLayout(
-        default_width=224.0,
-        min_width=156.0,
-        min_height=84.0,
-        title_top=18.0,
-        title_left_margin=20.0,
-        title_right_margin=20.0,
-        body_left_margin=18.0,
-        body_right_margin=18.0,
-        body_bottom_margin=16.0,
-    ),
-    "decision": _FlowchartVariantLayout(
-        default_width=236.0,
-        min_width=192.0,
-        min_height=128.0,
-        title_top=26.0,
-        title_left_margin=66.0,
-        title_right_margin=66.0,
-        body_left_margin=46.0,
-        body_right_margin=46.0,
-        body_bottom_margin=22.0,
-    ),
-    "document": _FlowchartVariantLayout(
-        default_width=228.0,
-        min_width=176.0,
-        min_height=104.0,
-        title_top=18.0,
-        title_left_margin=24.0,
-        title_right_margin=24.0,
-        body_left_margin=20.0,
-        body_right_margin=20.0,
-        body_bottom_margin=24.0,
-    ),
-    "connector": _FlowchartVariantLayout(
-        default_width=108.0,
-        min_width=92.0,
-        min_height=92.0,
-        title_top=18.0,
-        title_left_margin=20.0,
-        title_right_margin=20.0,
-        body_left_margin=20.0,
-        body_right_margin=20.0,
-        body_bottom_margin=18.0,
-        square=True,
-    ),
-    "input_output": _FlowchartVariantLayout(
-        default_width=236.0,
-        min_width=182.0,
-        min_height=94.0,
-        title_top=20.0,
-        title_left_margin=34.0,
-        title_right_margin=34.0,
-        body_left_margin=28.0,
-        body_right_margin=28.0,
-        body_bottom_margin=18.0,
-    ),
-    "predefined_process": _FlowchartVariantLayout(
-        default_width=236.0,
-        min_width=182.0,
-        min_height=94.0,
-        title_top=20.0,
-        title_left_margin=36.0,
-        title_right_margin=36.0,
-        body_left_margin=30.0,
-        body_right_margin=30.0,
-        body_bottom_margin=18.0,
-    ),
-    "database": _FlowchartVariantLayout(
-        default_width=228.0,
-        min_width=180.0,
-        min_height=128.0,
-        title_top=24.0,
-        title_left_margin=30.0,
-        title_right_margin=30.0,
-        body_left_margin=24.0,
-        body_right_margin=24.0,
-        body_bottom_margin=22.0,
-    ),
-}
+_SURFACE_METRIC_CONTRACT_PATH = (
+    Path(__file__).resolve().parent / "components" / "graph" / "GraphNodeSurfaceMetricContract.json"
+)
 
-_PLANNING_VARIANT_LAYOUTS: dict[str, _PassivePanelLayout] = {
-    "task_card": _PassivePanelLayout(
-        default_width=248.0,
-        default_height=168.0,
-        min_width=190.0,
-        min_height=148.0,
-        title_top=12.0,
-        title_height=24.0,
-        title_left_margin=14.0,
-        title_right_margin=14.0,
-        body_top=44.0,
-        body_height=112.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-    "milestone_card": _PassivePanelLayout(
-        default_width=248.0,
-        default_height=156.0,
-        min_width=190.0,
-        min_height=136.0,
-        title_top=12.0,
-        title_height=24.0,
-        title_left_margin=14.0,
-        title_right_margin=14.0,
-        body_top=44.0,
-        body_height=100.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-    "risk_card": _PassivePanelLayout(
-        default_width=252.0,
-        default_height=180.0,
-        min_width=196.0,
-        min_height=156.0,
-        title_top=12.0,
-        title_height=24.0,
-        title_left_margin=14.0,
-        title_right_margin=14.0,
-        body_top=44.0,
-        body_height=124.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-    "decision_card": _PassivePanelLayout(
-        default_width=252.0,
-        default_height=180.0,
-        min_width=196.0,
-        min_height=156.0,
-        title_top=12.0,
-        title_height=24.0,
-        title_left_margin=14.0,
-        title_right_margin=14.0,
-        body_top=44.0,
-        body_height=124.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-}
 
-_ANNOTATION_VARIANT_LAYOUTS: dict[str, _PassivePanelLayout] = {
-    "sticky_note": _PassivePanelLayout(
-        default_width=228.0,
-        default_height=152.0,
-        min_width=176.0,
-        min_height=128.0,
-        title_top=14.0,
-        title_height=22.0,
-        title_left_margin=14.0,
-        title_right_margin=14.0,
-        body_top=42.0,
-        body_height=98.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-    "callout": _PassivePanelLayout(
-        default_width=236.0,
-        default_height=156.0,
-        min_width=184.0,
-        min_height=132.0,
-        title_top=14.0,
-        title_height=22.0,
-        title_left_margin=16.0,
-        title_right_margin=16.0,
-        body_top=42.0,
-        body_height=102.0,
-        body_left_margin=16.0,
-        body_right_margin=16.0,
-        body_bottom_margin=12.0,
-    ),
-    "section_header": _PassivePanelLayout(
-        default_width=280.0,
-        default_height=112.0,
-        min_width=220.0,
-        min_height=96.0,
-        title_top=18.0,
-        title_height=24.0,
-        title_left_margin=18.0,
-        title_right_margin=18.0,
-        body_top=52.0,
-        body_height=34.0,
-        body_left_margin=18.0,
-        body_right_margin=18.0,
-        body_bottom_margin=12.0,
-    ),
-}
+def _load_surface_metric_contract() -> dict[str, Any]:
+    with _SURFACE_METRIC_CONTRACT_PATH.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise TypeError("Graph node surface metric contract must decode to a mapping.")
+    return data
 
-_MEDIA_VARIANT_LAYOUTS: dict[str, _MediaPanelLayout] = {
-    "image_panel": _MediaPanelLayout(
-        default_width=296.0,
-        default_height=236.0,
-        min_width=220.0,
-        min_height=176.0,
-        title_top=12.0,
-        title_height=24.0,
-        title_left_margin=14.0,
-        title_right_margin=46.0,
-        body_top=44.0,
-        min_body_height=120.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-    "pdf_panel": _MediaPanelLayout(
-        default_width=268.0,
-        default_height=396.0,
-        min_width=228.0,
-        min_height=320.0,
-        title_top=12.0,
-        title_height=24.0,
-        title_left_margin=14.0,
-        title_right_margin=14.0,
-        body_top=44.0,
-        min_body_height=264.0,
-        body_left_margin=14.0,
-        body_right_margin=14.0,
-        body_bottom_margin=12.0,
-    ),
-}
+
+def _contract_mapping(source: Mapping[str, Any], key: str) -> dict[str, Any]:
+    value = source.get(key, {})
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _contract_number(source: Mapping[str, Any], key: str) -> float:
+    value = source.get(key)
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    raise KeyError(f"Missing numeric contract field {key!r}.")
+
+
+def _contract_bool(source: Mapping[str, Any], key: str, default: bool = False) -> bool:
+    value = source.get(key, default)
+    return bool(value)
+
+
+def _build_flowchart_variant_layouts(
+    variants: Mapping[str, Any],
+) -> dict[str, _FlowchartVariantLayout]:
+    layouts: dict[str, _FlowchartVariantLayout] = {}
+    for name, payload in variants.items():
+        if not isinstance(payload, Mapping):
+            continue
+        layouts[str(name)] = _FlowchartVariantLayout(
+            default_width=_contract_number(payload, "default_width"),
+            min_width=_contract_number(payload, "min_width"),
+            min_height=_contract_number(payload, "min_height"),
+            title_top=_contract_number(payload, "title_top"),
+            title_left_margin=_contract_number(payload, "title_left_margin"),
+            title_right_margin=_contract_number(payload, "title_right_margin"),
+            body_left_margin=_contract_number(payload, "body_left_margin"),
+            body_right_margin=_contract_number(payload, "body_right_margin"),
+            body_bottom_margin=_contract_number(payload, "body_bottom_margin"),
+            square=_contract_bool(payload, "square"),
+        )
+    return layouts
+
+
+def _build_passive_panel_layouts(
+    variants: Mapping[str, Any],
+) -> dict[str, _PassivePanelLayout]:
+    layouts: dict[str, _PassivePanelLayout] = {}
+    for name, payload in variants.items():
+        if not isinstance(payload, Mapping):
+            continue
+        layouts[str(name)] = _PassivePanelLayout(
+            default_width=_contract_number(payload, "default_width"),
+            default_height=_contract_number(payload, "default_height"),
+            min_width=_contract_number(payload, "min_width"),
+            min_height=_contract_number(payload, "min_height"),
+            title_top=_contract_number(payload, "title_top"),
+            title_height=_contract_number(payload, "title_height"),
+            title_left_margin=_contract_number(payload, "title_left_margin"),
+            title_right_margin=_contract_number(payload, "title_right_margin"),
+            body_top=_contract_number(payload, "body_top"),
+            body_height=_contract_number(payload, "body_height"),
+            body_left_margin=_contract_number(payload, "body_left_margin"),
+            body_right_margin=_contract_number(payload, "body_right_margin"),
+            body_bottom_margin=_contract_number(payload, "body_bottom_margin"),
+            title_centered=_contract_bool(payload, "title_centered"),
+        )
+    return layouts
+
+
+def _build_media_panel_layouts(
+    variants: Mapping[str, Any],
+) -> dict[str, _MediaPanelLayout]:
+    layouts: dict[str, _MediaPanelLayout] = {}
+    for name, payload in variants.items():
+        if not isinstance(payload, Mapping):
+            continue
+        layouts[str(name)] = _MediaPanelLayout(
+            default_width=_contract_number(payload, "default_width"),
+            default_height=_contract_number(payload, "default_height"),
+            min_width=_contract_number(payload, "min_width"),
+            min_height=_contract_number(payload, "min_height"),
+            title_top=_contract_number(payload, "title_top"),
+            title_height=_contract_number(payload, "title_height"),
+            title_left_margin=_contract_number(payload, "title_left_margin"),
+            title_right_margin=_contract_number(payload, "title_right_margin"),
+            body_top=_contract_number(payload, "body_top"),
+            min_body_height=_contract_number(payload, "min_body_height"),
+            body_left_margin=_contract_number(payload, "body_left_margin"),
+            body_right_margin=_contract_number(payload, "body_right_margin"),
+            body_bottom_margin=_contract_number(payload, "body_bottom_margin"),
+            title_centered=_contract_bool(payload, "title_centered"),
+        )
+    return layouts
+
+
+SURFACE_METRIC_CONTRACT = _load_surface_metric_contract()
+_INLINE_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "inline")
+_STANDARD_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "standard")
+_PASSIVE_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "passive")
+_FLOWCHART_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "flowchart")
+_PLANNING_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "planning")
+_ANNOTATION_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "annotation")
+_MEDIA_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "media")
+
+STANDARD_DEFAULT_WIDTH = _contract_number(_STANDARD_CONTRACT, "default_width")
+STANDARD_MIN_WIDTH = _contract_number(_STANDARD_CONTRACT, "min_width")
+STANDARD_MIN_HEIGHT = _contract_number(_STANDARD_CONTRACT, "min_height")
+STANDARD_COLLAPSED_WIDTH = _contract_number(_STANDARD_CONTRACT, "collapsed_width")
+STANDARD_COLLAPSED_HEIGHT = _contract_number(_STANDARD_CONTRACT, "collapsed_height")
+STANDARD_HEADER_HEIGHT = _contract_number(_STANDARD_CONTRACT, "header_height")
+STANDARD_HEADER_TOP_MARGIN = _contract_number(_STANDARD_CONTRACT, "header_top_margin")
+STANDARD_BODY_TOP = _contract_number(_STANDARD_CONTRACT, "body_top")
+STANDARD_PORT_HEIGHT = _contract_number(_STANDARD_CONTRACT, "port_height")
+STANDARD_INLINE_ROW_HEIGHT = _contract_number(_INLINE_CONTRACT, "row_height")
+STANDARD_INLINE_TEXTAREA_ROW_HEIGHT = _contract_number(_INLINE_CONTRACT, "textarea_row_height")
+STANDARD_INLINE_ROW_SPACING = _contract_number(_INLINE_CONTRACT, "row_spacing")
+STANDARD_INLINE_SECTION_PADDING = _contract_number(_INLINE_CONTRACT, "section_padding")
+STANDARD_PORT_CENTER_OFFSET = _contract_number(_STANDARD_CONTRACT, "port_center_offset")
+STANDARD_PORT_SIDE_MARGIN = _contract_number(_STANDARD_CONTRACT, "port_side_margin")
+STANDARD_PORT_DOT_RADIUS = _contract_number(_STANDARD_CONTRACT, "port_dot_radius")
+STANDARD_RESIZE_HANDLE_SIZE = _contract_number(_STANDARD_CONTRACT, "resize_handle_size")
+STANDARD_BOTTOM_PADDING = _contract_number(_STANDARD_CONTRACT, "bottom_padding")
+STANDARD_TITLE_LEFT_MARGIN = _contract_number(_STANDARD_CONTRACT, "title_left_margin")
+STANDARD_TITLE_RIGHT_MARGIN = _contract_number(_STANDARD_CONTRACT, "title_right_margin")
+STANDARD_BODY_LEFT_MARGIN = _contract_number(_STANDARD_CONTRACT, "body_left_margin")
+STANDARD_BODY_RIGHT_MARGIN = _contract_number(_STANDARD_CONTRACT, "body_right_margin")
+STANDARD_SHOW_HEADER_BACKGROUND = _contract_bool(_STANDARD_CONTRACT, "show_header_background", True)
+STANDARD_SHOW_ACCENT_BAR = _contract_bool(_STANDARD_CONTRACT, "show_accent_bar", True)
+STANDARD_USE_HOST_CHROME = _contract_bool(_STANDARD_CONTRACT, "use_host_chrome", True)
+
+FLOWCHART_COLLAPSED_WIDTH = _contract_number(_FLOWCHART_CONTRACT, "collapsed_width")
+FLOWCHART_COLLAPSED_HEIGHT = _contract_number(_FLOWCHART_CONTRACT, "collapsed_height")
+FLOWCHART_TITLE_HEIGHT = _contract_number(_FLOWCHART_CONTRACT, "title_height")
+FLOWCHART_PORT_HEIGHT = _contract_number(_FLOWCHART_CONTRACT, "port_height")
+FLOWCHART_PORT_CENTER_OFFSET = _contract_number(_FLOWCHART_CONTRACT, "port_center_offset")
+FLOWCHART_PORT_DOT_RADIUS = _contract_number(_FLOWCHART_CONTRACT, "port_dot_radius")
+FLOWCHART_RESIZE_HANDLE_SIZE = _contract_number(_FLOWCHART_CONTRACT, "resize_handle_size")
+FLOWCHART_INLINE_GAP = _contract_number(_FLOWCHART_CONTRACT, "inline_gap")
+FLOWCHART_PORT_SECTION_TOP = _contract_number(_FLOWCHART_CONTRACT, "port_section_top")
+
+PASSIVE_SURFACE_RESIZE_HANDLE_SIZE = _contract_number(_PASSIVE_CONTRACT, "resize_handle_size")
+PASSIVE_PORT_SIDE_MARGIN = _contract_number(_PASSIVE_CONTRACT, "port_side_margin")
+PASSIVE_PORT_DOT_RADIUS = _contract_number(_PASSIVE_CONTRACT, "port_dot_radius")
+MEDIA_CAPTION_SPACING = _contract_number(_MEDIA_CONTRACT, "caption_spacing")
+MEDIA_CAPTION_MAX_LINES = int(_contract_number(_MEDIA_CONTRACT, "caption_max_lines"))
+MEDIA_CAPTION_LINE_HEIGHT_FACTOR = _contract_number(_MEDIA_CONTRACT, "caption_line_height_factor")
+MEDIA_CAPTION_CHAR_WIDTH_FACTOR = _contract_number(_MEDIA_CONTRACT, "caption_char_width_factor")
+
+_FLOWCHART_VARIANT_LAYOUTS = _build_flowchart_variant_layouts(
+    _contract_mapping(_FLOWCHART_CONTRACT, "variants")
+)
+_PLANNING_VARIANT_LAYOUTS = _build_passive_panel_layouts(
+    _contract_mapping(_PLANNING_CONTRACT, "variants")
+)
+_ANNOTATION_VARIANT_LAYOUTS = _build_passive_panel_layouts(
+    _contract_mapping(_ANNOTATION_CONTRACT, "variants")
+)
+_MEDIA_VARIANT_LAYOUTS = _build_media_panel_layouts(
+    _contract_mapping(_MEDIA_CONTRACT, "variants")
+)
 
 
 def standard_inline_body_height(spec: NodeTypeSpec) -> float:
@@ -570,15 +462,15 @@ def _standard_surface_metrics(
         resize_handle_size=STANDARD_RESIZE_HANDLE_SIZE,
         title_top=STANDARD_HEADER_TOP_MARGIN,
         title_height=STANDARD_HEADER_HEIGHT,
-        title_left_margin=10.0,
-        title_right_margin=10.0,
+        title_left_margin=STANDARD_TITLE_LEFT_MARGIN,
+        title_right_margin=STANDARD_TITLE_RIGHT_MARGIN,
         title_centered=False,
-        body_left_margin=8.0,
-        body_right_margin=8.0,
+        body_left_margin=STANDARD_BODY_LEFT_MARGIN,
+        body_right_margin=STANDARD_BODY_RIGHT_MARGIN,
         body_bottom_margin=STANDARD_BOTTOM_PADDING,
-        show_header_background=True,
-        show_accent_bar=True,
-        use_host_chrome=True,
+        show_header_background=STANDARD_SHOW_HEADER_BACKGROUND,
+        show_accent_bar=STANDARD_SHOW_ACCENT_BAR,
+        use_host_chrome=STANDARD_USE_HOST_CHROME,
     )
 
 
@@ -679,8 +571,8 @@ def _passive_panel_surface_metrics(
         port_top=active_height - layout.body_bottom_margin,
         port_height=0.0,
         port_center_offset=0.0,
-        port_side_margin=STANDARD_PORT_SIDE_MARGIN,
-        port_dot_radius=STANDARD_PORT_DOT_RADIUS,
+        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
+        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
         resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
         title_top=layout.title_top,
         title_height=layout.title_height,
@@ -730,8 +622,8 @@ def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeS
         port_top=active_height - layout.body_bottom_margin,
         port_height=0.0,
         port_center_offset=0.0,
-        port_side_margin=STANDARD_PORT_SIDE_MARGIN,
-        port_dot_radius=STANDARD_PORT_DOT_RADIUS,
+        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
+        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
         resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
         title_top=layout.title_top,
         title_height=layout.title_height,

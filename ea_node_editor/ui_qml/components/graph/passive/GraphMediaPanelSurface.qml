@@ -2,6 +2,8 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import "../surface_controls" as GraphSurfaceControls
 import "../surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
+import "GraphMediaPanelGeometry.js" as GraphMediaPanelGeometry
+import "GraphMediaPanelSourceUtils.js" as GraphMediaPanelSourceUtils
 
 Item {
     id: surface
@@ -28,10 +30,10 @@ Item {
     readonly property var pdfPreviewInfo: isPdfPanel ? _describePdfPreview(sourcePath, rawPageNumber) : ({})
     readonly property string resolvedSourceUrl: isPdfPanel
         ? String(pdfPreviewInfo.resolved_source_url || "")
-        : _resolvedLocalSourceUrl(sourcePath)
+        : GraphMediaPanelSourceUtils.resolvedLocalSourceUrl(sourcePath)
     readonly property string previewSourceUrl: isPdfPanel
         ? String(pdfPreviewInfo.preview_url || "")
-        : _previewSourceUrl(resolvedSourceUrl)
+        : GraphMediaPanelSourceUtils.previewSourceUrl(resolvedSourceUrl)
     readonly property int pdfPageCount: isPdfPanel ? Number(pdfPreviewInfo.page_count || 0) : 0
     readonly property int pdfRequestedPageNumber: isPdfPanel ? Number(pdfPreviewInfo.requested_page_number || 1) : 1
     readonly property int pdfResolvedPageNumber: isPdfPanel ? Number(pdfPreviewInfo.resolved_page_number || 1) : 1
@@ -42,9 +44,9 @@ Item {
             var state = String(pdfPreviewInfo.state || "placeholder");
             if (state === "error")
                 return "error";
-            if (state === "ready" && previewImage.status === Image.Ready)
+            if (state === "ready" && previewViewport.previewImageStatus === Image.Ready)
                 return "ready";
-            if (previewImage.status === Image.Error)
+            if (previewViewport.previewImageStatus === Image.Error)
                 return "error";
             return "placeholder";
         }
@@ -52,22 +54,18 @@ Item {
             return "placeholder";
         if (sourceRejected)
             return "error";
-        if (previewImage.status === Image.Error)
+        if (previewViewport.previewImageStatus === Image.Error)
             return "error";
-        if (previewImage.status === Image.Ready)
+        if (previewViewport.previewImageStatus === Image.Ready)
             return "ready";
         return "placeholder";
     }
     readonly property string appliedFitMode: isPdfPanel ? "contain" : normalizedFitMode
     readonly property bool originalModeActive: !isPdfPanel && normalizedFitMode === "original"
-    readonly property real sourcePixelWidth: !isPdfPanel && sourceImageProbe.status === Image.Ready
-        ? Number(sourceImageProbe.implicitWidth || 0)
-        : 0
-    readonly property real sourcePixelHeight: !isPdfPanel && sourceImageProbe.status === Image.Ready
-        ? Number(sourceImageProbe.implicitHeight || 0)
-        : 0
+    readonly property real sourcePixelWidth: Number(previewViewport.sourcePixelWidth || 0)
+    readonly property real sourcePixelHeight: Number(previewViewport.sourcePixelHeight || 0)
     readonly property var normalizedStoredCropRect: _normalizedStoredCropRect()
-    readonly property bool hasEffectiveCrop: !_isFullCropRect(normalizedStoredCropRect)
+    readonly property bool hasEffectiveCrop: !GraphMediaPanelGeometry.isFullCropRect(normalizedStoredCropRect)
     readonly property rect appliedSourceClipRect: _sourceClipRectFromNormalized(normalizedStoredCropRect)
     readonly property real appliedClipX: Number(appliedSourceClipRect.x || 0)
     readonly property real appliedClipY: Number(appliedSourceClipRect.y || 0)
@@ -81,60 +79,16 @@ Item {
         && !cropModeActive
         && (host ? host.hoverActive : false)
     readonly property bool inlineEditorsVisible: !!(host && host.isSelected) && !cropModeActive
-    readonly property var cropHandleEmbeddedInteractiveRects: _cropHandleEmbeddedInteractiveRects()
-    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
-        [
-            cropButton.embeddedInteractiveRects,
-            inlinePathEditor.embeddedInteractiveRects,
-            inlineCaptionEditor.embeddedInteractiveRects,
-            cropApplyButton.embeddedInteractiveRects,
-            cropCancelButton.embeddedInteractiveRects,
-            cropHandleEmbeddedInteractiveRects
-        ]
-    )
-    readonly property real cropHandleSize: 12
-    readonly property real cropHandleHitSlop: 8
-    readonly property var cropDisplayRect: _containRect(
-        previewViewport.width,
-        previewViewport.height,
-        sourcePixelWidth,
-        sourcePixelHeight
-    )
-    readonly property var draftDisplayCropRect: _displayCropRect(
-        draftCropX,
-        draftCropY,
-        draftCropW,
-        draftCropH,
-        cropDisplayRect
-    )
-    readonly property real effectivePreviewSourceWidth: sourcePixelWidth > 0
-        ? sourcePixelWidth * Number(normalizedStoredCropRect.width || 0)
-        : 0
-    readonly property real effectivePreviewSourceHeight: sourcePixelHeight > 0
-        ? sourcePixelHeight * Number(normalizedStoredCropRect.height || 0)
-        : 0
-    readonly property var appliedPreviewRect: _fitRect(
-        previewViewport.width,
-        previewViewport.height,
-        effectivePreviewSourceWidth,
-        effectivePreviewSourceHeight,
-        appliedFitMode
-    )
-    readonly property real appliedPreviewScale: {
-        if (!(effectivePreviewSourceWidth > 0) || !(effectivePreviewSourceHeight > 0))
-            return 0.0;
-        if (appliedFitMode === "original")
-            return 1.0;
-        return Number(appliedPreviewRect.width || 0) / effectivePreviewSourceWidth;
-    }
-    readonly property real appliedFullImageWidth: sourcePixelWidth > 0
-        ? sourcePixelWidth * appliedPreviewScale
-        : 0
-    readonly property real appliedFullImageHeight: sourcePixelHeight > 0
-        ? sourcePixelHeight * appliedPreviewScale
-        : 0
-    readonly property real appliedImageOffsetX: -Number(normalizedStoredCropRect.x || 0) * appliedFullImageWidth
-    readonly property real appliedImageOffsetY: -Number(normalizedStoredCropRect.y || 0) * appliedFullImageHeight
+    readonly property var cropDisplayRect: previewViewport.cropDisplayRect
+    readonly property var draftDisplayCropRect: previewViewport.draftDisplayCropRect
+    readonly property real effectivePreviewSourceWidth: Number(previewViewport.effectivePreviewSourceWidth || 0)
+    readonly property real effectivePreviewSourceHeight: Number(previewViewport.effectivePreviewSourceHeight || 0)
+    readonly property var appliedPreviewRect: previewViewport.appliedPreviewRect
+    readonly property real appliedPreviewScale: Number(previewViewport.appliedPreviewScale || 0)
+    readonly property real appliedFullImageWidth: Number(previewViewport.appliedFullImageWidth || 0)
+    readonly property real appliedFullImageHeight: Number(previewViewport.appliedFullImageHeight || 0)
+    readonly property real appliedImageOffsetX: Number(previewViewport.appliedImageOffsetX || 0)
+    readonly property real appliedImageOffsetY: Number(previewViewport.appliedImageOffsetY || 0)
     readonly property string previewHintText: {
         if (isPdfPanel) {
             if (previewState === "error")
@@ -166,6 +120,14 @@ Item {
     readonly property color cropHandleFillColor: host ? host.surfaceColor : "#1b1d22"
     readonly property color cropHandleBorderColor: host ? host.selectedOutlineColor : "#60CDFF"
     readonly property color cropButtonIconColor: host ? host.headerTextColor : "#f0f2f5"
+    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
+        [
+            headerControls.embeddedInteractiveRects,
+            previewViewport.embeddedInteractiveRects
+        ]
+    )
+    readonly property real cropHandleSize: 12
+    readonly property real cropHandleHitSlop: 8
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     onCropToolAvailableChanged: {
@@ -259,51 +221,8 @@ Item {
         return "contain";
     }
 
-    function _clamp(value, minimum, maximum) {
-        return Math.max(minimum, Math.min(maximum, value));
-    }
-
-    function _approxEqual(a, b) {
-        return Math.abs(Number(a) - Number(b)) <= 0.0001;
-    }
-
-    function _minimumCropWidth() {
-        return sourcePixelWidth > 0 ? (1.0 / sourcePixelWidth) : 0.001;
-    }
-
-    function _minimumCropHeight() {
-        return sourcePixelHeight > 0 ? (1.0 / sourcePixelHeight) : 0.001;
-    }
-
-    function _fullCropRect() {
-        return {"x": 0.0, "y": 0.0, "width": 1.0, "height": 1.0};
-    }
-
-    function _normalizedCropRect(x, y, w, h) {
-        var left = Number(x);
-        var top = Number(y);
-        var widthValue = Number(w);
-        var heightValue = Number(h);
-        if (!isFinite(left) || !isFinite(top) || !isFinite(widthValue) || !isFinite(heightValue))
-            return _fullCropRect();
-        if (!(widthValue > 0.0) || !(heightValue > 0.0))
-            return _fullCropRect();
-        left = _clamp(left, 0.0, 1.0);
-        top = _clamp(top, 0.0, 1.0);
-        var right = _clamp(left + widthValue, left, 1.0);
-        var bottom = _clamp(top + heightValue, top, 1.0);
-        if (!(right > left) || !(bottom > top))
-            return _fullCropRect();
-        return {
-            "x": left,
-            "y": top,
-            "width": right - left,
-            "height": bottom - top
-        };
-    }
-
     function _normalizedStoredCropRect() {
-        return _normalizedCropRect(
+        return GraphMediaPanelGeometry.normalizedCropRect(
             _numberValue("crop_x", 0.0),
             _numberValue("crop_y", 0.0),
             _numberValue("crop_w", 1.0),
@@ -311,91 +230,12 @@ Item {
         );
     }
 
-    function _isFullCropRect(rect) {
-        return _approxEqual(rect.x, 0.0)
-            && _approxEqual(rect.y, 0.0)
-            && _approxEqual(rect.width, 1.0)
-            && _approxEqual(rect.height, 1.0);
-    }
-
-    function _cropRectsEqual(a, b) {
-        return _approxEqual(Number(a.x || 0), Number(b.x || 0))
-            && _approxEqual(Number(a.y || 0), Number(b.y || 0))
-            && _approxEqual(Number(a.width || 0), Number(b.width || 0))
-            && _approxEqual(Number(a.height || 0), Number(b.height || 0));
-    }
-
     function _sourceClipRectFromNormalized(rect) {
-        if (sourcePixelWidth <= 0 || sourcePixelHeight <= 0)
-            return Qt.rect(0, 0, 0, 0);
-        return Qt.rect(
-            rect.x * sourcePixelWidth,
-            rect.y * sourcePixelHeight,
-            rect.width * sourcePixelWidth,
-            rect.height * sourcePixelHeight
+        return GraphMediaPanelGeometry.sourceClipRectFromNormalized(
+            rect,
+            sourcePixelWidth,
+            sourcePixelHeight
         );
-    }
-
-    function _fitRect(containerWidth, containerHeight, sourceWidth, sourceHeight, fitMode) {
-        var cw = Math.max(0.0, Number(containerWidth || 0));
-        var ch = Math.max(0.0, Number(containerHeight || 0));
-        var sw = Math.max(0.0, Number(sourceWidth || 0));
-        var sh = Math.max(0.0, Number(sourceHeight || 0));
-        if (!(cw > 0.0) || !(ch > 0.0) || !(sw > 0.0) || !(sh > 0.0))
-            return {"x": 0.0, "y": 0.0, "width": 0.0, "height": 0.0};
-        var normalizedMode = String(fitMode || "contain").trim().toLowerCase();
-        if (normalizedMode === "original") {
-            return {
-                "x": (cw - sw) * 0.5,
-                "y": (ch - sh) * 0.5,
-                "width": sw,
-                "height": sh
-            };
-        }
-        var scale = normalizedMode === "cover"
-            ? Math.max(cw / sw, ch / sh)
-            : Math.min(cw / sw, ch / sh);
-        var widthValue = sw * scale;
-        var heightValue = sh * scale;
-        return {
-            "x": (cw - widthValue) * 0.5,
-            "y": (ch - heightValue) * 0.5,
-            "width": widthValue,
-            "height": heightValue
-        };
-    }
-
-    function _containRect(containerWidth, containerHeight, sourceWidth, sourceHeight) {
-        return _fitRect(containerWidth, containerHeight, sourceWidth, sourceHeight, "contain");
-    }
-
-    function _displayCropRect(x, y, w, h, imageRect) {
-        var rect = _normalizedCropRect(x, y, w, h);
-        var widthValue = Number(imageRect.width || 0);
-        var heightValue = Number(imageRect.height || 0);
-        return {
-            "x": Number(imageRect.x || 0) + rect.x * widthValue,
-            "y": Number(imageRect.y || 0) + rect.y * heightValue,
-            "width": rect.width * widthValue,
-            "height": rect.height * heightValue
-        };
-    }
-
-    function _cropHandleEmbeddedInteractiveRects() {
-        var frameX = Number(draftDisplayCropRect.x || 0);
-        var frameY = Number(draftDisplayCropRect.y || 0);
-        var frameWidth = Number(draftDisplayCropRect.width || 0);
-        var frameHeight = Number(draftDisplayCropRect.height || 0);
-        if (!cropModeActive || !cropToolAvailable || !(frameWidth > 0) || !(frameHeight > 0))
-            return [];
-        var rectLists = [];
-        for (var index = 0; index < cropHandleRepeater.count; index++) {
-            var handleItem = cropHandleRepeater.itemAt(index);
-            if (!handleItem || handleItem.embeddedInteractiveRects === undefined || handleItem.embeddedInteractiveRects === null)
-                continue;
-            rectLists.push(handleItem.embeddedInteractiveRects);
-        }
-        return SurfaceControlGeometry.combineRectLists(rectLists);
     }
 
     function _iconSource(name, size, color) {
@@ -426,9 +266,8 @@ Item {
             sceneBridge.select_node(nodeId, false);
             return;
         }
-        if (typeof sceneBridge !== "undefined" && sceneBridge && nodeId.length > 0) {
+        if (typeof sceneBridge !== "undefined" && sceneBridge && nodeId.length > 0)
             sceneBridge.select_node(nodeId, false);
-        }
         _loadDraftFromStoredCrop();
         cropModeActive = true;
     }
@@ -441,7 +280,12 @@ Item {
     }
 
     function _applyCropEdit() {
-        var rect = _normalizedCropRect(draftCropX, draftCropY, draftCropW, draftCropH);
+        var rect = GraphMediaPanelGeometry.normalizedCropRect(
+            draftCropX,
+            draftCropY,
+            draftCropW,
+            draftCropH
+        );
         if (typeof sceneBridge !== "undefined" && sceneBridge && host && host.nodeData) {
             var applied = sceneBridge.set_node_properties(
                 String(host.nodeData.node_id || ""),
@@ -452,7 +296,7 @@ Item {
                     "crop_h": rect.height
                 }
             );
-            if (!applied && !_cropRectsEqual(rect, normalizedStoredCropRect))
+            if (!applied && !GraphMediaPanelGeometry.cropRectsEqual(rect, normalizedStoredCropRect))
                 return;
         }
         cropModeActive = false;
@@ -466,44 +310,24 @@ Item {
     }
 
     function _updateDraftFromHandle(handle, deltaPixelsX, deltaPixelsY, startX, startY, startW, startH) {
-        var imageWidth = Number(cropDisplayRect.width || 0);
-        var imageHeight = Number(cropDisplayRect.height || 0);
-        if (!(imageWidth > 0.0) || !(imageHeight > 0.0))
-            return;
-        var deltaX = deltaPixelsX / imageWidth;
-        var deltaY = deltaPixelsY / imageHeight;
-        var left = Number(startX);
-        var top = Number(startY);
-        var right = Number(startX) + Number(startW);
-        var bottom = Number(startY) + Number(startH);
-        var minWidth = _minimumCropWidth();
-        var minHeight = _minimumCropHeight();
-
-        if (handle.indexOf("left") >= 0)
-            left = _clamp(left + deltaX, 0.0, right - minWidth);
-        if (handle.indexOf("right") >= 0)
-            right = _clamp(right + deltaX, left + minWidth, 1.0);
-        if (handle.indexOf("top") >= 0)
-            top = _clamp(top + deltaY, 0.0, bottom - minHeight);
-        if (handle.indexOf("bottom") >= 0)
-            bottom = _clamp(bottom + deltaY, top + minHeight, 1.0);
-
-        _setDraftCropRect({
-            "x": left,
-            "y": top,
-            "width": right - left,
-            "height": bottom - top
-        });
+        _setDraftCropRect(
+            GraphMediaPanelGeometry.updatedDraftCropRect(
+                handle,
+                deltaPixelsX,
+                deltaPixelsY,
+                startX,
+                startY,
+                startW,
+                startH,
+                cropDisplayRect,
+                sourcePixelWidth,
+                sourcePixelHeight
+            )
+        );
     }
 
     function _handleCursorShape(handle) {
-        if (handle === "top_left" || handle === "bottom_right")
-            return Qt.SizeFDiagCursor;
-        if (handle === "top_right" || handle === "bottom_left")
-            return Qt.SizeBDiagCursor;
-        if (handle === "top" || handle === "bottom")
-            return Qt.SizeVerCursor;
-        return Qt.SizeHorCursor;
+        return GraphMediaPanelGeometry.handleCursorShape(handle);
     }
 
     function _resolvedCropCursorShape() {
@@ -524,74 +348,11 @@ Item {
     }
 
     function _handleX(handle, frameRect, handleSize) {
-        var half = handleSize * 0.5;
-        if (handle === "top_left" || handle === "left" || handle === "bottom_left")
-            return frameRect.x - half;
-        if (handle === "top_right" || handle === "right" || handle === "bottom_right")
-            return frameRect.x + frameRect.width - half;
-        return frameRect.x + frameRect.width * 0.5 - half;
+        return GraphMediaPanelGeometry.handleX(handle, frameRect, handleSize);
     }
 
     function _handleY(handle, frameRect, handleSize) {
-        var half = handleSize * 0.5;
-        if (handle === "top_left" || handle === "top" || handle === "top_right")
-            return frameRect.y - half;
-        if (handle === "bottom_left" || handle === "bottom" || handle === "bottom_right")
-            return frameRect.y + frameRect.height - half;
-        return frameRect.y + frameRect.height * 0.5 - half;
-    }
-
-    function _isWindowsDrivePath(value) {
-        return /^[A-Za-z]:[\\/]/.test(value);
-    }
-
-    function _isAbsolutePosixPath(value) {
-        return value.length > 0 && value.charAt(0) === "/";
-    }
-
-    function _isUncPath(value) {
-        return /^[/\\]{2}[^/\\]/.test(value);
-    }
-
-    function _normalizedFileUrlFromRemainder(remainder) {
-        var normalized = String(remainder || "").replace(/\\/g, "/");
-        if (!normalized.length)
-            return "";
-        if (normalized.indexOf("///") === 0)
-            return "file://" + encodeURI(normalized.substring(2));
-        if (normalized.indexOf("//") === 0)
-            return "file://" + encodeURI(normalized.substring(2));
-        if (_isWindowsDrivePath(normalized))
-            return "file:///" + encodeURI(normalized);
-        if (_isUncPath(normalized))
-            return "file:" + encodeURI(normalized);
-        if (_isAbsolutePosixPath(normalized))
-            return "file://" + encodeURI(normalized);
-        return "";
-    }
-
-    function _resolvedLocalSourceUrl(rawValue) {
-        var trimmed = String(rawValue || "").trim();
-        if (!trimmed.length)
-            return "";
-        var normalized = trimmed.replace(/\\/g, "/");
-        var lower = normalized.toLowerCase();
-        if (lower.indexOf("file:") === 0)
-            return _normalizedFileUrlFromRemainder(normalized.substring(5));
-        if (_isWindowsDrivePath(trimmed))
-            return "file:///" + encodeURI(trimmed.replace(/\\/g, "/"));
-        if (_isUncPath(trimmed))
-            return "file:" + encodeURI(trimmed.replace(/\\/g, "/"));
-        if (_isAbsolutePosixPath(trimmed))
-            return "file://" + encodeURI(trimmed);
-        return "";
-    }
-
-    function _previewSourceUrl(localSourceUrl) {
-        var normalized = String(localSourceUrl || "").trim();
-        if (!normalized.length)
-            return "";
-        return "image://local-media-preview/preview?source=" + encodeURIComponent(normalized);
+        return GraphMediaPanelGeometry.handleY(handle, frameRect, handleSize);
     }
 
     function _describePdfPreview(source, pageNumber) {
@@ -633,61 +394,10 @@ Item {
         border.color: surface.panelBorderColor
     }
 
-    GraphSurfaceControls.GraphSurfaceButton {
-        id: cropButton
-        objectName: "graphNodeMediaCropButton"
-        z: 6
-        host: surface.host
-        visible: surface.cropButtonVisible
-        enabled: visible
-        iconName: "crop"
-        iconSize: 14
-        iconSourceResolver: function(name, size, color) {
-            return surface._iconSource(name, size, color);
-        }
-        accentColor: "#4DA8DA"
-        foregroundColor: surface.cropButtonIconColor
-        baseFillColor: Qt.alpha(surface.panelFillColor, 0.82)
-        baseBorderColor: Qt.alpha(surface.panelBorderColor, 0.82)
-        anchors.right: parent.right
-        anchors.rightMargin: 10
-        y: host
-            ? Number(host.surfaceMetrics.title_top || 0)
-                + Math.max(0, (Number(host.surfaceMetrics.title_height || 24) - height) * 0.5)
-            : 6
-        implicitWidth: 28
-        text: ""
-        onControlStarted: surface._beginInlineInteraction()
-        onClicked: surface.triggerHoverAction()
-    }
-
-    Rectangle {
-        id: pdfPageBadge
-        objectName: "graphNodeMediaPageBadge"
-        z: 5
-        visible: surface.isPdfPanel && surface.previewState === "ready" && surface.pdfPageCount > 0
-        anchors.right: parent.right
-        anchors.rightMargin: host ? Number(host.surfaceMetrics.title_right_margin || 10) : 10
-        y: host
-            ? Number(host.surfaceMetrics.title_top || 0)
-                + Math.max(0, (Number(host.surfaceMetrics.title_height || 28) - height) * 0.5)
-            : 6
-        radius: 10
-        color: surface.pdfBadgeFillColor
-        border.width: 1
-        border.color: surface.pdfBadgeBorderColor
-        height: pageBadgeLabel.implicitHeight + 10
-        width: pageBadgeLabel.implicitWidth + 16
-
-        Text {
-            id: pageBadgeLabel
-            anchors.centerIn: parent
-            text: "Page " + surface.pdfResolvedPageNumber + " / " + surface.pdfPageCount
-            color: surface.pdfBadgeTextColor
-            font.pixelSize: 10
-            font.bold: true
-            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-        }
+    GraphMediaPanelHeaderControls {
+        id: headerControls
+        surface: surface
+        anchors.fill: parent
     }
 
     Column {
@@ -701,110 +411,43 @@ Item {
         anchors.bottomMargin: host ? Number(host.surfaceMetrics.body_bottom_margin || 12) : 12
         spacing: surface.captionVisible ? 10 : 0
 
-        Rectangle {
+        GraphMediaPanelPreviewViewport {
             id: previewViewport
-            objectName: "graphNodeMediaPreviewViewport"
             width: parent.width
             height: surface.captionVisible
                 ? Math.max(64, parent.height - captionBlock.implicitHeight - parent.spacing)
                 : parent.height
-            radius: 8
-            color: surface.viewportFillColor
-            border.width: 1
-            border.color: Qt.alpha(surface.panelBorderColor, 0.82)
-            clip: true
+            surface: surface
+            overlayInteractiveRects: cropOverlay.embeddedInteractiveRects
 
-            Item {
-                anchors.fill: parent
-
-                GraphSurfaceControls.GraphSurfacePathEditor {
-                    id: inlinePathEditor
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.top: parent.top
-                    anchors.margins: 8
-                    z: 4
-                    visible: surface.inlineEditorsVisible
-                    enabled: visible
-                    host: surface.host
-                    propertyKey: "source_path"
-                    committedText: surface.sourcePath
-                    fieldObjectName: "graphNodeInlinePathEditor"
-                    browseButtonObjectName: "graphNodeInlinePathBrowseButton"
-                    browsePathResolver: function(currentPath) {
-                        return surface._browseInlinePropertyPath("source_path", currentPath);
-                    }
-                    onControlStarted: surface._beginInlineInteraction()
-                    onCommitRequested: function(value) {
-                        surface._commitInlineProperty("source_path", value);
-                    }
-                }
-
-                Image {
-                    id: sourceImageProbe
-                    visible: false
-                    asynchronous: false
-                    cache: true
-                    source: surface.isPdfPanel ? "" : surface.previewSourceUrl
-                }
-
-                Image {
-                    id: previewImage
-                    objectName: "graphNodeMediaPreviewImage"
-                    anchors.centerIn: parent
-                    asynchronous: false
-                    cache: surface.isPdfPanel
-                    mipmap: true
-                    fillMode: surface.isPdfPanel
-                        ? Image.PreserveAspectFit
-                        : (surface.normalizedFitMode === "cover"
-                            ? Image.PreserveAspectCrop
-                            : Image.PreserveAspectFit)
-                    source: surface.previewSourceUrl
-                    sourceClipRect: surface.isPdfPanel
-                        ? Qt.rect(0, 0, sourceSize.width, sourceSize.height)
-                        : surface.appliedSourceClipRect
-                    sourceSize.width: surface.isPdfPanel ? Math.max(1, Math.round(previewViewport.width)) : 0
-                    sourceSize.height: surface.isPdfPanel ? Math.max(1, Math.round(previewViewport.height)) : 0
-                    width: surface.originalModeActive
-                        ? Math.max(1, implicitWidth)
-                        : parent.width
-                    height: surface.originalModeActive
-                        ? Math.max(1, implicitHeight)
-                        : parent.height
-                    visible: surface.isPdfPanel && surface.previewState === "ready" && !surface.cropModeActive
-                    smooth: true
-                }
-
-                Item {
-                    id: appliedImageViewport
-                    objectName: "graphNodeMediaAppliedImageViewport"
-                    x: Number(surface.appliedPreviewRect.x || 0)
-                    y: Number(surface.appliedPreviewRect.y || 0)
-                    width: Math.max(0, Number(surface.appliedPreviewRect.width || 0))
-                    height: Math.max(0, Number(surface.appliedPreviewRect.height || 0))
-                    visible: !surface.isPdfPanel && surface.previewState === "ready" && !surface.cropModeActive
-                    clip: true
-
-                    Image {
-                        id: appliedImage
-                        objectName: "graphNodeMediaAppliedImage"
-                        x: Number(surface.appliedImageOffsetX || 0)
-                        y: Number(surface.appliedImageOffsetY || 0)
-                        width: Math.max(0, Number(surface.appliedFullImageWidth || 0))
-                        height: Math.max(0, Number(surface.appliedFullImageHeight || 0))
-                        asynchronous: false
-                        cache: true
-                        mipmap: true
-                        fillMode: Image.Stretch
-                        source: surface.previewSourceUrl
-                        smooth: true
-                    }
-                }
-
+            overlayData: [
                 Item {
                     id: cropOverlay
                     objectName: "graphNodeMediaCropOverlay"
+                    property var handleEmbeddedInteractiveRects: {
+                        var frameWidth = Number(surface.draftDisplayCropRect.width || 0);
+                        var frameHeight = Number(surface.draftDisplayCropRect.height || 0);
+                        if (!(surface.cropModeActive && surface.cropToolAvailable)
+                                || !(frameWidth > 0)
+                                || !(frameHeight > 0)) {
+                            return [];
+                        }
+                        var rectLists = [];
+                        for (var index = 0; index < cropHandleRepeater.count; index++) {
+                            var handleItem = cropHandleRepeater.itemAt(index);
+                            if (!handleItem || handleItem.embeddedInteractiveRects === undefined || handleItem.embeddedInteractiveRects === null)
+                                continue;
+                            rectLists.push(handleItem.embeddedInteractiveRects);
+                        }
+                        return SurfaceControlGeometry.combineRectLists(rectLists);
+                    }
+                    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
+                        [
+                            cropApplyButton.embeddedInteractiveRects,
+                            cropCancelButton.embeddedInteractiveRects,
+                            cropOverlay.handleEmbeddedInteractiveRects
+                        ]
+                    )
                     anchors.fill: parent
                     visible: surface.cropModeActive && surface.cropToolAvailable
                     z: 3
@@ -842,7 +485,8 @@ Item {
                     Rectangle {
                         color: surface.cropOverlayShadeColor
                         x: 0
-                        y: Number(surface.draftDisplayCropRect.y || 0) + Number(surface.draftDisplayCropRect.height || 0)
+                        y: Number(surface.draftDisplayCropRect.y || 0)
+                            + Number(surface.draftDisplayCropRect.height || 0)
                         width: parent.width
                         height: Math.max(0, parent.height - y)
                     }
@@ -857,7 +501,8 @@ Item {
 
                     Rectangle {
                         color: surface.cropOverlayShadeColor
-                        x: Number(surface.draftDisplayCropRect.x || 0) + Number(surface.draftDisplayCropRect.width || 0)
+                        x: Number(surface.draftDisplayCropRect.x || 0)
+                            + Number(surface.draftDisplayCropRect.width || 0)
                         y: Number(surface.draftDisplayCropRect.y || 0)
                         width: Math.max(0, parent.width - x)
                         height: Number(surface.draftDisplayCropRect.height || 0)
@@ -1018,110 +663,7 @@ Item {
                         }
                     }
                 }
-
-                Column {
-                    anchors.centerIn: parent
-                    width: Math.min(parent.width - 24, surface.isPdfPanel ? 208 : 180)
-                    spacing: 8
-                    visible: surface.previewState !== "ready"
-
-                    Item {
-                        width: 42
-                        height: 42
-                        anchors.horizontalCenter: parent.horizontalCenter
-
-                        Rectangle {
-                            visible: !surface.isPdfPanel
-                            width: 42
-                            height: 42
-                            radius: 8
-                            color: Qt.alpha(surface.panelBorderColor, 0.1)
-                            border.width: 1
-                            border.color: Qt.alpha(surface.panelBorderColor, 0.55)
-
-                            Rectangle {
-                                anchors.centerIn: parent
-                                width: 22
-                                height: 16
-                                radius: 3
-                                color: "transparent"
-                                border.width: 1
-                                border.color: Qt.alpha(surface.hintTextColor, 0.9)
-                            }
-                        }
-
-                        Item {
-                            visible: surface.isPdfPanel
-                            anchors.fill: parent
-
-                            Rectangle {
-                                x: 8
-                                y: 2
-                                width: 26
-                                height: 34
-                                radius: 4
-                                color: "#F5F7FA"
-                                border.width: 1
-                                border.color: Qt.alpha(surface.hintTextColor, 0.75)
-                            }
-
-                            Rectangle {
-                                x: 13
-                                y: 8
-                                width: 16
-                                height: 8
-                                radius: 2
-                                color: surface.previewState === "error"
-                                    ? Qt.alpha("#B55454", 0.92)
-                                    : Qt.alpha("#3A7CA5", 0.92)
-                            }
-
-                            Rectangle {
-                                x: 28
-                                y: 2
-                                width: 6
-                                height: 6
-                                color: "#E8EDF3"
-                                rotation: 45
-                                transformOrigin: Item.TopLeft
-                            }
-                        }
-                    }
-
-                    Text {
-                        objectName: "graphNodeMediaPreviewHint"
-                        visible: parent.visible
-                        width: parent.width
-                        horizontalAlignment: Text.AlignHCenter
-                        wrapMode: Text.WordWrap
-                        color: surface.hintTextColor
-                        font.pixelSize: 11
-                        text: surface.previewHintText
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                    }
-                }
-
-                GraphSurfaceControls.GraphSurfaceTextareaEditor {
-                    id: inlineCaptionEditor
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    anchors.margins: 8
-                    z: 4
-                    visible: surface.inlineEditorsVisible
-                    enabled: visible
-                    host: surface.host
-                    propertyKey: "caption"
-                    committedText: surface.captionText
-                    fieldObjectName: "graphNodeInlineTextareaEditor"
-                    applyButtonObjectName: "graphNodeInlineTextareaApplyButton"
-                    resetButtonObjectName: "graphNodeInlineTextareaResetButton"
-                    onControlStarted: surface._beginInlineInteraction()
-                    onCommitRequested: function(value) {
-                        surface._commitInlineProperty("caption", value);
-                    }
-                }
-            }
+            ]
         }
 
         Text {

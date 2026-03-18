@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -20,6 +22,20 @@ from tests.graph_surface_pointer_regression import (
 
 
 class PassiveImageNodeCatalogTests(unittest.TestCase):
+    def test_generated_js_surface_metric_contract_matches_authoritative_json(self) -> None:
+        graph_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui_qml" / "components" / "graph"
+        json_payload = json.loads((graph_dir / "GraphNodeSurfaceMetricContract.json").read_text(encoding="utf-8"))
+        js_text = (graph_dir / "GraphNodeSurfaceMetricContract.js").read_text(encoding="utf-8")
+        match = re.search(
+            r"var SURFACE_METRIC_CONTRACT = (\{.*\});\s*function contract",
+            js_text,
+            re.DOTALL,
+        )
+
+        self.assertIsNotNone(match)
+        js_payload = json.loads(match.group(1))
+        self.assertEqual(js_payload, json_payload)
+
     def test_default_registry_registers_locked_image_panel_spec(self) -> None:
         registry = build_default_registry()
         spec = registry.get_spec("passive.media.image_panel")

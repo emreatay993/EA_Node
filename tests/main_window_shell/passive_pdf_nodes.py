@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import gc
+import os
 from pathlib import Path
+import subprocess
+import sys
+import unittest
 from unittest.mock import patch
 
 from PyQt6.QtCore import QMarginsF, QMetaObject, QPoint, QPointF, QRectF, Qt
@@ -10,6 +14,56 @@ from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_PDF_NODES_DIRECT"
+_SUBPROCESS_RUNNER = (
+    "import os, sys, unittest; "
+    f"os.environ[{_DIRECT_ENV!r}] = '1'; "
+    "target = sys.argv[1]; "
+    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
+    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
+    "sys.exit(0 if result.wasSuccessful() else 1)"
+)
+
+
+class _SubprocessPassivePdfNodeTest(unittest.TestCase):
+    __test__ = False
+
+    def __init__(self, target: str) -> None:
+        super().__init__(methodName="runTest")
+        self._target = target
+
+    def id(self) -> str:
+        return self._target
+
+    def __str__(self) -> str:
+        return self._target
+
+    def shortDescription(self) -> str:
+        return self._target
+
+    def runTest(self) -> None:
+        env = os.environ.copy()
+        env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        result = subprocess.run(
+            [sys.executable, "-c", _SUBPROCESS_RUNNER, self._target],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        output = "\n".join(
+            part.strip()
+            for part in (result.stdout, result.stderr)
+            if part and part.strip()
+        )
+        raise AssertionError(
+            f"Subprocess passive PDF node test failed for {self._target} "
+            f"(exit={result.returncode}).\n{output}"
+        )
 
 
 def _write_pdf(path: Path, *, page_count: int = 2) -> None:
@@ -28,6 +82,21 @@ def _write_pdf(path: Path, *, page_count: int = 2) -> None:
 
 
 class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
+    def setUp(self) -> None:
+        super().setUp()
+        self._held_qml_refs: list[QQuickItem] = []
+
+    def tearDown(self) -> None:
+        try:
+            super().tearDown()
+        finally:
+            self._held_qml_refs = []
+            gc.collect()
+
+    def _hold_qml_ref(self, item: QQuickItem) -> QQuickItem:
+        self._held_qml_refs.append(item)
+        return item
+
     def _walk_items(self, item: QQuickItem):
         yield item
         for child in item.childItems():
@@ -40,7 +109,7 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
                 continue
             node_data = item.property("nodeData") or {}
             if str(node_data.get("node_id", "")) == node_id:
-                return item
+                return self._hold_qml_ref(item)
         self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
 
     def _graph_node_child_with_property(
@@ -55,7 +124,7 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
             if item.objectName() != object_name:
                 continue
             if str(item.property(property_name)) == expected_value:
-                return item
+                return self._hold_qml_ref(item)
         self.fail(
             f"Could not find {object_name!r} for node {node_id!r} "
             f"with {property_name!r}={expected_value!r}."
@@ -76,7 +145,7 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
                 continue
             if not bool(item.property("visible")):
                 continue
-            return item
+            return self._hold_qml_ref(item)
         self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
     def _selected_property_items(self) -> dict[str, dict]:
@@ -182,3 +251,18 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         self.assertEqual(preview_info["requested_page_number"], 2)
         self.assertEqual(preview_info["resolved_page_number"], 2)
         self.assertEqual(preview_info["page_count"], 2)
+
+
+def load_tests(loader, standard_tests, pattern):
+    if os.environ.get(_DIRECT_ENV) == "1":
+        return standard_tests
+
+    suite = unittest.TestSuite()
+    for test_name in sorted(name for name in dir(MainWindowShellPassivePdfNodesTests) if name.startswith("test_")):
+        suite.addTest(
+            _SubprocessPassivePdfNodeTest(
+                f"{MainWindowShellPassivePdfNodesTests.__module__}."
+                f"{MainWindowShellPassivePdfNodesTests.__qualname__}.{test_name}"
+            )
+        )
+    return suite

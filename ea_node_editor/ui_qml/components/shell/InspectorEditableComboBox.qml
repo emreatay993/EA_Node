@@ -1,0 +1,73 @@
+import QtQuick 2.15
+import QtQuick.Controls 2.15
+
+ComboBox {
+    id: control
+    property var pane
+    implicitHeight: 34
+    editable: true
+    leftPadding: 8
+    rightPadding: 30
+    hoverEnabled: true
+    font.pixelSize: 11
+    palette.buttonText: pane.themePalette.input_fg
+    palette.text: pane.themePalette.input_fg
+    palette.highlight: pane.selectedSurfaceColor
+    palette.highlightedText: pane.themePalette.panel_title_fg
+    palette.base: pane.themePalette.input_bg
+    palette.window: pane.cardBackgroundColor
+
+    indicator: Text {
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        anchors.verticalCenter: parent.verticalCenter
+        text: "▾"
+        color: control.pane.themePalette.muted_fg
+        font.pixelSize: 11
+        font.bold: true
+    }
+
+    background: Rectangle {
+        radius: 9
+        color: control.pane.themePalette.input_bg
+        border.color: control.activeFocus ? control.pane.themePalette.accent : control.pane.themePalette.input_border
+        border.width: 1
+    }
+
+    delegate: ItemDelegate {
+        width: ListView.view ? ListView.view.width : control.width
+        highlighted: control.highlightedIndex === index
+        contentItem: Text {
+            text: modelData
+            color: highlighted ? control.pane.themePalette.panel_title_fg : control.pane.themePalette.input_fg
+            font.pixelSize: 11
+            elide: Text.ElideRight
+            verticalAlignment: Text.AlignVCenter
+        }
+        background: Rectangle {
+            color: highlighted ? control.pane.selectedSurfaceColor : "transparent"
+            radius: 7
+        }
+    }
+
+    popup: Popup {
+        y: control.height + 4
+        width: control.width
+        padding: 4
+
+        background: Rectangle {
+            radius: 9
+            color: control.pane.cardBackgroundColor
+            border.color: control.pane.themePalette.input_border
+            border.width: 1
+        }
+
+        contentItem: ListView {
+            clip: true
+            implicitHeight: contentHeight
+            model: control.popup.visible ? control.delegateModel : null
+            currentIndex: control.highlightedIndex
+            ScrollIndicator.vertical: ScrollIndicator { }
+        }
+    }
+}

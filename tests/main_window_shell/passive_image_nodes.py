@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import gc
+import os
 from pathlib import Path
+import subprocess
+import sys
+import unittest
 from unittest.mock import patch
 
 from PyQt6.QtCore import QMetaObject, QPoint, QPointF, Qt
@@ -11,8 +16,73 @@ from PyQt6.QtTest import QTest
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.qt_wait import wait_for_condition_or_raise
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_IMAGE_NODES_DIRECT"
+_SUBPROCESS_RUNNER = (
+    "import os, sys, unittest; "
+    f"os.environ[{_DIRECT_ENV!r}] = '1'; "
+    "target = sys.argv[1]; "
+    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
+    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
+    "sys.exit(0 if result.wasSuccessful() else 1)"
+)
+
+
+class _SubprocessPassiveImageNodeTest(unittest.TestCase):
+    __test__ = False
+
+    def __init__(self, target: str) -> None:
+        super().__init__(methodName="runTest")
+        self._target = target
+
+    def id(self) -> str:
+        return self._target
+
+    def __str__(self) -> str:
+        return self._target
+
+    def shortDescription(self) -> str:
+        return self._target
+
+    def runTest(self) -> None:
+        env = os.environ.copy()
+        env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        result = subprocess.run(
+            [sys.executable, "-c", _SUBPROCESS_RUNNER, self._target],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode == 0:
+            return
+        output = "\n".join(
+            part.strip()
+            for part in (result.stdout, result.stderr)
+            if part and part.strip()
+        )
+        raise AssertionError(
+            f"Subprocess passive image node test failed for {self._target} "
+            f"(exit={result.returncode}).\n{output}"
+        )
+
 
 class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
+    def setUp(self) -> None:
+        super().setUp()
+        self._held_qml_refs: list[QQuickItem] = []
+
+    def tearDown(self) -> None:
+        try:
+            super().tearDown()
+        finally:
+            self._held_qml_refs = []
+            gc.collect()
+
+    def _hold_qml_ref(self, item: QQuickItem) -> QQuickItem:
+        self._held_qml_refs.append(item)
+        return item
+
     def _walk_items(self, item: QQuickItem):
         yield item
         for child in item.childItems():
@@ -25,14 +95,14 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
                 continue
             node_data = item.property("nodeData") or {}
             if str(node_data.get("node_id", "")) == node_id:
-                return item
+                return self._hold_qml_ref(item)
         self.fail(f"Could not find graphNodeCard for node {node_id!r}.")
 
     def _graph_node_child(self, node_id: str, object_name: str) -> QQuickItem:
         card = self._graph_node_card(node_id)
         for item in self._walk_items(card):
             if item.objectName() == object_name:
-                return item
+                return self._hold_qml_ref(item)
         self.fail(f"Could not find {object_name!r} for node {node_id!r}.")
 
     def _graph_node_child_with_property(
@@ -47,7 +117,7 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
             if item.objectName() != object_name:
                 continue
             if str(item.property(property_name)) == expected_value:
-                return item
+                return self._hold_qml_ref(item)
         self.fail(
             f"Could not find {object_name!r} for node {node_id!r} "
             f"with {property_name!r}={expected_value!r}."
@@ -84,7 +154,7 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
                 continue
             if not bool(item.property("visible")):
                 continue
-            return item
+            return self._hold_qml_ref(item)
         self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
     def test_image_panel_inspector_exposes_locked_editor_modes(self) -> None:
@@ -407,3 +477,18 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         QTest.mouseMove(handle_window, start_point)
         self.assertTrue(bool(top_left_handle.property("containsMouse")))
         self.assertEqual(self.window.quick_widget.cursor().shape(), Qt.CursorShape.SizeFDiagCursor)
+
+
+def load_tests(loader, standard_tests, pattern):
+    if os.environ.get(_DIRECT_ENV) == "1":
+        return standard_tests
+
+    suite = unittest.TestSuite()
+    for test_name in sorted(name for name in dir(MainWindowShellPassiveImageNodesTests) if name.startswith("test_")):
+        suite.addTest(
+            _SubprocessPassiveImageNodeTest(
+                f"{MainWindowShellPassiveImageNodesTests.__module__}."
+                f"{MainWindowShellPassiveImageNodesTests.__qualname__}.{test_name}"
+            )
+        )
+    return suite

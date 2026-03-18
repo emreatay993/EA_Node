@@ -1,41 +1,25 @@
 .pragma library
+.import "GraphNodeSurfaceMetricContract.js" as SurfaceMetricContract
 
-var STANDARD_DEFAULT_WIDTH = 210.0;
-var STANDARD_MIN_WIDTH = 120.0;
-var STANDARD_MIN_HEIGHT = 50.0;
-var STANDARD_COLLAPSED_WIDTH = 130.0;
-var STANDARD_COLLAPSED_HEIGHT = 36.0;
-var STANDARD_HEADER_HEIGHT = 24.0;
-var STANDARD_HEADER_TOP_MARGIN = 4.0;
-var STANDARD_BODY_TOP = 30.0;
-var STANDARD_PORT_HEIGHT = 18.0;
-var STANDARD_INLINE_ROW_HEIGHT = 26.0;
-var STANDARD_INLINE_TEXTAREA_ROW_HEIGHT = 104.0;
-var STANDARD_INLINE_ROW_SPACING = 4.0;
-var STANDARD_INLINE_SECTION_PADDING = 8.0;
-var STANDARD_PORT_CENTER_OFFSET = 6.0;
-var STANDARD_PORT_SIDE_MARGIN = 8.0;
-var STANDARD_PORT_DOT_RADIUS = 3.5;
-var STANDARD_RESIZE_HANDLE_SIZE = 16.0;
-var STANDARD_BOTTOM_PADDING = 8.0;
+function _contract() {
+    return SurfaceMetricContract.contract();
+}
 
-var FLOWCHART_COLLAPSED_WIDTH = 140.0;
-var FLOWCHART_COLLAPSED_HEIGHT = 40.0;
-var FLOWCHART_TITLE_HEIGHT = 24.0;
-var FLOWCHART_PORT_HEIGHT = 18.0;
-var FLOWCHART_PORT_CENTER_OFFSET = 6.0;
-var FLOWCHART_PORT_DOT_RADIUS = 4.0;
-var FLOWCHART_RESIZE_HANDLE_SIZE = 16.0;
-var FLOWCHART_INLINE_GAP = 8.0;
-var FLOWCHART_PORT_SECTION_TOP = 12.0;
+function _contractSection(key) {
+    var value = _contract()[key];
+    return value && typeof value === "object" ? value : {};
+}
 
-var PASSIVE_SURFACE_RESIZE_HANDLE_SIZE = 16.0;
+function _contractNumber(source, key) {
+    var value = source ? Number(source[key]) : NaN;
+    return isFinite(value) ? value : NaN;
+}
 
 function _metricNumber(source, key, fallback) {
     var value = source ? Number(source[key]) : NaN;
     if (!isFinite(value))
         value = fallback;
-    return value;
+    return isFinite(value) ? value : 0.0;
 }
 
 function _metricBool(source, key, fallback) {
@@ -44,19 +28,62 @@ function _metricBool(source, key, fallback) {
     return Boolean(source[key]);
 }
 
+function _inlineContract() {
+    return _contractSection("inline");
+}
+
+function _standardContract() {
+    return _contractSection("standard");
+}
+
+function _passiveContract() {
+    return _contractSection("passive");
+}
+
+function _flowchartContract() {
+    return _contractSection("flowchart");
+}
+
+function _planningContract() {
+    return _contractSection("planning");
+}
+
+function _annotationContract() {
+    return _contractSection("annotation");
+}
+
+function _mediaContract() {
+    return _contractSection("media");
+}
+
+function _variantLayouts(section) {
+    var layouts = section ? section.variants : null;
+    return layouts && typeof layouts === "object" ? layouts : {};
+}
+
+function _normalizedVariant(value, layouts, fallback) {
+    var variant = String(value || "").trim().toLowerCase();
+    return layouts && layouts[variant] !== undefined ? variant : fallback;
+}
+
 function inlineBodyHeight(node) {
     var inlineProperties = node && node.inline_properties ? node.inline_properties : [];
     var count = inlineProperties.length;
     if (count <= 0)
         return 0.0;
-    var rowHeight = 0.0;
+    var inlineContract = _inlineContract();
+    var rowHeight = _contractNumber(inlineContract, "row_height");
+    var textareaRowHeight = _contractNumber(inlineContract, "textarea_row_height");
+    var rowSpacing = _contractNumber(inlineContract, "row_spacing");
+    var sectionPadding = _contractNumber(inlineContract, "section_padding");
+    var totalRowHeight = 0.0;
     for (var i = 0; i < inlineProperties.length; i++) {
         var propertyItem = inlineProperties[i];
-        rowHeight += String(propertyItem && propertyItem.inline_editor || "").toLowerCase() === "textarea"
-            ? STANDARD_INLINE_TEXTAREA_ROW_HEIGHT
-            : STANDARD_INLINE_ROW_HEIGHT;
+        totalRowHeight += String(propertyItem && propertyItem.inline_editor || "").toLowerCase() === "textarea"
+            ? textareaRowHeight
+            : rowHeight;
     }
-    return STANDARD_INLINE_SECTION_PADDING + rowHeight + Math.max(0, count - 1) * STANDARD_INLINE_ROW_SPACING;
+    return sectionPadding + totalRowHeight + Math.max(0, count - 1) * rowSpacing;
 }
 
 function _visiblePortCounts(node) {
@@ -79,407 +106,162 @@ function _visiblePortCounts(node) {
     };
 }
 
-function _normalizedFlowchartVariant(value) {
-    var variant = String(value || "").trim().toLowerCase();
-    if (variant === "start" || variant === "end" || variant === "process" || variant === "decision"
-        || variant === "document" || variant === "connector" || variant === "input_output"
-        || variant === "predefined_process" || variant === "database") {
-        return variant;
-    }
-    return "process";
-}
-
 function _flowchartVariantLayout(variant) {
-    var normalized = _normalizedFlowchartVariant(variant);
-    switch (normalized) {
-    case "start":
-    case "end":
-        return {
-            "defaultWidth": 228.0,
-            "minWidth": 152.0,
-            "minHeight": 78.0,
-            "titleTop": 18.0,
-            "titleLeftMargin": 34.0,
-            "titleRightMargin": 34.0,
-            "bodyLeftMargin": 30.0,
-            "bodyRightMargin": 30.0,
-            "bodyBottomMargin": 16.0,
-            "square": false
-        };
-    case "decision":
-        return {
-            "defaultWidth": 236.0,
-            "minWidth": 192.0,
-            "minHeight": 128.0,
-            "titleTop": 26.0,
-            "titleLeftMargin": 66.0,
-            "titleRightMargin": 66.0,
-            "bodyLeftMargin": 46.0,
-            "bodyRightMargin": 46.0,
-            "bodyBottomMargin": 22.0,
-            "square": false
-        };
-    case "document":
-        return {
-            "defaultWidth": 228.0,
-            "minWidth": 176.0,
-            "minHeight": 104.0,
-            "titleTop": 18.0,
-            "titleLeftMargin": 24.0,
-            "titleRightMargin": 24.0,
-            "bodyLeftMargin": 20.0,
-            "bodyRightMargin": 20.0,
-            "bodyBottomMargin": 24.0,
-            "square": false
-        };
-    case "connector":
-        return {
-            "defaultWidth": 108.0,
-            "minWidth": 92.0,
-            "minHeight": 92.0,
-            "titleTop": 18.0,
-            "titleLeftMargin": 20.0,
-            "titleRightMargin": 20.0,
-            "bodyLeftMargin": 20.0,
-            "bodyRightMargin": 20.0,
-            "bodyBottomMargin": 18.0,
-            "square": true
-        };
-    case "input_output":
-        return {
-            "defaultWidth": 236.0,
-            "minWidth": 182.0,
-            "minHeight": 94.0,
-            "titleTop": 20.0,
-            "titleLeftMargin": 34.0,
-            "titleRightMargin": 34.0,
-            "bodyLeftMargin": 28.0,
-            "bodyRightMargin": 28.0,
-            "bodyBottomMargin": 18.0,
-            "square": false
-        };
-    case "predefined_process":
-        return {
-            "defaultWidth": 236.0,
-            "minWidth": 182.0,
-            "minHeight": 94.0,
-            "titleTop": 20.0,
-            "titleLeftMargin": 36.0,
-            "titleRightMargin": 36.0,
-            "bodyLeftMargin": 30.0,
-            "bodyRightMargin": 30.0,
-            "bodyBottomMargin": 18.0,
-            "square": false
-        };
-    case "database":
-        return {
-            "defaultWidth": 228.0,
-            "minWidth": 180.0,
-            "minHeight": 128.0,
-            "titleTop": 24.0,
-            "titleLeftMargin": 30.0,
-            "titleRightMargin": 30.0,
-            "bodyLeftMargin": 24.0,
-            "bodyRightMargin": 24.0,
-            "bodyBottomMargin": 22.0,
-            "square": false
-        };
-    case "process":
-    default:
-        return {
-            "defaultWidth": 224.0,
-            "minWidth": 156.0,
-            "minHeight": 84.0,
-            "titleTop": 18.0,
-            "titleLeftMargin": 20.0,
-            "titleRightMargin": 20.0,
-            "bodyLeftMargin": 18.0,
-            "bodyRightMargin": 18.0,
-            "bodyBottomMargin": 16.0,
-            "square": false
-        };
-    }
-}
-
-function _normalizedPlanningVariant(value) {
-    var variant = String(value || "").trim().toLowerCase();
-    if (variant === "task_card" || variant === "milestone_card" || variant === "risk_card" || variant === "decision_card")
-        return variant;
-    return "task_card";
+    var contract = _flowchartContract();
+    var layouts = _variantLayouts(contract);
+    var normalized = _normalizedVariant(variant, layouts, "process");
+    var layout = layouts[normalized];
+    return layout && typeof layout === "object" ? layout : {};
 }
 
 function _planningVariantLayout(variant) {
-    switch (_normalizedPlanningVariant(variant)) {
-    case "milestone_card":
-        return {
-            "defaultWidth": 248.0,
-            "defaultHeight": 156.0,
-            "minWidth": 190.0,
-            "minHeight": 136.0,
-            "titleTop": 12.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
-            "bodyTop": 44.0,
-            "bodyHeight": 100.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    case "risk_card":
-        return {
-            "defaultWidth": 252.0,
-            "defaultHeight": 180.0,
-            "minWidth": 196.0,
-            "minHeight": 156.0,
-            "titleTop": 12.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
-            "bodyTop": 44.0,
-            "bodyHeight": 124.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    case "decision_card":
-        return {
-            "defaultWidth": 252.0,
-            "defaultHeight": 180.0,
-            "minWidth": 196.0,
-            "minHeight": 156.0,
-            "titleTop": 12.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
-            "bodyTop": 44.0,
-            "bodyHeight": 124.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    case "task_card":
-    default:
-        return {
-            "defaultWidth": 248.0,
-            "defaultHeight": 168.0,
-            "minWidth": 190.0,
-            "minHeight": 148.0,
-            "titleTop": 12.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
-            "bodyTop": 44.0,
-            "bodyHeight": 112.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    }
-}
-
-function _normalizedAnnotationVariant(value) {
-    var variant = String(value || "").trim().toLowerCase();
-    if (variant === "sticky_note" || variant === "callout" || variant === "section_header")
-        return variant;
-    return "sticky_note";
+    var contract = _planningContract();
+    var layouts = _variantLayouts(contract);
+    var normalized = _normalizedVariant(variant, layouts, "task_card");
+    var layout = layouts[normalized];
+    return layout && typeof layout === "object" ? layout : {};
 }
 
 function _annotationVariantLayout(variant) {
-    switch (_normalizedAnnotationVariant(variant)) {
-    case "callout":
-        return {
-            "defaultWidth": 236.0,
-            "defaultHeight": 156.0,
-            "minWidth": 184.0,
-            "minHeight": 132.0,
-            "titleTop": 14.0,
-            "titleHeight": 22.0,
-            "titleLeftMargin": 16.0,
-            "titleRightMargin": 16.0,
-            "bodyTop": 42.0,
-            "bodyHeight": 102.0,
-            "bodyLeftMargin": 16.0,
-            "bodyRightMargin": 16.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    case "section_header":
-        return {
-            "defaultWidth": 280.0,
-            "defaultHeight": 112.0,
-            "minWidth": 220.0,
-            "minHeight": 96.0,
-            "titleTop": 18.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 18.0,
-            "titleRightMargin": 18.0,
-            "bodyTop": 52.0,
-            "bodyHeight": 34.0,
-            "bodyLeftMargin": 18.0,
-            "bodyRightMargin": 18.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    case "sticky_note":
-    default:
-        return {
-            "defaultWidth": 228.0,
-            "defaultHeight": 152.0,
-            "minWidth": 176.0,
-            "minHeight": 128.0,
-            "titleTop": 14.0,
-            "titleHeight": 22.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
-            "bodyTop": 42.0,
-            "bodyHeight": 98.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    }
-}
-
-function _normalizedMediaVariant(value) {
-    var variant = String(value || "").trim().toLowerCase();
-    if (variant === "image_panel" || variant === "pdf_panel")
-        return variant;
-    return "image_panel";
+    var contract = _annotationContract();
+    var layouts = _variantLayouts(contract);
+    var normalized = _normalizedVariant(variant, layouts, "sticky_note");
+    var layout = layouts[normalized];
+    return layout && typeof layout === "object" ? layout : {};
 }
 
 function _mediaVariantLayout(variant) {
-    switch (_normalizedMediaVariant(variant)) {
-    case "pdf_panel":
-        return {
-            "defaultWidth": 268.0,
-            "defaultHeight": 396.0,
-            "minWidth": 228.0,
-            "minHeight": 320.0,
-            "titleTop": 12.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 14.0,
-            "bodyTop": 44.0,
-            "minBodyHeight": 264.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    case "image_panel":
-    default:
-        return {
-            "defaultWidth": 296.0,
-            "defaultHeight": 236.0,
-            "minWidth": 220.0,
-            "minHeight": 176.0,
-            "titleTop": 12.0,
-            "titleHeight": 24.0,
-            "titleLeftMargin": 14.0,
-            "titleRightMargin": 46.0,
-            "bodyTop": 44.0,
-            "minBodyHeight": 120.0,
-            "bodyLeftMargin": 14.0,
-            "bodyRightMargin": 14.0,
-            "bodyBottomMargin": 12.0,
-            "titleCentered": false
-        };
-    }
+    var contract = _mediaContract();
+    var layouts = _variantLayouts(contract);
+    var normalized = _normalizedVariant(variant, layouts, "image_panel");
+    var layout = layouts[normalized];
+    return layout && typeof layout === "object" ? layout : {};
 }
 
 function _resolvedDimension(value, fallback) {
     var numeric = Number(value);
     if (!(numeric > 0.0))
         numeric = fallback;
-    return numeric;
+    return isFinite(numeric) ? numeric : 0.0;
 }
 
 function _standardSurfaceMetrics(node, source) {
+    var standard = _standardContract();
     var portCount = _visiblePortCounts(node).portCount;
+    var headerHeight = _contractNumber(standard, "header_height");
+    var portHeight = _contractNumber(standard, "port_height");
+    var bottomPadding = _contractNumber(standard, "bottom_padding");
+    var bodyTop = _contractNumber(standard, "body_top");
     var bodyHeight = _metricNumber(source, "body_height", inlineBodyHeight(node));
     return {
-        "default_width": _metricNumber(source, "default_width", STANDARD_DEFAULT_WIDTH),
+        "default_width": _metricNumber(source, "default_width", _contractNumber(standard, "default_width")),
         "default_height": _metricNumber(
             source,
             "default_height",
-            STANDARD_HEADER_HEIGHT + bodyHeight + portCount * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
+            headerHeight + bodyHeight + portCount * portHeight + bottomPadding
         ),
-        "min_width": _metricNumber(source, "min_width", STANDARD_MIN_WIDTH),
-        "min_height": _metricNumber(source, "min_height", STANDARD_MIN_HEIGHT),
-        "collapsed_width": _metricNumber(source, "collapsed_width", STANDARD_COLLAPSED_WIDTH),
-        "collapsed_height": _metricNumber(source, "collapsed_height", STANDARD_COLLAPSED_HEIGHT),
-        "header_height": _metricNumber(source, "header_height", STANDARD_HEADER_HEIGHT),
-        "header_top_margin": _metricNumber(source, "header_top_margin", STANDARD_HEADER_TOP_MARGIN),
-        "body_top": _metricNumber(source, "body_top", STANDARD_BODY_TOP),
+        "min_width": _metricNumber(source, "min_width", _contractNumber(standard, "min_width")),
+        "min_height": _metricNumber(source, "min_height", _contractNumber(standard, "min_height")),
+        "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(standard, "collapsed_width")),
+        "collapsed_height": _metricNumber(source, "collapsed_height", _contractNumber(standard, "collapsed_height")),
+        "header_height": _metricNumber(source, "header_height", headerHeight),
+        "header_top_margin": _metricNumber(source, "header_top_margin", _contractNumber(standard, "header_top_margin")),
+        "body_top": _metricNumber(source, "body_top", bodyTop),
         "body_height": bodyHeight,
-        "port_top": _metricNumber(source, "port_top", STANDARD_BODY_TOP + bodyHeight),
-        "port_height": _metricNumber(source, "port_height", STANDARD_PORT_HEIGHT),
-        "port_center_offset": _metricNumber(source, "port_center_offset", STANDARD_PORT_CENTER_OFFSET),
-        "port_side_margin": _metricNumber(source, "port_side_margin", STANDARD_PORT_SIDE_MARGIN),
-        "port_dot_radius": _metricNumber(source, "port_dot_radius", STANDARD_PORT_DOT_RADIUS),
-        "resize_handle_size": _metricNumber(source, "resize_handle_size", STANDARD_RESIZE_HANDLE_SIZE),
-        "title_top": _metricNumber(source, "title_top", STANDARD_HEADER_TOP_MARGIN),
-        "title_height": _metricNumber(source, "title_height", STANDARD_HEADER_HEIGHT),
-        "title_left_margin": _metricNumber(source, "title_left_margin", 10.0),
-        "title_right_margin": _metricNumber(source, "title_right_margin", 10.0),
+        "port_top": _metricNumber(source, "port_top", bodyTop + bodyHeight),
+        "port_height": _metricNumber(source, "port_height", portHeight),
+        "port_center_offset": _metricNumber(
+            source,
+            "port_center_offset",
+            _contractNumber(standard, "port_center_offset")
+        ),
+        "port_side_margin": _metricNumber(source, "port_side_margin", _contractNumber(standard, "port_side_margin")),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", _contractNumber(standard, "port_dot_radius")),
+        "resize_handle_size": _metricNumber(
+            source,
+            "resize_handle_size",
+            _contractNumber(standard, "resize_handle_size")
+        ),
+        "title_top": _metricNumber(source, "title_top", _contractNumber(standard, "header_top_margin")),
+        "title_height": _metricNumber(source, "title_height", headerHeight),
+        "title_left_margin": _metricNumber(
+            source,
+            "title_left_margin",
+            _contractNumber(standard, "title_left_margin")
+        ),
+        "title_right_margin": _metricNumber(
+            source,
+            "title_right_margin",
+            _contractNumber(standard, "title_right_margin")
+        ),
         "title_centered": _metricBool(source, "title_centered", false),
-        "body_left_margin": _metricNumber(source, "body_left_margin", 8.0),
-        "body_right_margin": _metricNumber(source, "body_right_margin", 8.0),
-        "body_bottom_margin": _metricNumber(source, "body_bottom_margin", STANDARD_BOTTOM_PADDING),
-        "show_header_background": _metricBool(source, "show_header_background", true),
-        "show_accent_bar": _metricBool(source, "show_accent_bar", true),
-        "use_host_chrome": _metricBool(source, "use_host_chrome", true)
+        "body_left_margin": _metricNumber(
+            source,
+            "body_left_margin",
+            _contractNumber(standard, "body_left_margin")
+        ),
+        "body_right_margin": _metricNumber(
+            source,
+            "body_right_margin",
+            _contractNumber(standard, "body_right_margin")
+        ),
+        "body_bottom_margin": _metricNumber(source, "body_bottom_margin", bottomPadding),
+        "show_header_background": _metricBool(
+            source,
+            "show_header_background",
+            Boolean(standard.show_header_background)
+        ),
+        "show_accent_bar": _metricBool(source, "show_accent_bar", Boolean(standard.show_accent_bar)),
+        "use_host_chrome": _metricBool(source, "use_host_chrome", Boolean(standard.use_host_chrome))
     };
 }
 
 function _flowchartSurfaceMetrics(node, source) {
+    var contract = _flowchartContract();
     var layout = _flowchartVariantLayout(node && node.surface_variant);
     var portCount = _visiblePortCounts(node).portCount;
     var bodyHeight = _metricNumber(source, "body_height", inlineBodyHeight(node));
+    var titleHeight = _contractNumber(contract, "title_height");
+    var portHeight = _contractNumber(contract, "port_height");
+    var inlineGap = _contractNumber(contract, "inline_gap");
+    var defaultPortSectionTop = _contractNumber(contract, "port_section_top");
     var basePortSectionTop = bodyHeight > 0.0
-        ? layout.titleTop + FLOWCHART_TITLE_HEIGHT + FLOWCHART_INLINE_GAP + bodyHeight + FLOWCHART_INLINE_GAP
-        : FLOWCHART_PORT_SECTION_TOP;
+        ? _contractNumber(layout, "title_top") + titleHeight + inlineGap + bodyHeight + inlineGap
+        : defaultPortSectionTop;
     var defaultHeight = Math.max(
-        layout.minHeight,
-        basePortSectionTop + portCount * FLOWCHART_PORT_HEIGHT + layout.bodyBottomMargin
+        _contractNumber(layout, "min_height"),
+        basePortSectionTop + portCount * portHeight + _contractNumber(layout, "body_bottom_margin")
     );
-    var defaultWidth = layout.defaultWidth;
-    var minWidth = layout.minWidth;
-    if (layout.square) {
+    var defaultWidth = _contractNumber(layout, "default_width");
+    var minWidth = _contractNumber(layout, "min_width");
+    if (Boolean(layout.square)) {
         defaultWidth = Math.max(defaultWidth, defaultHeight);
-        minWidth = Math.max(minWidth, layout.minHeight);
+        minWidth = Math.max(minWidth, _contractNumber(layout, "min_height"));
     }
     defaultHeight = _metricNumber(source, "default_height", defaultHeight);
     defaultWidth = _metricNumber(source, "default_width", defaultWidth);
     minWidth = _metricNumber(source, "min_width", minWidth);
-    var minHeight = _metricNumber(source, "min_height", layout.minHeight);
-    var activeWidth = _resolvedDimension(node && node.width, defaultWidth);
+    var minHeight = _metricNumber(source, "min_height", _contractNumber(layout, "min_height"));
     var activeHeight = _resolvedDimension(node && node.height, defaultHeight);
     var titleTop = bodyHeight > 0.0
-        ? layout.titleTop
-        : Math.max(12.0, (activeHeight - FLOWCHART_TITLE_HEIGHT) * 0.5);
+        ? _contractNumber(layout, "title_top")
+        : Math.max(12.0, (activeHeight - titleHeight) * 0.5);
     titleTop = _metricNumber(source, "title_top", titleTop);
-    var bodyTop = _metricNumber(source, "body_top", titleTop + FLOWCHART_TITLE_HEIGHT + FLOWCHART_INLINE_GAP);
+    var bodyTop = _metricNumber(source, "body_top", titleTop + titleHeight + inlineGap);
     var portSectionTop = bodyHeight > 0.0
-        ? bodyTop + bodyHeight + FLOWCHART_INLINE_GAP
-        : FLOWCHART_PORT_SECTION_TOP;
+        ? bodyTop + bodyHeight + inlineGap
+        : defaultPortSectionTop;
     var availablePortHeight = Math.max(
-        portCount * FLOWCHART_PORT_HEIGHT,
-        activeHeight - portSectionTop - layout.bodyBottomMargin
+        portCount * portHeight,
+        activeHeight - portSectionTop - _contractNumber(layout, "body_bottom_margin")
     );
     return {
         "default_width": defaultWidth,
         "default_height": defaultHeight,
         "min_width": minWidth,
         "min_height": minHeight,
-        "collapsed_width": _metricNumber(source, "collapsed_width", FLOWCHART_COLLAPSED_WIDTH),
-        "collapsed_height": _metricNumber(source, "collapsed_height", FLOWCHART_COLLAPSED_HEIGHT),
+        "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(contract, "collapsed_width")),
+        "collapsed_height": _metricNumber(source, "collapsed_height", _contractNumber(contract, "collapsed_height")),
         "header_height": _metricNumber(source, "header_height", 0.0),
         "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
         "body_top": bodyTop,
@@ -487,21 +269,53 @@ function _flowchartSurfaceMetrics(node, source) {
         "port_top": _metricNumber(
             source,
             "port_top",
-            portSectionTop + Math.max(0.0, (availablePortHeight - portCount * FLOWCHART_PORT_HEIGHT) * 0.5)
+            portSectionTop + Math.max(0.0, (availablePortHeight - portCount * portHeight) * 0.5)
         ),
-        "port_height": _metricNumber(source, "port_height", FLOWCHART_PORT_HEIGHT),
-        "port_center_offset": _metricNumber(source, "port_center_offset", FLOWCHART_PORT_CENTER_OFFSET),
+        "port_height": _metricNumber(source, "port_height", portHeight),
+        "port_center_offset": _metricNumber(
+            source,
+            "port_center_offset",
+            _contractNumber(contract, "port_center_offset")
+        ),
         "port_side_margin": _metricNumber(source, "port_side_margin", 0.0),
-        "port_dot_radius": _metricNumber(source, "port_dot_radius", FLOWCHART_PORT_DOT_RADIUS),
-        "resize_handle_size": _metricNumber(source, "resize_handle_size", FLOWCHART_RESIZE_HANDLE_SIZE),
+        "port_dot_radius": _metricNumber(
+            source,
+            "port_dot_radius",
+            _contractNumber(contract, "port_dot_radius")
+        ),
+        "resize_handle_size": _metricNumber(
+            source,
+            "resize_handle_size",
+            _contractNumber(contract, "resize_handle_size")
+        ),
         "title_top": titleTop,
-        "title_height": _metricNumber(source, "title_height", FLOWCHART_TITLE_HEIGHT),
-        "title_left_margin": _metricNumber(source, "title_left_margin", layout.titleLeftMargin),
-        "title_right_margin": _metricNumber(source, "title_right_margin", layout.titleRightMargin),
+        "title_height": _metricNumber(source, "title_height", titleHeight),
+        "title_left_margin": _metricNumber(
+            source,
+            "title_left_margin",
+            _contractNumber(layout, "title_left_margin")
+        ),
+        "title_right_margin": _metricNumber(
+            source,
+            "title_right_margin",
+            _contractNumber(layout, "title_right_margin")
+        ),
         "title_centered": _metricBool(source, "title_centered", true),
-        "body_left_margin": _metricNumber(source, "body_left_margin", layout.bodyLeftMargin),
-        "body_right_margin": _metricNumber(source, "body_right_margin", layout.bodyRightMargin),
-        "body_bottom_margin": _metricNumber(source, "body_bottom_margin", layout.bodyBottomMargin),
+        "body_left_margin": _metricNumber(
+            source,
+            "body_left_margin",
+            _contractNumber(layout, "body_left_margin")
+        ),
+        "body_right_margin": _metricNumber(
+            source,
+            "body_right_margin",
+            _contractNumber(layout, "body_right_margin")
+        ),
+        "body_bottom_margin": _metricNumber(
+            source,
+            "body_bottom_margin",
+            _contractNumber(layout, "body_bottom_margin")
+        ),
         "show_header_background": _metricBool(source, "show_header_background", false),
         "show_accent_bar": _metricBool(source, "show_accent_bar", false),
         "use_host_chrome": _metricBool(source, "use_host_chrome", false)
@@ -509,21 +323,26 @@ function _flowchartSurfaceMetrics(node, source) {
 }
 
 function _passivePanelSurfaceMetrics(node, source, layout) {
-    var activeHeight = _resolvedDimension(node && node.height, layout.defaultHeight);
-    var bodyTop = _metricNumber(source, "body_top", layout.bodyTop);
-    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", layout.bodyBottomMargin);
+    var passive = _passiveContract();
+    var activeHeight = _resolvedDimension(node && node.height, _contractNumber(layout, "default_height"));
+    var bodyTop = _metricNumber(source, "body_top", _contractNumber(layout, "body_top"));
+    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", _contractNumber(layout, "body_bottom_margin"));
     var bodyHeight = _metricNumber(
         source,
         "body_height",
-        Math.max(layout.bodyHeight, activeHeight - bodyTop - bodyBottomMargin)
+        Math.max(_contractNumber(layout, "body_height"), activeHeight - bodyTop - bodyBottomMargin)
     );
     return {
-        "default_width": _metricNumber(source, "default_width", layout.defaultWidth),
-        "default_height": _metricNumber(source, "default_height", layout.defaultHeight),
-        "min_width": _metricNumber(source, "min_width", layout.minWidth),
-        "min_height": _metricNumber(source, "min_height", layout.minHeight),
-        "collapsed_width": _metricNumber(source, "collapsed_width", STANDARD_COLLAPSED_WIDTH),
-        "collapsed_height": _metricNumber(source, "collapsed_height", STANDARD_COLLAPSED_HEIGHT),
+        "default_width": _metricNumber(source, "default_width", _contractNumber(layout, "default_width")),
+        "default_height": _metricNumber(source, "default_height", _contractNumber(layout, "default_height")),
+        "min_width": _metricNumber(source, "min_width", _contractNumber(layout, "min_width")),
+        "min_height": _metricNumber(source, "min_height", _contractNumber(layout, "min_height")),
+        "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(_standardContract(), "collapsed_width")),
+        "collapsed_height": _metricNumber(
+            source,
+            "collapsed_height",
+            _contractNumber(_standardContract(), "collapsed_height")
+        ),
         "header_height": _metricNumber(source, "header_height", 0.0),
         "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
         "body_top": bodyTop,
@@ -531,16 +350,36 @@ function _passivePanelSurfaceMetrics(node, source, layout) {
         "port_top": _metricNumber(source, "port_top", activeHeight - bodyBottomMargin),
         "port_height": _metricNumber(source, "port_height", 0.0),
         "port_center_offset": _metricNumber(source, "port_center_offset", 0.0),
-        "port_side_margin": _metricNumber(source, "port_side_margin", STANDARD_PORT_SIDE_MARGIN),
-        "port_dot_radius": _metricNumber(source, "port_dot_radius", STANDARD_PORT_DOT_RADIUS),
-        "resize_handle_size": _metricNumber(source, "resize_handle_size", PASSIVE_SURFACE_RESIZE_HANDLE_SIZE),
-        "title_top": _metricNumber(source, "title_top", layout.titleTop),
-        "title_height": _metricNumber(source, "title_height", layout.titleHeight),
-        "title_left_margin": _metricNumber(source, "title_left_margin", layout.titleLeftMargin),
-        "title_right_margin": _metricNumber(source, "title_right_margin", layout.titleRightMargin),
-        "title_centered": _metricBool(source, "title_centered", layout.titleCentered),
-        "body_left_margin": _metricNumber(source, "body_left_margin", layout.bodyLeftMargin),
-        "body_right_margin": _metricNumber(source, "body_right_margin", layout.bodyRightMargin),
+        "port_side_margin": _metricNumber(source, "port_side_margin", _contractNumber(passive, "port_side_margin")),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", _contractNumber(passive, "port_dot_radius")),
+        "resize_handle_size": _metricNumber(
+            source,
+            "resize_handle_size",
+            _contractNumber(passive, "resize_handle_size")
+        ),
+        "title_top": _metricNumber(source, "title_top", _contractNumber(layout, "title_top")),
+        "title_height": _metricNumber(source, "title_height", _contractNumber(layout, "title_height")),
+        "title_left_margin": _metricNumber(
+            source,
+            "title_left_margin",
+            _contractNumber(layout, "title_left_margin")
+        ),
+        "title_right_margin": _metricNumber(
+            source,
+            "title_right_margin",
+            _contractNumber(layout, "title_right_margin")
+        ),
+        "title_centered": _metricBool(source, "title_centered", Boolean(layout.title_centered)),
+        "body_left_margin": _metricNumber(
+            source,
+            "body_left_margin",
+            _contractNumber(layout, "body_left_margin")
+        ),
+        "body_right_margin": _metricNumber(
+            source,
+            "body_right_margin",
+            _contractNumber(layout, "body_right_margin")
+        ),
         "body_bottom_margin": bodyBottomMargin,
         "show_header_background": _metricBool(source, "show_header_background", false),
         "show_accent_bar": _metricBool(source, "show_accent_bar", false),
@@ -550,21 +389,26 @@ function _passivePanelSurfaceMetrics(node, source, layout) {
 
 function _mediaSurfaceMetrics(node, source) {
     var layout = _mediaVariantLayout(node && node.surface_variant);
-    var activeHeight = _resolvedDimension(node && node.height, layout.defaultHeight);
-    var bodyTop = _metricNumber(source, "body_top", layout.bodyTop);
-    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", layout.bodyBottomMargin);
+    var passive = _passiveContract();
+    var activeHeight = _resolvedDimension(node && node.height, _contractNumber(layout, "default_height"));
+    var bodyTop = _metricNumber(source, "body_top", _contractNumber(layout, "body_top"));
+    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", _contractNumber(layout, "body_bottom_margin"));
     var bodyHeight = _metricNumber(
         source,
         "body_height",
-        Math.max(layout.minBodyHeight, activeHeight - bodyTop - bodyBottomMargin)
+        Math.max(_contractNumber(layout, "min_body_height"), activeHeight - bodyTop - bodyBottomMargin)
     );
     return {
-        "default_width": _metricNumber(source, "default_width", layout.defaultWidth),
-        "default_height": _metricNumber(source, "default_height", layout.defaultHeight),
-        "min_width": _metricNumber(source, "min_width", layout.minWidth),
-        "min_height": _metricNumber(source, "min_height", layout.minHeight),
-        "collapsed_width": _metricNumber(source, "collapsed_width", STANDARD_COLLAPSED_WIDTH),
-        "collapsed_height": _metricNumber(source, "collapsed_height", STANDARD_COLLAPSED_HEIGHT),
+        "default_width": _metricNumber(source, "default_width", _contractNumber(layout, "default_width")),
+        "default_height": _metricNumber(source, "default_height", _contractNumber(layout, "default_height")),
+        "min_width": _metricNumber(source, "min_width", _contractNumber(layout, "min_width")),
+        "min_height": _metricNumber(source, "min_height", _contractNumber(layout, "min_height")),
+        "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(_standardContract(), "collapsed_width")),
+        "collapsed_height": _metricNumber(
+            source,
+            "collapsed_height",
+            _contractNumber(_standardContract(), "collapsed_height")
+        ),
         "header_height": _metricNumber(source, "header_height", 0.0),
         "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
         "body_top": bodyTop,
@@ -572,16 +416,36 @@ function _mediaSurfaceMetrics(node, source) {
         "port_top": _metricNumber(source, "port_top", activeHeight - bodyBottomMargin),
         "port_height": _metricNumber(source, "port_height", 0.0),
         "port_center_offset": _metricNumber(source, "port_center_offset", 0.0),
-        "port_side_margin": _metricNumber(source, "port_side_margin", STANDARD_PORT_SIDE_MARGIN),
-        "port_dot_radius": _metricNumber(source, "port_dot_radius", STANDARD_PORT_DOT_RADIUS),
-        "resize_handle_size": _metricNumber(source, "resize_handle_size", PASSIVE_SURFACE_RESIZE_HANDLE_SIZE),
-        "title_top": _metricNumber(source, "title_top", layout.titleTop),
-        "title_height": _metricNumber(source, "title_height", layout.titleHeight),
-        "title_left_margin": _metricNumber(source, "title_left_margin", layout.titleLeftMargin),
-        "title_right_margin": _metricNumber(source, "title_right_margin", layout.titleRightMargin),
-        "title_centered": _metricBool(source, "title_centered", layout.titleCentered),
-        "body_left_margin": _metricNumber(source, "body_left_margin", layout.bodyLeftMargin),
-        "body_right_margin": _metricNumber(source, "body_right_margin", layout.bodyRightMargin),
+        "port_side_margin": _metricNumber(source, "port_side_margin", _contractNumber(passive, "port_side_margin")),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", _contractNumber(passive, "port_dot_radius")),
+        "resize_handle_size": _metricNumber(
+            source,
+            "resize_handle_size",
+            _contractNumber(passive, "resize_handle_size")
+        ),
+        "title_top": _metricNumber(source, "title_top", _contractNumber(layout, "title_top")),
+        "title_height": _metricNumber(source, "title_height", _contractNumber(layout, "title_height")),
+        "title_left_margin": _metricNumber(
+            source,
+            "title_left_margin",
+            _contractNumber(layout, "title_left_margin")
+        ),
+        "title_right_margin": _metricNumber(
+            source,
+            "title_right_margin",
+            _contractNumber(layout, "title_right_margin")
+        ),
+        "title_centered": _metricBool(source, "title_centered", Boolean(layout.title_centered)),
+        "body_left_margin": _metricNumber(
+            source,
+            "body_left_margin",
+            _contractNumber(layout, "body_left_margin")
+        ),
+        "body_right_margin": _metricNumber(
+            source,
+            "body_right_margin",
+            _contractNumber(layout, "body_right_margin")
+        ),
         "body_bottom_margin": bodyBottomMargin,
         "show_header_background": _metricBool(source, "show_header_background", false),
         "show_accent_bar": _metricBool(source, "show_accent_bar", false),
@@ -601,6 +465,10 @@ function surfaceMetrics(node) {
     if (family === "media")
         return _mediaSurfaceMetrics(node, source);
     return _standardSurfaceMetrics(node, source);
+}
+
+function _normalizedFlowchartVariant(value) {
+    return _normalizedVariant(value, _variantLayouts(_flowchartContract()), "process");
 }
 
 function _flowchartHorizontalBounds(variant, width, height, localY) {
