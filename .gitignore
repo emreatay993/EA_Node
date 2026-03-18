@@ -93,6 +93,10 @@ tests/fixtures/passive_nodes/*
 !tests/test_passive_image_nodes.py
 !tests/test_pdf_preview_provider.py
 !tests/test_work_packet_runner.py
+!tests/test_shell_isolation_phase.py
+!tests/shell_isolation_runtime.py
+!tests/shell_isolation_main_window_targets.py
+!tests/shell_isolation_controller_targets.py
 !tests/graph_surface_pointer_regression.py
 !tests/main_window_shell/
 tests/main_window_shell/*
