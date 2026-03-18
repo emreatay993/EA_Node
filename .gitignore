@@ -98,6 +98,7 @@ tests/fixtures/passive_nodes/*
 !tests/shell_isolation_main_window_targets.py
 !tests/shell_isolation_controller_targets.py
 !tests/graph_surface_pointer_regression.py
+!tests/test_workspace_library_controller_unit.py
 !tests/main_window_shell/
 tests/main_window_shell/*
 !tests/main_window_shell/__init__.py
@@ -110,6 +111,12 @@ tests/main_window_shell/*
 !tests/main_window_shell/passive_pdf_nodes.py
 !tests/main_window_shell/shell_basics_and_search.py
 !tests/main_window_shell/view_library_inspector.py
+!tests/workspace_library_controller_unit/
+tests/workspace_library_controller_unit/*
+!tests/workspace_library_controller_unit/__init__.py
+!tests/workspace_library_controller_unit/support.py
+!tests/workspace_library_controller_unit/core_ops.py
+!tests/workspace_library_controller_unit/custom_workflow_io.py
 !tests/fixtures/passive_nodes/reference_flowchart.sfe
 !tests/fixtures/passive_nodes/reference_preview.png
 !tests/fixtures/passive_nodes/reference_preview.pdf
