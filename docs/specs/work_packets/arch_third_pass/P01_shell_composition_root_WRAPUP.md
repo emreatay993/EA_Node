@@ -5,7 +5,7 @@
 - Packet: `P01`
 - Branch Label: `codex/arch-third-pass/p01-shell-composition-root`
 - Commit Owner: `worker`
-- Commit SHA: `6d12628646578c61bf16cc09bd06d20dc634ea04`
+- Commit SHA: `6d12628be9e8003de154a16e14b7aa2e5270b84d`
 - Changed Files: `ea_node_editor/app.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_main_bootstrap.py`, `tests/test_main_window_shell.py`
 - Artifacts Produced: `docs/specs/work_packets/arch_third_pass/P01_shell_composition_root_WRAPUP.md`
 
