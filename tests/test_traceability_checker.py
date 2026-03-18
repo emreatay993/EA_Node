@@ -29,7 +29,10 @@ class TraceabilityCheckerTests(unittest.TestCase):
         paths_to_copy = (
             "README.md",
             "docs/GETTING_STARTED.md",
+            "docs/specs/requirements/80_PERFORMANCE.md",
+            "docs/specs/requirements/90_QA_ACCEPTANCE.md",
             "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+            "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md",
             "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
             "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md",
             "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md",
@@ -53,12 +56,12 @@ class TraceabilityCheckerTests(unittest.TestCase):
             repo_root = Path(temp_dir)
             self.make_repo_fixture(repo_root)
 
-            (repo_root / "docs/specs/perf/PILOT_SIGNOFF.md").unlink()
+            (repo_root / "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md").unlink()
 
             issues = self.checker.audit_repository(repo_root)
 
         self.assertIn(
-            "Missing required artifact: docs/specs/perf/PILOT_SIGNOFF.md",
+            "Missing required artifact: docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md",
             issues,
         )
 
@@ -67,11 +70,20 @@ class TraceabilityCheckerTests(unittest.TestCase):
             repo_root = Path(temp_dir)
             self.make_repo_fixture(repo_root)
 
-            graph_surface_doc = repo_root / "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md"
-            graph_surface_doc.write_text(
-                graph_surface_doc.read_text(encoding="utf-8").replace(
-                    "Both module-level shell wrappers passed directly on `2026-03-18`, so no\n  per-test fresh-process fallback is currently required.\n",
-                    "In environments where either module-level wrapper exits with code `5`, the approved fallback is to rerun every shell case in its own fresh process.\n",
+            graph_canvas_doc = repo_root / "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md"
+            graph_canvas_doc.write_text(
+                graph_canvas_doc.read_text(encoding="utf-8").replace(
+                    "| `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_track_h_perf_harness.py tests/test_traceability_checker.py -q` | PASS | Harness/report/traceability regression slice passed in the project venv |",
+                    "| `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_track_h_perf_harness.py tests/test_traceability_checker.py -q` | Pending | Harness/report/traceability regression slice was not rerun |",
+                ),
+                encoding="utf-8",
+            )
+
+            track_h_doc = repo_root / "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md"
+            track_h_doc.write_text(
+                track_h_doc.read_text(encoding="utf-8").replace(
+                    "Evidence Status: real `GraphCanvas.qml` offscreen regression snapshot refreshed after `P04`.",
+                    "Evidence Status: Historical offscreen harness baseline restored from repo",
                 ),
                 encoding="utf-8",
             )
@@ -79,8 +91,8 @@ class TraceabilityCheckerTests(unittest.TestCase):
             matrix_path = repo_root / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
             matrix_path.write_text(
                 matrix_path.read_text(encoding="utf-8").replace(
-                    "Current verification baseline-status note and proof audit",
-                    "Recorded serializer baseline caveat",
+                    "Graph-canvas performance QA matrix and proof audit: `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md`, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `tests/test_track_h_perf_harness.py`",
+                    "Graph-canvas performance QA matrix and proof audit: `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `tests/test_track_h_perf_harness.py`",
                 ),
                 encoding="utf-8",
             )
@@ -88,15 +100,19 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues = self.checker.audit_repository(repo_root)
 
         self.assertIn(
-            "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md: missing required text: Both module-level shell wrappers passed directly",
+            "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md: found stale text: | Pending |",
             issues,
         )
         self.assertIn(
-            "docs/specs/requirements/TRACEABILITY_MATRIX.md: row AC-REQ-QA-017-01 missing required text: Current verification baseline-status note and proof audit",
+            "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md: missing required text: Evidence Status: real `GraphCanvas.qml` offscreen regression snapshot refreshed after `P04`.",
             issues,
         )
         self.assertIn(
-            "docs/specs/requirements/TRACEABILITY_MATRIX.md: row AC-REQ-QA-017-01 found stale text: Recorded serializer baseline caveat",
+            "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md: found stale text: Historical offscreen harness baseline restored from repo",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/TRACEABILITY_MATRIX.md: row REQ-QA-018 missing required text: GRAPH_CANVAS_PERF_QA_MATRIX.md",
             issues,
         )
 

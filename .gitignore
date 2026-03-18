@@ -51,10 +51,12 @@ docs/specs/requirements/*
 !docs/specs/requirements/40_NODE_SDK.md
 !docs/specs/requirements/45_NODE_EXECUTION_MODEL.md
 !docs/specs/requirements/60_PERSISTENCE.md
+!docs/specs/requirements/80_PERFORMANCE.md
 !docs/specs/requirements/90_QA_ACCEPTANCE.md
 !docs/specs/requirements/TRACEABILITY_MATRIX.md
 !docs/specs/perf/
 docs/specs/perf/*
+!docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md
 !docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
 !docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md
 tests/

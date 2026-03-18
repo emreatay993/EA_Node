@@ -12,7 +12,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_ARTIFACTS = (
     "README.md",
     "docs/GETTING_STARTED.md",
+    "docs/specs/requirements/80_PERFORMANCE.md",
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md",
     "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+    "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md",
     "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
     "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md",
     "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md",
@@ -77,11 +80,45 @@ DOCUMENT_RULES: dict[str, DocumentRule] = {
             "approved fresh-process fallback completed",
         ),
     ),
+    "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md": DocumentRule(
+        required=(
+            "## Locked Benchmark Contract",
+            "GraphCanvas.qml",
+            "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_track_h_perf_harness.py tests/test_traceability_checker.py -q",
+            "artifacts/graph_canvas_perf_docs",
+            "## Desktop/Manual Follow-Up",
+            "The desktop/manual follow-up is still outstanding",
+        ),
+        forbidden=(
+            "| Pending |",
+        ),
+    ),
     "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md": DocumentRule(
         required=(
-            "Evidence Status: Historical offscreen harness baseline restored from repo",
-            "Current Constraint: P08 did not rerun the performance harness.",
-            "## Archived 2026-03-01 Snapshot",
+            "Evidence Status: real `GraphCanvas.qml` offscreen regression snapshot refreshed after `P04`.",
+            "artifacts/graph_canvas_perf_docs/TRACK_H_BENCHMARK_REPORT.md",
+            "## 2026-03-18 Offscreen Snapshot",
+            "Interactive desktop/GPU validation remains required",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+        ),
+        forbidden=(
+            "Historical offscreen harness baseline restored from repo",
+            "P08 did not rerun the performance harness.",
+        ),
+    ),
+    "docs/specs/requirements/80_PERFORMANCE.md": DocumentRule(
+        required=(
+            "GraphCanvas.qml",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "steady-state idle appearance returns automatically",
+        ),
+    ),
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": DocumentRule(
+        required=(
+            "REQ-QA-018",
+            "AC-REQ-QA-018-01",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "graph_canvas_perf_docs",
         ),
     ),
     "docs/specs/perf/RC_PACKAGING_REPORT.md": DocumentRule(
@@ -104,7 +141,22 @@ TRACEABILITY_ROW_RULES: dict[str, DocumentRule] = {
     "REQ-PERF-001": DocumentRule(
         required=(
             "TRACK_H_BENCHMARK_REPORT.md",
-            "archived `2026-03-01` benchmark snapshot",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "GraphCanvas.qml",
+        ),
+    ),
+    "REQ-PERF-002": DocumentRule(
+        required=(
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "GraphCanvas.qml",
+        ),
+    ),
+    "REQ-PERF-003": DocumentRule(
+        required=(
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "load",
         ),
     ),
     "AC-REQ-QA-001-02": DocumentRule(
@@ -139,6 +191,13 @@ TRACEABILITY_ROW_RULES: dict[str, DocumentRule] = {
             "scripts/check_traceability.py",
         ),
     ),
+    "REQ-QA-018": DocumentRule(
+        required=(
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "scripts/check_traceability.py",
+        ),
+    ),
     "AC-REQ-UI-023-01": DocumentRule(
         required=(
             "Locked graph-surface host/inline/media/shell regression matrix and proof audit",
@@ -167,6 +226,33 @@ TRACEABILITY_ROW_RULES: dict[str, DocumentRule] = {
         ),
         forbidden=(
             "Recorded serializer baseline caveat",
+        ),
+    ),
+    "AC-REQ-PERF-002-01": DocumentRule(
+        required=(
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "tests/test_track_h_perf_harness.py",
+            "2026-03-18",
+        ),
+    ),
+    "AC-REQ-PERF-003-01": DocumentRule(
+        required=(
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "graph_canvas_perf_docs",
+        ),
+    ),
+    "AC-REQ-PERF-002-02": DocumentRule(
+        required=(
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "TRACK_H_BENCHMARK_REPORT.md",
+        ),
+    ),
+    "AC-REQ-QA-018-01": DocumentRule(
+        required=(
+            "graph_canvas_perf_docs",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "TRACK_H_BENCHMARK_REPORT.md",
+            "scripts/check_traceability.py",
         ),
     ),
 }

@@ -22,6 +22,7 @@
 - `REQ-QA-015`: the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution inside the documented `full` workflow rather than the pytest phases.
 - `REQ-QA-016`: the documented verification workflow shall record the current `pytest-xdist` parallel-versus-serial fallback expectation for the project venv.
 - `REQ-QA-017`: the documented verification workflow shall keep unresolved out-of-scope baseline failures explicit in the QA matrix instead of claiming a fully green aggregate when known baselines remain open.
+- `REQ-QA-018`: the repo shall publish a graph-canvas performance QA matrix that records the approved real-`GraphCanvas.qml` benchmark commands, sample sizes, environment limits, and any still-required interactive desktop/manual follow-up.
 
 ## Acceptance
 - `AC-REQ-QA-001-01`: Included unit tests pass in CI/local runner, and the documented local default loop is `./venv/Scripts/python.exe scripts/run_verification.py --mode fast`.
@@ -37,3 +38,4 @@
 - `AC-REQ-QA-015-01`: the documented `full` workflow keeps `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` on separate `unittest` commands after the pytest phases.
 - `AC-REQ-QA-016-01`: `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` records the current `pytest-xdist` fallback expectation for the project venv.
 - `AC-REQ-QA-017-01`: `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` records the unresolved `passive_image_panel_properties_and_size` serializer baseline when it is still open.
+- `AC-REQ-QA-018-01`: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m ea_node_editor.telemetry.performance_harness --nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 --baseline-runs 1 --report-dir artifacts/graph_canvas_perf_docs`, `./venv/Scripts/python.exe scripts/check_traceability.py`, `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md`, and `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md` stay aligned.
