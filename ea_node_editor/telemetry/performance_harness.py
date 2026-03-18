@@ -15,12 +15,17 @@ from typing import Any
 # Force a deterministic non-interactive platform plugin for headless runs.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import QUrl
+from PyQt6.QtQml import QQmlComponent, QQmlEngine
+from PyQt6.QtQuick import QQuickItem, QQuickWindow, QSGRendererInterface
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ProjectData, ViewState, WorkspaceData
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
+from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 
@@ -50,6 +55,25 @@ _BASELINE_VARIANCE_THRESHOLDS = {
         "max_range_ms": 8.0,
     },
 }
+
+_CANVAS_BENCHMARK_WIDTH = 1280
+_CANVAS_BENCHMARK_HEIGHT = 720
+_CANVAS_THEME_ID = "stitch_dark"
+_CANVAS_GRAPH_THEME_ID = "graph_stitch_dark"
+
+
+def _configure_qtquick_backend() -> None:
+    force_value = os.environ.get("EA_NODE_EDITOR_FORCE_SOFTWARE_QML", "").strip().lower()
+    force_env = force_value in {"1", "true", "yes", "on"}
+    platform_name = os.environ.get("QT_QPA_PLATFORM", "").strip().lower()
+    if not (force_env or platform_name in {"offscreen", "minimal"}):
+        return
+    os.environ.setdefault("QT_QUICK_BACKEND", "software")
+    os.environ.setdefault("QSG_RHI_BACKEND", "software")
+    QQuickWindow.setGraphicsApi(QSGRendererInterface.GraphicsApi.Software)
+
+
+_configure_qtquick_backend()
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -106,6 +130,8 @@ def _collect_environment_snapshot() -> dict[str, Any]:
         "platform": platform.platform(),
         "python_version": platform.python_version(),
         "qt_qpa_platform": os.environ.get("QT_QPA_PLATFORM", ""),
+        "qt_quick_backend": os.environ.get("QT_QUICK_BACKEND", ""),
+        "qsg_rhi_backend": os.environ.get("QSG_RHI_BACKEND", ""),
         "cpu_count": os.cpu_count(),
         "hostname": uname.node,
         "system": uname.system,
@@ -201,6 +227,115 @@ def generate_synthetic_project(config: SyntheticGraphConfig) -> ProjectData:
     return project
 
 
+def _graph_canvas_qml_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "ui_qml" / "components" / "GraphCanvas.qml"
+
+
+def _repo_root_path() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _qml_component_error_text(component: QQmlComponent) -> str:
+    return "\n".join(error.toString() for error in component.errors())
+
+
+class _GraphCanvasBenchmarkHost:
+    def __init__(
+        self,
+        *,
+        app: QApplication,
+        doc: dict[str, Any],
+        workspace_id: str,
+    ) -> None:
+        self.app = app
+        serializer = JsonProjectSerializer(build_default_registry())
+        project = serializer.from_document(doc)
+        self.model = GraphModel(project)
+        self.scene, self.view = _bind_scene_for_workspace(
+            app=app,
+            model=self.model,
+            workspace_id=workspace_id,
+        )
+        self.view.set_viewport_size(float(_CANVAS_BENCHMARK_WIDTH), float(_CANVAS_BENCHMARK_HEIGHT))
+
+        self.engine = QQmlEngine()
+        self.theme_bridge = ThemeBridge(self.engine, theme_id=_CANVAS_THEME_ID)
+        self.graph_theme_bridge = GraphThemeBridge(self.engine, theme_id=_CANVAS_GRAPH_THEME_ID)
+        root_context = self.engine.rootContext()
+        root_context.setContextProperty("themeBridge", self.theme_bridge)
+        root_context.setContextProperty("graphThemeBridge", self.graph_theme_bridge)
+
+        qml_path = _graph_canvas_qml_path()
+        self.component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(qml_path)))
+        if self.component.status() != QQmlComponent.Status.Ready:
+            raise RuntimeError(f"Failed to load GraphCanvas.qml:\n{_qml_component_error_text(self.component)}")
+
+        self.window = QQuickWindow()
+        self.window.resize(_CANVAS_BENCHMARK_WIDTH, _CANVAS_BENCHMARK_HEIGHT)
+        initial_properties = {
+            "sceneBridge": self.scene,
+            "viewBridge": self.view,
+            "width": float(_CANVAS_BENCHMARK_WIDTH),
+            "height": float(_CANVAS_BENCHMARK_HEIGHT),
+        }
+        if hasattr(self.component, "createWithInitialProperties"):
+            canvas = self.component.createWithInitialProperties(initial_properties)
+        else:
+            canvas = self.component.create()
+            if canvas is not None:
+                for key, value in initial_properties.items():
+                    canvas.setProperty(key, value)
+        if canvas is None:
+            raise RuntimeError(
+                f"Failed to instantiate GraphCanvas.qml:\n{_qml_component_error_text(self.component)}"
+            )
+        if not isinstance(canvas, QQuickItem):
+            raise TypeError("GraphCanvas.qml did not create a QQuickItem root")
+        self.canvas = canvas
+        self.canvas.setParentItem(self.window.contentItem())
+        self.window.show()
+        self.render_frame()
+
+    def render_frame(self, *, timeout_ms: int = 2000) -> None:
+        deadline = time.perf_counter() + (float(timeout_ms) / 1000.0)
+        while True:
+            self.app.processEvents()
+            self.window.update()
+            image = self.window.grabWindow()
+            if not image.isNull() and image.width() > 0 and image.height() > 0:
+                self.app.processEvents()
+                return
+            if time.perf_counter() >= deadline:
+                raise RuntimeError("Timed out waiting for GraphCanvas.qml to render a frame")
+            time.sleep(0.005)
+
+    def close(self) -> None:
+        if getattr(self, "canvas", None) is not None:
+            self.canvas.setParentItem(None)
+            self.canvas.deleteLater()
+            self.canvas = None
+        if getattr(self, "window", None) is not None:
+            self.window.close()
+            self.window.deleteLater()
+            self.window = None
+        if getattr(self, "scene", None) is not None:
+            self.scene.deleteLater()
+            self.scene = None
+        if getattr(self, "view", None) is not None:
+            self.view.deleteLater()
+            self.view = None
+        if getattr(self, "engine", None) is not None:
+            self.engine.deleteLater()
+            self.engine = None
+        self.app.processEvents()
+
+    def __enter__(self) -> "_GraphCanvasBenchmarkHost":
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:  # noqa: ANN001
+        self.close()
+
+
 def _bind_scene_for_workspace(
     *,
     app: QApplication,
@@ -258,52 +393,58 @@ def benchmark_pan_zoom_ms(
     seed: int,
     zoom_min: float,
     zoom_max: float,
-) -> dict[str, list[float]]:
+) -> dict[str, Any]:
     if samples <= 0:
         raise ValueError("samples must be > 0")
     app = QApplication.instance() or QApplication([])
-    serializer = JsonProjectSerializer(build_default_registry())
-    project = serializer.from_document(doc)
-    model = GraphModel(project)
-    scene, view = _bind_scene_for_workspace(app=app, model=model, workspace_id=workspace_id)
-    workspace = model.project.workspaces[workspace_id]
+    with _GraphCanvasBenchmarkHost(app=app, doc=doc, workspace_id=workspace_id) as canvas_host:
+        workspace = canvas_host.model.project.workspaces[workspace_id]
+        random_gen = random.Random(seed)
+        left, right, top, bottom = _workspace_bounds(workspace)
+        pan_samples_ms: list[float] = []
+        zoom_samples_ms: list[float] = []
 
-    random_gen = random.Random(seed)
-    left, right, top, bottom = _workspace_bounds(workspace)
-    pan_samples_ms: list[float] = []
-    zoom_samples_ms: list[float] = []
+        for index in range(samples):
+            current_center = canvas_host.view.mapToScene(canvas_host.view.viewport().rect().center())
+            pan_x = max(
+                left,
+                min(right, current_center.x() + random_gen.uniform(-180.0, 180.0)),
+            )
+            pan_y = max(
+                top,
+                min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
+            )
+            started = time.perf_counter()
+            canvas_host.view.centerOn(pan_x, pan_y)
+            canvas_host.render_frame()
+            pan_samples_ms.append((time.perf_counter() - started) * 1000.0)
 
-    for index in range(samples):
-        current_center = view.mapToScene(view.viewport().rect().center())
-        pan_x = max(
-            left,
-            min(right, current_center.x() + random_gen.uniform(-180.0, 180.0)),
-        )
-        pan_y = max(
-            top,
-            min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
-        )
-        started = time.perf_counter()
-        view.centerOn(pan_x, pan_y)
-        app.processEvents()
-        pan_samples_ms.append((time.perf_counter() - started) * 1000.0)
-
-        zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
-        zoom = max(zoom_min, min(zoom_max, view.zoom * zoom_step))
-        started = time.perf_counter()
-        view.set_zoom(zoom)
-        app.processEvents()
-        zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
-
-    view.deleteLater()
-    scene.deleteLater()
-    app.processEvents()
+            zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
+            zoom = max(zoom_min, min(zoom_max, canvas_host.view.zoom * zoom_step))
+            started = time.perf_counter()
+            canvas_host.view.set_zoom(zoom)
+            canvas_host.render_frame()
+            zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
 
     combined = [pan + zoom for pan, zoom in zip(pan_samples_ms, zoom_samples_ms, strict=True)]
     return {
         "pan_ms": pan_samples_ms,
         "zoom_ms": zoom_samples_ms,
         "combined_ms": combined,
+        "benchmark": {
+            "kind": "graph_canvas_qml",
+            "render_path": _graph_canvas_qml_path().relative_to(_repo_root_path()).as_posix(),
+            "viewport": {
+                "width": _CANVAS_BENCHMARK_WIDTH,
+                "height": _CANVAS_BENCHMARK_HEIGHT,
+            },
+            "theme_id": _CANVAS_THEME_ID,
+            "graph_theme_id": _CANVAS_GRAPH_THEME_ID,
+            "measurement_driver": (
+                "ViewportBridge.centerOn + ViewportBridge.set_zoom with QQuickWindow.grabWindow()"
+            ),
+            "uses_actual_canvas_render_path": True,
+        },
     }
 
 
@@ -343,6 +484,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "interaction_zoom_min": config.interaction_zoom_min,
             "interaction_zoom_max": config.interaction_zoom_max,
         },
+        "interaction_benchmark": interaction_samples["benchmark"],
         "metrics": {
             "project_graph_load_ms": {
                 "samples": load_samples,
@@ -369,8 +511,8 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "REQ-PERF-002": {
                 "pass": interaction_frame_p95 <= 33.0,
                 "details": (
-                    f"Pan p95={pan_summary['p95']:.3f} ms, "
-                    f"Zoom p95={zoom_summary['p95']:.3f} ms "
+                    f"Real GraphCanvas pan p95={pan_summary['p95']:.3f} ms, "
+                    f"zoom p95={zoom_summary['p95']:.3f} ms "
                     f"(frame p95 target <= 33 ms)"
                 ),
             },
@@ -380,7 +522,8 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             },
         },
         "limitations": [
-            "Measurements are from a Python-level harness and include event-loop processing overhead.",
+            "Pan/zoom timings instantiate GraphCanvas.qml in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.",
+            "Project+graph load timing still measures serializer/model/bridge setup and does not instantiate GraphCanvas.qml.",
             "Runs use Qt offscreen platform (QT_QPA_PLATFORM=offscreen), so GPU/compositor behavior differs from interactive desktop rendering.",
             "Absolute timings are machine- and load-dependent; compare trends on the same hardware for regressions.",
         ],
@@ -488,6 +631,7 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     zoom = metrics["zoom_interaction_ms"]["summary"]
     combined = metrics["pan_zoom_combined_ms"]["summary"]
     baseline_series = report.get("baseline_series", {})
+    interaction_benchmark = report.get("interaction_benchmark", {})
 
     lines: list[str] = []
     lines.append("# Track H Benchmark Report")
@@ -508,6 +652,25 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     lines.append(f"- Load iterations: `{cfg['load_iterations']}`")
     lines.append(f"- Pan/zoom samples: `{cfg['interaction_samples']}`")
     lines.append("")
+    if interaction_benchmark:
+        viewport = interaction_benchmark.get("viewport", {})
+        lines.append("## Interaction Benchmark")
+        lines.append("")
+        lines.append(f"- Kind: `{interaction_benchmark.get('kind', '')}`")
+        lines.append(f"- Render path: `{interaction_benchmark.get('render_path', '')}`")
+        lines.append(
+            f"- Driver: `{interaction_benchmark.get('measurement_driver', '')}`"
+        )
+        lines.append(
+            f"- Viewport: `{viewport.get('width', 0)}` x `{viewport.get('height', 0)}`"
+        )
+        lines.append(
+            f"- Theme pair: `{interaction_benchmark.get('theme_id', '')}` / `{interaction_benchmark.get('graph_theme_id', '')}`"
+        )
+        lines.append(
+            f"- Real canvas path: `{bool(interaction_benchmark.get('uses_actual_canvas_render_path', False))}`"
+        )
+        lines.append("")
     lines.append("## Metrics (ms)")
     lines.append("")
     lines.append("| Metric | p50 | p95 | Mean | Min | Max |")
