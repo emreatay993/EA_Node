@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Iterable, Mapping
 
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
-from ea_node_editor.nodes.builtins.subnode import (
+from ea_node_editor.graph.subnode_contract import (
     SUBNODE_PIN_PORT_KEY,
     is_subnode_pin_type as _is_subnode_pin_type,
     is_subnode_shell_type as _is_subnode_shell_type,

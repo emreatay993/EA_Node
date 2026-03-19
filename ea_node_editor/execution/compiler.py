@@ -10,7 +10,7 @@ from ea_node_editor.graph.normalization import (
     resolve_registry_nodes,
     validate_registry_edge,
 )
-from ea_node_editor.nodes.builtins.subnode import (
+from ea_node_editor.graph.subnode_contract import (
     SUBNODE_PIN_PORT_KEY,
     is_subnode_authoring_type,
     is_subnode_input_type,

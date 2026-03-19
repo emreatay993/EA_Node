@@ -12,7 +12,7 @@ from ea_node_editor.graph.effective_ports import (
 )
 from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id, subtree_node_ids
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, WorkspaceData
-from ea_node_editor.nodes.builtins.subnode import (
+from ea_node_editor.graph.subnode_contract import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
     SUBNODE_PIN_DATA_TYPE_PROPERTY,

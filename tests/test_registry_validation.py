@@ -2,6 +2,14 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.graph.subnode_contract import (
+    SUBNODE_INPUT_TYPE_ID,
+    SUBNODE_OUTPUT_TYPE_ID,
+    SUBNODE_PIN_PORT_KEY,
+    SUBNODE_TYPE_ID,
+    default_subnode_pin_label,
+    resolve_subnode_pin_definition,
+)
 from ea_node_editor.graph.model import GraphModel, NodeInstance
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -200,6 +208,41 @@ class RegistryValidationTests(unittest.TestCase):
                 "visual_style": {},
             },
         )
+
+    def test_default_registry_preserves_promoted_subnode_contract(self) -> None:
+        registry = build_default_registry()
+
+        shell_spec = registry.get_spec(SUBNODE_TYPE_ID)
+        input_spec = registry.get_spec(SUBNODE_INPUT_TYPE_ID)
+        output_spec = registry.get_spec(SUBNODE_OUTPUT_TYPE_ID)
+
+        self.assertEqual(shell_spec.type_id, SUBNODE_TYPE_ID)
+        self.assertEqual(input_spec.type_id, SUBNODE_INPUT_TYPE_ID)
+        self.assertEqual(output_spec.type_id, SUBNODE_OUTPUT_TYPE_ID)
+        self.assertEqual(input_spec.ports[0].key, SUBNODE_PIN_PORT_KEY)
+        self.assertEqual(output_spec.ports[0].key, SUBNODE_PIN_PORT_KEY)
+
+        exec_input = resolve_subnode_pin_definition(
+            SUBNODE_INPUT_TYPE_ID,
+            {"label": "Exec In", "kind": "exec", "data_type": "str"},
+        )
+        data_output = resolve_subnode_pin_definition(
+            SUBNODE_OUTPUT_TYPE_ID,
+            {"label": "Result", "kind": "data", "data_type": "float"},
+        )
+
+        self.assertEqual(default_subnode_pin_label(SUBNODE_INPUT_TYPE_ID), "Input")
+        self.assertEqual(default_subnode_pin_label(SUBNODE_OUTPUT_TYPE_ID), "Output")
+        self.assertEqual(exec_input.label, "Exec In")
+        self.assertEqual(exec_input.pin_port_direction, "out")
+        self.assertEqual(exec_input.shell_port_direction, "in")
+        self.assertEqual(exec_input.kind, "exec")
+        self.assertEqual(exec_input.data_type, "any")
+        self.assertEqual(data_output.label, "Result")
+        self.assertEqual(data_output.pin_port_direction, "in")
+        self.assertEqual(data_output.shell_port_direction, "out")
+        self.assertEqual(data_output.kind, "data")
+        self.assertEqual(data_output.data_type, "float")
 
 
 if __name__ == "__main__":
