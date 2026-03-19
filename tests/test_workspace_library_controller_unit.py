@@ -3,7 +3,10 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers import WorkspaceLibraryController
+from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import WorkspaceDropConnectOps
 from tests.workspace_library_controller_unit.core_ops import *  # noqa: F401,F403
 from tests.workspace_library_controller_unit.custom_workflow_io import *  # noqa: F401,F403
 
@@ -125,6 +128,31 @@ class _LibraryInsertHostStub:
         self.view = _ViewStub()
 
 
+class _DropConnectControllerStub:
+    def __init__(self, workspace) -> None:  # noqa: ANN001
+        self._workspace = workspace
+        self.prompt_calls = 0
+
+    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, object] | None:  # noqa: ARG002
+        return None
+
+    def active_workspace(self):
+        return self._workspace
+
+    def prompt_connection_candidate(
+        self,
+        *,
+        title: str,
+        label: str,
+        candidates: list[dict[str, object]],
+    ) -> dict[str, object] | None:
+        self.prompt_calls += 1
+        return None
+
+    def refresh_workspace_tabs(self) -> None:
+        return
+
+
 class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
     def test_controller_initializes_business_capability_owners(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
@@ -189,6 +217,26 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
 
         self.assertEqual(insert_calls, [("core.logger", 125.0, 220.0)])
         self.assertEqual(refresh_calls, ["refresh"])
+
+
+class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
+    def test_auto_connect_dropped_node_to_port_skips_occupied_single_input(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        occupied_source = model.add_node(workspace.workspace_id, "core.start", "Start A", 0.0, 0.0)
+        new_node = model.add_node(workspace.workspace_id, "core.start", "Start B", 0.0, 120.0)
+        target = model.add_node(workspace.workspace_id, "core.end", "End", 320.0, 40.0)
+        model.add_edge(workspace.workspace_id, occupied_source.node_id, "exec_out", target.node_id, "exec_in")
+
+        host = SimpleNamespace(registry=registry, scene=SimpleNamespace())
+        controller = _DropConnectControllerStub(workspace)
+        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+
+        connected = ops.auto_connect_dropped_node_to_port(new_node.node_id, target.node_id, "exec_in")
+
+        self.assertFalse(connected)
+        self.assertEqual(controller.prompt_calls, 0)
 
 
 if __name__ == "__main__":

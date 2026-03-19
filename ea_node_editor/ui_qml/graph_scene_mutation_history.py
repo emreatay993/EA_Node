@@ -5,13 +5,9 @@ from typing import TYPE_CHECKING, Any, Callable
 from PyQt6.QtCore import QPointF, QRectF
 
 from ea_node_editor.graph.effective_ports import (
-    are_data_types_compatible,
-    are_port_kinds_compatible,
     default_port,
     find_port,
-    port_data_type,
-    port_kind,
-    target_port_has_capacity,
+    ports_compatible,
 )
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_parent_id
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
@@ -35,7 +31,6 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_LABEL_PROPERTY,
     is_subnode_shell_type,
 )
-from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_clipboard import (
     build_graph_fragment_payload,
     normalize_edge_label,
@@ -58,6 +53,7 @@ from ea_node_editor.ui_qml.edge_routing import node_size
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 if TYPE_CHECKING:
+    from ea_node_editor.graph.normalization import ValidatedGraphMutation
     from ea_node_editor.ui.shell.runtime_history import WorkspaceSnapshot
     from ea_node_editor.ui_qml.graph_scene_bridge import _GraphSceneContext
     from ea_node_editor.ui_qml.graph_scene_scope_selection import GraphSceneScopeSelection
@@ -105,9 +101,8 @@ class GraphSceneMutationHistory:
         if plan is None:
             return ""
 
-        def _configure_pin(node: NodeInstance, _workspace: WorkspaceData, _registry: NodeRegistry) -> None:
-            node.properties[SUBNODE_PIN_LABEL_PROPERTY] = plan.label
-            shell_node.exposed_ports[node.node_id] = True
+        def _after_create(node: NodeInstance, mutations: ValidatedGraphMutation) -> None:
+            mutations.set_exposed_port(shell_node.node_id, node.node_id, True)
 
         return self.create_node_from_type(
             type_id=plan.pin_type_id,
@@ -115,7 +110,8 @@ class GraphSceneMutationHistory:
             y=plan.y,
             parent_node_id=shell_node.node_id,
             select_node=False,
-            configure_node=_configure_pin,
+            property_overrides={SUBNODE_PIN_LABEL_PROPERTY: plan.label},
+            after_create=_after_create,
         )
 
     def create_node_from_type(
@@ -126,7 +122,8 @@ class GraphSceneMutationHistory:
         y: float,
         parent_node_id: str | None,
         select_node: bool,
-        configure_node: Callable[[NodeInstance, WorkspaceData, NodeRegistry], None] | None = None,
+        property_overrides: dict[str, Any] | None = None,
+        after_create: Callable[[NodeInstance, ValidatedGraphMutation], None] | None = None,
     ) -> str:
         model, registry = self._scene_context.require_bound()
         workspace = model.project.workspaces.get(self._scene_context.workspace_id)
@@ -134,18 +131,26 @@ class GraphSceneMutationHistory:
             return ""
         history_before = self._capture_history_snapshot()
         spec = registry.get_spec(type_id)
-        node = model.add_node(
-            self._scene_context.workspace_id,
+        mutations = self._mutation_boundary()
+        properties = registry.default_properties(type_id)
+        if property_overrides:
+            properties.update(
+                {
+                    str(key): registry.normalize_property_value(type_id, key, value)
+                    for key, value in property_overrides.items()
+                }
+            )
+        node = mutations.add_node(
             type_id=type_id,
             title=spec.display_name,
             x=float(x),
             y=float(y),
-            properties=registry.default_properties(type_id),
+            properties=properties,
             exposed_ports={port.key: port.exposed for port in spec.ports},
+            parent_node_id=parent_node_id,
         )
-        node.parent_node_id = parent_node_id
-        if configure_node is not None:
-            configure_node(node, workspace, registry)
+        if after_create is not None:
+            after_create(node, mutations)
         self._scene_context.sync_surface_title(node, spec)
         if select_node:
             self._scope_selection.set_selected_node_ids([node.node_id], workspace=workspace)
@@ -173,104 +178,45 @@ class GraphSceneMutationHistory:
             return False
         source_spec = registry.get_spec(source_node.type_id)
         target_spec = registry.get_spec(target_node.type_id)
-        try:
-            source_kind = port_kind(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=source_port,
-            )
-            target_kind = port_kind(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=target_port,
-            )
-            source_dt = port_data_type(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=source_port,
-            )
-            target_dt = port_data_type(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=target_port,
-            )
-        except KeyError:
-            return False
-        return are_port_kinds_compatible(source_kind, target_kind) and are_data_types_compatible(
-            source_dt,
-            target_dt,
-        )
-
-    @staticmethod
-    def are_port_kinds_compatible(source_kind: str, target_kind: str) -> bool:
-        return are_port_kinds_compatible(str(source_kind), str(target_kind))
-
-    @staticmethod
-    def are_data_types_compatible(source_type: str, target_type: str) -> bool:
-        return are_data_types_compatible(str(source_type), str(target_type))
-
-    def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> str:
-        model, registry = self._scene_context.require_bound()
-        history_before = self._capture_history_snapshot()
-        workspace = model.project.workspaces[self._scene_context.workspace_id]
-        source_node = self._node_or_raise(source_node_id)
-        target_node = self._node_or_raise(target_node_id)
-        if not is_node_in_scope(workspace, source_node_id, self._scene_context.scope_path) or not is_node_in_scope(
-            workspace,
-            target_node_id,
-            self._scene_context.scope_path,
-        ):
-            raise ValueError("Connections are only allowed for nodes in the active scope.")
-        source_spec = registry.get_spec(source_node.type_id)
-        target_spec = registry.get_spec(target_node.type_id)
         source_port_doc = find_port(
             node=source_node,
             spec=source_spec,
             workspace_nodes=workspace.nodes,
             port_key=source_port,
         )
-        if source_port_doc is None:
-            raise KeyError(f"Port {source_port} not found on node type {source_spec.type_id}")
         target_port_doc = find_port(
             node=target_node,
             spec=target_spec,
             workspace_nodes=workspace.nodes,
             port_key=target_port,
         )
-        if target_port_doc is None:
-            raise KeyError(f"Port {target_port} not found on node type {target_spec.type_id}")
+        if source_port_doc is None or target_port_doc is None:
+            return False
+        return ports_compatible(source_port_doc, target_port_doc)
 
-        if source_port_doc.direction != "out":
-            raise ValueError(f"Source port must be an output: {source_node_id}.{source_port}")
-        if target_port_doc.direction != "in":
-            raise ValueError(f"Target port must be an input: {target_node_id}.{target_port}")
-        source_kind = source_port_doc.kind
-        target_kind = target_port_doc.kind
-        if not are_port_kinds_compatible(source_kind, target_kind):
-            raise ValueError(f"Incompatible port kinds: {source_kind} -> {target_kind}.")
-        if not source_port_doc.exposed:
-            raise ValueError(f"Source port is hidden: {source_node_id}.{source_port}")
-        if not target_port_doc.exposed:
-            raise ValueError(f"Target port is hidden: {target_node_id}.{target_port}")
+    @staticmethod
+    def are_port_kinds_compatible(source_kind: str, target_kind: str) -> bool:
+        from ea_node_editor.graph.effective_ports import are_port_kinds_compatible
 
-        existing = self._find_model_edge_id(source_node_id, source_port, target_node_id, target_port)
-        if existing:
-            return existing
-        if not target_port_has_capacity(
-            edges=workspace.edges.values(),
-            node=target_node,
-            spec=target_spec,
-            workspace_nodes=workspace.nodes,
-            port_key=target_port,
+        return are_port_kinds_compatible(str(source_kind), str(target_kind))
+
+    @staticmethod
+    def are_data_types_compatible(source_type: str, target_type: str) -> bool:
+        from ea_node_editor.graph.effective_ports import are_data_types_compatible
+
+        return are_data_types_compatible(str(source_type), str(target_type))
+
+    def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> str:
+        model, _registry = self._scene_context.require_bound()
+        history_before = self._capture_history_snapshot()
+        workspace = model.project.workspaces[self._scene_context.workspace_id]
+        if not is_node_in_scope(workspace, source_node_id, self._scene_context.scope_path) or not is_node_in_scope(
+            workspace,
+            target_node_id,
+            self._scene_context.scope_path,
         ):
-            raise ValueError(f"Target input port already has a connection: {target_node_id}.{target_port}")
-
-        edge = model.add_edge(
-            self._scene_context.workspace_id,
+            raise ValueError("Connections are only allowed for nodes in the active scope.")
+        edge = self._mutation_boundary().add_edge(
             source_node_id=source_node_id,
             source_port_key=source_port,
             target_node_id=target_node_id,
@@ -346,7 +292,7 @@ class GraphSceneMutationHistory:
         if not is_node_in_scope(workspace, edge.target_node_id, self._scene_context.scope_path):
             return
         history_before = self._capture_history_snapshot()
-        model.remove_edge(self._scene_context.workspace_id, edge_id)
+        self._mutation_boundary().remove_edge(edge_id)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_REMOVE_EDGE, history_before)
 
@@ -360,7 +306,7 @@ class GraphSceneMutationHistory:
         if require_visible and not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
             return False
         history_before = self._capture_history_snapshot()
-        model.remove_node(self._scene_context.workspace_id, node_id)
+        self._mutation_boundary().remove_node(node_id)
         self._scope_selection.set_selected_node_ids(
             [value for value in self._scene_context.selected_node_ids if value != node_id],
             workspace=workspace,
@@ -398,11 +344,7 @@ class GraphSceneMutationHistory:
         if bool(node.collapsed) == normalized_collapsed:
             return
         history_before = self._capture_history_snapshot()
-        model.set_node_collapsed(
-            self._scene_context.workspace_id,
-            node_id,
-            normalized_collapsed,
-        )
+        self._mutation_boundary().set_node_collapsed(node_id, normalized_collapsed)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_TOGGLE_COLLAPSED, history_before)
 
@@ -424,7 +366,7 @@ class GraphSceneMutationHistory:
         if current_value is not _MISSING and current_value == normalized:
             return
         history_before = self._capture_history_snapshot()
-        model.set_node_property(self._scene_context.workspace_id, node_id, key, normalized)
+        self._mutation_boundary().set_node_property(node_id, key, normalized)
         if key == "title":
             self._scene_context.sync_surface_title(node, spec)
         self._scene_context.rebuild_models()
@@ -460,8 +402,7 @@ class GraphSceneMutationHistory:
             return False
 
         history_before = self._capture_history_snapshot()
-        for key, normalized in normalized_updates.items():
-            model.set_node_property(self._scene_context.workspace_id, node_id, key, normalized)
+        self._mutation_boundary().set_node_properties(node_id, normalized_updates)
         if "title" in normalized_updates:
             self._scene_context.sync_surface_title(node, spec)
         self._scene_context.rebuild_models()
@@ -487,7 +428,7 @@ class GraphSceneMutationHistory:
         if node.visual_style == normalized:
             return
         history_before = self._capture_history_snapshot()
-        model.set_node_visual_style(self._scene_context.workspace_id, node_id, normalized)
+        self._mutation_boundary().set_node_visual_style(node_id, normalized)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
@@ -509,7 +450,7 @@ class GraphSceneMutationHistory:
         if node.title == normalized:
             return
         history_before = self._capture_history_snapshot()
-        model.set_node_title(self._scene_context.workspace_id, node_id, normalized)
+        self._mutation_boundary().set_node_title(node_id, normalized)
         if self._scene_context.surface_title_sync_enabled(spec):
             node.properties["title"] = normalized
         self._scene_context.rebuild_models()
@@ -533,7 +474,7 @@ class GraphSceneMutationHistory:
         if edge.label == normalized:
             return
         history_before = self._capture_history_snapshot()
-        model.set_edge_label(self._scene_context.workspace_id, edge_id, normalized)
+        self._mutation_boundary().set_edge_label(edge_id, normalized)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
@@ -558,7 +499,7 @@ class GraphSceneMutationHistory:
         if edge.visual_style == normalized:
             return
         history_before = self._capture_history_snapshot()
-        model.set_edge_visual_style(self._scene_context.workspace_id, edge_id, normalized)
+        self._mutation_boundary().set_edge_visual_style(edge_id, normalized)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
 
@@ -590,16 +531,7 @@ class GraphSceneMutationHistory:
         if current_exposed == normalized_exposed:
             return
         history_before = self._capture_history_snapshot()
-        model.set_exposed_port(self._scene_context.workspace_id, node_id, key, normalized_exposed)
-        if not normalized_exposed:
-            affected_edges = [
-                edge_id
-                for edge_id, edge in workspace.edges.items()
-                if (edge.source_node_id == node_id and edge.source_port_key == key)
-                or (edge.target_node_id == node_id and edge.target_port_key == key)
-            ]
-            for edge_id in affected_edges:
-                model.remove_edge(self._scene_context.workspace_id, edge_id)
+        self._mutation_boundary().set_exposed_port(node_id, key, normalized_exposed)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
 
@@ -620,7 +552,7 @@ class GraphSceneMutationHistory:
         if float(node.x) == final_x and float(node.y) == final_y:
             return
         history_before = self._capture_history_snapshot()
-        model.set_node_position(self._scene_context.workspace_id, node_id, final_x, final_y)
+        self._mutation_boundary().set_node_position(node_id, final_x, final_y)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_MOVE_NODE, history_before)
 
@@ -662,8 +594,7 @@ class GraphSceneMutationHistory:
         ):
             return
         history_before = self._capture_history_snapshot()
-        model.set_node_geometry(
-            self._scene_context.workspace_id,
+        self._mutation_boundary().set_node_geometry(
             node_id,
             final_x,
             final_y,
@@ -702,6 +633,7 @@ class GraphSceneMutationHistory:
         history_group = self._scene_context.grouped_history_action(ACTION_MOVE_NODE, workspace)
 
         moved_any = False
+        mutations = self._mutation_boundary()
         with history_group:
             for node_id in unique_node_ids:
                 node = workspace.nodes.get(node_id)
@@ -711,7 +643,7 @@ class GraphSceneMutationHistory:
                 final_y = float(node.y) + delta_y
                 if float(node.x) == final_x and float(node.y) == final_y:
                     continue
-                model.set_node_position(self._scene_context.workspace_id, node_id, final_x, final_y)
+                mutations.set_node_position(node_id, final_x, final_y)
                 moved_any = True
 
         if not moved_any:
@@ -883,6 +815,10 @@ class GraphSceneMutationHistory:
     def _node_or_raise(self, node_id: str) -> NodeInstance:
         return self._scene_context.node_or_raise(node_id)
 
+    def _mutation_boundary(self) -> ValidatedGraphMutation:
+        model, registry = self._scene_context.require_bound()
+        return model.validated_mutations(self._scene_context.workspace_id, registry)
+
     def _find_model_edge_id(
         self,
         source_node_id: str,
@@ -946,9 +882,10 @@ class GraphSceneMutationHistory:
 
         history_group = self._scene_context.grouped_history_action(ACTION_MOVE_NODE, workspace)
 
+        mutations = self._mutation_boundary()
         with history_group:
             for node_id, (final_x, final_y) in final_positions.items():
-                model.set_node_position(self._scene_context.workspace_id, node_id, final_x, final_y)
+                mutations.set_node_position(node_id, final_x, final_y)
         self._scene_context.rebuild_models()
         return True
 

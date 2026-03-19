@@ -4,7 +4,12 @@ import copy
 from typing import TYPE_CHECKING, Any, Protocol
 
 from ea_node_editor.custom_workflows import parse_custom_workflow_type_id
-from ea_node_editor.graph.effective_ports import effective_ports, find_port, ports_compatible
+from ea_node_editor.graph.effective_ports import (
+    effective_ports,
+    find_port,
+    ports_compatible,
+    target_port_has_capacity,
+)
 from ea_node_editor.graph.hierarchy import scope_parent_id
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.graph.transforms import encode_fragment_external_parent_id
@@ -190,12 +195,12 @@ class WorkspaceDropConnectOps:
         ]
         candidates: list[dict[str, Any]] = []
         if target_port.direction == "in":
-            if (
-                not target_port.allow_multiple_connections
-                and any(
-                    edge.target_node_id == target_node.node_id and edge.target_port_key == target_port.key
-                    for edge in workspace.edges.values()
-                )
+            if not target_port_has_capacity(
+                edges=workspace.edges.values(),
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace.nodes,
+                port_key=target_port.key,
             ):
                 return False
             for port in new_ports:

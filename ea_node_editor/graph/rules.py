@@ -2,10 +2,13 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from ea_node_editor.graph.effective_ports import (
+    are_data_types_compatible,
+    are_port_kinds_compatible,
+    ports_compatible as effective_ports_compatible,
+)
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
-
-_FLOW_KINDS = {"exec", "completed", "failed"}
 
 
 def find_port(spec: NodeTypeSpec, port_key: str) -> PortSpec | None:
@@ -36,23 +39,8 @@ def port_data_type(spec: NodeTypeSpec, port_key: str) -> str:
     return port.data_type
 
 
-def are_port_kinds_compatible(source_kind: str, target_kind: str) -> bool:
-    if source_kind in _FLOW_KINDS or target_kind in _FLOW_KINDS:
-        return source_kind == target_kind
-    return True
-
-
-def are_data_types_compatible(source_type: str, target_type: str) -> bool:
-    if source_type == "any" or target_type == "any":
-        return True
-    return source_type == target_type
-
-
 def ports_compatible(source_port: PortSpec, target_port: PortSpec) -> bool:
-    return are_port_kinds_compatible(source_port.kind, target_port.kind) and are_data_types_compatible(
-        source_port.data_type,
-        target_port.data_type,
-    )
+    return effective_ports_compatible(source_port, target_port)
 
 
 def is_port_exposed(node: NodeInstance, spec: NodeTypeSpec, port_key: str) -> bool:

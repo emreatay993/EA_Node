@@ -2,12 +2,26 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ea_node_editor.graph.effective_ports import EffectivePort, effective_ports, find_port
+from ea_node_editor.graph.effective_ports import (
+    EffectivePort,
+    are_port_kinds_compatible,
+    effective_ports,
+    find_port,
+    ports_compatible,
+    target_port_has_capacity,
+)
 from ea_node_editor.graph.model import (
+    EdgeInstance,
+    GraphModel,
     NodeInstance,
     ProjectData,
+    WorkspaceData,
     edge_instance_to_mapping,
     node_instance_to_mapping,
+)
+from ea_node_editor.graph.subnode_contract import (
+    SUBNODE_PIN_KIND_PROPERTY,
+    is_subnode_pin_type,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -17,6 +31,323 @@ from ea_node_editor.nodes.types import NodeTypeSpec
 class RegistryNodeResolution:
     node: NodeInstance
     spec: NodeTypeSpec
+
+
+@dataclass(slots=True)
+class ValidatedGraphMutation:
+    model: GraphModel
+    workspace_id: str
+    registry: NodeRegistry
+
+    @property
+    def workspace(self) -> WorkspaceData:
+        return self.model.project.workspaces[self.workspace_id]
+
+    def add_node(
+        self,
+        *,
+        type_id: str,
+        title: str,
+        x: float,
+        y: float,
+        properties: dict[str, object] | None = None,
+        exposed_ports: dict[str, bool] | None = None,
+        visual_style: dict[str, object] | None = None,
+        parent_node_id: str | None = None,
+    ) -> NodeInstance:
+        spec = self.registry.get_spec(type_id)
+        normalized_title = str(title or spec.display_name).strip() or spec.display_name
+        normalized_properties = self.registry.normalize_properties(
+            type_id,
+            dict(properties or {}),
+            include_defaults=True,
+        )
+        requested_exposed_ports = {
+            str(key): bool(value)
+            for key, value in dict(exposed_ports or {}).items()
+            if str(key).strip()
+        }
+        node = self.model.add_node(
+            self.workspace_id,
+            type_id=type_id,
+            title=normalized_title,
+            x=float(x),
+            y=float(y),
+            properties=normalized_properties,
+            exposed_ports=requested_exposed_ports,
+            visual_style=dict(visual_style or {}),
+        )
+        node.parent_node_id = self._validated_parent_node_id(node.node_id, parent_node_id)
+        node.exposed_ports = self._normalized_exposed_ports(node.node_id)
+        return node
+
+    def set_node_parent(self, node_id: str, parent_node_id: str | None) -> bool:
+        node = self.workspace.nodes[node_id]
+        normalized_parent_id = self._validated_parent_node_id(node_id, parent_node_id)
+        current_parent_id = str(node.parent_node_id or "").strip() or None
+        if current_parent_id == normalized_parent_id:
+            return False
+        affected_node_ids = {node_id}
+        if current_parent_id:
+            affected_node_ids.add(current_parent_id)
+        if normalized_parent_id:
+            affected_node_ids.add(normalized_parent_id)
+        node.parent_node_id = normalized_parent_id
+        self.workspace.dirty = True
+        self._prune_edges_for_nodes(affected_node_ids)
+        return True
+
+    def add_edge(
+        self,
+        *,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+        label: str = "",
+        visual_style: dict[str, object] | None = None,
+    ) -> EdgeInstance:
+        workspace = self.workspace
+        if source_node_id not in workspace.nodes:
+            raise KeyError(f"Unknown source node: {source_node_id}")
+        if target_node_id not in workspace.nodes:
+            raise KeyError(f"Unknown target node: {target_node_id}")
+        for existing in workspace.edges.values():
+            if (
+                existing.source_node_id == source_node_id
+                and existing.source_port_key == source_port_key
+                and existing.target_node_id == target_node_id
+                and existing.target_port_key == target_port_key
+            ):
+                return existing
+        source_node, source_spec, source_port = self._resolved_port(source_node_id, source_port_key)
+        target_node, target_spec, target_port = self._resolved_port(target_node_id, target_port_key)
+        if source_port.direction != "out":
+            raise ValueError(f"Source port must be an output: {source_node_id}.{source_port_key}")
+        if target_port.direction != "in":
+            raise ValueError(f"Target port must be an input: {target_node_id}.{target_port_key}")
+        if not are_port_kinds_compatible(source_port.kind, target_port.kind):
+            raise ValueError(
+                "Incompatible ports: "
+                f"{source_node_id}.{source_port_key} -> {target_node_id}.{target_port_key}"
+            )
+        if not source_port.exposed:
+            raise ValueError(f"Source port is hidden: {source_node_id}.{source_port_key}")
+        if not target_port.exposed:
+            raise ValueError(f"Target port is hidden: {target_node_id}.{target_port_key}")
+        if not target_port_has_capacity(
+            edges=workspace.edges.values(),
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace.nodes,
+            port_key=target_port_key,
+        ):
+            raise ValueError(f"Target input port already has a connection: {target_node_id}.{target_port_key}")
+        return self.model.add_edge(
+            self.workspace_id,
+            source_node_id=source_node_id,
+            source_port_key=source_port_key,
+            target_node_id=target_node_id,
+            target_port_key=target_port_key,
+            label=label,
+            visual_style=dict(visual_style or {}),
+        )
+
+    def ports_compatible(
+        self,
+        *,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> bool:
+        try:
+            _source_node, _source_spec, source_port = self._resolved_port(source_node_id, source_port_key)
+            _target_node, _target_spec, target_port = self._resolved_port(target_node_id, target_port_key)
+        except (KeyError, ValueError):
+            return False
+        return ports_compatible(source_port, target_port)
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> object:
+        node = self.workspace.nodes[node_id]
+        normalized = self.registry.normalize_property_value(node.type_id, key, value)
+        if key in node.properties and node.properties[key] == normalized:
+            return normalized
+        self.model.set_node_property(self.workspace_id, node_id, key, normalized)
+        if self._property_change_affects_ports(node, key):
+            self._prune_edges_for_nodes(self._affected_node_ids_for_port_semantics(node))
+        return normalized
+
+    def set_node_properties(self, node_id: str, values: dict[str, object]) -> dict[str, object]:
+        node = self.workspace.nodes[node_id]
+        normalized_updates: dict[str, object] = {}
+        for raw_key, raw_value in dict(values or {}).items():
+            key = str(raw_key or "")
+            if not key:
+                continue
+            try:
+                normalized = self.registry.normalize_property_value(node.type_id, key, raw_value)
+            except KeyError:
+                continue
+            if key in node.properties and node.properties[key] == normalized:
+                continue
+            normalized_updates[key] = normalized
+        if not normalized_updates:
+            return {}
+        for key, normalized in normalized_updates.items():
+            self.model.set_node_property(self.workspace_id, node_id, key, normalized)
+        if any(self._property_change_affects_ports(node, key) for key in normalized_updates):
+            self._prune_edges_for_nodes(self._affected_node_ids_for_port_semantics(node))
+        return normalized_updates
+
+    def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
+        node, _spec, _port = self._resolved_port(node_id, key)
+        normalized_exposed = bool(exposed)
+        if key in node.exposed_ports and bool(node.exposed_ports[key]) == normalized_exposed:
+            return False
+        self.model.set_exposed_port(self.workspace_id, node_id, key, normalized_exposed)
+        if not normalized_exposed:
+            self._prune_edges_for_nodes({node_id})
+        return True
+
+    def remove_edge(self, edge_id: str) -> None:
+        self.model.remove_edge(self.workspace_id, edge_id)
+
+    def remove_node(self, node_id: str) -> None:
+        self.model.remove_node(self.workspace_id, node_id)
+
+    def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
+        self.model.set_node_collapsed(self.workspace_id, node_id, collapsed)
+
+    def set_node_position(self, node_id: str, x: float, y: float) -> None:
+        self.model.set_node_position(self.workspace_id, node_id, x, y)
+
+    def set_node_geometry(
+        self,
+        node_id: str,
+        x: float,
+        y: float,
+        width: float | None,
+        height: float | None,
+    ) -> None:
+        self.model.set_node_geometry(self.workspace_id, node_id, x, y, width, height)
+
+    def set_node_title(self, node_id: str, title: str) -> None:
+        self.model.set_node_title(self.workspace_id, node_id, title)
+
+    def set_node_visual_style(self, node_id: str, visual_style: dict[str, object] | None) -> None:
+        self.model.set_node_visual_style(self.workspace_id, node_id, None if visual_style is None else dict(visual_style))
+
+    def set_edge_label(self, edge_id: str, label: str) -> None:
+        self.model.set_edge_label(self.workspace_id, edge_id, label)
+
+    def set_edge_visual_style(self, edge_id: str, visual_style: dict[str, object] | None) -> None:
+        self.model.set_edge_visual_style(self.workspace_id, edge_id, None if visual_style is None else dict(visual_style))
+
+    def _resolved_port(self, node_id: str, port_key: str) -> tuple[NodeInstance, NodeTypeSpec, EffectivePort]:
+        workspace = self.workspace
+        node = workspace.nodes[node_id]
+        spec = self.registry.get_spec(node.type_id)
+        port = find_port(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_key=port_key,
+        )
+        if port is None:
+            raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
+        return node, spec, port
+
+    def _normalized_exposed_ports(self, node_id: str) -> dict[str, bool]:
+        resolved_nodes = resolve_registry_nodes(self.workspace.nodes, self.registry)
+        resolution = resolved_nodes[node_id]
+        return normalized_exposed_ports(
+            resolution,
+            workspace_nodes=self.workspace.nodes,
+        )
+
+    def _validated_parent_node_id(self, node_id: str, parent_node_id: str | None) -> str | None:
+        normalized_parent_id = str(parent_node_id or "").strip() or None
+        if normalized_parent_id is None:
+            return None
+        if normalized_parent_id == node_id:
+            raise ValueError("Node cannot parent itself.")
+        if normalized_parent_id not in self.workspace.nodes:
+            raise KeyError(f"Unknown parent node: {normalized_parent_id}")
+        return normalized_parent_id
+
+    @staticmethod
+    def _property_change_affects_ports(node: NodeInstance, key: str) -> bool:
+        if not is_subnode_pin_type(node.type_id):
+            return False
+        return key == SUBNODE_PIN_KIND_PROPERTY
+
+    @staticmethod
+    def _affected_node_ids_for_port_semantics(node: NodeInstance) -> set[str]:
+        affected = {node.node_id}
+        parent_node_id = str(node.parent_node_id or "").strip()
+        if parent_node_id:
+            affected.add(parent_node_id)
+        return affected
+
+    def _prune_edges_for_nodes(self, affected_node_ids: set[str]) -> list[str]:
+        if not affected_node_ids:
+            return []
+        workspace = self.workspace
+        resolved_nodes = resolve_registry_nodes(workspace.nodes, self.registry)
+        seen_connections: set[tuple[str, str, str, str]] = set()
+        occupied_single_target_ports: set[tuple[str, str]] = set()
+        affected_edges: list[tuple[str, EdgeInstance]] = []
+        for edge_id, edge in list(workspace.edges.items()):
+            touches_affected_node = (
+                edge.source_node_id in affected_node_ids
+                or edge.target_node_id in affected_node_ids
+            )
+            if touches_affected_node:
+                affected_edges.append((edge_id, edge))
+                continue
+            resolution = validate_registry_edge(
+                source_node_id=edge.source_node_id,
+                source_port_key=edge.source_port_key,
+                target_node_id=edge.target_node_id,
+                target_port_key=edge.target_port_key,
+                resolved_nodes=resolved_nodes,
+                require_source_output=True,
+                require_target_input=True,
+                require_exposed_ports=True,
+                require_compatible_ports=True,
+            )
+            if resolution is None:
+                continue
+            accept_registry_edge(
+                resolution,
+                seen_connections=seen_connections,
+                occupied_single_target_ports=occupied_single_target_ports,
+            )
+
+        removed_edge_ids: list[str] = []
+        for edge_id, edge in affected_edges:
+            resolution = validate_registry_edge(
+                source_node_id=edge.source_node_id,
+                source_port_key=edge.source_port_key,
+                target_node_id=edge.target_node_id,
+                target_port_key=edge.target_port_key,
+                resolved_nodes=resolved_nodes,
+                require_source_output=True,
+                require_target_input=True,
+                require_exposed_ports=True,
+                require_compatible_ports=True,
+            )
+            if resolution is None or not accept_registry_edge(
+                resolution,
+                seen_connections=seen_connections,
+                occupied_single_target_ports=occupied_single_target_ports,
+            ):
+                workspace.edges.pop(edge_id, None)
+                removed_edge_ids.append(edge_id)
+        if removed_edge_ids:
+            workspace.dirty = True
+        return removed_edge_ids
 
 
 @dataclass(slots=True, frozen=True)
@@ -83,6 +414,7 @@ def validate_registry_edge(
     require_source_output: bool,
     require_target_input: bool = True,
     require_exposed_ports: bool = False,
+    require_compatible_ports: bool = False,
 ) -> RegistryEdgeResolution | None:
     source_resolution = resolved_nodes.get(source_node_id)
     target_resolution = resolved_nodes.get(target_node_id)
@@ -110,6 +442,8 @@ def validate_registry_edge(
     if require_target_input and target_port.direction != "in":
         return None
     if require_exposed_ports and (not source_port.exposed or not target_port.exposed):
+        return None
+    if require_compatible_ports and not are_port_kinds_compatible(source_port.kind, target_port.kind):
         return None
     return RegistryEdgeResolution(
         source_node_id=source_node_id,

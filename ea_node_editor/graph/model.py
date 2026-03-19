@@ -4,9 +4,13 @@ import copy
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.settings import SCHEMA_VERSION
+
+if TYPE_CHECKING:
+    from ea_node_editor.graph.normalization import ValidatedGraphMutation
+    from ea_node_editor.nodes.registry import NodeRegistry
 
 
 def new_id(prefix: str) -> str:
@@ -219,6 +223,17 @@ class GraphModel:
     def active_workspace(self) -> WorkspaceData:
         self.project.ensure_default_workspace()
         return self.project.workspaces[self.project.active_workspace_id]
+
+    def validated_mutations(self, workspace_id: str, registry: "NodeRegistry") -> "ValidatedGraphMutation":
+        if workspace_id not in self.project.workspaces:
+            raise KeyError(f"Unknown workspace: {workspace_id}")
+        from ea_node_editor.graph.normalization import ValidatedGraphMutation
+
+        return ValidatedGraphMutation(
+            model=self,
+            workspace_id=workspace_id,
+            registry=registry,
+        )
 
     def create_workspace(self, name: str | None = None) -> WorkspaceData:
         index = len(self.project.workspaces) + 1

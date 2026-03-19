@@ -555,6 +555,61 @@ class GraphModelTrackBTests(unittest.TestCase):
         self.assertNotIn(source.node_id, workspace.nodes)
         self.assertEqual(workspace.edges, {})
 
+    def test_validated_mutation_boundary_prunes_subnode_edges_when_pin_kind_changes(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+
+        def _add_node(
+            type_id: str,
+            title: str,
+            x: float,
+            y: float,
+            *,
+            parent_node_id: str | None = None,
+        ):
+            spec = registry.get_spec(type_id)
+            return mutations.add_node(
+                type_id=type_id,
+                title=title,
+                x=x,
+                y=y,
+                properties=registry.default_properties(type_id),
+                exposed_ports={port.key: port.exposed for port in spec.ports},
+                parent_node_id=parent_node_id,
+            )
+
+        source = _add_node("core.start", "Start", 0.0, 0.0)
+        shell = _add_node("core.subnode", "Shell", 240.0, 40.0)
+        pin_in = _add_node("core.subnode_input", "Input", 40.0, 80.0, parent_node_id=shell.node_id)
+        inner = _add_node("core.logger", "Inner", 320.0, 140.0, parent_node_id=shell.node_id)
+
+        mutations.set_node_property(pin_in.node_id, "kind", "exec")
+        mutations.set_exposed_port(shell.node_id, pin_in.node_id, True)
+
+        shell_edge = mutations.add_edge(
+            source_node_id=source.node_id,
+            source_port_key="exec_out",
+            target_node_id=shell.node_id,
+            target_port_key=pin_in.node_id,
+        )
+        inner_edge = mutations.add_edge(
+            source_node_id=pin_in.node_id,
+            source_port_key="pin",
+            target_node_id=inner.node_id,
+            target_port_key="exec_in",
+        )
+
+        self.assertIn(shell_edge.edge_id, workspace.edges)
+        self.assertIn(inner_edge.edge_id, workspace.edges)
+
+        mutations.set_node_property(pin_in.node_id, "kind", "data")
+
+        self.assertNotIn(shell_edge.edge_id, workspace.edges)
+        self.assertNotIn(inner_edge.edge_id, workspace.edges)
+        self.assertEqual(workspace.nodes[pin_in.node_id].properties["kind"], "data")
+
 
 class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -939,6 +994,22 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.scene.add_edge(second_source_id, "exec_out", target_id, "exec_in")
+
+    def test_pin_kind_change_prunes_invalid_shell_edge_immediately(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        shell_id = self.scene.add_node_from_type("core.subnode", 240.0, 30.0)
+        pin_in = self.scene.add_subnode_shell_pin(shell_id, "core.subnode_input")
+
+        self.scene.set_node_property(pin_in, "kind", "exec")
+        edge_id = self.scene.add_edge(source_id, "exec_out", shell_id, pin_in)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.assertIn(edge_id, workspace.edges)
+
+        self.scene.set_node_property(pin_in, "kind", "data")
+
+        self.assertNotIn(edge_id, workspace.edges)
+        self.assertEqual(self.scene.edges_model, [])
 
     def test_subnode_shell_ports_follow_direct_pin_sort_and_pin_properties(self) -> None:
         shell_id = self.scene.add_node_from_type("core.subnode", 200.0, 120.0)
