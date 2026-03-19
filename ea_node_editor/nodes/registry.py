@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .types import NodePlugin, NodeTypeSpec, PortSpec, PropertySpec
+from .types import NodePlugin, NodeTypeSpec, PluginDescriptor, PortSpec, PropertySpec
 
 
 @dataclass(slots=True)
@@ -36,6 +36,19 @@ class NodeRegistry:
     def register(self, factory: Callable[[], NodePlugin]) -> None:
         plugin = factory()
         spec = plugin.spec()
+        self.register_descriptor(spec, factory)
+
+    def register_descriptor(
+        self,
+        spec: NodeTypeSpec | PluginDescriptor,
+        factory: Callable[[], NodePlugin] | None = None,
+    ) -> None:
+        if isinstance(spec, PluginDescriptor):
+            descriptor = spec
+            spec = descriptor.spec
+            factory = descriptor.factory
+        if factory is None or not callable(factory):
+            raise TypeError("Plugin factory must be callable")
         self._validate_spec(spec)
         if spec.type_id in self._entries:
             raise ValueError(f"Node type already registered: {spec.type_id}")

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec
+from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec, PluginDescriptor
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
@@ -23,18 +23,41 @@ ENTRY_POINT_GROUP = "ea_node_editor.plugins"
 _SAFE_MODULE_SEGMENT_RE = re.compile(r"[^0-9A-Za-z_]+")
 
 
-def _is_node_plugin_class(obj: Any) -> bool:
-    """Return True if *obj* looks like a NodePlugin class (not instance)."""
+def _legacy_plugin_spec(obj: Any) -> NodeTypeSpec | None:
+    """Return a plugin spec when *obj* matches the legacy class contract."""
     if not isinstance(obj, type):
-        return False
+        return None
     if obj is NodePlugin:
-        return False
+        return None
     try:
         instance = obj()
         spec = instance.spec()
-        return isinstance(spec, NodeTypeSpec) and callable(getattr(instance, "execute", None))
+        if isinstance(spec, NodeTypeSpec) and callable(getattr(instance, "execute", None)):
+            return spec
     except Exception:  # noqa: BLE001
-        return False
+        return None
+    return None
+
+
+def _coerce_plugin_descriptor(raw_descriptor: object) -> PluginDescriptor:
+    if isinstance(raw_descriptor, PluginDescriptor):
+        return raw_descriptor
+    if isinstance(raw_descriptor, (tuple, list)) and len(raw_descriptor) == 2:
+        spec, factory = raw_descriptor
+        return PluginDescriptor(spec=spec, factory=factory)
+    raise TypeError(
+        "PLUGIN_DESCRIPTORS entries must be PluginDescriptor values or (spec, factory) pairs",
+    )
+
+
+def _module_plugin_descriptors(module: Any) -> tuple[PluginDescriptor, ...] | None:
+    raw_descriptors = getattr(module, "PLUGIN_DESCRIPTORS", None)
+    if raw_descriptors is None:
+        return None
+    try:
+        return tuple(_coerce_plugin_descriptor(item) for item in raw_descriptors)
+    except TypeError as exc:
+        raise TypeError("PLUGIN_DESCRIPTORS must be an iterable of plugin descriptors") from exc
 
 
 def _safe_module_segment(value: str, *, fallback: str) -> str:
@@ -91,22 +114,52 @@ def _load_module(
     return module
 
 
+def _register_plugin_descriptors(
+    descriptors: tuple[PluginDescriptor, ...],
+    registry: NodeRegistry,
+    source: Path | str,
+) -> list[str]:
+    loaded: list[str] = []
+    for index, descriptor in enumerate(descriptors):
+        descriptor_label = getattr(descriptor.spec, "type_id", f"descriptor[{index}]")
+        try:
+            registry.register_descriptor(descriptor)
+            loaded.append(descriptor.spec.type_id)
+        except (ValueError, TypeError, KeyError):
+            logger.warning(
+                "Skipping invalid plugin descriptor %s in %s",
+                descriptor_label,
+                source,
+                exc_info=True,
+            )
+    return loaded
+
+
 def _register_plugin_classes(module: Any, registry: NodeRegistry, source: Path) -> list[str]:
     loaded: list[str] = []
     for attr_name in dir(module):
         obj = getattr(module, attr_name, None)
-        if _is_node_plugin_class(obj):
-            try:
-                registry.register(obj)
-                loaded.append(obj().spec().type_id)
-            except (ValueError, TypeError, KeyError):
-                logger.warning(
-                    "Skipping invalid plugin class %s in %s",
-                    attr_name,
-                    source,
-                    exc_info=True,
-                )
+        spec = _legacy_plugin_spec(obj)
+        if spec is None:
+            continue
+        try:
+            registry.register_descriptor(spec, obj)
+            loaded.append(spec.type_id)
+        except (ValueError, TypeError, KeyError):
+            logger.warning(
+                "Skipping invalid plugin class %s in %s",
+                attr_name,
+                source,
+                exc_info=True,
+            )
     return loaded
+
+
+def _register_module_plugins(module: Any, registry: NodeRegistry, source: Path) -> list[str]:
+    descriptors = _module_plugin_descriptors(module)
+    if descriptors is not None:
+        return _register_plugin_descriptors(descriptors, registry, source)
+    return _register_plugin_classes(module, registry, source)
 
 
 def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> list[str]:
@@ -120,7 +173,7 @@ def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> lis
             logger.warning("Failed to load plugin file %s", py_file, exc_info=True)
             continue
 
-        loaded.extend(_register_plugin_classes(module, registry, py_file))
+        loaded.extend(_register_module_plugins(module, registry, py_file))
     return loaded
 
 
@@ -155,7 +208,7 @@ def _load_plugins_from_package_directory(package_dir: Path, registry: NodeRegist
             logger.warning("Failed to initialize plugin package %s", package_dir, exc_info=True)
             _create_namespace_package(package_name, package_dir)
         else:
-            loaded.extend(_register_plugin_classes(package_module, registry, init_file))
+            loaded.extend(_register_module_plugins(package_module, registry, init_file))
     else:
         _create_namespace_package(package_name, package_dir)
 
@@ -167,7 +220,7 @@ def _load_plugins_from_package_directory(package_dir: Path, registry: NodeRegist
             logger.warning("Failed to load plugin file %s", py_file, exc_info=True)
             continue
 
-        loaded.extend(_register_plugin_classes(module, registry, py_file))
+        loaded.extend(_register_module_plugins(module, registry, py_file))
     return loaded
 
 
@@ -195,10 +248,17 @@ def _load_plugins_from_entry_points(registry: NodeRegistry) -> list[str]:
 
     for ep in eps:
         try:
-            plugin_class = ep.load()
-            if _is_node_plugin_class(plugin_class):
-                registry.register(plugin_class)
-                loaded.append(plugin_class().spec().type_id)
+            plugin_target = ep.load()
+            descriptors = _module_plugin_descriptors(plugin_target)
+            if descriptors is not None:
+                loaded.extend(_register_plugin_descriptors(descriptors, registry, ep.name))
+                continue
+
+            spec = _legacy_plugin_spec(plugin_target)
+            if spec is None:
+                continue
+            registry.register_descriptor(spec, plugin_target)
+            loaded.append(spec.type_id)
         except Exception:  # noqa: BLE001
             logger.warning("Failed to load entry-point plugin %s", ep.name, exc_info=True)
     return loaded

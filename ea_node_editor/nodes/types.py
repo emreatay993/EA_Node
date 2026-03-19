@@ -102,6 +102,12 @@ class AsyncNodePlugin(NodePlugin, Protocol):
         ...
 
 
+@dataclass(slots=True, frozen=True)
+class PluginDescriptor:
+    spec: NodeTypeSpec
+    factory: Callable[[], NodePlugin]
+
+
 def property_has_inline_editor(property_spec: PropertySpec) -> bool:
     return bool(str(property_spec.inline_editor).strip())
 

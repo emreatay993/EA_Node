@@ -14,20 +14,12 @@ def _build_package_archive(
     package_path: Path,
     *,
     manifest_name: str = "example_package",
+    manifest_nodes: list[str] | None = None,
+    plugin_type_id: str = "packet.imported",
+    plugin_display_name: str = "Imported Package",
     extra_members: dict[str, str] | None = None,
 ) -> Path:
-    manifest = {
-        "name": manifest_name,
-        "version": "2.0.0",
-        "author": "Packet Tests",
-        "description": "P02 package import contract",
-        "nodes": ["packet.imported"],
-        "dependencies": [],
-    }
-    members = {
-        package_manager.MANIFEST_FILENAME: json.dumps(manifest, indent=2),
-        "helper.py": 'DISPLAY_NAME = "Imported Package"\n',
-        "package_plugin.py": """
+    plugin_module = f"""
 from .helper import DISPLAY_NAME
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
 
@@ -35,7 +27,7 @@ from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
 class ImportedPlugin:
     def spec(self):
         return NodeTypeSpec(
-            type_id="packet.imported",
+            type_id={plugin_type_id!r},
             display_name=DISPLAY_NAME,
             category="Packet Tests",
             icon="packet",
@@ -45,8 +37,19 @@ class ImportedPlugin:
 
     def execute(self, ctx):
         return NodeResult()
-""".strip()
-        + "\n",
+""".strip() + "\n"
+    manifest = {
+        "name": manifest_name,
+        "version": "2.0.0",
+        "author": "Packet Tests",
+        "description": "P02 package import contract",
+        "nodes": manifest_nodes if manifest_nodes is not None else [plugin_type_id],
+        "dependencies": [],
+    }
+    members = {
+        package_manager.MANIFEST_FILENAME: json.dumps(manifest, indent=2),
+        "helper.py": f"DISPLAY_NAME = {plugin_display_name!r}\n",
+        "package_plugin.py": plugin_module,
     }
     members.update(extra_members or {})
 
@@ -95,6 +98,20 @@ def test_import_package_requires_manifest(tmp_path: Path) -> None:
         archive.writestr("plugin.py", "print('missing manifest')\n")
 
     with pytest.raises(ValueError, match="missing node_package.json"):
+        package_manager.import_package(package_path, target_dir=plugins_root)
+
+    assert list(plugins_root.iterdir()) == []
+
+
+def test_import_package_rejects_manifest_node_mismatch_before_install(tmp_path: Path) -> None:
+    plugins_root = tmp_path / "plugins"
+    package_path = _build_package_archive(
+        tmp_path / "mismatch.eanp",
+        manifest_nodes=["packet.declared"],
+        plugin_type_id="packet.actual",
+    )
+
+    with pytest.raises(ValueError, match="Package manifest nodes do not match discoverable node types"):
         package_manager.import_package(package_path, target_dir=plugins_root)
 
     assert list(plugins_root.iterdir()) == []
@@ -219,6 +236,55 @@ def test_export_package_rejects_placeholder_manifest_without_nodes(tmp_path: Pat
 
     with pytest.raises(ValueError, match="at least one exported node type"):
         package_manager.export_package([plugin_source], manifest, tmp_path / "exports" / "placeholder.eanp")
+
+
+def test_export_package_rejects_manifest_node_mismatch_before_publish(tmp_path: Path) -> None:
+    helper_source = _write_source_file(
+        tmp_path / "sources" / "helper.py",
+        'DISPLAY_NAME = "Exported Package"\n',
+    )
+    plugin_source = _write_source_file(
+        tmp_path / "sources" / "package_plugin.py",
+        """
+from .helper import DISPLAY_NAME
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class ExportedPlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.actual",
+            display_name=DISPLAY_NAME,
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+""".strip()
+        + "\n",
+    )
+    manifest = package_manager.PackageManifest(
+        name="roundtrip_package",
+        version="3.0.0",
+        author="Packet Tests",
+        description="P10 export mismatch rejection",
+        nodes=["packet.declared"],
+    )
+
+    with pytest.raises(ValueError, match="Package manifest nodes do not match discoverable node types"):
+        package_manager.export_package(
+            [
+                package_manager.PackageExportSource(helper_source, "helper.py"),
+                package_manager.PackageExportSource(plugin_source, "package_plugin.py"),
+            ],
+            manifest,
+            tmp_path / "exports" / "roundtrip.eanp",
+        )
+
+    assert not (tmp_path / "exports" / "roundtrip.eanp").exists()
 
 
 def test_export_package_round_trips_through_import_and_loader_discovery(

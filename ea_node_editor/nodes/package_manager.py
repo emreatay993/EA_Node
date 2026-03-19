@@ -15,6 +15,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
+from ea_node_editor.nodes.plugin_loader import _load_plugins_from_package_directory
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
@@ -69,6 +71,43 @@ def _read_manifest(archive: zipfile.ZipFile) -> PackageManifest:
     return _manifest_from_data(raw)
 
 
+def _normalized_manifest_node_ids(
+    node_ids: list[str],
+    *,
+    require_at_least_one: bool,
+) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_node_id in node_ids:
+        node_id = str(raw_node_id).strip()
+        if not node_id:
+            raise ValueError("Package manifest node ids must be non-empty strings")
+        if node_id in seen:
+            raise ValueError(f"Package manifest node ids must be unique: {node_id}")
+        seen.add(node_id)
+        normalized.append(node_id)
+
+    if require_at_least_one and not normalized:
+        raise ValueError("Package manifest must list at least one exported node type")
+    return tuple(normalized)
+
+
+def _validated_manifest(
+    manifest: PackageManifest,
+    *,
+    require_nodes: bool,
+) -> PackageManifest:
+    normalized_manifest = _manifest_from_data(asdict(manifest))
+    normalized_manifest.name = _validate_package_name(normalized_manifest.name)
+    normalized_manifest.nodes = list(
+        _normalized_manifest_node_ids(
+            normalized_manifest.nodes,
+            require_at_least_one=require_nodes,
+        )
+    )
+    return normalized_manifest
+
+
 def _validate_package_name(package_name: str) -> str:
     candidate = str(package_name).strip()
     if not candidate:
@@ -119,18 +158,12 @@ def _validate_archive_contents(archive: zipfile.ZipFile) -> tuple[PackageManifes
         raise ValueError(f"Package is missing {MANIFEST_FILENAME}")
 
     manifest = _read_manifest(archive)
-    manifest.name = _validate_package_name(manifest.name)
+    manifest = _validated_manifest(manifest, require_nodes=False)
     return manifest, members
 
 
 def _validated_manifest_for_export(manifest: PackageManifest) -> PackageManifest:
-    normalized_manifest = _manifest_from_data(asdict(manifest))
-    normalized_manifest.name = _validate_package_name(normalized_manifest.name)
-    if not normalized_manifest.nodes:
-        raise ValueError("Package manifest must list at least one exported node type")
-    if any(not node_type_id.strip() for node_type_id in normalized_manifest.nodes):
-        raise ValueError("Package manifest node ids must be non-empty strings")
-    return normalized_manifest
+    return _validated_manifest(manifest, require_nodes=True)
 
 
 def _normalized_export_source(source: PackageExportSource | Path | str) -> PackageExportSource:
@@ -204,6 +237,10 @@ def _temporary_export_archive_path(output_path: Path) -> Path:
     return output_path.with_name(f".{output_path.stem}.export-{uuid4().hex}{output_path.suffix}")
 
 
+def _staged_export_validation_directory(output_path: Path, package_name: str) -> Path:
+    return output_path.parent / f".{package_name}.export-validation-{uuid4().hex}"
+
+
 def _activate_staged_install(staged_dir: Path, package_dir: Path) -> None:
     backup_dir: Path | None = None
     try:
@@ -222,6 +259,52 @@ def _activate_staged_install(staged_dir: Path, package_dir: Path) -> None:
             shutil.rmtree(backup_dir)
 
 
+def _discovered_package_node_ids(package_dir: Path) -> tuple[str, ...]:
+    registry = NodeRegistry()
+    loaded_type_ids = _load_plugins_from_package_directory(package_dir, registry)
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_type_id in loaded_type_ids:
+        type_id = str(raw_type_id).strip()
+        if not type_id or type_id in seen:
+            continue
+        seen.add(type_id)
+        normalized.append(type_id)
+    return tuple(normalized)
+
+
+def _validate_manifest_against_package_directory(
+    manifest: PackageManifest,
+    package_dir: Path,
+) -> None:
+    declared_node_ids = tuple(manifest.nodes)
+    discovered_node_ids = _discovered_package_node_ids(package_dir)
+
+    declared_node_id_set = set(declared_node_ids)
+    discovered_node_id_set = set(discovered_node_ids)
+    if declared_node_id_set == discovered_node_id_set:
+        return
+
+    details: list[str] = []
+    missing_node_ids = [node_id for node_id in declared_node_ids if node_id not in discovered_node_id_set]
+    undeclared_node_ids = [node_id for node_id in discovered_node_ids if node_id not in declared_node_id_set]
+    if missing_node_ids:
+        details.append(f"missing from package load: {', '.join(missing_node_ids)}")
+    if undeclared_node_ids:
+        details.append(f"not declared in manifest: {', '.join(undeclared_node_ids)}")
+    detail = "; ".join(details) if details else "manifest and discoverable node types differ"
+    raise ValueError(f"Package manifest nodes do not match discoverable node types: {detail}")
+
+
+def _stage_export_sources(
+    package_dir: Path,
+    export_sources: list[PackageExportSource],
+) -> None:
+    package_dir.mkdir(parents=True, exist_ok=False)
+    for export_source in export_sources:
+        shutil.copy2(export_source.source_path, package_dir / export_source.archive_name)
+
+
 def import_package(package_path: Path, target_dir: Path | None = None) -> PackageManifest:
     """Extract an .eanp package into the plugins directory.
 
@@ -237,6 +320,7 @@ def import_package(package_path: Path, target_dir: Path | None = None) -> Packag
         staged_dir.mkdir(parents=True, exist_ok=False)
         try:
             _write_archive_members(archive, members, staged_dir)
+            _validate_manifest_against_package_directory(manifest, staged_dir)
             _activate_staged_install(staged_dir, package_dir)
         except Exception:
             if staged_dir.exists():
@@ -258,8 +342,11 @@ def export_package(
     output_path = output_path.with_suffix(PACKAGE_EXTENSION)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_output_path = _temporary_export_archive_path(output_path)
+    staged_validation_dir = _staged_export_validation_directory(output_path, normalized_manifest.name)
 
     try:
+        _stage_export_sources(staged_validation_dir, export_sources)
+        _validate_manifest_against_package_directory(normalized_manifest, staged_validation_dir)
         with zipfile.ZipFile(temporary_output_path, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(MANIFEST_FILENAME, json.dumps(asdict(normalized_manifest), indent=2))
             for export_source in export_sources:
@@ -272,6 +359,9 @@ def export_package(
     except Exception:
         temporary_output_path.unlink(missing_ok=True)
         raise
+    finally:
+        if staged_validation_dir.exists():
+            shutil.rmtree(staged_validation_dir, ignore_errors=True)
 
     logger.info("Exported node package '%s' to %s", normalized_manifest.name, output_path)
     return output_path

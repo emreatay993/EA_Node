@@ -66,6 +66,30 @@ class RegistryValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             registry.register(_factory(spec))
 
+    def test_register_descriptor_stores_spec_without_instantiating_factory(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.descriptor",
+            display_name="Descriptor",
+            category="Tests",
+            icon="",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(),
+        )
+        factory_calls = 0
+
+        def _descriptor_factory() -> _Plugin:
+            nonlocal factory_calls
+            factory_calls += 1
+            return _Plugin(spec)
+
+        registry.register_descriptor(spec, _descriptor_factory)
+
+        self.assertEqual(factory_calls, 0)
+        self.assertEqual(registry.get_spec("tests.descriptor").display_name, "Descriptor")
+        self.assertEqual(registry.create("tests.descriptor").spec().type_id, "tests.descriptor")
+        self.assertEqual(factory_calls, 1)
+
     def test_register_rejects_invalid_enum_default(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(

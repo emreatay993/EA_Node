@@ -125,6 +125,64 @@ def test_discover_and_load_plugins_continues_after_bad_modules(
     assert "Failed to load plugin file" in caplog.text
 
 
+def test_discover_and_load_plugins_prefers_module_descriptors_without_constructor_probing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugins_root = tmp_path / "plugins"
+    _write_text(
+        plugins_root / "descriptor_plugin.py",
+        """
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class ShouldNotBeScanned:
+    def __init__(self):
+        raise RuntimeError("legacy class probing should not run when PLUGIN_DESCRIPTORS is present")
+
+
+class DescriptorPlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.descriptor",
+            display_name="Descriptor Plugin",
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+
+
+PLUGIN_DESCRIPTORS = (
+    (
+        NodeTypeSpec(
+            type_id="packet.descriptor",
+            display_name="Descriptor Plugin",
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        ),
+        DescriptorPlugin,
+    ),
+)
+""".strip()
+        + "\n",
+    )
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.descriptor"]
+    assert registry.get_spec("packet.descriptor").display_name == "Descriptor Plugin"
+
+
 def test_discover_and_load_plugins_preserves_entry_point_loading(
     tmp_path: Path,
     monkeypatch,
