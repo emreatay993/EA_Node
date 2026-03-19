@@ -5,11 +5,11 @@
 - Packet: `P07`
 - Branch Label: `codex/arch-fifth-pass/p07-authoring-mutation-completion-history`
 - Commit Owner: `worker`
-- Commit SHA: `4da76f1354fd9207266f9728af5fbdb0429b1863`
+- Commit SHA: `HEAD`
 - Changed Files: `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/graph/transforms.py`, `ea_node_editor/ui/shell/runtime_history.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_graph_track_b.py`, `docs/specs/work_packets/arch_fifth_pass/P07_authoring_mutation_completion_history_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/arch_fifth_pass/P07_authoring_mutation_completion_history_WRAPUP.md`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/graph/transforms.py`, `ea_node_editor/ui/shell/runtime_history.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_graph_track_b.py`
 
-Moved packet-owned transform writes onto `WorkspaceMutationService` helpers, kept payload rebuilding read-only by clamping PDF panel payload state in ephemeral payload nodes instead of mutating the live workspace, and expanded runtime history snapshots to include the mutable workspace view/runtime-sidecar state that still lives on the model before `P08`. Added regression coverage for PDF-panel mutation clamping, read-only payload rebuilding, and the wider undo/redo snapshot surface while preserving the existing graph and passive-surface behavior validated by the packet suite.
+Moved packet-owned transform writes onto `WorkspaceMutationService` helpers, kept payload rebuilding read-only by clamping PDF panel payload state in ephemeral payload nodes instead of mutating the live workspace, and reduced `GraphScenePayloadBuilder.normalize_pdf_panel_pages()` to a read-only compatibility no-op so the bridge-owned normalization path no longer writes through the live model. Expanded runtime history snapshots to include the mutable workspace view/runtime-sidecar state that still lives on the model before `P08`, and added regression coverage for PDF-panel mutation clamping, the read-only builder normalization path, and the wider undo/redo snapshot surface while preserving the existing graph and passive-surface behavior validated by the packet suite.
 
 ## Verification
 
@@ -30,7 +30,7 @@ Ready for manual testing.
 
 - Runtime history now snapshots view/runtime-sidecar workspace state, but persistence-only overlay extraction and broader live-model narrowing remain deferred to `P08`.
 - Fragment insertion and subnode rewiring still use packet-local raw mutation-service helpers because the higher-level legacy call sites that invoke those transforms are outside this packet's write scope.
-- Dedicated worktree verification still depends on a local `./venv/Scripts/python.exe` shim to the main checkout's Windows virtualenv.
+- Dedicated worktree verification still depends on a temporary local `./venv/Scripts/python.exe` shim to the main checkout's Windows virtualenv.
 
 ## Ready for Integration
 

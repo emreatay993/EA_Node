@@ -77,7 +77,10 @@ class GraphScenePayloadBuilder:
         registry: NodeRegistry,
         workspace: WorkspaceData,
     ) -> None:
-        model.validated_mutations(workspace.workspace_id, registry).normalize_pdf_panel_pages()
+        # Payload normalization is read-only; PDF page clamping happens on ephemeral payload copies.
+        del model
+        del registry
+        del workspace
 
     @staticmethod
     def active_graph_theme(graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:

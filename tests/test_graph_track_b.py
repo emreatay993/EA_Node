@@ -667,7 +667,7 @@ class GraphModelTrackBTests(unittest.TestCase):
         self.assertEqual(page_updates, {"page_number": 2})
         self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 2)
 
-    def test_graph_scene_payload_builder_clamps_pdf_payload_without_mutating_workspace(self) -> None:
+    def test_graph_scene_payload_builder_normalization_path_is_read_only_while_payload_clamps_pdf_pages(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
         workspace = model.active_workspace
@@ -688,6 +688,12 @@ class GraphModelTrackBTests(unittest.TestCase):
         builder = GraphScenePayloadBuilder()
 
         with patch("ea_node_editor.ui_qml.graph_scene_payload_builder.clamp_pdf_page_number", return_value=2):
+            builder.normalize_pdf_panel_pages(
+                model=model,
+                registry=registry,
+                workspace=workspace,
+            )
+            self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 99)
             nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
                 model=model,
                 registry=registry,
