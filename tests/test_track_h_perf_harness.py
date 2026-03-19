@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.telemetry import performance_harness as telemetry_performance_harness
 from ea_node_editor.telemetry.performance_harness import (
     BenchmarkConfig,
     SyntheticGraphConfig,
@@ -9,9 +10,17 @@ from ea_node_editor.telemetry.performance_harness import (
     generate_synthetic_project,
     run_benchmark,
 )
+from ea_node_editor.ui.perf import performance_harness as ui_performance_harness
 
 
 class TrackHPerformanceHarnessTests(unittest.TestCase):
+    def test_public_telemetry_import_path_remains_a_compatibility_surface(self) -> None:
+        self.assertIs(telemetry_performance_harness.run_benchmark, ui_performance_harness.run_benchmark)
+        self.assertEqual(
+            telemetry_performance_harness.run_benchmark.__module__,
+            "ea_node_editor.ui.perf.performance_harness",
+        )
+
     def test_generate_synthetic_project_hits_target_scale(self) -> None:
         project = generate_synthetic_project(SyntheticGraphConfig(node_count=1000, edge_count=5000, seed=42))
         workspace = project.workspaces[project.active_workspace_id]

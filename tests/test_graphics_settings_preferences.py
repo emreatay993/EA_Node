@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from ea_node_editor.app_preferences import resolve_startup_theme_id
 from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
@@ -157,6 +158,24 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(persisted["graphics"], graphics)
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
+
+    def test_startup_theme_resolution_reads_preferences_store_without_controller(self) -> None:
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "theme": {
+                            "theme_id": "stitch_light",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(resolve_startup_theme_id(store=self._store), "stitch_light")
 
 
 if __name__ == "__main__":

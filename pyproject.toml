@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-ea-node-editor = "ea_node_editor.app:run"
+ea-node-editor = "ea_node_editor.bootstrap:main"
 
 [project.entry-points."ea_node_editor.plugins"]
 

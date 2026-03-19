@@ -1,21 +1,19 @@
 from __future__ import annotations
 
 import copy
-import json
-from collections.abc import Callable, Mapping
-from pathlib import Path
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from ea_node_editor.persistence.utils import merge_defaults, write_json_atomic
-from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
-from ea_node_editor.settings import (
-    APP_PREFERENCES_KIND,
-    APP_PREFERENCES_VERSION,
-    DEFAULT_APP_PREFERENCES,
-    DEFAULT_GRAPHICS_SETTINGS,
-    TAB_STRIP_DENSITY_CHOICES,
-    app_preferences_path,
+from ea_node_editor.app_preferences import (
+    AppPreferencesStore,
+    default_app_preferences_document,
+    normalize_app_preferences_document,
+    normalize_graph_theme_settings,
+    normalize_graphics_settings,
 )
+from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
+from ea_node_editor.persistence.utils import merge_defaults
+from ea_node_editor.settings import app_preferences_path
 from ea_node_editor.ui.graph_theme import (
     create_blank_custom_graph_theme,
     duplicate_graph_theme_as_custom,
@@ -24,143 +22,10 @@ from ea_node_editor.ui.graph_theme import (
     is_custom_graph_theme_id,
     is_known_graph_theme_id,
     normalize_custom_graph_theme_definition,
-    resolve_graph_theme_id,
-    serialize_custom_graph_themes,
 )
-from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
-
-_APP_PREFERENCES_MIGRATION_VERSION = 1
-_TAB_STRIP_DENSITY_VALUES = {str(choice[0]).strip().lower() for choice in TAB_STRIP_DENSITY_CHOICES}
-
-
-def default_app_preferences_document() -> dict[str, Any]:
-    return copy.deepcopy(DEFAULT_APP_PREFERENCES)
-
-
-def normalize_graph_theme_settings(payload: Any) -> dict[str, Any]:
-    defaults = DEFAULT_GRAPHICS_SETTINGS["graph_theme"]
-    if not isinstance(payload, Mapping):
-        return copy.deepcopy(defaults)
-
-    normalized = copy.deepcopy(defaults)
-    normalized["follow_shell_theme"] = _normalize_bool(
-        payload.get("follow_shell_theme"),
-        defaults["follow_shell_theme"],
-    )
-    normalized["custom_themes"] = serialize_custom_graph_themes(payload.get("custom_themes"))
-    normalized["selected_theme_id"] = _normalize_graph_theme_id(
-        payload.get("selected_theme_id"),
-        defaults["selected_theme_id"],
-        custom_themes=normalized["custom_themes"],
-    )
-    return normalized
-
-
-def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
-    defaults = DEFAULT_GRAPHICS_SETTINGS
-    if not isinstance(payload, Mapping):
-        return copy.deepcopy(defaults)
-
-    canvas_payload = payload.get("canvas")
-    interaction_payload = payload.get("interaction")
-    shell_payload = payload.get("shell")
-    theme_payload = payload.get("theme")
-    graph_theme_payload = payload.get("graph_theme")
-
-    normalized = copy.deepcopy(defaults)
-    if isinstance(canvas_payload, Mapping):
-        normalized["canvas"]["show_grid"] = _normalize_bool(
-            canvas_payload.get("show_grid"),
-            defaults["canvas"]["show_grid"],
-        )
-        normalized["canvas"]["show_minimap"] = _normalize_bool(
-            canvas_payload.get("show_minimap"),
-            defaults["canvas"]["show_minimap"],
-        )
-        normalized["canvas"]["minimap_expanded"] = _normalize_bool(
-            canvas_payload.get("minimap_expanded"),
-            defaults["canvas"]["minimap_expanded"],
-        )
-        normalized["canvas"]["node_shadow"] = _normalize_bool(
-            canvas_payload.get("node_shadow"),
-            defaults["canvas"]["node_shadow"],
-        )
-        normalized["canvas"]["shadow_strength"] = _normalize_int(
-            canvas_payload.get("shadow_strength"),
-            defaults["canvas"]["shadow_strength"], 0, 100,
-        )
-        normalized["canvas"]["shadow_softness"] = _normalize_int(
-            canvas_payload.get("shadow_softness"),
-            defaults["canvas"]["shadow_softness"], 0, 100,
-        )
-        normalized["canvas"]["shadow_offset"] = _normalize_int(
-            canvas_payload.get("shadow_offset"),
-            defaults["canvas"]["shadow_offset"], 0, 20,
-        )
-    if isinstance(interaction_payload, Mapping):
-        normalized["interaction"]["snap_to_grid"] = _normalize_bool(
-            interaction_payload.get("snap_to_grid"),
-            defaults["interaction"]["snap_to_grid"],
-        )
-    if isinstance(shell_payload, Mapping):
-        normalized["shell"]["tab_strip_density"] = _normalize_tab_strip_density(
-            shell_payload.get("tab_strip_density"),
-            defaults["shell"]["tab_strip_density"],
-        )
-    if isinstance(theme_payload, Mapping):
-        normalized["theme"]["theme_id"] = _normalize_theme_id(
-            theme_payload.get("theme_id"),
-            defaults["theme"]["theme_id"],
-        )
-    normalized["graph_theme"] = normalize_graph_theme_settings(graph_theme_payload)
-    return normalized
-
-
-def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
-    normalized = default_app_preferences_document()
-    if not isinstance(payload, Mapping):
-        return normalized
-
-    kind = str(payload.get("kind", "")).strip()
-    try:
-        version = int(payload.get("version", 0) or 0)
-    except (TypeError, ValueError):
-        return normalized
-
-    if kind != APP_PREFERENCES_KIND:
-        return normalized
-    if version not in {_APP_PREFERENCES_MIGRATION_VERSION, APP_PREFERENCES_VERSION}:
-        return normalized
-
-    normalized["graphics"] = normalize_graphics_settings(payload.get("graphics"))
-    return normalized
-
-
-class AppPreferencesStore:
-    def __init__(
-        self,
-        *,
-        path_provider: Callable[[], Path] | None = None,
-    ) -> None:
-        self._path_provider = path_provider or app_preferences_path
-
-    def load_document(self) -> dict[str, Any]:
-        path = self._path_provider()
-        if not path.exists():
-            return default_app_preferences_document()
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001
-            return default_app_preferences_document()
-        return normalize_app_preferences_document(payload)
-
-    def persist_document(self, document: Any) -> dict[str, Any]:
-        normalized = normalize_app_preferences_document(document)
-        write_json_atomic(self._path_provider(), normalized)
-        return normalized
 
 
 class AppPreferencesController:
@@ -169,7 +34,7 @@ class AppPreferencesController:
         *,
         store: AppPreferencesStore | None = None,
     ) -> None:
-        self._store = store or AppPreferencesStore()
+        self._store = store or AppPreferencesStore(path_provider=app_preferences_path)
         self._document: dict[str, Any] | None = None
 
     def load(self) -> dict[str, Any]:
@@ -353,45 +218,6 @@ class AppPreferencesController:
         graphics = self.graphics_settings()
         graphics["graph_theme"] = normalize_graph_theme_settings(graph_theme_settings)
         return self.set_graphics_settings(graphics, host=host)["graph_theme"]
-
-
-def _normalize_bool(value: Any, default: bool) -> bool:
-    return value if isinstance(value, bool) else default
-
-
-def _normalize_int(value: Any, default: int, lo: int, hi: int) -> int:
-    if isinstance(value, int) and lo <= value <= hi:
-        return value
-    return default
-
-
-def _normalize_theme_id(value: Any, default: str) -> str:
-    normalized = str(value).strip()
-    if is_known_theme_id(normalized):
-        return normalized
-    if is_known_theme_id(default):
-        return default
-    return DEFAULT_THEME_ID
-
-
-def _normalize_graph_theme_id(value: Any, default: str, *, custom_themes: Any = None) -> str:
-    normalized = str(value).strip()
-    if is_known_graph_theme_id(normalized, custom_themes=custom_themes):
-        return normalized
-    resolved_default = resolve_graph_theme_id(default, custom_themes=custom_themes)
-    if is_known_graph_theme_id(resolved_default, custom_themes=custom_themes):
-        return resolved_default
-    return DEFAULT_GRAPH_THEME_ID
-
-
-def _normalize_tab_strip_density(value: Any, default: str) -> str:
-    normalized = str(value).strip().lower()
-    if normalized in _TAB_STRIP_DENSITY_VALUES:
-        return normalized
-    resolved_default = str(default).strip().lower()
-    if resolved_default in _TAB_STRIP_DENSITY_VALUES:
-        return resolved_default
-    return str(DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
 
 
 def _find_custom_theme(custom_themes: Any, theme_id: object) -> dict[str, object] | None:
