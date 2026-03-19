@@ -1036,7 +1036,7 @@ Item {
         id: inputLayers
         objectName: "graphCanvasInputLayers"
         canvasItem: root
-        mainWindowBridge: root._canvasShellCompatRef
+        mainWindowBridge: root._canvasShellBridgeRef
         sceneBridge: root._canvasSelectionBridgeRef
         viewBridge: root._canvasViewBridgeRef
     }
@@ -1045,7 +1045,7 @@ Item {
         id: contextMenus
         objectName: "graphCanvasContextMenus"
         canvasItem: root
-        mainWindowBridge: root._canvasShellCompatRef
+        mainWindowBridge: root._canvasShellBridgeRef
     }
 
     Connections {

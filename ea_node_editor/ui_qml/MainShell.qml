@@ -11,15 +11,21 @@ Rectangle {
     readonly property var canvasBridgeRef: (typeof graphCanvasBridge !== "undefined" && graphCanvasBridge)
         ? graphCanvasBridge
         : null
-    readonly property var canvasShellCompatRef: (typeof mainWindow !== "undefined" && mainWindow)
-        ? mainWindow
-        : null
-    readonly property var canvasSceneCompatRef: (typeof sceneBridge !== "undefined" && sceneBridge)
-        ? sceneBridge
-        : null
-    readonly property var canvasViewCompatRef: (typeof viewBridge !== "undefined" && viewBridge)
-        ? viewBridge
-        : null
+    readonly property var canvasShellBridgeRef: root.canvasBridgeRef
+        ? root.canvasBridgeRef
+        : ((typeof mainWindow !== "undefined" && mainWindow)
+            ? mainWindow
+            : null)
+    readonly property var canvasSceneBridgeRef: root.canvasBridgeRef
+        ? root.canvasBridgeRef
+        : ((typeof sceneBridge !== "undefined" && sceneBridge)
+            ? sceneBridge
+            : null)
+    readonly property var canvasViewBridgeRef: root.canvasBridgeRef
+        ? root.canvasBridgeRef
+        : ((typeof viewBridge !== "undefined" && viewBridge)
+            ? viewBridge
+            : null)
 
     LibraryWorkflowContextPopup {
         id: libraryWorkflowContextPopup
@@ -34,7 +40,7 @@ Rectangle {
         }
 
         ShellRunToolbar {
-            viewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.canvasViewCompatRef
+            viewBridgeRef: root.canvasViewBridgeRef
             scriptEditorBridgeRef: scriptEditorBridge
         }
 
@@ -55,9 +61,9 @@ Rectangle {
             WorkspaceCenterPane {
                 id: workspaceCenterPane
                 graphCanvasBridgeRef: root.canvasBridgeRef
-                canvasShellCompatRef: root.canvasShellCompatRef
-                canvasSceneCompatRef: root.canvasSceneCompatRef
-                canvasViewCompatRef: root.canvasViewCompatRef
+                canvasShellCompatRef: root.canvasShellBridgeRef
+                canvasSceneCompatRef: root.canvasSceneBridgeRef
+                canvasViewCompatRef: root.canvasViewBridgeRef
                 overlayHostItem: root
             }
 

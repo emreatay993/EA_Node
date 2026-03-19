@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QRectF
 
-from ea_node_editor.ui.shell.window_library_inspector import build_user_facing_node_instance_number
+from ea_node_editor.ui.node_presentation import build_user_facing_node_instance_number
 from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
 from ea_node_editor.ui_qml.viewport_bridge import FRAME_PADDING_PX
 

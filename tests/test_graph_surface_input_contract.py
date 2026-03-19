@@ -444,6 +444,181 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_supports_surface_control_edits_via_unified_canvas_bridge(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-unified-bridge-surface-control",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
+
+            from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
+
+            class SceneBridgeStub(QObject):
+                nodes_changed = pyqtSignal()
+                edges_changed = pyqtSignal()
+                selection_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self.select_calls = []
+                    self.set_node_property_calls = []
+                    self._nodes_model = [node_payload()]
+                    self._selected_node_lookup = {}
+
+                @pyqtProperty("QVariantList", notify=nodes_changed)
+                def nodes_model(self):
+                    return self._nodes_model
+
+                @pyqtProperty("QVariantList", notify=edges_changed)
+                def edges_model(self):
+                    return []
+
+                @pyqtProperty("QVariantMap", notify=selection_changed)
+                def selected_node_lookup(self):
+                    return self._selected_node_lookup
+
+                @pyqtSlot(str)
+                @pyqtSlot(str, bool)
+                def select_node(self, node_id, additive=False):
+                    normalized_node_id = str(node_id or "")
+                    self.select_calls.append((normalized_node_id, bool(additive)))
+                    self._selected_node_lookup = {normalized_node_id: True} if normalized_node_id else {}
+                    self.selection_changed.emit()
+
+                @pyqtSlot(str, str, "QVariant")
+                def set_node_property(self, node_id, key, value):
+                    self.set_node_property_calls.append((str(node_id or ""), str(key or ""), variant_value(value)))
+
+                @pyqtSlot(str, str, result=bool)
+                def are_port_kinds_compatible(self, _source_kind, _target_kind):
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def are_data_types_compatible(self, _source_type, _target_type):
+                    return True
+
+            class ViewBridgeStub(QObject):
+                view_state_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self._width = 640.0
+                    self._height = 480.0
+
+                @pyqtProperty(float, constant=True)
+                def center_x(self):
+                    return 0.0
+
+                @pyqtProperty(float, constant=True)
+                def center_y(self):
+                    return 0.0
+
+                @pyqtProperty(float, constant=True)
+                def zoom_value(self):
+                    return 1.0
+
+                @pyqtProperty("QVariantMap", notify=view_state_changed)
+                def visible_scene_rect_payload(self):
+                    return {
+                        "x": -(self._width * 0.5),
+                        "y": -(self._height * 0.5),
+                        "width": self._width,
+                        "height": self._height,
+                    }
+
+                @pyqtSlot(float, float)
+                def set_viewport_size(self, width, height):
+                    self._width = float(width)
+                    self._height = float(height)
+                    self.view_state_changed.emit()
+
+            class CanvasHostStub(QObject):
+                graphics_preferences_changed = pyqtSignal()
+                snap_to_grid_changed = pyqtSignal()
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+            scene_bridge = SceneBridgeStub()
+            view_bridge = ViewBridgeStub()
+            canvas_bridge = GraphCanvasBridge(
+                shell_window=CanvasHostStub(),
+                scene_bridge=scene_bridge,
+                view_bridge=view_bridge,
+            )
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "canvasBridge": canvas_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+
+            def walk_items(item):
+                yield item
+                for child in item.childItems():
+                    yield from walk_items(child)
+
+            node_card = next((item for item in walk_items(canvas) if item.objectName() == "graphNodeCard"), None)
+            assert node_card is not None
+
+            node_card.surfaceControlInteractionStarted.emit("node_surface_contract_test")
+            app.processEvents()
+            node_card.inlinePropertyCommitted.emit(
+                "node_surface_contract_test",
+                "message",
+                "updated through unified bridge",
+            )
+            app.processEvents()
+
+            assert scene_bridge.select_calls == [
+                ("node_surface_contract_test", False),
+                ("node_surface_contract_test", False),
+            ]
+            assert scene_bridge.set_node_property_calls == [
+                ("node_surface_contract_test", "message", "updated through unified bridge")
+            ]
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_media_whole_surface_lock_remains_independent_from_local_interactive_rects(self) -> None:
         self._run_qml_probe(
             "media-whole-surface-lock",

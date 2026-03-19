@@ -387,6 +387,23 @@ class _GraphCanvasShellHostStub(QObject):
             "request_drop_node_from_library": True,
             "request_connect_ports": True,
             "request_open_connection_quick_insert": True,
+            "request_delete_selected_graph_items": True,
+            "request_navigate_scope_parent": True,
+            "request_navigate_scope_root": True,
+            "request_edit_flow_edge_style": True,
+            "request_edit_flow_edge_label": True,
+            "request_reset_flow_edge_style": True,
+            "request_copy_flow_edge_style": True,
+            "request_paste_flow_edge_style": True,
+            "request_remove_edge": True,
+            "request_publish_custom_workflow_from_node": True,
+            "request_edit_passive_node_style": True,
+            "request_reset_passive_node_style": True,
+            "request_copy_passive_node_style": True,
+            "request_paste_passive_node_style": True,
+            "request_rename_node": True,
+            "request_ungroup_node": True,
+            "request_remove_node": True,
         }
 
     def _record(self, name: str, *args):
@@ -464,6 +481,86 @@ class _GraphCanvasShellHostStub(QObject):
             )
         )
 
+    def request_open_canvas_quick_insert(
+        self,
+        scene_x: float,
+        scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> None:
+        self._record(
+            "request_open_canvas_quick_insert",
+            scene_x,
+            scene_y,
+            overlay_x,
+            overlay_y,
+        )
+
+    def request_delete_selected_graph_items(self, edge_ids: list[object]) -> bool:
+        return bool(self._record("request_delete_selected_graph_items", edge_ids))
+
+    def request_navigate_scope_parent(self) -> bool:
+        return bool(self._record("request_navigate_scope_parent"))
+
+    def request_navigate_scope_root(self) -> bool:
+        return bool(self._record("request_navigate_scope_root"))
+
+    def set_graph_cursor_shape(self, cursor_shape: int) -> None:
+        self._record("set_graph_cursor_shape", cursor_shape)
+
+    def clear_graph_cursor_shape(self) -> None:
+        self._record("clear_graph_cursor_shape")
+
+    def describe_pdf_preview(self, source: str, page_number: object) -> dict[str, object]:
+        self._record("describe_pdf_preview", source, page_number)
+        return {
+            "source": source,
+            "page_number": int(page_number),
+            "valid": True,
+        }
+
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._record("request_edit_flow_edge_style", edge_id))
+
+    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
+        return bool(self._record("request_edit_flow_edge_label", edge_id))
+
+    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._record("request_reset_flow_edge_style", edge_id))
+
+    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._record("request_copy_flow_edge_style", edge_id))
+
+    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._record("request_paste_flow_edge_style", edge_id))
+
+    def request_remove_edge(self, edge_id: str) -> bool:
+        return bool(self._record("request_remove_edge", edge_id))
+
+    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
+        return bool(self._record("request_publish_custom_workflow_from_node", node_id))
+
+    def request_edit_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._record("request_edit_passive_node_style", node_id))
+
+    def request_reset_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._record("request_reset_passive_node_style", node_id))
+
+    def request_copy_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._record("request_copy_passive_node_style", node_id))
+
+    def request_paste_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._record("request_paste_passive_node_style", node_id))
+
+    def request_rename_node(self, node_id: str) -> bool:
+        return bool(self._record("request_rename_node", node_id))
+
+    def request_ungroup_node(self, node_id: str) -> bool:
+        return bool(self._record("request_ungroup_node", node_id))
+
+    def request_remove_node(self, node_id: str) -> bool:
+        return bool(self._record("request_remove_node", node_id))
+
 
 class _GraphCanvasParentStub(QObject):
     def __init__(self, shell_window: QObject) -> None:
@@ -480,12 +577,16 @@ class _GraphCanvasSceneBridgeStub(QObject):
         super().__init__()
         self.calls: list[tuple[str, tuple[object, ...]]] = []
         self.nodes_model = [{"node_id": "node-1", "selected": True}]
+        self.minimap_nodes_model = [{"node_id": "node-1", "x": 10.0, "y": 15.0}]
+        self.workspace_scene_bounds_payload = {"x": 0.0, "y": 0.0, "width": 640.0, "height": 360.0}
         self.edges_model = [{"edge_id": "edge-1"}]
         self.selected_node_lookup = {"node-1": True}
         self._return_values = {
             "are_port_kinds_compatible": True,
             "are_data_types_compatible": True,
             "move_nodes_by_delta": True,
+            "consume_pending_surface_action": True,
+            "set_node_properties": True,
         }
 
     def _record(self, name: str, *args):
@@ -497,6 +598,21 @@ class _GraphCanvasSceneBridgeStub(QObject):
 
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         self._record("set_node_property", node_id, key, value)
+
+    def clear_selection(self) -> None:
+        self._record("clear_selection")
+
+    def select_nodes_in_rect(self, x1: float, y1: float, x2: float, y2: float, additive: bool = False) -> None:
+        self._record("select_nodes_in_rect", x1, y1, x2, y2, additive)
+
+    def set_pending_surface_action(self, node_id: str) -> None:
+        self._record("set_pending_surface_action", node_id)
+
+    def consume_pending_surface_action(self, node_id: str) -> bool:
+        return bool(self._record("consume_pending_surface_action", node_id))
+
+    def set_node_properties(self, node_id: str, values: dict[str, object]) -> bool:
+        return bool(self._record("set_node_properties", node_id, values))
 
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
         return bool(self._record("are_port_kinds_compatible", source_kind, target_kind))
@@ -526,6 +642,7 @@ class _GraphCanvasViewBridgeStub(QObject):
         self.center_x = 18.5
         self.center_y = -42.0
         self.zoom_value = 1.75
+        self.visible_scene_rect_payload = {"x": -120.0, "y": -80.0, "width": 240.0, "height": 160.0}
 
     def _record(self, name: str, *args) -> None:
         self.calls.append((name, args))
@@ -538,6 +655,9 @@ class _GraphCanvasViewBridgeStub(QObject):
 
     def set_viewport_size(self, width: float, height: float) -> None:
         self._record("set_viewport_size", width, height)
+
+    def center_on_scene_point(self, x: float, y: float) -> None:
+        self._record("center_on_scene_point", x, y)
 
 
 class ShellLibraryBridgeTests(unittest.TestCase):
@@ -952,6 +1072,94 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             {"node-1": True, "node-2": True},
         )
 
+    def test_bridge_exposes_unified_canvas_contract_extensions(self) -> None:
+        host = _GraphCanvasShellHostStub()
+        scene = _GraphCanvasSceneBridgeStub()
+        view = _GraphCanvasViewBridgeStub()
+        bridge = GraphCanvasBridge(shell_window=host, scene_bridge=scene, view_bridge=view)
+
+        self.assertEqual(bridge.visible_scene_rect_payload, view.visible_scene_rect_payload)
+        self.assertEqual(bridge.minimap_nodes_model, scene.minimap_nodes_model)
+        self.assertEqual(bridge.workspace_scene_bounds_payload, scene.workspace_scene_bounds_payload)
+
+        bridge.center_on_scene_point(96.0, 144.0)
+        bridge.request_open_canvas_quick_insert(15.0, 25.0, 115.0, 215.0)
+        self.assertTrue(bridge.request_delete_selected_graph_items(["edge-1"]))
+        self.assertTrue(bridge.request_navigate_scope_parent())
+        self.assertTrue(bridge.request_navigate_scope_root())
+        bridge.clear_selection()
+        bridge.select_nodes_in_rect(1.0, 2.0, 3.0, 4.0, True)
+        bridge.set_pending_surface_action("node-1")
+        self.assertTrue(bridge.consume_pending_surface_action("node-1"))
+        self.assertTrue(bridge.set_node_properties("node-1", {"message": "bridge"}))
+        bridge.set_graph_cursor_shape(13)
+        bridge.clear_graph_cursor_shape()
+        self.assertEqual(
+            bridge.describe_pdf_preview("C:/temp/preview.pdf", 2),
+            {
+                "source": "C:/temp/preview.pdf",
+                "page_number": 2,
+                "valid": True,
+            },
+        )
+        self.assertTrue(bridge.request_edit_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_edit_flow_edge_label("edge-1"))
+        self.assertTrue(bridge.request_reset_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_copy_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_paste_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_remove_edge("edge-1"))
+        self.assertTrue(bridge.request_publish_custom_workflow_from_node("node-1"))
+        self.assertTrue(bridge.request_edit_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_reset_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_copy_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_paste_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_rename_node("node-1"))
+        self.assertTrue(bridge.request_ungroup_node("node-1"))
+        self.assertTrue(bridge.request_remove_node("node-1"))
+
+        self.assertEqual(
+            host.calls,
+            [
+                ("request_open_canvas_quick_insert", (15.0, 25.0, 115.0, 215.0)),
+                ("request_delete_selected_graph_items", (["edge-1"],)),
+                ("request_navigate_scope_parent", ()),
+                ("request_navigate_scope_root", ()),
+                ("set_graph_cursor_shape", (13,)),
+                ("clear_graph_cursor_shape", ()),
+                ("describe_pdf_preview", ("C:/temp/preview.pdf", 2)),
+                ("request_edit_flow_edge_style", ("edge-1",)),
+                ("request_edit_flow_edge_label", ("edge-1",)),
+                ("request_reset_flow_edge_style", ("edge-1",)),
+                ("request_copy_flow_edge_style", ("edge-1",)),
+                ("request_paste_flow_edge_style", ("edge-1",)),
+                ("request_remove_edge", ("edge-1",)),
+                ("request_publish_custom_workflow_from_node", ("node-1",)),
+                ("request_edit_passive_node_style", ("node-1",)),
+                ("request_reset_passive_node_style", ("node-1",)),
+                ("request_copy_passive_node_style", ("node-1",)),
+                ("request_paste_passive_node_style", ("node-1",)),
+                ("request_rename_node", ("node-1",)),
+                ("request_ungroup_node", ("node-1",)),
+                ("request_remove_node", ("node-1",)),
+            ],
+        )
+        self.assertEqual(
+            scene.calls,
+            [
+                ("clear_selection", ()),
+                ("select_nodes_in_rect", (1.0, 2.0, 3.0, 4.0, True)),
+                ("set_pending_surface_action", ("node-1",)),
+                ("consume_pending_surface_action", ("node-1",)),
+                ("set_node_properties", ("node-1", {"message": "bridge"})),
+            ],
+        )
+        self.assertEqual(
+            view.calls,
+            [
+                ("center_on_scene_point", (96.0, 144.0)),
+            ],
+        )
+
     def test_bridge_keeps_safe_defaults_without_shell_host(self) -> None:
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
@@ -968,6 +1176,45 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertFalse(bridge.snap_to_grid_enabled)
         self.assertEqual(bridge.snap_grid_size, 20.0)
         self.assertFalse(bridge.request_open_subnode_scope("subnode-1"))
+
+
+class SharedUiSupportBoundaryTests(unittest.TestCase):
+    def test_packet_owned_shared_helpers_route_through_neutral_ui_support_module(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/graph_scene_payload_builder.py": (
+                (
+                    "from ea_node_editor.ui.shell.window_library_inspector import build_inline_property_items",
+                ),
+                (
+                    "from ea_node_editor.ui.node_presentation import build_inline_property_items",
+                ),
+            ),
+            "ea_node_editor/ui/shell/controllers/workspace_view_nav_ops.py": (
+                (
+                    "from ea_node_editor.ui.shell.window_library_inspector import build_user_facing_node_instance_number",
+                ),
+                (
+                    "from ea_node_editor.ui.node_presentation import build_user_facing_node_instance_number",
+                ),
+            ),
+            "ea_node_editor/ui/shell/window_library_inspector.py": (
+                (),
+                (
+                    "from ea_node_editor.ui.node_presentation import (",
+                    "build_inline_property_items",
+                    "build_user_facing_node_instance_number",
+                ),
+            ),
+        }
+
+        for relative_path, (absent_snippets, present_snippets) in expectations.items():
+            module_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in absent_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="absent"):
+                    self.assertNotIn(snippet, module_text)
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
+                    self.assertIn(snippet, module_text)
 
 
 class ShellWorkspaceBridgeTests(unittest.TestCase):
@@ -1434,19 +1681,22 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "sceneBridgeRef: root.sceneBridgeRef",
             "viewBridgeRef: root.viewBridgeRef",
             "viewBridgeRef: viewBridge",
-        )
-        present_snippets = (
-            "readonly property var canvasBridgeRef",
             "readonly property var canvasShellCompatRef",
             "readonly property var canvasSceneCompatRef",
             "readonly property var canvasViewCompatRef",
+        )
+        present_snippets = (
+            "readonly property var canvasBridgeRef",
+            "readonly property var canvasShellBridgeRef",
+            "readonly property var canvasSceneBridgeRef",
+            "readonly property var canvasViewBridgeRef",
             "WorkspaceCenterPane {",
             "graphCanvasBridgeRef: root.canvasBridgeRef",
-            "canvasShellCompatRef: root.canvasShellCompatRef",
-            "canvasSceneCompatRef: root.canvasSceneCompatRef",
-            "canvasViewCompatRef: root.canvasViewCompatRef",
+            "canvasShellCompatRef: root.canvasShellBridgeRef",
+            "canvasSceneCompatRef: root.canvasSceneBridgeRef",
+            "canvasViewCompatRef: root.canvasViewBridgeRef",
             "overlayHostItem: root",
-            "viewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.canvasViewCompatRef",
+            "viewBridgeRef: root.canvasViewBridgeRef",
             "scriptEditorBridgeRef: scriptEditorBridge",
             "scriptHighlighterBridgeRef: scriptHighlighterBridge",
         )
@@ -1524,7 +1774,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "scale: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0",
             "viewBridge: root._canvasViewBridgeRef",
             "sceneBridge: root._canvasSceneBridgeRef",
-            "mainWindowBridge: root._canvasShellCompatRef",
+            "mainWindowBridge: root._canvasShellBridgeRef",
             "sceneBridge: root._canvasSelectionBridgeRef",
             "sceneBridge: root._canvasMinimapSceneBridgeRef",
             "viewBridge: root._canvasMinimapViewBridgeRef",

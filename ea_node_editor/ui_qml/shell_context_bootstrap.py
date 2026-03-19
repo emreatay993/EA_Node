@@ -103,14 +103,14 @@ def shell_context_property_bindings(
         ("statusMetrics", host.status_metrics),
         ("statusNotifications", host.status_notifications),
     )
-    compatibility_bindings = (
+    deferred_compatibility_bindings = (
         ("mainWindow", host),
         ("sceneBridge", host.scene),
         ("viewBridge", host.view),
         ("consoleBridge", host.console_panel),
         ("workspaceTabsBridge", host.workspace_tabs),
     )
-    return bridge_first_bindings + shared_service_bindings + compatibility_bindings
+    return bridge_first_bindings + shared_service_bindings + deferred_compatibility_bindings
 
 
 def _main_shell_qml_path() -> Path:
