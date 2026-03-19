@@ -4,14 +4,15 @@ Item {
     id: root
     objectName: "graphCanvasInputLayers"
     property Item canvasItem: null
-    property var mainWindowBridge: null
-    property var sceneBridge: null
-    property var viewBridge: null
+    property var shellCommandBridge: null
+    property var sceneCommandBridge: null
+    property var viewStateBridge: null
+    property var viewCommandBridge: null
     readonly property var themePalette: themeBridge.palette
 
     Keys.onDeletePressed: function(event) {
-        if (root.mainWindowBridge && root.canvasItem)
-            root.mainWindowBridge.request_delete_selected_graph_items(root.canvasItem.selectedEdgeIds);
+        if (root.shellCommandBridge && root.canvasItem)
+            root.shellCommandBridge.request_delete_selected_graph_items(root.canvasItem.selectedEdgeIds);
         if (root.canvasItem) {
             root.canvasItem.selectedEdgeIds = [];
             root.canvasItem.clearPendingConnection();
@@ -24,7 +25,7 @@ Item {
         if (!root.canvasItem)
             return;
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Left) {
-            if (root.mainWindowBridge && root.mainWindowBridge.request_navigate_scope_parent()) {
+            if (root.shellCommandBridge && root.shellCommandBridge.request_navigate_scope_parent()) {
                 root.canvasItem.clearEdgeSelection();
                 root.canvasItem.clearPendingConnection();
                 root.canvasItem._closeContextMenus();
@@ -33,7 +34,7 @@ Item {
             return;
         }
         if ((event.modifiers & Qt.AltModifier) && event.key === Qt.Key_Home) {
-            if (root.mainWindowBridge && root.mainWindowBridge.request_navigate_scope_root()) {
+            if (root.shellCommandBridge && root.shellCommandBridge.request_navigate_scope_root()) {
                 root.canvasItem.clearEdgeSelection();
                 root.canvasItem.clearPendingConnection();
                 root.canvasItem._closeContextMenus();
@@ -102,9 +103,9 @@ Item {
             currentY = mouse.y;
             var dx = Math.abs(currentX - startX);
             var dy = Math.abs(currentY - startY);
-            if (root.sceneBridge && root.canvasItem) {
+            if (root.sceneCommandBridge && root.canvasItem) {
                 if (dx >= 4 || dy >= 4) {
-                    root.sceneBridge.select_nodes_in_rect(
+                    root.sceneCommandBridge.select_nodes_in_rect(
                         root.canvasItem.screenToSceneX(startX),
                         root.canvasItem.screenToSceneY(startY),
                         root.canvasItem.screenToSceneX(currentX),
@@ -114,7 +115,7 @@ Item {
                     if (!additive)
                         root.canvasItem.clearEdgeSelection();
                 } else if (!additive) {
-                    root.sceneBridge.clear_selection();
+                    root.sceneCommandBridge.clear_selection();
                     root.canvasItem.clearEdgeSelection();
                 }
             }
@@ -127,13 +128,13 @@ Item {
 
         onDoubleClicked: {
             selecting = false;
-            if (!root.canvasItem || !root.mainWindowBridge)
+            if (!root.canvasItem || !root.shellCommandBridge)
                 return;
             var sceneX = root.canvasItem.screenToSceneX(mouse.x);
             var sceneY = root.canvasItem.screenToSceneY(mouse.y);
             var overlayHost = root.canvasItem.overlayHostItem || root.canvasItem;
             var overlayPoint = root.canvasItem.mapToItem(overlayHost, mouse.x, mouse.y);
-            root.mainWindowBridge.request_open_canvas_quick_insert(
+            root.shellCommandBridge.request_open_canvas_quick_insert(
                 sceneX, sceneY, overlayPoint.x, overlayPoint.y
             );
             mouse.accepted = true;
@@ -174,7 +175,7 @@ Item {
         property real lastY: 0
 
         onPressed: {
-            if (!root.viewBridge)
+            if (!root.viewStateBridge || !root.viewCommandBridge || !root.viewCommandBridge.pan_by)
                 return;
             panning = true;
             lastX = mouse.x;
@@ -184,13 +185,13 @@ Item {
         }
 
         onPositionChanged: {
-            if (!panning || !root.viewBridge)
+            if (!panning || !root.viewStateBridge || !root.viewCommandBridge || !root.viewCommandBridge.pan_by)
                 return;
             if (root.canvasItem)
                 root.canvasItem.noteViewportInteraction();
-            var dx = (mouse.x - lastX) / Math.max(0.1, root.viewBridge.zoom_value);
-            var dy = (mouse.y - lastY) / Math.max(0.1, root.viewBridge.zoom_value);
-            root.viewBridge.pan_by(-dx, -dy);
+            var dx = (mouse.x - lastX) / Math.max(0.1, root.viewStateBridge.zoom_value);
+            var dy = (mouse.y - lastY) / Math.max(0.1, root.viewStateBridge.zoom_value);
+            root.viewCommandBridge.pan_by(-dx, -dy);
             lastX = mouse.x;
             lastY = mouse.y;
         }

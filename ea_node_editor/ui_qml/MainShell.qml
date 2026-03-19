@@ -8,24 +8,10 @@ Rectangle {
     id: root
     readonly property var themePalette: themeBridge.palette
     color: themePalette.app_bg
-    readonly property var canvasBridgeRef: (typeof graphCanvasBridge !== "undefined" && graphCanvasBridge)
-        ? graphCanvasBridge
-        : null
-    readonly property var canvasShellBridgeRef: root.canvasBridgeRef
-        ? root.canvasBridgeRef
-        : ((typeof mainWindow !== "undefined" && mainWindow)
-            ? mainWindow
-            : null)
-    readonly property var canvasSceneBridgeRef: root.canvasBridgeRef
-        ? root.canvasBridgeRef
-        : ((typeof sceneBridge !== "undefined" && sceneBridge)
-            ? sceneBridge
-            : null)
-    readonly property var canvasViewBridgeRef: root.canvasBridgeRef
-        ? root.canvasBridgeRef
-        : ((typeof viewBridge !== "undefined" && viewBridge)
-            ? viewBridge
-            : null)
+    readonly property var canvasBridgeRef: graphCanvasBridge
+    readonly property var canvasStateBridgeRef: graphCanvasStateBridge
+    readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge
+    readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef
 
     LibraryWorkflowContextPopup {
         id: libraryWorkflowContextPopup
@@ -61,9 +47,8 @@ Rectangle {
             WorkspaceCenterPane {
                 id: workspaceCenterPane
                 graphCanvasBridgeRef: root.canvasBridgeRef
-                canvasShellCompatRef: root.canvasShellBridgeRef
-                canvasSceneCompatRef: root.canvasSceneBridgeRef
-                canvasViewCompatRef: root.canvasViewBridgeRef
+                graphCanvasStateBridgeRef: root.canvasStateBridgeRef
+                graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef
                 overlayHostItem: root
             }
 

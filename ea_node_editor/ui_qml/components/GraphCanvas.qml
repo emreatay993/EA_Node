@@ -7,52 +7,56 @@ Item {
     id: root
     objectName: "graphCanvas"
     property var canvasBridge: null
-    property var mainWindowBridge: null
-    property var sceneBridge: null
-    property var viewBridge: null
+    property var canvasStateBridge: null
+    property var canvasCommandBridge: null
     readonly property var canvasBridgeRef: root.canvasBridge
         ? root.canvasBridge
-        : ((typeof graphCanvasBridge !== "undefined" && graphCanvasBridge) ? graphCanvasBridge : null)
-    readonly property var _canvasShellBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.mainWindowBridge
-    readonly property var _canvasSceneBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.sceneBridge
-    readonly property var _canvasViewBridgeRef: root.canvasBridgeRef ? root.canvasBridgeRef : root.viewBridge
-    readonly property var _canvasShellCompatRef: root.mainWindowBridge ? root.mainWindowBridge : root._canvasShellBridgeRef
-    readonly property var _canvasSceneCompatRef: root.sceneBridge ? root.sceneBridge : root._canvasSceneBridgeRef
-    readonly property var _canvasViewCompatRef: root.viewBridge ? root.viewBridge : root._canvasViewBridgeRef
-    readonly property var _canvasSelectionBridgeRef: root._canvasSceneBridgeRef
-        && root._canvasSceneBridgeRef.select_nodes_in_rect
-        && root._canvasSceneBridgeRef.clear_selection
-        ? root._canvasSceneBridgeRef
-        : root._canvasSceneCompatRef
-    readonly property var _canvasMinimapSceneBridgeRef: root._canvasSceneBridgeRef
-        && typeof root._canvasSceneBridgeRef.workspace_scene_bounds_payload !== "undefined"
-        && typeof root._canvasSceneBridgeRef.minimap_nodes_model !== "undefined"
-        ? root._canvasSceneBridgeRef
-        : root._canvasSceneCompatRef
-    readonly property var _canvasVisibleRectBridgeRef: root._canvasViewBridgeRef
-        && typeof root._canvasViewBridgeRef.visible_scene_rect_payload !== "undefined"
-        ? root._canvasViewBridgeRef
-        : root._canvasViewCompatRef
-    readonly property var _canvasMinimapViewBridgeRef: root._canvasViewBridgeRef
-        && typeof root._canvasViewBridgeRef.visible_scene_rect_payload !== "undefined"
-        && root._canvasViewBridgeRef.center_on_scene_point
-        ? root._canvasViewBridgeRef
-        : root._canvasViewCompatRef
+        : null
+    readonly property var canvasStateBridgeRef: root.canvasStateBridge
+        ? root.canvasStateBridge
+        : (root.canvasBridgeRef ? root.canvasBridgeRef : null)
+    readonly property var canvasCommandBridgeRef: root.canvasCommandBridge
+        ? root.canvasCommandBridge
+        : root.canvasBridgeRef
+    property var mainWindowBridge: root.canvasCommandBridgeRef ? root.canvasCommandBridgeRef : null
+    property var sceneBridge: root.canvasStateBridgeRef ? root.canvasStateBridgeRef : null
+    property var viewBridge: root.canvasBridgeRef ? root.canvasBridgeRef : root.canvasStateBridgeRef
+    readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
+        ? root.canvasStateBridgeRef
+        : root.mainWindowBridge
+    readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
+        ? root.canvasStateBridgeRef
+        : (root.canvasBridgeRef ? root.canvasBridgeRef : root.sceneBridge)
+    readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef
+        ? root.canvasStateBridgeRef
+        : (root.canvasBridgeRef ? root.canvasBridgeRef : root.viewBridge)
+    readonly property var _canvasCommandBridgeRef: root.canvasCommandBridgeRef
+        ? root.canvasCommandBridgeRef
+        : root.canvasBridgeRef
+    readonly property var _canvasShellCommandBridgeRef: root._canvasCommandBridgeRef
+        ? root._canvasCommandBridgeRef
+        : root.mainWindowBridge
+    readonly property var _canvasSceneCommandBridgeRef: root._canvasCommandBridgeRef
+        ? root._canvasCommandBridgeRef
+        : root.sceneBridge
+    readonly property var _canvasViewCommandBridgeRef: root._canvasCommandBridgeRef
+        ? root._canvasCommandBridgeRef
+        : root.viewBridge
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
-    readonly property var visibleSceneRectPayload: root._canvasVisibleRectBridgeRef
-        ? root._canvasVisibleRectBridgeRef.visible_scene_rect_payload
+    readonly property var visibleSceneRectPayload: root._canvasViewStateBridgeRef
+        ? root._canvasViewStateBridgeRef.visible_scene_rect_payload
         : ({})
-    property bool minimapExpanded: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_minimap_expanded) : true
-    readonly property bool showGrid: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_grid) : true
-    readonly property bool minimapVisible: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_show_minimap) : true
-    readonly property bool nodeShadowEnabled: root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.graphics_node_shadow) : true
-    readonly property int shadowStrength: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_strength : 70
-    readonly property int shadowSoftness: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_softness : 50
-    readonly property int shadowOffset: root._canvasShellBridgeRef ? root._canvasShellBridgeRef.graphics_shadow_offset : 4
+    property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
+    readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
+    readonly property bool minimapVisible: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_minimap) : true
+    readonly property bool nodeShadowEnabled: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_node_shadow) : true
+    readonly property int shadowStrength: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_strength : 70
+    readonly property int shadowSoftness: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_softness : 50
+    readonly property int shadowOffset: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_offset : 4
     readonly property bool viewportInteractionWorldCacheActive: interactionState.viewportInteractionCacheActive
     readonly property bool highQualityRendering: !root.viewportInteractionWorldCacheActive
     readonly property int interactionIdleDelayMs: 150
@@ -67,8 +71,8 @@ Item {
     GraphCanvasComponents.GraphCanvasInteractionState {
         id: interactionState
         canvasItem: root
-        shellBridge: root._canvasShellBridgeRef
-        sceneBridge: root._canvasSceneBridgeRef
+        shellBridge: root._canvasShellCommandBridgeRef
+        sceneBridge: root._canvasSceneStateBridgeRef
         edgeLayerItem: edgeLayer
         interactionIdleTimer: interactionIdleTimer
         interactionIdleDelayMs: root.interactionIdleDelayMs
@@ -99,7 +103,7 @@ Item {
 
     function toggleMinimapExpanded() {
         var nextExpanded = !root.minimapExpanded;
-        var bridge = root._canvasShellBridgeRef;
+        var bridge = root._canvasShellCommandBridgeRef;
         if (bridge && bridge.set_graphics_minimap_expanded) {
             bridge.set_graphics_minimap_expanded(nextExpanded);
             return;
@@ -127,7 +131,7 @@ Item {
     }
 
     function screenToSceneX(screenX) {
-        var view = root._canvasViewBridgeRef;
+        var view = root._canvasViewStateBridgeRef;
         return GraphCanvasLogic.screenToSceneX(
             screenX,
             (view ? view.center_x : 0.0),
@@ -137,7 +141,7 @@ Item {
     }
 
     function screenToSceneY(screenY) {
-        var view = root._canvasViewBridgeRef;
+        var view = root._canvasViewStateBridgeRef;
         return GraphCanvasLogic.screenToSceneY(
             screenY,
             (view ? view.center_y : 0.0),
@@ -151,8 +155,9 @@ Item {
     }
 
     function applyWheelZoom(eventObj) {
-        var view = root._canvasViewBridgeRef;
-        if (!view)
+        var viewState = root._canvasViewStateBridgeRef;
+        var viewCommand = root._canvasViewCommandBridgeRef;
+        if (!viewState || !viewCommand)
             return false;
         var deltaY = _wheelDeltaY(eventObj);
         if (Math.abs(deltaY) < 0.001)
@@ -174,20 +179,20 @@ Item {
             steps = deltaY > 0 ? 1.0 : -1.0;
         steps = Math.max(-1.0, Math.min(1.0, steps));
         var factor = Math.pow(1.15, steps);
-        if (view.adjust_zoom)
-            view.adjust_zoom(factor);
+        if (viewCommand.adjust_zoom)
+            viewCommand.adjust_zoom(factor);
 
         if (hasCursor) {
             var sceneAfterX = screenToSceneX(cursorX);
             var sceneAfterY = screenToSceneY(cursorY);
-            if (view.pan_by)
-                view.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
+            if (viewCommand.pan_by)
+                viewCommand.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
         }
         return true;
     }
 
     function sceneToScreenX(sceneX) {
-        var view = root._canvasViewBridgeRef;
+        var view = root._canvasViewStateBridgeRef;
         return GraphCanvasLogic.sceneToScreenX(
             sceneX,
             (view ? view.center_x : 0.0),
@@ -197,7 +202,7 @@ Item {
     }
 
     function sceneToScreenY(sceneY) {
-        var view = root._canvasViewBridgeRef;
+        var view = root._canvasViewStateBridgeRef;
         return GraphCanvasLogic.sceneToScreenY(
             sceneY,
             (view ? view.center_y : 0.0),
@@ -207,11 +212,11 @@ Item {
     }
 
     function snapToGridEnabled() {
-        return root._canvasShellBridgeRef ? Boolean(root._canvasShellBridgeRef.snap_to_grid_enabled) : false;
+        return root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.snap_to_grid_enabled) : false;
     }
 
     function snapGridSize() {
-        return GraphCanvasLogic.normalizeSnapGridSize(root._canvasShellBridgeRef ? root._canvasShellBridgeRef.snap_grid_size : 20.0);
+        return GraphCanvasLogic.normalizeSnapGridSize(root._canvasStateBridgeRef ? root._canvasStateBridgeRef.snap_grid_size : 20.0);
     }
 
     function snapToGridValue(value) {
@@ -264,7 +269,7 @@ Item {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return null;
-        var nodes = root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : [];
+        var nodes = root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : [];
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (node && node.node_id === normalized)
@@ -310,7 +315,7 @@ Item {
     }
 
     function requestOpenSubnodeScope(nodeId) {
-        var bridge = root._canvasShellBridgeRef;
+        var bridge = root._canvasShellCommandBridgeRef;
         if (!bridge || !bridge.request_open_subnode_scope)
             return false;
         var normalized = String(nodeId || "").trim();
@@ -326,50 +331,35 @@ Item {
     }
 
     function _nodeSurfaceSelectionBridge() {
-        var bridge = root._canvasSceneBridgeRef;
-        if (bridge && bridge.select_node)
-            return bridge;
-        bridge = root._canvasSceneCompatRef;
+        var bridge = root._canvasSceneCommandBridgeRef;
         if (bridge && bridge.select_node)
             return bridge;
         return null;
     }
 
     function _nodeSurfacePendingActionBridge() {
-        var bridge = root._canvasSceneBridgeRef;
-        if (bridge && bridge.set_pending_surface_action && bridge.consume_pending_surface_action)
-            return bridge;
-        bridge = root._canvasSceneCompatRef;
+        var bridge = root._canvasSceneCommandBridgeRef;
         if (bridge && bridge.set_pending_surface_action && bridge.consume_pending_surface_action)
             return bridge;
         return null;
     }
 
     function _nodeSurfacePropertyBridge() {
-        var bridge = root._canvasSceneBridgeRef;
-        if (bridge && bridge.set_node_properties)
-            return bridge;
-        bridge = root._canvasSceneCompatRef;
+        var bridge = root._canvasSceneCommandBridgeRef;
         if (bridge && bridge.set_node_properties)
             return bridge;
         return null;
     }
 
     function _nodeSurfaceCursorBridge() {
-        var bridge = root._canvasShellBridgeRef;
-        if (bridge && bridge.set_graph_cursor_shape && bridge.clear_graph_cursor_shape)
-            return bridge;
-        bridge = root._canvasShellCompatRef;
+        var bridge = root._canvasShellCommandBridgeRef;
         if (bridge && bridge.set_graph_cursor_shape && bridge.clear_graph_cursor_shape)
             return bridge;
         return null;
     }
 
     function _nodeSurfacePdfPreviewBridge() {
-        var bridge = root._canvasShellBridgeRef;
-        if (bridge && bridge.describe_pdf_preview)
-            return bridge;
-        bridge = root._canvasShellCompatRef;
+        var bridge = root._canvasShellCommandBridgeRef;
         if (bridge && bridge.describe_pdf_preview)
             return bridge;
         return null;
@@ -383,7 +373,7 @@ Item {
         root.cancelWireDrag();
         root.clearPendingConnection();
         root.clearEdgeSelection();
-        var bridge = root._canvasSceneBridgeRef;
+        var bridge = root._canvasSceneCommandBridgeRef;
         if (bridge && bridge.select_node)
             bridge.select_node(normalized, false);
         return true;
@@ -395,7 +385,7 @@ Item {
         if (!normalizedNodeId || !normalizedKey)
             return false;
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
-        var bridge = root._canvasSceneBridgeRef;
+        var bridge = root._canvasSceneCommandBridgeRef;
         if (!bridge || !bridge.set_node_property)
             return false;
         bridge.set_node_property(normalizedNodeId, normalizedKey, value);
@@ -442,9 +432,7 @@ Item {
         var bridge = root._nodeSurfacePropertyBridge();
         if (bridge)
             return Boolean(bridge.set_node_properties(normalized, properties || ({})));
-        bridge = root._canvasSceneBridgeRef;
-        if ((!bridge || !bridge.set_node_property) && root._canvasSceneCompatRef && root._canvasSceneCompatRef.set_node_property)
-            bridge = root._canvasSceneCompatRef;
+        bridge = root._canvasSceneCommandBridgeRef;
         if (!bridge || !bridge.set_node_property)
             return false;
         var changed = false;
@@ -484,7 +472,7 @@ Item {
     function browseNodePropertyPath(nodeId, key, currentPath) {
         var normalizedNodeId = String(nodeId || "").trim();
         var normalizedKey = String(key || "").trim();
-        var bridge = root._canvasShellBridgeRef;
+        var bridge = root._canvasShellCommandBridgeRef;
         if (!normalizedNodeId || !normalizedKey || !bridge || !bridge.browse_node_property_path)
             return "";
         root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
@@ -496,7 +484,7 @@ Item {
     }
 
     function selectedNodeIds() {
-        var bridge = root._canvasSceneBridgeRef;
+        var bridge = root._canvasSceneStateBridgeRef;
         var nodes = bridge ? bridge.nodes_model : [];
         var selectedLookup = null;
         if (bridge && typeof bridge.selected_node_lookup !== "undefined")
@@ -778,7 +766,7 @@ Item {
     }
 
     function _syncEdgePayload() {
-        root.edgePayload = root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.edges_model : [];
+        root.edgePayload = root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.edges_model : [];
         pruneSelectedEdges();
         edgeLayer.requestRedraw();
     }
@@ -816,7 +804,7 @@ Item {
         id: backgroundLayer
         objectName: "graphCanvasBackground"
         anchors.fill: parent
-        viewBridge: root._canvasViewBridgeRef
+        viewBridge: root._canvasViewStateBridgeRef
         showGrid: root.showGrid
     }
 
@@ -824,10 +812,10 @@ Item {
         id: edgeLayer
         objectName: "graphCanvasEdgeLayer"
         anchors.fill: parent
-        viewBridge: root._canvasViewBridgeRef
-        sceneBridge: root._canvasSceneBridgeRef
+        viewBridge: root._canvasViewStateBridgeRef
+        sceneBridge: root._canvasSceneStateBridgeRef
         edges: root.edgePayload
-        nodes: root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : []
+        nodes: root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : []
         dragOffsets: root.liveDragOffsets
         liveNodeGeometry: root.liveNodeGeometry
         selectedEdgeIds: root.selectedEdgeIds
@@ -854,7 +842,7 @@ Item {
         id: dragNodePreview
         objectName: "graphCanvasDropPreview"
         canvasItem: root
-        viewBridge: root._canvasViewBridgeRef
+        viewBridge: root._canvasViewStateBridgeRef
     }
 
     Item {
@@ -863,12 +851,12 @@ Item {
         width: root.worldSize
         height: root.worldSize
         transformOrigin: Item.TopLeft
-        scale: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0
-        x: root.width * 0.5 - ((root._canvasViewBridgeRef ? root._canvasViewBridgeRef.center_x : 0) + root.worldOffset) * scale
-        y: root.height * 0.5 - ((root._canvasViewBridgeRef ? root._canvasViewBridgeRef.center_y : 0) + root.worldOffset) * scale
+        scale: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
+        x: root.width * 0.5 - ((root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.center_x : 0) + root.worldOffset) * scale
+        y: root.height * 0.5 - ((root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.center_y : 0) + root.worldOffset) * scale
 
         Repeater {
-            model: root._canvasSceneBridgeRef ? root._canvasSceneBridgeRef.nodes_model : []
+            model: root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : []
             delegate: GraphComponents.GraphNodeHost {
                 id: nodeCard
                 nodeData: modelData
@@ -884,12 +872,12 @@ Item {
                 shadowStrength: root.shadowStrength
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
-                zoom: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0
+                zoom: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
                 renderQualitySimplified: root.viewportInteractionWorldCacheActive
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
 
                 onNodeClicked: function(nodeId, additive) {
-                    var bridge = root._canvasSceneBridgeRef;
+                    var bridge = root._canvasSceneCommandBridgeRef;
                     root.forceActiveFocus();
                     root._closeContextMenus();
                     root.clearPendingConnection();
@@ -914,7 +902,7 @@ Item {
                     );
                 }
                 onDragFinished: function(nodeId, finalX, finalY, _moved) {
-                    var bridge = root._canvasSceneBridgeRef;
+                    var bridge = root._canvasSceneCommandBridgeRef;
                     var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
                     var anchorPayload = root._sceneNodePayload(nodeId);
                     var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
@@ -960,7 +948,7 @@ Item {
                     root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, active);
                 }
                 onResizeFinished: function(nodeId, newX, newY, newWidth, newHeight) {
-                    var bridge = root._canvasSceneBridgeRef;
+                    var bridge = root._canvasSceneCommandBridgeRef;
                     root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, false);
                     if (!bridge)
                         return;
@@ -1028,28 +1016,30 @@ Item {
         id: minimapOverlay
         objectName: "graphCanvasMinimapOverlay"
         canvasItem: root
-        sceneBridge: root._canvasMinimapSceneBridgeRef
-        viewBridge: root._canvasMinimapViewBridgeRef
+        sceneStateBridge: root._canvasSceneStateBridgeRef
+        viewStateBridge: root._canvasViewStateBridgeRef
+        viewCommandBridge: root._canvasViewCommandBridgeRef
     }
 
     GraphCanvasComponents.GraphCanvasInputLayers {
         id: inputLayers
         objectName: "graphCanvasInputLayers"
         canvasItem: root
-        mainWindowBridge: root._canvasShellBridgeRef
-        sceneBridge: root._canvasSelectionBridgeRef
-        viewBridge: root._canvasViewBridgeRef
+        shellCommandBridge: root._canvasShellCommandBridgeRef
+        sceneCommandBridge: root._canvasSceneCommandBridgeRef
+        viewStateBridge: root._canvasViewStateBridgeRef
+        viewCommandBridge: root._canvasViewCommandBridgeRef
     }
 
     GraphCanvasComponents.GraphCanvasContextMenus {
         id: contextMenus
         objectName: "graphCanvasContextMenus"
         canvasItem: root
-        mainWindowBridge: root._canvasShellBridgeRef
+        commandBridge: root._canvasShellCommandBridgeRef
     }
 
     Connections {
-        target: root._canvasSceneBridgeRef
+        target: root._canvasSceneStateBridgeRef
         ignoreUnknownSignals: true
         function _handleSceneMutation() {
             root.liveDragOffsets = ({});
@@ -1072,7 +1062,7 @@ Item {
     }
 
     Connections {
-        target: root._canvasViewBridgeRef
+        target: root._canvasViewStateBridgeRef
         ignoreUnknownSignals: true
         function onView_state_changed() {
             root.requestViewStateRedraw();
@@ -1087,16 +1077,18 @@ Item {
     }
 
     onCanvasBridgeChanged: root._resetCanvasSceneState()
+    onCanvasStateBridgeChanged: root._resetCanvasSceneState()
+    onCanvasCommandBridgeChanged: root._resetCanvasSceneState()
     onSceneBridgeChanged: root._resetCanvasSceneState()
 
     onWidthChanged: {
-        var view = root._canvasViewBridgeRef;
+        var view = root._canvasViewCommandBridgeRef;
         if (view && view.set_viewport_size)
             view.set_viewport_size(width, height);
     }
 
     onHeightChanged: {
-        var view = root._canvasViewBridgeRef;
+        var view = root._canvasViewCommandBridgeRef;
         if (view && view.set_viewport_size)
             view.set_viewport_size(width, height);
     }

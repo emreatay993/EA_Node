@@ -4,7 +4,7 @@ import "../shell" as ShellComponents
 Item {
     id: root
     property Item canvasItem: null
-    property var mainWindowBridge: null
+    property var commandBridge: null
     readonly property var themePalette: themeBridge.palette
 
     anchors.fill: parent
@@ -32,20 +32,20 @@ Item {
             { "actionId": "remove_edge", "text": "Remove Connection", "destructive": true }
         ]
         onActionTriggered: function(actionId) {
-            if (!root.mainWindowBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
+            if (!root.commandBridge || !root.canvasItem || !root.canvasItem.edgeContextEdgeId)
                 return
             if (actionId === "edit_flow_edge") {
-                root.mainWindowBridge.request_edit_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+                root.commandBridge.request_edit_flow_edge_style(root.canvasItem.edgeContextEdgeId)
             } else if (actionId === "edit_edge_label") {
-                root.mainWindowBridge.request_edit_flow_edge_label(root.canvasItem.edgeContextEdgeId)
+                root.commandBridge.request_edit_flow_edge_label(root.canvasItem.edgeContextEdgeId)
             } else if (actionId === "reset_flow_edge_style") {
-                root.mainWindowBridge.request_reset_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+                root.commandBridge.request_reset_flow_edge_style(root.canvasItem.edgeContextEdgeId)
             } else if (actionId === "copy_flow_edge_style") {
-                root.mainWindowBridge.request_copy_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+                root.commandBridge.request_copy_flow_edge_style(root.canvasItem.edgeContextEdgeId)
             } else if (actionId === "paste_flow_edge_style") {
-                root.mainWindowBridge.request_paste_flow_edge_style(root.canvasItem.edgeContextEdgeId)
+                root.commandBridge.request_paste_flow_edge_style(root.canvasItem.edgeContextEdgeId)
             } else if (actionId === "remove_edge") {
-                root.mainWindowBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId)
+                root.commandBridge.request_remove_edge(root.canvasItem.edgeContextEdgeId)
                 root.canvasItem.selectedEdgeIds = root.canvasItem.selectedEdgeIds.filter(function(value) {
                     return value !== root.canvasItem.edgeContextEdgeId
                 })
@@ -90,24 +90,24 @@ Item {
                     root.canvasItem._closeContextMenus()
                 return
             }
-            if (!root.mainWindowBridge || !root.canvasItem.nodeContextNodeId)
+            if (!root.commandBridge || !root.canvasItem.nodeContextNodeId)
                 return
             if (actionId === "add_to_workflows") {
-                root.mainWindowBridge.request_publish_custom_workflow_from_node(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_publish_custom_workflow_from_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "edit_node_style") {
-                root.mainWindowBridge.request_edit_passive_node_style(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_edit_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "reset_node_style") {
-                root.mainWindowBridge.request_reset_passive_node_style(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_reset_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "copy_node_style") {
-                root.mainWindowBridge.request_copy_passive_node_style(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_copy_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "paste_node_style") {
-                root.mainWindowBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_paste_passive_node_style(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "rename_node") {
-                root.mainWindowBridge.request_rename_node(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_rename_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "ungroup_subnode") {
-                root.mainWindowBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_ungroup_node(root.canvasItem.nodeContextNodeId)
             } else if (actionId === "remove_node") {
-                root.mainWindowBridge.request_remove_node(root.canvasItem.nodeContextNodeId)
+                root.commandBridge.request_remove_node(root.canvasItem.nodeContextNodeId)
                 root.canvasItem.clearEdgeSelection()
             } else {
                 return

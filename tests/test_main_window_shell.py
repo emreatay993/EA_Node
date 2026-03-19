@@ -962,6 +962,20 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             },
         )
 
+    def test_state_bridge_exposes_scene_compatibility_queries_for_bridge_first_qml(self) -> None:
+        scene = _GraphCanvasSceneBridgeStub()
+        bridge = GraphCanvasStateBridge(scene_bridge=scene)
+
+        self.assertTrue(bridge.are_port_kinds_compatible("exec", "exec"))
+        self.assertTrue(bridge.are_data_types_compatible("text", "text"))
+        self.assertEqual(
+            scene.calls,
+            [
+                ("are_port_kinds_compatible", ("exec", "exec")),
+                ("are_data_types_compatible", ("text", "text")),
+            ],
+        )
+
     def test_command_bridge_routes_canvas_commands_to_presenter_host_scene_and_view(self) -> None:
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
@@ -1906,9 +1920,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                 ),
                 (
                     "property var graphCanvasBridgeRef",
-                    "property var canvasShellCompatRef",
-                    "property var canvasSceneCompatRef",
-                    "property var canvasViewCompatRef",
+                    "property var graphCanvasStateBridgeRef",
+                    "property var graphCanvasCommandBridgeRef",
                     "property var overlayHostItem",
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
                     "root.workspaceBridgeRef.graphics_tab_strip_density",
@@ -1934,9 +1947,8 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "root.workspaceBridgeRef.errors_text",
                     "root.workspaceBridgeRef.warnings_text",
                     "canvasBridge: root.graphCanvasBridgeRef",
-                    "mainWindowBridge: root.canvasShellCompatRef",
-                    "sceneBridge: root.canvasSceneCompatRef",
-                    "viewBridge: root.canvasViewCompatRef",
+                    "canvasStateBridge: root.graphCanvasStateBridgeRef",
+                    "canvasCommandBridge: root.graphCanvasCommandBridgeRef",
                 ),
             ),
             "ea_node_editor/ui_qml/components/shell/ScriptEditorOverlay.qml": (
@@ -1970,26 +1982,28 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         qml_text = qml_path.read_text(encoding="utf-8")
 
         absent_snippets = (
+            "typeof graphCanvasBridge",
+            "typeof mainWindow",
+            "typeof sceneBridge",
+            "typeof viewBridge",
             "workspaceTabsBridgeRef: workspaceTabsBridge",
             "consoleBridgeRef: consoleBridge",
             "mainWindowRef: mainWindow",
             "sceneBridgeRef: root.sceneBridgeRef",
             "viewBridgeRef: root.viewBridgeRef",
             "viewBridgeRef: viewBridge",
-            "readonly property var canvasShellCompatRef",
-            "readonly property var canvasSceneCompatRef",
-            "readonly property var canvasViewCompatRef",
-        )
-        present_snippets = (
-            "readonly property var canvasBridgeRef",
             "readonly property var canvasShellBridgeRef",
             "readonly property var canvasSceneBridgeRef",
-            "readonly property var canvasViewBridgeRef",
+        )
+        present_snippets = (
+            "readonly property var canvasBridgeRef: graphCanvasBridge",
+            "readonly property var canvasStateBridgeRef: graphCanvasStateBridge",
+            "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
+            "readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef",
             "WorkspaceCenterPane {",
             "graphCanvasBridgeRef: root.canvasBridgeRef",
-            "canvasShellCompatRef: root.canvasShellBridgeRef",
-            "canvasSceneCompatRef: root.canvasSceneBridgeRef",
-            "canvasViewCompatRef: root.canvasViewBridgeRef",
+            "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
+            "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
             "scriptEditorBridgeRef: scriptEditorBridge",
@@ -2045,17 +2059,27 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var wireDragState: null",
             "property bool edgeContextVisible: false",
             "property bool interactionActive: false",
-        )
-        present_snippets = (
-            "property var canvasBridge: null",
             "readonly property var _canvasShellBridgeRef",
             "readonly property var _canvasSceneBridgeRef",
             "readonly property var _canvasViewBridgeRef",
             "readonly property var _canvasShellCompatRef",
             "readonly property var _canvasSceneCompatRef",
             "readonly property var _canvasViewCompatRef",
-            "root._canvasShellBridgeRef.graphics_show_grid",
-            "root._canvasSceneBridgeRef.nodes_model",
+        )
+        present_snippets = (
+            "property var canvasBridge: null",
+            "property var canvasStateBridge: null",
+            "property var canvasCommandBridge: null",
+            "readonly property var canvasStateBridgeRef",
+            "readonly property var canvasCommandBridgeRef",
+            "readonly property var _canvasStateBridgeRef",
+            "readonly property var _canvasSceneStateBridgeRef",
+            "readonly property var _canvasViewStateBridgeRef",
+            "readonly property var _canvasShellCommandBridgeRef",
+            "readonly property var _canvasSceneCommandBridgeRef",
+            "readonly property var _canvasViewCommandBridgeRef",
+            "root._canvasStateBridgeRef.graphics_show_grid",
+            "root._canvasSceneStateBridgeRef.nodes_model",
             "bridge.selected_node_lookup",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
             "property alias hoveredPort: interactionState.hoveredPort",
@@ -2063,18 +2087,19 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property alias interactionActive: interactionState.interactionActive",
             "interactionState.updateLibraryDropPreview(screenX, screenY, payload);",
             "interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);",
-            "var bridge = root._canvasShellBridgeRef",
-            "var bridge = root._canvasSceneBridgeRef",
-            "var view = root._canvasViewBridgeRef",
-            "scale: root._canvasViewBridgeRef ? root._canvasViewBridgeRef.zoom_value : 1.0",
-            "viewBridge: root._canvasViewBridgeRef",
-            "sceneBridge: root._canvasSceneBridgeRef",
-            "mainWindowBridge: root._canvasShellBridgeRef",
-            "sceneBridge: root._canvasSelectionBridgeRef",
-            "sceneBridge: root._canvasMinimapSceneBridgeRef",
-            "viewBridge: root._canvasMinimapViewBridgeRef",
-            "target: root._canvasSceneBridgeRef",
-            "target: root._canvasViewBridgeRef",
+            "var bridge = root._canvasShellCommandBridgeRef",
+            "var bridge = root._canvasSceneCommandBridgeRef",
+            "var view = root._canvasViewStateBridgeRef",
+            "scale: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0",
+            "viewBridge: root._canvasViewStateBridgeRef",
+            "sceneBridge: root._canvasSceneStateBridgeRef",
+            "shellCommandBridge: root._canvasShellCommandBridgeRef",
+            "sceneCommandBridge: root._canvasSceneCommandBridgeRef",
+            "sceneStateBridge: root._canvasSceneStateBridgeRef",
+            "viewStateBridge: root._canvasViewStateBridgeRef",
+            "viewCommandBridge: root._canvasViewCommandBridgeRef",
+            "target: root._canvasSceneStateBridgeRef",
+            "target: root._canvasViewStateBridgeRef",
         )
 
         for snippet in absent_snippets:
@@ -2181,13 +2206,10 @@ class MainWindowShellBootstrapCompositionTests(SharedMainWindowShellTestBase):
 
 
 class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
-    def test_qml_context_preserves_legacy_context_properties_and_registers_facades(self) -> None:
+    def test_qml_context_removes_raw_canvas_globals_and_registers_bridge_first_facades(self) -> None:
         context = self.window.quick_widget.rootContext()
 
         expected_context_names = (
-            "mainWindow",
-            "sceneBridge",
-            "viewBridge",
             "consoleBridge",
             "scriptEditorBridge",
             "scriptHighlighterBridge",
@@ -2202,11 +2224,17 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "shellLibraryBridge",
             "shellWorkspaceBridge",
             "shellInspectorBridge",
+            "graphCanvasStateBridge",
+            "graphCanvasCommandBridge",
             "graphCanvasBridge",
         )
         for name in expected_context_names:
             with self.subTest(name=name):
                 self.assertIsNotNone(context.contextProperty(name))
+
+        for name in ("mainWindow", "sceneBridge", "viewBridge"):
+            with self.subTest(name=name, expectation="removed"):
+                self.assertIsNone(context.contextProperty(name))
 
         shell_library_bridge = context.contextProperty("shellLibraryBridge")
         self.assertIsInstance(shell_library_bridge, ShellLibraryBridge)
@@ -2311,27 +2339,37 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
     def test_graph_canvas_host_binds_canvas_bridge_ref_to_registered_graph_canvas_bridge(self) -> None:
         graph_canvas = self._graph_canvas_item()
         context = self.window.quick_widget.rootContext()
+        graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
+        graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
         graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
         canvas_bridge = graph_canvas.property("canvasBridge")
+        canvas_state_bridge = graph_canvas.property("canvasStateBridge")
+        canvas_command_bridge = graph_canvas.property("canvasCommandBridge")
         canvas_bridge_ref = graph_canvas.property("canvasBridgeRef")
 
+        self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
+        self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
         self.assertEqual(graph_canvas.objectName(), "graphCanvas")
         self.assertIsInstance(canvas_bridge, GraphCanvasBridge)
         self.assertIs(canvas_bridge, graph_canvas_bridge)
+        self.assertIsInstance(canvas_state_bridge, GraphCanvasStateBridge)
+        self.assertIs(canvas_state_bridge, graph_canvas_state_bridge)
+        self.assertIsInstance(canvas_command_bridge, GraphCanvasCommandBridge)
+        self.assertIs(canvas_command_bridge, graph_canvas_command_bridge)
         self.assertIsInstance(canvas_bridge_ref, GraphCanvasBridge)
         self.assertIs(canvas_bridge_ref, graph_canvas_bridge)
         self.assertEqual(
             bool(graph_canvas.property("showGrid")),
-            canvas_bridge_ref.graphics_show_grid,
+            graph_canvas_state_bridge.graphics_show_grid,
         )
         self.assertEqual(
             bool(graph_canvas.property("minimapVisible")),
-            canvas_bridge_ref.graphics_show_minimap,
+            graph_canvas_state_bridge.graphics_show_minimap,
         )
         self.assertEqual(
             bool(graph_canvas.property("minimapExpanded")),
-            canvas_bridge_ref.graphics_minimap_expanded,
+            graph_canvas_state_bridge.graphics_minimap_expanded,
         )
 
     def test_graph_canvas_keeps_graph_node_card_discoverability_after_host_refactor(self) -> None:

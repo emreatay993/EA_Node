@@ -6,8 +6,9 @@ Rectangle {
     id: root
     objectName: "graphCanvasMinimapOverlayRoot"
     property Item canvasItem: null
-    property var sceneBridge: null
-    property var viewBridge: null
+    property var sceneStateBridge: null
+    property var viewStateBridge: null
+    property var viewCommandBridge: null
     readonly property var themePalette: themeBridge.palette
     readonly property bool isExpanded: root.canvasItem ? root.canvasItem.minimapExpanded : false
     readonly property color chromeColor: Qt.alpha(themePalette.panel_bg, 0.64)
@@ -26,7 +27,7 @@ Rectangle {
     readonly property color minimapNodeBorderColor: themePalette.muted_fg
     readonly property color viewportRectFillColor: Qt.alpha(themePalette.accent, 0.18)
     readonly property color viewportRectBorderColor: themePalette.accent
-    readonly property var selectedNodeLookup: root.sceneBridge ? root.sceneBridge.selected_node_lookup : ({})
+    readonly property var selectedNodeLookup: root.sceneStateBridge ? root.sceneStateBridge.selected_node_lookup : ({})
 
     z: 140
     visible: root.canvasItem ? root.canvasItem.minimapVisible : true
@@ -146,13 +147,13 @@ Rectangle {
         }
 
         function sceneRect() {
-            var payload = root.sceneBridge ? root.sceneBridge.workspace_scene_bounds_payload : null;
+            var payload = root.sceneStateBridge ? root.sceneStateBridge.workspace_scene_bounds_payload : null;
             return _normalizeRectPayload(payload, -1600.0, -900.0, 3200.0, 1800.0);
         }
 
         function visibleRect() {
             var scene = sceneRect();
-            var payload = root.viewBridge ? root.viewBridge.visible_scene_rect_payload : null;
+            var payload = root.viewStateBridge ? root.viewStateBridge.visible_scene_rect_payload : null;
             return _normalizeRectPayload(payload, scene.x, scene.y, scene.width, scene.height);
         }
 
@@ -218,9 +219,9 @@ Rectangle {
                 root.canvasItem._closeContextMenus();
             }
             onClicked: {
-                if (!root.viewBridge)
+                if (!root.viewCommandBridge)
                     return;
-                root.viewBridge.center_on_scene_point(
+                root.viewCommandBridge.center_on_scene_point(
                     minimapViewport.minimapToSceneX(mouse.x),
                     minimapViewport.minimapToSceneY(mouse.y)
                 );
@@ -229,7 +230,7 @@ Rectangle {
         }
 
         Repeater {
-            model: root.sceneBridge ? root.sceneBridge.minimap_nodes_model : []
+            model: root.sceneStateBridge ? root.sceneStateBridge.minimap_nodes_model : []
             delegate: Rectangle {
                 readonly property bool selectedState: Boolean(
                     root.selectedNodeLookup[String(modelData.node_id || "")]
@@ -282,8 +283,8 @@ Rectangle {
                         return;
                     root.canvasItem.forceActiveFocus();
                     root.canvasItem._closeContextMenus();
-                    if (root.viewBridge) {
-                        root.viewBridge.center_on_scene_point(
+                    if (root.viewCommandBridge) {
+                        root.viewCommandBridge.center_on_scene_point(
                             minimapViewport.minimapToSceneX(minimapViewportRect.x + mouse.x),
                             minimapViewport.minimapToSceneY(minimapViewportRect.y + mouse.y)
                         );
@@ -291,9 +292,9 @@ Rectangle {
                     mouse.accepted = true;
                 }
                 onPositionChanged: {
-                    if (!pressed || !root.viewBridge)
+                    if (!pressed || !root.viewCommandBridge)
                         return;
-                    root.viewBridge.center_on_scene_point(
+                    root.viewCommandBridge.center_on_scene_point(
                         minimapViewport.minimapToSceneX(minimapViewportRect.x + mouse.x),
                         minimapViewport.minimapToSceneY(minimapViewportRect.y + mouse.y)
                     );

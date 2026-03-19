@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -22,6 +22,13 @@ def _source_attr(source: object | None, name: str, default: Any) -> Any:
     if source is None:
         return default
     return getattr(source, name, default)
+
+
+def _invoke_bool(source: object | None, name: str, *args) -> bool:
+    callback = getattr(source, name, None) if source is not None else None
+    if not callable(callback):
+        return False
+    return bool(callback(*args))
 
 
 def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
@@ -146,6 +153,24 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty("QVariantMap", notify=scene_selection_changed)
     def selected_node_lookup(self) -> dict[str, bool]:
         return _copy_dict(_source_attr(self._scene_bridge, "selected_node_lookup", {}))
+
+    @pyqtSlot(str, str, result=bool)
+    def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
+        return _invoke_bool(
+            self._scene_bridge,
+            "are_port_kinds_compatible",
+            source_kind,
+            target_kind,
+        )
+
+    @pyqtSlot(str, str, result=bool)
+    def are_data_types_compatible(self, source_type: str, target_type: str) -> bool:
+        return _invoke_bool(
+            self._scene_bridge,
+            "are_data_types_compatible",
+            source_type,
+            target_type,
+        )
 
 
 __all__ = ["GraphCanvasStateBridge"]

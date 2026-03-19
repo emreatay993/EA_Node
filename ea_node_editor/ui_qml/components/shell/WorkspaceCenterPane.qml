@@ -7,9 +7,8 @@ Rectangle {
     id: root
     readonly property var workspaceBridgeRef: shellWorkspaceBridge
     property var graphCanvasBridgeRef
-    property var canvasShellCompatRef
-    property var canvasSceneCompatRef
-    property var canvasViewCompatRef
+    property var graphCanvasStateBridgeRef
+    property var graphCanvasCommandBridgeRef
     property var overlayHostItem
     property alias graphCanvasRef: graphCanvas
     readonly property var themePalette: themeBridge.palette
@@ -117,9 +116,8 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             canvasBridge: root.graphCanvasBridgeRef
-            mainWindowBridge: root.canvasShellCompatRef
-            sceneBridge: root.canvasSceneCompatRef
-            viewBridge: root.canvasViewCompatRef
+            canvasStateBridge: root.graphCanvasStateBridgeRef
+            canvasCommandBridge: root.graphCanvasCommandBridgeRef
             overlayHostItem: root.overlayHostItem
         }
 

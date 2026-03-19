@@ -126,9 +126,6 @@ def shell_context_property_bindings(
         ("statusNotifications", host.status_notifications),
     )
     deferred_compatibility_bindings = (
-        ("mainWindow", host),
-        ("sceneBridge", host.scene),
-        ("viewBridge", host.view),
         ("consoleBridge", host.console_panel),
         ("workspaceTabsBridge", host.workspace_tabs),
     )
