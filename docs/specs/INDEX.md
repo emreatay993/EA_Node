@@ -54,6 +54,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 46. [PLUGIN_PACKAGE_CONTRACT Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/plugin_package_contract/PLUGIN_PACKAGE_CONTRACT_STATUS.md)
 47. [ARCH_FOURTH_PASS Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_fourth_pass/ARCH_FOURTH_PASS_MANIFEST.md)
 48. [ARCH_FOURTH_PASS Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_fourth_pass/ARCH_FOURTH_PASS_STATUS.md)
+49. [ARCH_FIFTH_PASS Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_MANIFEST.md)
+50. [ARCH_FIFTH_PASS Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_STATUS.md)
 
 ## ADRs
 
