@@ -34,6 +34,12 @@ class PackageManifest:
     dependencies: list[str] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class PackageExportSource:
+    source_path: Path
+    archive_name: str | None = None
+
+
 def _manifest_from_data(raw: object, *, fallback_name: str | None = None) -> PackageManifest:
     if not isinstance(raw, dict):
         raise ValueError("Manifest must be a JSON object")
@@ -117,6 +123,69 @@ def _validate_archive_contents(archive: zipfile.ZipFile) -> tuple[PackageManifes
     return manifest, members
 
 
+def _validated_manifest_for_export(manifest: PackageManifest) -> PackageManifest:
+    normalized_manifest = _manifest_from_data(asdict(manifest))
+    normalized_manifest.name = _validate_package_name(normalized_manifest.name)
+    if not normalized_manifest.nodes:
+        raise ValueError("Package manifest must list at least one exported node type")
+    if any(not node_type_id.strip() for node_type_id in normalized_manifest.nodes):
+        raise ValueError("Package manifest node ids must be non-empty strings")
+    return normalized_manifest
+
+
+def _normalized_export_source(source: PackageExportSource | Path | str) -> PackageExportSource:
+    if isinstance(source, PackageExportSource):
+        source_path = Path(source.source_path)
+        archive_name = source.archive_name or source_path.name
+        return PackageExportSource(source_path=source_path, archive_name=archive_name)
+
+    source_path = Path(source)
+    return PackageExportSource(source_path=source_path, archive_name=source_path.name)
+
+
+def _validated_export_member_name(raw_name: str) -> str:
+    member_name = _validated_archive_member_name(raw_name)
+    if member_name == MANIFEST_FILENAME:
+        raise ValueError(f"{MANIFEST_FILENAME} is reserved for the package manifest")
+    return member_name
+
+
+def _is_discoverable_archive_member(member_name: str) -> bool:
+    return member_name == "__init__.py" or not member_name.startswith(_HIDDEN_PACKAGE_PREFIXES)
+
+
+def _validated_export_sources(
+    source_files: list[PackageExportSource | Path | str],
+) -> list[PackageExportSource]:
+    if not source_files:
+        raise ValueError("Package export requires at least one Python source file")
+
+    export_sources: list[PackageExportSource] = []
+    seen_members: set[str] = set()
+    has_discoverable_source = False
+
+    for source in source_files:
+        export_source = _normalized_export_source(source)
+        if not export_source.source_path.is_file():
+            raise ValueError(f"Package export source does not exist: {export_source.source_path}")
+        if export_source.source_path.suffix != ".py":
+            raise ValueError(f"Package export source must be a .py file: {export_source.source_path}")
+
+        member_name = _validated_export_member_name(export_source.archive_name or export_source.source_path.name)
+        if member_name in seen_members:
+            raise ValueError(f"Duplicate package export member: {member_name}")
+        seen_members.add(member_name)
+        has_discoverable_source = has_discoverable_source or _is_discoverable_archive_member(member_name)
+        export_sources.append(
+            PackageExportSource(source_path=export_source.source_path, archive_name=member_name),
+        )
+
+    if not has_discoverable_source:
+        raise ValueError("Package export requires at least one discoverable top-level plugin module")
+
+    return export_sources
+
+
 def _write_archive_members(
     archive: zipfile.ZipFile,
     members: list[zipfile.ZipInfo],
@@ -129,6 +198,10 @@ def _write_archive_members(
 
 def _temporary_package_directory(target_dir: Path, package_name: str, *, kind: str) -> Path:
     return target_dir / f".{package_name}.{kind}-{uuid4().hex}"
+
+
+def _temporary_export_archive_path(output_path: Path) -> Path:
+    return output_path.with_name(f".{output_path.stem}.export-{uuid4().hex}{output_path.suffix}")
 
 
 def _activate_staged_install(staged_dir: Path, package_dir: Path) -> None:
@@ -175,21 +248,32 @@ def import_package(package_path: Path, target_dir: Path | None = None) -> Packag
 
 
 def export_package(
-    source_files: list[Path],
+    source_files: list[PackageExportSource | Path | str],
     manifest: PackageManifest,
     output_path: Path,
 ) -> Path:
-    """Bundle Python source files and a manifest into an .eanp archive."""
+    """Bundle explicit Python source files and a manifest into an .eanp archive."""
+    normalized_manifest = _validated_manifest_for_export(manifest)
+    export_sources = _validated_export_sources(source_files)
     output_path = output_path.with_suffix(PACKAGE_EXTENSION)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_output_path = _temporary_export_archive_path(output_path)
 
-    with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(MANIFEST_FILENAME, json.dumps(asdict(manifest), indent=2))
-        for source_file in source_files:
-            if source_file.is_file() and source_file.suffix == ".py":
-                archive.write(source_file, source_file.name)
+    try:
+        with zipfile.ZipFile(temporary_output_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr(MANIFEST_FILENAME, json.dumps(asdict(normalized_manifest), indent=2))
+            for export_source in export_sources:
+                archive.write(export_source.source_path, export_source.archive_name)
 
-    logger.info("Exported node package '%s' to %s", manifest.name, output_path)
+        # Re-validate the produced archive against the import contract before publishing it.
+        with zipfile.ZipFile(temporary_output_path, "r") as archive:
+            _validate_archive_contents(archive)
+        temporary_output_path.replace(output_path)
+    except Exception:
+        temporary_output_path.unlink(missing_ok=True)
+        raise
+
+    logger.info("Exported node package '%s' to %s", normalized_manifest.name, output_path)
     return output_path
 
 

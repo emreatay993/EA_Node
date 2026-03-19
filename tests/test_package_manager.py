@@ -57,6 +57,12 @@ class ImportedPlugin:
     return package_path
 
 
+def _write_source_file(path: Path, contents: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(contents, encoding="utf-8")
+    return path
+
+
 def test_import_package_installs_package_directory_that_loader_discovers(
     tmp_path: Path,
     monkeypatch,
@@ -175,3 +181,114 @@ def test_list_and_uninstall_packages_follow_installed_package_contract(tmp_path:
 def test_uninstall_package_rejects_invalid_package_names(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="single directory name"):
         package_manager.uninstall_package("../escape", target_dir=tmp_path / "plugins")
+
+
+def test_export_package_requires_explicit_discoverable_source_files(tmp_path: Path) -> None:
+    output_path = tmp_path / "exports" / "hidden_only.eanp"
+    hidden_source = _write_source_file(tmp_path / "sources" / "_helper.py", 'VALUE = "hidden"\n')
+    manifest = package_manager.PackageManifest(
+        name="hidden_only",
+        version="1.0.0",
+        author="Packet Tests",
+        description="P03 hidden export rejection",
+        nodes=["packet.hidden"],
+    )
+
+    with pytest.raises(ValueError, match="discoverable top-level plugin module"):
+        package_manager.export_package(
+            [package_manager.PackageExportSource(hidden_source, "_helper.py")],
+            manifest,
+            output_path,
+        )
+
+    with pytest.raises(ValueError, match="at least one Python source file"):
+        package_manager.export_package([], manifest, tmp_path / "exports" / "empty.eanp")
+
+    assert not output_path.exists()
+
+
+def test_export_package_rejects_placeholder_manifest_without_nodes(tmp_path: Path) -> None:
+    plugin_source = _write_source_file(tmp_path / "sources" / "package_plugin.py", 'VALUE = "plugin"\n')
+    manifest = package_manager.PackageManifest(
+        name="placeholder_package",
+        version="1.0.0",
+        author="Packet Tests",
+        description="P03 placeholder manifest rejection",
+        nodes=[],
+    )
+
+    with pytest.raises(ValueError, match="at least one exported node type"):
+        package_manager.export_package([plugin_source], manifest, tmp_path / "exports" / "placeholder.eanp")
+
+
+def test_export_package_round_trips_through_import_and_loader_discovery(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    helper_source = _write_source_file(
+        tmp_path / "sources" / "source_helper.py",
+        'DISPLAY_NAME = "Exported Package"\n',
+    )
+    plugin_source = _write_source_file(
+        tmp_path / "sources" / "source_plugin.py",
+        """
+from .helper import DISPLAY_NAME
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class ExportedPlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.exported",
+            display_name=DISPLAY_NAME,
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+""".strip()
+        + "\n",
+    )
+    manifest = package_manager.PackageManifest(
+        name="roundtrip_package",
+        version="3.0.0",
+        author="Packet Tests",
+        description="P03 export round trip",
+        nodes=["packet.exported"],
+    )
+
+    package_path = package_manager.export_package(
+        [
+            package_manager.PackageExportSource(helper_source, "helper.py"),
+            package_manager.PackageExportSource(plugin_source, "package_plugin.py"),
+        ],
+        manifest,
+        tmp_path / "exports" / "roundtrip.zip",
+    )
+
+    assert package_path == tmp_path / "exports" / "roundtrip.eanp"
+    with zipfile.ZipFile(package_path, "r") as archive:
+        assert archive.namelist() == [
+            package_manager.MANIFEST_FILENAME,
+            "helper.py",
+            "package_plugin.py",
+        ]
+        exported_manifest = json.loads(archive.read(package_manager.MANIFEST_FILENAME))
+        assert exported_manifest["name"] == "roundtrip_package"
+        assert exported_manifest["nodes"] == ["packet.exported"]
+
+    plugins_root = tmp_path / "plugins"
+    installed_manifest = package_manager.import_package(package_path, target_dir=plugins_root)
+    assert installed_manifest.name == "roundtrip_package"
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.exported"]
+    assert registry.get_spec("packet.exported").display_name == "Exported Package"
