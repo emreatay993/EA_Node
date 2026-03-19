@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+import importlib.metadata
+import logging
+from pathlib import Path
+
+from ea_node_editor.nodes import plugin_loader
+from ea_node_editor.nodes.registry import NodeRegistry
+
+
+def _write_text(path: Path, contents: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(contents, encoding="utf-8")
+    return path
+
+
+def _write_plugin(path: Path, *, type_id: str, display_name: str, class_name: str = "PacketPlugin") -> Path:
+    return _write_text(
+        path,
+        f"""
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class {class_name}:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id={type_id!r},
+            display_name={display_name!r},
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+""".strip()
+        + "\n",
+    )
+
+
+def test_discover_and_load_plugins_preserves_root_py_dropins(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugins_root = tmp_path / "plugins"
+    _write_plugin(plugins_root / "root_dropin.py", type_id="packet.root", display_name="Root Drop-In")
+    _write_plugin(plugins_root / "_private.py", type_id="packet.private", display_name="Private")
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.root"]
+    assert registry.get_spec("packet.root").display_name == "Root Drop-In"
+    assert registry.spec_or_none("packet.private") is None
+
+
+def test_discover_and_load_plugins_discovers_package_directories(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugins_root = tmp_path / "plugins"
+    package_dir = plugins_root / "example_package"
+    _write_text(package_dir / "helper.py", 'DISPLAY_NAME = "Package Directory Plugin"\n')
+    _write_text(
+        package_dir / "package_plugin.py",
+        """
+from .helper import DISPLAY_NAME
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class PackagePlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.package",
+            display_name=DISPLAY_NAME,
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+""".strip()
+        + "\n",
+    )
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.package"]
+    assert registry.get_spec("packet.package").display_name == "Package Directory Plugin"
+
+
+def test_discover_and_load_plugins_continues_after_bad_modules(
+    tmp_path: Path,
+    monkeypatch,
+    caplog,
+) -> None:
+    plugins_root = tmp_path / "plugins"
+    _write_text(plugins_root / "broken_root.py", 'raise RuntimeError("boom")\n')
+    _write_plugin(plugins_root / "good_root.py", type_id="packet.root.good", display_name="Good Root")
+
+    package_dir = plugins_root / "installed_package"
+    _write_text(package_dir / "bad_module.py", 'raise RuntimeError("broken package module")\n')
+    _write_plugin(package_dir / "good_package.py", type_id="packet.package.good", display_name="Good Package")
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+    caplog.set_level(logging.WARNING, logger=plugin_loader.__name__)
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.root.good", "packet.package.good"]
+    assert registry.spec_or_none("packet.root.good") is not None
+    assert registry.spec_or_none("packet.package.good") is not None
+    assert "Failed to load plugin file" in caplog.text
+
+
+def test_discover_and_load_plugins_preserves_entry_point_loading(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class EntryPointPlugin:
+        def spec(self):
+            from ea_node_editor.nodes.types import NodeTypeSpec
+
+            return NodeTypeSpec(
+                type_id="packet.entry-point",
+                display_name="Entry Point",
+                category="Packet Tests",
+                icon="packet",
+                ports=(),
+                properties=(),
+            )
+
+        def execute(self, ctx):
+            from ea_node_editor.nodes.types import NodeResult
+
+            return NodeResult()
+
+    class FakeEntryPoint:
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def load(self):
+            return EntryPointPlugin
+
+    def fake_entry_points(*args, **kwargs):
+        entry_points = [FakeEntryPoint("packet-entry-point")]
+        if kwargs.get("group") == plugin_loader.ENTRY_POINT_GROUP:
+            return entry_points
+        return {plugin_loader.ENTRY_POINT_GROUP: entry_points}
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: tmp_path / "plugins")
+    monkeypatch.setattr(importlib.metadata, "entry_points", fake_entry_points)
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.entry-point"]
+    assert registry.get_spec("packet.entry-point").display_name == "Entry Point"
