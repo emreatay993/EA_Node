@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from ea_node_editor.custom_workflows import export_custom_workflow_file, import_custom_workflow_file
+from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.graph.transforms import group_selection_into_subnode
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -103,7 +104,7 @@ def _schema_v0_inconsistent_payload() -> dict[str, object]:
                     },
                     {
                         "node_id": "node_unknown",
-                        "type_id": "core.unknown",
+                        "type_id": "plugin.missing_logger",
                         "title": "Unknown",
                         "x": 320.0,
                         "y": 0.0,
@@ -111,6 +112,7 @@ def _schema_v0_inconsistent_payload() -> dict[str, object]:
                         "properties": {},
                         "exposed_ports": {},
                         "parent_node_id": None,
+                        "plugin_state": {"mode": "offline", "retries": [1, 2]},
                     },
                 ],
                 "edges": [
@@ -141,10 +143,97 @@ def _schema_v0_inconsistent_payload() -> dict[str, object]:
                         "source_port_key": "exec_out",
                         "target_node_id": "node_logger",
                         "target_port_key": "message",
+                        "label": "Unknown link",
+                        "visual_style": {"stroke": "dot"},
+                        "plugin_edge_state": {"route": "fallback"},
                     },
                 ],
             }
         ],
+    }
+
+
+def _missing_plugin_round_trip_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_missing_plugin_round_trip",
+        "name": "Missing Plugin Round Trip",
+        "active_workspace_id": "ws_plugin",
+        "workspace_order": ["ws_plugin"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_plugin",
+                "name": "Workspace Plugin",
+                "active_view_id": "view_plugin",
+                "views": [
+                    {
+                        "view_id": "view_plugin",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_start",
+                        "type_id": "core.start",
+                        "title": "Start",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_out": True, "trigger": True},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_unknown",
+                        "type_id": "plugin.missing_transform",
+                        "title": "Missing Transform",
+                        "x": 160.0,
+                        "y": 0.0,
+                        "collapsed": True,
+                        "properties": {"threshold": 0.75},
+                        "exposed_ports": {"plugin_in": True},
+                        "visual_style": {"fill": "#123456"},
+                        "parent_node_id": None,
+                        "custom_width": 280.0,
+                        "plugin_payload": {"preset": "wide", "stops": ["a", "b"]},
+                    },
+                    {
+                        "node_id": "node_end",
+                        "type_id": "core.end",
+                        "title": "End",
+                        "x": 320.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_in": True},
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_valid",
+                        "source_node_id": "node_start",
+                        "source_port_key": "exec_out",
+                        "target_node_id": "node_end",
+                        "target_port_key": "exec_in",
+                    },
+                    {
+                        "edge_id": "edge_unknown_to_known",
+                        "source_node_id": "node_unknown",
+                        "source_port_key": "plugin_out",
+                        "target_node_id": "node_end",
+                        "target_port_key": "exec_in",
+                        "label": "Plugin path",
+                        "visual_style": {"stroke": "dashed"},
+                        "plugin_edge_payload": {"waypoints": [1, 2, 3]},
+                    },
+                ],
+            }
+        ],
+        "metadata": {},
     }
 
 
@@ -846,6 +935,63 @@ class SerializerTests(unittest.TestCase):
             ("node_start", "trigger", "node_logger", "message"),
         )
         self.assertEqual(project.metadata.get("workspace_order"), ["ws_legacy"])
+
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown"})
+        self.assertEqual(
+            workspace.unresolved_node_docs["node_unknown"]["plugin_state"],
+            {"mode": "offline", "retries": [1, 2]},
+        )
+        self.assertEqual(
+            workspace.unresolved_edge_docs["edge_unknown"]["plugin_edge_state"],
+            {"route": "fallback"},
+        )
+
+        round_tripped = serializer.to_document(project)
+        workspace_doc = round_tripped["workspaces"][0]
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
+        self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][2])
+        self.assertEqual(edges_by_id["edge_unknown"], payload["workspaces"][0]["edges"][3])
+
+    def test_round_trip_preserves_missing_plugin_payload_across_normalization(self) -> None:
+        registry = build_default_registry()
+        serializer = JsonProjectSerializer(registry)
+        payload = _missing_plugin_round_trip_payload()
+
+        project = serializer.from_document(payload)
+        workspace = project.workspaces["ws_plugin"]
+
+        self.assertNotIn("node_unknown", workspace.nodes)
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(workspace.edges), {"edge_valid"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
+
+        normalize_project_for_registry(project, registry)
+        workspace = project.workspaces["ws_plugin"]
+        self.assertNotIn("node_unknown", workspace.nodes)
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
+
+        round_tripped = serializer.to_document(project)
+        workspace_doc = round_tripped["workspaces"][0]
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
+
+        self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][1])
+        self.assertEqual(edges_by_id["edge_unknown_to_known"], payload["workspaces"][0]["edges"][1])
+        self.assertEqual(
+            edges_by_id["edge_valid"],
+            {
+                "edge_id": "edge_valid",
+                "source_node_id": "node_start",
+                "source_port_key": "exec_out",
+                "target_node_id": "node_end",
+                "target_port_key": "exec_in",
+                "label": "",
+                "visual_style": {},
+            },
+        )
 
 
 if __name__ == "__main__":

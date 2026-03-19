@@ -194,6 +194,80 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
             },
         )
 
+    def test_migrate_preserves_unresolved_node_and_edge_payloads_losslessly(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": 0,
+            "project_id": "proj_missing_plugin",
+            "name": "Missing Plugin",
+            "active_workspace_id": "ws_a",
+            "workspaces": [
+                {
+                    "workspace_id": "ws_a",
+                    "name": "Workspace A",
+                    "active_view_id": "view_a",
+                    "views": [
+                        {
+                            "view_id": "view_a",
+                            "name": "V1",
+                            "zoom": 1.0,
+                            "pan_x": 0.0,
+                            "pan_y": 0.0,
+                        }
+                    ],
+                    "nodes": [
+                        {
+                            "node_id": "node_start",
+                            "type_id": "core.start",
+                            "title": "Start",
+                            "x": 0.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {},
+                            "exposed_ports": {"exec_out": True, "trigger": True},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_unknown",
+                            "type_id": "plugin.missing_node",
+                            "title": "Missing",
+                            "x": 180.0,
+                            "y": 0.0,
+                            "collapsed": True,
+                            "properties": {"threshold": 0.5},
+                            "exposed_ports": {"plugin_in": True},
+                            "visual_style": {"fill": "#334455"},
+                            "parent_node_id": None,
+                            "plugin_payload": {"mode": "offline"},
+                        },
+                    ],
+                    "edges": [
+                        {
+                            "edge_id": "edge_unknown",
+                            "source_node_id": "node_unknown",
+                            "source_port_key": "plugin_out",
+                            "target_node_id": "node_start",
+                            "target_port_key": "trigger",
+                            "label": "Unknown",
+                            "visual_style": {"stroke": "dashed"},
+                            "plugin_edge_payload": {"weight": 2},
+                        }
+                    ],
+                }
+            ],
+            "metadata": {},
+        }
+
+        migrated = serializer.migrate(payload)
+
+        workspace_doc = migrated["workspaces"][0]
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
+
+        self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][1])
+        self.assertEqual(edges_by_id["edge_unknown"], payload["workspaces"][0]["edges"][0])
+        self.assertEqual(set(edges_by_id), {"edge_unknown"})
+
 
 if __name__ == "__main__":
     unittest.main()

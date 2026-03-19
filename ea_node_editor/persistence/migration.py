@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -155,6 +156,10 @@ class JsonProjectMigration:
         return []
 
     @staticmethod
+    def _copy_mapping(value: Mapping[str, Any]) -> dict[str, Any]:
+        return copy.deepcopy(dict(value))
+
+    @staticmethod
     def normalize_metadata(source: Any, workspace_order: list[str]) -> dict[str, Any]:
         metadata = JsonProjectMigration.as_dict(source)
         metadata["workspace_order"] = list(workspace_order)
@@ -237,6 +242,7 @@ class JsonProjectMigration:
             active_view_id = next(iter(views_by_id))
 
         nodes_by_id: dict[str, dict[str, Any]] = {}
+        unresolved_node_ids: set[str] = set()
         for node_doc in self.as_list(workspace_doc.get("nodes", [])):
             if not isinstance(node_doc, Mapping):
                 continue
@@ -246,6 +252,11 @@ class JsonProjectMigration:
                 continue
             spec = self._registry.spec_or_none(type_id)
             if spec is None:
+                preserved_node = self._copy_mapping(node_doc)
+                preserved_node["node_id"] = node_id
+                preserved_node["type_id"] = type_id
+                nodes_by_id[node_id] = preserved_node
+                unresolved_node_ids.add(node_id)
                 continue
             nodes_by_id[node_id] = {
                 "node_id": node_id,
@@ -270,9 +281,10 @@ class JsonProjectMigration:
             }
 
         for node_id, node in nodes_by_id.items():
-            parent_id = node.get("parent_node_id")
+            parent_id = self._coerce_str(node.get("parent_node_id")) or None
             if parent_id not in nodes_by_id or parent_id == node_id:
-                node["parent_node_id"] = None
+                if node_id not in unresolved_node_ids:
+                    node["parent_node_id"] = None
 
         workspace_nodes_for_ports = {
             node_id: node_instance_from_mapping(node)
@@ -314,6 +326,15 @@ class JsonProjectMigration:
             if edge_id in edges_by_id:
                 continue
             if source_node_id not in nodes_by_id or target_node_id not in nodes_by_id:
+                continue
+            if source_node_id in unresolved_node_ids or target_node_id in unresolved_node_ids:
+                preserved_edge = self._copy_mapping(edge_doc)
+                preserved_edge["edge_id"] = edge_id
+                preserved_edge["source_node_id"] = source_node_id
+                preserved_edge["source_port_key"] = source_port_key
+                preserved_edge["target_node_id"] = target_node_id
+                preserved_edge["target_port_key"] = target_port_key
+                edges_by_id[edge_id] = preserved_edge
                 continue
 
             resolution = validate_registry_edge(

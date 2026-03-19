@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ea_node_editor.graph.effective_ports import EffectivePort, effective_ports, find_port
-from ea_node_editor.graph.model import NodeInstance, ProjectData
+from ea_node_editor.graph.model import (
+    NodeInstance,
+    ProjectData,
+    edge_instance_to_mapping,
+    node_instance_to_mapping,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 
@@ -136,7 +141,7 @@ def accept_registry_edge(
 
 
 def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry) -> None:
-    """Normalize node properties/ports and prune invalid references for a registry."""
+    """Normalize resolved content while preserving unresolved authored payloads."""
     for workspace in project.workspaces.values():
         resolved_nodes = resolve_registry_nodes(workspace.nodes, registry)
         unknown_node_ids = set(workspace.nodes) - set(resolved_nodes)
@@ -144,10 +149,18 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
             node = resolution.node
             node.properties = registry.normalize_properties(node.type_id, node.properties)
 
-        for node_id in unknown_node_ids:
-            workspace.nodes.pop(node_id, None)
+        for node_id in sorted(unknown_node_ids):
+            node = workspace.nodes.pop(node_id, None)
+            if node is None:
+                continue
+            workspace.unresolved_node_docs[node_id] = node_instance_to_mapping(node)
 
         resolved_nodes = resolve_registry_nodes(workspace.nodes, registry)
+        for edge_id, edge in list(workspace.edges.items()):
+            if edge.source_node_id in unknown_node_ids or edge.target_node_id in unknown_node_ids:
+                workspace.unresolved_edge_docs[edge_id] = edge_instance_to_mapping(edge)
+                workspace.edges.pop(edge_id, None)
+
         for resolution in resolved_nodes.values():
             resolution.node.exposed_ports = normalized_exposed_ports(
                 resolution,

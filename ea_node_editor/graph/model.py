@@ -58,6 +58,23 @@ def node_instance_from_mapping(payload: Mapping[str, Any]) -> NodeInstance | Non
     )
 
 
+def node_instance_to_mapping(node: "NodeInstance") -> dict[str, Any]:
+    return {
+        "node_id": node.node_id,
+        "type_id": node.type_id,
+        "title": node.title,
+        "x": node.x,
+        "y": node.y,
+        "collapsed": node.collapsed,
+        "properties": copy.deepcopy(node.properties),
+        "exposed_ports": copy.deepcopy(node.exposed_ports),
+        "visual_style": copy.deepcopy(node.visual_style),
+        "parent_node_id": node.parent_node_id,
+        "custom_width": node.custom_width,
+        "custom_height": node.custom_height,
+    }
+
+
 def edge_instance_from_mapping(payload: Mapping[str, Any]) -> EdgeInstance | None:
     edge_id = _coerce_str(payload.get("edge_id"))
     source_node_id = _coerce_str(payload.get("source_node_id"))
@@ -75,6 +92,18 @@ def edge_instance_from_mapping(payload: Mapping[str, Any]) -> EdgeInstance | Non
         label=_coerce_str(payload.get("label")),
         visual_style=_as_mapping(payload.get("visual_style")),
     )
+
+
+def edge_instance_to_mapping(edge: "EdgeInstance") -> dict[str, Any]:
+    return {
+        "edge_id": edge.edge_id,
+        "source_node_id": edge.source_node_id,
+        "source_port_key": edge.source_port_key,
+        "target_node_id": edge.target_node_id,
+        "target_port_key": edge.target_port_key,
+        "label": edge.label,
+        "visual_style": copy.deepcopy(edge.visual_style),
+    }
 
 
 @dataclass(slots=True)
@@ -129,6 +158,8 @@ class WorkspaceData:
     views: dict[str, ViewState] = field(default_factory=dict)
     active_view_id: str = ""
     dirty: bool = False
+    unresolved_node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    unresolved_edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def ensure_default_view(self) -> None:
         if not self.views:
@@ -150,6 +181,8 @@ class WorkspaceData:
             views=clone_views,
             active_view_id=self.active_view_id,
             dirty=True,
+            unresolved_node_docs=copy.deepcopy(self.unresolved_node_docs),
+            unresolved_edge_docs=copy.deepcopy(self.unresolved_edge_docs),
         )
         duplicate.ensure_default_view()
         return duplicate
@@ -311,12 +344,20 @@ class GraphModel:
     def remove_node(self, workspace_id: str, node_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]
         if node_id not in workspace.nodes:
-            return
-        del workspace.nodes[node_id]
+            workspace.unresolved_node_docs.pop(node_id, None)
+        else:
+            del workspace.nodes[node_id]
         for edge_id in list(workspace.edges):
             edge = workspace.edges[edge_id]
             if edge.source_node_id == node_id or edge.target_node_id == node_id:
                 del workspace.edges[edge_id]
+        for edge_id in list(workspace.unresolved_edge_docs):
+            edge = workspace.unresolved_edge_docs[edge_id]
+            if (
+                str(edge.get("source_node_id", "")).strip() == node_id
+                or str(edge.get("target_node_id", "")).strip() == node_id
+            ):
+                del workspace.unresolved_edge_docs[edge_id]
         workspace.dirty = True
 
     def set_node_position(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
