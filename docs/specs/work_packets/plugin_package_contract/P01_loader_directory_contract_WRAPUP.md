@@ -4,8 +4,8 @@
 
 - Packet: `P01`
 - Branch Label: `codex/plugin-package-contract/p01-loader-directory-contract`
-- Commit Owner: `executor-pending`
-- Commit SHA: `n/a`
+- Commit Owner: `worker`
+- Commit SHA: `78d7da4ad56cd5cbae41feb123be8be1ec517a98`
 - Changed Files: `ea_node_editor/nodes/plugin_loader.py`, `tests/test_plugin_loader.py`, `docs/specs/work_packets/plugin_package_contract/P01_loader_directory_contract_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/plugin_package_contract/P01_loader_directory_contract_WRAPUP.md`, `ea_node_editor/nodes/plugin_loader.py`, `tests/test_plugin_loader.py`
 - Canonical package-directory contract: installed packages are discovered from immediate child directories under the plugins root at `plugins/<package_name>/`; the loader imports public top-level `*.py` modules in that directory inside one synthetic package namespace so sibling relative imports work, while raw single-file drop-ins remain `plugins/*.py`.
@@ -13,10 +13,9 @@
 
 ## Verification
 
-- FAIL: `./venv/Scripts/python.exe -m pytest -n auto tests/test_plugin_loader.py -q` (`WinError 1920` during pytest collection when xdist inspects the packet worktree's symlinked `venv`)
-- FAIL: `./venv/Scripts/python.exe -m pytest -n auto tests/test_plugin_loader.py tests/test_main_bootstrap.py -q` (`WinError 1920` during pytest collection when xdist inspects the packet worktree's symlinked `venv`)
-- PASS: `./venv/Scripts/python.exe -m pytest tests/test_plugin_loader.py tests/test_main_bootstrap.py -q --ignore=venv`
-- Final Verification Verdict: `FAIL`
+- PASS: `./venv/Scripts/python.exe -m pytest -n auto tests/test_plugin_loader.py -q`
+- PASS: `./venv/Scripts/python.exe -m pytest -n auto tests/test_plugin_loader.py tests/test_main_bootstrap.py -q`
+- Final Verification Verdict: `PASS`
 
 ## Manual Test Directives
 
@@ -29,8 +28,8 @@ Ready for manual testing.
 
 ## Residual Risks
 
-- The packet's required xdist-based pytest commands do not currently run in this dedicated worktree because Windows pytest collection hits `WinError 1920` on the symlinked `venv` entry before packet tests execute.
+- none
 
 ## Ready for Integration
 
-- No: the packet code is implemented and the focused non-xdist rerun passes, but the required worktree verification commands are still blocked by the external `venv` symlink collection issue.
+- Yes: the exact packet review-gate and full verification commands now pass in the assigned worktree, and the packet diff remains inside scope.
