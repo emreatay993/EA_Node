@@ -1,0 +1,163 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from ea_node_editor.settings import (
+    APP_PREFERENCES_KIND,
+    APP_PREFERENCES_VERSION,
+    DEFAULT_GRAPHICS_SETTINGS,
+)
+from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
+    AppPreferencesController,
+    AppPreferencesStore,
+)
+
+
+class _RecordingHost:
+    def __init__(self) -> None:
+        self.applied_graphics: list[dict[str, object]] = []
+
+    def apply_graphics_preferences(self, graphics: dict[str, object]) -> None:
+        self.applied_graphics.append(graphics)
+
+
+class GraphicsSettingsPreferencesTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temp_dir = tempfile.TemporaryDirectory()
+        self._preferences_path = Path(self._temp_dir.name) / "app_preferences.json"
+        self._store = AppPreferencesStore(path_provider=lambda: self._preferences_path)
+        self._controller = AppPreferencesController(store=self._store)
+
+    def tearDown(self) -> None:
+        self._temp_dir.cleanup()
+
+    def test_missing_file_loads_locked_defaults(self) -> None:
+        document = self._controller.load()
+
+        self.assertEqual(document["kind"], APP_PREFERENCES_KIND)
+        self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
+        self.assertEqual(document["graphics"], DEFAULT_GRAPHICS_SETTINGS)
+        self.assertFalse(self._preferences_path.exists())
+
+    def test_unsupported_document_metadata_loads_locked_defaults(self) -> None:
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": "unexpected",
+                    "version": 99,
+                    "graphics": {
+                        "canvas": {"show_grid": False},
+                        "theme": {"theme_id": "stitch_light"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        document = self._controller.load()
+
+        self.assertEqual(document["kind"], APP_PREFERENCES_KIND)
+        self.assertEqual(document["version"], APP_PREFERENCES_VERSION)
+        self.assertEqual(document["graphics"], DEFAULT_GRAPHICS_SETTINGS)
+
+    def test_load_normalizes_invalid_graphics_values(self) -> None:
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "canvas": {
+                            "show_grid": "yes",
+                            "show_minimap": False,
+                            "minimap_expanded": None,
+                            "node_shadow": "no",
+                            "shadow_strength": 101,
+                            "shadow_softness": 25,
+                            "shadow_offset": -1,
+                        },
+                        "interaction": {
+                            "snap_to_grid": True,
+                        },
+                        "shell": {
+                            "tab_strip_density": "dense",
+                        },
+                        "theme": {
+                            "theme_id": "invalid-theme",
+                        },
+                        "graph_theme": {
+                            "follow_shell_theme": False,
+                            "selected_theme_id": "missing-theme",
+                            "custom_themes": "bad",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        graphics = self._controller.load()["graphics"]
+
+        self.assertEqual(graphics["canvas"]["show_grid"], True)
+        self.assertEqual(graphics["canvas"]["show_minimap"], False)
+        self.assertEqual(graphics["canvas"]["minimap_expanded"], True)
+        self.assertEqual(graphics["canvas"]["node_shadow"], True)
+        self.assertEqual(graphics["canvas"]["shadow_strength"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])
+        self.assertEqual(graphics["canvas"]["shadow_softness"], 25)
+        self.assertEqual(graphics["canvas"]["shadow_offset"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
+        self.assertEqual(graphics["interaction"]["snap_to_grid"], True)
+        self.assertEqual(graphics["shell"]["tab_strip_density"], DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
+        self.assertEqual(graphics["theme"]["theme_id"], DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
+        self.assertFalse(graphics["graph_theme"]["follow_shell_theme"])
+        self.assertEqual(
+            graphics["graph_theme"]["selected_theme_id"],
+            DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"],
+        )
+        self.assertEqual(graphics["graph_theme"]["custom_themes"], [])
+
+    def test_set_graphics_settings_persists_and_applies_values_to_host(self) -> None:
+        host = _RecordingHost()
+
+        graphics = self._controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": False,
+                    "show_minimap": False,
+                    "minimap_expanded": False,
+                    "node_shadow": False,
+                    "shadow_strength": 15,
+                    "shadow_softness": 25,
+                    "shadow_offset": 3,
+                },
+                "interaction": {
+                    "snap_to_grid": True,
+                },
+                "shell": {
+                    "tab_strip_density": "regular",
+                },
+                "theme": {
+                    "theme_id": "stitch_light",
+                },
+                "graph_theme": {
+                    "follow_shell_theme": False,
+                    "selected_theme_id": "graph_stitch_light",
+                    "custom_themes": [],
+                },
+            },
+            host=host,
+        )
+
+        self.assertEqual(host.applied_graphics, [graphics])
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["kind"], APP_PREFERENCES_KIND)
+        self.assertEqual(persisted["version"], APP_PREFERENCES_VERSION)
+        self.assertEqual(persisted["graphics"], graphics)
+        reloaded = AppPreferencesController(store=self._store).load()
+        self.assertEqual(reloaded, persisted)
+
+
+if __name__ == "__main__":
+    unittest.main()
