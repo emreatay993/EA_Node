@@ -7,10 +7,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from PyQt6.QtWidgets import QApplication
+
 
 main = importlib.import_module("main")
 bootstrap_module = importlib.import_module("ea_node_editor.bootstrap")
 app_module = importlib.import_module("ea_node_editor.app")
+shell_composition_module = importlib.import_module("ea_node_editor.ui.shell.composition")
+shell_window_module = importlib.import_module("ea_node_editor.ui.shell.window")
 
 
 def _touch(path: Path) -> Path:
@@ -108,6 +112,57 @@ class MainBootstrapTests(unittest.TestCase):
 
 
 class AppBootstrapTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.app = QApplication.instance() or QApplication([])
+
+    def tearDown(self) -> None:
+        self.app.sendPostedEvents()
+        self.app.processEvents()
+
+    def test_build_and_show_shell_window_uses_composition_root(self) -> None:
+        fake_window = Mock()
+
+        with patch.object(app_module, "create_shell_window", return_value=fake_window) as create_shell_window_mock:
+            self.assertIs(app_module.build_and_show_shell_window(), fake_window)
+
+        create_shell_window_mock.assert_called_once_with()
+        fake_window.show.assert_called_once_with()
+
+    def test_create_shell_window_builds_composition_before_bootstrap(self) -> None:
+        composition = object()
+        with patch.object(
+            shell_composition_module,
+            "build_shell_window_composition",
+            return_value=composition,
+        ) as build_composition_mock, patch.object(
+            shell_composition_module,
+            "bootstrap_shell_window",
+        ) as bootstrap_mock:
+            window = shell_composition_module.create_shell_window()
+
+        self.assertIsInstance(window, shell_window_module.ShellWindow)
+        build_composition_mock.assert_called_once_with(window)
+        bootstrap_mock.assert_called_once_with(window, composition)
+        window.close()
+        window.deleteLater()
+        self.app.sendPostedEvents()
+        self.app.processEvents()
+
+    def test_shell_window_accepts_injected_composition_bundle(self) -> None:
+        composition = object()
+        with patch.object(shell_window_module, "build_shell_window_composition") as build_composition_mock, patch.object(
+            shell_window_module,
+            "bootstrap_shell_window",
+        ) as bootstrap_mock:
+            window = shell_window_module.ShellWindow(composition=composition)
+
+        build_composition_mock.assert_not_called()
+        bootstrap_mock.assert_called_once_with(window, composition)
+        window.close()
+        window.deleteLater()
+        self.app.sendPostedEvents()
+        self.app.processEvents()
+
     def test_run_applies_startup_theme_and_bootstraps_shell_window(self) -> None:
         fake_app = Mock()
         fake_app.exec.return_value = 17
