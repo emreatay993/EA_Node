@@ -79,31 +79,32 @@ Design intent:
 - Hover-only affordances use `HoverHandler` or `MouseArea { acceptedButtons: Qt.NoButton }`. Do not reintroduce invisible click-swallowing overlays or compatibility-only hover proxies.
 - Graph-surface editors commit and browse by explicit `nodeId` bridge calls so surface editing does not depend on selected-node timing in the inspector path.
 
-## ARCH_FOURTH_PASS closure snapshot
+## ARCH_FIFTH_PASS closure snapshot
 
-- Unknown-plugin authored content now survives migration, load, and save through a preserved unresolved-content sidecar plus a split between authored save documents and runtime-safe compiled documents.
-- Subnode shell and pin semantics now live in `ea_node_editor.graph.subnode_contract`, with builtin registration consuming that lower-level contract instead of defining the core graph/runtime rules itself.
-- Packet-owned graph authoring writes now go through the registry-aware `ValidatedGraphMutation` boundary on `GraphModel`, while `GraphSceneBridge` remains the stable scene contract and its scope/selection/history/payload helpers keep the internal responsibilities split.
-- Execution compilation and worker preparation now share typed runtime DTOs from `ea_node_editor/execution/runtime_dto.py`; queue-boundary commands and events remain dict-shaped compatibility adapters.
-- `ShellWindow` remains the public facade and native-dialog host, but packet-owned QML state and commands now prefer focused presenters plus `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, and the bridge-first `graphCanvasBridge` path before falling back to raw compatibility globals.
-- Shared node-presentation helpers consumed by both shell and QML now live under `ea_node_editor.ui.support.node_presentation` instead of crossing the package seam through shell-specific inspector helpers.
-- `scripts/verification_manifest.py` is now the canonical source for verification modes, shell-isolation catalogs, and proof-audit anchors that previously drifted across runner code, tests, and docs.
+- Startup entry, app-preferences loading, and the performance harness now land on explicit package seams: `ea_node_editor.bootstrap`, `ea_node_editor.app_preferences`, and `ea_node_editor.telemetry.performance_harness` own the packet-owned startup path rather than UI-host glue.
+- Shell construction now runs through `ea_node_editor.ui.shell.composition`, with `ShellWindow` acting as the host/facade while focused library, navigation, graph-edit, package-IO, run, session, and preferences controllers carry packet-owned orchestration.
+- QML now prefers focused shell and canvas bridges: `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, and `graphCanvasCommandBridge` sit behind the compatibility-preserving `graphCanvasBridge` and `GraphSceneBridge` surfaces instead of reopening raw context-global ownership.
+- Packet-owned graph authoring writes now route through the authoritative mutation-service path, and runtime history captures the mutable workspace state needed for undo/redo without leaving payload normalization as a live-model side effect.
+- Persistence-only overlay ownership now lives under `ea_node_editor.persistence.overlay`, current-schema `.sfe` documents stay stable, and pre-current-schema documents are intentionally rejected on this branch rather than silently migrating through packet-external compatibility code.
+- Packet-owned run flows now compile and submit `runtime_snapshot` payloads instead of raw `project_doc` transport, while packet-external callers still pass through a narrow compatibility adapter.
+- Plugin loading is descriptor-first through `PLUGIN_DESCRIPTORS` plus semantic package validation, with legacy constructor fallback preserved only for packages that have not published descriptors yet.
+- Oversized regression suites are split into focused modules, and `scripts/verification_manifest.py` is the canonical source for verification modes, shell-isolation catalogs, and proof-audit anchors consumed by the runner, checker, tests, and packet-owned docs.
 
 ## Current residual seams
 
-- Raw runtime entry points such as `StartRunCommand.project_doc` can still bypass serializer/model hydration, so unresolved-plugin preservation is guaranteed on the packet-owned load/save path but not on every packet-external caller.
-- Builtin subnode re-exports remain available for packet-external callers, and the promoted contract still lives under `ea_node_editor.graph` rather than a lower shared package.
-- Raw `GraphModel` mutation methods and packet-external fragment-validation paths still exist beside the validated mutation boundary; direct `add_edge` intentionally keeps the accepted data-port leniency for compatibility.
-- `compile_workspace_document()` and some `RuntimeNode` document/display fields remain as compatibility adapters for packet-external execution callers.
-- `ShellWindow` still exposes compatibility slots, `shell_context_bootstrap.py` still publishes raw `mainWindow`/`sceneBridge`/`viewBridge` context properties, and `GraphCanvasBridge` remains wider than the eventual narrow bridge-first contract.
-- Preserved unresolved payloads stay intentionally opaque in the live model, so there is still no packet-owned UI for inspecting or repairing missing-plugin content.
+- Packet-external execution callers can still enter through the `project_doc` compatibility adapter, so the runtime-snapshot boundary is authoritative for packet-owned flows but not yet universal.
+- Legacy packages without `PLUGIN_DESCRIPTORS` still load through the constructor fallback path, which is intentional for compatibility but keeps a wider plugin discovery seam alive.
+- Raw compatibility context properties (`mainWindow`, `sceneBridge`, `viewBridge`) and the widened `GraphCanvasBridge` surface still ship for deferred QML consumers outside the packet-owned migration set.
+- Some higher-level authoring callers still depend on internal mutation-service/raw-helper seams outside the packet-owned write scope, even though packet-owned graph edits now go through the authoritative service.
+- Pre-current-schema `.sfe` documents require an out-of-band conversion path before they can load on this branch.
+- Preserved unresolved payloads remain intentionally opaque in the live model, so there is still no packet-owned inspection or repair UI for missing-plugin content.
 - Shell-backed regression suites still require fresh-process execution because repeated Windows Qt/QML `ShellWindow()` construction is not yet reliable in one interpreter process.
 
 ## Verification and traceability closure
 
-- `docs/specs/work_packets/arch_fourth_pass/ARCH_FOURTH_PASS_QA_MATRIX.md` records the accepted packet outcomes, approved regression slice, traceability anchors, and carried-forward residual risks for `ARCH_FOURTH_PASS`.
-- `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, and packet-owned doc anchors; `scripts/check_traceability.py` audits those facts against the requirement-facing docs.
-- The P08 closeout sweep is intentionally small and current-state oriented: `./venv/Scripts/python.exe scripts/check_traceability.py` and `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` in the project venv.
+- `docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md` records the accepted packet outcomes, approved verification anchors, traceability evidence, and carried-forward residual risks for `ARCH_FIFTH_PASS`.
+- `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, packet-owned doc anchors, and the declarative fact sets consumed by both `scripts/run_verification.py` and `scripts/check_traceability.py`.
+- The P13 closeout sweep is intentionally doc-focused and current-state oriented: `./venv/Scripts/python.exe scripts/check_traceability.py` and `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` in the project venv.
 
 ## Visual architecture maps
 If your Markdown viewer supports Mermaid, these diagrams render inline.

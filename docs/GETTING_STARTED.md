@@ -121,6 +121,7 @@ Manual passive-media fixture:
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
 - [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and shell-module verification status
 - [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
+- [docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md](./specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md): accepted fifth-pass packet outcomes, closeout verification anchors, and the final carried-forward residual risks
 
 ## Updating Architecture Diagrams
 

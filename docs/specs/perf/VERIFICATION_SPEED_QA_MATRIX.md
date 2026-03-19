@@ -1,6 +1,6 @@
 # Verification Speed QA Matrix
 
-- Updated: `2026-03-18`
+- Updated: `2026-03-20`
 - Packet set: `VERIFICATION_SPEED` (`P01` through `P05`)
 - Scope: published developer-facing verification workflow after the dedicated
   shell-isolation phase rollout, explicit max-parallel worker policy, and
@@ -89,6 +89,8 @@
   packet-owned proof layer in `README.md`, `docs/GETTING_STARTED.md`,
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`, and the packet-owned docs
   under `docs/specs/perf/`.
+- The current closeout evidence for those proof layers is summarized in
+  `docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md`.
 - Run the checker after editing verification docs, archived QA evidence
   summaries, or packet-owned traceability references.
 
@@ -98,7 +100,9 @@
   passed on `2026-03-18`, so the earlier passive image-panel serializer caveat
   is retired.
 - No known out-of-scope verification baseline failures remain in this matrix.
-  If a new environment-specific failure appears, record it here before claiming
+  `docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md`
+  records the current closeout evidence and carried-forward residual risks. If
+  a new environment-specific failure appears, record it here before claiming
   the aggregate workflow is fully green.
 
 ## 2026-03-18 Verification Results
@@ -108,3 +112,10 @@
 | `./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run` | PASS | Enumerated `fast`, `gui`, `slow`, and the dedicated shell-isolation phase; each non-shell pytest phase included all five `--ignore=` entries, `fast` and the shell-isolation phase emitted `-n 12 --dist load`, and `gui` emitted `-n 6 --dist load` in the current project venv |
 | `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_shell_isolation_phase.py -q -n 12 --dist load` | PASS | Accepted `P04` shell-isolation benchmark evidence: `26 passed in 57.27s` |
 | `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q` | PASS | The previous serializer spot-check caveat no longer reproduces in the current project venv |
+
+## 2026-03-20 ARCH_FIFTH_PASS Closeout Results
+
+| Command | Result | Notes |
+|---|---|---|
+| `./venv/Scripts/python.exe scripts/check_traceability.py` | PASS | The packet-owned proof audit passed after the spec index links, architecture snapshot, traceability matrix anchors, and fifth-pass closeout matrix were refreshed. |
+| `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` | PASS | The dry-run output kept the manifest-owned `fast` workflow, ignore list, and worker-resolution behavior aligned with the refreshed proof docs. |
