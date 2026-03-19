@@ -13,3 +13,7 @@ globals().update(
         for name in __all__
     }
 )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

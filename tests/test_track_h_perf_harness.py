@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import runpy
 import unittest
+from pathlib import Path
+from unittest.mock import Mock, patch
 
 from ea_node_editor.telemetry import performance_harness as telemetry_performance_harness
 from ea_node_editor.telemetry.performance_harness import (
@@ -20,6 +23,16 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             telemetry_performance_harness.run_benchmark.__module__,
             "ea_node_editor.ui.perf.performance_harness",
         )
+
+    def test_public_telemetry_module_execution_delegates_to_ui_main(self) -> None:
+        delegated_main = Mock(return_value=23)
+
+        with patch.object(ui_performance_harness, "main", delegated_main):
+            with self.assertRaises(SystemExit) as exit_info:
+                runpy.run_path(str(Path(telemetry_performance_harness.__file__)), run_name="__main__")
+
+        delegated_main.assert_called_once_with()
+        self.assertEqual(exit_info.exception.code, 23)
 
     def test_generate_synthetic_project_hits_target_scale(self) -> None:
         project = generate_synthetic_project(SyntheticGraphConfig(node_count=1000, edge_count=5000, seed=42))
