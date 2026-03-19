@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from ea_node_editor.execution.compiler import compile_workspace_document
+from ea_node_editor.execution.compiler import compile_runtime_workspace, compile_workspace_document
+from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.normalization import normalize_project_for_registry
@@ -166,14 +167,15 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         model.add_edge(workspace.workspace_id, source.node_id, "flow_out", passive.node_id, "flow_in")
 
         workspace_doc = serializer.to_document(model.project)["workspaces"][0]
-        compiled = compile_workspace_document(workspace_doc, registry=registry)
+        compiled = compile_runtime_workspace(workspace_doc, registry=registry)
+        self.assertIsInstance(compiled, RuntimeWorkspace)
 
         self.assertEqual(
-            {node["node_id"] for node in compiled["nodes"]},
+            {node.node_id for node in compiled.nodes},
             {source.node_id, target.node_id},
         )
         self.assertEqual(
-            compiled["edges"],
+            [edge.to_document() for edge in compiled.edges],
             [
                 {
                     "source_node_id": source.node_id,
@@ -183,7 +185,8 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
                 }
             ],
         )
-        self.assertNotIn(passive.node_id, {node["node_id"] for node in compiled["nodes"]})
+        self.assertNotIn(passive.node_id, {node.node_id for node in compiled.nodes})
+        self.assertEqual(compile_workspace_document(workspace_doc, registry=registry), compiled.to_document())
 
     def test_compile_workspace_document_respects_registry_multiplicity_and_port_resolution(self) -> None:
         registry = _build_runtime_registry()
@@ -203,20 +206,21 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         model.add_edge(workspace.workspace_id, source_a.node_id, "missing", multi_sink.node_id, "value")
 
         workspace_doc = serializer.to_document(model.project)["workspaces"][0]
-        compiled = compile_workspace_document(workspace_doc, registry=registry)
+        compiled = compile_runtime_workspace(workspace_doc, registry=registry)
+        self.assertIsInstance(compiled, RuntimeWorkspace)
 
         self.assertEqual(
-            {node["node_id"] for node in compiled["nodes"]},
+            {node.node_id for node in compiled.nodes},
             {source_a.node_id, source_b.node_id, single_sink.node_id, multi_sink.node_id},
         )
         compiled_edges = {
             (
-                edge["source_node_id"],
-                edge["source_port_key"],
-                edge["target_node_id"],
-                edge["target_port_key"],
+                edge.source_node_id,
+                edge.source_port_key,
+                edge.target_node_id,
+                edge.target_port_key,
             )
-            for edge in compiled["edges"]
+            for edge in compiled.edges
         }
         self.assertEqual(
             {
@@ -280,14 +284,15 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         model.add_edge(workspace.workspace_id, shell.node_id, pin_out.node_id, target.node_id, "exec_in")
 
         workspace_doc = serializer.to_document(model.project)["workspaces"][0]
-        compiled = compile_workspace_document(workspace_doc, registry=None)
+        compiled = compile_runtime_workspace(workspace_doc, registry=None)
+        self.assertIsInstance(compiled, RuntimeWorkspace)
 
         self.assertEqual(
-            {node["node_id"] for node in compiled["nodes"]},
+            {node.node_id for node in compiled.nodes},
             {source.node_id, inner.node_id, target.node_id},
         )
         self.assertCountEqual(
-            compiled["edges"],
+            [edge.to_document() for edge in compiled.edges],
             [
                 {
                     "source_node_id": inner.node_id,

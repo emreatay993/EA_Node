@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import copy
 from collections import defaultdict
 from typing import Any, Mapping
 
+from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeNode, RuntimeWorkspace
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.graph.model import NodeInstance, node_instance_from_mapping
 from ea_node_editor.graph.normalization import (
@@ -27,6 +29,13 @@ def compile_workspace_document(
     workspace_doc: Mapping[str, Any],
     registry: NodeRegistry | None = None,
 ) -> dict[str, Any]:
+    return compile_runtime_workspace(workspace_doc, registry=registry).to_document()
+
+
+def compile_runtime_workspace(
+    workspace_doc: Mapping[str, Any],
+    registry: NodeRegistry | None = None,
+) -> RuntimeWorkspace:
     """Compile nested subnode authoring constructs into a flat execution graph."""
     nodes_by_id, node_order = _normalize_nodes(workspace_doc.get("nodes"))
     workspace_nodes = _materialize_nodes(nodes_by_id)
@@ -55,34 +64,41 @@ def compile_workspace_document(
         output_pin_parent=output_pin_parent,
     )
 
-    compiled_nodes: list[dict[str, Any]] = []
+    compiled_nodes: list[RuntimeNode] = []
     real_node_ids: set[str] = set()
     for node_id in node_order:
         node_doc = nodes_by_id[node_id]
         if _is_runtime_excluded(node_doc, registry):
             continue
-        compiled = dict(node_doc)
-        compiled["parent_node_id"] = None
-        compiled_nodes.append(compiled)
+        runtime_node = RuntimeNode.from_mapping(node_doc)
+        if runtime_node is None:
+            continue
+        compiled_nodes.append(runtime_node)
         real_node_ids.add(node_id)
 
-    flattened_edges: list[dict[str, str]] = []
+    flattened_edges: list[RuntimeEdge] = []
     for source_node_id, source_port_key, target_node_id, target_port_key in sorted(compiled_edges):
         if source_node_id not in real_node_ids or target_node_id not in real_node_ids:
             continue
         flattened_edges.append(
-            {
-                "source_node_id": source_node_id,
-                "source_port_key": source_port_key,
-                "target_node_id": target_node_id,
-                "target_port_key": target_port_key,
-            }
+            RuntimeEdge(
+                source_node_id=source_node_id,
+                source_port_key=source_port_key,
+                target_node_id=target_node_id,
+                target_port_key=target_port_key,
+            )
         )
 
-    compiled_workspace = {key: value for key, value in workspace_doc.items() if key not in {"nodes", "edges"}}
-    compiled_workspace["nodes"] = compiled_nodes
-    compiled_workspace["edges"] = flattened_edges
-    return compiled_workspace
+    document_fields = {
+        str(key): copy.deepcopy(value)
+        for key, value in workspace_doc.items()
+        if str(key) not in {"nodes", "edges"}
+    }
+    return RuntimeWorkspace(
+        document_fields=document_fields,
+        nodes=tuple(compiled_nodes),
+        edges=tuple(flattened_edges),
+    )
 
 
 def _compile_edges(
@@ -346,4 +362,4 @@ def _normalize_optional_id(value: object) -> str | None:
     return normalized
 
 
-__all__ = ["compile_workspace_document"]
+__all__ = ["compile_runtime_workspace", "compile_workspace_document"]

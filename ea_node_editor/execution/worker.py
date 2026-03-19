@@ -6,6 +6,7 @@ import time
 import traceback
 from collections import defaultdict, deque
 from collections.abc import Callable
+from dataclasses import dataclass
 from multiprocessing import Queue
 from typing import Any
 
@@ -29,7 +30,8 @@ from ea_node_editor.execution.protocol import (
     dict_to_command,
     event_to_dict,
 )
-from ea_node_editor.execution.compiler import compile_workspace_document
+from ea_node_editor.execution.compiler import compile_runtime_workspace
+from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -337,11 +339,19 @@ def _is_exec_entry_spec(spec: Any) -> bool:
     return has_control_output and not has_control_input
 
 
-class _RuntimeGraph:
-    def __init__(self, workspace: dict[str, Any], registry: Any) -> None:
-        self.nodes = {node["node_id"]: node for node in workspace.get("nodes", [])}
+@dataclass(slots=True)
+class _PreparedRuntime:
+    registry: Any
+    workspace: RuntimeWorkspace
+    plan: "_ExecutionPlan"
+
+
+class _ExecutionPlan:
+    def __init__(self, workspace: RuntimeWorkspace, registry: Any) -> None:
+        self.workspace = workspace
+        self.nodes = workspace.nodes_by_id
         self.node_specs = {
-            node_id: registry.get_spec(str(node.get("type_id", "")))
+            node_id: registry.get_spec(node.type_id)
             for node_id, node in self.nodes.items()
         }
         self._port_kinds = {
@@ -350,20 +360,20 @@ class _RuntimeGraph:
         }
         self.exec_outgoing: dict[str, list[str]] = defaultdict(list)
         self.failed_outgoing: dict[str, list[str]] = defaultdict(list)
-        self.data_incoming: dict[str, list[dict[str, Any]]] = defaultdict(list)
+        self.data_incoming: dict[str, list[RuntimeEdge]] = defaultdict(list)
         self._dependency_outgoing: dict[str, set[str]] = defaultdict(set)
         self.exec_incoming_remaining: dict[str, int] = {node_id: 0 for node_id in self.nodes}
         self.dependency_nodes: set[str] = {
             node_id for node_id, spec in self.node_specs.items() if _is_dependency_spec(spec)
         }
         self.start_nodes = [
-            node_id for node_id, node in self.nodes.items() if str(node.get("type_id", "")) == "core.start"
+            node_id for node_id, node in self.nodes.items() if node.type_id == "core.start"
         ]
 
-        for edge in workspace.get("edges", []):
-            source_node_id = str(edge["source_node_id"])
-            target_node_id = str(edge["target_node_id"])
-            source_kind = self._port_kinds.get(source_node_id, {}).get(str(edge["source_port_key"]), "data")
+        for edge in workspace.edges:
+            source_node_id = edge.source_node_id
+            target_node_id = edge.target_node_id
+            source_kind = self._port_kinds.get(source_node_id, {}).get(edge.source_port_key, "data")
             if source_kind == "failed":
                 self.failed_outgoing[source_node_id].append(target_node_id)
                 self.exec_incoming_remaining[target_node_id] += 1
@@ -392,7 +402,7 @@ class _RuntimeGraph:
         sources: list[str] = []
         seen: set[str] = set()
         for edge in self.data_incoming.get(node_id, []):
-            source_node_id = str(edge["source_node_id"])
+            source_node_id = edge.source_node_id
             if source_node_id not in self.dependency_nodes or source_node_id in seen:
                 continue
             seen.add(source_node_id)
@@ -402,10 +412,10 @@ class _RuntimeGraph:
     def input_values_for(self, node_id: str, node_outputs: dict[str, dict[str, Any]]) -> dict[str, Any]:
         inputs: dict[str, Any] = {}
         for edge in self.data_incoming.get(node_id, []):
-            source_outputs = node_outputs.get(str(edge["source_node_id"]), {})
-            source_port_key = str(edge["source_port_key"])
+            source_outputs = node_outputs.get(edge.source_node_id, {})
+            source_port_key = edge.source_port_key
             if source_port_key in source_outputs:
-                inputs[str(edge["target_port_key"])] = source_outputs[source_port_key]
+                inputs[edge.target_port_key] = source_outputs[source_port_key]
         return inputs
 
     def has_failure_downstream(self, node_id: str) -> bool:
@@ -439,14 +449,14 @@ class _RuntimeGraph:
 class _NodeExecutor:
     def __init__(
         self,
-        runtime_graph: _RuntimeGraph,
+        execution_plan: _ExecutionPlan,
         registry: Any,
         control: _RunControl,
         publisher: _RunEventPublisher,
         *,
         trigger: dict[str, Any],
     ) -> None:
-        self._graph = runtime_graph
+        self._plan = execution_plan
         self._registry = registry
         self._control = control
         self._publisher = publisher
@@ -479,7 +489,7 @@ class _NodeExecutor:
         return None
 
     def _resolve_dependencies(self, node_id: str) -> str:
-        for source_node_id in self._graph.dependency_sources_for(node_id):
+        for source_node_id in self._plan.dependency_sources_for(node_id):
             if source_node_id in self.executed or source_node_id in self._dependency_stack:
                 continue
             self._dependency_stack.add(source_node_id)
@@ -492,10 +502,10 @@ class _NodeExecutor:
         return "ok"
 
     def _execute_node(self, node_id: str) -> str:
-        node = self._graph.nodes[node_id]
-        node_type_id = str(node["type_id"])
+        node = self._plan.nodes[node_id]
+        node_type_id = node.type_id
         plugin = self._registry.create(node_type_id)
-        inputs = self._graph.input_values_for(node_id, self.node_outputs)
+        inputs = self._plan.input_values_for(node_id, self.node_outputs)
 
         self._publisher.emit_node_started(node_id)
 
@@ -507,7 +517,7 @@ class _NodeExecutor:
             node_id=node_id,
             workspace_id=self._publisher.workspace_id,
             inputs=inputs,
-            properties=self._registry.normalize_properties(node_type_id, dict(node.get("properties", {}))),
+            properties=self._registry.normalize_properties(node_type_id, dict(node.properties)),
             emit_log=_log,
             trigger=self._trigger,
             should_stop=self._control.should_stop,
@@ -515,7 +525,7 @@ class _NodeExecutor:
         )
 
         try:
-            spec = self._graph.node_specs[node_id]
+            spec = self._plan.node_specs[node_id]
             if spec.is_async and hasattr(plugin, "async_execute") and callable(plugin.async_execute):
                 result = asyncio.run(plugin.async_execute(ctx))
             else:
@@ -537,7 +547,7 @@ class _NodeExecutor:
             traceback_text = traceback.format_exc()
             self.node_outputs[node_id] = {"error": error_str, "traceback": traceback_text}
 
-            if self._graph.has_failure_downstream(node_id):
+            if self._plan.has_failure_downstream(node_id):
                 self._publisher.emit_log(
                     "warning",
                     f"Node failed but has failure handlers: {error_str}",
@@ -576,6 +586,21 @@ def _coerce_start_run_command(command: StartRunCommand | dict[str, Any]) -> Star
     )
 
 
+def _prepare_runtime(command: StartRunCommand) -> _PreparedRuntime:
+    registry = build_default_registry()
+    serializer = JsonProjectSerializer(registry)
+    project_doc = _load_project_doc(command, serializer)
+    workspace = compile_runtime_workspace(
+        _workspace_doc_from_project(project_doc, command.workspace_id),
+        registry=registry,
+    )
+    return _PreparedRuntime(
+        registry=registry,
+        workspace=workspace,
+        plan=_ExecutionPlan(workspace, registry),
+    )
+
+
 class _WorkflowRunner:
     def __init__(
         self,
@@ -594,16 +619,12 @@ class _WorkflowRunner:
             run_id=command.run_id,
             workspace_id=command.workspace_id,
         )
-        self._registry = build_default_registry()
-        serializer = JsonProjectSerializer(self._registry)
-        project_doc = _load_project_doc(command, serializer)
-        workspace = compile_workspace_document(
-            _workspace_doc_from_project(project_doc, command.workspace_id),
-            registry=self._registry,
-        )
-        self._graph = _RuntimeGraph(workspace, self._registry)
+        prepared = _prepare_runtime(command)
+        self._registry = prepared.registry
+        self._workspace = prepared.workspace
+        self._plan = prepared.plan
         self._executor = _NodeExecutor(
-            self._graph,
+            self._plan,
             self._registry,
             self._control,
             self._publisher,
@@ -614,7 +635,7 @@ class _WorkflowRunner:
         self._publisher.emit_run_started()
         self._publisher.emit_log("info", "Workflow run started.")
 
-        ready = self._graph.initial_ready()
+        ready = self._plan.initial_ready()
         while ready:
             node_id = ready.popleft()
             if node_id in self._executor.executed:
@@ -622,10 +643,10 @@ class _WorkflowRunner:
             status = self._executor.run_node(node_id)
             if self._handle_terminal_status(status):
                 return
-            ready.extend(self._graph.release_downstream(node_id, status))
+            ready.extend(self._plan.release_downstream(node_id, status))
 
-        if not self._executor.executed and self._graph.has_only_dependency_nodes():
-            for node_id in self._graph.dependency_sinks():
+        if not self._executor.executed and self._plan.has_only_dependency_nodes():
+            for node_id in self._plan.dependency_sinks():
                 if node_id in self._executor.executed:
                     continue
                 status = self._executor.run_node(node_id)
