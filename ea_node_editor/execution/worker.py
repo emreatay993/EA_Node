@@ -30,20 +30,19 @@ from ea_node_editor.execution.protocol import (
     dict_to_command,
     event_to_dict,
 )
-from ea_node_editor.execution.compiler import compile_runtime_workspace
+from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
-from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.execution.runtime_snapshot import (
+    RuntimeSnapshot,
+    build_execution_trigger,
+    build_runtime_snapshot,
+    coerce_runtime_snapshot,
+    runtime_snapshot_from_project_document,
+)
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 _CONTROL_PORT_KINDS = frozenset({"exec", "completed", "failed"})
-
-
-def _workspace_doc_from_project(project_doc: dict[str, Any], workspace_id: str) -> dict[str, Any]:
-    for workspace_doc in project_doc.get("workspaces", []):
-        if workspace_doc.get("workspace_id") == workspace_id:
-            return workspace_doc
-    raise KeyError(f"Workspace not found in project doc: {workspace_id}")
 
 
 def _emit(event_queue: Queue, event: WorkerEvent) -> None:
@@ -90,14 +89,24 @@ def _emit_protocol_error(
     )
 
 
-def _load_project_doc(command: StartRunCommand, serializer: JsonProjectSerializer) -> dict[str, Any]:
-    if command.project_doc:
-        return dict(command.project_doc)
+def _load_runtime_snapshot(
+    command: StartRunCommand,
+    *,
+    serializer: JsonProjectSerializer,
+    registry: Any,
+) -> RuntimeSnapshot:
+    if command.runtime_snapshot is not None:
+        return command.runtime_snapshot
     path = command.project_path
     if not path:
-        raise ValueError("Missing project_path and project_doc")
+        raise ValueError("Missing project_path and runtime_snapshot")
     project = serializer.load(path)
-    return serializer.to_document(project)
+    return build_runtime_snapshot(
+        project,
+        workspace_id=command.workspace_id,
+        registry=registry,
+        serializer=serializer,
+    )
 
 
 class _RunControl:
@@ -342,6 +351,7 @@ def _is_exec_entry_spec(spec: Any) -> bool:
 @dataclass(slots=True)
 class _PreparedRuntime:
     registry: Any
+    runtime_snapshot: RuntimeSnapshot
     workspace: RuntimeWorkspace
     plan: "_ExecutionPlan"
 
@@ -576,26 +586,37 @@ def _coerce_start_run_command(command: StartRunCommand | dict[str, Any]) -> Star
             raise ValueError("run_workflow requires a start_run command payload.")
         return typed_command
 
-    project_doc = command.get("project_doc")
+    runtime_snapshot = coerce_runtime_snapshot(command.get("runtime_snapshot"))
+    legacy_project_doc = command.get("project_doc")
+    if runtime_snapshot is None and isinstance(legacy_project_doc, dict):
+        runtime_snapshot = runtime_snapshot_from_project_document(legacy_project_doc)
     return StartRunCommand(
         run_id=str(command.get("run_id", "")),
         project_path=str(command.get("project_path", "")),
         workspace_id=str(command.get("workspace_id", "")),
         trigger=dict(command.get("trigger", {})) if isinstance(command.get("trigger"), dict) else {},
-        project_doc=dict(project_doc) if isinstance(project_doc, dict) else {},
+        runtime_snapshot=runtime_snapshot,
     )
 
 
 def _prepare_runtime(command: StartRunCommand) -> _PreparedRuntime:
+    from ea_node_editor.nodes.bootstrap import build_default_registry
+
     registry = build_default_registry()
     serializer = JsonProjectSerializer(registry)
-    project_doc = _load_project_doc(command, serializer)
-    workspace = compile_runtime_workspace(
-        _workspace_doc_from_project(project_doc, command.workspace_id),
+    runtime_snapshot = _load_runtime_snapshot(
+        command,
+        serializer=serializer,
+        registry=registry,
+    )
+    workspace = compile_runtime_snapshot(
+        runtime_snapshot,
+        workspace_id=command.workspace_id,
         registry=registry,
     )
     return _PreparedRuntime(
         registry=registry,
+        runtime_snapshot=runtime_snapshot,
         workspace=workspace,
         plan=_ExecutionPlan(workspace, registry),
     )
@@ -621,6 +642,7 @@ class _WorkflowRunner:
         )
         prepared = _prepare_runtime(command)
         self._registry = prepared.registry
+        self._runtime_snapshot = prepared.runtime_snapshot
         self._workspace = prepared.workspace
         self._plan = prepared.plan
         self._executor = _NodeExecutor(
@@ -628,7 +650,7 @@ class _WorkflowRunner:
             self._registry,
             self._control,
             self._publisher,
-            trigger=dict(command.trigger),
+            trigger=build_execution_trigger(command.trigger, self._runtime_snapshot),
         )
 
     def run(self) -> None:

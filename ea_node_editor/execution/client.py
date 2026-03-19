@@ -22,6 +22,10 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
 )
+from ea_node_editor.execution.runtime_snapshot import (
+    coerce_runtime_snapshot,
+    runtime_snapshot_from_project_document,
+)
 from ea_node_editor.execution.worker import worker_main
 
 _LISTENER_SHUTDOWN_SENTINEL = {"type": "__listener_shutdown__"}
@@ -114,13 +118,17 @@ class ProcessExecutionClient:
             return ""
 
         run_id = f"run_{uuid.uuid4().hex[:8]}"
-        project_doc = trigger.get("project_doc") if isinstance(trigger, dict) else None
+        trigger_payload = dict(trigger or {})
+        runtime_snapshot = coerce_runtime_snapshot(trigger_payload.pop("runtime_snapshot", None))
+        legacy_project_doc = trigger_payload.pop("project_doc", None)
+        if runtime_snapshot is None and isinstance(legacy_project_doc, dict):
+            runtime_snapshot = runtime_snapshot_from_project_document(legacy_project_doc)
         command = StartRunCommand(
             run_id=run_id,
             project_path=project_path,
             workspace_id=workspace_id,
-            trigger=dict(trigger or {}),
-            project_doc=dict(project_doc) if isinstance(project_doc, dict) else {},
+            trigger=trigger_payload,
+            runtime_snapshot=runtime_snapshot,
         )
         with self._state_lock:
             self._active_run_id = run_id

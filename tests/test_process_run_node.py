@@ -7,6 +7,7 @@ import threading
 import time
 import unittest
 
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -16,7 +17,6 @@ from ea_node_editor.nodes.builtins.integrations_process import (
     normalize_env,
 )
 from ea_node_editor.nodes.types import ExecutionContext
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
 def _context(
@@ -190,7 +190,11 @@ class ProcessRunNodeTests(unittest.TestCase):
         )
         model.add_edge(workspace.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace.workspace_id,
+            registry=build_default_registry(),
+        )
         event_queue: queue.Queue = queue.Queue()
         command_queue: queue.Queue = queue.Queue()
         run_id = "run_stop_process"
@@ -200,7 +204,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                 {
                     "run_id": run_id,
                     "workspace_id": workspace.workspace_id,
-                    "project_doc": serializer.to_document(model.project),
+                    "runtime_snapshot": runtime_snapshot,
                     "trigger": {},
                 },
                 event_queue,

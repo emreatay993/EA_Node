@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal, Protocol
 
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.ui.icon_registry import qicon
 from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_action_state
 from ea_node_editor.ui.shell.state import ShellRunState
@@ -13,6 +14,7 @@ class _RunControllerHostProtocol(Protocol):
     workspace_manager: Any
     serializer: Any
     model: Any
+    registry: Any
     project_session_controller: Any
     console_panel: Any
     execution_client: Any
@@ -49,11 +51,15 @@ class RunController:
             return
 
         workspace_id = self._host.workspace_manager.active_workspace_id()
-        document = self._host.serializer.to_document(self._host.model.project)
+        runtime_snapshot = build_runtime_snapshot(
+            self._host.model.project,
+            workspace_id=workspace_id,
+            registry=self._host.registry,
+        )
         trigger = {
             "kind": "manual",
             "workflow_settings": self._host.project_session_controller.workflow_settings_payload(),
-            "project_doc": document,
+            "runtime_snapshot": runtime_snapshot,
         }
         self._host.console_panel.clear_all()
         run_id = self._host.execution_client.start_run(

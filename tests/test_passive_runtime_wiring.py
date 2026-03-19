@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import copy
 import unittest
 
-from ea_node_editor.execution.compiler import compile_runtime_workspace, compile_workspace_document
+from ea_node_editor.execution.compiler import (
+    compile_runtime_snapshot,
+    compile_runtime_workspace,
+    compile_workspace_document,
+)
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
+from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, build_runtime_snapshot
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.normalization import normalize_project_for_registry
@@ -187,6 +193,56 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         )
         self.assertNotIn(passive.node_id, {node.node_id for node in compiled.nodes})
         self.assertEqual(compile_workspace_document(workspace_doc, registry=registry), compiled.to_document())
+
+    def test_build_runtime_snapshot_round_trips_project_doc_and_compiles_active_workspace(self) -> None:
+        registry = _build_runtime_registry()
+        serializer = JsonProjectSerializer(registry)
+        model = GraphModel()
+        workspace = model.active_workspace
+
+        source = model.add_node(workspace.workspace_id, "tests.runtime_source", "Source", 0.0, 0.0)
+        target = model.add_node(workspace.workspace_id, "tests.single_sink", "Target", 320.0, 0.0)
+        model.add_edge(workspace.workspace_id, source.node_id, "exec_out", target.node_id, "exec_in")
+        model.add_edge(workspace.workspace_id, source.node_id, "value", target.node_id, "value")
+
+        runtime_snapshot = build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace.workspace_id,
+            registry=registry,
+        )
+
+        self.assertIsInstance(runtime_snapshot, RuntimeSnapshot)
+        self.assertEqual(runtime_snapshot.active_workspace_id, workspace.workspace_id)
+        normalized_project = copy.deepcopy(model.project)
+        normalize_project_for_registry(normalized_project, registry)
+        self.assertEqual(runtime_snapshot.to_document(), serializer.to_document(normalized_project))
+
+        compiled = compile_runtime_snapshot(
+            runtime_snapshot,
+            workspace_id=workspace.workspace_id,
+            registry=registry,
+        )
+        self.assertEqual(
+            {node.node_id for node in compiled.nodes},
+            {source.node_id, target.node_id},
+        )
+        self.assertEqual(
+            [edge.to_document() for edge in compiled.edges],
+            [
+                {
+                    "source_node_id": source.node_id,
+                    "source_port_key": "exec_out",
+                    "target_node_id": target.node_id,
+                    "target_port_key": "exec_in",
+                },
+                {
+                    "source_node_id": source.node_id,
+                    "source_port_key": "value",
+                    "target_node_id": target.node_id,
+                    "target_port_key": "value",
+                },
+            ],
+        )
 
     def test_compile_workspace_document_respects_registry_multiplicity_and_port_resolution(self) -> None:
         registry = _build_runtime_registry()

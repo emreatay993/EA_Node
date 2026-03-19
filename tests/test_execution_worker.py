@@ -6,12 +6,12 @@ import sys
 import unittest
 from unittest import mock
 
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
 @node_type(
@@ -37,6 +37,15 @@ class ExecutionWorkerTests(unittest.TestCase):
             events.append(event_queue.get())
         return events
 
+    @staticmethod
+    def _runtime_snapshot(model: GraphModel, *, registry=None):  # noqa: ANN001
+        runtime_registry = registry or build_default_registry()
+        return build_runtime_snapshot(
+            model.project,
+            workspace_id=model.active_workspace.workspace_id,
+            registry=runtime_registry,
+        )
+
     def test_run_workflow_completes(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -47,12 +56,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_test",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -81,12 +90,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_error",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -118,12 +127,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, constant.node_id, "value", logger.node_id, "message")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_dependency_pull",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -159,12 +168,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         )
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_pure_only",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -201,12 +210,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         )
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_no_exec_trigger",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -230,6 +239,38 @@ class ExecutionWorkerTests(unittest.TestCase):
             )
         )
 
+    def test_run_workflow_manual_ui_trigger_preserves_project_doc_for_start_output(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 160, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, start.node_id, "trigger", logger.node_id, "message")
+
+        event_queue: queue.Queue = queue.Queue()
+        runtime_snapshot = self._runtime_snapshot(model)
+        run_workflow(
+            {
+                "run_id": "run_manual_trigger",
+                "workspace_id": ws.workspace_id,
+                "runtime_snapshot": runtime_snapshot,
+                "trigger": {
+                    "kind": "manual",
+                    "workflow_settings": {"general": {"project_name": "Demo"}},
+                },
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        logger_logs = [
+            str(event.get("message", ""))
+            for event in events
+            if str(event.get("type", "")) == "log" and str(event.get("node_id", "")) == logger.node_id
+        ]
+        self.assertTrue(any("'project_doc':" in message for message in logger_logs))
+        self.assertTrue(any("'workflow_settings': {'general': {'project_name': 'Demo'}}" in message for message in logger_logs))
+
     def test_run_workflow_emits_pause_resume_and_stop_transitions(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -239,7 +280,7 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
         model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
 
         pause_event_queue: queue.Queue = queue.Queue()
         pause_command_queue: queue.Queue = queue.Queue()
@@ -249,7 +290,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             {
                 "run_id": "run_pause",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             pause_event_queue,
@@ -274,7 +315,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             {
                 "run_id": "run_stop",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             stop_event_queue,
@@ -323,12 +364,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, process_node.node_id, "exec_out", end.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_stream_worker",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -463,12 +504,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, nested_logger.node_id, "exec_out", pin_inner_exec_out.node_id, "pin")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_nested",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {"nested": "two-level"},
             },
             event_queue,
@@ -533,12 +574,12 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, pin_exec_in.node_id, "pin", failing_script.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = self._runtime_snapshot(model)
         run_workflow(
             {
                 "run_id": "run_nested_fail",
                 "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,
@@ -560,13 +601,13 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_node(ws.workspace_id, "tests.passive_note", "Note B", 240, 0)
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(registry)
-        with mock.patch("ea_node_editor.execution.worker.build_default_registry", return_value=registry):
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
+        with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=registry):
             run_workflow(
                 {
                     "run_id": "run_passive_only",
                     "workspace_id": ws.workspace_id,
-                    "project_doc": serializer.to_document(model.project),
+                    "runtime_snapshot": runtime_snapshot,
                     "trigger": {},
                 },
                 event_queue,

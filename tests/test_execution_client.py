@@ -7,9 +7,9 @@ import time
 import unittest
 
 from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
 class ProcessExecutionClientTests(unittest.TestCase):
@@ -37,7 +37,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
             self._events.append(dict(event))
 
     @staticmethod
-    def _build_document(*, with_sleep_script: bool = False) -> tuple[str, dict]:
+    def _build_runtime_snapshot(*, with_sleep_script: bool = False):
         model = GraphModel()
         workspace = model.active_workspace
         start = model.add_node(workspace.workspace_id, "core.start", "Start", 0, 0)
@@ -64,8 +64,12 @@ class ProcessExecutionClientTests(unittest.TestCase):
             model.add_edge(workspace.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
             model.add_edge(workspace.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
-        serializer = JsonProjectSerializer(build_default_registry())
-        return workspace.workspace_id, serializer.to_document(model.project)
+        registry = build_default_registry()
+        return workspace.workspace_id, build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace.workspace_id,
+            registry=registry,
+        )
 
     def test_invalid_worker_payload_emits_protocol_error(self) -> None:
         self.client._event_queue.put("not-a-dict")  # noqa: SLF001
@@ -79,11 +83,11 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertIsNotNone(event)
 
     def test_worker_death_emits_failure_and_next_run_recovers(self) -> None:
-        workspace_id, long_doc = self._build_document(with_sleep_script=True)
+        workspace_id, long_runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=True)
         first_run_id = self.client.start_run(
             project_path="",
             workspace_id=workspace_id,
-            trigger={"kind": "manual", "project_doc": long_doc},
+            trigger={"kind": "manual", "runtime_snapshot": long_runtime_snapshot},
         )
         self.assertTrue(first_run_id)
 
@@ -107,11 +111,11 @@ class ProcessExecutionClientTests(unittest.TestCase):
         )
         self.assertIsNotNone(failed)
 
-        recovery_workspace_id, recovery_doc = self._build_document(with_sleep_script=False)
+        recovery_workspace_id, recovery_runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=False)
         second_run_id = self.client.start_run(
             project_path="",
             workspace_id=recovery_workspace_id,
-            trigger={"kind": "manual", "project_doc": recovery_doc},
+            trigger={"kind": "manual", "runtime_snapshot": recovery_runtime_snapshot},
         )
         self.assertTrue(second_run_id)
         self.assertNotEqual(first_run_id, second_run_id)
@@ -158,12 +162,16 @@ class ProcessExecutionClientTests(unittest.TestCase):
         end = model.add_node(workspace.workspace_id, "core.end", "End", 200, 0)
         model.add_edge(workspace.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
         model.add_edge(workspace.workspace_id, process_node.node_id, "exec_out", end.node_id, "exec_in")
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace.workspace_id,
+            registry=build_default_registry(),
+        )
 
         run_id = self.client.start_run(
             project_path="",
             workspace_id=workspace.workspace_id,
-            trigger={"kind": "manual", "project_doc": serializer.to_document(model.project)},
+            trigger={"kind": "manual", "runtime_snapshot": runtime_snapshot},
         )
         self.assertTrue(run_id)
 

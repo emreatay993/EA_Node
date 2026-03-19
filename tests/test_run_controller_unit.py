@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
 from ea_node_editor.ui.shell.state import ShellRunState
 
@@ -45,8 +46,11 @@ class _ActionStub:
 
 
 class _WorkspaceManagerStub:
+    def __init__(self, workspace_id: str) -> None:
+        self._workspace_id = workspace_id
+
     def active_workspace_id(self) -> str:
-        return "ws_1"
+        return self._workspace_id
 
 
 class _SerializerStub:
@@ -110,9 +114,10 @@ class _RunHostStub:
     def __init__(self) -> None:
         self.run_state = ShellRunState()
         self.project_path = "demo.sfe"
-        self.workspace_manager = _WorkspaceManagerStub()
-        self.serializer = _SerializerStub()
         self.model = GraphModel()
+        self.workspace_manager = _WorkspaceManagerStub(self.model.active_workspace.workspace_id)
+        self.serializer = _SerializerStub()
+        self.registry = build_default_registry()
         self.project_session_controller = _ProjectSessionControllerStub()
         self.console_panel = _ConsoleStub()
         self.execution_client = _ExecutionClientStub()
@@ -142,7 +147,7 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.console_panel.clear_count, 1)
         self.assertEqual(host.run_state.active_run_id, "run_live")
-        self.assertEqual(host.run_state.active_run_workspace_id, "ws_1")
+        self.assertEqual(host.run_state.active_run_workspace_id, host.model.active_workspace.workspace_id)
         self.assertEqual(host.run_state.engine_state_value, "running")
         self.assertEqual(host._engine_status, ("running", "Starting"))
         self.assertEqual(host._job_counters, (1, 0, 0, 0))
@@ -151,10 +156,16 @@ class RunControllerUnitTests(unittest.TestCase):
 
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["project_path"], "demo.sfe")
-        self.assertEqual(start_call["workspace_id"], "ws_1")
+        self.assertEqual(start_call["workspace_id"], host.model.active_workspace.workspace_id)
         self.assertEqual(start_call["trigger"]["kind"], "manual")
         self.assertEqual(start_call["trigger"]["workflow_settings"], {"general": {"project_name": "Demo"}})
-        self.assertEqual(start_call["trigger"]["project_doc"]["workspace_count"], 1)
+        runtime_snapshot = start_call["trigger"]["runtime_snapshot"]
+        self.assertEqual(runtime_snapshot.active_workspace_id, host.model.active_workspace.workspace_id)
+        self.assertEqual(len(runtime_snapshot.workspaces), 1)
+        self.assertEqual(
+            runtime_snapshot.to_document()["workspaces"][0]["workspace_id"],
+            host.model.active_workspace.workspace_id,
+        )
 
     def test_run_workflow_logs_error_when_start_fails(self) -> None:
         host = _RunHostStub()
@@ -192,14 +203,14 @@ class RunControllerUnitTests(unittest.TestCase):
     def test_stale_run_event_is_ignored(self) -> None:
         host = _RunHostStub()
         host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = "ws_1"
+        host.run_state.active_run_workspace_id = host.model.active_workspace.workspace_id
         controller = RunController(host)  # type: ignore[arg-type]
 
         controller.handle_execution_event(
             {
                 "type": "log",
                 "run_id": "run_stale",
-                "workspace_id": "ws_1",
+                "workspace_id": host.model.active_workspace.workspace_id,
                 "level": "error",
                 "message": "should be ignored",
             }
@@ -211,7 +222,7 @@ class RunControllerUnitTests(unittest.TestCase):
     def test_run_failed_event_focuses_node_logs_traceback_and_clears_active_run(self) -> None:
         host = _RunHostStub()
         host.run_state.active_run_id = "run_live"
-        host.run_state.active_run_workspace_id = "ws_1"
+        host.run_state.active_run_workspace_id = host.model.active_workspace.workspace_id
         host.run_state.engine_state_value = "running"
         controller = RunController(host)  # type: ignore[arg-type]
 
@@ -219,7 +230,7 @@ class RunControllerUnitTests(unittest.TestCase):
             {
                 "type": "run_failed",
                 "run_id": "run_live",
-                "workspace_id": "ws_1",
+                "workspace_id": host.model.active_workspace.workspace_id,
                 "node_id": "node_1",
                 "error": "boom",
                 "traceback": "traceback: line 1",
@@ -228,7 +239,10 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.console_panel.logs[-2:], [("error", "boom"), ("error", "traceback: line 1")])
         self.assertEqual(host._notifications, (0, 2))
-        self.assertEqual(host.workspace_library_controller.focus_calls, [("ws_1", "node_1", "boom")])
+        self.assertEqual(
+            host.workspace_library_controller.focus_calls,
+            [(host.model.active_workspace.workspace_id, "node_1", "boom")],
+        )
         self.assertEqual(host.run_state.active_run_id, "")
         self.assertEqual(host.run_state.active_run_workspace_id, "")
         self.assertEqual(host.run_state.engine_state_value, "error")
