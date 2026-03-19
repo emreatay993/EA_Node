@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from ea_node_editor.custom_workflows import export_custom_workflow_file, import_custom_workflow_file
+from ea_node_editor.execution.compiler import compile_workspace_document
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.graph.transforms import group_selection_into_subnode
 from ea_node_editor.graph.model import GraphModel
@@ -231,6 +232,58 @@ def _missing_plugin_round_trip_payload() -> dict[str, object]:
                         "plugin_edge_payload": {"waypoints": [1, 2, 3]},
                     },
                 ],
+            }
+        ],
+        "metadata": {},
+    }
+
+
+def _missing_plugin_parent_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_missing_parent",
+        "name": "Missing Parent",
+        "active_workspace_id": "ws",
+        "workspace_order": ["ws"],
+        "workspaces": [
+            {
+                "workspace_id": "ws",
+                "name": "WS",
+                "active_view_id": "view",
+                "views": [
+                    {
+                        "view_id": "view",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "missing_shell",
+                        "type_id": "plugin.missing_shell",
+                        "title": "Missing",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "known_child",
+                        "type_id": "core.logger",
+                        "title": "Logger",
+                        "x": 10.0,
+                        "y": 10.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"exec_in": True, "message": True, "exec_out": True},
+                        "parent_node_id": "missing_shell",
+                    },
+                ],
+                "edges": [],
             }
         ],
         "metadata": {},
@@ -947,7 +1000,7 @@ class SerializerTests(unittest.TestCase):
             {"route": "fallback"},
         )
 
-        round_tripped = serializer.to_document(project)
+        round_tripped = serializer.to_persistent_document(project)
         workspace_doc = round_tripped["workspaces"][0]
         nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
         edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
@@ -973,13 +1026,45 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(set(workspace.unresolved_node_docs), {"node_unknown"})
         self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
 
-        round_tripped = serializer.to_document(project)
-        workspace_doc = round_tripped["workspaces"][0]
+        runtime_doc = serializer.to_document(project)
+        runtime_workspace_doc = runtime_doc["workspaces"][0]
+        self.assertEqual(
+            [node["node_id"] for node in runtime_workspace_doc["nodes"]],
+            ["node_end", "node_start"],
+        )
+        self.assertEqual([edge["edge_id"] for edge in runtime_workspace_doc["edges"]], ["edge_valid"])
+        self.assertIn("_runtime_unresolved_workspaces", runtime_doc["metadata"])
+
+        compiled = compile_workspace_document(runtime_workspace_doc, registry)
+        self.assertEqual(
+            [node["node_id"] for node in compiled["nodes"]],
+            ["node_end", "node_start"],
+        )
+        self.assertEqual(
+            compiled["edges"],
+            [
+                {
+                    "source_node_id": "node_start",
+                    "source_port_key": "exec_out",
+                    "target_node_id": "node_end",
+                    "target_port_key": "exec_in",
+                }
+            ],
+        )
+
+        reloaded_from_runtime_doc = serializer.from_document(runtime_doc)
+        reloaded_workspace = reloaded_from_runtime_doc.workspaces["ws_plugin"]
+        self.assertEqual(set(reloaded_workspace.unresolved_node_docs), {"node_unknown"})
+        self.assertEqual(set(reloaded_workspace.unresolved_edge_docs), {"edge_unknown_to_known"})
+
+        authored_doc = serializer.to_persistent_document(project)
+        workspace_doc = authored_doc["workspaces"][0]
         nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
         edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
 
         self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][1])
         self.assertEqual(edges_by_id["edge_unknown_to_known"], payload["workspaces"][0]["edges"][1])
+        self.assertEqual(serializer.to_persistent_document(reloaded_from_runtime_doc), authored_doc)
         self.assertEqual(
             edges_by_id["edge_valid"],
             {
@@ -992,6 +1077,26 @@ class SerializerTests(unittest.TestCase):
                 "visual_style": {},
             },
         )
+
+    def test_from_document_sanitizes_live_parent_links_to_unresolved_nodes(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = _missing_plugin_parent_payload()
+
+        project = serializer.from_document(payload)
+        workspace = project.workspaces["ws"]
+
+        self.assertEqual(sorted(workspace.nodes), ["known_child"])
+        self.assertEqual(sorted(workspace.unresolved_node_docs), ["missing_shell"])
+        self.assertIsNone(workspace.nodes["known_child"].parent_node_id)
+        self.assertEqual(
+            workspace.authored_node_overrides["known_child"],
+            {"parent_node_id": "missing_shell"},
+        )
+
+        authored_doc = serializer.to_persistent_document(project)
+        workspace_doc = authored_doc["workspaces"][0]
+        nodes_by_id = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        self.assertEqual(nodes_by_id["known_child"]["parent_node_id"], "missing_shell")
 
 
 if __name__ == "__main__":

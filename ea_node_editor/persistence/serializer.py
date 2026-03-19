@@ -26,7 +26,7 @@ class JsonProjectSerializer:
         target = Path(path)
         if target.suffix.lower() != PROJECT_EXTENSION:
             target = target.with_suffix(PROJECT_EXTENSION)
-        doc = self.to_document(project)
+        doc = self.to_persistent_document(project)
         target.write_text(
             json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True),
             encoding="utf-8",
@@ -34,6 +34,9 @@ class JsonProjectSerializer:
 
     def to_document(self, project: ProjectData) -> dict[str, Any]:
         return self._codec.to_document(project)
+
+    def to_persistent_document(self, project: ProjectData) -> dict[str, Any]:
+        return self._codec.to_persistent_document(project)
 
     def from_document(self, payload: dict[str, Any]) -> ProjectData:
         migrated = self.migrate(payload)

@@ -155,6 +155,8 @@ class RegistryValidationTests(unittest.TestCase):
             visual_style={"fill": "#556677"},
         )
         workspace.nodes[unknown_node.node_id] = unknown_node
+        child_node = model.add_node(workspace.workspace_id, "core.logger", "Child", 200.0, 80.0)
+        child_node.parent_node_id = unknown_node.node_id
 
         valid_edge = model.add_edge(
             workspace.workspace_id,
@@ -178,6 +180,11 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(
             workspace.unresolved_node_docs[unknown_node.node_id]["visual_style"],
             {"fill": "#556677"},
+        )
+        self.assertIsNone(workspace.nodes[child_node.node_id].parent_node_id)
+        self.assertEqual(
+            workspace.authored_node_overrides[child_node.node_id],
+            {"parent_node_id": unknown_node.node_id},
         )
         self.assertEqual(set(workspace.edges), {valid_edge.edge_id})
         self.assertEqual(set(workspace.unresolved_edge_docs), {mixed_edge.edge_id})

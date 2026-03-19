@@ -140,6 +140,32 @@ def accept_registry_edge(
     return True
 
 
+def _sanitize_live_parent_links(workspace) -> None:  # noqa: ANN001
+    for node in workspace.nodes.values():
+        parent_id = str(node.parent_node_id or "").strip() or None
+        override_parent_id = (
+            str(workspace.authored_node_overrides.get(node.node_id, {}).get("parent_node_id", "")).strip()
+            or None
+        )
+        if parent_id is None:
+            if override_parent_id in workspace.unresolved_node_docs:
+                continue
+            workspace.authored_node_overrides.pop(node.node_id, None)
+            continue
+        if parent_id == node.node_id:
+            node.parent_node_id = None
+            workspace.authored_node_overrides.pop(node.node_id, None)
+            continue
+        if parent_id in workspace.nodes:
+            workspace.authored_node_overrides.pop(node.node_id, None)
+            continue
+        if parent_id in workspace.unresolved_node_docs:
+            workspace.authored_node_overrides[node.node_id] = {"parent_node_id": parent_id}
+        else:
+            workspace.authored_node_overrides.pop(node.node_id, None)
+        node.parent_node_id = None
+
+
 def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry) -> None:
     """Normalize resolved content while preserving unresolved authored payloads."""
     for workspace in project.workspaces.values():
@@ -160,6 +186,8 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
             if edge.source_node_id in unknown_node_ids or edge.target_node_id in unknown_node_ids:
                 workspace.unresolved_edge_docs[edge_id] = edge_instance_to_mapping(edge)
                 workspace.edges.pop(edge_id, None)
+
+        _sanitize_live_parent_links(workspace)
 
         for resolution in resolved_nodes.values():
             resolution.node.exposed_ports = normalized_exposed_ports(

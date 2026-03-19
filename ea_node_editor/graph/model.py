@@ -160,6 +160,7 @@ class WorkspaceData:
     dirty: bool = False
     unresolved_node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
     unresolved_edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    authored_node_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def ensure_default_view(self) -> None:
         if not self.views:
@@ -183,6 +184,7 @@ class WorkspaceData:
             dirty=True,
             unresolved_node_docs=copy.deepcopy(self.unresolved_node_docs),
             unresolved_edge_docs=copy.deepcopy(self.unresolved_edge_docs),
+            authored_node_overrides=copy.deepcopy(self.authored_node_overrides),
         )
         duplicate.ensure_default_view()
         return duplicate
@@ -347,6 +349,7 @@ class GraphModel:
             workspace.unresolved_node_docs.pop(node_id, None)
         else:
             del workspace.nodes[node_id]
+        workspace.authored_node_overrides.pop(node_id, None)
         for edge_id in list(workspace.edges):
             edge = workspace.edges[edge_id]
             if edge.source_node_id == node_id or edge.target_node_id == node_id:
@@ -358,6 +361,9 @@ class GraphModel:
                 or str(edge.get("target_node_id", "")).strip() == node_id
             ):
                 del workspace.unresolved_edge_docs[edge_id]
+        for child_node_id, override in list(workspace.authored_node_overrides.items()):
+            if str(override.get("parent_node_id", "")).strip() == node_id:
+                del workspace.authored_node_overrides[child_node_id]
         workspace.dirty = True
 
     def set_node_position(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
