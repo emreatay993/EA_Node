@@ -5,7 +5,7 @@
 - Packet: `P01`
 - Branch Label: `codex/arch-fifth-pass/p01-startup-preferences-boundary`
 - Commit Owner: `worker`
-- Commit SHA: `n/a`
+- Commit SHA: `af0fb29255791fc6e0865536433d36c9e77e7637`
 - Changed Files: `main.py`, `pyproject.toml`, `ea_node_editor/bootstrap.py`, `ea_node_editor/app.py`, `ea_node_editor/app_preferences.py`, `ea_node_editor/ui/shell/controllers/app_preferences_controller.py`, `ea_node_editor/ui/perf/__init__.py`, `ea_node_editor/ui/perf/performance_harness.py`, `ea_node_editor/telemetry/performance_harness.py`, `tests/test_main_bootstrap.py`, `tests/test_graphics_settings_preferences.py`, `tests/test_track_h_perf_harness.py`, `docs/specs/work_packets/arch_fifth_pass/P01_startup_preferences_boundary_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/arch_fifth_pass/P01_startup_preferences_boundary_WRAPUP.md`, `ea_node_editor/bootstrap.py`, `ea_node_editor/app_preferences.py`, `ea_node_editor/ui/perf/__init__.py`, `ea_node_editor/ui/perf/performance_harness.py`
 
