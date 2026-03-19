@@ -101,10 +101,17 @@ Manual passive-media fixture:
 ## Common Paths
 
 - User data directory: `%APPDATA%\EA_Node_Editor\`
-- Plugin drop-in directory: `%APPDATA%\EA_Node_Editor\plugins\`
+- Plugin directory root: `%APPDATA%\EA_Node_Editor\plugins\`
 - App-wide graphics preferences: `%APPDATA%\EA_Node_Editor\app_preferences.json`
 - Session state: `%APPDATA%\EA_Node_Editor\last_session.json`
 - Autosave project: `%APPDATA%\EA_Node_Editor\autosave.sfe`
+
+## Plugins and Node Packages
+
+- Raw plugin drop-ins live directly under `%APPDATA%\EA_Node_Editor\plugins\` as public `*.py` files. Files whose names start with `_` are ignored.
+- Imported `.eanp` packages install as `%APPDATA%\EA_Node_Editor\plugins\<package_name>\`. Each archive must contain `node_package.json` plus top-level `.py` files only; nested directories and non-Python payload files are rejected.
+- File > Export Node Package only exports sources already loaded from the user plugins directory. The shell can package one public root `.py` drop-in or one installed package directory at a time; it does not build an archive from arbitrary node selections or built-in nodes.
+- File > Import Node Package reloads user plugins after install. If the imported package replaces node types that were already loaded in the current session, restart the app before assuming the replacements took effect.
 
 ## Repo Orientation
 

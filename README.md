@@ -35,7 +35,7 @@ py -3.10 -m venv venv
 ```
 
 - For a fuller setup and orientation guide, see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
-- On Windows, user data lives under `%APPDATA%\EA_Node_Editor\` and the plugin drop-in folder is `%APPDATA%\EA_Node_Editor\plugins\`.
+- On Windows, user data lives under `%APPDATA%\EA_Node_Editor\`; public single-file plugin drop-ins live directly in `%APPDATA%\EA_Node_Editor\plugins\`, and imported `.eanp` packages install as subdirectories beneath that same root.
 - The console entry point installed by editable mode is `ea-node-editor`.
 
 ## Project Structure
@@ -212,8 +212,9 @@ docs/specs/
 
 ## Creating a Custom Node
 
-Drop a Python file into the plugins folder at `%APPDATA%/EA_Node_Editor/plugins/`
+Drop a public Python file into the plugins folder at `%APPDATA%/EA_Node_Editor/plugins/`
 (or the fallback user-data directory returned by `ea_node_editor.settings.plugins_dir()`).
+The loader reads top-level `*.py` files whose filenames do not start with `_`.
 The file should define one or more classes that follow the `NodePlugin` protocol:
 
 ```python
@@ -246,10 +247,15 @@ class MultiplyNode:
 Restart the application and the node will appear in the Node Library under the
 "Math" category.
 
+Installed `.eanp` packages use the same plugin root, but each package lives in
+its own public subdirectory named after `node_package.json` `name`. Supported
+package contents are `node_package.json` plus top-level `.py` modules only.
+
 ## Sharing Node Packages
 
-- **Export:** File > Export Node Package -- bundles selected nodes into a `.eanp` file
-- **Import:** File > Import Node Package -- installs a `.eanp` file into your plugins folder
+- **Export:** File > Export Node Package -- packages one current user-plugin source candidate into a `.eanp` archive. Export candidates come from the user plugins directory only: either one top-level `.py` drop-in or one installed package directory's top-level `.py` files.
+- **Import:** File > Import Node Package -- installs a `.eanp` archive as `%APPDATA%/EA_Node_Editor/plugins/<package_name>/` with `node_package.json` plus top-level `.py` files, then reloads user plugins for the current session.
+- **Current limitation:** If an imported package replaces node types that were already loaded earlier in the session, restart the application before relying on the replacement definitions.
 
 ## Graphics Settings
 
