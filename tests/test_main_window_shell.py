@@ -603,6 +603,24 @@ class ShellLibraryBridgeTests(unittest.TestCase):
             ],
         )
 
+    def test_bridge_prefers_shell_library_presenter_when_available(self) -> None:
+        host = _ShellLibraryHostStub()
+        presenter = _ShellLibraryHostStub()
+        presenter.grouped_node_library_items = [{"kind": "item", "type_id": "core.start", "display_name": "Start"}]
+        presenter.graph_search_query = "presenter search"
+        presenter.connection_quick_insert_query = "presenter quick insert"
+        host.shell_library_presenter = presenter
+
+        bridge = ShellLibraryBridge(shell_window=host)
+
+        self.assertEqual(bridge.grouped_node_library_items, presenter.grouped_node_library_items)
+        self.assertEqual(bridge.graph_search_query, "presenter search")
+        self.assertEqual(bridge.connection_quick_insert_query, "presenter quick insert")
+
+        bridge.set_library_query("from presenter")
+        self.assertEqual(presenter.calls, [("set_library_query", ("from presenter",))])
+        self.assertEqual(host.calls, [])
+
     def test_bridge_re_emits_shell_signals(self) -> None:
         host = _ShellLibraryHostStub()
         bridge = ShellLibraryBridge(shell_window=host)
@@ -695,6 +713,24 @@ class ShellInspectorBridgeTests(unittest.TestCase):
                 ("set_selected_port_exposed", ("exec_in", False)),
             ],
         )
+
+    def test_bridge_prefers_shell_inspector_presenter_when_available(self) -> None:
+        host = _ShellInspectorHostStub()
+        presenter = _ShellInspectorHostStub()
+        presenter.selected_node_title = "Presenter Node"
+        presenter.selected_node_property_items = [
+            {"key": "message", "label": "Message", "value": "from presenter", "editor_mode": "text"}
+        ]
+        host.shell_inspector_presenter = presenter
+
+        bridge = ShellInspectorBridge(shell_window=host)
+
+        self.assertEqual(bridge.selected_node_title, "Presenter Node")
+        self.assertEqual(bridge.selected_node_property_items, presenter.selected_node_property_items)
+
+        bridge.set_selected_node_property("message", "updated")
+        self.assertEqual(presenter.calls, [("set_selected_node_property", ("message", "updated"))])
+        self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_state_signals(self) -> None:
         host = _ShellInspectorHostStub()
@@ -835,6 +871,26 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("set_viewport_size", (1280.0, 720.0)),
             ],
         )
+
+    def test_bridge_prefers_graph_canvas_presenter_when_available(self) -> None:
+        host = _GraphCanvasShellHostStub()
+        presenter = _GraphCanvasShellHostStub()
+        presenter.graphics_show_grid = False
+        presenter.graphics_show_minimap = False
+        presenter.snap_to_grid_enabled = False
+        host.graph_canvas_presenter = presenter
+        scene = _GraphCanvasSceneBridgeStub()
+        view = _GraphCanvasViewBridgeStub()
+
+        bridge = GraphCanvasBridge(shell_window=host, scene_bridge=scene, view_bridge=view)
+
+        self.assertFalse(bridge.graphics_show_grid)
+        self.assertFalse(bridge.graphics_show_minimap)
+        self.assertFalse(bridge.snap_to_grid_enabled)
+
+        bridge.set_graphics_minimap_expanded(False)
+        self.assertEqual(presenter.calls, [("set_graphics_minimap_expanded", (False,))])
+        self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_scene_and_view_signals(self) -> None:
         host = _GraphCanvasShellHostStub()
@@ -993,6 +1049,30 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
             [("activate_workspace", ("ws-1",))],
         )
         self.assertEqual(console_bridge.calls, [("clear_all", ())])
+
+    def test_bridge_prefers_shell_workspace_presenter_when_available(self) -> None:
+        host = _ShellWorkspaceHostStub()
+        presenter = _ShellWorkspaceHostStub()
+        presenter.project_display_name = "Presenter Packet"
+        presenter.active_view_items = [{"view_id": "view-presenter", "label": "Presenter", "active": True}]
+        host.shell_workspace_presenter = presenter
+        tabs_bridge = _WorkspaceTabsBridgeStub()
+        console_bridge = _ConsoleBridgeStub()
+        scene_bridge = _ScopeSceneBridgeStub()
+
+        bridge = ShellWorkspaceBridge(
+            shell_window=host,
+            scene_bridge=scene_bridge,
+            console_bridge=console_bridge,
+            workspace_tabs_bridge=tabs_bridge,
+        )
+
+        self.assertEqual(bridge.project_display_name, "Presenter Packet")
+        self.assertEqual(bridge.active_view_items, presenter.active_view_items)
+
+        bridge.request_run_workflow()
+        self.assertEqual(presenter.calls, [("request_run_workflow", ())])
+        self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_workspace_and_console_signals(self) -> None:
         host = _ShellWorkspaceHostStub()
@@ -1790,7 +1870,7 @@ def _run_pytest_shell_class_nodeid(nodeid: str, *, extra_env: dict[str, str] | N
     if extra_env:
         env.update(extra_env)
     result = subprocess.run(
-        [sys.executable, "-m", "pytest", nodeid, "-q"],
+        [sys.executable, "-m", "pytest", "--ignore=venv", nodeid, "-q"],
         cwd=_REPO_ROOT,
         env=env,
         capture_output=True,

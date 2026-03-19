@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -11,6 +11,30 @@ if TYPE_CHECKING:
 
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
+
+
+def _source_attr(source: object | None, name: str, default: Any) -> Any:
+    if source is None:
+        return default
+    return getattr(source, name, default)
+
+
+def _invoke(source: object | None, name: str, *args, default: Any = None) -> Any:
+    callback = getattr(source, name, None) if source is not None else None
+    if not callable(callback):
+        return default
+    return callback(*args)
+
+
+def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
+    signal = getattr(source, name, None) if source is not None else None
+    if signal is not None and hasattr(signal, "connect"):
+        signal.connect(slot)
+
+
+def _has_signal(source: object | None, name: str) -> bool:
+    signal = getattr(source, name, None) if source is not None else None
+    return bool(signal is not None and hasattr(signal, "connect"))
 
 
 class ShellInspectorBridge(QObject):
@@ -28,58 +52,22 @@ class ShellInspectorBridge(QObject):
         super().__init__(parent)
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
+        self._inspector_source = getattr(shell_window, "shell_inspector_presenter", shell_window)
 
-        self._selected_node_title: Callable[[], str] = lambda: ""
-        self._selected_node_subtitle: Callable[[], str] = lambda: ""
-        self._selected_node_summary: Callable[[], str] = lambda: ""
-        self._selected_node_header_items: Callable[[], list[dict[str, str]]] = lambda: []
-        self._has_selected_node: Callable[[], bool] = lambda: False
-        self._selected_node_collapsible: Callable[[], bool] = lambda: False
-        self._selected_node_collapsed: Callable[[], bool] = lambda: False
-        self._selected_node_is_subnode_pin: Callable[[], bool] = lambda: False
-        self._selected_node_is_subnode_shell: Callable[[], bool] = lambda: False
-        self._selected_node_property_items: Callable[[], list[dict[str, Any]]] = lambda: []
-        self._selected_node_port_items: Callable[[], list[dict[str, Any]]] = lambda: []
-        self._pin_data_type_options: Callable[[], list[str]] = lambda: []
+        _connect_signal(self._inspector_source, "selected_node_changed", self._on_selected_node_changed)
+        _connect_signal(self._inspector_source, "workspace_state_changed", self._on_workspace_state_changed)
+        if _has_signal(self._inspector_source, "inspector_state_changed"):
+            _connect_signal(self._inspector_source, "inspector_state_changed", self.inspector_state_changed.emit)
 
-        self._set_selected_node_property: Callable[[str, object], None] = lambda _key, _value: None
-        self._browse_selected_node_property_path: Callable[[str, str], str] = (
-            lambda _key, _current_path: ""
-        )
-        self._set_selected_port_exposed: Callable[[str, bool], None] = (
-            lambda _key, _exposed: None
-        )
-        self._set_selected_port_label: Callable[[str, str], bool] = lambda _key, _label: False
-        self._set_selected_node_collapsed: Callable[[bool], None] = lambda _collapsed: None
-        self._request_ungroup_selected_nodes: Callable[[], bool] = lambda: False
-        self._request_add_selected_subnode_pin: Callable[[str], str] = lambda _direction: ""
-        self._request_remove_selected_port: Callable[[str], bool] = lambda _key: False
+    def _on_selected_node_changed(self) -> None:
+        self.selected_node_changed.emit()
+        if not _has_signal(self._inspector_source, "inspector_state_changed"):
+            self.inspector_state_changed.emit()
 
-        if shell_window is not None:
-            self._selected_node_title = lambda: str(shell_window.selected_node_title)
-            self._selected_node_subtitle = lambda: str(shell_window.selected_node_subtitle)
-            self._selected_node_summary = lambda: str(shell_window.selected_node_summary)
-            self._selected_node_header_items = lambda: _copy_list(shell_window.selected_node_header_items)
-            self._has_selected_node = lambda: bool(shell_window.has_selected_node)
-            self._selected_node_collapsible = lambda: bool(shell_window.selected_node_collapsible)
-            self._selected_node_collapsed = lambda: bool(shell_window.selected_node_collapsed)
-            self._selected_node_is_subnode_pin = lambda: bool(shell_window.selected_node_is_subnode_pin)
-            self._selected_node_is_subnode_shell = lambda: bool(shell_window.selected_node_is_subnode_shell)
-            self._selected_node_property_items = lambda: _copy_list(shell_window.selected_node_property_items)
-            self._selected_node_port_items = lambda: _copy_list(shell_window.selected_node_port_items)
-            self._pin_data_type_options = lambda: _copy_list(shell_window.pin_data_type_options)
-
-            self._set_selected_node_property = shell_window.set_selected_node_property
-            self._browse_selected_node_property_path = shell_window.browse_selected_node_property_path
-            self._set_selected_port_exposed = shell_window.set_selected_port_exposed
-            self._set_selected_port_label = shell_window.set_selected_port_label
-            self._set_selected_node_collapsed = shell_window.set_selected_node_collapsed
-            self._request_ungroup_selected_nodes = shell_window.request_ungroup_selected_nodes
-            self._request_add_selected_subnode_pin = shell_window.request_add_selected_subnode_pin
-            self._request_remove_selected_port = shell_window.request_remove_selected_port
-
-            shell_window.selected_node_changed.connect(self._on_selected_node_changed)
-            shell_window.workspace_state_changed.connect(self._on_workspace_state_changed)
+    def _on_workspace_state_changed(self) -> None:
+        self.workspace_state_changed.emit()
+        if not _has_signal(self._inspector_source, "inspector_state_changed"):
+            self.inspector_state_changed.emit()
 
     @property
     def shell_window(self) -> "ShellWindow | None":
@@ -89,93 +77,96 @@ class ShellInspectorBridge(QObject):
     def scene_bridge(self) -> "GraphSceneBridge | None":
         return self._scene_bridge
 
-    def _on_selected_node_changed(self) -> None:
-        self.selected_node_changed.emit()
-        self.inspector_state_changed.emit()
-
-    def _on_workspace_state_changed(self) -> None:
-        self.workspace_state_changed.emit()
-        self.inspector_state_changed.emit()
-
     @pyqtProperty(str, notify=inspector_state_changed)
     def selected_node_title(self) -> str:
-        return self._selected_node_title()
+        return str(_source_attr(self._inspector_source, "selected_node_title", ""))
 
     @pyqtProperty(str, notify=inspector_state_changed)
     def selected_node_subtitle(self) -> str:
-        return self._selected_node_subtitle()
+        return str(_source_attr(self._inspector_source, "selected_node_subtitle", ""))
 
     @pyqtProperty(str, notify=inspector_state_changed)
     def selected_node_summary(self) -> str:
-        return self._selected_node_summary()
+        return str(_source_attr(self._inspector_source, "selected_node_summary", ""))
 
     @pyqtProperty("QVariantList", notify=inspector_state_changed)
     def selected_node_header_items(self) -> list[dict[str, str]]:
-        return self._selected_node_header_items()
+        return _copy_list(_source_attr(self._inspector_source, "selected_node_header_items", []))
 
     @pyqtProperty(bool, notify=inspector_state_changed)
     def has_selected_node(self) -> bool:
-        return self._has_selected_node()
+        return bool(_source_attr(self._inspector_source, "has_selected_node", False))
 
     @pyqtProperty(bool, notify=inspector_state_changed)
     def selected_node_collapsible(self) -> bool:
-        return self._selected_node_collapsible()
+        return bool(_source_attr(self._inspector_source, "selected_node_collapsible", False))
 
     @pyqtProperty(bool, notify=inspector_state_changed)
     def selected_node_collapsed(self) -> bool:
-        return self._selected_node_collapsed()
+        return bool(_source_attr(self._inspector_source, "selected_node_collapsed", False))
 
     @pyqtProperty(bool, notify=inspector_state_changed)
     def selected_node_is_subnode_pin(self) -> bool:
-        return self._selected_node_is_subnode_pin()
+        return bool(_source_attr(self._inspector_source, "selected_node_is_subnode_pin", False))
 
     @pyqtProperty(bool, notify=inspector_state_changed)
     def selected_node_is_subnode_shell(self) -> bool:
-        return self._selected_node_is_subnode_shell()
+        return bool(_source_attr(self._inspector_source, "selected_node_is_subnode_shell", False))
 
     @pyqtProperty("QVariantList", notify=inspector_state_changed)
     def selected_node_property_items(self) -> list[dict]:
-        return self._selected_node_property_items()
+        return _copy_list(_source_attr(self._inspector_source, "selected_node_property_items", []))
 
     @pyqtProperty("QVariantList", notify=inspector_state_changed)
     def selected_node_port_items(self) -> list[dict]:
-        return self._selected_node_port_items()
+        return _copy_list(_source_attr(self._inspector_source, "selected_node_port_items", []))
 
     @pyqtProperty("QVariantList", notify=inspector_state_changed)
     def pin_data_type_options(self) -> list[str]:
-        return self._pin_data_type_options()
+        return _copy_list(_source_attr(self._inspector_source, "pin_data_type_options", []))
 
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self, key: str, value) -> None:
-        self._set_selected_node_property(key, value)
+        _invoke(self._inspector_source, "set_selected_node_property", key, value)
 
     @pyqtSlot(str, str, result=str)
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
-        return str(self._browse_selected_node_property_path(key, current_path) or "")
+        return str(
+            _invoke(
+                self._inspector_source,
+                "browse_selected_node_property_path",
+                key,
+                current_path,
+                default="",
+            )
+            or ""
+        )
 
     @pyqtSlot(str, bool)
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
-        self._set_selected_port_exposed(key, exposed)
+        _invoke(self._inspector_source, "set_selected_port_exposed", key, exposed)
 
     @pyqtSlot(str, str, result=bool)
     def set_selected_port_label(self, key: str, label: str) -> bool:
-        return bool(self._set_selected_port_label(key, label))
+        return bool(_invoke(self._inspector_source, "set_selected_port_label", key, label, default=False))
 
     @pyqtSlot(bool)
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
-        self._set_selected_node_collapsed(collapsed)
+        _invoke(self._inspector_source, "set_selected_node_collapsed", collapsed)
 
     @pyqtSlot(result=bool)
     def request_ungroup_selected_nodes(self) -> bool:
-        return bool(self._request_ungroup_selected_nodes())
+        return bool(_invoke(self._inspector_source, "request_ungroup_selected_nodes", default=False))
 
     @pyqtSlot(str, result=str)
     def request_add_selected_subnode_pin(self, direction: str) -> str:
-        return str(self._request_add_selected_subnode_pin(direction) or "")
+        return str(
+            _invoke(self._inspector_source, "request_add_selected_subnode_pin", direction, default="") or ""
+        )
 
     @pyqtSlot(str, result=bool)
     def request_remove_selected_port(self, key: str) -> bool:
-        return bool(self._request_remove_selected_port(key))
+        return bool(_invoke(self._inspector_source, "request_remove_selected_port", key, default=False))
 
 
 __all__ = ["ShellInspectorBridge"]

@@ -57,6 +57,13 @@ from ea_node_editor.ui.shell.controllers import (
     WorkspaceLibraryController,
 )
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
+from ea_node_editor.ui.shell.presenters import (
+    GraphCanvasPresenter,
+    ShellInspectorPresenter,
+    ShellLibraryPresenter,
+    ShellWorkspacePresenter,
+    build_default_shell_workspace_ui_state,
+)
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_actions import build_window_menu_bar, create_window_actions
@@ -167,6 +174,14 @@ class _ShellContextBridgeBundle:
 
 
 @dataclass(frozen=True, slots=True)
+class _ShellPresenterBundle:
+    shell_library_presenter: ShellLibraryPresenter
+    shell_workspace_presenter: ShellWorkspacePresenter
+    shell_inspector_presenter: ShellInspectorPresenter
+    graph_canvas_presenter: GraphCanvasPresenter
+
+
+@dataclass(frozen=True, slots=True)
 class _ShellTimerBundle:
     metrics_timer: QTimer
     graph_hint_timer: QTimer
@@ -178,6 +193,7 @@ def _bootstrap_shell_window(host: "ShellWindow") -> None:
     _initialize_shell_window_state(host)
     _apply_bootstrap_bundle(host, _create_shell_primitive_bundle(host))
     _apply_bootstrap_bundle(host, _create_shell_controller_bundle(host))
+    _apply_bootstrap_bundle(host, _create_shell_presenter_bundle(host))
     _apply_bootstrap_bundle(host, _create_shell_context_bridge_bundle(host))
     _run_shell_startup_sequence(host)
     _apply_bootstrap_bundle(host, _create_shell_timer_bundle(host))
@@ -197,16 +213,9 @@ def _initialize_shell_window_state(host: "ShellWindow") -> None:
     host.search_scope_state = host.state.search_scope
 
     graphics_settings = DEFAULT_GRAPHICS_SETTINGS
-    host._graphics_show_grid = bool(graphics_settings["canvas"]["show_grid"])
-    host._graphics_show_minimap = bool(graphics_settings["canvas"]["show_minimap"])
+    host.workspace_ui_state = build_default_shell_workspace_ui_state(graphics_settings)
     host.search_scope_state.graphics_minimap_expanded = bool(graphics_settings["canvas"]["minimap_expanded"])
-    host._graphics_node_shadow = bool(graphics_settings["canvas"]["node_shadow"])
-    host._graphics_shadow_strength = int(graphics_settings["canvas"]["shadow_strength"])
-    host._graphics_shadow_softness = int(graphics_settings["canvas"]["shadow_softness"])
-    host._graphics_shadow_offset = int(graphics_settings["canvas"]["shadow_offset"])
     host.search_scope_state.snap_to_grid_enabled = bool(graphics_settings["interaction"]["snap_to_grid"])
-    host._graphics_tab_strip_density = str(graphics_settings["shell"]["tab_strip_density"])
-    host._active_theme_id = str(graphics_settings["theme"]["theme_id"])
 
 
 def _create_shell_primitive_bundle(host: "ShellWindow") -> _ShellPrimitiveBundle:
@@ -237,10 +246,10 @@ def _create_shell_primitive_bundle(host: "ShellWindow") -> _ShellPrimitiveBundle
     status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", host)
     status_notifications = StatusItemModel("N", "W:0 E:0", host)
     frame_rate_sampler = FrameRateSampler()
-    theme_bridge = ThemeBridge(host, theme_id=host._active_theme_id)
+    theme_bridge = ThemeBridge(host, theme_id=host.workspace_ui_state.active_theme_id)
     graph_theme_bridge = GraphThemeBridge(
         host,
-        theme_id=default_graph_theme_id_for_shell_theme(host._active_theme_id),
+        theme_id=default_graph_theme_id_for_shell_theme(host.workspace_ui_state.active_theme_id),
     )
     scene.bind_graph_theme_bridge(graph_theme_bridge)
     return _ShellPrimitiveBundle(
@@ -300,6 +309,24 @@ def _create_shell_context_bridge_bundle(host: "ShellWindow") -> _ShellContextBri
         shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
         shell_inspector_bridge=shell_context_bridges.shell_inspector_bridge,
         graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
+    )
+
+
+def _create_shell_presenter_bundle(host: "ShellWindow") -> _ShellPresenterBundle:
+    shell_library_presenter = ShellLibraryPresenter(host)
+    shell_workspace_presenter = ShellWorkspacePresenter(host)
+    shell_inspector_presenter = ShellInspectorPresenter(host)
+    graph_canvas_presenter = GraphCanvasPresenter(
+        host,
+        workspace_presenter=shell_workspace_presenter,
+        library_presenter=shell_library_presenter,
+        inspector_presenter=shell_inspector_presenter,
+    )
+    return _ShellPresenterBundle(
+        shell_library_presenter=shell_library_presenter,
+        shell_workspace_presenter=shell_workspace_presenter,
+        shell_inspector_presenter=shell_inspector_presenter,
+        graph_canvas_presenter=graph_canvas_presenter,
     )
 
 
@@ -551,20 +578,16 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty(str, notify=project_meta_changed)
     def project_display_name(self) -> str:
-        filename = Path(self.project_path).name if self.project_path else "untitled.sfe"
-        return f"EA Node Editor - {filename}"
+        return self.shell_workspace_presenter.project_display_name
 
     def _registry_library_items(self) -> list[dict[str, Any]]:
-        return build_registry_library_items(registry_specs=self.registry.all_specs())
+        return self.shell_library_presenter._registry_library_items()
 
     def _combined_library_items(self) -> list[dict[str, Any]]:
-        return build_combined_library_items(
-            registry_items=self._registry_library_items(),
-            custom_workflow_items=self.workspace_library_controller.custom_workflow_library_items(),
-        )
+        return self.shell_library_presenter._combined_library_items()
 
-    @staticmethod
     def _library_item_matches_filters(
+        self,
         item: dict[str, Any],
         *,
         query: str,
@@ -572,7 +595,7 @@ class ShellWindow(QMainWindow):
         data_type: str,
         direction: str,
     ) -> bool:
-        return library_item_matches_filters(
+        return self.shell_library_presenter._library_item_matches_filters(
             item,
             query=query,
             category=category,
@@ -582,347 +605,207 @@ class ShellWindow(QMainWindow):
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def filtered_node_library_items(self) -> list[dict[str, Any]]:
-        return build_filtered_library_items(
-            combined_items=self._combined_library_items(),
-            query=self._library_query,
-            category=self._library_category,
-            data_type=self._library_data_type,
-            direction=self._library_direction,
-        )
+        return self.shell_library_presenter.filtered_node_library_items
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def grouped_node_library_items(self) -> list[dict[str, Any]]:
-        return build_grouped_library_items(filtered_items=self.filtered_node_library_items)
+        return self.shell_library_presenter.grouped_node_library_items
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_category_options(self) -> list[dict[str, str]]:
-        return build_library_category_options(
-            combined_items=self._combined_library_items(),
-            registry_categories=self.registry.categories(),
-        )
+        return self.shell_library_presenter.library_category_options
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_direction_options(self) -> list[dict[str, str]]:
-        return build_library_direction_options()
+        return self.shell_library_presenter.library_direction_options
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def library_data_type_options(self) -> list[dict[str, str]]:
-        return build_library_data_type_options(
-            registry_specs=self.registry.all_specs(),
-            custom_workflow_items=self.workspace_library_controller.custom_workflow_library_items(),
-        )
+        return self.shell_library_presenter.library_data_type_options
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def pin_data_type_options(self) -> list[str]:
-        return build_pin_data_type_options(
-            registry_specs=self.registry.all_specs(),
-            workspaces=self.model.project.workspaces.values(),
-            subnode_pin_type_ids=self._SUBNODE_PIN_TYPE_IDS,
-            subnode_pin_data_type_property=SUBNODE_PIN_DATA_TYPE_PROPERTY,
-        )
+        return self.shell_inspector_presenter.pin_data_type_options
 
     @pyqtProperty(bool, notify=graph_search_changed)
     def graph_search_open(self) -> bool:
-        return bool(self.search_scope_state.graph_search.open)
+        return self.shell_library_presenter.graph_search_open
 
     @pyqtProperty(str, notify=graph_search_changed)
     def graph_search_query(self) -> str:
-        return self.search_scope_state.graph_search.query
+        return self.shell_library_presenter.graph_search_query
 
     @pyqtProperty("QVariantList", notify=graph_search_changed)
     def graph_search_results(self) -> list[dict[str, Any]]:
-        return list(self.search_scope_state.graph_search.results)
+        return self.shell_library_presenter.graph_search_results
 
     @pyqtProperty(int, notify=graph_search_changed)
     def graph_search_highlight_index(self) -> int:
-        return int(self.search_scope_state.graph_search.highlight_index)
+        return self.shell_library_presenter.graph_search_highlight_index
 
     @pyqtProperty(bool, notify=connection_quick_insert_changed)
     def connection_quick_insert_open(self) -> bool:
-        return bool(self.search_scope_state.connection_quick_insert.open)
+        return self.shell_library_presenter.connection_quick_insert_open
 
     @pyqtProperty(str, notify=connection_quick_insert_changed)
     def connection_quick_insert_query(self) -> str:
-        return str(self.search_scope_state.connection_quick_insert.query)
+        return self.shell_library_presenter.connection_quick_insert_query
 
     @pyqtProperty("QVariantList", notify=connection_quick_insert_changed)
     def connection_quick_insert_results(self) -> list[dict[str, Any]]:
-        return list(self.search_scope_state.connection_quick_insert.results)
+        return self.shell_library_presenter.connection_quick_insert_results
 
     @pyqtProperty(int, notify=connection_quick_insert_changed)
     def connection_quick_insert_highlight_index(self) -> int:
-        return int(self.search_scope_state.connection_quick_insert.highlight_index)
+        return self.shell_library_presenter.connection_quick_insert_highlight_index
 
     @pyqtProperty(float, notify=connection_quick_insert_changed)
     def connection_quick_insert_overlay_x(self) -> float:
-        context = self.search_scope_state.connection_quick_insert.context or {}
-        return float(context.get("overlay_x", 0.0))
+        return self.shell_library_presenter.connection_quick_insert_overlay_x
 
     @pyqtProperty(float, notify=connection_quick_insert_changed)
     def connection_quick_insert_overlay_y(self) -> float:
-        context = self.search_scope_state.connection_quick_insert.context or {}
-        return float(context.get("overlay_y", 0.0))
+        return self.shell_library_presenter.connection_quick_insert_overlay_y
 
     @pyqtProperty(str, notify=connection_quick_insert_changed)
     def connection_quick_insert_source_summary(self) -> str:
-        context = self.search_scope_state.connection_quick_insert.context or {}
-        node_title = str(context.get("node_title", "")).strip()
-        port_label = str(context.get("port_label", "")).strip()
-        data_type = str(context.get("data_type", "")).strip()
-        if not node_title and not port_label:
-            return ""
-        summary = f"{node_title}.{port_label}" if node_title and port_label else (node_title or port_label)
-        if data_type:
-            summary += f" [{data_type}]"
-        return summary
+        return self.shell_library_presenter.connection_quick_insert_source_summary
 
     @pyqtProperty(bool, notify=connection_quick_insert_changed)
     def connection_quick_insert_is_canvas_mode(self) -> bool:
-        context = self.search_scope_state.connection_quick_insert.context or {}
-        return str(context.get("mode", "")).strip() == "canvas_insert"
+        return self.shell_library_presenter.connection_quick_insert_is_canvas_mode
 
     @pyqtProperty(str, notify=graph_hint_changed)
     def graph_hint_message(self) -> str:
-        return str(self.search_scope_state.graph_hint_message)
+        return self.shell_library_presenter.graph_hint_message
 
     @pyqtProperty(bool, notify=graph_hint_changed)
     def graph_hint_visible(self) -> bool:
-        return bool(self.search_scope_state.graph_hint_message.strip())
+        return self.shell_library_presenter.graph_hint_visible
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_grid(self) -> bool:
-        return bool(self._graphics_show_grid)
+        return self.graph_canvas_presenter.graphics_show_grid
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:
-        return bool(self._graphics_show_minimap)
+        return self.graph_canvas_presenter.graphics_show_minimap
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_minimap_expanded(self) -> bool:
-        return bool(self.search_scope_state.graphics_minimap_expanded)
+        return self.graph_canvas_presenter.graphics_minimap_expanded
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_shadow(self) -> bool:
-        return bool(self._graphics_node_shadow)
+        return self.graph_canvas_presenter.graphics_node_shadow
 
     @pyqtProperty(int, notify=graphics_preferences_changed)
     def graphics_shadow_strength(self) -> int:
-        return int(self._graphics_shadow_strength)
+        return self.graph_canvas_presenter.graphics_shadow_strength
 
     @pyqtProperty(int, notify=graphics_preferences_changed)
     def graphics_shadow_softness(self) -> int:
-        return int(self._graphics_shadow_softness)
+        return self.graph_canvas_presenter.graphics_shadow_softness
 
     @pyqtProperty(int, notify=graphics_preferences_changed)
     def graphics_shadow_offset(self) -> int:
-        return int(self._graphics_shadow_offset)
+        return self.graph_canvas_presenter.graphics_shadow_offset
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_tab_strip_density(self) -> str:
-        return str(self._graphics_tab_strip_density)
+        return self.shell_workspace_presenter.graphics_tab_strip_density
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def active_theme_id(self) -> str:
-        return str(self._active_theme_id)
+        return self.shell_workspace_presenter.active_theme_id
 
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
-        return bool(self.search_scope_state.snap_to_grid_enabled)
+        return self.graph_canvas_presenter.snap_to_grid_enabled
 
     @pyqtProperty(float, constant=True)
     def snap_grid_size(self) -> float:
-        return float(self._SNAP_GRID_SIZE)
+        return self.graph_canvas_presenter.snap_grid_size
 
     @pyqtProperty(str, notify=workspace_state_changed)
     def active_workspace_id(self) -> str:
-        try:
-            return self.workspace_manager.active_workspace_id()
-        except Exception:  # noqa: BLE001
-            return ""
+        return self.shell_workspace_presenter.active_workspace_id
 
     @pyqtProperty(str, notify=workspace_state_changed)
     def active_workspace_name(self) -> str:
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        return workspace.name if workspace is not None else ""
+        return self.shell_workspace_presenter.active_workspace_name
 
     @pyqtProperty(str, notify=workspace_state_changed)
     def active_view_name(self) -> str:
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        if workspace is None:
-            return ""
-        workspace.ensure_default_view()
-        active_view = workspace.views.get(workspace.active_view_id)
-        if active_view is None:
-            return ""
-        return active_view.name
+        return self.shell_workspace_presenter.active_view_name
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def active_view_items(self) -> list[dict[str, Any]]:
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        if workspace is None:
-            return []
-        workspace.ensure_default_view()
-        items: list[dict[str, Any]] = []
-        for view in workspace.views.values():
-            items.append(
-                {
-                    "view_id": view.view_id,
-                    "label": view.name,
-                    "active": view.view_id == workspace.active_view_id,
-                }
-            )
-        return items
+        return self.shell_workspace_presenter.active_view_items
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def active_scope_breadcrumb_items(self) -> list[dict[str, str]]:
-        return list(self.scene.scope_breadcrumb_model)
+        return self.shell_workspace_presenter.active_scope_breadcrumb_items
 
     def _selected_node_header_data(self) -> dict[str, Any]:
-        selected = self._selected_node_context()
-        if selected is None:
-            return {}
-        node, spec = selected
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        workflow_nodes = workspace.nodes if workspace is not None else {}
-        return build_selected_node_header_data(
-            node=node,
-            spec=spec,
-            workflow_nodes=workflow_nodes,
-        )
+        return self.shell_inspector_presenter._selected_node_header_data()
 
     @pyqtProperty(str, notify=selected_node_changed)
     def selected_node_title(self) -> str:
-        return str(self._selected_node_header_data().get("title", ""))
+        return self.shell_inspector_presenter.selected_node_title
 
     @pyqtProperty(str, notify=selected_node_changed)
     def selected_node_subtitle(self) -> str:
-        return str(self._selected_node_header_data().get("subtitle", ""))
+        return self.shell_inspector_presenter.selected_node_subtitle
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_header_items(self) -> list[dict[str, str]]:
-        header_data = self._selected_node_header_data()
-        items = header_data.get("metadata_items", [])
-        return list(items) if isinstance(items, list) else []
+        return self.shell_inspector_presenter.selected_node_header_items
 
     @pyqtProperty(str, notify=selected_node_changed)
     def selected_node_summary(self) -> str:
-        header_data = self._selected_node_header_data()
-        if not header_data:
-            return "No node selected"
-        lines = [str(header_data.get("title", "")).strip()]
-        for item in self.selected_node_header_items:
-            label = str(item.get("label", "")).strip()
-            value = str(item.get("value", "")).strip()
-            if label and value:
-                lines.append(f"{label}: {value}")
-        return "\n".join(line for line in lines if line)
+        return self.shell_inspector_presenter.selected_node_summary
 
     @pyqtProperty(bool, notify=selected_node_changed)
     def has_selected_node(self) -> bool:
-        return self._selected_node_context() is not None
+        return self.shell_inspector_presenter.has_selected_node
 
     @pyqtProperty(bool, notify=selected_node_changed)
     def selected_node_collapsible(self) -> bool:
-        selected = self._selected_node_context()
-        if selected is None:
-            return False
-        _node, spec = selected
-        return bool(spec.collapsible)
+        return self.shell_inspector_presenter.selected_node_collapsible
 
     @pyqtProperty(bool, notify=selected_node_changed)
     def selected_node_collapsed(self) -> bool:
-        selected = self._selected_node_context()
-        if selected is None:
-            return False
-        node, _spec = selected
-        return bool(node.collapsed)
+        return self.shell_inspector_presenter.selected_node_collapsed
 
     @pyqtProperty(bool, notify=selected_node_changed)
     def selected_node_is_subnode_pin(self) -> bool:
-        selected = self._selected_node_context()
-        if selected is None:
-            return False
-        node, _spec = selected
-        return node.type_id in self._SUBNODE_PIN_TYPE_IDS
+        return self.shell_inspector_presenter.selected_node_is_subnode_pin
 
     @pyqtProperty(bool, notify=selected_node_changed)
     def selected_node_is_subnode_shell(self) -> bool:
-        selected = self._selected_node_context()
-        if selected is None:
-            return False
-        node, _spec = selected
-        return node.type_id == SUBNODE_TYPE_ID
+        return self.shell_inspector_presenter.selected_node_is_subnode_shell
 
     @pyqtProperty(bool, notify=workspace_state_changed)
     def can_publish_custom_workflow_from_scope(self) -> bool:
-        return bool(self.scene.active_scope_path)
+        return self.shell_workspace_presenter.can_publish_custom_workflow_from_scope
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_property_items(self) -> list[dict[str, Any]]:
-        selected = self._selected_node_context()
-        if selected is None:
-            return []
-        node, spec = selected
-        return build_selected_node_property_items(
-            node=node,
-            spec=spec,
-            subnode_pin_type_ids=self._SUBNODE_PIN_TYPE_IDS,
-        )
+        return self.shell_inspector_presenter.selected_node_property_items
 
     def _node_property_spec(self, node_id: str, key: str):
-        normalized_node_id = str(node_id or "").strip()
-        normalized_key = str(key).strip()
-        if not normalized_node_id or not normalized_key:
-            return None
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        if workspace is None:
-            return None
-        node = workspace.nodes.get(normalized_node_id)
-        if node is None:
-            return None
-        spec = self.registry.get_spec(node.type_id)
-        return next((prop for prop in spec.properties if prop.key == normalized_key), None)
+        return self.shell_inspector_presenter._node_property_spec(node_id, key)
 
     def _selected_node_property_spec(self, key: str):
-        selected = self._selected_node_context()
-        if selected is None:
-            return None
-        node, _spec = selected
-        return self._node_property_spec(node.node_id, key)
+        return self.shell_inspector_presenter._selected_node_property_spec(key)
 
     def _path_dialog_start_path(self, current_path: str) -> str:
-        normalized_current = str(current_path or "").strip()
-        if normalized_current:
-            candidate = Path(normalized_current).expanduser()
-            if candidate.exists():
-                return str(candidate)
-            parent = candidate.parent
-            if str(parent).strip() and parent.exists():
-                return str(parent)
-        normalized_project_path = str(self.project_path or "").strip()
-        if normalized_project_path:
-            project_path = Path(normalized_project_path).expanduser()
-            parent = project_path.parent
-            if str(parent).strip() and parent.exists():
-                return str(parent)
-        return str(Path.cwd())
+        return self.shell_inspector_presenter._path_dialog_start_path(current_path)
 
     @pyqtProperty("QVariantList", notify=selected_node_changed)
     def selected_node_port_items(self) -> list[dict[str, Any]]:
-        selected = self._selected_node_context()
-        if selected is None:
-            return []
-        if self.selected_node_is_subnode_pin:
-            return []
-        node, spec = selected
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        if workspace is None:
-            return []
-        return build_selected_node_port_items(
-            node=node,
-            spec=spec,
-            workspace_nodes=workspace.nodes,
-        )
+        return self.shell_inspector_presenter.selected_node_port_items
 
     def _set_graph_search_state(
         self,
@@ -932,7 +815,7 @@ class ShellWindow(QMainWindow):
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
     ) -> None:
-        self.search_scope_controller.set_graph_search_state(
+        self.shell_library_presenter._set_graph_search_state(
             open_=open_,
             query=query,
             results=results,
@@ -940,7 +823,7 @@ class ShellWindow(QMainWindow):
         )
 
     def _refresh_graph_search_results(self, query: str) -> None:
-        self.search_scope_controller.refresh_graph_search_results(query)
+        self.shell_library_presenter._refresh_graph_search_results(query)
 
     def _set_connection_quick_insert_state(
         self,
@@ -951,112 +834,23 @@ class ShellWindow(QMainWindow):
         highlight_index: int | None = None,
         context: dict[str, Any] | None | object = _UNSET,
     ) -> None:
-        quick_insert = self.search_scope_state.connection_quick_insert
-        changed = False
-        if open_ is not None:
-            normalized_open = bool(open_)
-            if normalized_open != quick_insert.open:
-                quick_insert.open = normalized_open
-                changed = True
-        if query is not None:
-            normalized_query = str(query)
-            if normalized_query != quick_insert.query:
-                quick_insert.query = normalized_query
-                changed = True
-        if results is not None:
-            normalized_results = list(results)
-            if normalized_results != quick_insert.results:
-                quick_insert.results = normalized_results
-                changed = True
-        if highlight_index is not None:
-            normalized_index = int(highlight_index)
-            if normalized_index != quick_insert.highlight_index:
-                quick_insert.highlight_index = normalized_index
-                changed = True
-        if context is not _UNSET:
-            normalized_context = dict(context) if isinstance(context, dict) else None
-            if normalized_context != quick_insert.context:
-                quick_insert.context = normalized_context
-                changed = True
-        if changed:
-            self.connection_quick_insert_changed.emit()
+        self.shell_library_presenter._set_connection_quick_insert_state(
+            open_=open_,
+            query=query,
+            results=results,
+            highlight_index=highlight_index,
+            context=context,
+        )
 
     def _connection_quick_insert_context_for_port(
         self,
         node_id: str,
         port_key: str,
     ) -> dict[str, Any] | None:
-        workspace = self.model.project.workspaces.get(self.active_workspace_id)
-        if workspace is None:
-            return None
-        normalized_node_id = str(node_id).strip()
-        normalized_port_key = str(port_key).strip()
-        if not normalized_node_id or not normalized_port_key:
-            return None
-        node = workspace.nodes.get(normalized_node_id)
-        if node is None:
-            return None
-        spec = self.registry.get_spec(node.type_id)
-        port = find_port(
-            node=node,
-            spec=spec,
-            workspace_nodes=workspace.nodes,
-            port_key=normalized_port_key,
-        )
-        if port is None or not bool(port.exposed):
-            return None
-        connection_count = 0
-        for edge in workspace.edges.values():
-            if edge.source_node_id == normalized_node_id and edge.source_port_key == normalized_port_key:
-                connection_count += 1
-            if edge.target_node_id == normalized_node_id and edge.target_port_key == normalized_port_key:
-                connection_count += 1
-        return {
-            "node_id": normalized_node_id,
-            "node_title": str(node.title),
-            "type_id": str(node.type_id),
-            "port_key": normalized_port_key,
-            "port_label": str(port.label or port.key),
-            "direction": str(port.direction),
-            "kind": str(port.kind),
-            "data_type": str(port.data_type),
-            "connection_count": int(connection_count),
-        }
+        return self.shell_library_presenter._connection_quick_insert_context_for_port(node_id, port_key)
 
     def _refresh_connection_quick_insert_results(self, query: str) -> None:
-        quick_insert = self.search_scope_state.connection_quick_insert
-        context = quick_insert.context
-        if context is None:
-            self._set_connection_quick_insert_state(query=str(query), results=[], highlight_index=-1)
-            return
-        normalized_query = str(query)
-        results: list[dict[str, Any]] = []
-        if str(context.get("mode", "")).strip() == "canvas_insert":
-            results = build_canvas_quick_insert_items(
-                combined_items=self._combined_library_items(),
-                query=normalized_query,
-                limit=self._CONNECTION_QUICK_INSERT_LIMIT,
-            )
-        elif not (
-            str(context.get("direction", "")).strip().lower() == "in"
-            and int(context.get("connection_count", 0)) > 0
-        ):
-            results = build_connection_quick_insert_items(
-                combined_items=self._combined_library_items(),
-                query=normalized_query,
-                source_direction=str(context.get("direction", "")),
-                source_kind=str(context.get("kind", "")),
-                source_data_type=str(context.get("data_type", "")),
-                limit=self._CONNECTION_QUICK_INSERT_LIMIT,
-            )
-        highlight_index = 0 if results else -1
-        if 0 <= quick_insert.highlight_index < len(results):
-            highlight_index = quick_insert.highlight_index
-        self._set_connection_quick_insert_state(
-            query=normalized_query,
-            results=results,
-            highlight_index=highlight_index,
-        )
+        self.shell_library_presenter._refresh_connection_quick_insert_results(query)
 
     def _active_scope_camera_key(self, scope_path: tuple[str, ...] | None = None) -> tuple[str, str, tuple[str, ...]] | None:
         return self.search_scope_controller.active_scope_camera_key(scope_path)
@@ -1077,54 +871,36 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str)
     def set_library_query(self, query: str) -> None:
-        normalized = str(query).strip()
-        if normalized == self._library_query:
-            return
-        self._library_query = normalized
-        self.node_library_changed.emit()
+        self.shell_library_presenter.set_library_query(query)
 
     @pyqtSlot(str)
     def set_library_category(self, category: str) -> None:
-        normalized = str(category).strip()
-        if normalized == self._library_category:
-            return
-        self._library_category = normalized
-        self.node_library_changed.emit()
+        self.shell_library_presenter.set_library_category(category)
 
     @pyqtSlot(str)
     def set_library_data_type(self, data_type: str) -> None:
-        normalized = str(data_type).strip()
-        if normalized == self._library_data_type:
-            return
-        self._library_data_type = normalized
-        self.node_library_changed.emit()
+        self.shell_library_presenter.set_library_data_type(data_type)
 
     @pyqtSlot(str)
     def set_library_direction(self, direction: str) -> None:
-        normalized = str(direction).strip().lower()
-        if normalized not in {"", "in", "out"}:
-            normalized = ""
-        if normalized == self._library_direction:
-            return
-        self._library_direction = normalized
-        self.node_library_changed.emit()
+        self.shell_library_presenter.set_library_direction(direction)
 
     @pyqtSlot(bool)
     def set_snap_to_grid_enabled(self, enabled: bool) -> None:
-        self.search_scope_controller.set_snap_to_grid_enabled(enabled)
+        self.graph_canvas_presenter.set_snap_to_grid_enabled(enabled)
 
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
-        self.search_scope_controller.set_graphics_minimap_expanded(expanded)
+        self.graph_canvas_presenter.set_graphics_minimap_expanded(expanded)
 
     @pyqtSlot(str)
     @pyqtSlot(str, int)
     def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
-        self.search_scope_controller.show_graph_hint(message, timeout_ms)
+        self.shell_library_presenter.show_graph_hint(message, timeout_ms)
 
     @pyqtSlot()
     def clear_graph_hint(self) -> None:
-        self.search_scope_controller.clear_graph_hint()
+        self.shell_library_presenter.clear_graph_hint()
 
     def _apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
         if getattr(self, "quick_widget", None) is None:
@@ -1167,118 +943,15 @@ class ShellWindow(QMainWindow):
         )
 
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
-        canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
-        interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
-        shell = graphics.get("shell", {}) if isinstance(graphics, dict) else {}
-        theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
-        graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
-
-        changed = False
-        show_grid = bool(canvas.get("show_grid", self._graphics_show_grid))
-        show_minimap = bool(canvas.get("show_minimap", self._graphics_show_minimap))
-        minimap_expanded = bool(canvas.get("minimap_expanded", self.search_scope_state.graphics_minimap_expanded))
-        node_shadow = bool(canvas.get("node_shadow", self._graphics_node_shadow))
-        shadow_strength = int(canvas.get("shadow_strength", self._graphics_shadow_strength))
-        shadow_softness = int(canvas.get("shadow_softness", self._graphics_shadow_softness))
-        shadow_offset = int(canvas.get("shadow_offset", self._graphics_shadow_offset))
-        tab_strip_density = str(shell.get("tab_strip_density", self._graphics_tab_strip_density))
-        active_theme_id = self._apply_theme(theme.get("theme_id", self._active_theme_id))
-        follow_shell_theme = graph_theme.get("follow_shell_theme")
-        if not isinstance(follow_shell_theme, bool):
-            follow_shell_theme = bool(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"])
-        custom_graph_themes = serialize_custom_graph_themes(graph_theme.get("custom_themes"))
-        selected_graph_theme_id = resolve_graph_theme_id(
-            graph_theme.get("selected_theme_id", DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"]),
-            custom_themes=custom_graph_themes,
-        )
-        normalized_graph_theme = {
-            "follow_shell_theme": bool(follow_shell_theme),
-            "selected_theme_id": selected_graph_theme_id,
-            "custom_themes": custom_graph_themes,
-        }
-        previous_graph_theme_id = self.graph_theme_bridge.theme_id
-        self.graph_theme_bridge.apply_settings(
-            shell_theme_id=active_theme_id,
-            graph_theme_settings=normalized_graph_theme,
-        )
-
-        if self._graphics_show_grid != show_grid:
-            self._graphics_show_grid = show_grid
-            changed = True
-        if self._graphics_show_minimap != show_minimap:
-            self._graphics_show_minimap = show_minimap
-            changed = True
-        if self.search_scope_state.graphics_minimap_expanded != minimap_expanded:
-            self.search_scope_state.graphics_minimap_expanded = minimap_expanded
-            changed = True
-        if self._graphics_node_shadow != node_shadow:
-            self._graphics_node_shadow = node_shadow
-            changed = True
-        if self._graphics_shadow_strength != shadow_strength:
-            self._graphics_shadow_strength = shadow_strength
-            changed = True
-        if self._graphics_shadow_softness != shadow_softness:
-            self._graphics_shadow_softness = shadow_softness
-            changed = True
-        if self._graphics_shadow_offset != shadow_offset:
-            self._graphics_shadow_offset = shadow_offset
-            changed = True
-        if self._graphics_tab_strip_density != tab_strip_density:
-            self._graphics_tab_strip_density = tab_strip_density
-            changed = True
-        if self._active_theme_id != active_theme_id:
-            self._active_theme_id = active_theme_id
-            changed = True
-        if previous_graph_theme_id != self.graph_theme_bridge.theme_id:
-            changed = True
-
-        self.search_scope_controller.set_snap_to_grid_enabled(
-            bool(interaction.get("snap_to_grid", self.search_scope_state.snap_to_grid_enabled)),
-            persist=False,
-        )
-        if changed:
-            self.graphics_preferences_changed.emit()
-
-        return {
-            "canvas": {
-                "show_grid": bool(self._graphics_show_grid),
-                "show_minimap": bool(self._graphics_show_minimap),
-                "minimap_expanded": bool(self.search_scope_state.graphics_minimap_expanded),
-                "node_shadow": bool(self._graphics_node_shadow),
-                "shadow_strength": int(self._graphics_shadow_strength),
-                "shadow_softness": int(self._graphics_shadow_softness),
-                "shadow_offset": int(self._graphics_shadow_offset),
-            },
-            "interaction": {
-                "snap_to_grid": bool(self.search_scope_state.snap_to_grid_enabled),
-            },
-            "shell": {
-                "tab_strip_density": str(self._graphics_tab_strip_density),
-            },
-            "theme": {
-                "theme_id": str(self._active_theme_id),
-            },
-            "graph_theme": {
-                "follow_shell_theme": bool(follow_shell_theme),
-                "selected_theme_id": selected_graph_theme_id,
-                "custom_themes": custom_graph_themes,
-            },
-        }
+        return self.shell_workspace_presenter.apply_graphics_preferences(graphics)
 
     @pyqtSlot()
     def request_open_graph_search(self) -> None:
-        self._set_connection_quick_insert_state(
-            open_=False,
-            query="",
-            results=[],
-            highlight_index=-1,
-            context=None,
-        )
-        self._set_graph_search_state(open_=True, query="", results=[], highlight_index=-1)
+        self.shell_library_presenter.request_open_graph_search()
 
     @pyqtSlot()
     def request_close_graph_search(self) -> None:
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self.shell_library_presenter.request_close_graph_search()
 
     @pyqtSlot(str, str, float, float, float, float, result=bool)
     def request_open_connection_quick_insert(
@@ -1290,33 +963,16 @@ class ShellWindow(QMainWindow):
         overlay_x: float,
         overlay_y: float,
     ) -> bool:
-        context = self._connection_quick_insert_context_for_port(node_id, port_key)
-        if context is None:
-            return False
-        context["scene_x"] = float(scene_x)
-        context["scene_y"] = float(scene_y)
-        context["overlay_x"] = float(overlay_x)
-        context["overlay_y"] = float(overlay_y)
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
-        self._set_connection_quick_insert_state(
-            open_=True,
-            query="",
-            results=[],
-            highlight_index=-1,
-            context=context,
-        )
-        self._refresh_connection_quick_insert_results("")
-        if not self.search_scope_state.connection_quick_insert.results:
-            message = (
-                "This input is already connected."
-                if str(context.get("direction", "")).strip().lower() == "in"
-                and int(context.get("connection_count", 0)) > 0
-                else "No compatible nodes found for quick insert."
+        return bool(
+            self.graph_canvas_presenter.request_open_connection_quick_insert(
+                node_id,
+                port_key,
+                scene_x,
+                scene_y,
+                overlay_x,
+                overlay_y,
             )
-            self.show_graph_hint(message, 2200)
-            self.request_close_connection_quick_insert()
-            return False
-        return True
+        )
 
     @pyqtSlot(float, float, float, float)
     def request_open_canvas_quick_insert(
@@ -1326,165 +982,96 @@ class ShellWindow(QMainWindow):
         overlay_x: float,
         overlay_y: float,
     ) -> None:
-        context: dict[str, Any] = {
-            "mode": "canvas_insert",
-            "scene_x": float(scene_x),
-            "scene_y": float(scene_y),
-            "overlay_x": float(overlay_x),
-            "overlay_y": float(overlay_y),
-        }
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
-        self._set_connection_quick_insert_state(
-            open_=True,
-            query="",
-            results=[],
-            highlight_index=-1,
-            context=context,
+        self.graph_canvas_presenter.request_open_canvas_quick_insert(
+            scene_x,
+            scene_y,
+            overlay_x,
+            overlay_y,
         )
-        self._refresh_connection_quick_insert_results("")
 
     @pyqtSlot()
     def request_close_connection_quick_insert(self) -> None:
-        self._set_connection_quick_insert_state(
-            open_=False,
-            query="",
-            results=[],
-            highlight_index=-1,
-            context=None,
-        )
+        self.shell_library_presenter.request_close_connection_quick_insert()
 
     @pyqtSlot(str)
     def set_connection_quick_insert_query(self, query: str) -> None:
-        if not self.search_scope_state.connection_quick_insert.open:
-            return
-        self._refresh_connection_quick_insert_results(query)
+        self.shell_library_presenter.set_connection_quick_insert_query(query)
 
     @pyqtSlot(int)
     def request_connection_quick_insert_move(self, delta: int) -> None:
-        quick_insert = self.search_scope_state.connection_quick_insert
-        if not quick_insert.open or not quick_insert.results:
-            return
-        current = quick_insert.highlight_index
-        if current < 0:
-            current = 0
-        next_index = max(0, min(len(quick_insert.results) - 1, current + int(delta)))
-        self._set_connection_quick_insert_state(highlight_index=next_index)
+        self.shell_library_presenter.request_connection_quick_insert_move(delta)
 
     @pyqtSlot(int)
     def request_connection_quick_insert_highlight(self, index: int) -> None:
-        quick_insert = self.search_scope_state.connection_quick_insert
-        if not quick_insert.open:
-            return
-        if index < 0 or index >= len(quick_insert.results):
-            return
-        self._set_connection_quick_insert_state(highlight_index=int(index))
+        self.shell_library_presenter.request_connection_quick_insert_highlight(index)
 
     @pyqtSlot(result=bool)
     def request_connection_quick_insert_accept(self) -> bool:
-        quick_insert = self.search_scope_state.connection_quick_insert
-        if not quick_insert.open or not quick_insert.results:
-            return False
-        index = quick_insert.highlight_index
-        if index < 0 or index >= len(quick_insert.results):
-            index = 0
-        return self.request_connection_quick_insert_choose(index)
+        return bool(self.shell_library_presenter.request_connection_quick_insert_accept())
 
     @pyqtSlot(int, result=bool)
     def request_connection_quick_insert_choose(self, index: int) -> bool:
-        quick_insert = self.search_scope_state.connection_quick_insert
-        if index < 0 or index >= len(quick_insert.results):
-            return False
-        context = quick_insert.context
-        if context is None:
-            return False
-        selected_item = quick_insert.results[index]
-        scene_x = float(context.get("scene_x", 0.0))
-        scene_y = float(context.get("scene_y", 0.0))
-        if str(context.get("mode", "")).strip() == "canvas_insert":
-            created = self.request_drop_node_from_library(
-                str(selected_item.get("type_id", "")),
-                scene_x,
-                scene_y,
-                "",
-                "",
-                "",
-                "",
-            )
-        else:
-            offset = self._CONNECTION_QUICK_INSERT_OFFSET
-            if str(context.get("direction", "")).strip().lower() == "in":
-                scene_x -= offset
-            else:
-                scene_x += offset
-            created = self.request_drop_node_from_library(
-                str(selected_item.get("type_id", "")),
-                scene_x,
-                scene_y,
-                "port",
-                str(context.get("node_id", "")),
-                str(context.get("port_key", "")),
-                "",
-            )
-        self.request_close_connection_quick_insert()
-        return bool(created)
+        return bool(self.shell_library_presenter.request_connection_quick_insert_choose(index))
 
     @pyqtSlot(str)
     def set_graph_search_query(self, query: str) -> None:
-        if not self.search_scope_state.graph_search.open:
-            return
-        self._refresh_graph_search_results(query)
+        self.shell_library_presenter.set_graph_search_query(query)
 
     @pyqtSlot(int)
     def request_graph_search_move(self, delta: int) -> None:
-        self.search_scope_controller.request_graph_search_move(delta)
+        self.shell_library_presenter.request_graph_search_move(delta)
 
     @pyqtSlot(int)
     def request_graph_search_highlight(self, index: int) -> None:
-        self.search_scope_controller.request_graph_search_highlight(index)
+        self.shell_library_presenter.request_graph_search_highlight(index)
 
     @pyqtSlot(result=bool)
     def request_graph_search_accept(self) -> bool:
-        return bool(self.search_scope_controller.request_graph_search_accept())
+        return bool(self.shell_library_presenter.request_graph_search_accept())
 
     @pyqtSlot(int, result=bool)
     def request_graph_search_jump(self, index: int) -> bool:
-        return bool(self.search_scope_controller.request_graph_search_jump(index))
+        return bool(self.shell_library_presenter.request_graph_search_jump(index))
 
     @pyqtSlot(str)
     def request_add_node_from_library(self, type_id: str) -> None:
-        self._add_node_from_library(type_id)
+        self.shell_library_presenter.request_add_node_from_library(type_id)
 
     @pyqtSlot(result=bool)
     def request_publish_custom_workflow_from_selected(self) -> bool:
-        result = self.workspace_library_controller.publish_custom_workflow_from_selected_subnode()
-        return bool(result.payload)
+        return bool(self.shell_library_presenter.request_publish_custom_workflow_from_selected())
 
     @pyqtSlot(result=bool)
     def request_publish_custom_workflow_from_scope(self) -> bool:
-        result = self.workspace_library_controller.publish_custom_workflow_from_current_scope()
-        return bool(result.payload)
+        return bool(self.shell_library_presenter.request_publish_custom_workflow_from_scope())
 
     @pyqtSlot(str, result=bool)
     def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
-        result = self.workspace_library_controller.publish_custom_workflow_from_node(node_id)
-        return bool(result.payload)
+        return bool(self.shell_library_presenter.request_publish_custom_workflow_from_node(node_id))
 
     @pyqtSlot(str, result=bool)
     @pyqtSlot(str, str, result=bool)
     def request_delete_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
-        result = self.workspace_library_controller.delete_custom_workflow(workflow_id, workflow_scope)
-        return bool(result.payload)
+        return bool(
+            self.shell_library_presenter.request_delete_custom_workflow_from_library(
+                workflow_id,
+                workflow_scope,
+            )
+        )
 
     @pyqtSlot(str, result=bool)
     @pyqtSlot(str, str, result=bool)
     def request_rename_custom_workflow_from_library(self, workflow_id: str, workflow_scope: str = "") -> bool:
-        result = self.workspace_library_controller.rename_custom_workflow(workflow_id, workflow_scope)
-        return bool(result.payload)
+        return bool(
+            self.shell_library_presenter.request_rename_custom_workflow_from_library(
+                workflow_id,
+                workflow_scope,
+            )
+        )
 
     @pyqtSlot(str, str, result=bool)
     def request_set_custom_workflow_scope(self, workflow_id: str, workflow_scope: str) -> bool:
-        result = self.workspace_library_controller.set_custom_workflow_scope(workflow_id, workflow_scope)
-        return bool(result.payload)
+        return bool(self.shell_library_presenter.request_set_custom_workflow_scope(workflow_id, workflow_scope))
 
     @pyqtSlot(str, float, float, str, str, str, str, result=bool)
     def request_drop_node_from_library(
@@ -1497,65 +1084,49 @@ class ShellWindow(QMainWindow):
         target_port_key: str,
         target_edge_id: str,
     ) -> bool:
-        result = self.workspace_library_controller.request_drop_node_from_library(
-            type_id,
-            scene_x,
-            scene_y,
-            target_mode,
-            target_node_id,
-            target_port_key,
-            target_edge_id,
+        return bool(
+            self.graph_canvas_presenter.request_drop_node_from_library(
+                type_id,
+                scene_x,
+                scene_y,
+                target_mode,
+                target_node_id,
+                target_port_key,
+                target_edge_id,
+            )
         )
-        return bool(result.payload)
 
     @pyqtSlot()
     def request_run_workflow(self) -> None:
-        self._run_workflow()
+        self.shell_workspace_presenter.request_run_workflow()
 
     @pyqtSlot()
     def request_toggle_run_pause(self) -> None:
-        self._toggle_pause_resume()
+        self.shell_workspace_presenter.request_toggle_run_pause()
 
     @pyqtSlot()
     def request_stop_workflow(self) -> None:
-        self._stop_workflow()
+        self.shell_workspace_presenter.request_stop_workflow()
 
     @pyqtSlot()
     def request_create_workspace(self) -> None:
-        self._create_workspace()
+        self.shell_workspace_presenter.request_create_workspace()
 
     @pyqtSlot()
     def request_create_view(self) -> None:
-        self._create_view()
+        self.shell_workspace_presenter.request_create_view()
 
     @pyqtSlot(str)
     def request_switch_view(self, view_id: str) -> None:
-        workspace_id = self.workspace_manager.active_workspace_id()
-        workspace = self.model.project.workspaces.get(workspace_id)
-        if workspace is None:
-            return
-        workspace.ensure_default_view()
-        target_id = str(view_id).strip()
-        if not target_id or target_id not in workspace.views:
-            return
-        if workspace.active_view_id == target_id:
-            return
-        self._remember_scope_camera()
-        self._switch_view(target_id)
-        self.scene.sync_scope_with_active_view()
-        self._restore_scope_camera()
+        self.shell_workspace_presenter.request_switch_view(view_id)
 
     @pyqtSlot(str, result=bool)
     def request_open_subnode_scope(self, node_id: str) -> bool:
-        normalized_node_id = str(node_id).strip()
-        if not normalized_node_id:
-            return False
-        return bool(self._navigate_scope(lambda: self.scene.open_subnode_scope(normalized_node_id)))
+        return bool(self.graph_canvas_presenter.request_open_subnode_scope(node_id))
 
     @pyqtSlot(str, result=bool)
     def request_open_scope_breadcrumb(self, node_id: str) -> bool:
-        normalized_node_id = str(node_id).strip()
-        return bool(self._navigate_scope(lambda: self.scene.navigate_scope_to(normalized_node_id)))
+        return bool(self.shell_workspace_presenter.request_open_scope_breadcrumb(node_id))
 
     @pyqtSlot(result=bool)
     def request_navigate_scope_parent(self) -> bool:
@@ -1579,7 +1150,7 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, result=bool)
     def request_rename_workspace_by_id(self, workspace_id: str) -> bool:
-        return bool(self.workspace_library_controller.rename_workspace_by_id(workspace_id))
+        return bool(self.shell_workspace_presenter.request_rename_workspace_by_id(workspace_id))
 
     @pyqtSlot()
     def request_duplicate_workspace(self) -> None:
@@ -1591,23 +1162,23 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, result=bool)
     def request_close_workspace_by_id(self, workspace_id: str) -> bool:
-        return bool(self.workspace_library_controller.close_workspace_by_id(workspace_id))
+        return bool(self.shell_workspace_presenter.request_close_workspace_by_id(workspace_id))
 
     @pyqtSlot(str, result=bool)
     def request_close_view(self, view_id: str) -> bool:
-        return bool(self.workspace_library_controller.close_view(view_id))
+        return bool(self.shell_workspace_presenter.request_close_view(view_id))
 
     @pyqtSlot(str, result=bool)
     def request_rename_view(self, view_id: str) -> bool:
-        return bool(self._rename_view(view_id))
+        return bool(self.shell_workspace_presenter.request_rename_view(view_id))
 
     @pyqtSlot(int, int, result=bool)
     def request_move_workspace_tab(self, from_index: int, to_index: int) -> bool:
-        return bool(self.workspace_library_controller.move_workspace(from_index, to_index))
+        return bool(self.shell_workspace_presenter.request_move_workspace_tab(from_index, to_index))
 
     @pyqtSlot(int, int, result=bool)
     def request_move_view_tab(self, from_index: int, to_index: int) -> bool:
-        return bool(self.workspace_library_controller.move_view(from_index, to_index))
+        return bool(self.shell_workspace_presenter.request_move_view_tab(from_index, to_index))
 
     @pyqtSlot(result=bool)
     def request_align_selection_left(self) -> bool:
@@ -1652,7 +1223,7 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(result=bool)
     def request_ungroup_selected_nodes(self) -> bool:
-        return bool(self._ungroup_selected_nodes())
+        return bool(self.shell_inspector_presenter.request_ungroup_selected_nodes())
 
     @pyqtSlot(result=bool)
     def request_copy_selected_nodes(self) -> bool:
@@ -1682,7 +1253,7 @@ class ShellWindow(QMainWindow):
         node_b_id: str,
         port_b: str,
     ) -> bool:
-        return bool(self.workspace_library_controller.request_connect_ports(node_a_id, port_a, node_b_id, port_b).payload)
+        return bool(self.graph_canvas_presenter.request_connect_ports(node_a_id, port_a, node_b_id, port_b))
 
     @pyqtSlot(str, result=bool)
     def request_remove_edge(self, edge_id: str) -> bool:
@@ -1704,7 +1275,7 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, result=str)
     def request_add_selected_subnode_pin(self, direction: str) -> str:
-        return str(self.workspace_library_controller.request_add_selected_subnode_pin(direction).payload or "")
+        return self.shell_inspector_presenter.request_add_selected_subnode_pin(direction)
 
     @pyqtSlot(str, result=bool)
     def request_rename_node(self, node_id: str) -> bool:
@@ -1815,7 +1386,7 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, "QVariant")
     def set_selected_node_property(self, key: str, value: Any) -> None:
-        self.workspace_library_controller.set_selected_node_property(key, value)
+        self.shell_inspector_presenter.set_selected_node_property(key, value)
 
     @pyqtSlot(str, "QVariant", result="QVariantMap")
     def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
@@ -1823,17 +1394,11 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, str, result=str)
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
-        property_spec = self._selected_node_property_spec(key)
-        if property_spec is None or str(property_spec.type) != "path":
-            return ""
-        return self._browse_property_path_dialog(property_spec.label, current_path)
+        return self.shell_inspector_presenter.browse_selected_node_property_path(key, current_path)
 
     @pyqtSlot(str, str, str, result=str)
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
-        property_spec = self._node_property_spec(node_id, key)
-        if property_spec is None or str(property_spec.type) != "path":
-            return ""
-        return self._browse_property_path_dialog(property_spec.label, current_path)
+        return self.graph_canvas_presenter.browse_node_property_path(node_id, key, current_path)
 
     def _browse_property_path_dialog(self, property_label: str, current_path: str) -> str:
         selected_path, _selected_filter = QFileDialog.getOpenFileName(
@@ -1845,15 +1410,15 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, bool)
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
-        self.workspace_library_controller.set_selected_port_exposed(key, exposed)
+        self.shell_inspector_presenter.set_selected_port_exposed(key, exposed)
 
     @pyqtSlot(str, str, result=bool)
     def set_selected_port_label(self, key: str, label: str) -> bool:
-        return bool(self.workspace_library_controller.set_selected_port_label(key, label))
+        return bool(self.shell_inspector_presenter.set_selected_port_label(key, label))
 
     @pyqtSlot(bool)
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
-        self.workspace_library_controller.set_selected_node_collapsed(collapsed)
+        self.shell_inspector_presenter.set_selected_node_collapsed(collapsed)
 
     # Explicit project session controller delegation
     def _ensure_project_metadata_defaults(self):
@@ -2301,7 +1866,7 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     @pyqtSlot(bool)
     def show_workflow_settings_dialog(self, _checked: bool = False) -> None:
-        self.project_session_controller.show_workflow_settings_dialog()
+        self.shell_workspace_presenter.show_workflow_settings_dialog(_checked)
 
     @pyqtSlot()
     @pyqtSlot(bool)
@@ -2351,7 +1916,7 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     @pyqtSlot(bool)
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
-        self.project_session_controller.set_script_editor_panel_visible(checked)
+        self.shell_workspace_presenter.set_script_editor_panel_visible(checked)
 
     def _prompt_recover_autosave(self):
         return self.project_session_controller.prompt_recover_autosave()
