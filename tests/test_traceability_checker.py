@@ -60,6 +60,18 @@ class TraceabilityCheckerTests(unittest.TestCase):
         cls.manifest = load_module("verification_manifest_for_traceability_tests", VERIFICATION_MANIFEST_PATH)
         cls.checker = load_module("check_traceability_for_tests", CHECKER_PATH)
 
+    def test_checker_uses_manifest_owned_audit_catalogs(self) -> None:
+        self.assertEqual(self.manifest.PROOF_AUDIT_REQUIRED_ARTIFACTS, self.checker.REQUIRED_ARTIFACTS)
+        manifest_rules = {
+            path: (rule.required, rule.forbidden)
+            for path, rule in self.manifest.GENERIC_DOCUMENT_RULES.items()
+        }
+        checker_rules = {
+            path: (rule.required, rule.forbidden)
+            for path, rule in self.checker.GENERIC_DOCUMENT_RULES.items()
+        }
+        self.assertEqual(manifest_rules, checker_rules)
+
     def make_repo_fixture(self, root: Path) -> None:
         for relative_path in self.checker.REQUIRED_ARTIFACTS:
             source = REPO_ROOT / relative_path

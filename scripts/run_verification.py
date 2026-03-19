@@ -14,21 +14,9 @@ from pathlib import Path
 from typing import Sequence
 
 try:
-    from verification_manifest import LOCAL_VENV_PYTHON_DISPLAY
-    from verification_manifest import MAX_GUI_PARALLEL_WORKERS
-    from verification_manifest import MODE_NAMES
-    from verification_manifest import NON_SHELL_PYTEST_IGNORES
-    from verification_manifest import OFFSCREEN_ENV
-    from verification_manifest import PYTEST_PHASE_SPECS_BY_MODE
-    from verification_manifest import SHELL_ISOLATION_SPEC
+    import verification_manifest as manifest
 except ModuleNotFoundError:
-    from scripts.verification_manifest import LOCAL_VENV_PYTHON_DISPLAY
-    from scripts.verification_manifest import MAX_GUI_PARALLEL_WORKERS
-    from scripts.verification_manifest import MODE_NAMES
-    from scripts.verification_manifest import NON_SHELL_PYTEST_IGNORES
-    from scripts.verification_manifest import OFFSCREEN_ENV
-    from scripts.verification_manifest import PYTEST_PHASE_SPECS_BY_MODE
-    from scripts.verification_manifest import SHELL_ISOLATION_SPEC
+    import scripts.verification_manifest as manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_VENV_PYTHON = REPO_ROOT / "venv" / "Scripts" / "python.exe"
@@ -47,7 +35,7 @@ class CommandSpec:
 
 def resolve_python() -> tuple[str, str]:
     if LOCAL_VENV_PYTHON.exists():
-        return str(LOCAL_VENV_PYTHON), LOCAL_VENV_PYTHON_DISPLAY
+        return str(LOCAL_VENV_PYTHON), manifest.LOCAL_VENV_PYTHON_DISPLAY
     return sys.executable, sys.executable
 
 
@@ -66,7 +54,7 @@ def resolve_max_parallel_workers() -> int:
 
 
 def resolve_gui_parallel_workers(max_parallel_workers: int) -> int:
-    return max(1, min(max_parallel_workers, MAX_GUI_PARALLEL_WORKERS))
+    return max(1, min(max_parallel_workers, manifest.MAX_GUI_PARALLEL_WORKERS))
 
 
 def build_pytest_command(
@@ -86,15 +74,14 @@ def build_pytest_command(
         display_argv.extend(["-n", str(worker_count), "--dist", "load"])
     argv.extend(["-m", marker_expression])
     display_argv.extend(["-m", marker_expression])
-    for test_file in NON_SHELL_PYTEST_IGNORES:
-        ignore_arg = f"--ignore={test_file}"
+    for ignore_arg in manifest.non_shell_pytest_ignore_args():
         argv.append(ignore_arg)
         display_argv.append(ignore_arg)
     return CommandSpec(
         phase=phase,
         argv=tuple(argv),
         display_argv=tuple(display_argv),
-        env=OFFSCREEN_ENV,
+        env=manifest.OFFSCREEN_ENV,
         notice=notice,
     )
 
@@ -107,16 +94,22 @@ def build_shell_isolation_phase_command(
     worker_count: int,
     notice: str | None = None,
 ) -> CommandSpec:
-    argv = [python_exec, "-m", "pytest", SHELL_ISOLATION_SPEC.test_path, "-q"]
-    display_argv = [python_display, "-m", "pytest", SHELL_ISOLATION_SPEC.test_path, "-q"]
+    argv = [python_exec, "-m", "pytest", manifest.SHELL_ISOLATION_SPEC.test_path, "-q"]
+    display_argv = [
+        python_display,
+        "-m",
+        "pytest",
+        manifest.SHELL_ISOLATION_SPEC.test_path,
+        "-q",
+    ]
     if use_xdist:
         argv.extend(["-n", str(worker_count), "--dist", "load"])
         display_argv.extend(["-n", str(worker_count), "--dist", "load"])
     return CommandSpec(
-        phase=SHELL_ISOLATION_SPEC.phase,
+        phase=manifest.SHELL_ISOLATION_SPEC.phase,
         argv=tuple(argv),
         display_argv=tuple(display_argv),
-        env=OFFSCREEN_ENV,
+        env=manifest.OFFSCREEN_ENV,
         notice=notice,
     )
 
@@ -125,64 +118,41 @@ def build_commands(mode: str) -> list[CommandSpec]:
     python_exec, python_display = resolve_python()
     xdist_available = pytest_xdist_available()
     worker_count = resolve_max_parallel_workers()
-    gui_worker_count = resolve_gui_parallel_workers(worker_count)
-    fast_notice = None
-    if not xdist_available:
-        fast_notice = "pytest-xdist is unavailable; falling back to serial pytest for fast mode."
-    gui_notice = None
-    if not xdist_available:
-        gui_notice = "pytest-xdist is unavailable; falling back to serial pytest for gui mode."
-
-    fast_spec = PYTEST_PHASE_SPECS_BY_MODE["fast"]
-    fast_command = build_pytest_command(
-        phase=fast_spec.phase,
-        marker_expression=fast_spec.marker_expression,
-        python_exec=python_exec,
-        python_display=python_display,
-        use_xdist=xdist_available and fast_spec.uses_xdist,
-        worker_count=worker_count,
-        notice=fast_notice,
-    )
-    gui_spec = PYTEST_PHASE_SPECS_BY_MODE["gui"]
-    gui_command = build_pytest_command(
-        phase=gui_spec.phase,
-        marker_expression=gui_spec.marker_expression,
-        python_exec=python_exec,
-        python_display=python_display,
-        use_xdist=xdist_available and gui_spec.uses_xdist,
-        worker_count=gui_worker_count,
-        notice=gui_notice,
-    )
-    slow_spec = PYTEST_PHASE_SPECS_BY_MODE["slow"]
-    slow_command = build_pytest_command(
-        phase=slow_spec.phase,
-        marker_expression=slow_spec.marker_expression,
-        python_exec=python_exec,
-        python_display=python_display,
-        use_xdist=xdist_available and slow_spec.uses_xdist,
-        worker_count=worker_count,
-    )
-    shell_notice = None
-    if not xdist_available:
-        shell_notice = (
+    notices = {
+        "fast": "pytest-xdist is unavailable; falling back to serial pytest for fast mode.",
+        "gui": "pytest-xdist is unavailable; falling back to serial pytest for gui mode.",
+        manifest.SHELL_ISOLATION_PHASE_KEY: (
             "pytest-xdist is unavailable; falling back to serial pytest for the shell-isolation phase."
+        ),
+    }
+
+    commands_by_key: dict[str, CommandSpec] = {}
+    for phase_key in manifest.RUN_VERIFICATION_MODE_SEQUENCE["full"]:
+        if phase_key == manifest.SHELL_ISOLATION_PHASE_KEY:
+            commands_by_key[phase_key] = build_shell_isolation_phase_command(
+                python_exec=python_exec,
+                python_display=python_display,
+                use_xdist=xdist_available,
+                worker_count=worker_count,
+                notice=None if xdist_available else notices[phase_key],
+            )
+            continue
+
+        phase_spec = manifest.PYTEST_PHASE_SPECS_BY_MODE[phase_key]
+        phase_worker_count = worker_count
+        if phase_key == "gui":
+            phase_worker_count = resolve_gui_parallel_workers(worker_count)
+        commands_by_key[phase_key] = build_pytest_command(
+            phase=phase_spec.phase,
+            marker_expression=phase_spec.marker_expression,
+            python_exec=python_exec,
+            python_display=python_display,
+            use_xdist=xdist_available and phase_spec.uses_xdist,
+            worker_count=phase_worker_count,
+            notice=None if xdist_available else notices.get(phase_key),
         )
-    shell_command = build_shell_isolation_phase_command(
-        python_exec=python_exec,
-        python_display=python_display,
-        use_xdist=xdist_available,
-        worker_count=worker_count,
-        notice=shell_notice,
-    )
 
-    if mode == "fast":
-        return [fast_command]
-    if mode == "gui":
-        return [gui_command]
-    if mode == "slow":
-        return [slow_command]
-
-    return [fast_command, gui_command, slow_command, shell_command]
+    return [commands_by_key[phase_key] for phase_key in manifest.RUN_VERIFICATION_MODE_SEQUENCE[mode]]
 
 
 def format_command(command: CommandSpec) -> str:
@@ -207,7 +177,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         required=True,
-        choices=MODE_NAMES,
+        choices=manifest.MODE_NAMES,
         help="verification phase selection",
     )
     parser.add_argument(

@@ -46,7 +46,7 @@ class RunVerificationTests(unittest.TestCase):
         if use_xdist:
             expected.extend(["-n", str(worker_count), "--dist", "load"])
         expected.extend(["-m", phase_spec.marker_expression])
-        expected.extend(f"--ignore={path}" for path in self.manifest.NON_SHELL_PYTEST_IGNORES)
+        expected.extend(self.manifest.non_shell_pytest_ignore_args())
         self.assertEqual(phase_spec.phase, command.phase)
         self.assertEqual(tuple(expected), command.display_argv)
 
@@ -81,13 +81,15 @@ class RunVerificationTests(unittest.TestCase):
         ):
             commands = self.runner.build_commands("full")
 
+        expected_phase_order: list[str] = []
+        for phase_key in self.manifest.RUN_VERIFICATION_MODE_SEQUENCE["full"]:
+            if phase_key == self.manifest.SHELL_ISOLATION_PHASE_KEY:
+                expected_phase_order.append(self.manifest.SHELL_ISOLATION_SPEC.phase)
+            else:
+                expected_phase_order.append(self.manifest.PYTEST_PHASE_SPECS_BY_MODE[phase_key].phase)
+
         self.assertEqual(
-            [
-                self.manifest.PYTEST_PHASE_SPECS_BY_MODE["fast"].phase,
-                self.manifest.PYTEST_PHASE_SPECS_BY_MODE["gui"].phase,
-                self.manifest.PYTEST_PHASE_SPECS_BY_MODE["slow"].phase,
-                self.manifest.SHELL_ISOLATION_SPEC.phase,
-            ],
+            expected_phase_order,
             [command.phase for command in commands],
         )
 

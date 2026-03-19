@@ -128,6 +128,14 @@ class ShellIsolationSpec:
     shell_module_names: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class DocumentRule:
+    """Required and forbidden text snippets for a packet-owned proof document."""
+
+    required: tuple[str, ...] = ()
+    forbidden: tuple[str, ...] = ()
+
+
 PYTEST_PHASE_SPECS = (
     PytestPhaseSpec(
         mode="fast",
@@ -158,6 +166,20 @@ SHELL_ISOLATION_SPEC = ShellIsolationSpec(
     shell_module_paths=SHELL_BACKED_TEST_PATHS,
     shell_module_names=SHELL_BACKED_TEST_MODULES,
 )
+
+SHELL_ISOLATION_PHASE_KEY = "shell_isolation"
+RUN_VERIFICATION_MODE_SEQUENCE = {
+    "fast": ("fast",),
+    "gui": ("gui",),
+    "slow": ("slow",),
+    "full": ("fast", "gui", "slow", SHELL_ISOLATION_PHASE_KEY),
+}
+
+
+def non_shell_pytest_ignore_args() -> tuple[str, ...]:
+    """Return the documented pytest ignore arguments for non-shell phases."""
+
+    return tuple(f"--ignore={path}" for path in NON_SHELL_PYTEST_IGNORES)
 
 
 def run_verification_command(mode: str, *, dry_run: bool = False) -> str:
@@ -198,6 +220,184 @@ def proof_audit_command() -> str:
     """Return the canonical proof-audit command."""
 
     return f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_TRACEABILITY_SCRIPT}"
+
+
+GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
+    "README.md": DocumentRule(
+        required=(
+            CHECK_TRACEABILITY_SCRIPT,
+            "Graph Surface Input QA Matrix",
+            "Verification Speed QA Matrix",
+            "dedicated fresh-process shell-isolation phase",
+            SHELL_ISOLATION_SPEC.test_path,
+            "proof-audit command",
+        ),
+        forbidden=(
+            "serializer caveat.",
+            "shell-wrapper suites for isolated `unittest` execution",
+        ),
+    ),
+    "docs/GETTING_STARTED.md": DocumentRule(
+        required=(
+            CHECK_TRACEABILITY_SCRIPT,
+            SHELL_ISOLATION_SPEC.test_path,
+            XDIST_RESOLUTION_TOKENS[0],
+            "dedicated fresh-process",
+            "serializer spot-check",
+            "no longer carries that",
+            "benchmark evidence",
+        ),
+        forbidden=(
+            "remains a separate persistence follow-up",
+            "isolated module-level",
+        ),
+    ),
+    QA_ACCEPTANCE_DOC: DocumentRule(
+        forbidden=(
+            "the four shell-wrapper modules `tests.test_main_window_shell`, "
+            "`tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and "
+            "`tests.test_shell_project_session_controller` shall remain on explicit "
+            "fresh-process `unittest` execution",
+            "on separate `unittest` commands after the pytest phases",
+        ),
+    ),
+    GRAPH_SURFACE_INPUT_MATRIX_DOC: DocumentRule(
+        required=(
+            "## Shell Verification Policy",
+            "Both module-level shell wrappers passed directly",
+        ),
+        forbidden=(
+            "wrapper instability (`code 5`)",
+            "approved fresh-process fallback completed",
+        ),
+    ),
+    "docs/specs/requirements/80_PERFORMANCE.md": DocumentRule(
+        required=(
+            "GraphCanvas.qml",
+            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            "steady-state idle appearance returns automatically",
+        ),
+    ),
+    "docs/specs/perf/RC_PACKAGING_REPORT.md": DocumentRule(
+        required=(
+            "Evidence Status: Archived RC packaging smoke snapshot restored from repo",
+            "Current Constraint: P08 did not rerun packaging.",
+            "## Archived 2026-03-01 Snapshot",
+        ),
+    ),
+    "docs/specs/perf/PILOT_SIGNOFF.md": DocumentRule(
+        required=(
+            "Evidence Status: Archived packaged desktop pilot sign-off restored from repo",
+            "Current Constraint: P08 did not rerun the packaged pilot.",
+            "## Archived 2026-03-01 Snapshot",
+        ),
+    ),
+}
+
+QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
+    "REQ-QA-014": (RUN_VERIFICATION_SCRIPT, *MODE_NAMES),
+    "REQ-QA-015": (SHELL_ISOLATION_SPEC.test_path, *SHELL_ISOLATION_SPEC.shell_module_names),
+    "REQ-QA-016": ("pytest-xdist", *XDIST_RESOLUTION_TOKENS),
+    "REQ-QA-017": ("baseline failures", "fully green aggregate"),
+    "REQ-QA-018": ("GraphCanvas.qml", "interactive desktop/manual follow-up"),
+    "AC-REQ-QA-014-01": (
+        run_verification_command("full", dry_run=True),
+        VERIFICATION_SPEED_MATRIX_DOC,
+    ),
+    "AC-REQ-QA-015-01": (
+        SHELL_ISOLATION_SPEC.test_path,
+        *SHELL_ISOLATION_SPEC.shell_module_names,
+    ),
+    "AC-REQ-QA-016-01": (VERIFICATION_SPEED_MATRIX_DOC,),
+    "AC-REQ-QA-018-01": (
+        GRAPH_CANVAS_SNAPSHOT_COMMAND,
+        proof_audit_command(),
+        GRAPH_CANVAS_PERF_MATRIX_DOC,
+        TRACK_H_BENCHMARK_REPORT_DOC,
+    ),
+}
+
+VERIFICATION_SPEED_FORBIDDEN_TOKENS = (
+    "isolated shell-wrapper `unittest` phase",
+    "adds `-n auto` only when `pytest-xdist` is importable in the project venv",
+)
+VERIFICATION_SPEED_WORKFLOW_NOTE_TOKENS = {
+    "fast": (
+        "pytest-xdist",
+        XDIST_RESOLUTION_TOKENS[0],
+        "not gui and not slow",
+        SHELL_ISOLATION_SPEC.test_path,
+    ),
+    "gui": (
+        "pytest-xdist",
+        XDIST_RESOLUTION_TOKENS[0],
+        str(MAX_GUI_PARALLEL_WORKERS),
+        SHELL_ISOLATION_SPEC.test_path,
+    ),
+    "slow": ("Serial", SHELL_ISOLATION_SPEC.test_path),
+    "full": ("--dry-run",),
+}
+VERIFICATION_SPEED_SHELL_RULE_TOKENS = (
+    *non_shell_pytest_ignore_args(),
+    shell_isolation_pytest_command(),
+    *XDIST_RESOLUTION_TOKENS,
+    *shell_direct_unittest_commands(),
+)
+VERIFICATION_SPEED_ENVIRONMENT_NOTE_TOKENS = (
+    LOCAL_VENV_PYTHON_DISPLAY,
+    "pytest-xdist",
+    XDIST_RESOLUTION_TOKENS[0],
+    str(MAX_GUI_PARALLEL_WORKERS),
+)
+VERIFICATION_SPEED_COMPANION_PROOF_TOKENS = (
+    proof_audit_command(),
+    CHECK_TRACEABILITY_SCRIPT,
+)
+VERIFICATION_SPEED_BASELINE_REQUIRED_TOKENS = (
+    SERIALIZER_BASELINE_COMMAND,
+    "retired",
+    "No known out-of-scope verification baseline failures remain",
+)
+VERIFICATION_SPEED_BASELINE_FORBIDDEN_TOKENS = (
+    "serializer baseline remains open",
+    "still fails because passive image-panel round-trips add default crop fields",
+)
+VERIFICATION_SPEED_RESULT_COMMANDS = (
+    run_verification_command("full", dry_run=True),
+    SERIALIZER_BASELINE_COMMAND,
+)
+VERIFICATION_SPEED_SHELL_RESULT_COMMAND_PREFIX = shell_isolation_pytest_command(
+    worker_count=None
+)
+VERIFICATION_SPEED_SHELL_RESULT_REQUIRED_TOKENS = ("--dist load",)
+
+GRAPH_CANVAS_PERF_REQUIRED_TOKENS = (
+    "## Locked Benchmark Contract",
+    "GraphCanvas.qml",
+    "## Desktop/Manual Follow-Up",
+    "desktop/manual",
+    "outstanding",
+)
+GRAPH_CANVAS_PERF_AUDIT_COMMANDS = (
+    TRACK_H_REGRESSION_COMMAND,
+    GRAPH_CANVAS_SNAPSHOT_COMMAND,
+    proof_audit_command(),
+)
+
+TRACK_H_REPORT_REQUIRED_TOKENS = (
+    "GraphCanvas.qml",
+    "offscreen regression snapshot",
+    "`P04`",
+    GRAPH_CANVAS_SNAPSHOT_COMMAND,
+    TRACK_H_BENCHMARK_ARTIFACT,
+    "## 2026-03-18 Offscreen Snapshot",
+    "Interactive desktop/GPU validation remains required",
+    GRAPH_CANVAS_PERF_MATRIX_DOC,
+)
+TRACK_H_REPORT_FORBIDDEN_TOKENS = (
+    "Historical offscreen harness baseline restored from repo",
+    "P08 did not rerun the performance harness.",
+)
 
 
 TRACEABILITY_ROW_REQUIRED_TOKENS = {

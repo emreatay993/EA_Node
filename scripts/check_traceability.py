@@ -3,147 +3,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import re
 import sys
 
 try:
-    from verification_manifest import CHECK_TRACEABILITY_SCRIPT
-    from verification_manifest import GRAPH_CANVAS_PERF_MATRIX_DOC
-    from verification_manifest import GRAPH_CANVAS_REPORT_DIR
-    from verification_manifest import GRAPH_CANVAS_SNAPSHOT_COMMAND
-    from verification_manifest import GRAPH_SURFACE_INPUT_MATRIX_DOC
-    from verification_manifest import MAX_GUI_PARALLEL_WORKERS
-    from verification_manifest import MODE_NAMES
-    from verification_manifest import NON_SHELL_PYTEST_IGNORES
-    from verification_manifest import PROOF_AUDIT_REQUIRED_ARTIFACTS
-    from verification_manifest import QA_ACCEPTANCE_DOC
-    from verification_manifest import RUN_VERIFICATION_SCRIPT
-    from verification_manifest import SERIALIZER_BASELINE_COMMAND
-    from verification_manifest import SHELL_ISOLATION_SPEC
-    from verification_manifest import TRACK_H_BENCHMARK_ARTIFACT
-    from verification_manifest import TRACK_H_BENCHMARK_REPORT_DOC
-    from verification_manifest import TRACK_H_REGRESSION_COMMAND
-    from verification_manifest import TRACEABILITY_MATRIX_DOC
-    from verification_manifest import TRACEABILITY_ROW_FORBIDDEN_TOKENS
-    from verification_manifest import TRACEABILITY_ROW_REQUIRED_TOKENS
-    from verification_manifest import VERIFICATION_SPEED_MATRIX_DOC
-    from verification_manifest import XDIST_RESOLUTION_TOKENS
-    from verification_manifest import proof_audit_command
-    from verification_manifest import run_verification_command
-    from verification_manifest import shell_direct_unittest_commands
-    from verification_manifest import shell_isolation_pytest_command
+    import verification_manifest as manifest
 except ModuleNotFoundError:
-    from scripts.verification_manifest import CHECK_TRACEABILITY_SCRIPT
-    from scripts.verification_manifest import GRAPH_CANVAS_PERF_MATRIX_DOC
-    from scripts.verification_manifest import GRAPH_CANVAS_REPORT_DIR
-    from scripts.verification_manifest import GRAPH_CANVAS_SNAPSHOT_COMMAND
-    from scripts.verification_manifest import GRAPH_SURFACE_INPUT_MATRIX_DOC
-    from scripts.verification_manifest import MAX_GUI_PARALLEL_WORKERS
-    from scripts.verification_manifest import MODE_NAMES
-    from scripts.verification_manifest import NON_SHELL_PYTEST_IGNORES
-    from scripts.verification_manifest import PROOF_AUDIT_REQUIRED_ARTIFACTS
-    from scripts.verification_manifest import QA_ACCEPTANCE_DOC
-    from scripts.verification_manifest import RUN_VERIFICATION_SCRIPT
-    from scripts.verification_manifest import SERIALIZER_BASELINE_COMMAND
-    from scripts.verification_manifest import SHELL_ISOLATION_SPEC
-    from scripts.verification_manifest import TRACK_H_BENCHMARK_ARTIFACT
-    from scripts.verification_manifest import TRACK_H_BENCHMARK_REPORT_DOC
-    from scripts.verification_manifest import TRACK_H_REGRESSION_COMMAND
-    from scripts.verification_manifest import TRACEABILITY_MATRIX_DOC
-    from scripts.verification_manifest import TRACEABILITY_ROW_FORBIDDEN_TOKENS
-    from scripts.verification_manifest import TRACEABILITY_ROW_REQUIRED_TOKENS
-    from scripts.verification_manifest import VERIFICATION_SPEED_MATRIX_DOC
-    from scripts.verification_manifest import XDIST_RESOLUTION_TOKENS
-    from scripts.verification_manifest import proof_audit_command
-    from scripts.verification_manifest import run_verification_command
-    from scripts.verification_manifest import shell_direct_unittest_commands
-    from scripts.verification_manifest import shell_isolation_pytest_command
+    import scripts.verification_manifest as manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-REQUIRED_ARTIFACTS = PROOF_AUDIT_REQUIRED_ARTIFACTS
+REQUIRED_ARTIFACTS = manifest.PROOF_AUDIT_REQUIRED_ARTIFACTS
+GENERIC_DOCUMENT_RULES = manifest.GENERIC_DOCUMENT_RULES
 OLD_SHELL_TAIL_RESULT_PATTERN = re.compile(r"^`\d+\.\d+s` mean across `\d+` reps$")
 SHELL_ISOLATION_RESULT_PATTERN = re.compile(r"^`\d+ passed in \d+\.\d+s`$")
-
-
-@dataclass(frozen=True)
-class DocumentRule:
-    required: tuple[str, ...] = ()
-    forbidden: tuple[str, ...] = ()
-
-
-GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
-    "README.md": DocumentRule(
-        required=(
-            CHECK_TRACEABILITY_SCRIPT,
-            "Graph Surface Input QA Matrix",
-            "Verification Speed QA Matrix",
-            "dedicated fresh-process shell-isolation phase",
-            SHELL_ISOLATION_SPEC.test_path,
-            "proof-audit command",
-        ),
-        forbidden=(
-            "serializer caveat.",
-            "shell-wrapper suites for isolated `unittest` execution",
-        ),
-    ),
-    "docs/GETTING_STARTED.md": DocumentRule(
-        required=(
-            CHECK_TRACEABILITY_SCRIPT,
-            SHELL_ISOLATION_SPEC.test_path,
-            XDIST_RESOLUTION_TOKENS[0],
-            "dedicated fresh-process",
-            "serializer spot-check",
-            "no longer carries that",
-            "benchmark evidence",
-        ),
-        forbidden=(
-            "remains a separate persistence follow-up",
-            "isolated module-level",
-        ),
-    ),
-    QA_ACCEPTANCE_DOC: DocumentRule(
-        forbidden=(
-            "the four shell-wrapper modules `tests.test_main_window_shell`, "
-            "`tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and "
-            "`tests.test_shell_project_session_controller` shall remain on explicit "
-            "fresh-process `unittest` execution",
-            "on separate `unittest` commands after the pytest phases",
-        ),
-    ),
-    "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md": DocumentRule(
-        required=(
-            "## Shell Verification Policy",
-            "Both module-level shell wrappers passed directly",
-        ),
-        forbidden=(
-            "wrapper instability (`code 5`)",
-            "approved fresh-process fallback completed",
-        ),
-    ),
-    "docs/specs/requirements/80_PERFORMANCE.md": DocumentRule(
-        required=(
-            "GraphCanvas.qml",
-            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
-            "steady-state idle appearance returns automatically",
-        ),
-    ),
-    "docs/specs/perf/RC_PACKAGING_REPORT.md": DocumentRule(
-        required=(
-            "Evidence Status: Archived RC packaging smoke snapshot restored from repo",
-            "Current Constraint: P08 did not rerun packaging.",
-            "## Archived 2026-03-01 Snapshot",
-        ),
-    ),
-    "docs/specs/perf/PILOT_SIGNOFF.md": DocumentRule(
-        required=(
-            "Evidence Status: Archived packaged desktop pilot sign-off restored from repo",
-            "Current Constraint: P08 did not rerun the packaged pilot.",
-            "## Archived 2026-03-01 Snapshot",
-        ),
-    ),
-}
 
 
 def read_text(path: Path) -> str:
@@ -269,7 +142,7 @@ def audit_generic_document_rule(
     *,
     relative_path: str,
     text: str,
-    rule: DocumentRule,
+    rule: manifest.DocumentRule,
     issues: list[str],
 ) -> None:
     for snippet in rule.required:
@@ -282,26 +155,7 @@ def audit_generic_document_rule(
 
 def audit_qa_acceptance(text: str, relative_path: str, issues: list[str]) -> None:
     requirements = parse_requirement_lines(text)
-    required_tokens = {
-        "REQ-QA-014": (RUN_VERIFICATION_SCRIPT, *MODE_NAMES),
-        "REQ-QA-015": (SHELL_ISOLATION_SPEC.test_path, *SHELL_ISOLATION_SPEC.shell_module_names),
-        "REQ-QA-016": ("pytest-xdist", *XDIST_RESOLUTION_TOKENS),
-        "REQ-QA-017": ("baseline failures", "fully green aggregate"),
-        "REQ-QA-018": ("GraphCanvas.qml", "interactive desktop/manual follow-up"),
-        "AC-REQ-QA-014-01": (run_verification_command("full", dry_run=True), "VERIFICATION_SPEED_QA_MATRIX.md"),
-        "AC-REQ-QA-015-01": (
-            SHELL_ISOLATION_SPEC.test_path,
-            *SHELL_ISOLATION_SPEC.shell_module_names,
-        ),
-        "AC-REQ-QA-016-01": ("VERIFICATION_SPEED_QA_MATRIX.md",),
-        "AC-REQ-QA-018-01": (
-            GRAPH_CANVAS_SNAPSHOT_COMMAND,
-            proof_audit_command(),
-            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
-            "TRACK_H_BENCHMARK_REPORT.md",
-        ),
-    }
-    for requirement_id, tokens in required_tokens.items():
+    for requirement_id, tokens in manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS.items():
         body = requirements.get(requirement_id)
         if body is None:
             issues.append(f"{relative_path}: missing requirement line: {requirement_id}")
@@ -316,10 +170,7 @@ def audit_qa_acceptance(text: str, relative_path: str, issues: list[str]) -> Non
 
 
 def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[str]) -> None:
-    for forbidden in (
-        "isolated shell-wrapper `unittest` phase",
-        "adds `-n auto` only when `pytest-xdist` is importable in the project venv",
-    ):
+    for forbidden in manifest.VERIFICATION_SPEED_FORBIDDEN_TOKENS:
         if forbidden in text:
             issues.append(f"{relative_path}: found stale text: {forbidden}")
 
@@ -330,7 +181,7 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
         issues=issues,
     )
     if workflow_rows is not None:
-        for mode in MODE_NAMES:
+        for mode in manifest.MODE_NAMES:
             row = find_row(
                 workflow_rows,
                 column="Mode",
@@ -342,52 +193,18 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
                 )
                 continue
             command = strip_code_fence(row.get("Command", ""))
-            expected_command = run_verification_command(mode)
+            expected_command = manifest.run_verification_command(mode)
             if command != expected_command:
                 issues.append(
                     f"{relative_path}: Approved Verification Workflow row {mode} has unexpected command: {command}"
                 )
-            notes = row.get("Notes", "")
-            if mode in {"fast", "gui"}:
-                require_tokens(
-                    notes,
-                    ("pytest-xdist", XDIST_RESOLUTION_TOKENS[0]),
-                    relative_path=relative_path,
-                    label=f"workflow row {mode}",
-                    issues=issues,
-                )
-            if mode == "fast":
-                require_tokens(
-                    notes,
-                    ("not gui and not slow", SHELL_ISOLATION_SPEC.test_path),
-                    relative_path=relative_path,
-                    label="workflow row fast",
-                    issues=issues,
-                )
-            elif mode == "gui":
-                require_tokens(
-                    notes,
-                    (str(MAX_GUI_PARALLEL_WORKERS), SHELL_ISOLATION_SPEC.test_path),
-                    relative_path=relative_path,
-                    label="workflow row gui",
-                    issues=issues,
-                )
-            elif mode == "slow":
-                require_tokens(
-                    notes,
-                    ("Serial", SHELL_ISOLATION_SPEC.test_path),
-                    relative_path=relative_path,
-                    label="workflow row slow",
-                    issues=issues,
-                )
-            else:
-                require_tokens(
-                    notes,
-                    ("--dry-run",),
-                    relative_path=relative_path,
-                    label="workflow row full",
-                    issues=issues,
-                )
+            require_tokens(
+                row.get("Notes", ""),
+                manifest.VERIFICATION_SPEED_WORKFLOW_NOTE_TOKENS[mode],
+                relative_path=relative_path,
+                label=f"workflow row {mode}",
+                issues=issues,
+            )
 
     shell_rules = extract_section(text, "Locked Shell Isolation Rules")
     if shell_rules is None:
@@ -395,18 +212,7 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
     else:
         require_tokens(
             shell_rules,
-            tuple(f"--ignore={path}" for path in NON_SHELL_PYTEST_IGNORES),
-            relative_path=relative_path,
-            label="Locked Shell Isolation Rules",
-            issues=issues,
-        )
-        require_tokens(
-            shell_rules,
-            (
-                shell_isolation_pytest_command(),
-                *XDIST_RESOLUTION_TOKENS,
-                *shell_direct_unittest_commands(),
-            ),
+            manifest.VERIFICATION_SPEED_SHELL_RULE_TOKENS,
             relative_path=relative_path,
             label="Locked Shell Isolation Rules",
             issues=issues,
@@ -455,12 +261,7 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
     else:
         require_tokens(
             environment_notes,
-            (
-                run_verification_command("fast").split()[0],
-                "pytest-xdist",
-                XDIST_RESOLUTION_TOKENS[0],
-                str(MAX_GUI_PARALLEL_WORKERS),
-            ),
+            manifest.VERIFICATION_SPEED_ENVIRONMENT_NOTE_TOKENS,
             relative_path=relative_path,
             label="Current Environment Notes",
             issues=issues,
@@ -472,7 +273,7 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
     else:
         require_tokens(
             proof_audit,
-            (proof_audit_command(), CHECK_TRACEABILITY_SCRIPT),
+            manifest.VERIFICATION_SPEED_COMPANION_PROOF_TOKENS,
             relative_path=relative_path,
             label="Companion Proof Audit",
             issues=issues,
@@ -484,19 +285,12 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
     else:
         require_tokens(
             baseline_status,
-            (
-                SERIALIZER_BASELINE_COMMAND,
-                "retired",
-                "No known out-of-scope verification baseline failures remain",
-            ),
+            manifest.VERIFICATION_SPEED_BASELINE_REQUIRED_TOKENS,
             relative_path=relative_path,
             label="Current Baseline Status",
             issues=issues,
         )
-        for forbidden in (
-            "serializer baseline remains open",
-            "still fails because passive image-panel round-trips add default crop fields",
-        ):
+        for forbidden in manifest.VERIFICATION_SPEED_BASELINE_FORBIDDEN_TOKENS:
             if forbidden in baseline_status:
                 issues.append(f"{relative_path}: found stale text: {forbidden}")
 
@@ -511,8 +305,8 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
             result_rows,
             relative_path=relative_path,
             heading="2026-03-18 Verification Results",
-            predicate=lambda command: command == run_verification_command("full", dry_run=True),
-            label=run_verification_command("full", dry_run=True),
+            predicate=lambda command: command == manifest.VERIFICATION_SPEED_RESULT_COMMANDS[0],
+            label=manifest.VERIFICATION_SPEED_RESULT_COMMANDS[0],
             issues=issues,
         )
         require_command_result(
@@ -520,21 +314,21 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
             relative_path=relative_path,
             heading="2026-03-18 Verification Results",
             predicate=lambda command: (
-                command.startswith(
-                    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-                    f"{SHELL_ISOLATION_SPEC.test_path} -q"
+                command.startswith(manifest.VERIFICATION_SPEED_SHELL_RESULT_COMMAND_PREFIX)
+                and all(
+                    token in command
+                    for token in manifest.VERIFICATION_SPEED_SHELL_RESULT_REQUIRED_TOKENS
                 )
-                and "--dist load" in command
             ),
-            label=SHELL_ISOLATION_SPEC.test_path,
+            label=manifest.SHELL_ISOLATION_SPEC.test_path,
             issues=issues,
         )
         require_command_result(
             result_rows,
             relative_path=relative_path,
             heading="2026-03-18 Verification Results",
-            predicate=lambda command: command == SERIALIZER_BASELINE_COMMAND,
-            label=SERIALIZER_BASELINE_COMMAND,
+            predicate=lambda command: command == manifest.VERIFICATION_SPEED_RESULT_COMMANDS[1],
+            label=manifest.VERIFICATION_SPEED_RESULT_COMMANDS[1],
             issues=issues,
         )
 
@@ -542,13 +336,7 @@ def audit_verification_speed_matrix(text: str, relative_path: str, issues: list[
 def audit_graph_canvas_perf_matrix(text: str, relative_path: str, issues: list[str]) -> None:
     require_tokens(
         text,
-        (
-            "## Locked Benchmark Contract",
-            "GraphCanvas.qml",
-            "## Desktop/Manual Follow-Up",
-            "desktop/manual",
-            "outstanding",
-        ),
+        manifest.GRAPH_CANVAS_PERF_REQUIRED_TOKENS,
         relative_path=relative_path,
         label="graph-canvas perf matrix",
         issues=issues,
@@ -561,12 +349,7 @@ def audit_graph_canvas_perf_matrix(text: str, relative_path: str, issues: list[s
         issues=issues,
     )
     if approved_rows is not None:
-        expected_commands = (
-            TRACK_H_REGRESSION_COMMAND,
-            GRAPH_CANVAS_SNAPSHOT_COMMAND,
-            proof_audit_command(),
-        )
-        for command in expected_commands:
+        for command in manifest.GRAPH_CANVAS_PERF_AUDIT_COMMANDS:
             row = find_row(
                 approved_rows,
                 column="Command",
@@ -584,11 +367,7 @@ def audit_graph_canvas_perf_matrix(text: str, relative_path: str, issues: list[s
         issues=issues,
     )
     if execution_rows is not None:
-        for command in (
-            TRACK_H_REGRESSION_COMMAND,
-            GRAPH_CANVAS_SNAPSHOT_COMMAND,
-            proof_audit_command(),
-        ):
+        for command in manifest.GRAPH_CANVAS_PERF_AUDIT_COMMANDS:
             require_command_result(
                 execution_rows,
                 relative_path=relative_path,
@@ -602,24 +381,12 @@ def audit_graph_canvas_perf_matrix(text: str, relative_path: str, issues: list[s
 def audit_track_h_report(text: str, relative_path: str, issues: list[str]) -> None:
     require_tokens(
         text,
-        (
-            "GraphCanvas.qml",
-            "offscreen regression snapshot",
-            "`P04`",
-            GRAPH_CANVAS_SNAPSHOT_COMMAND,
-            TRACK_H_BENCHMARK_ARTIFACT,
-            "## 2026-03-18 Offscreen Snapshot",
-            "Interactive desktop/GPU validation remains required",
-            "GRAPH_CANVAS_PERF_QA_MATRIX.md",
-        ),
+        manifest.TRACK_H_REPORT_REQUIRED_TOKENS,
         relative_path=relative_path,
         label="track-h benchmark report",
         issues=issues,
     )
-    for forbidden in (
-        "Historical offscreen harness baseline restored from repo",
-        "P08 did not rerun the performance harness.",
-    ):
+    for forbidden in manifest.TRACK_H_REPORT_FORBIDDEN_TOKENS:
         if forbidden in text:
             issues.append(f"{relative_path}: found stale text: {forbidden}")
 
@@ -632,28 +399,28 @@ def find_traceability_row(matrix_text: str, row_id: str) -> str | None:
 
 
 def audit_traceability_rows(matrix_text: str, issues: list[str]) -> None:
-    for row_id, required_tokens in TRACEABILITY_ROW_REQUIRED_TOKENS.items():
+    for row_id, required_tokens in manifest.TRACEABILITY_ROW_REQUIRED_TOKENS.items():
         row = find_traceability_row(matrix_text, row_id)
         if row is None:
-            issues.append(f"{TRACEABILITY_MATRIX_DOC}: missing row: {row_id}")
+            issues.append(f"{manifest.TRACEABILITY_MATRIX_DOC}: missing row: {row_id}")
             continue
         for token in required_tokens:
             if token not in row:
                 issues.append(
-                    f"{TRACEABILITY_MATRIX_DOC}: row {row_id} missing required text: {token}"
+                    f"{manifest.TRACEABILITY_MATRIX_DOC}: row {row_id} missing required text: {token}"
                 )
-        for token in TRACEABILITY_ROW_FORBIDDEN_TOKENS.get(row_id, ()):
+        for token in manifest.TRACEABILITY_ROW_FORBIDDEN_TOKENS.get(row_id, ()):
             if token in row:
                 issues.append(
-                    f"{TRACEABILITY_MATRIX_DOC}: row {row_id} found stale text: {token}"
+                    f"{manifest.TRACEABILITY_MATRIX_DOC}: row {row_id} found stale text: {token}"
                 )
 
 
 SPECIAL_DOCUMENT_AUDITORS = {
-    QA_ACCEPTANCE_DOC: audit_qa_acceptance,
-    VERIFICATION_SPEED_MATRIX_DOC: audit_verification_speed_matrix,
-    GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
-    TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
+    manifest.QA_ACCEPTANCE_DOC: audit_qa_acceptance,
+    manifest.VERIFICATION_SPEED_MATRIX_DOC: audit_verification_speed_matrix,
+    manifest.GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
+    manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
 }
 
 
@@ -672,7 +439,7 @@ def audit_repository(repo_root: Path) -> list[str]:
         if not path.exists():
             continue
         text = read_text(path)
-        if relative_path == TRACEABILITY_MATRIX_DOC:
+        if relative_path == manifest.TRACEABILITY_MATRIX_DOC:
             matrix_text = text
         rule = GENERIC_DOCUMENT_RULES.get(relative_path)
         if rule is not None:
@@ -687,12 +454,12 @@ def audit_repository(repo_root: Path) -> list[str]:
             auditor(text, relative_path, issues)
 
     if matrix_text is None:
-        matrix_path = repo_root / TRACEABILITY_MATRIX_DOC
+        matrix_path = repo_root / manifest.TRACEABILITY_MATRIX_DOC
         if matrix_path.exists():
             matrix_text = read_text(matrix_path)
 
     if matrix_text is None:
-        issues.append(f"Missing required artifact: {TRACEABILITY_MATRIX_DOC}")
+        issues.append(f"Missing required artifact: {manifest.TRACEABILITY_MATRIX_DOC}")
         return issues
 
     audit_traceability_rows(matrix_text, issues)
