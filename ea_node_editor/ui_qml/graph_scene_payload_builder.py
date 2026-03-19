@@ -63,11 +63,6 @@ class GraphScenePayloadBuilder:
             return [], [], []
 
         workspace = model.project.workspaces[workspace_id]
-        self.normalize_pdf_panel_pages(
-            model=model,
-            registry=registry,
-            workspace=workspace,
-        )
         return self._build_payload_models(
             workspace=workspace,
             registry=registry,
@@ -82,27 +77,7 @@ class GraphScenePayloadBuilder:
         registry: NodeRegistry,
         workspace: WorkspaceData,
     ) -> None:
-        for node in workspace.nodes.values():
-            spec = registry.get_spec(node.type_id)
-            if str(spec.surface_family or "").strip() != "media":
-                continue
-            if str(spec.surface_variant or "").strip() != "pdf_panel":
-                continue
-            resolved_page_number = clamp_pdf_page_number(
-                str(node.properties.get("source_path", "") or ""),
-                node.properties.get("page_number"),
-            )
-            if resolved_page_number is None:
-                continue
-            current_page_number = node.properties.get("page_number")
-            if current_page_number == resolved_page_number:
-                continue
-            model.set_node_property(
-                workspace.workspace_id,
-                node.node_id,
-                "page_number",
-                resolved_page_number,
-            )
+        model.validated_mutations(workspace.workspace_id, registry).normalize_pdf_panel_pages()
 
     @staticmethod
     def active_graph_theme(graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
@@ -130,9 +105,10 @@ class GraphScenePayloadBuilder:
             node = workspace.nodes[node_id]
             spec = registry.get_spec(node.type_id)
             node_specs[node_id] = spec
+            payload_node = self._payload_node(node, spec)
             nodes_payload.append(
                 self._build_node_payload(
-                    node=node,
+                    node=payload_node,
                     spec=spec,
                     workspace=workspace,
                     port_connection_counts=port_connection_counts,
@@ -141,7 +117,7 @@ class GraphScenePayloadBuilder:
             )
             minimap_nodes_payload.append(
                 self._build_minimap_node_payload(
-                    node=node,
+                    node=payload_node,
                     spec=spec,
                     workspace=workspace,
                 )
@@ -207,6 +183,29 @@ class GraphScenePayloadBuilder:
             ),
             "inline_properties": inline_properties_payload,
         }
+
+    def _payload_node(self, node, spec: NodeTypeSpec):
+        properties = self._payload_properties(node=node, spec=spec)
+        if properties == node.properties:
+            return node
+        payload_node = node.clone()
+        payload_node.properties = properties
+        return payload_node
+
+    @staticmethod
+    def _payload_properties(*, node, spec: NodeTypeSpec) -> dict[str, Any]:
+        properties = copy.deepcopy(node.properties)
+        if str(spec.surface_family or "").strip() != "media":
+            return properties
+        if str(spec.surface_variant or "").strip() != "pdf_panel":
+            return properties
+        resolved_page_number = clamp_pdf_page_number(
+            str(properties.get("source_path", "") or ""),
+            properties.get("page_number"),
+        )
+        if resolved_page_number is not None:
+            properties["page_number"] = resolved_page_number
+        return properties
 
     def _build_minimap_node_payload(
         self,

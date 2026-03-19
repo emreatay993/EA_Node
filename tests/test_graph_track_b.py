@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from PyQt6.QtCore import QObject, QRectF, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor
@@ -10,7 +11,7 @@ from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.hierarchy import subtree_node_ids
-from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.model import GraphModel, ViewState
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
@@ -24,6 +25,7 @@ from ea_node_editor.ui.graph_theme import (
 )
 from ea_node_editor.ui.theme import STITCH_DARK_V1, STITCH_LIGHT_V1
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
@@ -641,6 +643,62 @@ class GraphModelTrackBTests(unittest.TestCase):
 
         service.set_active_view(active_view.view_id)
         self.assertEqual(workspace.active_view_id, active_view.view_id)
+
+    def test_workspace_mutation_service_clamps_pdf_panel_page_numbers_on_property_updates(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        service = model.validated_mutations(workspace.workspace_id, registry)
+        spec = registry.get_spec("passive.media.pdf_panel")
+        node = service.add_node(
+            type_id=spec.type_id,
+            title=spec.display_name,
+            x=40.0,
+            y=60.0,
+            properties=registry.default_properties(spec.type_id),
+            exposed_ports={port.key: port.exposed for port in spec.ports},
+        )
+
+        with patch("ea_node_editor.graph.mutation_service.clamp_pdf_page_number", return_value=2):
+            source_path = service.set_node_property(node.node_id, "source_path", "/tmp/clamped.pdf")
+            page_updates = service.set_node_properties(node.node_id, {"page_number": 99})
+
+        self.assertEqual(source_path, "/tmp/clamped.pdf")
+        self.assertEqual(page_updates, {"page_number": 2})
+        self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 2)
+
+    def test_graph_scene_payload_builder_clamps_pdf_payload_without_mutating_workspace(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        spec = registry.get_spec("passive.media.pdf_panel")
+        node = model.add_node(
+            workspace.workspace_id,
+            spec.type_id,
+            spec.display_name,
+            40.0,
+            60.0,
+            properties={
+                **registry.default_properties(spec.type_id),
+                "source_path": "/tmp/clamped.pdf",
+                "page_number": 99,
+            },
+            exposed_ports={port.key: port.exposed for port in spec.ports},
+        )
+        builder = GraphScenePayloadBuilder()
+
+        with patch("ea_node_editor.ui_qml.graph_scene_payload_builder.clamp_pdf_page_number", return_value=2):
+            nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
+                model=model,
+                registry=registry,
+                workspace_id=workspace.workspace_id,
+                scope_path=(),
+                graph_theme_bridge=None,
+            )
+
+        payload = next(item for item in nodes_payload if item["node_id"] == node.node_id)
+        self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 99)
+        self.assertEqual(payload["properties"]["page_number"], 2)
 
 
 class GraphSceneBridgeTrackBTests(unittest.TestCase):
@@ -1835,6 +1893,133 @@ class RuntimeGraphHistoryTrackBTests(unittest.TestCase):
         self.assertEqual(history.undo_depth(workspace_id), 1)
         history.undo_workspace(workspace_id, workspace)
         self.assertEqual(len(workspace.nodes), 0)
+
+    def test_history_restores_full_mutable_workspace_state(self) -> None:
+        model = GraphModel()
+        history = RuntimeGraphHistory()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+
+        shell = model.add_node(workspace_id, "core.subnode", "Shell", 120.0, 80.0)
+        child = model.add_node(workspace_id, "core.logger", "Logger", 260.0, 120.0)
+        workspace.nodes[child.node_id].parent_node_id = shell.node_id
+        before_view = model.create_view(workspace_id, name="Nested Review")
+        before_view.zoom = 1.75
+        before_view.pan_x = 145.0
+        before_view.pan_y = 230.0
+        before_view.scope_path = [shell.node_id]
+        workspace.active_view_id = before_view.view_id
+        workspace.name = "Before State"
+        workspace.dirty = True
+        workspace.unresolved_node_docs = {
+            "ghost_node": {
+                "node_id": "ghost_node",
+                "type_id": "missing.node",
+                "title": "Ghost",
+            }
+        }
+        workspace.unresolved_edge_docs = {
+            "ghost_edge": {
+                "edge_id": "ghost_edge",
+                "source_node_id": child.node_id,
+                "source_port_key": "exec_out",
+                "target_node_id": "ghost_node",
+                "target_port_key": "exec_in",
+            }
+        }
+        workspace.authored_node_overrides = {
+            child.node_id: {"parent_node_id": "ghost_node"},
+        }
+
+        before = history.capture_workspace(workspace)
+
+        workspace.name = "After State"
+        after_node = model.add_node(workspace_id, "core.end", "End", 420.0, 180.0)
+        workspace.nodes = {after_node.node_id: after_node}
+        workspace.edges = {}
+        workspace.views = {
+            "view_after": ViewState(
+                view_id="view_after",
+                name="After View",
+                zoom=0.8,
+                pan_x=-40.0,
+                pan_y=25.0,
+                scope_path=[],
+            )
+        }
+        workspace.active_view_id = "view_after"
+        workspace.dirty = False
+        workspace.unresolved_node_docs = {
+            "after_ghost": {
+                "node_id": "after_ghost",
+                "type_id": "missing.after",
+                "title": "After Ghost",
+            }
+        }
+        workspace.unresolved_edge_docs = {}
+        workspace.authored_node_overrides = {
+            after_node.node_id: {"parent_node_id": "after_ghost"},
+        }
+
+        history.record_action(workspace_id, ACTION_ADD_NODE, before, workspace)
+
+        self.assertIsNotNone(history.undo_workspace(workspace_id, workspace))
+        self.assertEqual(workspace.name, "Before State")
+        self.assertEqual(set(workspace.nodes), {shell.node_id, child.node_id})
+        self.assertEqual(workspace.nodes[child.node_id].parent_node_id, shell.node_id)
+        self.assertEqual(workspace.active_view_id, before_view.view_id)
+        self.assertEqual(len(workspace.views), 2)
+        self.assertIn(before_view.view_id, workspace.views)
+        self.assertAlmostEqual(workspace.views[before_view.view_id].zoom, 1.75, places=6)
+        self.assertAlmostEqual(workspace.views[before_view.view_id].pan_x, 145.0, places=6)
+        self.assertAlmostEqual(workspace.views[before_view.view_id].pan_y, 230.0, places=6)
+        self.assertEqual(workspace.views[before_view.view_id].scope_path, [shell.node_id])
+        self.assertTrue(workspace.dirty)
+        self.assertEqual(
+            workspace.unresolved_node_docs,
+            {
+                "ghost_node": {
+                    "node_id": "ghost_node",
+                    "type_id": "missing.node",
+                    "title": "Ghost",
+                }
+            },
+        )
+        self.assertEqual(
+            workspace.unresolved_edge_docs,
+            {
+                "ghost_edge": {
+                    "edge_id": "ghost_edge",
+                    "source_node_id": child.node_id,
+                    "source_port_key": "exec_out",
+                    "target_node_id": "ghost_node",
+                    "target_port_key": "exec_in",
+                }
+            },
+        )
+        self.assertEqual(workspace.authored_node_overrides, {child.node_id: {"parent_node_id": "ghost_node"}})
+
+        self.assertIsNotNone(history.redo_workspace(workspace_id, workspace))
+        self.assertEqual(workspace.name, "After State")
+        self.assertEqual(set(workspace.nodes), {after_node.node_id})
+        self.assertEqual(set(workspace.views), {"view_after"})
+        self.assertEqual(workspace.active_view_id, "view_after")
+        self.assertAlmostEqual(workspace.views["view_after"].zoom, 0.8, places=6)
+        self.assertAlmostEqual(workspace.views["view_after"].pan_x, -40.0, places=6)
+        self.assertAlmostEqual(workspace.views["view_after"].pan_y, 25.0, places=6)
+        self.assertFalse(workspace.dirty)
+        self.assertEqual(
+            workspace.unresolved_node_docs,
+            {
+                "after_ghost": {
+                    "node_id": "after_ghost",
+                    "type_id": "missing.after",
+                    "title": "After Ghost",
+                }
+            },
+        )
+        self.assertEqual(workspace.unresolved_edge_docs, {})
+        self.assertEqual(workspace.authored_node_overrides, {after_node.node_id: {"parent_node_id": "after_ghost"}})
 
 
 class ViewportBridgeTrackBTests(unittest.TestCase):

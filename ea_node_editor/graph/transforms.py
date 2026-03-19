@@ -558,6 +558,7 @@ def insert_graph_fragment(
     workspace = model.project.workspaces.get(str(workspace_id).strip())
     if workspace is None:
         return []
+    mutations = model.mutation_service(workspace.workspace_id)
 
     nodes_payload = fragment_payload.get("nodes")
     edges_payload = fragment_payload.get("edges")
@@ -574,8 +575,7 @@ def insert_graph_fragment(
         type_id = str(node_payload.get("type_id", "")).strip()
         if not source_node_id or not type_id:
             continue
-        created = model.add_node(
-            workspace.workspace_id,
+        created = mutations.add_node_raw(
             type_id=type_id,
             title=str(node_payload.get("title", "")),
             x=float(node_payload.get("x", 0.0)) + float(delta_x),
@@ -584,12 +584,13 @@ def insert_graph_fragment(
             exposed_ports=dict(node_payload.get("exposed_ports", {})),
             visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
         )
-        created.collapsed = bool(node_payload.get("collapsed", False))
-        created.custom_width = (
-            float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None
-        )
-        created.custom_height = (
-            float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None
+        mutations.set_node_fragment_state(
+            created.node_id,
+            collapsed=bool(node_payload.get("collapsed", False)),
+            custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
+            custom_height=(
+                float(node_payload["custom_height"]) if node_payload.get("custom_height") is not None else None
+            ),
         )
         node_id_map[source_node_id] = created.node_id
         inserted_node_ids.append(created.node_id)
@@ -604,13 +605,13 @@ def insert_graph_fragment(
         inserted_node_id = node_id_map.get(source_node_id)
         if not inserted_node_id:
             continue
-        inserted_node = workspace.nodes.get(inserted_node_id)
-        if inserted_node is None:
-            continue
-        inserted_node.parent_node_id = _remap_fragment_parent_id(
-            source_parent_id=node_payload.get("parent_node_id"),
-            node_id_map=node_id_map,
-            workspace=workspace,
+        mutations.set_node_parent_raw(
+            inserted_node_id,
+            _remap_fragment_parent_id(
+                source_parent_id=node_payload.get("parent_node_id"),
+                node_id_map=node_id_map,
+                workspace=workspace,
+            ),
         )
 
     for edge_payload in edges_payload:
@@ -639,8 +640,7 @@ def insert_graph_fragment(
             port_key=target_port_key,
         )
         try:
-            model.add_edge(
-                workspace.workspace_id,
+            mutations.add_edge_raw(
                 source_node_id=source_node_id,
                 source_port_key=source_port_key,
                 target_node_id=target_node_id,
@@ -724,6 +724,7 @@ def group_selection_into_subnode(
         return None
     if not _roots_share_parent(workspace=workspace, node_ids=roots):
         return None
+    mutations = model.validated_mutations(workspace.workspace_id, registry)
 
     selected_set = set(roots)
     incoming_edges, outgoing_edges = _boundary_edges(
@@ -755,30 +756,25 @@ def group_selection_into_subnode(
 
     shell_defaults = registry.default_properties(SUBNODE_TYPE_ID)
     shell_spec = registry.get_spec(SUBNODE_TYPE_ID)
-    shell = model.add_node(
-        workspace.workspace_id,
+    shell = mutations.add_node(
         type_id=SUBNODE_TYPE_ID,
         title=shell_spec.display_name,
         x=float(shell_x),
         y=float(shell_y),
         properties=shell_defaults,
         exposed_ports={},
+        parent_node_id=expected_parent_id,
     )
-    shell.parent_node_id = expected_parent_id
 
     for node_id in roots:
-        node = workspace.nodes.get(node_id)
-        if node is not None:
-            node.parent_node_id = shell.node_id
+        mutations.set_node_parent_raw(node_id, shell.node_id)
 
     created_pin_ids: list[str] = []
 
     for index, boundary in enumerate(incoming_boundary):
         pin_id = _create_boundary_pin(
-            model=model,
+            mutations=mutations,
             registry=registry,
-            workspace=workspace,
-            workspace_id=workspace.workspace_id,
             shell_node_id=shell.node_id,
             pin_type_id=boundary.pin_type_id,
             x=float(shell_x) - _PIN_OFFSET_X,
@@ -788,16 +784,14 @@ def group_selection_into_subnode(
             data_type=boundary.data_type,
         )
         created_pin_ids.append(pin_id)
-        model.remove_edge(workspace.workspace_id, boundary.edge.edge_id)
-        model.add_edge(
-            workspace.workspace_id,
+        mutations.remove_edge_raw(boundary.edge.edge_id)
+        mutations.add_edge_raw(
             source_node_id=boundary.edge.source_node_id,
             source_port_key=boundary.edge.source_port_key,
             target_node_id=shell.node_id,
             target_port_key=pin_id,
         )
-        model.add_edge(
-            workspace.workspace_id,
+        mutations.add_edge_raw(
             source_node_id=pin_id,
             source_port_key=SUBNODE_PIN_PORT_KEY,
             target_node_id=boundary.edge.target_node_id,
@@ -806,10 +800,8 @@ def group_selection_into_subnode(
 
     for index, boundary in enumerate(outgoing_boundary):
         pin_id = _create_boundary_pin(
-            model=model,
+            mutations=mutations,
             registry=registry,
-            workspace=workspace,
-            workspace_id=workspace.workspace_id,
             shell_node_id=shell.node_id,
             pin_type_id=boundary.pin_type_id,
             x=float(shell_x) + _PIN_OFFSET_X,
@@ -819,16 +811,14 @@ def group_selection_into_subnode(
             data_type=boundary.data_type,
         )
         created_pin_ids.append(pin_id)
-        model.remove_edge(workspace.workspace_id, boundary.edge.edge_id)
-        model.add_edge(
-            workspace.workspace_id,
+        mutations.remove_edge_raw(boundary.edge.edge_id)
+        mutations.add_edge_raw(
             source_node_id=boundary.edge.source_node_id,
             source_port_key=boundary.edge.source_port_key,
             target_node_id=pin_id,
             target_port_key=SUBNODE_PIN_PORT_KEY,
         )
-        model.add_edge(
-            workspace.workspace_id,
+        mutations.add_edge_raw(
             source_node_id=shell.node_id,
             source_port_key=pin_id,
             target_node_id=boundary.edge.target_node_id,
@@ -858,6 +848,7 @@ def ungroup_subnode(
     shell = workspace.nodes.get(normalized_shell_id)
     if shell is None or not is_subnode_shell_type(shell.type_id):
         return None
+    mutations = model.mutation_service(workspace.workspace_id)
 
     direct_children = [
         node
@@ -923,18 +914,17 @@ def ungroup_subnode(
                     )
 
     for node in moved_nodes:
-        node.parent_node_id = shell.parent_node_id
+        mutations.set_node_parent_raw(node.node_id, shell.parent_node_id)
 
     for pin_node in pin_nodes:
-        model.remove_node(workspace.workspace_id, pin_node.node_id)
-    model.remove_node(workspace.workspace_id, normalized_shell_id)
+        mutations.remove_node_raw(pin_node.node_id)
+    mutations.remove_node_raw(normalized_shell_id)
 
     for source_node_id, source_port_key, target_node_id, target_port_key in sorted(rewired_edges):
         if source_node_id not in workspace.nodes or target_node_id not in workspace.nodes:
             continue
         try:
-            model.add_edge(
-                workspace.workspace_id,
+            mutations.add_edge_raw(
                 source_node_id=source_node_id,
                 source_port_key=source_port_key,
                 target_node_id=target_node_id,
@@ -1103,10 +1093,8 @@ def _pin_signature_for_inner_port(
 
 def _create_boundary_pin(
     *,
-    model: GraphModel,
+    mutations,
     registry: NodeRegistry,
-    workspace: WorkspaceData,
-    workspace_id: str,
     shell_node_id: str,
     pin_type_id: str,
     x: float,
@@ -1117,26 +1105,26 @@ def _create_boundary_pin(
 ) -> str:
     pin_spec = registry.get_spec(pin_type_id)
     pin_defaults = registry.default_properties(pin_type_id)
-    pin = model.add_node(
-        workspace_id,
+    pin = mutations.add_node(
         type_id=pin_type_id,
         title=pin_spec.display_name,
         x=float(x),
         y=float(y),
         properties=pin_defaults,
         exposed_ports={},
+        parent_node_id=shell_node_id,
     )
-    pin.parent_node_id = shell_node_id
-    pin.properties[SUBNODE_PIN_LABEL_PROPERTY] = str(label).strip() or default_subnode_pin_label(pin_type_id)
-
     normalized_kind = normalize_subnode_pin_kind(kind)
-    pin.properties[SUBNODE_PIN_KIND_PROPERTY] = normalized_kind
-
     normalized_data_type = normalize_subnode_pin_data_type(normalized_kind, data_type)
-    pin.properties[SUBNODE_PIN_DATA_TYPE_PROPERTY] = normalized_data_type
-
-    # Keep shell ports exposed by default when deriving pins from a grouped boundary.
-    workspace.nodes[shell_node_id].exposed_ports[pin.node_id] = True
+    mutations.set_node_properties(
+        pin.node_id,
+        {
+            SUBNODE_PIN_LABEL_PROPERTY: str(label).strip() or default_subnode_pin_label(pin_type_id),
+            SUBNODE_PIN_KIND_PROPERTY: normalized_kind,
+            SUBNODE_PIN_DATA_TYPE_PROPERTY: normalized_data_type,
+        },
+    )
+    mutations.set_exposed_port(shell_node_id, pin.node_id, True)
     return pin.node_id
 
 
