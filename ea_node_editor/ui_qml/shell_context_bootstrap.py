@@ -16,6 +16,8 @@ from ea_node_editor.ui.pdf_preview_provider import (
     LOCAL_PDF_PREVIEW_PROVIDER_ID,
 )
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
@@ -29,10 +31,24 @@ class ShellContextBridges:
     shell_library_bridge: ShellLibraryBridge
     shell_workspace_bridge: ShellWorkspaceBridge
     shell_inspector_bridge: ShellInspectorBridge
+    graph_canvas_state_bridge: GraphCanvasStateBridge
+    graph_canvas_command_bridge: GraphCanvasCommandBridge
     graph_canvas_bridge: GraphCanvasBridge
 
 
 def create_shell_context_bridges(host: "ShellWindow") -> ShellContextBridges:
+    graph_canvas_state_bridge = GraphCanvasStateBridge(
+        host,
+        shell_window=host,
+        scene_bridge=host.scene,
+        view_bridge=host.view,
+    )
+    graph_canvas_command_bridge = GraphCanvasCommandBridge(
+        host,
+        shell_window=host,
+        scene_bridge=host.scene,
+        view_bridge=host.view,
+    )
     return ShellContextBridges(
         shell_library_bridge=ShellLibraryBridge(
             host,
@@ -51,11 +67,15 @@ def create_shell_context_bridges(host: "ShellWindow") -> ShellContextBridges:
             shell_window=host,
             scene_bridge=host.scene,
         ),
+        graph_canvas_state_bridge=graph_canvas_state_bridge,
+        graph_canvas_command_bridge=graph_canvas_command_bridge,
         graph_canvas_bridge=GraphCanvasBridge(
             host,
             shell_window=host,
             scene_bridge=host.scene,
             view_bridge=host.view,
+            state_bridge=graph_canvas_state_bridge,
+            command_bridge=graph_canvas_command_bridge,
         ),
     )
 
@@ -90,6 +110,8 @@ def shell_context_property_bindings(
         ("shellLibraryBridge", bridges.shell_library_bridge),
         ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
+        ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
+        ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
         ("graphCanvasBridge", bridges.graph_canvas_bridge),
     )
     shared_service_bindings = (

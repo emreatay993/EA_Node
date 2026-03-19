@@ -13,6 +13,8 @@ from PyQt6.QtQuick import QQuickItem
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.runtime_clipboard import build_graph_fragment_payload, serialize_graph_fragment_payload
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
@@ -885,18 +887,262 @@ class ShellInspectorBridgeTests(unittest.TestCase):
 
 
 class GraphCanvasBridgeTests(unittest.TestCase):
+    def test_state_bridge_exposes_read_heavy_canvas_state_and_re_emits_signals(self) -> None:
+        host = _GraphCanvasShellHostStub()
+        scene = _GraphCanvasSceneBridgeStub()
+        view = _GraphCanvasViewBridgeStub()
+        bridge = GraphCanvasStateBridge(host, shell_window=host, scene_bridge=scene, view_bridge=view)
+        seen = {
+            "graphics_preferences_changed": 0,
+            "snap_to_grid_changed": 0,
+            "scene_nodes_changed": 0,
+            "scene_edges_changed": 0,
+            "scene_selection_changed": 0,
+            "view_state_changed": 0,
+        }
+
+        bridge.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__("graphics_preferences_changed", seen["graphics_preferences_changed"] + 1)
+        )
+        bridge.snap_to_grid_changed.connect(
+            lambda: seen.__setitem__("snap_to_grid_changed", seen["snap_to_grid_changed"] + 1)
+        )
+        bridge.scene_nodes_changed.connect(
+            lambda: seen.__setitem__("scene_nodes_changed", seen["scene_nodes_changed"] + 1)
+        )
+        bridge.scene_edges_changed.connect(
+            lambda: seen.__setitem__("scene_edges_changed", seen["scene_edges_changed"] + 1)
+        )
+        bridge.scene_selection_changed.connect(
+            lambda: seen.__setitem__("scene_selection_changed", seen["scene_selection_changed"] + 1)
+        )
+        bridge.view_state_changed.connect(
+            lambda: seen.__setitem__("view_state_changed", seen["view_state_changed"] + 1)
+        )
+
+        self.assertIs(bridge.parent(), host)
+        self.assertIs(bridge.shell_window, host)
+        self.assertIs(bridge.scene_bridge, scene)
+        self.assertIs(bridge.view_bridge, view)
+        self.assertTrue(bridge.graphics_minimap_expanded)
+        self.assertTrue(bridge.graphics_show_grid)
+        self.assertTrue(bridge.graphics_show_minimap)
+        self.assertTrue(bridge.graphics_node_shadow)
+        self.assertEqual(bridge.graphics_shadow_strength, 70)
+        self.assertEqual(bridge.graphics_shadow_softness, 50)
+        self.assertEqual(bridge.graphics_shadow_offset, 4)
+        self.assertTrue(bridge.snap_to_grid_enabled)
+        self.assertEqual(bridge.snap_grid_size, 24.0)
+        self.assertEqual(bridge.center_x, 18.5)
+        self.assertEqual(bridge.center_y, -42.0)
+        self.assertEqual(bridge.zoom_value, 1.75)
+        self.assertEqual(bridge.visible_scene_rect_payload, view.visible_scene_rect_payload)
+        self.assertEqual(bridge.nodes_model, scene.nodes_model)
+        self.assertEqual(bridge.minimap_nodes_model, scene.minimap_nodes_model)
+        self.assertEqual(bridge.workspace_scene_bounds_payload, scene.workspace_scene_bounds_payload)
+        self.assertEqual(bridge.edges_model, scene.edges_model)
+        self.assertEqual(bridge.selected_node_lookup, scene.selected_node_lookup)
+
+        host.graphics_preferences_changed.emit()
+        host.snap_to_grid_changed.emit()
+        scene.nodes_changed.emit()
+        scene.edges_changed.emit()
+        scene.selection_changed.emit()
+        view.view_state_changed.emit()
+
+        self.assertEqual(
+            seen,
+            {
+                "graphics_preferences_changed": 1,
+                "snap_to_grid_changed": 1,
+                "scene_nodes_changed": 1,
+                "scene_edges_changed": 1,
+                "scene_selection_changed": 1,
+                "view_state_changed": 1,
+            },
+        )
+
+    def test_command_bridge_routes_canvas_commands_to_presenter_host_scene_and_view(self) -> None:
+        host = _GraphCanvasShellHostStub()
+        presenter = _GraphCanvasShellHostStub()
+        host.graph_canvas_presenter = presenter
+        scene = _GraphCanvasSceneBridgeStub()
+        view = _GraphCanvasViewBridgeStub()
+        bridge = GraphCanvasCommandBridge(host, shell_window=host, scene_bridge=scene, view_bridge=view)
+
+        self.assertIs(bridge.parent(), host)
+        self.assertIs(bridge.shell_window, host)
+        self.assertIs(bridge.scene_bridge, scene)
+        self.assertIs(bridge.view_bridge, view)
+
+        bridge.set_graphics_minimap_expanded(False)
+        bridge.adjust_zoom(1.15)
+        bridge.pan_by(-12.0, 8.0)
+        bridge.set_viewport_size(1280.0, 720.0)
+        bridge.center_on_scene_point(96.0, 144.0)
+        self.assertTrue(bridge.request_open_subnode_scope("subnode-1"))
+        self.assertEqual(
+            bridge.browse_node_property_path("node-1", "source_path", "C:/temp/current.txt"),
+            "C:/temp/from-canvas-bridge.txt",
+        )
+        self.assertTrue(
+            bridge.request_drop_node_from_library(
+                "core.logger",
+                120.0,
+                240.0,
+                "port",
+                "node-1",
+                "exec_in",
+                "edge-1",
+            )
+        )
+        self.assertTrue(bridge.request_connect_ports("node-1", "exec_out", "node-2", "exec_in"))
+        self.assertTrue(
+            bridge.request_open_connection_quick_insert(
+                "node-1",
+                "exec_out",
+                20.0,
+                30.0,
+                400.0,
+                300.0,
+            )
+        )
+        bridge.request_open_canvas_quick_insert(15.0, 25.0, 115.0, 215.0)
+        self.assertTrue(bridge.request_publish_custom_workflow_from_node("node-1"))
+        self.assertTrue(bridge.request_delete_selected_graph_items(["edge-1"]))
+        self.assertTrue(bridge.request_navigate_scope_parent())
+        self.assertTrue(bridge.request_navigate_scope_root())
+        bridge.select_node("node-1", True)
+        bridge.clear_selection()
+        bridge.select_nodes_in_rect(1.0, 2.0, 3.0, 4.0, True)
+        bridge.set_node_property("node-1", "message", "hello")
+        bridge.set_pending_surface_action("node-1")
+        self.assertTrue(bridge.consume_pending_surface_action("node-1"))
+        self.assertTrue(bridge.set_node_properties("node-1", {"message": "bridge"}))
+        self.assertTrue(bridge.are_port_kinds_compatible("exec", "exec"))
+        self.assertTrue(bridge.are_data_types_compatible("text", "text"))
+        self.assertTrue(bridge.move_nodes_by_delta(["node-1", "node-2"], 10.0, -5.0))
+        bridge.move_node("node-1", 160.0, 220.0)
+        bridge.resize_node("node-1", 320.0, 180.0)
+        bridge.set_node_geometry("node-1", 150.0, 210.0, 340.0, 190.0)
+        bridge.set_graph_cursor_shape(13)
+        bridge.clear_graph_cursor_shape()
+        self.assertEqual(
+            bridge.describe_pdf_preview("C:/temp/preview.pdf", 2),
+            {
+                "source": "C:/temp/preview.pdf",
+                "page_number": 2,
+                "valid": True,
+            },
+        )
+        self.assertTrue(bridge.request_edit_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_edit_flow_edge_label("edge-1"))
+        self.assertTrue(bridge.request_reset_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_copy_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_paste_flow_edge_style("edge-1"))
+        self.assertTrue(bridge.request_remove_edge("edge-1"))
+        self.assertTrue(bridge.request_edit_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_reset_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_copy_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_paste_passive_node_style("node-1"))
+        self.assertTrue(bridge.request_rename_node("node-1"))
+        self.assertTrue(bridge.request_ungroup_node("node-1"))
+        self.assertTrue(bridge.request_remove_node("node-1"))
+
+        self.assertEqual(
+            presenter.calls,
+            [
+                ("set_graphics_minimap_expanded", (False,)),
+                ("request_open_subnode_scope", ("subnode-1",)),
+                ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
+                (
+                    "request_drop_node_from_library",
+                    ("core.logger", 120.0, 240.0, "port", "node-1", "exec_in", "edge-1"),
+                ),
+                ("request_connect_ports", ("node-1", "exec_out", "node-2", "exec_in")),
+                (
+                    "request_open_connection_quick_insert",
+                    ("node-1", "exec_out", 20.0, 30.0, 400.0, 300.0),
+                ),
+                ("request_open_canvas_quick_insert", (15.0, 25.0, 115.0, 215.0)),
+                ("request_publish_custom_workflow_from_node", ("node-1",)),
+            ],
+        )
+        self.assertEqual(
+            host.calls,
+            [
+                ("request_delete_selected_graph_items", (["edge-1"],)),
+                ("request_navigate_scope_parent", ()),
+                ("request_navigate_scope_root", ()),
+                ("set_graph_cursor_shape", (13,)),
+                ("clear_graph_cursor_shape", ()),
+                ("describe_pdf_preview", ("C:/temp/preview.pdf", 2)),
+                ("request_edit_flow_edge_style", ("edge-1",)),
+                ("request_edit_flow_edge_label", ("edge-1",)),
+                ("request_reset_flow_edge_style", ("edge-1",)),
+                ("request_copy_flow_edge_style", ("edge-1",)),
+                ("request_paste_flow_edge_style", ("edge-1",)),
+                ("request_remove_edge", ("edge-1",)),
+                ("request_edit_passive_node_style", ("node-1",)),
+                ("request_reset_passive_node_style", ("node-1",)),
+                ("request_copy_passive_node_style", ("node-1",)),
+                ("request_paste_passive_node_style", ("node-1",)),
+                ("request_rename_node", ("node-1",)),
+                ("request_ungroup_node", ("node-1",)),
+                ("request_remove_node", ("node-1",)),
+            ],
+        )
+        self.assertEqual(
+            scene.calls,
+            [
+                ("select_node", ("node-1", True)),
+                ("clear_selection", ()),
+                ("select_nodes_in_rect", (1.0, 2.0, 3.0, 4.0, True)),
+                ("set_node_property", ("node-1", "message", "hello")),
+                ("set_pending_surface_action", ("node-1",)),
+                ("consume_pending_surface_action", ("node-1",)),
+                ("set_node_properties", ("node-1", {"message": "bridge"})),
+                ("are_port_kinds_compatible", ("exec", "exec")),
+                ("are_data_types_compatible", ("text", "text")),
+                ("move_nodes_by_delta", (["node-1", "node-2"], 10.0, -5.0)),
+                ("move_node", ("node-1", 160.0, 220.0)),
+                ("resize_node", ("node-1", 320.0, 180.0)),
+                ("set_node_geometry", ("node-1", 150.0, 210.0, 340.0, 190.0)),
+            ],
+        )
+        self.assertEqual(
+            view.calls,
+            [
+                ("adjust_zoom", (1.15,)),
+                ("pan_by", (-12.0, 8.0)),
+                ("set_viewport_size", (1280.0, 720.0)),
+                ("center_on_scene_point", (96.0, 144.0)),
+            ],
+        )
+
     def test_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
         host = _GraphCanvasShellHostStub()
         parent = _GraphCanvasParentStub(host)
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
-        bridge = GraphCanvasBridge(parent, shell_window=host, scene_bridge=scene, view_bridge=view)
+        state_bridge = GraphCanvasStateBridge(parent, shell_window=host, scene_bridge=scene, view_bridge=view)
+        command_bridge = GraphCanvasCommandBridge(parent, shell_window=host, scene_bridge=scene, view_bridge=view)
+        bridge = GraphCanvasBridge(
+            parent,
+            shell_window=host,
+            scene_bridge=scene,
+            view_bridge=view,
+            state_bridge=state_bridge,
+            command_bridge=command_bridge,
+        )
 
         self.assertIs(bridge.parent(), parent)
         self.assertIs(bridge.shell_window, host)
         self.assertIsNot(bridge.shell_window, bridge.parent())
         self.assertIs(bridge.scene_bridge, scene)
         self.assertIs(bridge.view_bridge, view)
+        self.assertIs(bridge.state_bridge, state_bridge)
+        self.assertIs(bridge.command_bridge, command_bridge)
         self.assertTrue(bridge.graphics_minimap_expanded)
         self.assertTrue(bridge.graphics_show_grid)
         self.assertTrue(bridge.graphics_show_minimap)
@@ -1002,7 +1248,21 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
 
-        bridge = GraphCanvasBridge(shell_window=host, scene_bridge=scene, view_bridge=view)
+        bridge = GraphCanvasBridge(
+            shell_window=host,
+            scene_bridge=scene,
+            view_bridge=view,
+            state_bridge=GraphCanvasStateBridge(
+                shell_window=host,
+                scene_bridge=scene,
+                view_bridge=view,
+            ),
+            command_bridge=GraphCanvasCommandBridge(
+                shell_window=host,
+                scene_bridge=scene,
+                view_bridge=view,
+            ),
+        )
 
         self.assertFalse(bridge.graphics_show_grid)
         self.assertFalse(bridge.graphics_show_minimap)
@@ -1176,6 +1436,41 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertFalse(bridge.snap_to_grid_enabled)
         self.assertEqual(bridge.snap_grid_size, 20.0)
         self.assertFalse(bridge.request_open_subnode_scope("subnode-1"))
+
+
+class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
+    def test_qml_context_registers_state_command_and_compat_canvas_bridges(self) -> None:
+        context = self.window.quick_widget.rootContext()
+        graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
+        graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
+        graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
+
+        self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
+        self.assertIs(graph_canvas_state_bridge.parent(), self.window)
+        self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
+        self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
+        self.assertIs(graph_canvas_state_bridge.view_bridge, self.window.view)
+
+        self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
+        self.assertIs(graph_canvas_command_bridge.parent(), self.window)
+        self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
+        self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
+        self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+
+        self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
+        self.assertIs(graph_canvas_bridge.parent(), self.window)
+        self.assertIs(graph_canvas_bridge.state_bridge, graph_canvas_state_bridge)
+        self.assertIs(graph_canvas_bridge.command_bridge, graph_canvas_command_bridge)
+        self.assertIs(graph_canvas_bridge.shell_window, self.window)
+        self.assertIs(graph_canvas_bridge.scene_bridge, self.window.scene)
+        self.assertIs(graph_canvas_bridge.view_bridge, self.window.view)
+
+    def test_shell_window_keeps_graph_canvas_bridge_aliases_in_sync_with_context_bundle(self) -> None:
+        bridges = self.window._shell_context_bridges
+
+        self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
+        self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
+        self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
 
 
 class SharedUiSupportBoundaryTests(unittest.TestCase):

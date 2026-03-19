@@ -86,6 +86,8 @@ from ea_node_editor.ui.shell.window_library_inspector import (
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui.theme import build_theme_stylesheet
 from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
@@ -178,6 +180,20 @@ class ShellWindow(QMainWindow):
     @property
     def workspace_package_io_controller(self):
         return self.workspace_library_controller.workspace_package_io_controller
+
+    @property
+    def graph_canvas_state_bridge(self) -> GraphCanvasStateBridge | None:
+        bridges = getattr(self, "_shell_context_bridges", None)
+        if bridges is None:
+            return None
+        return bridges.graph_canvas_state_bridge
+
+    @property
+    def graph_canvas_command_bridge(self) -> GraphCanvasCommandBridge | None:
+        bridges = getattr(self, "_shell_context_bridges", None)
+        if bridges is None:
+            return None
+        return bridges.graph_canvas_command_bridge
 
     @property
     def project_path(self) -> str:

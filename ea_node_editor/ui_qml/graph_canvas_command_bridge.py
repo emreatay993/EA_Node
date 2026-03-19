@@ -1,0 +1,534 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+from PyQt6.QtCore import QObject, pyqtSlot
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.window import ShellWindow
+    from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+    from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+
+def _invoke(source: object | None, name: str, *args, default: Any = None) -> Any:
+    callback = getattr(source, name, None) if source is not None else None
+    if not callable(callback):
+        return default
+    return callback(*args)
+
+
+def _invoke_chain(
+    sources: tuple[object | None, ...],
+    name: str,
+    *args,
+    default: Any = None,
+) -> Any:
+    for source in sources:
+        callback = getattr(source, name, None) if source is not None else None
+        if callable(callback):
+            return callback(*args)
+    return default
+
+
+def _copy_dict(value: object) -> dict[str, Any]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+class GraphCanvasCommandBridge(QObject):
+    def __init__(
+        self,
+        parent: QObject | None = None,
+        *,
+        shell_window: "ShellWindow | None" = None,
+        scene_bridge: "GraphSceneBridge | None" = None,
+        view_bridge: "ViewportBridge | None" = None,
+    ) -> None:
+        super().__init__(parent)
+        self._shell_window = shell_window
+        self._scene_bridge = scene_bridge
+        self._view_bridge = view_bridge
+        self._canvas_source = getattr(shell_window, "graph_canvas_presenter", shell_window)
+
+    @property
+    def shell_window(self) -> "ShellWindow | None":
+        return self._shell_window
+
+    @property
+    def scene_bridge(self) -> "GraphSceneBridge | None":
+        return self._scene_bridge
+
+    @property
+    def view_bridge(self) -> "ViewportBridge | None":
+        return self._view_bridge
+
+    @pyqtSlot(bool)
+    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
+        _invoke(self._canvas_source, "set_graphics_minimap_expanded", bool(expanded))
+
+    @pyqtSlot(float)
+    def adjust_zoom(self, factor: float) -> None:
+        _invoke(self._view_bridge, "adjust_zoom", float(factor))
+
+    @pyqtSlot(float, float)
+    def pan_by(self, delta_x: float, delta_y: float) -> None:
+        _invoke(self._view_bridge, "pan_by", float(delta_x), float(delta_y))
+
+    @pyqtSlot(float, float)
+    def set_viewport_size(self, width: float, height: float) -> None:
+        _invoke(self._view_bridge, "set_viewport_size", float(width), float(height))
+
+    @pyqtSlot(float, float)
+    def center_on_scene_point(self, x: float, y: float) -> None:
+        _invoke(self._view_bridge, "center_on_scene_point", float(x), float(y))
+
+    @pyqtSlot(str, result=bool)
+    def request_open_subnode_scope(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._canvas_source, self._shell_window),
+                "request_open_subnode_scope",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, str, str, result=str)
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
+        return str(
+            _invoke_chain(
+                (self._canvas_source, self._shell_window),
+                "browse_node_property_path",
+                node_id,
+                key,
+                current_path,
+                default="",
+            )
+            or ""
+        )
+
+    @pyqtSlot(
+        str,
+        float,
+        float,
+        str,
+        str,
+        str,
+        str,
+        result=bool,
+    )
+    def request_drop_node_from_library(
+        self,
+        type_id: str,
+        scene_x: float,
+        scene_y: float,
+        target_mode: str,
+        target_node_id: str,
+        target_port_key: str,
+        target_edge_id: str,
+    ) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._canvas_source, self._shell_window),
+                "request_drop_node_from_library",
+                type_id,
+                float(scene_x),
+                float(scene_y),
+                target_mode,
+                target_node_id,
+                target_port_key,
+                target_edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, str, str, str, result=bool)
+    def request_connect_ports(
+        self,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._canvas_source, self._shell_window),
+                "request_connect_ports",
+                source_node_id,
+                source_port_key,
+                target_node_id,
+                target_port_key,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, str, float, float, float, float, result=bool)
+    def request_open_connection_quick_insert(
+        self,
+        node_id: str,
+        port_key: str,
+        cursor_scene_x: float,
+        cursor_scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._canvas_source, self._shell_window),
+                "request_open_connection_quick_insert",
+                node_id,
+                port_key,
+                float(cursor_scene_x),
+                float(cursor_scene_y),
+                float(overlay_x),
+                float(overlay_y),
+                default=False,
+            )
+        )
+
+    @pyqtSlot(float, float, float, float)
+    def request_open_canvas_quick_insert(
+        self,
+        scene_x: float,
+        scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> None:
+        _invoke_chain(
+            (self._canvas_source, self._shell_window),
+            "request_open_canvas_quick_insert",
+            float(scene_x),
+            float(scene_y),
+            float(overlay_x),
+            float(overlay_y),
+        )
+
+    @pyqtSlot("QVariantList", result=bool)
+    def request_delete_selected_graph_items(self, edge_ids: list) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_delete_selected_graph_items",
+                edge_ids,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(result=bool)
+    def request_navigate_scope_parent(self) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_navigate_scope_parent",
+                default=False,
+            )
+        )
+
+    @pyqtSlot(result=bool)
+    def request_navigate_scope_root(self) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_navigate_scope_root",
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, bool)
+    def select_node(self, node_id: str, additive: bool = False) -> None:
+        _invoke(self._scene_bridge, "select_node", node_id, bool(additive))
+
+    @pyqtSlot()
+    def clear_selection(self) -> None:
+        _invoke(self._scene_bridge, "clear_selection")
+
+    @pyqtSlot(float, float, float, float)
+    @pyqtSlot(float, float, float, float, bool)
+    def select_nodes_in_rect(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        additive: bool = False,
+    ) -> None:
+        _invoke(
+            self._scene_bridge,
+            "select_nodes_in_rect",
+            float(x1),
+            float(y1),
+            float(x2),
+            float(y2),
+            bool(additive),
+        )
+
+    @pyqtSlot(str, str, "QVariant")
+    def set_node_property(self, node_id: str, key: str, value: object) -> None:
+        _invoke(self._scene_bridge, "set_node_property", node_id, key, value)
+
+    @pyqtSlot(str)
+    def set_pending_surface_action(self, node_id: str) -> None:
+        _invoke(self._scene_bridge, "set_pending_surface_action", node_id)
+
+    @pyqtSlot(str, result=bool)
+    def consume_pending_surface_action(self, node_id: str) -> bool:
+        return bool(
+            _invoke(
+                self._scene_bridge,
+                "consume_pending_surface_action",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, "QVariantMap", result=bool)
+    def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
+        return bool(
+            _invoke(
+                self._scene_bridge,
+                "set_node_properties",
+                node_id,
+                dict(values or {}),
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, str, result=bool)
+    def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
+        return bool(
+            _invoke(
+                self._scene_bridge,
+                "are_port_kinds_compatible",
+                source_kind,
+                target_kind,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, str, result=bool)
+    def are_data_types_compatible(self, source_type: str, target_type: str) -> bool:
+        return bool(
+            _invoke(
+                self._scene_bridge,
+                "are_data_types_compatible",
+                source_type,
+                target_type,
+                default=False,
+            )
+        )
+
+    @pyqtSlot("QVariantList", float, float, result=bool)
+    def move_nodes_by_delta(self, node_ids: list, delta_x: float, delta_y: float) -> bool:
+        return bool(
+            _invoke(
+                self._scene_bridge,
+                "move_nodes_by_delta",
+                node_ids,
+                float(delta_x),
+                float(delta_y),
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, float, float)
+    def move_node(self, node_id: str, x: float, y: float) -> None:
+        _invoke(self._scene_bridge, "move_node", node_id, float(x), float(y))
+
+    @pyqtSlot(str, float, float)
+    def resize_node(self, node_id: str, width: float, height: float) -> None:
+        _invoke(self._scene_bridge, "resize_node", node_id, float(width), float(height))
+
+    @pyqtSlot(str, float, float, float, float)
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+        _invoke(
+            self._scene_bridge,
+            "set_node_geometry",
+            node_id,
+            float(x),
+            float(y),
+            float(width),
+            float(height),
+        )
+
+    @pyqtSlot(int)
+    def set_graph_cursor_shape(self, cursor_shape: int) -> None:
+        _invoke_chain(
+            (self._shell_window,),
+            "set_graph_cursor_shape",
+            int(cursor_shape),
+        )
+
+    @pyqtSlot()
+    def clear_graph_cursor_shape(self) -> None:
+        _invoke_chain(
+            (self._shell_window,),
+            "clear_graph_cursor_shape",
+        )
+
+    @pyqtSlot(str, "QVariant", result="QVariantMap")
+    def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
+        return _copy_dict(
+            _invoke_chain(
+                (self._shell_window,),
+                "describe_pdf_preview",
+                source,
+                page_number,
+                default={},
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_edit_flow_edge_style",
+                edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_edit_flow_edge_label",
+                edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_reset_flow_edge_style",
+                edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_copy_flow_edge_style",
+                edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_paste_flow_edge_style",
+                edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_remove_edge(self, edge_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_remove_edge",
+                edge_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._canvas_source, self._shell_window),
+                "request_publish_custom_workflow_from_node",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_edit_passive_node_style(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_edit_passive_node_style",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_reset_passive_node_style(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_reset_passive_node_style",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_copy_passive_node_style(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_copy_passive_node_style",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_paste_passive_node_style(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_paste_passive_node_style",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_rename_node(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_rename_node",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_ungroup_node(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_ungroup_node",
+                node_id,
+                default=False,
+            )
+        )
+
+    @pyqtSlot(str, result=bool)
+    def request_remove_node(self, node_id: str) -> bool:
+        return bool(
+            _invoke_chain(
+                (self._shell_window,),
+                "request_remove_node",
+                node_id,
+                default=False,
+            )
+        )
+
+
+__all__ = ["GraphCanvasCommandBridge"]
