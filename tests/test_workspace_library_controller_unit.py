@@ -6,7 +6,11 @@ from types import SimpleNamespace
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers import WorkspaceLibraryController
+from ea_node_editor.ui.shell.controllers.workflow_library_controller import WorkflowLibraryController
 from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import WorkspaceDropConnectOps
+from ea_node_editor.ui.shell.controllers.workspace_graph_edit_controller import WorkspaceGraphEditController
+from ea_node_editor.ui.shell.controllers.workspace_navigation_controller import WorkspaceNavigationController
+from ea_node_editor.ui.shell.controllers.workspace_package_io_controller import WorkspacePackageIOController
 from tests.workspace_library_controller_unit.core_ops import *  # noqa: F401,F403
 from tests.workspace_library_controller_unit.custom_workflow_io import *  # noqa: F401,F403
 
@@ -154,13 +158,61 @@ class _DropConnectControllerStub:
 
 
 class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
-    def test_controller_initializes_business_capability_owners(self) -> None:
+    def test_controller_initializes_focused_controller_owners(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
 
-        self.assertTrue(hasattr(controller, "_custom_workflow_capability"))
-        self.assertTrue(hasattr(controller, "_navigation_capability"))
-        self.assertTrue(hasattr(controller, "_edit_command_capability"))
-        self.assertTrue(hasattr(controller, "_import_export_capability"))
+        self.assertIsInstance(controller.workflow_library_controller, WorkflowLibraryController)
+        self.assertIsInstance(controller.workspace_navigation_controller, WorkspaceNavigationController)
+        self.assertIsInstance(controller.workspace_graph_edit_controller, WorkspaceGraphEditController)
+        self.assertIsInstance(controller.workspace_package_io_controller, WorkspacePackageIOController)
+        self.assertIs(controller._custom_workflow_capability, controller.workflow_library_controller)
+        self.assertIs(controller._navigation_capability, controller.workspace_navigation_controller)
+        self.assertIs(controller._edit_command_capability, controller.workspace_graph_edit_controller)
+        self.assertIs(controller._import_export_capability, controller.workspace_package_io_controller)
+
+
+class WorkspaceLibraryControllerSurfaceDelegationTests(unittest.TestCase):
+    def test_facade_delegates_custom_workflow_surface_to_focused_controller(self) -> None:
+        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        controller.workflow_library_controller.custom_workflow_library_items = lambda: [  # type: ignore[method-assign]
+            {"workflow_id": "wf-1"}
+        ]
+
+        self.assertEqual(controller.custom_workflow_library_items(), [{"workflow_id": "wf-1"}])
+
+    def test_facade_delegates_navigation_surface_to_focused_controller(self) -> None:
+        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        controller.workspace_navigation_controller.search_graph_nodes = lambda query, limit: [  # type: ignore[method-assign]
+            {"query": query, "limit": limit}
+        ]
+
+        self.assertEqual(
+            controller.search_graph_nodes("needle", 7),
+            [{"query": "needle", "limit": 7}],
+        )
+
+    def test_facade_delegates_graph_edit_surface_to_focused_controller(self) -> None:
+        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        controller.workspace_graph_edit_controller.request_remove_edge = lambda edge_id: edge_id  # type: ignore[method-assign]
+
+        self.assertEqual(controller.request_remove_edge("edge-1"), "edge-1")
+
+    def test_facade_delegates_package_io_surface_to_focused_controller(self) -> None:
+        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        prompted: list[list[dict[str, object]]] = []
+
+        def _prompt(definitions: list[dict[str, object]]) -> dict[str, object] | None:
+            prompted.append(definitions)
+            return definitions[0] if definitions else None
+
+        controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = _prompt  # type: ignore[method-assign]
+        definition = {"workflow_id": "wf-1"}
+
+        self.assertEqual(
+            controller._prompt_custom_workflow_export_definition([definition]),
+            definition,
+        )
+        self.assertEqual(prompted, [[definition]])
 
 
 class WorkspaceLibraryControllerCloseViewTests(unittest.TestCase):

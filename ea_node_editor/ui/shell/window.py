@@ -164,6 +164,22 @@ class ShellWindow(QMainWindow):
         bootstrap_shell_window(self, resolved_composition)
 
     @property
+    def workflow_library_controller(self):
+        return self.workspace_library_controller.workflow_library_controller
+
+    @property
+    def workspace_navigation_controller(self):
+        return self.workspace_library_controller.workspace_navigation_controller
+
+    @property
+    def workspace_graph_edit_controller(self):
+        return self.workspace_library_controller.workspace_graph_edit_controller
+
+    @property
+    def workspace_package_io_controller(self):
+        return self.workspace_library_controller.workspace_package_io_controller
+
+    @property
     def project_path(self) -> str:
         return self.project_session_state.project_path
 
