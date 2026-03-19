@@ -13,18 +13,25 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+try:
+    from verification_manifest import LOCAL_VENV_PYTHON_DISPLAY
+    from verification_manifest import MAX_GUI_PARALLEL_WORKERS
+    from verification_manifest import MODE_NAMES
+    from verification_manifest import NON_SHELL_PYTEST_IGNORES
+    from verification_manifest import OFFSCREEN_ENV
+    from verification_manifest import PYTEST_PHASE_SPECS_BY_MODE
+    from verification_manifest import SHELL_ISOLATION_SPEC
+except ModuleNotFoundError:
+    from scripts.verification_manifest import LOCAL_VENV_PYTHON_DISPLAY
+    from scripts.verification_manifest import MAX_GUI_PARALLEL_WORKERS
+    from scripts.verification_manifest import MODE_NAMES
+    from scripts.verification_manifest import NON_SHELL_PYTEST_IGNORES
+    from scripts.verification_manifest import OFFSCREEN_ENV
+    from scripts.verification_manifest import PYTEST_PHASE_SPECS_BY_MODE
+    from scripts.verification_manifest import SHELL_ISOLATION_SPEC
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_VENV_PYTHON = REPO_ROOT / "venv" / "Scripts" / "python.exe"
-OFFSCREEN_ENV = {"QT_QPA_PLATFORM": "offscreen"}
-SHELL_ISOLATION_PHASE_TEST = "tests/test_shell_isolation_phase.py"
-MAX_GUI_PARALLEL_WORKERS = 6
-NON_SHELL_PYTEST_IGNORES = (
-    "tests/test_main_window_shell.py",
-    "tests/test_script_editor_dock.py",
-    "tests/test_shell_run_controller.py",
-    "tests/test_shell_project_session_controller.py",
-    SHELL_ISOLATION_PHASE_TEST,
-)
 
 
 @dataclass(frozen=True)
@@ -40,7 +47,7 @@ class CommandSpec:
 
 def resolve_python() -> tuple[str, str]:
     if LOCAL_VENV_PYTHON.exists():
-        return str(LOCAL_VENV_PYTHON), "./venv/Scripts/python.exe"
+        return str(LOCAL_VENV_PYTHON), LOCAL_VENV_PYTHON_DISPLAY
     return sys.executable, sys.executable
 
 
@@ -100,13 +107,13 @@ def build_shell_isolation_phase_command(
     worker_count: int,
     notice: str | None = None,
 ) -> CommandSpec:
-    argv = [python_exec, "-m", "pytest", SHELL_ISOLATION_PHASE_TEST, "-q"]
-    display_argv = [python_display, "-m", "pytest", SHELL_ISOLATION_PHASE_TEST, "-q"]
+    argv = [python_exec, "-m", "pytest", SHELL_ISOLATION_SPEC.test_path, "-q"]
+    display_argv = [python_display, "-m", "pytest", SHELL_ISOLATION_SPEC.test_path, "-q"]
     if use_xdist:
         argv.extend(["-n", str(worker_count), "--dist", "load"])
         display_argv.extend(["-n", str(worker_count), "--dist", "load"])
     return CommandSpec(
-        phase="full.shell_isolation.pytest",
+        phase=SHELL_ISOLATION_SPEC.phase,
         argv=tuple(argv),
         display_argv=tuple(display_argv),
         env=OFFSCREEN_ENV,
@@ -126,30 +133,33 @@ def build_commands(mode: str) -> list[CommandSpec]:
     if not xdist_available:
         gui_notice = "pytest-xdist is unavailable; falling back to serial pytest for gui mode."
 
+    fast_spec = PYTEST_PHASE_SPECS_BY_MODE["fast"]
     fast_command = build_pytest_command(
-        phase="fast.pytest",
-        marker_expression="not gui and not slow",
+        phase=fast_spec.phase,
+        marker_expression=fast_spec.marker_expression,
         python_exec=python_exec,
         python_display=python_display,
-        use_xdist=xdist_available,
+        use_xdist=xdist_available and fast_spec.uses_xdist,
         worker_count=worker_count,
         notice=fast_notice,
     )
+    gui_spec = PYTEST_PHASE_SPECS_BY_MODE["gui"]
     gui_command = build_pytest_command(
-        phase="gui.pytest",
-        marker_expression="gui and not slow",
+        phase=gui_spec.phase,
+        marker_expression=gui_spec.marker_expression,
         python_exec=python_exec,
         python_display=python_display,
-        use_xdist=xdist_available,
+        use_xdist=xdist_available and gui_spec.uses_xdist,
         worker_count=gui_worker_count,
         notice=gui_notice,
     )
+    slow_spec = PYTEST_PHASE_SPECS_BY_MODE["slow"]
     slow_command = build_pytest_command(
-        phase="slow.pytest",
-        marker_expression="slow",
+        phase=slow_spec.phase,
+        marker_expression=slow_spec.marker_expression,
         python_exec=python_exec,
         python_display=python_display,
-        use_xdist=False,
+        use_xdist=xdist_available and slow_spec.uses_xdist,
         worker_count=worker_count,
     )
     shell_notice = None
@@ -197,7 +207,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--mode",
         required=True,
-        choices=("fast", "gui", "slow", "full"),
+        choices=MODE_NAMES,
         help="verification phase selection",
     )
     parser.add_argument(

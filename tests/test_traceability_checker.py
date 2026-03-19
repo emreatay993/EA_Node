@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import importlib.util
 import shutil
 import sys
@@ -8,10 +10,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_traceability.py"
+VERIFICATION_MANIFEST_PATH = REPO_ROOT / "scripts" / "verification_manifest.py"
 
 
-def load_checker_module():
-    spec = importlib.util.spec_from_file_location("check_traceability", CHECKER_PATH)
+def load_module(module_name: str, module_path: Path):
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -20,29 +23,45 @@ def load_checker_module():
     return module
 
 
+def replace_text(path: Path, old: str, new: str) -> None:
+    path.write_text(path.read_text(encoding="utf-8-sig").replace(old, new), encoding="utf-8")
+
+
+def update_markdown_table_result(path: Path, command: str, new_result: str, new_notes: str | None = None) -> None:
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    command_cell = f"`{command}`"
+    for index, line in enumerate(lines):
+        if not line.startswith(f"| {command_cell} |"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        cells[1] = new_result
+        if new_notes is not None and len(cells) > 2:
+            cells[2] = new_notes
+        lines[index] = "| " + " | ".join(cells) + " |"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return
+    raise AssertionError(f"Command row not found: {command}")
+
+
+def remove_token_from_traceability_row(path: Path, row_id: str, token: str) -> None:
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith(f"| {row_id} |"):
+            continue
+        lines[index] = line.replace(token, "").replace(", ,", ",")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return
+    raise AssertionError(f"Traceability row not found: {row_id}")
+
+
 class TraceabilityCheckerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.checker = load_checker_module()
+        cls.manifest = load_module("verification_manifest_for_traceability_tests", VERIFICATION_MANIFEST_PATH)
+        cls.checker = load_module("check_traceability_for_tests", CHECKER_PATH)
 
     def make_repo_fixture(self, root: Path) -> None:
-        paths_to_copy = (
-            "README.md",
-            "docs/GETTING_STARTED.md",
-            "docs/specs/requirements/80_PERFORMANCE.md",
-            "docs/specs/requirements/90_QA_ACCEPTANCE.md",
-            "docs/specs/requirements/TRACEABILITY_MATRIX.md",
-            "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md",
-            "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
-            "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md",
-            "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md",
-            "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md",
-            "docs/specs/perf/RC_PACKAGING_REPORT.md",
-            "docs/specs/perf/PILOT_SIGNOFF.md",
-            "scripts/check_traceability.py",
-            "tests/test_traceability_checker.py",
-        )
-        for relative_path in paths_to_copy:
+        for relative_path in self.checker.REQUIRED_ARTIFACTS:
             source = REPO_ROOT / relative_path
             target = root / relative_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -56,63 +75,59 @@ class TraceabilityCheckerTests(unittest.TestCase):
             repo_root = Path(temp_dir)
             self.make_repo_fixture(repo_root)
 
-            (repo_root / "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md").unlink()
+            (repo_root / self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC).unlink()
 
             issues = self.checker.audit_repository(repo_root)
 
         self.assertIn(
-            "Missing required artifact: docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            f"Missing required artifact: {self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}",
             issues,
         )
 
-    def test_audit_repository_reports_stale_text_and_row_regression(self) -> None:
+    def test_audit_repository_reports_structured_perf_and_row_regression(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
             self.make_repo_fixture(repo_root)
 
-            graph_canvas_doc = repo_root / "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md"
-            graph_canvas_doc.write_text(
-                graph_canvas_doc.read_text(encoding="utf-8").replace(
-                    "| `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_track_h_perf_harness.py tests/test_traceability_checker.py -q` | PASS | Harness/report/traceability regression slice passed in the project venv |",
-                    "| `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_track_h_perf_harness.py tests/test_traceability_checker.py -q` | Pending | Harness/report/traceability regression slice was not rerun |",
-                ),
-                encoding="utf-8",
+            graph_canvas_doc = repo_root / self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC
+            update_markdown_table_result(
+                graph_canvas_doc,
+                self.manifest.TRACK_H_REGRESSION_COMMAND,
+                "Pending",
+                "Harness/report/traceability regression slice was not rerun",
             )
 
-            track_h_doc = repo_root / "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md"
-            track_h_doc.write_text(
-                track_h_doc.read_text(encoding="utf-8").replace(
-                    "Evidence Status: real `GraphCanvas.qml` offscreen regression snapshot refreshed after `P04`.",
-                    "Evidence Status: Historical offscreen harness baseline restored from repo",
-                ),
-                encoding="utf-8",
+            track_h_doc = repo_root / self.manifest.TRACK_H_BENCHMARK_REPORT_DOC
+            replace_text(
+                track_h_doc,
+                "offscreen regression snapshot",
+                "Historical offscreen harness baseline restored from repo",
             )
 
-            matrix_path = repo_root / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
-            matrix_path.write_text(
-                matrix_path.read_text(encoding="utf-8").replace(
-                    "Graph-canvas performance QA matrix and proof audit: `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md`, `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `tests/test_track_h_perf_harness.py`",
-                    "Graph-canvas performance QA matrix and proof audit: `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `tests/test_track_h_perf_harness.py`",
-                ),
-                encoding="utf-8",
+            traceability_matrix = repo_root / self.manifest.TRACEABILITY_MATRIX_DOC
+            remove_token_from_traceability_row(
+                traceability_matrix,
+                "REQ-QA-018",
+                "GRAPH_CANVAS_PERF_QA_MATRIX.md",
             )
 
             issues = self.checker.audit_repository(repo_root)
 
         self.assertIn(
-            "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md: found stale text: | Pending |",
+            f"{self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}: 2026-03-18 Execution Results command "
+            f"{self.manifest.TRACK_H_REGRESSION_COMMAND} has unexpected result: Pending",
             issues,
         )
         self.assertIn(
-            "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md: missing required text: Evidence Status: real `GraphCanvas.qml` offscreen regression snapshot refreshed after `P04`.",
+            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: track-h benchmark report missing fact: offscreen regression snapshot",
             issues,
         )
         self.assertIn(
-            "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md: found stale text: Historical offscreen harness baseline restored from repo",
+            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: found stale text: Historical offscreen harness baseline restored from repo",
             issues,
         )
         self.assertIn(
-            "docs/specs/requirements/TRACEABILITY_MATRIX.md: row REQ-QA-018 missing required text: GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-018 missing required text: GRAPH_CANVAS_PERF_QA_MATRIX.md",
             issues,
         )
 
@@ -122,41 +137,46 @@ class TraceabilityCheckerTests(unittest.TestCase):
             self.make_repo_fixture(repo_root)
 
             readme_path = repo_root / "README.md"
-            readme_path.write_text(
-                readme_path.read_text(encoding="utf-8").replace(
-                    "dedicated fresh-process shell-isolation phase",
-                    "shell-wrapper suites for isolated `unittest` execution",
-                ),
-                encoding="utf-8",
+            replace_text(
+                readme_path,
+                "dedicated fresh-process shell-isolation phase",
+                "shell-wrapper suites for isolated `unittest` execution",
             )
 
-            qa_path = repo_root / "docs/specs/requirements/90_QA_ACCEPTANCE.md"
+            qa_path = repo_root / self.manifest.QA_ACCEPTANCE_DOC
+            replace_text(
+                qa_path,
+                self.manifest.SHELL_ISOLATION_SPEC.test_path,
+                "tests/test_shell_wrapper_phase.py",
+            )
             qa_path.write_text(
-                qa_path.read_text(encoding="utf-8")
+                qa_path.read_text(encoding="utf-8-sig")
                 + "\n"
-                + "`REQ-QA-015`: the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution inside the documented `full` workflow rather than the pytest phases.\n",
+                + "`REQ-QA-015`: the four shell-wrapper modules `tests.test_main_window_shell`, "
+                + "`tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and "
+                + "`tests.test_shell_project_session_controller` shall remain on explicit "
+                + "fresh-process `unittest` execution inside the documented `full` workflow rather "
+                + "than the pytest phases.\n",
                 encoding="utf-8",
             )
 
-            matrix_doc = repo_root / "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md"
-            matrix_doc.write_text(
-                matrix_doc.read_text(encoding="utf-8").replace(
-                    "26 passed in 57.27s",
-                    "57.27 seconds",
-                ).replace(
-                    "resolved value to `6` workers.",
-                    "resolved value to `6` workers.\nadds `-n auto` only when `pytest-xdist` is importable in the project venv",
-                ),
-                encoding="utf-8",
+            verification_matrix = repo_root / self.manifest.VERIFICATION_SPEED_MATRIX_DOC
+            replace_text(
+                verification_matrix,
+                "`26 passed in 57.27s`",
+                "57.27 seconds",
+            )
+            replace_text(
+                verification_matrix,
+                "resolved value to `6` workers.",
+                "resolved value to `6` workers.\nadds `-n auto` only when `pytest-xdist` is importable in the project venv",
             )
 
-            traceability_matrix = repo_root / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
-            traceability_matrix.write_text(
-                traceability_matrix.read_text(encoding="utf-8").replace(
-                    "| REQ-QA-015 | 90_QA_ACCEPTANCE | Dedicated shell-isolation phase in the documented `full` workflow: `scripts/run_verification.py`, `tests/test_shell_isolation_phase.py`, `tests/shell_isolation_runtime.py`, `tests/shell_isolation_main_window_targets.py`, `tests/shell_isolation_controller_targets.py`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `README.md`, `docs/GETTING_STARTED.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` |",
-                    "| REQ-QA-015 | 90_QA_ACCEPTANCE | Shell-wrapper isolation in the documented `full` workflow: `scripts/run_verification.py`, `scripts/check_traceability.py`, `tests/test_traceability_checker.py`, `tests/test_main_window_shell.py`, `tests/test_script_editor_dock.py`, `tests/test_shell_run_controller.py`, `tests/test_shell_project_session_controller.py`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` |",
-                ),
-                encoding="utf-8",
+            traceability_matrix = repo_root / self.manifest.TRACEABILITY_MATRIX_DOC
+            remove_token_from_traceability_row(
+                traceability_matrix,
+                "REQ-QA-015",
+                self.manifest.SHELL_ISOLATION_SPEC.test_path,
             )
 
             issues = self.checker.audit_repository(repo_root)
@@ -170,19 +190,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
         self.assertIn(
-            "docs/specs/requirements/90_QA_ACCEPTANCE.md: found stale text: the four shell-wrapper modules `tests.test_main_window_shell`, `tests.test_script_editor_dock`, `tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` shall remain on explicit fresh-process `unittest` execution",
+            f"{self.manifest.QA_ACCEPTANCE_DOC}: found stale text: the four shell-wrapper modules "
+            "`tests.test_main_window_shell`, `tests.test_script_editor_dock`, "
+            "`tests.test_shell_run_controller`, and `tests.test_shell_project_session_controller` "
+            "shall remain on explicit fresh-process `unittest` execution",
             issues,
         )
         self.assertIn(
-            "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md: missing required text: 26 passed in 57.27s",
+            f"{self.manifest.QA_ACCEPTANCE_DOC}: requirement REQ-QA-015 missing fact: {self.manifest.SHELL_ISOLATION_SPEC.test_path}",
             issues,
         )
         self.assertIn(
-            "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md: found stale text: adds `-n auto` only when `pytest-xdist` is importable in the project venv",
+            f"{self.manifest.VERIFICATION_SPEED_MATRIX_DOC}: dedicated shell-isolation benchmark result is not a pytest timing summary: 57.27 seconds",
             issues,
         )
         self.assertIn(
-            "docs/specs/requirements/TRACEABILITY_MATRIX.md: row REQ-QA-015 missing required text: tests/test_shell_isolation_phase.py",
+            f"{self.manifest.VERIFICATION_SPEED_MATRIX_DOC}: found stale text: adds `-n auto` only when `pytest-xdist` is importable in the project venv",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-015 missing required text: {self.manifest.SHELL_ISOLATION_SPEC.test_path}",
             issues,
         )
 
