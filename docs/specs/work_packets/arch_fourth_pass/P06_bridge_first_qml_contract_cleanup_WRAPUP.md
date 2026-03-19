@@ -5,13 +5,13 @@
 - Packet: `P06`
 - Branch Label: `codex/arch-fourth-pass/p06-bridge-first-qml-contract-cleanup`
 - Commit Owner: `worker`
-- Commit SHA: `354ecc85a04b7953e2d1b38bca94489caab46d60`
-- Changed Files: `docs/specs/work_packets/arch_fourth_pass/P06_bridge_first_qml_contract_cleanup_WRAPUP.md`, `ea_node_editor/ui/node_presentation.py`, `ea_node_editor/ui/shell/controllers/workspace_view_nav_ops.py`, `ea_node_editor/ui/shell/window_library_inspector.py`, `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ea_node_editor/ui_qml/graph_canvas_bridge.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_main_window_shell.py`
-- Artifacts Produced: `docs/specs/work_packets/arch_fourth_pass/P06_bridge_first_qml_contract_cleanup_WRAPUP.md`, `ea_node_editor/ui/node_presentation.py`, `ea_node_editor/ui_qml/graph_canvas_bridge.py`
+- Commit SHA: `3e1202e27e05c1bd056861b282f69b1bb46a97ce`
+- Changed Files: `docs/specs/work_packets/arch_fourth_pass/P06_bridge_first_qml_contract_cleanup_WRAPUP.md`, `ea_node_editor/ui/shell/controllers/workspace_view_nav_ops.py`, `ea_node_editor/ui/shell/window_library_inspector.py`, `ea_node_editor/ui/support/__init__.py`, `ea_node_editor/ui/support/node_presentation.py`, `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ea_node_editor/ui_qml/graph_canvas_bridge.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_main_window_shell.py`
+- Artifacts Produced: `docs/specs/work_packets/arch_fourth_pass/P06_bridge_first_qml_contract_cleanup_WRAPUP.md`, `ea_node_editor/ui/support/node_presentation.py`, `ea_node_editor/ui_qml/graph_canvas_bridge.py`
 
 Moved the packet-owned shell root and canvas path onto a bridge-first contract by feeding `MainShell.qml` bridge refs into the workspace center pane, wiring `GraphCanvas.qml` input/context-menu flows against the unified canvas bridge, and expanding `GraphCanvasBridge` so the packet-owned canvas route can satisfy shell, scene, and view responsibilities without falling back to raw `mainWindow`, `sceneBridge`, or `viewBridge` for its primary behavior. The raw compatibility context exports remain in `shell_context_bootstrap.py` only for deferred or non-packet-owned consumers.
 
-Moved shared node presentation helpers out of the shell-specific inspector module into the neutral `ea_node_editor.ui.node_presentation` support module, then repointed the shell and QML-side importers so packet-owned helper flow no longer crosses the `ui` / `ui_qml` seam through `ui.shell.window_library_inspector`. The packet tests now lock both the file-level contract cleanup and a live QML probe that exercises surface edits through the unified `canvasBridge` contract.
+Moved shared node presentation helpers out of the shell-specific inspector module into the neutral `ea_node_editor.ui.support.node_presentation` support module, then repointed the shell and QML-side importers so packet-owned helper flow no longer crosses the `ui` / `ui_qml` seam through `ui.shell.window_library_inspector`. The packet tests now lock both the file-level contract cleanup and a live QML probe that exercises surface edits through the unified `canvasBridge` contract.
 
 ## Verification
 
