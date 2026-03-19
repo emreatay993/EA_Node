@@ -48,6 +48,8 @@ docs/specs/work_packets/*
 !docs/specs/work_packets/graph_canvas_perf/*
 !docs/specs/work_packets/dead_code_hygiene/
 !docs/specs/work_packets/dead_code_hygiene/*
+!docs/specs/work_packets/plugin_package_contract/
+!docs/specs/work_packets/plugin_package_contract/*
 !docs/specs/work_packets/arch_third_pass/
 !docs/specs/work_packets/arch_third_pass/*
 !docs/specs/requirements/

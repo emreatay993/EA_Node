@@ -1,0 +1,13 @@
+# PLUGIN_PACKAGE_CONTRACT Status Ledger
+
+- Updated: `2026-03-19`
+- Environment note: packet set bootstrapped; execution progress is tracked by wave.
+
+| Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
+|---|---|---|---|---|---|---|---|
+| P00 Bootstrap | `codex/plugin-package-contract/p00-bootstrap` | PASS | `n/a` | create packet docs for `P00`-`P05`; add `.gitignore` tracking exceptions; update `docs/specs/INDEX.md`; run `PLUGIN_PACKAGE_CONTRACT_P00_FILE_GATE_PASS` from `PLUGIN_PACKAGE_CONTRACT_P00_bootstrap.md` | PASS (`1/1`): `PLUGIN_PACKAGE_CONTRACT_P00_FILE_GATE_PASS` | `docs/specs/work_packets/plugin_package_contract/*`, `docs/specs/INDEX.md`, `.gitignore` | none |
+| P01 Loader Directory Contract | `codex/plugin-package-contract/p01-loader-directory-contract` | PENDING | `n/a` | P01 scoped validation for plugin loader directory contract and discovery of package directories | PENDING | `ea_node_editor/nodes/plugin_loader.py`, `ea_node_editor/nodes/bootstrap.py`, targeted tests | none |
+| P02 Package Import Layout | `codex/plugin-package-contract/p02-package-import-layout` | PENDING | `n/a` | P02 scoped validation for `.eanp` import/install/list/uninstall contract alignment | PENDING | `ea_node_editor/nodes/package_manager.py`, targeted tests | none |
+| P03 Package Export Contract | `codex/plugin-package-contract/p03-package-export-contract` | PENDING | `n/a` | P03 scoped validation for export contract and discovery/import round-trip | PENDING | `ea_node_editor/nodes/package_manager.py`, targeted tests | none |
+| P04 Shell Package Workflows | `codex/plugin-package-contract/p04-shell-package-workflows` | PENDING | `n/a` | P04 scoped validation for shell import/export workflow behavior and reporting | PENDING | shell/package controller modules, targeted tests | none |
+| P05 Docs And Traceability | `codex/plugin-package-contract/p05-docs-traceability` | PENDING | `n/a` | P05 scoped validation for docs + traceability updates | PENDING | docs and requirements artifacts | none |

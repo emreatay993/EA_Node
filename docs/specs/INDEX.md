@@ -50,6 +50,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 42. [DEAD_CODE_HYGIENE Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/dead_code_hygiene/DEAD_CODE_HYGIENE_STATUS.md)
 43. [ARCH_THIRD_PASS Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_third_pass/ARCH_THIRD_PASS_MANIFEST.md)
 44. [ARCH_THIRD_PASS Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/arch_third_pass/ARCH_THIRD_PASS_STATUS.md)
+45. [PLUGIN_PACKAGE_CONTRACT Work Packet Manifest](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/plugin_package_contract/PLUGIN_PACKAGE_CONTRACT_MANIFEST.md)
+46. [PLUGIN_PACKAGE_CONTRACT Status Ledger](/mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/docs/specs/work_packets/plugin_package_contract/PLUGIN_PACKAGE_CONTRACT_STATUS.md)
 
 ## ADRs
 
