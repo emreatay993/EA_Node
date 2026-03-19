@@ -10,7 +10,7 @@ from ea_node_editor.graph.subnode_contract import (
     default_subnode_pin_label,
     resolve_subnode_pin_definition,
 )
-from ea_node_editor.graph.model import GraphModel, NodeInstance
+from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -33,6 +33,23 @@ def _factory(spec: NodeTypeSpec):
 
 
 class RegistryValidationTests(unittest.TestCase):
+    def test_workspace_data_exposes_persistence_overlay_state_via_compatibility_properties(self) -> None:
+        self.assertNotIn("unresolved_node_docs", WorkspaceData.__dataclass_fields__)
+        self.assertNotIn("unresolved_edge_docs", WorkspaceData.__dataclass_fields__)
+        self.assertNotIn("authored_node_overrides", WorkspaceData.__dataclass_fields__)
+
+        workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
+        workspace.unresolved_node_docs = {"node_missing": {"type_id": "plugin.missing"}}
+        workspace.unresolved_edge_docs = {"edge_missing": {"source_node_id": "node_missing"}}
+        workspace.authored_node_overrides = {"node_known": {"parent_node_id": "node_missing"}}
+
+        self.assertEqual(workspace.unresolved_node_docs["node_missing"]["type_id"], "plugin.missing")
+        self.assertEqual(workspace.unresolved_edge_docs["edge_missing"]["source_node_id"], "node_missing")
+        self.assertEqual(
+            workspace.authored_node_overrides["node_known"]["parent_node_id"],
+            "node_missing",
+        )
+
     def test_register_rejects_duplicate_port_keys(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(

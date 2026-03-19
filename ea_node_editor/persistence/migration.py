@@ -34,64 +34,13 @@ class JsonProjectMigration:
         doc = dict(raw_doc)
         if version > SCHEMA_VERSION:
             raise ValueError(f"Unsupported schema version: {version}")
-        while version < SCHEMA_VERSION:
-            if version == 0:
-                doc = self._migrate_v0_to_v1(doc)
-                version = 1
-            elif version == 1:
-                doc = self._migrate_v1_to_v2(doc)
-                version = 2
-            elif version == 2:
-                doc = self._migrate_v2_to_v3(doc)
-                version = 3
-            elif version == 3:
-                doc = self._migrate_v3_to_v4(doc)
-                version = 4
-            else:
-                raise ValueError(f"Unsupported schema version: {version}")
+        if version < SCHEMA_VERSION:
+            raise ValueError(
+                "Unsupported schema version: "
+                f"{version}. Only schema version {SCHEMA_VERSION} documents are supported."
+            )
+        doc["schema_version"] = SCHEMA_VERSION
         return self._normalize_document(doc)
-
-    @staticmethod
-    def _migrate_v0_to_v1(doc: dict[str, Any]) -> dict[str, Any]:
-        migrated = dict(doc)
-        migrated["schema_version"] = 1
-        if "metadata" not in migrated:
-            migrated["metadata"] = {}
-        return migrated
-
-    @staticmethod
-    def _migrate_v1_to_v2(doc: dict[str, Any]) -> dict[str, Any]:
-        migrated = dict(doc)
-        metadata = migrated.get("metadata")
-        if not isinstance(metadata, Mapping):
-            metadata = {}
-        merged = dict(metadata)
-        if "ui" not in merged:
-            merged["ui"] = {}
-        if "workflow_settings" not in merged:
-            merged["workflow_settings"] = {}
-        migrated["metadata"] = merged
-        migrated["schema_version"] = 2
-        return migrated
-
-    @staticmethod
-    def _migrate_v2_to_v3(doc: dict[str, Any]) -> dict[str, Any]:
-        migrated = dict(doc)
-        metadata = migrated.get("metadata")
-        if not isinstance(metadata, Mapping):
-            metadata = {}
-        merged = dict(metadata)
-        if "custom_workflows" not in merged:
-            merged["custom_workflows"] = []
-        migrated["metadata"] = merged
-        migrated["schema_version"] = 3
-        return migrated
-
-    @staticmethod
-    def _migrate_v3_to_v4(doc: dict[str, Any]) -> dict[str, Any]:
-        migrated = dict(doc)
-        migrated["schema_version"] = 4
-        return migrated
 
     @staticmethod
     def _coerce_str(value: Any, default: str = "") -> str:

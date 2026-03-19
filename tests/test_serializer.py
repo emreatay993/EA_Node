@@ -16,142 +16,19 @@ from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.manager import WorkspaceManager
 
 
-def _schema_v0_minimal_payload() -> dict[str, object]:
-    return {
-        "schema_version": 0,
-        "project_id": "proj_legacy_minimal",
-        "name": "Legacy Minimal",
-        "active_workspace_id": "ws_missing",
-        "workspaces": [
-            {
-                "workspace_id": "ws_a",
-                "name": "Workspace A",
-                "active_view_id": "view_missing",
-                "views": [
-                    {
-                        "view_id": "view_a1",
-                        "name": "V1",
-                        "zoom": 1.0,
-                        "pan_x": 0.0,
-                        "pan_y": 0.0,
-                        "scope_path": [None, "", "   "],
-                    }
-                ],
-                "nodes": [],
-                "edges": [],
-            },
-            {
-                "workspace_id": "ws_b",
-                "name": "Workspace B",
-                "active_view_id": "view_missing",
-                "views": [
-                    {
-                        "view_id": "view_b1",
-                        "name": "V1",
-                        "zoom": 1.0,
-                        "pan_x": 0.0,
-                        "pan_y": 0.0,
-                    }
-                ],
-                "nodes": [],
-                "edges": [],
-            },
-        ],
-    }
+_FIXTURE_DIR = Path(__file__).with_name("fixtures") / "persistence"
 
 
-def _schema_v0_inconsistent_payload() -> dict[str, object]:
-    return {
-        "schema_version": 0,
-        "project_id": "proj_legacy_inconsistent",
-        "name": "Legacy Inconsistent",
-        "active_workspace_id": "ws_legacy",
-        "workspaces": [
-            {
-                "workspace_id": "ws_legacy",
-                "name": "Legacy Workspace",
-                "active_view_id": "view_legacy",
-                "views": [
-                    {
-                        "view_id": "view_legacy",
-                        "name": "V1",
-                        "zoom": 1.0,
-                        "pan_x": 0.0,
-                        "pan_y": 0.0,
-                    }
-                ],
-                "nodes": [
-                    {
-                        "node_id": "node_start",
-                        "type_id": "core.start",
-                        "title": "Start",
-                        "x": 0.0,
-                        "y": 0.0,
-                        "collapsed": False,
-                        "properties": {},
-                        "exposed_ports": {"exec_out": True, "trigger": True},
-                        "parent_node_id": None,
-                    },
-                    {
-                        "node_id": "node_logger",
-                        "type_id": "core.logger",
-                        "title": "Logger",
-                        "x": 160.0,
-                        "y": 0.0,
-                        "collapsed": False,
-                        "properties": {},
-                        "exposed_ports": {"exec_in": False, "message": True, "exec_out": True},
-                        "parent_node_id": None,
-                    },
-                    {
-                        "node_id": "node_unknown",
-                        "type_id": "plugin.missing_logger",
-                        "title": "Unknown",
-                        "x": 320.0,
-                        "y": 0.0,
-                        "collapsed": False,
-                        "properties": {},
-                        "exposed_ports": {},
-                        "parent_node_id": None,
-                        "plugin_state": {"mode": "offline", "retries": [1, 2]},
-                    },
-                ],
-                "edges": [
-                    {
-                        "edge_id": "edge_hidden",
-                        "source_node_id": "node_start",
-                        "source_port_key": "exec_out",
-                        "target_node_id": "node_logger",
-                        "target_port_key": "exec_in",
-                    },
-                    {
-                        "edge_id": "edge_valid",
-                        "source_node_id": "node_start",
-                        "source_port_key": "trigger",
-                        "target_node_id": "node_logger",
-                        "target_port_key": "message",
-                    },
-                    {
-                        "edge_id": "edge_duplicate",
-                        "source_node_id": "node_start",
-                        "source_port_key": "exec_out",
-                        "target_node_id": "node_logger",
-                        "target_port_key": "message",
-                    },
-                    {
-                        "edge_id": "edge_unknown",
-                        "source_node_id": "node_unknown",
-                        "source_port_key": "exec_out",
-                        "target_node_id": "node_logger",
-                        "target_port_key": "message",
-                        "label": "Unknown link",
-                        "visual_style": {"stroke": "dot"},
-                        "plugin_edge_state": {"route": "fallback"},
-                    },
-                ],
-            }
-        ],
-    }
+def _load_persistence_fixture(name: str) -> dict[str, object]:
+    return json.loads((_FIXTURE_DIR / name).read_text(encoding="utf-8"))
+
+
+def _current_schema_minimal_payload() -> dict[str, object]:
+    return _load_persistence_fixture("schema_current_minimal.json")
+
+
+def _current_schema_inconsistent_payload() -> dict[str, object]:
+    return _load_persistence_fixture("schema_current_inconsistent.json")
 
 
 def _missing_plugin_round_trip_payload() -> dict[str, object]:
@@ -960,9 +837,9 @@ class SerializerTests(unittest.TestCase):
             ("node_start", "exec_out", "node_end", "exec_in"),
         )
 
-    def test_migrate_v0_fixture_adds_defaults_and_normalizes_workspace_and_view(self) -> None:
+    def test_current_schema_fixture_adds_defaults_and_normalizes_workspace_and_view(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
-        payload = _schema_v0_minimal_payload()
+        payload = _current_schema_minimal_payload()
         project = serializer.from_document(payload)
 
         self.assertEqual(project.schema_version, SCHEMA_VERSION)
@@ -973,9 +850,9 @@ class SerializerTests(unittest.TestCase):
         self.assertEqual(project.workspaces["ws_a"].views["view_a1"].scope_path, [])
         self.assertEqual(project.workspaces["ws_b"].views["view_b1"].scope_path, [])
 
-    def test_migrate_v0_fixture_repairs_invalid_hidden_and_duplicate_edges(self) -> None:
+    def test_current_schema_fixture_repairs_invalid_hidden_and_duplicate_edges(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
-        payload = _schema_v0_inconsistent_payload()
+        payload = _current_schema_inconsistent_payload()
         project = serializer.from_document(payload)
 
         self.assertEqual(project.schema_version, SCHEMA_VERSION)
@@ -1006,6 +883,14 @@ class SerializerTests(unittest.TestCase):
         edges_by_id = {edge["edge_id"]: edge for edge in workspace_doc["edges"]}
         self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][2])
         self.assertEqual(edges_by_id["edge_unknown"], payload["workspaces"][0]["edges"][3])
+
+    def test_from_document_rejects_pre_current_schema_payload(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = _current_schema_minimal_payload()
+        payload["schema_version"] = SCHEMA_VERSION - 1
+
+        with self.assertRaisesRegex(ValueError, "Only schema version"):
+            serializer.from_document(payload)
 
     def test_round_trip_preserves_missing_plugin_payload_across_normalization(self) -> None:
         registry = build_default_registry()

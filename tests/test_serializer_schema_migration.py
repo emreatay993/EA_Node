@@ -75,10 +75,10 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
             {"fill_color": "#102030", "border_width": 2.5},
         )
 
-    def test_migrate_legacy_document_uses_workspace_payload_order_when_order_is_missing(self) -> None:
+    def test_migrate_current_schema_document_uses_workspace_payload_order_when_order_is_missing(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = {
-            "schema_version": 0,
+            "schema_version": SCHEMA_VERSION,
             "project_id": "proj_payload_order",
             "name": "Payload Order",
             "active_workspace_id": "",
@@ -95,6 +95,20 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual(migrated["metadata"]["workspace_order"], ["ws_b", "ws_a"])
         self.assertEqual([workspace["workspace_id"] for workspace in migrated["workspaces"]], ["ws_b", "ws_a"])
         self.assertEqual(migrated["active_workspace_id"], "ws_b")
+
+    def test_migrate_rejects_pre_current_schema_document(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION - 1,
+            "project_id": "proj_legacy",
+            "name": "Legacy",
+            "active_workspace_id": "",
+            "workspaces": [_workspace_doc("ws_a", "Workspace A")],
+            "metadata": {},
+        }
+
+        with self.assertRaisesRegex(ValueError, "Only schema version"):
+            serializer.migrate(payload)
 
     def test_migrate_preserves_multiple_connections_for_allow_multiple_target_ports(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
@@ -194,10 +208,10 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
             },
         )
 
-    def test_migrate_preserves_unresolved_node_and_edge_payloads_losslessly(self) -> None:
+    def test_migrate_current_schema_document_preserves_unresolved_node_and_edge_payloads_losslessly(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = {
-            "schema_version": 0,
+            "schema_version": SCHEMA_VERSION,
             "project_id": "proj_missing_plugin",
             "name": "Missing Plugin",
             "active_workspace_id": "ws_a",

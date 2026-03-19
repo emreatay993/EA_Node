@@ -6,6 +6,13 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.persistence.overlay import (
+    copy_workspace_persistence_overlay,
+    set_workspace_authored_node_overrides,
+    set_workspace_unresolved_edge_docs,
+    set_workspace_unresolved_node_docs,
+    workspace_persistence_overlay,
+)
 from ea_node_editor.settings import SCHEMA_VERSION
 
 if TYPE_CHECKING:
@@ -153,8 +160,12 @@ class ViewState:
     scope_path: list[str] = field(default_factory=list)
 
 
+class _WorkspaceOverlayRefBase:
+    __slots__ = ("__weakref__",)
+
+
 @dataclass(slots=True)
-class WorkspaceData:
+class WorkspaceData(_WorkspaceOverlayRefBase):
     workspace_id: str
     name: str
     nodes: dict[str, NodeInstance] = field(default_factory=dict)
@@ -162,9 +173,6 @@ class WorkspaceData:
     views: dict[str, ViewState] = field(default_factory=dict)
     active_view_id: str = ""
     dirty: bool = False
-    unresolved_node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    unresolved_edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    authored_node_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def ensure_default_view(self) -> None:
         if not self.views:
@@ -173,6 +181,30 @@ class WorkspaceData:
             self.active_view_id = view.view_id
         elif not self.active_view_id:
             self.active_view_id = next(iter(self.views))
+
+    @property
+    def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
+        return workspace_persistence_overlay(self).unresolved_plugins.node_docs
+
+    @unresolved_node_docs.setter
+    def unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
+        set_workspace_unresolved_node_docs(self, value)
+
+    @property
+    def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
+        return workspace_persistence_overlay(self).unresolved_plugins.edge_docs
+
+    @unresolved_edge_docs.setter
+    def unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
+        set_workspace_unresolved_edge_docs(self, value)
+
+    @property
+    def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
+        return workspace_persistence_overlay(self).authored_node_overrides.node_docs
+
+    @authored_node_overrides.setter
+    def authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
+        set_workspace_authored_node_overrides(self, value)
 
     def clone(self, new_workspace_id: str, name: str) -> "WorkspaceData":
         clone_nodes = {node_id: node.clone() for node_id, node in self.nodes.items()}
@@ -186,10 +218,8 @@ class WorkspaceData:
             views=clone_views,
             active_view_id=self.active_view_id,
             dirty=True,
-            unresolved_node_docs=copy.deepcopy(self.unresolved_node_docs),
-            unresolved_edge_docs=copy.deepcopy(self.unresolved_edge_docs),
-            authored_node_overrides=copy.deepcopy(self.authored_node_overrides),
         )
+        copy_workspace_persistence_overlay(self, duplicate)
         duplicate.ensure_default_view()
         return duplicate
 
