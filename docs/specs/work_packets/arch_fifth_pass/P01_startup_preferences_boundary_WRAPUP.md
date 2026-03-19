@@ -5,11 +5,11 @@
 - Packet: `P01`
 - Branch Label: `codex/arch-fifth-pass/p01-startup-preferences-boundary`
 - Commit Owner: `worker`
-- Commit SHA: `af0fb29255791fc6e0865536433d36c9e77e7637`
+- Commit SHA: `d0b99776ab2a8d640f0c2cba52bf248bc2c6500e`
 - Changed Files: `main.py`, `pyproject.toml`, `ea_node_editor/bootstrap.py`, `ea_node_editor/app.py`, `ea_node_editor/app_preferences.py`, `ea_node_editor/ui/shell/controllers/app_preferences_controller.py`, `ea_node_editor/ui/perf/__init__.py`, `ea_node_editor/ui/perf/performance_harness.py`, `ea_node_editor/telemetry/performance_harness.py`, `tests/test_main_bootstrap.py`, `tests/test_graphics_settings_preferences.py`, `tests/test_track_h_perf_harness.py`, `docs/specs/work_packets/arch_fifth_pass/P01_startup_preferences_boundary_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/arch_fifth_pass/P01_startup_preferences_boundary_WRAPUP.md`, `ea_node_editor/bootstrap.py`, `ea_node_editor/app_preferences.py`, `ea_node_editor/ui/perf/__init__.py`, `ea_node_editor/ui/perf/performance_harness.py`
 
-Startup now flows through `ea_node_editor.bootstrap.main` for both `main.py` source launch and the installed `ea-node-editor` console script target. App-preferences normalization/persistence and startup theme resolution were extracted into `ea_node_editor.app_preferences`, while `AppPreferencesController` remains the host-facing adapter and preserves its existing patch surface for shell tests. The QML performance harness implementation now lives under `ea_node_editor.ui.perf`, and `ea_node_editor.telemetry.performance_harness` remains a compatibility shim that preserves the public import path.
+Startup now flows through `ea_node_editor.bootstrap.main` for both `main.py` source launch and the installed `ea-node-editor` console script target. App-preferences normalization/persistence and startup theme resolution were extracted into `ea_node_editor.app_preferences`, while `AppPreferencesController` remains the host-facing adapter and preserves its existing patch surface for shell tests. The QML performance harness implementation now lives under `ea_node_editor.ui.perf`, and `ea_node_editor.telemetry.performance_harness` now preserves both the public import path and `python -m ea_node_editor.telemetry.performance_harness` module execution by delegating to the underlying implementation `main()`.
 
 ## Verification
 
