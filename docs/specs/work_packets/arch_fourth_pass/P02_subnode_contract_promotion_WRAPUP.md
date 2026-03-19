@@ -4,7 +4,7 @@
 
 - Packet: `P02`
 - Branch Label: `codex/arch-fourth-pass/p02-subnode-contract-promotion`
-- Commit Owner: `emreatay993`
+- Commit Owner: `worker`
 - Commit SHA: `e348511cdd3a86db12589233f47d8402b313a2ed`
 - Changed Files: `docs/specs/work_packets/arch_fourth_pass/P02_subnode_contract_promotion_WRAPUP.md`, `ea_node_editor/execution/compiler.py`, `ea_node_editor/graph/effective_ports.py`, `ea_node_editor/graph/subnode_contract.py`, `ea_node_editor/graph/transforms.py`, `ea_node_editor/nodes/builtins/subnode.py`, `tests/test_registry_validation.py`
 - Artifacts Produced: `docs/specs/work_packets/arch_fourth_pass/P02_subnode_contract_promotion_WRAPUP.md`
