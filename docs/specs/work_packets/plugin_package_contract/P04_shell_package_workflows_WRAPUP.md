@@ -5,7 +5,7 @@
 - Packet: `P04`
 - Branch Label: `codex/plugin-package-contract/p04-shell-package-workflows`
 - Commit Owner: `worker`
-- Commit SHA: `n/a`
+- Commit SHA: `d3923d3ce1602788150f7d6adc0c7419e7ed2824`
 - Changed Files: `ea_node_editor/ui/shell/controllers/workspace_io_ops.py`, `tests/test_node_package_io_ops.py`, `docs/specs/work_packets/plugin_package_contract/P04_shell_package_workflows_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/plugin_package_contract/P04_shell_package_workflows_WRAPUP.md`, `ea_node_editor/ui/shell/controllers/workspace_io_ops.py`, `tests/test_node_package_io_ops.py`
 - Import UX: `Import Node Package...` now classifies the post-install discovery result before choosing a success path, so declared nodes must actually be available in the registry or the shell reports an incomplete import instead of claiming full success.
