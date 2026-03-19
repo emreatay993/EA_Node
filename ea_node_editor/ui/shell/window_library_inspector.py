@@ -9,7 +9,7 @@ from ea_node_editor.graph.effective_ports import (
     are_port_kinds_compatible,
     effective_ports,
 )
-from ea_node_editor.ui.node_presentation import (
+from ea_node_editor.ui.support.node_presentation import (
     build_inline_property_items,
     build_user_facing_node_instance_number,
 )

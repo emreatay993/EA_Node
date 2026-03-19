@@ -1186,7 +1186,7 @@ class SharedUiSupportBoundaryTests(unittest.TestCase):
                     "from ea_node_editor.ui.shell.window_library_inspector import build_inline_property_items",
                 ),
                 (
-                    "from ea_node_editor.ui.node_presentation import build_inline_property_items",
+                    "from ea_node_editor.ui.support.node_presentation import build_inline_property_items",
                 ),
             ),
             "ea_node_editor/ui/shell/controllers/workspace_view_nav_ops.py": (
@@ -1194,13 +1194,13 @@ class SharedUiSupportBoundaryTests(unittest.TestCase):
                     "from ea_node_editor.ui.shell.window_library_inspector import build_user_facing_node_instance_number",
                 ),
                 (
-                    "from ea_node_editor.ui.node_presentation import build_user_facing_node_instance_number",
+                    "from ea_node_editor.ui.support.node_presentation import build_user_facing_node_instance_number",
                 ),
             ),
             "ea_node_editor/ui/shell/window_library_inspector.py": (
                 (),
                 (
-                    "from ea_node_editor.ui.node_presentation import (",
+                    "from ea_node_editor.ui.support.node_presentation import (",
                     "build_inline_property_items",
                     "build_user_facing_node_instance_number",
                 ),

@@ -16,7 +16,7 @@ from ea_node_editor.ui.graph_theme import (
     resolve_category_accent,
     resolve_graph_theme,
 )
-from ea_node_editor.ui.node_presentation import build_inline_property_items
+from ea_node_editor.ui.support.node_presentation import build_inline_property_items
 from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
