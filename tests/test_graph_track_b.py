@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.hierarchy import subtree_node_ids
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
@@ -560,6 +561,7 @@ class GraphModelTrackBTests(unittest.TestCase):
         model = GraphModel()
         workspace = model.active_workspace
         mutations = model.validated_mutations(workspace.workspace_id, registry)
+        self.assertIsInstance(mutations, WorkspaceMutationService)
 
         def _add_node(
             type_id: str,
@@ -609,6 +611,36 @@ class GraphModelTrackBTests(unittest.TestCase):
         self.assertNotIn(shell_edge.edge_id, workspace.edges)
         self.assertNotIn(inner_edge.edge_id, workspace.edges)
         self.assertEqual(workspace.nodes[pin_in.node_id].properties["kind"], "data")
+
+    def test_workspace_mutation_service_manages_view_state_without_registry(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        service = model.mutation_service(workspace.workspace_id)
+
+        changed = service.save_active_view_state(
+            zoom=1.25,
+            pan_x=125.0,
+            pan_y=220.0,
+        )
+
+        self.assertTrue(changed)
+        active_view = service.active_view_state()
+        self.assertAlmostEqual(active_view.zoom, 1.25, places=6)
+        self.assertAlmostEqual(active_view.pan_x, 125.0, places=6)
+        self.assertAlmostEqual(active_view.pan_y, 220.0, places=6)
+
+        created_view = service.create_view(
+            name="Review",
+            source_view_id=active_view.view_id,
+        )
+        self.assertEqual(workspace.active_view_id, created_view.view_id)
+        self.assertEqual(created_view.name, "Review")
+        self.assertAlmostEqual(created_view.zoom, 1.25, places=6)
+        self.assertAlmostEqual(created_view.pan_x, 125.0, places=6)
+        self.assertAlmostEqual(created_view.pan_y, 220.0, places=6)
+
+        service.set_active_view(active_view.view_id)
+        self.assertEqual(workspace.active_view_id, active_view.view_id)
 
 
 class GraphSceneBridgeTrackBTests(unittest.TestCase):

@@ -65,31 +65,24 @@ class WorkspaceViewNavOps:
         self._host.workspace_state_changed.emit()
 
     def save_active_view_state(self) -> None:
-        if not self._host.scene.workspace_id:
+        workspace_id = str(self._host.scene.workspace_id or "").strip()
+        if not workspace_id:
             return
-        workspace = self._host.model.project.workspaces.get(self._host.scene.workspace_id)
-        if workspace is None:
+        if workspace_id not in self._host.model.project.workspaces:
             return
-        workspace.ensure_default_view()
-        view_state = workspace.views.get(workspace.active_view_id)
-        if view_state is None:
-            workspace.active_view_id = next(iter(workspace.views))
-            view_state = workspace.views[workspace.active_view_id]
-        view_state.zoom = self._host.view.zoom
+        mutation_service = self._host.model.mutation_service(workspace_id)
         center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
-        view_state.pan_x = center.x()
-        view_state.pan_y = center.y()
+        mutation_service.save_active_view_state(
+            zoom=self._host.view.zoom,
+            pan_x=center.x(),
+            pan_y=center.y(),
+        )
 
     def restore_active_view_state(self) -> None:
         workspace_id = self._host.workspace_manager.active_workspace_id()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        if workspace is None:
+        if workspace_id not in self._host.model.project.workspaces:
             return
-        workspace.ensure_default_view()
-        view_state = workspace.views.get(workspace.active_view_id)
-        if view_state is None:
-            workspace.active_view_id = next(iter(workspace.views))
-        view_state = workspace.views[workspace.active_view_id]
+        view_state = self._host.model.mutation_service(workspace_id).active_view_state()
         self._host.view.set_zoom(max(0.1, min(3.0, view_state.zoom)))
         self._host.view.centerOn(view_state.pan_x, view_state.pan_y)
 
@@ -226,25 +219,28 @@ class WorkspaceViewNavOps:
 
         workspace_id = self._host.workspace_manager.active_workspace_id()
         self._controller.save_active_view_state()
-        workspace = self._host.model.project.workspaces.get(workspace_id)
-        source_view_id = workspace.active_view_id if workspace is not None else None
+        if workspace_id not in self._host.model.project.workspaces:
+            return
+        mutation_service = self._host.model.mutation_service(workspace_id)
+        source_view_id = mutation_service.active_view_state().view_id
         name, ok = QInputDialog.getText(self._host, "New View", "View name:")
         if not ok:
             return
         normalized_name = str(name).strip()
-        view_id = self._host.workspace_manager.create_view(
-            workspace_id,
+        view = mutation_service.create_view(
             name=normalized_name or None,
             source_view_id=source_view_id,
         )
-        self._host.workspace_manager.set_active_view(workspace_id, view_id)
+        mutation_service.set_active_view(view.view_id)
         self._controller.restore_active_view_state()
         self._host.workspace_state_changed.emit()
 
     def switch_view(self, view_id: str) -> None:
         workspace_id = self._host.workspace_manager.active_workspace_id()
         self._controller.save_active_view_state()
-        self._host.workspace_manager.set_active_view(workspace_id, view_id)
+        if workspace_id not in self._host.model.project.workspaces:
+            return
+        self._host.model.mutation_service(workspace_id).set_active_view(view_id)
         self._controller.restore_active_view_state()
         self._host.workspace_state_changed.emit()
 

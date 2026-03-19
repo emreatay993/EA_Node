@@ -1,0 +1,184 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
+
+if TYPE_CHECKING:
+    from ea_node_editor.graph.normalization import ValidatedGraphMutation
+    from ea_node_editor.nodes.registry import NodeRegistry
+
+
+@dataclass(slots=True)
+class WorkspaceMutationService:
+    model: GraphModel
+    workspace_id: str
+    registry: NodeRegistry | None = None
+
+    @property
+    def workspace(self) -> WorkspaceData:
+        return self.model.project.workspaces[self.workspace_id]
+
+    def _validated(self) -> "ValidatedGraphMutation":
+        if self.registry is None:
+            raise RuntimeError("Node registry is required for validated graph mutations.")
+        from ea_node_editor.graph.normalization import ValidatedGraphMutation
+
+        return ValidatedGraphMutation(
+            model=self.model,
+            workspace_id=self.workspace_id,
+            registry=self.registry,
+        )
+
+    def active_view_state(self) -> ViewState:
+        workspace = self.workspace
+        workspace.ensure_default_view()
+        view_state = workspace.views.get(workspace.active_view_id)
+        if view_state is None:
+            workspace.active_view_id = next(iter(workspace.views))
+            view_state = workspace.views[workspace.active_view_id]
+        return view_state
+
+    def save_active_view_state(self, *, zoom: float, pan_x: float, pan_y: float) -> bool:
+        view_state = self.active_view_state()
+        normalized_zoom = float(zoom)
+        normalized_pan_x = float(pan_x)
+        normalized_pan_y = float(pan_y)
+        if (
+            float(view_state.zoom) == normalized_zoom
+            and float(view_state.pan_x) == normalized_pan_x
+            and float(view_state.pan_y) == normalized_pan_y
+        ):
+            return False
+        view_state.zoom = normalized_zoom
+        view_state.pan_x = normalized_pan_x
+        view_state.pan_y = normalized_pan_y
+        return True
+
+    def create_view(
+        self,
+        name: str | None = None,
+        *,
+        source_view_id: str | None = None,
+    ) -> ViewState:
+        return self.model.create_view(
+            self.workspace_id,
+            name=name,
+            source_view_id=source_view_id,
+        )
+
+    def set_active_view(self, view_id: str) -> None:
+        self.model.set_active_view(self.workspace_id, view_id)
+
+    def close_view(self, view_id: str) -> None:
+        self.model.close_view(self.workspace_id, view_id)
+
+    def rename_view(self, view_id: str, new_name: str) -> None:
+        self.model.rename_view(self.workspace_id, view_id, new_name)
+
+    def move_view(self, from_index: int, to_index: int) -> None:
+        self.model.move_view(self.workspace_id, from_index, to_index)
+
+    def add_node(
+        self,
+        *,
+        type_id: str,
+        title: str,
+        x: float,
+        y: float,
+        properties: dict[str, object] | None = None,
+        exposed_ports: dict[str, bool] | None = None,
+        visual_style: dict[str, object] | None = None,
+        parent_node_id: str | None = None,
+    ) -> NodeInstance:
+        return self._validated().add_node(
+            type_id=type_id,
+            title=title,
+            x=x,
+            y=y,
+            properties=properties,
+            exposed_ports=exposed_ports,
+            visual_style=visual_style,
+            parent_node_id=parent_node_id,
+        )
+
+    def set_node_parent(self, node_id: str, parent_node_id: str | None) -> bool:
+        return self._validated().set_node_parent(node_id, parent_node_id)
+
+    def add_edge(
+        self,
+        *,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+        label: str = "",
+        visual_style: dict[str, object] | None = None,
+    ) -> EdgeInstance:
+        return self._validated().add_edge(
+            source_node_id=source_node_id,
+            source_port_key=source_port_key,
+            target_node_id=target_node_id,
+            target_port_key=target_port_key,
+            label=label,
+            visual_style=visual_style,
+        )
+
+    def ports_compatible(
+        self,
+        *,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> bool:
+        return self._validated().ports_compatible(
+            source_node_id=source_node_id,
+            source_port_key=source_port_key,
+            target_node_id=target_node_id,
+            target_port_key=target_port_key,
+        )
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> object:
+        return self._validated().set_node_property(node_id, key, value)
+
+    def set_node_properties(self, node_id: str, values: dict[str, object]) -> dict[str, object]:
+        return self._validated().set_node_properties(node_id, values)
+
+    def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
+        return self._validated().set_exposed_port(node_id, key, exposed)
+
+    def remove_edge(self, edge_id: str) -> None:
+        self._validated().remove_edge(edge_id)
+
+    def remove_node(self, node_id: str) -> None:
+        self._validated().remove_node(node_id)
+
+    def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
+        self._validated().set_node_collapsed(node_id, collapsed)
+
+    def set_node_position(self, node_id: str, x: float, y: float) -> None:
+        self._validated().set_node_position(node_id, x, y)
+
+    def set_node_geometry(
+        self,
+        node_id: str,
+        x: float,
+        y: float,
+        width: float | None,
+        height: float | None,
+    ) -> None:
+        self._validated().set_node_geometry(node_id, x, y, width, height)
+
+    def set_node_title(self, node_id: str, title: str) -> None:
+        self._validated().set_node_title(node_id, title)
+
+    def set_node_visual_style(self, node_id: str, visual_style: dict[str, object] | None) -> None:
+        self._validated().set_node_visual_style(node_id, visual_style)
+
+    def set_edge_label(self, edge_id: str, label: str) -> None:
+        self._validated().set_edge_label(edge_id, label)
+
+    def set_edge_visual_style(self, edge_id: str, visual_style: dict[str, object] | None) -> None:
+        self._validated().set_edge_visual_style(edge_id, visual_style)

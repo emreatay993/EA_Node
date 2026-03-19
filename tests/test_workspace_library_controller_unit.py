@@ -11,6 +11,7 @@ from ea_node_editor.ui.shell.controllers.workspace_drop_connect_ops import Works
 from ea_node_editor.ui.shell.controllers.workspace_graph_edit_controller import WorkspaceGraphEditController
 from ea_node_editor.ui.shell.controllers.workspace_navigation_controller import WorkspaceNavigationController
 from ea_node_editor.ui.shell.controllers.workspace_package_io_controller import WorkspacePackageIOController
+from ea_node_editor.ui.shell.controllers.workspace_view_nav_ops import WorkspaceViewNavOps
 from tests.workspace_library_controller_unit.core_ops import *  # noqa: F401,F403
 from tests.workspace_library_controller_unit.custom_workflow_io import *  # noqa: F401,F403
 
@@ -95,6 +96,33 @@ class _CreateWorkspaceHostStub:
     def __init__(self) -> None:
         self.workspace_manager = _CreateWorkspaceManagerStub()
         self.runtime_history = _RuntimeHistoryStub()
+
+
+class _ViewMutationWorkspaceManagerStub:
+    def __init__(self, workspace_id: str) -> None:
+        self._workspace_id = workspace_id
+
+    def active_workspace_id(self) -> str:
+        return self._workspace_id
+
+
+class _ViewMutationControllerStub:
+    def __init__(self) -> None:
+        self.save_calls = 0
+        self.restore_calls = 0
+
+    def save_active_view_state(self) -> None:
+        self.save_calls += 1
+
+    def restore_active_view_state(self) -> None:
+        self.restore_calls += 1
+
+
+class _ViewMutationHostStub:
+    def __init__(self) -> None:
+        self.model = GraphModel()
+        self.workspace_manager = _ViewMutationWorkspaceManagerStub(self.model.active_workspace.workspace_id)
+        self.workspace_state_changed = _SignalCounter()
 
 
 class _PointStub:
@@ -269,6 +297,39 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
 
         self.assertEqual(insert_calls, [("core.logger", 125.0, 220.0)])
         self.assertEqual(refresh_calls, ["refresh"])
+
+
+class WorkspaceViewNavOpsMutationServiceTests(unittest.TestCase):
+    def test_create_view_uses_model_mutation_service_without_workspace_manager_view_helpers(self) -> None:
+        from unittest.mock import patch
+
+        host = _ViewMutationHostStub()
+        controller = _ViewMutationControllerStub()
+        ops = WorkspaceViewNavOps(host, controller)  # type: ignore[arg-type]
+
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Review", True)):
+            ops.create_view()
+
+        workspace = host.model.active_workspace
+        self.assertEqual(controller.save_calls, 1)
+        self.assertEqual(controller.restore_calls, 1)
+        self.assertEqual(host.workspace_state_changed.calls, 1)
+        self.assertEqual(len(workspace.views), 2)
+        self.assertEqual(workspace.views[workspace.active_view_id].name, "Review")
+
+    def test_switch_view_uses_model_mutation_service_without_workspace_manager_view_helpers(self) -> None:
+        host = _ViewMutationHostStub()
+        workspace = host.model.active_workspace
+        alternate_view = host.model.mutation_service(workspace.workspace_id).create_view(name="Alt")
+        controller = _ViewMutationControllerStub()
+        ops = WorkspaceViewNavOps(host, controller)  # type: ignore[arg-type]
+
+        ops.switch_view(alternate_view.view_id)
+
+        self.assertEqual(controller.save_calls, 1)
+        self.assertEqual(controller.restore_calls, 1)
+        self.assertEqual(host.workspace_state_changed.calls, 1)
+        self.assertEqual(workspace.active_view_id, alternate_view.view_id)
 
 
 class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
