@@ -123,6 +123,28 @@
 - `tests/test_graph_theme_shell.py`
 - `ea_node_editor/ui/shell/window.py`
 
+### 7. Narrow ARCH_FOURTH_PASS Compatibility Seams
+
+**Status:** Deferred follow-up after `ARCH_FOURTH_PASS`
+
+**Goal:** Retire the compatibility paths that were intentionally preserved across `P01` through `P07` once broader-scope callers can move safely.
+
+**Deferred Seams To Retire:**
+- Raw QML context-property consumers of `mainWindow`, `sceneBridge`, and `viewBridge`
+- The widened `graphCanvasBridge` surface that still carries compatibility-only host responsibilities
+- Packet-external call sites that still mutate `GraphModel` directly or depend on `compile_workspace_document()` dict adapters
+- Builtin subnode re-exports and the current `ea_node_editor.graph.subnode_contract` placement
+- Opaque unresolved-plugin sidecar data that still lacks an inspection or repair workflow
+- Fresh-process shell-suite isolation if the Windows Qt/QML multi-`ShellWindow()` lifetime issue is ever resolved
+
+**Key Files:**
+- `ea_node_editor/ui_qml/shell_context_bootstrap.py`
+- `ea_node_editor/ui_qml/graph_canvas_bridge.py`
+- `ea_node_editor/graph/model.py`
+- `ea_node_editor/execution/{compiler.py,runtime_dto.py}`
+- `ea_node_editor/nodes/builtins/subnode.py`
+- `docs/specs/work_packets/arch_fourth_pass/ARCH_FOURTH_PASS_QA_MATRIX.md`
+
 ## Implemented
 
 ### Shell/Scene/QML Boundary Ownership Refactor
@@ -133,7 +155,7 @@
 - QML shell-owned library/search/hint, workspace/run/title/console, inspector, and GraphCanvas host concerns now route through focused bridge facades instead of growing `ShellWindow` further
 - `GraphCanvas.qml` keeps its stable root contract while using `graphCanvasBridge` for shell-owned canvas integration
 - `GraphSceneBridge` keeps its public slot/property contract while delegating scope/selection, mutation/history, and payload/theme/media responsibilities to focused helper modules
-- Final approved boundary regression commands and environment notes are recorded in `docs/specs/work_packets/shell_scene_boundary/SHELL_SCENE_BOUNDARY_QA_MATRIX.md`
+- Original packet-history regression commands remain recorded in `docs/specs/work_packets/shell_scene_boundary/SHELL_SCENE_BOUNDARY_QA_MATRIX.md`, and the current architecture-closeout regression slice plus residual seams are recorded in `docs/specs/work_packets/arch_fourth_pass/ARCH_FOURTH_PASS_QA_MATRIX.md`
 
 ### Image Crop Button on Image Panel Node
 
