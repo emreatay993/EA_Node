@@ -931,6 +931,112 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_max_performance_degrades_shadow_grid_and_minimap_during_wheel_zoom(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-max-performance-wheel-zoom",
+            """
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_show_grid": True,
+                        "graphics_show_minimap": True,
+                        "graphics_minimap_expanded": True,
+                        "graphics_node_shadow": True,
+                        "graphics_shadow_strength": 70,
+                        "graphics_shadow_softness": 50,
+                        "graphics_shadow_offset": 4,
+                        "graphics_performance_mode": "max_performance",
+                        "snap_to_grid_enabled": False,
+                        "snap_grid_size": 20.0,
+                    },
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 1
+            node_card = node_cards[0]
+            shadow_item = node_card.findChild(QObject, "graphNodeShadow")
+            background = canvas.findChild(QObject, "graphCanvasBackground")
+            minimap_overlay = canvas.findChild(QObject, "graphCanvasMinimapOverlay")
+            minimap_viewport = canvas.findChild(QObject, "graphCanvasMinimapViewport")
+            assert shadow_item is not None
+            assert background is not None
+            assert minimap_overlay is not None
+            assert minimap_viewport is not None
+            assert canvas.property("resolvedGraphicsPerformanceMode") == "max_performance"
+            assert not bool(canvas.property("transientDegradedWindowActive"))
+            assert bool(canvas.property("highQualityRendering"))
+            assert bool(shadow_item.property("visible"))
+            assert not bool(node_card.property("snapshotReuseActive"))
+            assert not bool(node_card.property("effectiveTextureCacheActive"))
+            assert bool(background.property("effectiveShowGrid"))
+            assert bool(minimap_overlay.property("minimapContentVisible"))
+            assert bool(minimap_viewport.property("visible"))
+
+            applied = canvas.applyWheelZoom(
+                {"x": 640.0, "y": 360.0, "angleDelta": {"y": 120}, "inverted": False}
+            )
+            assert applied is True
+            app.processEvents()
+            assert bool(canvas.property("interactionActive"))
+            assert bool(canvas.property("transientDegradedWindowActive"))
+            assert not bool(canvas.property("highQualityRendering"))
+            assert bool(canvas.property("gridSimplificationActive"))
+            assert bool(canvas.property("minimapSimplificationActive"))
+            assert bool(canvas.property("shadowSimplificationActive"))
+            assert bool(canvas.property("snapshotProxyReuseActive"))
+            assert bool(node_card.property("viewportInteractionCacheActive"))
+            assert bool(node_card.property("snapshotReuseActive"))
+            assert bool(node_card.property("effectiveTextureCacheActive"))
+            assert not bool(shadow_item.property("visible"))
+            assert not bool(background.property("effectiveShowGrid"))
+            assert not bool(minimap_overlay.property("minimapContentVisible"))
+            assert not bool(minimap_viewport.property("visible"))
+
+            wait_for_condition_or_raise(
+                lambda: (
+                    not bool(canvas.property("interactionActive"))
+                    and not bool(canvas.property("transientDegradedWindowActive"))
+                    and bool(canvas.property("highQualityRendering"))
+                    and bool(shadow_item.property("visible"))
+                    and bool(background.property("effectiveShowGrid"))
+                    and bool(minimap_overlay.property("minimapContentVisible"))
+                ),
+                timeout_ms=190,
+                app=app,
+                timeout_message="Timed out waiting for max-performance wheel-zoom recovery.",
+            )
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
+            assert not bool(node_card.property("snapshotReuseActive"))
+            assert not bool(node_card.property("effectiveTextureCacheActive"))
+            assert bool(shadow_item.property("visible"))
+            assert bool(background.property("effectiveShowGrid"))
+            assert bool(minimap_overlay.property("minimapContentVisible"))
+            assert bool(minimap_viewport.property("visible"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_mutation_burst_performance_policy_tracks_scene_changes_and_recovers(self) -> None:
         self._run_qml_probe(
             "graph-canvas-mutation-burst-policy",
@@ -983,6 +1089,112 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert not bool(canvas.property("transientPerformanceActivityActive"))
             assert not bool(canvas.property("transientDegradedWindowActive"))
             assert bool(canvas.property("highQualityRendering"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_max_performance_mutation_burst_uses_snapshot_reuse_and_recovers(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-max-performance-mutation-burst",
+            """
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_show_grid": True,
+                        "graphics_show_minimap": True,
+                        "graphics_minimap_expanded": True,
+                        "graphics_node_shadow": True,
+                        "graphics_shadow_strength": 70,
+                        "graphics_shadow_softness": 50,
+                        "graphics_shadow_offset": 4,
+                        "graphics_performance_mode": "max_performance",
+                        "snap_to_grid_enabled": False,
+                        "snap_grid_size": 20.0,
+                    },
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 1
+            node_card = node_cards[0]
+            shadow_item = node_card.findChild(QObject, "graphNodeShadow")
+            background = canvas.findChild(QObject, "graphCanvasBackground")
+            minimap_overlay = canvas.findChild(QObject, "graphCanvasMinimapOverlay")
+            minimap_viewport = canvas.findChild(QObject, "graphCanvasMinimapViewport")
+            assert shadow_item is not None
+            assert background is not None
+            assert minimap_overlay is not None
+            assert minimap_viewport is not None
+
+            assert canvas.property("resolvedGraphicsPerformanceMode") == "max_performance"
+            assert not bool(canvas.property("mutationBurstActive"))
+            assert not bool(canvas.property("transientDegradedWindowActive"))
+            assert bool(canvas.property("highQualityRendering"))
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
+            assert not bool(node_card.property("snapshotReuseActive"))
+            assert not bool(node_card.property("effectiveTextureCacheActive"))
+            assert bool(shadow_item.property("visible"))
+
+            scene.add_node_from_type("core.logger", 360.0, 210.0)
+            app.processEvents()
+
+            node_cards = named_child_items(canvas, "graphNodeCard")
+            assert len(node_cards) == 2
+            node_card = node_cards[0]
+            shadow_item = node_card.findChild(QObject, "graphNodeShadow")
+            assert shadow_item is not None
+            assert bool(canvas.property("mutationBurstActive"))
+            assert bool(canvas.property("transientPerformanceActivityActive"))
+            assert bool(canvas.property("transientDegradedWindowActive"))
+            assert not bool(canvas.property("highQualityRendering"))
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
+            assert bool(node_card.property("snapshotReuseActive"))
+            assert bool(node_card.property("effectiveTextureCacheActive"))
+            assert not bool(shadow_item.property("visible"))
+            assert not bool(background.property("effectiveShowGrid"))
+            assert not bool(minimap_overlay.property("minimapContentVisible"))
+            assert not bool(minimap_viewport.property("visible"))
+
+            wait_for_condition_or_raise(
+                lambda: (
+                    not bool(canvas.property("mutationBurstActive"))
+                    and not bool(canvas.property("transientDegradedWindowActive"))
+                    and bool(canvas.property("highQualityRendering"))
+                    and bool(shadow_item.property("visible"))
+                    and bool(background.property("effectiveShowGrid"))
+                    and bool(minimap_overlay.property("minimapContentVisible"))
+                ),
+                timeout_ms=190,
+                app=app,
+                timeout_message="Timed out waiting for max-performance mutation burst recovery.",
+            )
+            assert not bool(node_card.property("viewportInteractionCacheActive"))
+            assert not bool(node_card.property("snapshotReuseActive"))
+            assert not bool(node_card.property("effectiveTextureCacheActive"))
+            assert bool(shadow_item.property("visible"))
+            assert bool(background.property("effectiveShowGrid"))
+            assert bool(minimap_overlay.property("minimapContentVisible"))
+            assert bool(minimap_viewport.property("visible"))
 
             canvas.deleteLater()
             app.processEvents()

@@ -129,7 +129,13 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
     def test_graph_canvas_performance_policy_resolves_max_performance_idle_without_visual_degradation(self) -> None:
         policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
+        background = self.canvas.findChild(QObject, "graphCanvasBackground")
+        minimap_overlay = self.canvas.findChild(QObject, "graphCanvasMinimapOverlay")
+        minimap_viewport = self.canvas.findChild(QObject, "graphCanvasMinimapViewport")
         self.assertIsNotNone(policy)
+        self.assertIsNotNone(background)
+        self.assertIsNotNone(minimap_overlay)
+        self.assertIsNotNone(minimap_viewport)
 
         self.canvas.setProperty("mainWindowBridge", _main_window_graphics_state(performance_mode="max_performance"))
         self.app.processEvents()
@@ -141,11 +147,24 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertFalse(bool(self.canvas.property("viewportInteractionWorldCacheActive")))
         self.assertTrue(bool(self.canvas.property("highQualityRendering")))
         self.assertFalse(bool(self.canvas.property("edgeLabelSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("gridSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("minimapSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("shadowSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("snapshotProxyReuseActive")))
+        self.assertTrue(bool(background.property("effectiveShowGrid")))
+        self.assertTrue(bool(minimap_overlay.property("minimapContentVisible")))
+        self.assertTrue(bool(minimap_viewport.property("visible")))
         self.assertEqual(policy.property("resolvedMode"), "max_performance")
 
     def test_graph_canvas_mutation_burst_policy_activates_and_recovers_with_existing_idle_window(self) -> None:
         policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
+        background = self.canvas.findChild(QObject, "graphCanvasBackground")
+        minimap_overlay = self.canvas.findChild(QObject, "graphCanvasMinimapOverlay")
+        minimap_viewport = self.canvas.findChild(QObject, "graphCanvasMinimapViewport")
         self.assertIsNotNone(policy)
+        self.assertIsNotNone(background)
+        self.assertIsNotNone(minimap_overlay)
+        self.assertIsNotNone(minimap_viewport)
 
         self.canvas.setProperty("mainWindowBridge", _main_window_graphics_state(performance_mode="max_performance"))
         self.app.processEvents()
@@ -161,8 +180,15 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertTrue(bool(self.canvas.property("mutationBurstActive")))
         self.assertTrue(bool(self.canvas.property("transientPerformanceActivityActive")))
         self.assertTrue(bool(self.canvas.property("transientDegradedWindowActive")))
-        self.assertTrue(bool(self.canvas.property("highQualityRendering")))
-        self.assertFalse(bool(self.canvas.property("edgeLabelSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("highQualityRendering")))
+        self.assertTrue(bool(self.canvas.property("edgeLabelSimplificationActive")))
+        self.assertTrue(bool(self.canvas.property("gridSimplificationActive")))
+        self.assertTrue(bool(self.canvas.property("minimapSimplificationActive")))
+        self.assertTrue(bool(self.canvas.property("shadowSimplificationActive")))
+        self.assertTrue(bool(self.canvas.property("snapshotProxyReuseActive")))
+        self.assertFalse(bool(background.property("effectiveShowGrid")))
+        self.assertFalse(bool(minimap_overlay.property("minimapContentVisible")))
+        self.assertFalse(bool(minimap_viewport.property("visible")))
 
         wait_for_condition_or_raise(
             lambda: not bool(self.canvas.property("mutationBurstActive")),
@@ -173,6 +199,14 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertFalse(bool(self.canvas.property("transientPerformanceActivityActive")))
         self.assertFalse(bool(self.canvas.property("transientDegradedWindowActive")))
         self.assertTrue(bool(self.canvas.property("highQualityRendering")))
+        self.assertFalse(bool(self.canvas.property("edgeLabelSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("gridSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("minimapSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("shadowSimplificationActive")))
+        self.assertFalse(bool(self.canvas.property("snapshotProxyReuseActive")))
+        self.assertTrue(bool(background.property("effectiveShowGrid")))
+        self.assertTrue(bool(minimap_overlay.property("minimapContentVisible")))
+        self.assertTrue(bool(minimap_viewport.property("visible")))
 
     def test_canvas_qml_theme_surfaces_follow_runtime_theme_changes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")

@@ -20,6 +20,8 @@ Item {
     property int shadowOffset: 4
     property real zoom: 1.0
     property bool viewportInteractionCacheActive: false
+    property bool snapshotReuseActive: false
+    property bool shadowSimplificationActive: false
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
@@ -218,6 +220,8 @@ Item {
     readonly property bool _shadowVisible: card.showShadow
         && !card._suppressShadow
         && card._useHostChrome
+        && !card.shadowSimplificationActive
+    readonly property bool effectiveTextureCacheActive: card.viewportInteractionCacheActive || card.snapshotReuseActive
     readonly property int nodeTextRenderType: Text.CurveRendering
 
     readonly property var inputPorts: {
@@ -398,10 +402,10 @@ Item {
         && !card.surfaceInteractionLocked
         && (card._hostHoverActive || card._resizeInteractionActive)
 
-    // Cache each node as a texture only while the viewport is moving so pan/zoom can reuse node content.
-    layer.enabled: card.viewportInteractionCacheActive
-    layer.smooth: card.viewportInteractionCacheActive
-    layer.mipmap: card.viewportInteractionCacheActive
+    // Reuse a cached node texture during viewport motion and the max-performance degraded window.
+    layer.enabled: card.effectiveTextureCacheActive
+    layer.smooth: card.effectiveTextureCacheActive
+    layer.mipmap: card.effectiveTextureCacheActive
 
     z: card.isSelected ? 30 : 20
     x: (card._liveGeometryActive ? card._liveX : (card.nodeData ? card.nodeData.x : 0.0)) + card.worldOffset

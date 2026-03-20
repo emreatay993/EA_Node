@@ -305,6 +305,64 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_flow_edge_labels_hide_during_max_performance_interaction_and_recover(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-label-max-performance",
+            """
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            canvas.setProperty(
+                "mainWindowBridge",
+                {
+                    "graphics_show_grid": True,
+                    "graphics_show_minimap": True,
+                    "graphics_minimap_expanded": True,
+                    "graphics_node_shadow": True,
+                    "graphics_shadow_strength": 70,
+                    "graphics_shadow_softness": 50,
+                    "graphics_shadow_offset": 4,
+                    "graphics_performance_mode": "max_performance",
+                    "snap_to_grid_enabled": False,
+                    "snap_grid_size": 20.0,
+                },
+            )
+            app.processEvents()
+
+            labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")
+            assert len(labels) == 1
+            label_item = labels[0]
+            assert canvas.property("resolvedGraphicsPerformanceMode") == "max_performance"
+            assert label_item.isVisible()
+            assert label_item.property("labelMode") == "pill"
+
+            canvas.beginViewportInteraction()
+            canvas.finishViewportInteractionSoon()
+            app.processEvents()
+
+            assert bool(canvas.property("transientDegradedWindowActive"))
+            assert bool(canvas.property("edgeLabelSimplificationActive"))
+            assert label_item.property("labelMode") == "hidden"
+            assert not label_item.isVisible()
+            assert not bool(label_item.property("hitTestMatches"))
+
+            wait_for_condition_or_raise(
+                lambda: not bool(canvas.property("transientDegradedWindowActive")),
+                timeout_ms=190,
+                app=app,
+                timeout_message="Timed out waiting for max-performance flow label recovery.",
+            )
+            assert not bool(canvas.property("edgeLabelSimplificationActive"))
+            assert label_item.isVisible()
+            assert label_item.property("labelMode") == "pill"
+            assert bool(label_item.property("hitTestMatches"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
