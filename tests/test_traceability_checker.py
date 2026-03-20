@@ -54,6 +54,17 @@ def remove_token_from_traceability_row(path: Path, row_id: str, token: str) -> N
     raise AssertionError(f"Traceability row not found: {row_id}")
 
 
+def remove_token_from_requirement_line(path: Path, requirement_id: str, token: str) -> None:
+    lines = path.read_text(encoding="utf-8-sig").splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith(f"- `{requirement_id}`:"):
+            continue
+        lines[index] = line.replace(token, "").replace("  ", " ")
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return
+    raise AssertionError(f"Requirement line not found: {requirement_id}")
+
+
 class TraceabilityCheckerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -73,7 +84,11 @@ class TraceabilityCheckerTests(unittest.TestCase):
         self.assertEqual(manifest_rules, checker_rules)
 
     def make_repo_fixture(self, root: Path) -> None:
-        for relative_path in self.checker.REQUIRED_ARTIFACTS:
+        required_paths = set(self.checker.REQUIRED_ARTIFACTS) | set(
+            self.checker.P10_REQUIRED_GENERATED_ARTIFACTS
+        )
+        required_paths.update(self.checker.P10_REQUIREMENT_DOC_TOKENS.keys())
+        for relative_path in required_paths:
             source = REPO_ROOT / relative_path
             target = root / relative_path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -96,6 +111,21 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
 
+    def test_audit_repository_reports_missing_generated_graphics_modes_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo_fixture(repo_root)
+
+            (repo_root / self.checker.GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON).unlink()
+
+            issues = self.checker.audit_repository(repo_root)
+
+        self.assertIn(
+            "Missing required generated artifact: "
+            f"{self.checker.GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON}",
+            issues,
+        )
+
     def test_audit_repository_reports_structured_perf_and_row_regression(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -104,42 +134,116 @@ class TraceabilityCheckerTests(unittest.TestCase):
             graph_canvas_doc = repo_root / self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC
             update_markdown_table_result(
                 graph_canvas_doc,
-                self.manifest.TRACK_H_REGRESSION_COMMAND,
+                self.checker.GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
                 "Pending",
-                "Harness/report/traceability regression slice was not rerun",
+                "Mode-aware heavy-media snapshot was not rerun",
             )
 
             track_h_doc = repo_root / self.manifest.TRACK_H_BENCHMARK_REPORT_DOC
+            replace_text(track_h_doc, "Scenario: `heavy_media`", "Scenario: `synthetic_exec`")
             replace_text(
                 track_h_doc,
-                "offscreen regression snapshot",
-                "Historical offscreen harness baseline restored from repo",
+                "artifacts/graphics_performance_modes_docs/track_h_benchmark_report.json",
+                "artifacts/graphics_performance_modes_docs/report.json",
             )
 
             traceability_matrix = repo_root / self.manifest.TRACEABILITY_MATRIX_DOC
             remove_token_from_traceability_row(
                 traceability_matrix,
-                "REQ-QA-018",
-                "GRAPH_CANVAS_PERF_QA_MATRIX.md",
+                "AC-REQ-QA-018-01",
+                "artifacts/graphics_performance_modes_docs/track_h_benchmark_report.json",
             )
 
             issues = self.checker.audit_repository(repo_root)
 
         self.assertIn(
-            f"{self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}: 2026-03-18 Execution Results command "
-            f"{self.manifest.TRACK_H_REGRESSION_COMMAND} has unexpected result: Pending",
+            f"{self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}: 2026-03-20 Execution Results command "
+            f"{self.checker.GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND} has unexpected result: Pending",
             issues,
         )
         self.assertIn(
-            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: track-h benchmark report missing fact: offscreen regression snapshot",
+            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: track-h benchmark report missing fact: "
+            "Scenario: `heavy_media`",
             issues,
         )
         self.assertIn(
-            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: found stale text: Historical offscreen harness baseline restored from repo",
+            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: track-h benchmark report missing fact: "
+            f"{self.checker.GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON}",
             issues,
         )
         self.assertIn(
-            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-018 missing required text: GRAPH_CANVAS_PERF_QA_MATRIX.md",
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row AC-REQ-QA-018-01 missing required text: "
+            "artifacts/graphics_performance_modes_docs/track_h_benchmark_report.json",
+            issues,
+        )
+
+    def test_audit_repository_reports_graphics_performance_modes_requirement_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo_fixture(repo_root)
+
+            remove_token_from_requirement_line(
+                repo_root / "docs/specs/requirements/20_UI_UX.md",
+                "REQ-UI-024",
+                "same persisted preference",
+            )
+            remove_token_from_requirement_line(
+                repo_root / "docs/specs/requirements/40_NODE_SDK.md",
+                "REQ-NODE-016",
+                "render_quality",
+            )
+            remove_token_from_requirement_line(
+                repo_root / "docs/specs/requirements/60_PERSISTENCE.md",
+                "REQ-PERSIST-011",
+                "graphics performance mode",
+            )
+            remove_token_from_requirement_line(
+                repo_root / "docs/specs/requirements/80_PERFORMANCE.md",
+                "REQ-PERF-006",
+                "proxy-surface",
+            )
+            remove_token_from_requirement_line(
+                repo_root / self.manifest.QA_ACCEPTANCE_DOC,
+                "REQ-QA-018",
+                "performance_mode",
+            )
+
+            traceability_matrix = repo_root / self.manifest.TRACEABILITY_MATRIX_DOC
+            remove_token_from_traceability_row(
+                traceability_matrix,
+                "REQ-UI-024",
+                "ShellStatusStrip.qml",
+            )
+
+            issues = self.checker.audit_repository(repo_root)
+
+        self.assertIn(
+            "docs/specs/requirements/20_UI_UX.md: requirement REQ-UI-024 missing fact: "
+            "same persisted preference",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/40_NODE_SDK.md: requirement REQ-NODE-016 missing fact: "
+            "render_quality",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/60_PERSISTENCE.md: requirement REQ-PERSIST-011 missing fact: "
+            "graphics performance mode",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/80_PERFORMANCE.md: requirement REQ-PERF-006 missing fact: "
+            "proxy-surface",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.QA_ACCEPTANCE_DOC}: requirement REQ-QA-018 missing fact: performance_mode",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-UI-024 missing required text: "
+            "ShellStatusStrip.qml",
             issues,
         )
 

@@ -28,10 +28,11 @@
 - `REQ-UI-015`: File menu UX shall provide project-local custom workflow interchange through versioned `.eawf` import/export actions that remain separate from `.eanp` node package actions.
 
 ## Graphics Settings UX Surfaces
-- `REQ-UI-016`: `ShellWindow` shall expose `show_graphics_settings_dialog()` and the Settings menu shall provide an app-wide Graphics Settings modal covering grid, minimap, snap-to-grid default, shell-theme selection, graph-theme follow-shell or explicit selection, and graph-theme manager access.
+- `REQ-UI-016`: `ShellWindow` shall expose `show_graphics_settings_dialog()` and the Settings menu shall provide an app-wide Graphics Settings modal covering graphics performance mode (`Full Fidelity` / `Max Performance`), grid, minimap, snap-to-grid default, shell-theme selection, graph-theme follow-shell or explicit selection, and graph-theme manager access.
 - `REQ-UI-017`: shell and graph canvas chrome surfaces shall support live application of shared shell-theme tokens for `stitch_dark` and `stitch_light`.
 - `REQ-UI-018`: node and edge visuals shall resolve through dedicated graph-theme tokens while canvas chrome (background, grid, minimap, marquee, and drop-preview) stays on the shell-theme path.
 - `REQ-UI-019`: `ShellWindow` shall expose `show_graph_theme_editor_dialog()` and provide a graph-theme manager/editor that groups built-in read-only themes and editable custom themes with create, duplicate, rename, delete, use-selected, and token-editing workflows.
+- `REQ-UI-024`: shell status strip shall expose a compact app-global graphics-performance quick toggle with a `Graphics:` summary plus `Full Fidelity` / `Max Performance` actions that read and write the same persisted preference as Graphics Settings rather than a session-only override.
 
 ## Passive Visual Authoring UX Surfaces
 - `REQ-UI-020`: graph canvas node rendering shall route through a host/factory surface split that keeps the standard node contract stable while loading `flowchart`, `planning`, `annotation`, and `media` passive families by `surface_family` / `surface_variant`.
@@ -48,7 +49,7 @@
 - `AC-REQ-UI-013-01`: Script editor reflects selected script node content and applying edits updates model state.
 - `AC-REQ-UI-014-01`: Users can author nested subnode workflows end-to-end (group, navigate scopes, edit pins, publish custom workflow, and place published snapshots from the library).
 - `AC-REQ-UI-015-01`: Exporting and importing `.eawf` files preserves custom-workflow snapshot fidelity and updates library availability without changing `.eanp` package behavior.
-- `AC-REQ-UI-016-01`: accepting Graphics Settings updates runtime graphics behavior and reopening the application restores the persisted shell-theme and graph-theme preferences.
+- `AC-REQ-UI-016-01`: accepting Graphics Settings updates runtime graphics performance mode, shell-theme, and graph-theme behavior, and reopening the application restores the persisted graphics-performance and theme preferences.
 - `AC-REQ-UI-017-01`: `stitch_dark` and `stitch_light` both render shell and graph-canvas chrome surfaces without breaking existing shell/canvas contracts.
 - `AC-REQ-UI-018-01`: `NodeCard` and `EdgeLayer` follow the active graph theme while background/grid/minimap/drop-preview chrome stay on the shell-theme path.
 - `AC-REQ-UI-019-01`: the graph-theme manager keeps built-in themes read-only, persists custom-theme library edits, and only live-applies token edits when the edited theme is the active explicit custom theme.
@@ -56,3 +57,4 @@
 - `AC-REQ-UI-021-01`: passive node and `flow` edge context menus can apply, copy/paste, reset, and persist project-local presets without changing executable-node theming behavior.
 - `AC-REQ-UI-022-01`: reopening a project restores passive image and PDF previews for valid local sources and keeps the authored captions and fit/page settings.
 - `AC-REQ-UI-023-01`: host, inline-control, media-surface, and shell graph-surface regressions pass without reintroducing hover-proxy shims or click-swallowing overlays, and the final matrix is recorded in `docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md`.
+- `AC-REQ-UI-024-01`: the status-strip summary and buttons switch the active graphics-performance mode immediately, stay synchronized with Graphics Settings, and restore the same saved mode after relaunch.
