@@ -660,13 +660,13 @@ class ShellWorkspacePresenter(QObject):
         return bool(self._host.scene.active_scope_path)
 
     def request_run_workflow(self) -> None:
-        self._host._run_workflow()
+        self._host.run_controller.run_workflow()
 
     def request_toggle_run_pause(self) -> None:
-        self._host._toggle_pause_resume()
+        self._host.run_controller.toggle_pause_resume()
 
     def request_stop_workflow(self) -> None:
-        self._host._stop_workflow()
+        self._host.run_controller.stop_workflow()
 
     def show_workflow_settings_dialog(self, _checked: bool = False) -> None:
         self._host.project_session_controller.show_workflow_settings_dialog()
@@ -676,7 +676,7 @@ class ShellWorkspacePresenter(QObject):
 
     def request_open_scope_breadcrumb(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()
-        return bool(self._host._navigate_scope(lambda: self._host.scene.navigate_scope_to(normalized_node_id)))
+        return bool(self._host.search_scope_controller.navigate_scope(lambda: self._host.scene.navigate_scope_to(normalized_node_id)))
 
     def request_switch_view(self, view_id: str) -> None:
         workspace_id = self._host.workspace_manager.active_workspace_id()
@@ -689,10 +689,10 @@ class ShellWorkspacePresenter(QObject):
             return
         if workspace.active_view_id == target_id:
             return
-        self._host._remember_scope_camera()
-        self._host._switch_view(target_id)
+        self._host.search_scope_controller.remember_scope_camera()
+        self._host.workspace_library_controller.switch_view(target_id)
         self._host.scene.sync_scope_with_active_view()
-        self._host._restore_scope_camera()
+        self._host.search_scope_controller.restore_scope_camera()
 
     def request_move_view_tab(self, from_index: int, to_index: int) -> bool:
         return bool(self._host.workspace_library_controller.move_view(from_index, to_index))
@@ -736,7 +736,9 @@ class ShellWorkspacePresenter(QObject):
         shadow_softness = int(canvas.get("shadow_softness", self._ui_state.shadow_softness))
         shadow_offset = int(canvas.get("shadow_offset", self._ui_state.shadow_offset))
         tab_strip_density = str(shell.get("tab_strip_density", self._ui_state.tab_strip_density))
-        active_theme_id = self._host._apply_theme(theme.get("theme_id", self._ui_state.active_theme_id))
+        active_theme_id = self._host.shell_host_presenter.apply_theme(
+            theme.get("theme_id", self._ui_state.active_theme_id)
+        )
         follow_shell_theme = graph_theme.get("follow_shell_theme")
         if not isinstance(follow_shell_theme, bool):
             follow_shell_theme = bool(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["follow_shell_theme"])
@@ -1002,13 +1004,13 @@ class ShellInspectorPresenter(QObject):
         property_spec = self._selected_node_property_spec(key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
-        return self._host._browse_property_path_dialog(property_spec.label, current_path)
+        return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         property_spec = self._node_property_spec(node_id, key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
-        return self._host._browse_property_path_dialog(property_spec.label, current_path)
+        return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
         self._host.workspace_library_controller.set_selected_port_exposed(key, exposed)
@@ -1096,7 +1098,11 @@ class GraphCanvasPresenter(QObject):
         normalized_node_id = str(node_id).strip()
         if not normalized_node_id:
             return False
-        return bool(self._host._navigate_scope(lambda: self._host.scene.open_subnode_scope(normalized_node_id)))
+        return bool(
+            self._host.search_scope_controller.navigate_scope(
+                lambda: self._host.scene.open_subnode_scope(normalized_node_id)
+            )
+        )
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return self._inspector_presenter.browse_node_property_path(node_id, key, current_path)

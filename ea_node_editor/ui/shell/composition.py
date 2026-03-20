@@ -23,6 +23,7 @@ from ea_node_editor.ui.shell.controllers import (
     RunController,
     WorkspaceLibraryController,
 )
+from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import (
     GraphCanvasPresenter,
     ShellInspectorPresenter,
@@ -154,12 +155,14 @@ class ShellControllerDependencies:
 
 @dataclass(frozen=True, slots=True)
 class ShellPresenterDependencies:
+    shell_host_presenter: ShellHostPresenter
     shell_library_presenter: ShellLibraryPresenter
     shell_workspace_presenter: ShellWorkspacePresenter
     shell_inspector_presenter: ShellInspectorPresenter
     graph_canvas_presenter: GraphCanvasPresenter
 
     def attach(self, host: "ShellWindow") -> None:
+        host.shell_host_presenter = self.shell_host_presenter
         host.shell_library_presenter = self.shell_library_presenter
         host.shell_workspace_presenter = self.shell_workspace_presenter
         host.shell_inspector_presenter = self.shell_inspector_presenter
@@ -390,6 +393,7 @@ def _create_shell_controller_dependencies(host: "ShellWindow") -> ShellControlle
 
 
 def _create_shell_presenter_dependencies(host: "ShellWindow") -> ShellPresenterDependencies:
+    shell_host_presenter = ShellHostPresenter(host)
     shell_library_presenter = ShellLibraryPresenter(host)
     shell_workspace_presenter = ShellWorkspacePresenter(host)
     shell_inspector_presenter = ShellInspectorPresenter(host)
@@ -400,6 +404,7 @@ def _create_shell_presenter_dependencies(host: "ShellWindow") -> ShellPresenterD
         inspector_presenter=shell_inspector_presenter,
     )
     return ShellPresenterDependencies(
+        shell_host_presenter=shell_host_presenter,
         shell_library_presenter=shell_library_presenter,
         shell_workspace_presenter=shell_workspace_presenter,
         shell_inspector_presenter=shell_inspector_presenter,

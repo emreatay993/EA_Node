@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import unittest
+from unittest.mock import patch
 
 from tests.main_window_shell.base import MainWindowShellTestBase, SharedMainWindowShellTestBase
 
@@ -56,6 +57,29 @@ def _pop_isolated_imported_shell_cases() -> dict[str, type[MainWindowShellTestBa
 
 _load_shell_test_modules()
 _ISOLATED_IMPORTED_SHELL_CASES = _pop_isolated_imported_shell_cases()
+
+
+class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
+    def test_host_slots_delegate_nontrivial_host_logic_to_shell_host_presenter(self) -> None:
+        self.assertIsNotNone(self.window.shell_host_presenter)
+
+        with (
+            patch.object(self.window.shell_host_presenter, "show_graphics_settings_dialog") as show_graphics_mock,
+            patch.object(self.window.shell_host_presenter, "set_graph_cursor_shape") as set_cursor_mock,
+            patch.object(
+                self.window.shell_host_presenter,
+                "request_edit_passive_node_style",
+                return_value=True,
+            ) as edit_passive_style_mock,
+        ):
+            self.window.show_graphics_settings_dialog()
+            self.window.set_graph_cursor_shape(3)
+            result = self.window.request_edit_passive_node_style("node-1")
+
+        show_graphics_mock.assert_called_once_with(False)
+        set_cursor_mock.assert_called_once_with(3)
+        edit_passive_style_mock.assert_called_once_with("node-1")
+        self.assertTrue(result)
 
 
 def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001

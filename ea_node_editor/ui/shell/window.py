@@ -679,44 +679,21 @@ class ShellWindow(QMainWindow):
         self.shell_library_presenter.clear_graph_hint()
 
     def _apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
-        if getattr(self, "quick_widget", None) is None:
-            return
-        cursor = QCursor(cursor_shape)
-        self.quick_widget.setCursor(cursor)
-        quick_window = self.quick_widget.quickWindow()
-        if quick_window is not None:
-            quick_window.setCursor(cursor)
+        self.shell_host_presenter.apply_graph_cursor(cursor_shape)
 
     @pyqtSlot(int)
     def set_graph_cursor_shape(self, cursor_shape: int) -> None:
-        try:
-            resolved_cursor = Qt.CursorShape(int(cursor_shape))
-        except ValueError:
-            resolved_cursor = Qt.CursorShape.ArrowCursor
-        self._apply_graph_cursor(resolved_cursor)
+        self.shell_host_presenter.set_graph_cursor_shape(cursor_shape)
 
     @pyqtSlot()
     def clear_graph_cursor_shape(self) -> None:
-        if getattr(self, "quick_widget", None) is None:
-            return
-        self.quick_widget.unsetCursor()
-        quick_window = self.quick_widget.quickWindow()
-        if quick_window is not None:
-            quick_window.unsetCursor()
+        self.shell_host_presenter.clear_graph_cursor_shape()
 
     def _apply_theme(self, theme_id: Any) -> str:
-        resolved_theme_id = self.theme_bridge.apply_theme(theme_id)
-        app = QApplication.instance()
-        if app is not None:
-            app.setStyleSheet(build_theme_stylesheet(resolved_theme_id))
-        return resolved_theme_id
+        return self.shell_host_presenter.apply_theme(theme_id)
 
     def preview_graph_theme_settings(self, graph_theme_settings: Any) -> str:
-        normalized = normalize_graph_theme_settings(graph_theme_settings)
-        return self.graph_theme_bridge.apply_settings(
-            shell_theme_id=self.active_theme_id,
-            graph_theme_settings=normalized,
-        )
+        return self.shell_host_presenter.preview_graph_theme_settings(graph_theme_settings)
 
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
         return self.shell_workspace_presenter.apply_graphics_preferences(graphics)
@@ -1067,94 +1044,39 @@ class ShellWindow(QMainWindow):
 
     @pyqtSlot(str, result=bool)
     def request_edit_passive_node_style(self, node_id: str) -> bool:
-        style = self.edit_passive_node_style(node_id)
-        if style is None:
-            return False
-        self.scene.set_node_visual_style(node_id, style)
-        return True
+        return bool(self.shell_host_presenter.request_edit_passive_node_style(node_id))
 
     @pyqtSlot(str, result=bool)
     def request_reset_passive_node_style(self, node_id: str) -> bool:
-        if self._passive_node_context(node_id) is None:
-            return False
-        self.scene.clear_node_visual_style(node_id)
-        return True
+        return bool(self.shell_host_presenter.request_reset_passive_node_style(node_id))
 
     @pyqtSlot(str, result=bool)
     def request_copy_passive_node_style(self, node_id: str) -> bool:
-        context = self._passive_node_context(node_id)
-        if context is None:
-            return False
-        node, _spec, _workspace = context
-        self._write_style_clipboard(
-            kind=_PASSIVE_NODE_STYLE_CLIPBOARD_KIND,
-            style=normalize_passive_node_style_payload(node.visual_style),
-        )
-        return True
+        return bool(self.shell_host_presenter.request_copy_passive_node_style(node_id))
 
     @pyqtSlot(str, result=bool)
     def request_paste_passive_node_style(self, node_id: str) -> bool:
-        if self._passive_node_context(node_id) is None:
-            return False
-        style = self._read_style_clipboard(kind=_PASSIVE_NODE_STYLE_CLIPBOARD_KIND)
-        if style is None:
-            return False
-        self.scene.set_node_visual_style(node_id, style)
-        return True
+        return bool(self.shell_host_presenter.request_paste_passive_node_style(node_id))
 
     @pyqtSlot(str, result=bool)
     def request_edit_flow_edge_style(self, edge_id: str) -> bool:
-        style = self.edit_flow_edge_style(edge_id)
-        if style is None:
-            return False
-        self.scene.set_edge_visual_style(edge_id, style)
-        return True
+        return bool(self.shell_host_presenter.request_edit_flow_edge_style(edge_id))
 
     @pyqtSlot(str, result=bool)
     def request_edit_flow_edge_label(self, edge_id: str) -> bool:
-        context = self._flow_edge_context(edge_id)
-        if context is None:
-            return False
-        edge, _workspace = context
-        label, accepted = QInputDialog.getText(
-            self,
-            "Edit Flow Edge Label",
-            "Label:",
-            text=str(edge.label or ""),
-        )
-        if not accepted:
-            return False
-        self.scene.set_edge_label(edge_id, label)
-        return True
+        return bool(self.shell_host_presenter.request_edit_flow_edge_label(edge_id))
 
     @pyqtSlot(str, result=bool)
     def request_reset_flow_edge_style(self, edge_id: str) -> bool:
-        if self._flow_edge_context(edge_id) is None:
-            return False
-        self.scene.clear_edge_visual_style(edge_id)
-        return True
+        return bool(self.shell_host_presenter.request_reset_flow_edge_style(edge_id))
 
     @pyqtSlot(str, result=bool)
     def request_copy_flow_edge_style(self, edge_id: str) -> bool:
-        context = self._flow_edge_context(edge_id)
-        if context is None:
-            return False
-        edge, _workspace = context
-        self._write_style_clipboard(
-            kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND,
-            style=normalize_flow_edge_style_payload(edge.visual_style),
-        )
-        return True
+        return bool(self.shell_host_presenter.request_copy_flow_edge_style(edge_id))
 
     @pyqtSlot(str, result=bool)
     def request_paste_flow_edge_style(self, edge_id: str) -> bool:
-        if self._flow_edge_context(edge_id) is None:
-            return False
-        style = self._read_style_clipboard(kind=_FLOW_EDGE_STYLE_CLIPBOARD_KIND)
-        if style is None:
-            return False
-        self.scene.set_edge_visual_style(edge_id, style)
-        return True
+        return bool(self.shell_host_presenter.request_paste_flow_edge_style(edge_id))
 
     @pyqtSlot("QVariantList", result=bool)
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
@@ -1177,12 +1099,7 @@ class ShellWindow(QMainWindow):
         return self.graph_canvas_presenter.browse_node_property_path(node_id, key, current_path)
 
     def _browse_property_path_dialog(self, property_label: str, current_path: str) -> str:
-        selected_path, _selected_filter = QFileDialog.getOpenFileName(
-            self,
-            f"Choose {property_label}",
-            self._path_dialog_start_path(current_path),
-        )
-        return str(selected_path or "")
+        return self.shell_host_presenter.browse_property_path_dialog(property_label, current_path)
 
     @pyqtSlot(str, bool)
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
@@ -1402,71 +1319,16 @@ class ShellWindow(QMainWindow):
         return self.workspace_library_controller.selected_node_context()
 
     def _active_workspace_data(self):
-        workspace_id = self.workspace_manager.active_workspace_id()
-        return self.model.project.workspaces.get(workspace_id)
+        return self.shell_host_presenter._active_workspace_data()
 
     def _passive_node_context(self, node_id: str):
-        workspace = self._active_workspace_data()
-        if workspace is None:
-            return None
-        normalized_node_id = str(node_id).strip()
-        if not normalized_node_id:
-            return None
-        node = workspace.nodes.get(normalized_node_id)
-        if node is None:
-            return None
-        spec = self.registry.get_spec(node.type_id)
-        if str(spec.runtime_behavior or "").strip().lower() != "passive":
-            return None
-        return node, spec, workspace
+        return self.shell_host_presenter._passive_node_context(node_id)
 
     def _flow_edge_context(self, edge_id: str):
-        workspace = self._active_workspace_data()
-        if workspace is None:
-            return None
-        normalized_edge_id = str(edge_id).strip()
-        if not normalized_edge_id:
-            return None
-        edge = workspace.edges.get(normalized_edge_id)
-        if edge is None:
-            return None
-        source_node = workspace.nodes.get(edge.source_node_id)
-        target_node = workspace.nodes.get(edge.target_node_id)
-        if source_node is None or target_node is None:
-            return None
-        source_spec = self.registry.get_spec(source_node.type_id)
-        target_spec = self.registry.get_spec(target_node.type_id)
-        try:
-            source_kind = port_kind(
-                node=source_node,
-                spec=source_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=edge.source_port_key,
-            )
-            target_kind = port_kind(
-                node=target_node,
-                spec=target_spec,
-                workspace_nodes=workspace.nodes,
-                port_key=edge.target_port_key,
-            )
-        except KeyError:
-            return None
-        if source_kind != "flow" or target_kind != "flow":
-            return None
-        return edge, workspace
+        return self.shell_host_presenter._flow_edge_context(edge_id)
 
     def _project_passive_style_presets(self) -> dict[str, list[dict[str, Any]]]:
-        self._ensure_project_metadata_defaults()
-        metadata = self.model.project.metadata if isinstance(self.model.project.metadata, dict) else {}
-        ui = metadata.get("ui", {}) if isinstance(metadata.get("ui"), dict) else {}
-        normalized = normalize_passive_style_presets(ui.get("passive_style_presets"))
-        if ui.get("passive_style_presets") != normalized:
-            updated_ui = dict(ui)
-            updated_ui["passive_style_presets"] = normalized
-            updated_metadata = dict(metadata)
-            updated_metadata["ui"] = updated_ui
-            self.model.project.metadata = updated_metadata
-        return normalize_passive_style_presets(normalized)
+        return self.shell_host_presenter._project_passive_style_presets()
 
     def _set_project_passive_style_presets(
         self,
@@ -1474,116 +1336,25 @@ class ShellWindow(QMainWindow):
         node_presets: Any = _UNSET,
         edge_presets: Any = _UNSET,
     ) -> None:
-        current = self._project_passive_style_presets()
-        updated = {
-            "node_presets": current["node_presets"],
-            "edge_presets": current["edge_presets"],
-        }
-        if node_presets is not _UNSET:
-            updated["node_presets"] = normalize_passive_style_presets(
-                {"node_presets": node_presets, "edge_presets": current["edge_presets"]}
-            )["node_presets"]
-        if edge_presets is not _UNSET:
-            updated["edge_presets"] = normalize_passive_style_presets(
-                {"node_presets": updated["node_presets"], "edge_presets": edge_presets}
-            )["edge_presets"]
-        if updated == current:
-            return
-        metadata = self.model.project.metadata if isinstance(self.model.project.metadata, dict) else {}
-        ui = metadata.get("ui", {}) if isinstance(metadata.get("ui"), dict) else {}
-        updated_ui = dict(ui)
-        updated_ui["passive_style_presets"] = updated
-        updated_metadata = dict(metadata)
-        updated_metadata["ui"] = updated_ui
-        self.model.project.metadata = updated_metadata
-        self._persist_session()
-        self.project_meta_changed.emit()
+        self.shell_host_presenter._set_project_passive_style_presets(
+            node_presets=node_presets,
+            edge_presets=edge_presets,
+        )
 
     def edit_passive_node_style(self, node_id: str) -> dict[str, Any] | None:
-        context = self._passive_node_context(node_id)
-        if context is None:
-            return None
-        node, _spec, _workspace = context
-        from ea_node_editor.ui.dialogs import PassiveNodeStyleDialog
-
-        user_presets = self._project_passive_style_presets()["node_presets"]
-        dialog = PassiveNodeStyleDialog(
-            initial_style=node.visual_style,
-            parent=self,
-            user_presets=user_presets,
-        )
-        result = dialog.exec()
-        updated_user_presets = dialog.user_presets()
-        if updated_user_presets != user_presets:
-            self._set_project_passive_style_presets(node_presets=updated_user_presets)
-        if result != dialog.DialogCode.Accepted:
-            return None
-        return dialog.node_style()
+        return self.shell_host_presenter.edit_passive_node_style(node_id)
 
     def edit_flow_edge_style(self, edge_id: str) -> dict[str, Any] | None:
-        context = self._flow_edge_context(edge_id)
-        if context is None:
-            return None
-        edge, _workspace = context
-        from ea_node_editor.ui.dialogs import FlowEdgeStyleDialog
-
-        user_presets = self._project_passive_style_presets()["edge_presets"]
-        dialog = FlowEdgeStyleDialog(
-            initial_style=edge.visual_style,
-            parent=self,
-            user_presets=user_presets,
-        )
-        result = dialog.exec()
-        updated_user_presets = dialog.user_presets()
-        if updated_user_presets != user_presets:
-            self._set_project_passive_style_presets(edge_presets=updated_user_presets)
-        if result != dialog.DialogCode.Accepted:
-            return None
-        return dialog.edge_style()
+        return self.shell_host_presenter.edit_flow_edge_style(edge_id)
 
     def _write_style_clipboard(self, *, kind: str, style: dict[str, Any]) -> None:
-        app = QApplication.instance()
-        if app is None:
-            return
-        app.setProperty(
-            f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{str(kind).strip()}",
-            json.dumps(
-                {
-                    "kind": str(kind),
-                    "version": 1,
-                    "style": copy.deepcopy(style),
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ),
-        )
+        self.shell_host_presenter._write_style_clipboard(kind=kind, style=style)
 
     def _read_style_clipboard(self, *, kind: str) -> dict[str, Any] | None:
-        app = QApplication.instance()
-        if app is None:
-            return None
-        return self._normalize_style_clipboard_payload(
-            app.property(f"{_STYLE_CLIPBOARD_APP_PROPERTY}:{str(kind).strip()}"),
-            kind=kind,
-        )
+        return self.shell_host_presenter._read_style_clipboard(kind=kind)
 
     def _normalize_style_clipboard_payload(self, payload: Any, *, kind: str) -> dict[str, Any] | None:
-        if isinstance(payload, str):
-            raw_text = payload.strip()
-            if not raw_text:
-                return None
-            try:
-                payload = json.loads(raw_text)
-            except ValueError:
-                return None
-        if not isinstance(payload, dict) or str(payload.get("kind", "")).strip() != str(kind):
-            return None
-        style = payload.get("style")
-        if kind == _PASSIVE_NODE_STYLE_CLIPBOARD_KIND:
-            return normalize_passive_node_style_payload(style)
-        if kind == _FLOW_EDGE_STYLE_CLIPBOARD_KIND:
-            return normalize_flow_edge_style_payload(style)
-        return None
+        return self.shell_host_presenter._normalize_style_clipboard_payload(payload, kind=kind)
 
     def _focus_failed_node(self, workspace_id, node_id, error):
         return self.workspace_library_controller.focus_failed_node(workspace_id, node_id, error)
@@ -1647,17 +1418,7 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     @pyqtSlot(bool)
     def show_graphics_settings_dialog(self, _checked: bool = False) -> None:
-        from ea_node_editor.ui.dialogs import GraphicsSettingsDialog
-
-        dialog = GraphicsSettingsDialog(
-            initial_settings=self.app_preferences_controller.graphics_settings(),
-            available_graph_themes=self.app_preferences_controller.graph_theme_choices(),
-            manage_graph_themes_callback=self.edit_graph_theme_settings,
-            parent=self,
-        )
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        self.app_preferences_controller.set_graphics_settings(dialog.values(), host=self)
+        self.shell_host_presenter.show_graphics_settings_dialog(_checked)
 
     def edit_graph_theme_settings(
         self,
@@ -1665,29 +1426,15 @@ class ShellWindow(QMainWindow):
         *,
         enable_live_apply: bool = False,
     ) -> dict[str, Any] | None:
-        from ea_node_editor.ui.dialogs import GraphThemeEditorDialog
-
-        dialog = GraphThemeEditorDialog(
-            initial_settings=graph_theme_settings,
-            parent=self,
-            live_apply_callback=self.preview_graph_theme_settings if enable_live_apply else None,
+        return self.shell_host_presenter.edit_graph_theme_settings(
+            graph_theme_settings,
+            enable_live_apply=enable_live_apply,
         )
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return None
-        return dialog.graph_theme_settings()
 
     @pyqtSlot()
     @pyqtSlot(bool)
     def show_graph_theme_editor_dialog(self, _checked: bool = False) -> None:
-        graph_theme_settings = self.edit_graph_theme_settings(
-            self.app_preferences_controller.graph_theme_settings(),
-            enable_live_apply=True,
-        )
-        if graph_theme_settings is None:
-            return
-        graphics = self.app_preferences_controller.graphics_settings()
-        graphics["graph_theme"] = graph_theme_settings
-        self.app_preferences_controller.set_graphics_settings(graphics, host=self)
+        self.shell_host_presenter.show_graph_theme_editor_dialog(_checked)
 
     @pyqtSlot()
     @pyqtSlot(bool)
@@ -1702,8 +1449,7 @@ class ShellWindow(QMainWindow):
         self._frame_rate_sampler.record_frame()
 
     def _update_metrics(self) -> None:
-        metrics = read_system_metrics()
-        self.update_system_metrics(metrics.cpu_percent, metrics.ram_used_gb, metrics.ram_total_gb)
+        self.shell_host_presenter.update_metrics()
 
     def _open_logs(self) -> None:
         return
@@ -1725,20 +1471,10 @@ class ShellWindow(QMainWindow):
         state: Literal["ready", "running", "paused", "error"],
         details: str = "",
     ) -> None:
-        text = state.capitalize()
-        if details:
-            text = f"{text} ({details})"
-        icon_map = {
-            "ready": "R",
-            "running": "Run",
-            "paused": "P",
-            "error": "!",
-        }
-        self.status_engine.set_icon(icon_map.get(state, "E"))
-        self.status_engine.set_text(text)
+        self.shell_host_presenter.update_engine_status(state, details)
 
     def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
-        self.status_jobs.set_text(f"R:{running} Q:{queued} D:{done} F:{failed}")
+        self.shell_host_presenter.update_job_counters(running, queued, done, failed)
 
     def update_system_metrics(
         self,
@@ -1747,10 +1483,12 @@ class ShellWindow(QMainWindow):
         ram_total_gb: float,
         fps: float | None = None,
     ) -> None:
-        fps_value = max(0.0, float(fps)) if fps is not None else self._frame_rate_sampler.snapshot().fps
-        self.status_metrics.set_text(
-            f"FPS:{fps_value:.0f} CPU:{cpu_percent:.0f}% RAM:{ram_used_gb:.1f}/{ram_total_gb:.1f} GB"
+        self.shell_host_presenter.update_system_metrics(
+            cpu_percent,
+            ram_used_gb,
+            ram_total_gb,
+            fps=fps,
         )
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
-        self.status_notifications.set_text(f"W:{warnings} E:{errors}")
+        self.shell_host_presenter.update_notification_counters(warnings, errors)
