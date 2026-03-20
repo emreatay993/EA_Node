@@ -683,6 +683,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         background_redraws = int(background.property("_redrawRequestCount"))
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+        background_cache_builds = int(background.property("_gridCacheBuildCount"))
 
         self.view.set_zoom(1.4)
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
@@ -697,9 +698,11 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+        self.assertEqual(int(background.property("_gridCacheBuildCount")) - background_cache_builds, 1)
 
         background_redraws = int(background.property("_redrawRequestCount"))
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+        background_cache_builds = int(background.property("_gridCacheBuildCount"))
 
         self.view.centerOn(18.0, -22.0)
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
@@ -714,6 +717,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+        self.assertEqual(int(background.property("_gridCacheBuildCount")) - background_cache_builds, 0)
 
         commits = 0
 
@@ -743,6 +747,15 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+
+    def test_graph_canvas_input_layers_disable_full_canvas_hover_tracking(self) -> None:
+        marquee_area = self.canvas.findChild(QObject, "graphCanvasMarqueeArea")
+        pan_area = self.canvas.findChild(QObject, "graphCanvasPanArea")
+
+        self.assertIsNotNone(marquee_area)
+        self.assertIsNotNone(pan_area)
+        self.assertFalse(bool(marquee_area.property("hoverEnabled")))
+        self.assertFalse(bool(pan_area.property("hoverEnabled")))
 
     def test_a_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_NODE_CARD_QML_PATH)))

@@ -63,11 +63,12 @@ Item {
 
     MouseArea {
         id: marqueeArea
+        objectName: "graphCanvasMarqueeArea"
         parent: root.canvasItem
         anchors.fill: parent
         z: -9
         acceptedButtons: Qt.LeftButton
-        hoverEnabled: true
+        hoverEnabled: false
         property bool selecting: false
         property bool additive: false
         property real startX: 0
@@ -169,7 +170,7 @@ Item {
         anchors.fill: parent
         z: -10
         acceptedButtons: Qt.MiddleButton
-        hoverEnabled: true
+        hoverEnabled: false
         property bool panning: false
         property real lastX: 0
         property real lastY: 0

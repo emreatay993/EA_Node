@@ -137,6 +137,47 @@ Rectangle {
         anchors.topMargin: 24
         anchors.bottomMargin: 4
         property real contentPadding: 7
+        readonly property var sceneRectPayload: _normalizeRectPayload(
+            root.sceneStateBridge ? root.sceneStateBridge.workspace_scene_bounds_payload : null,
+            -1600.0,
+            -900.0,
+            3200.0,
+            1800.0
+        )
+        readonly property var visibleRectPayload: _normalizeRectPayload(
+            root.viewStateBridge
+                ? (root.viewStateBridge.visible_scene_rect_payload_cached !== undefined
+                    ? root.viewStateBridge.visible_scene_rect_payload_cached
+                    : root.viewStateBridge.visible_scene_rect_payload)
+                : null,
+            sceneRectPayload.x,
+            sceneRectPayload.y,
+            sceneRectPayload.width,
+            sceneRectPayload.height
+        )
+        readonly property real contentScale: {
+            var availableWidth = Math.max(1.0, width - contentPadding * 2.0);
+            var availableHeight = Math.max(1.0, height - contentPadding * 2.0);
+            return Math.min(
+                availableWidth / sceneRectPayload.width,
+                availableHeight / sceneRectPayload.height
+            );
+        }
+        readonly property real contentWidth: sceneRectPayload.width * contentScale
+        readonly property real contentHeight: sceneRectPayload.height * contentScale
+        readonly property real contentOffsetX: (width - contentWidth) * 0.5
+        readonly property real contentOffsetY: (height - contentHeight) * 0.5
+        readonly property real minimumNodeExtentScene: 2.0 / Math.max(1e-6, contentScale)
+        readonly property string nodeGeometryCacheKey: [
+            Number(sceneRectPayload.x).toFixed(3),
+            Number(sceneRectPayload.y).toFixed(3),
+            Number(sceneRectPayload.width).toFixed(3),
+            Number(sceneRectPayload.height).toFixed(3),
+            Number(contentScale).toFixed(6),
+            Number(contentOffsetX).toFixed(3),
+            Number(contentOffsetY).toFixed(3)
+        ].join("|")
+        property int _nodeDelegateCreationCount: 0
 
         function _normalizeRectPayload(payload, fallbackX, fallbackY, fallbackWidth, fallbackHeight) {
             return GraphCanvasLogic.normalizeRectPayload(
@@ -148,58 +189,20 @@ Rectangle {
             );
         }
 
-        function sceneRect() {
-            var payload = root.sceneStateBridge ? root.sceneStateBridge.workspace_scene_bounds_payload : null;
-            return _normalizeRectPayload(payload, -1600.0, -900.0, 3200.0, 1800.0);
-        }
-
-        function visibleRect() {
-            var scene = sceneRect();
-            var payload = root.viewStateBridge ? root.viewStateBridge.visible_scene_rect_payload : null;
-            return _normalizeRectPayload(payload, scene.x, scene.y, scene.width, scene.height);
-        }
-
-        function scaleValue() {
-            var scene = sceneRect();
-            var availableWidth = Math.max(1.0, width - contentPadding * 2.0);
-            var availableHeight = Math.max(1.0, height - contentPadding * 2.0);
-            return Math.min(availableWidth / scene.width, availableHeight / scene.height);
-        }
-
-        function usedWidth() {
-            return sceneRect().width * scaleValue();
-        }
-
-        function usedHeight() {
-            return sceneRect().height * scaleValue();
-        }
-
-        function contentOffsetX() {
-            return (width - usedWidth()) * 0.5;
-        }
-
-        function contentOffsetY() {
-            return (height - usedHeight()) * 0.5;
-        }
-
         function sceneToMinimapX(sceneX) {
-            var scene = sceneRect();
-            return contentOffsetX() + (Number(sceneX) - scene.x) * scaleValue();
+            return contentOffsetX + (Number(sceneX) - sceneRectPayload.x) * contentScale;
         }
 
         function sceneToMinimapY(sceneY) {
-            var scene = sceneRect();
-            return contentOffsetY() + (Number(sceneY) - scene.y) * scaleValue();
+            return contentOffsetY + (Number(sceneY) - sceneRectPayload.y) * contentScale;
         }
 
         function minimapToSceneX(minimapX) {
-            var scene = sceneRect();
-            return scene.x + (Number(minimapX) - contentOffsetX()) / Math.max(1e-6, scaleValue());
+            return sceneRectPayload.x + (Number(minimapX) - contentOffsetX) / Math.max(1e-6, contentScale);
         }
 
         function minimapToSceneY(minimapY) {
-            var scene = sceneRect();
-            return scene.y + (Number(minimapY) - contentOffsetY()) / Math.max(1e-6, scaleValue());
+            return sceneRectPayload.y + (Number(minimapY) - contentOffsetY) / Math.max(1e-6, contentScale);
         }
 
         Rectangle {
@@ -231,47 +234,81 @@ Rectangle {
             }
         }
 
-        Repeater {
-            model: root.sceneStateBridge ? root.sceneStateBridge.minimap_nodes_model : []
-            delegate: Rectangle {
-                readonly property bool selectedState: Boolean(
-                    root.selectedNodeLookup[String(modelData.node_id || "")]
-                )
-                x: minimapViewport.sceneToMinimapX(modelData.x)
-                y: minimapViewport.sceneToMinimapY(modelData.y)
-                width: Math.max(2, modelData.width * minimapViewport.scaleValue())
-                height: Math.max(2, modelData.height * minimapViewport.scaleValue())
-                color: selectedState ? root.minimapNodeSelectedColor : root.minimapNodeColor
-                border.width: selectedState ? 1.2 : 1
-                border.color: selectedState
-                    ? root.minimapNodeSelectedBorderColor
-                    : root.minimapNodeBorderColor
-                radius: 1
+        Item {
+            id: minimapNodeContent
+            objectName: "graphCanvasMinimapNodeContent"
+            x: minimapViewport.contentOffsetX
+            y: minimapViewport.contentOffsetY
+            width: minimapViewport.sceneRectPayload.width
+            height: minimapViewport.sceneRectPayload.height
+            scale: minimapViewport.contentScale
+            transformOrigin: Item.TopLeft
+
+            Repeater {
+                model: root.sceneStateBridge ? root.sceneStateBridge.minimap_nodes_model : []
+                delegate: Rectangle {
+                    Component.onCompleted: minimapViewport._nodeDelegateCreationCount += 1
+                    readonly property bool selectedState: Boolean(
+                        root.selectedNodeLookup[String(modelData.node_id || "")]
+                    )
+                    readonly property real sceneWidthValue: {
+                        var value = Number(modelData.width);
+                        return isFinite(value) && value > 0.0
+                            ? value
+                            : minimapViewport.minimumNodeExtentScene;
+                    }
+                    readonly property real sceneHeightValue: {
+                        var value = Number(modelData.height);
+                        return isFinite(value) && value > 0.0
+                            ? value
+                            : minimapViewport.minimumNodeExtentScene;
+                    }
+                    x: Number(modelData.x) - minimapViewport.sceneRectPayload.x
+                    y: Number(modelData.y) - minimapViewport.sceneRectPayload.y
+                    width: Math.max(minimapViewport.minimumNodeExtentScene, sceneWidthValue)
+                    height: Math.max(minimapViewport.minimumNodeExtentScene, sceneHeightValue)
+                    color: selectedState ? root.minimapNodeSelectedColor : root.minimapNodeColor
+                    border.width: (selectedState ? 1.2 : 1.0) / Math.max(1e-6, minimapViewport.contentScale)
+                    border.color: selectedState
+                        ? root.minimapNodeSelectedBorderColor
+                        : root.minimapNodeBorderColor
+                    radius: 1.0 / Math.max(1e-6, minimapViewport.contentScale)
+                }
             }
         }
 
         Rectangle {
             id: minimapViewportRect
             objectName: "graphCanvasMinimapViewportRect"
-            property var visibleRectPayload: minimapViewport.visibleRect()
-            property real contentWidth: minimapViewport.usedWidth()
-            property real contentHeight: minimapViewport.usedHeight()
-            width: Math.max(10, Math.min(contentWidth, visibleRectPayload.width * minimapViewport.scaleValue()))
-            height: Math.max(10, Math.min(contentHeight, visibleRectPayload.height * minimapViewport.scaleValue()))
+            property int _geometryUpdateCount: 0
+            readonly property string geometryKey: [
+                Number(x).toFixed(3),
+                Number(y).toFixed(3),
+                Number(width).toFixed(3),
+                Number(height).toFixed(3)
+            ].join("|")
+            property real contentWidth: minimapViewport.contentWidth
+            property real contentHeight: minimapViewport.contentHeight
+            width: Math.max(10, Math.min(contentWidth, minimapViewport.visibleRectPayload.width * minimapViewport.contentScale))
+            height: Math.max(10, Math.min(contentHeight, minimapViewport.visibleRectPayload.height * minimapViewport.contentScale))
             x: {
-                var raw = minimapViewport.sceneToMinimapX(visibleRectPayload.x);
-                var minX = minimapViewport.contentOffsetX();
+                var raw = minimapViewport.sceneToMinimapX(minimapViewport.visibleRectPayload.x);
+                var minX = minimapViewport.contentOffsetX;
                 return Math.max(minX, Math.min(raw, minX + contentWidth - width));
             }
             y: {
-                var raw = minimapViewport.sceneToMinimapY(visibleRectPayload.y);
-                var minY = minimapViewport.contentOffsetY();
+                var raw = minimapViewport.sceneToMinimapY(minimapViewport.visibleRectPayload.y);
+                var minY = minimapViewport.contentOffsetY;
                 return Math.max(minY, Math.min(raw, minY + contentHeight - height));
             }
             color: root.viewportRectFillColor
             border.width: 1
             border.color: root.viewportRectBorderColor
             radius: 2
+            onXChanged: _geometryUpdateCount += 1
+            onYChanged: _geometryUpdateCount += 1
+            onWidthChanged: _geometryUpdateCount += 1
+            onHeightChanged: _geometryUpdateCount += 1
 
             MouseArea {
                 id: minimapViewportDragArea

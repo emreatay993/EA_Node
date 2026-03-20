@@ -1244,6 +1244,86 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_minimap_keeps_node_geometry_static_when_center_changes(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-minimap-center-stability",
+            """
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+            scene.add_node_from_type("core.logger", 460.0, 280.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_show_grid": True,
+                        "graphics_show_minimap": True,
+                        "graphics_minimap_expanded": True,
+                        "graphics_node_shadow": True,
+                        "graphics_shadow_strength": 70,
+                        "graphics_shadow_softness": 50,
+                        "graphics_shadow_offset": 4,
+                        "graphics_performance_mode": "full_fidelity",
+                        "snap_to_grid_enabled": False,
+                        "snap_grid_size": 20.0,
+                    },
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            minimap_viewport = canvas.findChild(QObject, "graphCanvasMinimapViewport")
+            minimap_viewport_rect = canvas.findChild(QObject, "graphCanvasMinimapViewportRect")
+            minimap_node_content = canvas.findChild(QObject, "graphCanvasMinimapNodeContent")
+            assert minimap_viewport is not None
+            assert minimap_viewport_rect is not None
+            assert minimap_node_content is not None
+
+            wait_for_condition_or_raise(
+                lambda: int(minimap_viewport.property("_nodeDelegateCreationCount")) == 2,
+                timeout_ms=120,
+                app=app,
+                timeout_message="Timed out waiting for minimap node delegates to settle.",
+            )
+
+            baseline_node_key = str(minimap_viewport.property("nodeGeometryCacheKey"))
+            baseline_creation_count = int(minimap_viewport.property("_nodeDelegateCreationCount"))
+            baseline_node_x = float(minimap_node_content.property("x"))
+            baseline_node_y = float(minimap_node_content.property("y"))
+            baseline_node_scale = float(minimap_node_content.property("scale"))
+            baseline_rect_key = str(minimap_viewport_rect.property("geometryKey"))
+            baseline_rect_updates = int(minimap_viewport_rect.property("_geometryUpdateCount"))
+
+            view.centerOn(160.0, 80.0)
+            app.processEvents()
+            view.centerOn(260.0, 210.0)
+            app.processEvents()
+
+            assert str(minimap_viewport.property("nodeGeometryCacheKey")) == baseline_node_key
+            assert int(minimap_viewport.property("_nodeDelegateCreationCount")) == baseline_creation_count
+            assert abs(float(minimap_node_content.property("x")) - baseline_node_x) < 0.001
+            assert abs(float(minimap_node_content.property("y")) - baseline_node_y) < 0.001
+            assert abs(float(minimap_node_content.property("scale")) - baseline_node_scale) < 1e-6
+            assert str(minimap_viewport_rect.property("geometryKey")) != baseline_rect_key
+            assert int(minimap_viewport_rect.property("_geometryUpdateCount")) > baseline_rect_updates
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_media_performance_mode_keeps_full_surface_during_wheel_zoom_and_recovers(self) -> None:
         self._run_qml_probe(
             "graph-canvas-media-max-performance-wheel-cache",
