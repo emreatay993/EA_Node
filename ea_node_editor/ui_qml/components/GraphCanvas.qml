@@ -1,7 +1,9 @@
 import QtQuick 2.15
+import QtQml 2.15
 import "graph" as GraphComponents
 import "graph_canvas" as GraphCanvasComponents
 import "graph_canvas/GraphCanvasLogic.js" as GraphCanvasLogic
+import "graph_canvas/GraphCanvasPerformancePolicy.js" as GraphCanvasPerformancePolicyLogic
 
 Item {
     id: root
@@ -56,8 +58,22 @@ Item {
     readonly property int shadowStrength: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_strength : 70
     readonly property int shadowSoftness: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_softness : 50
     readonly property int shadowOffset: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_offset : 4
-    readonly property bool viewportInteractionWorldCacheActive: interactionState.viewportInteractionCacheActive
-    readonly property bool highQualityRendering: !root.viewportInteractionWorldCacheActive
+    readonly property string graphicsPerformanceMode: root._canvasStateBridgeRef
+        ? GraphCanvasPerformancePolicyLogic.normalizePerformanceMode(
+            root._canvasStateBridgeRef.graphics_performance_mode
+        )
+        : "full_fidelity"
+    readonly property string resolvedGraphicsPerformanceMode: canvasPerformancePolicy.resolvedMode
+    readonly property bool mutationBurstActive: canvasPerformancePolicy.mutationBurstActive
+    readonly property bool transientPerformanceActivityActive: canvasPerformancePolicy.transientActivityActive
+    readonly property bool transientDegradedWindowActive: canvasPerformancePolicy.transientDegradedWindowActive
+    readonly property bool edgeLabelSimplificationActive: canvasPerformancePolicy.edgeLabelSimplificationActive
+    readonly property bool gridSimplificationActive: canvasPerformancePolicy.gridSimplificationActive
+    readonly property bool minimapSimplificationActive: canvasPerformancePolicy.minimapSimplificationActive
+    readonly property bool shadowSimplificationActive: canvasPerformancePolicy.shadowSimplificationActive
+    readonly property bool snapshotProxyReuseActive: canvasPerformancePolicy.snapshotProxyReuseActive
+    readonly property bool viewportInteractionWorldCacheActive: canvasPerformancePolicy.viewportWorldCacheActive
+    readonly property bool highQualityRendering: canvasPerformancePolicy.highQualityRendering
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
@@ -76,6 +92,48 @@ Item {
         interactionIdleTimer: interactionIdleTimer
         interactionIdleDelayMs: root.interactionIdleDelayMs
         wireDragThreshold: root.wireDragThreshold
+    }
+
+    QtObject {
+        id: canvasPerformancePolicy
+        objectName: "graphCanvasPerformancePolicy"
+        property bool mutationBurstActive: false
+        readonly property var resolvedPolicy: GraphCanvasPerformancePolicyLogic.resolvePerformancePolicy(
+            root.graphicsPerformanceMode,
+            interactionState.interactionActive,
+            mutationBurstActive
+        )
+        readonly property string resolvedMode: resolvedPolicy.resolvedMode
+        readonly property bool fullFidelityMode: resolvedPolicy.fullFidelityMode
+        readonly property bool maxPerformanceMode: resolvedPolicy.maxPerformanceMode
+        readonly property bool viewportInteractionActive: resolvedPolicy.viewportInteractionActive
+        readonly property bool transientActivityActive: resolvedPolicy.transientActivityActive
+        readonly property bool transientDegradedWindowActive: resolvedPolicy.transientDegradedWindowActive
+        readonly property bool viewportWorldCacheActive: resolvedPolicy.viewportWorldCacheActive
+        readonly property bool highQualityRendering: resolvedPolicy.highQualityRendering
+        readonly property bool gridSimplificationActive: resolvedPolicy.gridSimplificationActive
+        readonly property bool minimapSimplificationActive: resolvedPolicy.minimapSimplificationActive
+        readonly property bool edgeLabelSimplificationActive: resolvedPolicy.edgeLabelSimplificationActive
+        readonly property bool shadowSimplificationActive: resolvedPolicy.shadowSimplificationActive
+        readonly property bool snapshotProxyReuseActive: resolvedPolicy.snapshotProxyReuseActive
+
+        function noteStructuralMutation() {
+            if (!mutationBurstActive)
+                mutationBurstActive = true;
+            structuralMutationIdleTimer.restart();
+        }
+
+        function clearStructuralMutation() {
+            structuralMutationIdleTimer.stop();
+            mutationBurstActive = false;
+        }
+    }
+
+    Timer {
+        id: structuralMutationIdleTimer
+        interval: root.interactionIdleDelayMs
+        repeat: false
+        onTriggered: canvasPerformancePolicy.mutationBurstActive = false
     }
 
     property alias hoveredPort: interactionState.hoveredPort
@@ -821,6 +879,10 @@ Item {
         visibleSceneRectPayload: root.visibleSceneRectPayload
         previewEdgeId: root.dropPreviewEdgeId
         dragConnection: root.wireDragPreviewConnection()
+        performanceMode: root.resolvedGraphicsPerformanceMode
+        transientPerformanceActivityActive: root.transientPerformanceActivityActive
+        transientDegradedWindowActive: root.transientDegradedWindowActive
+        edgeLabelSimplificationActive: root.edgeLabelSimplificationActive
         inputEnabled: !(root.edgeContextVisible || root.nodeContextVisible)
 
         onEdgeClicked: function(edgeId, additive) {
@@ -1040,6 +1102,7 @@ Item {
         target: root._canvasSceneStateBridgeRef
         ignoreUnknownSignals: true
         function _handleSceneMutation() {
+            canvasPerformancePolicy.noteStructuralMutation();
             root.liveDragOffsets = ({});
             root.liveNodeGeometry = ({});
             root._clearWireDragState();
@@ -1068,6 +1131,7 @@ Item {
     }
 
     function _resetCanvasSceneState() {
+        canvasPerformancePolicy.clearStructuralMutation();
         root.liveDragOffsets = ({});
         root.liveNodeGeometry = ({});
         interactionState.resetSceneBridgeState();
@@ -1091,6 +1155,7 @@ Item {
     }
 
     Component.onDestruction: {
+        canvasPerformancePolicy.clearStructuralMutation();
         interactionIdleTimer.stop();
         interactionState.releaseHostReferences();
     }

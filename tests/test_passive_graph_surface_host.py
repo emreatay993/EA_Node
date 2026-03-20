@@ -931,6 +931,66 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_mutation_burst_performance_policy_tracks_scene_changes_and_recovers(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-mutation-burst-policy",
+            """
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            policy = canvas.findChild(QObject, "graphCanvasPerformancePolicy")
+            assert policy is not None
+
+            assert canvas.property("resolvedGraphicsPerformanceMode") == "full_fidelity"
+            assert not bool(canvas.property("mutationBurstActive"))
+            assert not bool(canvas.property("transientPerformanceActivityActive"))
+            assert not bool(canvas.property("transientDegradedWindowActive"))
+            assert bool(canvas.property("highQualityRendering"))
+
+            scene.add_node_from_type("core.logger", 360.0, 210.0)
+            app.processEvents()
+
+            assert bool(policy.property("mutationBurstActive"))
+            assert bool(canvas.property("mutationBurstActive"))
+            assert bool(canvas.property("transientPerformanceActivityActive"))
+            assert not bool(canvas.property("transientDegradedWindowActive"))
+            assert bool(canvas.property("highQualityRendering"))
+
+            wait_for_condition_or_raise(
+                lambda: not bool(canvas.property("mutationBurstActive")),
+                timeout_ms=190,
+                app=app,
+                timeout_message="Timed out waiting for scene mutation burst policy to settle.",
+            )
+            assert not bool(canvas.property("transientPerformanceActivityActive"))
+            assert not bool(canvas.property("transientDegradedWindowActive"))
+            assert bool(canvas.property("highQualityRendering"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_viewport_interaction_cache_remains_viewport_only_not_port_drag(self) -> None:
         self._run_qml_probe(
             "graph-canvas-cache-scope",
