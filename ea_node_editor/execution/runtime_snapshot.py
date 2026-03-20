@@ -91,6 +91,19 @@ def coerce_runtime_snapshot(value: RuntimeSnapshot | Mapping[str, Any] | None) -
     return None
 
 
+def coerce_runtime_snapshot_payload(
+    runtime_snapshot: RuntimeSnapshot | Mapping[str, Any] | None,
+    *,
+    legacy_project_doc: Mapping[str, Any] | None = None,
+) -> RuntimeSnapshot | None:
+    snapshot = coerce_runtime_snapshot(runtime_snapshot)
+    if snapshot is not None:
+        return snapshot
+    if isinstance(legacy_project_doc, Mapping):
+        return runtime_snapshot_from_project_document(legacy_project_doc)
+    return None
+
+
 def runtime_snapshot_from_project_document(project_doc: Mapping[str, Any]) -> RuntimeSnapshot:
     return RuntimeSnapshot.from_mapping(project_doc)
 
@@ -135,5 +148,6 @@ __all__ = [
     "build_execution_trigger",
     "build_runtime_snapshot",
     "coerce_runtime_snapshot",
+    "coerce_runtime_snapshot_payload",
     "runtime_snapshot_from_project_document",
 ]

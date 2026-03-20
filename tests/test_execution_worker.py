@@ -12,6 +12,7 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
 @node_type(
@@ -270,6 +271,44 @@ class ExecutionWorkerTests(unittest.TestCase):
         ]
         self.assertTrue(any("'project_doc':" in message for message in logger_logs))
         self.assertTrue(any("'workflow_settings': {'general': {'project_name': 'Demo'}}" in message for message in logger_logs))
+
+    def test_run_workflow_accepts_legacy_project_doc_payload(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        logger = model.add_node(
+            ws.workspace_id,
+            "core.logger",
+            "Logger",
+            100,
+            0,
+            properties={"message": "legacy project doc"},
+        )
+        end = model.add_node(ws.workspace_id, "core.end", "End", 200, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
+
+        event_queue: queue.Queue = queue.Queue()
+        serializer = JsonProjectSerializer(build_default_registry())
+        run_workflow(
+            {
+                "run_id": "run_legacy_project_doc",
+                "workspace_id": ws.workspace_id,
+                "project_doc": serializer.to_document(model.project),
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        event_types = [str(event.get("type", "")) for event in events]
+        self.assertIn("run_completed", event_types)
+        logger_logs = [
+            str(event.get("message", ""))
+            for event in events
+            if str(event.get("type", "")) == "log" and str(event.get("node_id", "")) == logger.node_id
+        ]
+        self.assertIn("legacy project doc", logger_logs)
 
     def test_run_workflow_emits_pause_resume_and_stop_transitions(self) -> None:
         model = GraphModel()

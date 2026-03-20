@@ -159,6 +159,7 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(start_call["workspace_id"], host.model.active_workspace.workspace_id)
         self.assertEqual(start_call["trigger"]["kind"], "manual")
         self.assertEqual(start_call["trigger"]["workflow_settings"], {"general": {"project_name": "Demo"}})
+        self.assertNotIn("project_doc", start_call["trigger"])
         runtime_snapshot = start_call["trigger"]["runtime_snapshot"]
         self.assertEqual(runtime_snapshot.active_workspace_id, host.model.active_workspace.workspace_id)
         self.assertEqual(len(runtime_snapshot.workspaces), 1)

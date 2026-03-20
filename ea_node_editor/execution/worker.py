@@ -36,8 +36,7 @@ from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     build_execution_trigger,
     build_runtime_snapshot,
-    coerce_runtime_snapshot,
-    runtime_snapshot_from_project_document,
+    coerce_runtime_snapshot_payload,
 )
 from ea_node_editor.nodes.types import ExecutionContext
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -586,16 +585,15 @@ def _coerce_start_run_command(command: StartRunCommand | dict[str, Any]) -> Star
             raise ValueError("run_workflow requires a start_run command payload.")
         return typed_command
 
-    runtime_snapshot = coerce_runtime_snapshot(command.get("runtime_snapshot"))
-    legacy_project_doc = command.get("project_doc")
-    if runtime_snapshot is None and isinstance(legacy_project_doc, dict):
-        runtime_snapshot = runtime_snapshot_from_project_document(legacy_project_doc)
     return StartRunCommand(
         run_id=str(command.get("run_id", "")),
         project_path=str(command.get("project_path", "")),
         workspace_id=str(command.get("workspace_id", "")),
         trigger=dict(command.get("trigger", {})) if isinstance(command.get("trigger"), dict) else {},
-        runtime_snapshot=runtime_snapshot,
+        runtime_snapshot=coerce_runtime_snapshot_payload(
+            command.get("runtime_snapshot"),
+            legacy_project_doc=command.get("project_doc"),
+        ),
     )
 
 

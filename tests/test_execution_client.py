@@ -201,6 +201,26 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertTrue(any("tick_client_1" in message for message in stream_messages))
         self.assertTrue(any("warn_client_0" in message for message in stream_messages))
 
+    def test_client_accepts_legacy_project_doc_trigger(self) -> None:
+        workspace_id, runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=False)
+
+        run_id = self.client.start_run(
+            project_path="",
+            workspace_id=workspace_id,
+            trigger={
+                "kind": "manual",
+                "workflow_settings": {"general": {"project_name": "Demo"}},
+                "project_doc": runtime_snapshot.to_document(),
+            },
+        )
+        self.assertTrue(run_id)
+
+        completed = self._wait_for_event(
+            lambda event: event.get("type") == "run_completed" and event.get("run_id") == run_id,
+            timeout=6.0,
+        )
+        self.assertIsNotNone(completed)
+
 
 if __name__ == "__main__":
     unittest.main()

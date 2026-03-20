@@ -7,8 +7,7 @@ from typing import Any, Literal, TypeAlias
 
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
-    coerce_runtime_snapshot,
-    runtime_snapshot_from_project_document,
+    coerce_runtime_snapshot_payload,
 )
 
 EngineState = Literal["ready", "running", "paused", "error"]
@@ -175,16 +174,15 @@ def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
 def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
     command_type = str(payload.get("type", ""))
     if command_type == "start_run":
-        runtime_snapshot = coerce_runtime_snapshot(payload.get("runtime_snapshot"))
-        legacy_project_doc = payload.get("project_doc")
-        if runtime_snapshot is None and isinstance(legacy_project_doc, dict):
-            runtime_snapshot = runtime_snapshot_from_project_document(legacy_project_doc)
         return StartRunCommand(
             run_id=str(payload.get("run_id", "")),
             project_path=str(payload.get("project_path", "")),
             workspace_id=str(payload.get("workspace_id", "")),
             trigger=dict(payload.get("trigger", {})) if isinstance(payload.get("trigger"), dict) else {},
-            runtime_snapshot=runtime_snapshot,
+            runtime_snapshot=coerce_runtime_snapshot_payload(
+                payload.get("runtime_snapshot"),
+                legacy_project_doc=payload.get("project_doc"),
+            ),
         )
     if command_type == "stop_run":
         return StopRunCommand(
