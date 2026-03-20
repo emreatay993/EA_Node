@@ -374,7 +374,15 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
 
         self.view.set_zoom(1.4)
-        self.app.processEvents()
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
+            and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
+            timeout_ms=120,
+            app=self.app,
+            timeout_message="Timed out waiting for deferred zoom redraw flush.",
+        )
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
@@ -383,7 +391,44 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
 
         self.view.centerOn(18.0, -22.0)
-        self.app.processEvents()
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
+            and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
+            timeout_ms=120,
+            app=self.app,
+            timeout_message="Timed out waiting for deferred pan redraw flush.",
+        )
+
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+
+        commits = 0
+
+        def _count_commit() -> None:
+            nonlocal commits
+            commits += 1
+
+        self.view.view_state_changed.connect(_count_commit)
+        background_redraws = int(background.property("_redrawRequestCount"))
+        edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+
+        applied = self.canvas.applyWheelZoom(
+            {"x": 920.0, "y": 410.0, "angleDelta": {"y": 120}, "inverted": False}
+        )
+
+        self.assertTrue(applied)
+        self.assertEqual(commits, 1)
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
+            and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
+            timeout_ms=120,
+            app=self.app,
+            timeout_message="Timed out waiting for deferred wheel redraw flush.",
+        )
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)

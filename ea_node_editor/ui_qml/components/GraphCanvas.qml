@@ -210,6 +210,13 @@ Item {
         onTriggered: interactionState.endViewportInteraction()
     }
 
+    Timer {
+        id: viewStateRedrawFlushTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.flushViewStateRedraw()
+    }
+
     function screenToSceneX(screenX) {
         var view = root._canvasViewStateBridgeRef;
         return GraphCanvasLogic.screenToSceneX(
@@ -856,8 +863,19 @@ Item {
     }
 
     function requestViewStateRedraw() {
-        backgroundLayer.requestGridRedraw();
-        edgeLayer.requestRedraw();
+        if (backgroundLayer && backgroundLayer.markViewStateRedrawDirty)
+            backgroundLayer.markViewStateRedrawDirty();
+        if (edgeLayer && edgeLayer.markViewStateRedrawDirty)
+            edgeLayer.markViewStateRedrawDirty();
+        if (!viewStateRedrawFlushTimer.running)
+            viewStateRedrawFlushTimer.start();
+    }
+
+    function flushViewStateRedraw() {
+        if (backgroundLayer && backgroundLayer.flushViewStateRedraw)
+            backgroundLayer.flushViewStateRedraw();
+        if (edgeLayer && edgeLayer.flushViewStateRedraw)
+            edgeLayer.flushViewStateRedraw();
     }
 
     function _closeContextMenus() {
@@ -1187,6 +1205,7 @@ Item {
 
     Component.onDestruction: {
         canvasPerformancePolicy.clearStructuralMutation();
+        viewStateRedrawFlushTimer.stop();
         interactionIdleTimer.stop();
         interactionState.releaseHostReferences();
     }

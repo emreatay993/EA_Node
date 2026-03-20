@@ -29,6 +29,7 @@ Item {
     property bool edgeLabelSimplificationActive: false
     property bool inputEnabled: true
     property int _redrawRequestCount: 0
+    property bool _viewStateRedrawDirty: false
     property real viewportCullMarginPx: 96.0
     property var _cachedNodeMap: null
     property var _cachedEdgeGeometries: ({})
@@ -48,8 +49,20 @@ Item {
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
 
     function requestRedraw() {
+        root._viewStateRedrawDirty = false;
         root._redrawRequestCount += 1;
         edgeCanvas.requestPaint();
+    }
+
+    function markViewStateRedrawDirty() {
+        root._viewStateRedrawDirty = true;
+    }
+
+    function flushViewStateRedraw() {
+        if (!root._viewStateRedrawDirty)
+            return false;
+        requestRedraw();
+        return true;
     }
 
     function _invalidateGeometryCache() {

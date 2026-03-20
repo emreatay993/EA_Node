@@ -80,12 +80,24 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
         view.set_viewport_size(800.0, 600.0)
         view.centerOn(100.0, -50.0)
 
+        zoom_commits = 0
+        center_commits = 0
         commits = 0
+
+        def _count_zoom(_zoom: float) -> None:
+            nonlocal zoom_commits
+            zoom_commits += 1
+
+        def _count_center(_center_x: float, _center_y: float) -> None:
+            nonlocal center_commits
+            center_commits += 1
 
         def _count_commit() -> None:
             nonlocal commits
             commits += 1
 
+        view.zoom_changed.connect(_count_zoom)
+        view.center_changed.connect(_count_center)
         view.view_state_changed.connect(_count_commit)
 
         anchor_viewport_point = QPointF(560.0, 380.0)
@@ -95,6 +107,8 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
 
         scene_after = view.mapToScene(anchor_viewport_point)
         self.assertTrue(changed)
+        self.assertEqual(zoom_commits, 1)
+        self.assertEqual(center_commits, 1)
         self.assertEqual(commits, 1)
         self.assertAlmostEqual(view.zoom, 1.15, places=6)
         self.assertAlmostEqual(scene_before.x(), scene_after.x(), places=6)

@@ -7,6 +7,7 @@ Item {
     property bool showGrid: true
     property bool degradedWindowActive: false
     property int _redrawRequestCount: 0
+    property bool _viewStateRedrawDirty: false
     readonly property var themePalette: themeBridge.palette
     readonly property color backgroundTopColor: themePalette.canvas_bg
     readonly property color backgroundBottomColor: themePalette.panel_bg
@@ -16,8 +17,20 @@ Item {
     readonly property bool effectiveShowGrid: root.showGrid && !root.degradedWindowActive
 
     function requestGridRedraw() {
+        root._viewStateRedrawDirty = false;
         root._redrawRequestCount += 1;
         gridCanvas.requestPaint();
+    }
+
+    function markViewStateRedrawDirty() {
+        root._viewStateRedrawDirty = true;
+    }
+
+    function flushViewStateRedraw() {
+        if (!root._viewStateRedrawDirty)
+            return false;
+        requestGridRedraw();
+        return true;
     }
 
     onShowGridChanged: requestGridRedraw()
