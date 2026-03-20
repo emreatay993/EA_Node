@@ -3,7 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.types import (
+    NodePlugin,
+    NodeRenderQualitySpec,
+    NodeTypeSpec,
+    PortSpec,
+    PropertySpec,
+)
 
 
 def in_port(
@@ -181,6 +187,7 @@ def node_type(
     runtime_behavior: str = "active",
     surface_family: str = "standard",
     surface_variant: str = "",
+    render_quality: NodeRenderQualitySpec | dict[str, Any] | None = None,
 ) -> Callable[[type[NodePlugin]], type[NodePlugin]]:
     spec = NodeTypeSpec(
         type_id=type_id,
@@ -194,6 +201,7 @@ def node_type(
         runtime_behavior=runtime_behavior,  # type: ignore[arg-type]
         surface_family=surface_family,  # type: ignore[arg-type]
         surface_variant=surface_variant,
+        render_quality=render_quality,  # type: ignore[arg-type]
     )
 
     def decorator(cls: type[NodePlugin]) -> type[NodePlugin]:

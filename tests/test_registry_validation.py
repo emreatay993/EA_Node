@@ -14,9 +14,11 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
     NodeResult,
+    NodeRenderQualitySpec,
     NodeTypeSpec,
     PluginDescriptor,
     PluginProvenance,
@@ -191,6 +193,60 @@ class RegistryValidationTests(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             registry.register(_factory(spec))
+
+    def test_node_type_spec_defaults_render_quality_contract(self) -> None:
+        spec = NodeTypeSpec(
+            type_id="tests.render_quality_defaults",
+            display_name="Render Quality Defaults",
+            category="Tests",
+            icon="",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(),
+        )
+
+        self.assertEqual(spec.render_quality, NodeRenderQualitySpec())
+        self.assertEqual(spec.render_quality.weight_class, "standard")
+        self.assertEqual(spec.render_quality.max_performance_strategy, "generic_fallback")
+        self.assertEqual(spec.render_quality.supported_quality_tiers, ("full",))
+
+    def test_decorator_authored_nodes_publish_normalized_render_quality_contract(self) -> None:
+        registry = NodeRegistry()
+
+        @node_type(
+            type_id="tests.decorated_render_quality",
+            display_name="Decorated Render Quality",
+            category="Tests",
+            icon="",
+            ports=(),
+            properties=(),
+            render_quality={
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy", "proxy"],
+            },
+        )
+        class _DecoratedRenderQualityNode:
+            def execute(self, _ctx) -> NodeResult:  # noqa: ANN001
+                return NodeResult()
+
+        registry.register(lambda: _DecoratedRenderQualityNode())
+
+        spec = registry.get_spec("tests.decorated_render_quality")
+        self.assertEqual(spec.render_quality.weight_class, "heavy")
+        self.assertEqual(spec.render_quality.max_performance_strategy, "proxy_surface")
+        self.assertEqual(spec.render_quality.supported_quality_tiers, ("full", "proxy"))
+
+    def test_render_quality_rejects_invalid_weight_class(self) -> None:
+        with self.assertRaises(ValueError):
+            NodeTypeSpec(
+                type_id="tests.bad_render_quality",
+                display_name="Bad Render Quality",
+                category="Tests",
+                icon="",
+                ports=(PortSpec("value", "out", "data", "any"),),
+                properties=(),
+                render_quality={"weight_class": "ultra"},  # type: ignore[arg-type]
+            )
 
     def test_default_properties_are_deep_copied_per_instance(self) -> None:
         registry = NodeRegistry()
