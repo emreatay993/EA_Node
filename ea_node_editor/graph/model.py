@@ -401,37 +401,55 @@ class GraphModel:
     def validated_mutations(self, workspace_id: str, registry: "NodeRegistry") -> "WorkspaceMutationService":
         return self.mutation_service(workspace_id, registry=registry)
 
-    def create_workspace(self, name: str | None = None) -> WorkspaceData:
+    def _create_workspace_record(self, name: str | None = None) -> WorkspaceData:
         index = len(self.project.workspaces) + 1
         workspace = WorkspaceData(workspace_id=new_id("ws"), name=name or f"Workspace {index}")
         workspace.ensure_default_view()
         self.project.workspaces[workspace.workspace_id] = workspace
-        self.project.active_workspace_id = workspace.workspace_id
         return workspace
 
-    def duplicate_workspace(self, workspace_id: str) -> WorkspaceData:
+    def create_workspace(self, name: str | None = None) -> WorkspaceData:
+        workspace = self._create_workspace_record(name=name)
+        self._set_active_workspace_id(workspace.workspace_id)
+        return workspace
+
+    def _duplicate_workspace_record(self, workspace_id: str) -> WorkspaceData:
         source = self.project.workspaces[workspace_id]
         duplicated = source.clone(new_workspace_id=new_id("ws"), name=f"{source.name} Copy")
         self.project.workspaces[duplicated.workspace_id] = duplicated
-        self.project.active_workspace_id = duplicated.workspace_id
         return duplicated
 
-    def close_workspace(self, workspace_id: str) -> None:
+    def duplicate_workspace(self, workspace_id: str) -> WorkspaceData:
+        duplicated = self._duplicate_workspace_record(workspace_id)
+        self._set_active_workspace_id(duplicated.workspace_id)
+        return duplicated
+
+    def _close_workspace_record(self, workspace_id: str) -> None:
         if workspace_id not in self.project.workspaces:
             return
         if len(self.project.workspaces) == 1:
             raise ValueError("Cannot close the last workspace")
         del self.project.workspaces[workspace_id]
-        if self.project.active_workspace_id == workspace_id:
-            self.project.active_workspace_id = next(iter(self.project.workspaces))
 
-    def rename_workspace(self, workspace_id: str, new_name: str) -> None:
+    def close_workspace(self, workspace_id: str) -> None:
+        was_active = self.project.active_workspace_id == workspace_id
+        self._close_workspace_record(workspace_id)
+        if was_active and self.project.workspaces:
+            self._set_active_workspace_id(next(iter(self.project.workspaces)))
+
+    def _rename_workspace_record(self, workspace_id: str, new_name: str) -> None:
         self.project.workspaces[workspace_id].name = new_name
 
-    def set_active_workspace(self, workspace_id: str) -> None:
+    def rename_workspace(self, workspace_id: str, new_name: str) -> None:
+        self._rename_workspace_record(workspace_id, new_name)
+
+    def _set_active_workspace_id(self, workspace_id: str) -> None:
         if workspace_id not in self.project.workspaces:
             raise KeyError(f"Unknown workspace: {workspace_id}")
         self.project.active_workspace_id = workspace_id
+
+    def set_active_workspace(self, workspace_id: str) -> None:
+        self._set_active_workspace_id(workspace_id)
 
     def create_view(
         self,

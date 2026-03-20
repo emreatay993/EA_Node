@@ -9,12 +9,12 @@ from ea_node_editor.workspace.manager import WorkspaceManager
 class WorkspaceManagerTests(unittest.TestCase):
     def test_manager_normalizes_workspace_order_and_active_workspace_from_project_state(self) -> None:
         model = GraphModel()
-        first = model.active_workspace.workspace_id
-        second = model.create_workspace("Second").workspace_id
-        third = model.create_workspace("Third").workspace_id
+        manager = WorkspaceManager(model)
+        first = manager.active_workspace_id()
+        second = manager.create_workspace("Second")
+        third = manager.create_workspace("Third")
         model.project.metadata = {"workspace_order": [third, "missing", first, third]}
         model.project.active_workspace_id = "missing"
-
         manager = WorkspaceManager(model)
 
         self.assertEqual(model.project.metadata["workspace_order"], [third, first, second])
@@ -24,12 +24,22 @@ class WorkspaceManagerTests(unittest.TestCase):
             [third, first, second],
         )
 
+    def test_create_workspace_appends_to_authoritative_order_and_activates_the_new_workspace(self) -> None:
+        model = GraphModel()
+        manager = WorkspaceManager(model)
+        first = manager.active_workspace_id()
+
+        second = manager.create_workspace("Second")
+
+        self.assertEqual(model.project.metadata["workspace_order"], [first, second])
+        self.assertEqual(manager.active_workspace_id(), second)
+
     def test_duplicate_workspace_inserts_clone_after_source_in_authoritative_order(self) -> None:
         model = GraphModel()
-        first = model.active_workspace.workspace_id
-        second = model.create_workspace("Second").workspace_id
-        third = model.create_workspace("Third").workspace_id
         manager = WorkspaceManager(model)
+        first = manager.active_workspace_id()
+        second = manager.create_workspace("Second")
+        third = manager.create_workspace("Third")
         manager.move_workspace(2, 1)
 
         duplicated = manager.duplicate_workspace(third)
@@ -42,10 +52,10 @@ class WorkspaceManagerTests(unittest.TestCase):
 
     def test_close_workspace_promotes_the_next_workspace_in_authoritative_order(self) -> None:
         model = GraphModel()
-        first = model.active_workspace.workspace_id
-        second = model.create_workspace("Second").workspace_id
-        third = model.create_workspace("Third").workspace_id
         manager = WorkspaceManager(model)
+        first = manager.active_workspace_id()
+        second = manager.create_workspace("Second")
+        third = manager.create_workspace("Third")
         manager.move_workspace(2, 1)
         manager.set_active_workspace(third)
 

@@ -37,18 +37,19 @@ class WorkspaceManager:
         return refs
 
     def create_workspace(self, name: str | None = None) -> str:
-        workspace = self._model.create_workspace(name=name)
+        workspace = self._model._create_workspace_record(name=name)
         order = self._sync_workspace_ownership()
         if workspace.workspace_id not in order:
             order.append(workspace.workspace_id)
+        self._model._set_active_workspace_id(workspace.workspace_id)
         return workspace.workspace_id
 
     def rename_workspace(self, workspace_id: str, new_name: str) -> None:
-        self._model.rename_workspace(workspace_id, new_name)
+        self._model._rename_workspace_record(workspace_id, new_name)
 
     def duplicate_workspace(self, workspace_id: str) -> str:
         source_order = list(self._sync_workspace_ownership())
-        duplicated = self._model.duplicate_workspace(workspace_id)
+        duplicated = self._model._duplicate_workspace_record(workspace_id)
         order = self._sync_workspace_ownership()
         if duplicated.workspace_id in order:
             order.remove(duplicated.workspace_id)
@@ -57,6 +58,7 @@ class WorkspaceManager:
         except ValueError:
             source_index = len(order) - 1
         order.insert(source_index + 1, duplicated.workspace_id)
+        self._model._set_active_workspace_id(duplicated.workspace_id)
         return duplicated.workspace_id
 
     def close_workspace(self, workspace_id: str) -> None:
@@ -65,15 +67,14 @@ class WorkspaceManager:
             return
         was_active = self._model.project.active_workspace_id == workspace_id
         close_index = order.index(workspace_id) if workspace_id in order else -1
-        self._model.close_workspace(workspace_id)
-        if workspace_id in order:
-            order.remove(workspace_id)
+        self._model._close_workspace_record(workspace_id)
+        order = self._sync_workspace_ownership()
         if was_active and order:
             next_index = min(max(close_index, 0), len(order) - 1)
-            self._model.set_active_workspace(order[next_index])
+            self._model._set_active_workspace_id(order[next_index])
 
     def set_active_workspace(self, workspace_id: str) -> None:
-        self._model.set_active_workspace(workspace_id)
+        self._model._set_active_workspace_id(workspace_id)
 
     def create_view(
         self,
@@ -115,5 +116,5 @@ class WorkspaceManager:
         if active_id in self._model.project.workspaces:
             return active_id
         fallback_id = order[0]
-        self._model.set_active_workspace(fallback_id)
+        self._model._set_active_workspace_id(fallback_id)
         return fallback_id
