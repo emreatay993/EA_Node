@@ -5,6 +5,8 @@ import subprocess
 import sys
 import unittest
 
+from PyQt6.QtCore import QMetaObject
+
 from tests.main_window_shell.base import MainWindowShellTestBase, SharedMainWindowShellTestBase
 from tests.main_window_shell.bridge_contracts import (
     FrameRateSampler,
@@ -23,6 +25,20 @@ from tests.main_window_shell.bridge_contracts import (
     build_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
+
+
+def _status_strip_items(window) -> tuple[QObject, QObject, QObject, QObject]:
+    root_object = window.quick_widget.rootObject()
+    if root_object is None:
+        raise AssertionError("Expected QML root object")
+
+    status_strip = root_object.findChild(QObject, "shellStatusStrip")
+    summary = root_object.findChild(QObject, "shellStatusStripGraphicsModeSummary")
+    full_button = root_object.findChild(QObject, "shellStatusStripFullFidelityButton")
+    max_button = root_object.findChild(QObject, "shellStatusStripMaxPerformanceButton")
+    if status_strip is None or summary is None or full_button is None or max_button is None:
+        raise AssertionError("Expected status-strip graphics mode controls")
+    return status_strip, summary, full_button, max_button
 
 
 class FrameRateSamplerTests(unittest.TestCase):
@@ -136,6 +152,67 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
 
 
+class MainWindowShellStatusStripQuickToggleTests(SharedMainWindowShellTestBase):
+    def test_status_strip_quick_toggle_reflects_current_mode_and_copy(self) -> None:
+        _status_strip, summary, full_button, max_button = _status_strip_items(self.window)
+
+        self.assertEqual(summary.property("text"), "Graphics: Full Fidelity")
+        self.assertEqual(full_button.property("text"), "Full Fidelity")
+        self.assertEqual(max_button.property("text"), "Max Performance")
+        self.assertEqual(
+            full_button.property("tooltipText"),
+            "Keeps normal visual quality and applies only invisible structural optimizations.",
+        )
+        self.assertEqual(
+            max_button.property("tooltipText"),
+            "Temporarily simplifies whole-canvas rendering during pan, zoom, and burst edits; idle quality restores automatically.",
+        )
+        self.assertTrue(bool(full_button.property("selectedStyle")))
+        self.assertFalse(bool(max_button.property("selectedStyle")))
+
+        self.window.app_preferences_controller.set_graphics_settings(
+            {
+                "performance": {
+                    "mode": "max_performance",
+                }
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertEqual(self.window.graphics_performance_mode, "max_performance")
+        self.assertEqual(summary.property("text"), "Graphics: Max Performance")
+        self.assertFalse(bool(full_button.property("selectedStyle")))
+        self.assertTrue(bool(max_button.property("selectedStyle")))
+
+    def test_status_strip_quick_toggle_persists_mode_changes(self) -> None:
+        _status_strip, summary, full_button, max_button = _status_strip_items(self.window)
+
+        QMetaObject.invokeMethod(max_button, "click")
+        self.app.processEvents()
+
+        self.assertEqual(self.window.graphics_performance_mode, "max_performance")
+        self.assertEqual(summary.property("text"), "Graphics: Max Performance")
+        self.assertFalse(bool(full_button.property("selectedStyle")))
+        self.assertTrue(bool(max_button.property("selectedStyle")))
+
+        self._reopen_shared_window()
+        _status_strip, reopened_summary, reopened_full_button, reopened_max_button = _status_strip_items(self.window)
+
+        self.assertEqual(self.window.graphics_performance_mode, "max_performance")
+        self.assertEqual(reopened_summary.property("text"), "Graphics: Max Performance")
+        self.assertFalse(bool(reopened_full_button.property("selectedStyle")))
+        self.assertTrue(bool(reopened_max_button.property("selectedStyle")))
+
+        QMetaObject.invokeMethod(reopened_full_button, "click")
+        self.app.processEvents()
+
+        self.assertEqual(self.window.graphics_performance_mode, "full_fidelity")
+        self.assertEqual(reopened_summary.property("text"), "Graphics: Full Fidelity")
+        self.assertTrue(bool(reopened_full_button.property("selectedStyle")))
+        self.assertFalse(bool(reopened_max_button.property("selectedStyle")))
+
+
 class MainWindowShellHostProtocolStateTests(SharedMainWindowShellTestBase):
     def test_search_scope_state_tracks_graph_search_quick_insert_and_hints(self) -> None:
         self.window.action_graph_search.trigger()
@@ -218,14 +295,12 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
         self.assertEqual(graph_canvas.objectName(), "graphCanvas")
-        self.assertIsInstance(canvas_bridge, GraphCanvasBridge)
-        self.assertIs(canvas_bridge, graph_canvas_bridge)
         self.assertIsInstance(canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(canvas_state_bridge, graph_canvas_state_bridge)
         self.assertIsInstance(canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(canvas_command_bridge, graph_canvas_command_bridge)
-        self.assertIsInstance(canvas_bridge_ref, GraphCanvasBridge)
-        self.assertIs(canvas_bridge_ref, graph_canvas_bridge)
+        self.assertIsNone(canvas_bridge)
+        self.assertIsNone(canvas_bridge_ref)
         self.assertEqual(
             bool(graph_canvas.property("showGrid")),
             graph_canvas_state_bridge.graphics_show_grid,
@@ -362,6 +437,7 @@ __all__ = [
     "MainWindowShellTelemetryTests",
     "MainWindowShellBootstrapCompositionTests",
     "MainWindowShellContextBootstrapTests",
+    "MainWindowShellStatusStripQuickToggleTests",
     "MainWindowShellHostProtocolStateTests",
     "_MainWindowShellGraphCanvasHostDirectTests",
     "MainWindowShellPassiveImageNodesTests",

@@ -8,6 +8,7 @@ Rectangle {
     id: root
     readonly property var themePalette: themeBridge.palette
     color: themePalette.app_bg
+    readonly property var canvasBridgeRef: graphCanvasBridge
     readonly property var canvasStateBridgeRef: graphCanvasStateBridge
     readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge
     readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef
@@ -55,6 +56,7 @@ Rectangle {
         }
 
         ShellStatusStrip {
+            canvasBridgeRef: root.canvasBridgeRef
             statusEngineRef: statusEngine
             statusJobsRef: statusJobs
             statusMetricsRef: statusMetrics
