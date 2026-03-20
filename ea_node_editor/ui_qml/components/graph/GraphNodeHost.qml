@@ -38,7 +38,9 @@ Item {
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var renderQuality: card._normalizedRenderQuality(nodeData ? nodeData.render_quality : null)
-    readonly property bool reducedQualityRequested: card.snapshotReuseActive || card.shadowSimplificationActive
+    // Reduced/proxy surface negotiation is only worthwhile when we are reusing
+    // a degraded snapshot; viewport pan/zoom already has a separate world-cache path.
+    readonly property bool reducedQualityRequested: card.snapshotReuseActive
     readonly property string requestedQualityTier: card.reducedQualityRequested ? "reduced" : "full"
     readonly property bool proxySurfaceCapable: card.renderQuality.max_performance_strategy === "proxy_surface"
         && card._supportsRenderQualityTier("proxy")

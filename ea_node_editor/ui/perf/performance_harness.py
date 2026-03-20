@@ -793,6 +793,37 @@ class _GraphCanvasBenchmarkHost:
             return ""
         return str(self.canvas.property("resolvedGraphicsPerformanceMode") or "")
 
+    def begin_viewport_interaction(self) -> None:
+        if getattr(self, "canvas", None) is None:
+            return
+        self.canvas.beginViewportInteraction()
+        self.app.processEvents()
+
+    def note_viewport_interaction(self) -> None:
+        if getattr(self, "canvas", None) is None:
+            return
+        self.canvas.noteViewportInteraction()
+        self.app.processEvents()
+
+    def finish_viewport_interaction(self) -> None:
+        if getattr(self, "canvas", None) is None:
+            return
+        self.canvas.finishViewportInteractionSoon()
+        self.app.processEvents()
+
+    def wait_for_viewport_interaction_idle(self, *, timeout_ms: int = 1000) -> None:
+        if getattr(self, "canvas", None) is None:
+            return
+        deadline = time.perf_counter() + (float(timeout_ms) / 1000.0)
+        while True:
+            self.app.processEvents()
+            if not bool(self.canvas.property("interactionActive")):
+                self.app.processEvents()
+                return
+            if time.perf_counter() >= deadline:
+                raise RuntimeError("Timed out waiting for GraphCanvas viewport interaction to settle")
+            time.sleep(0.005)
+
     def wait_for_media_surfaces_ready(self, *, expected_count: int, timeout_ms: int = 6000) -> None:
         if expected_count <= 0 or getattr(self, "canvas", None) is None:
             return
@@ -959,15 +990,20 @@ def benchmark_pan_zoom_ms(
                     canvas_host.view.centerOn(preload_center_x, preload_center_y)
                 canvas_host.render_frame()
 
+            canvas_host.begin_viewport_interaction()
             started = time.perf_counter()
             canvas_host.view.centerOn(pan_to_x, pan_to_y)
+            canvas_host.note_viewport_interaction()
             canvas_host.render_frame()
             pan_elapsed_ms = (time.perf_counter() - started) * 1000.0
 
             started = time.perf_counter()
             canvas_host.view.set_zoom(zoom_to)
+            canvas_host.note_viewport_interaction()
             canvas_host.render_frame()
             zoom_elapsed_ms = (time.perf_counter() - started) * 1000.0
+            canvas_host.finish_viewport_interaction()
+            canvas_host.wait_for_viewport_interaction_idle()
             return pan_elapsed_ms, zoom_elapsed_ms, canvas_host.resolved_graphics_performance_mode()
 
     if expected_media_surface_count > 0:
@@ -1030,8 +1066,10 @@ def benchmark_pan_zoom_ms(
                     top,
                     min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
                 )
+                canvas_host.begin_viewport_interaction()
                 started = time.perf_counter()
                 canvas_host.view.centerOn(pan_x, pan_y)
+                canvas_host.note_viewport_interaction()
                 canvas_host.render_frame()
                 pan_samples_ms.append((time.perf_counter() - started) * 1000.0)
 
@@ -1039,8 +1077,11 @@ def benchmark_pan_zoom_ms(
                 zoom = max(zoom_min, min(zoom_max, canvas_host.view.zoom * zoom_step))
                 started = time.perf_counter()
                 canvas_host.view.set_zoom(zoom)
+                canvas_host.note_viewport_interaction()
                 canvas_host.render_frame()
                 zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
+                canvas_host.finish_viewport_interaction()
+                canvas_host.wait_for_viewport_interaction_idle()
 
     combined = [pan + zoom for pan, zoom in zip(pan_samples_ms, zoom_samples_ms, strict=True)]
     return {
@@ -1057,7 +1098,7 @@ def benchmark_pan_zoom_ms(
             "theme_id": _CANVAS_THEME_ID,
             "graph_theme_id": _CANVAS_GRAPH_THEME_ID,
             "measurement_driver": (
-                "ViewportBridge.centerOn + ViewportBridge.set_zoom with QQuickWindow.grabWindow()"
+                "GraphCanvas begin/note/finish viewport interaction + ViewportBridge.centerOn/set_zoom with QQuickWindow.grabWindow()"
             ),
             "uses_actual_canvas_render_path": True,
             "performance_mode": performance_mode,

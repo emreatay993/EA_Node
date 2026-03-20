@@ -74,7 +74,7 @@ Item {
     readonly property bool minimapSimplificationActive: canvasPerformancePolicy.minimapSimplificationActive
         || root.transientDegradedWindowActive
     readonly property bool shadowSimplificationActive: canvasPerformancePolicy.shadowSimplificationActive
-        || root.transientDegradedWindowActive
+        || root.mutationBurstActive
     readonly property bool snapshotProxyReuseActive: canvasPerformancePolicy.snapshotProxyReuseActive
         || root.transientDegradedWindowActive
     readonly property bool viewportInteractionWorldCacheActive: canvasPerformancePolicy.viewportWorldCacheActive
@@ -942,7 +942,7 @@ Item {
                 shadowOffset: root.shadowOffset
                 zoom: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
-                snapshotReuseActive: root.snapshotProxyReuseActive
+                snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
                 shadowSimplificationActive: root.shadowSimplificationActive
 
                 onNodeClicked: function(nodeId, additive) {

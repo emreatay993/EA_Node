@@ -1015,7 +1015,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_canvas_max_performance_degrades_shadow_grid_and_minimap_during_wheel_zoom(self) -> None:
+    def test_graph_canvas_max_performance_degrades_grid_and_minimap_but_preserves_shadows_during_wheel_zoom(self) -> None:
         self._run_qml_probe(
             "graph-canvas-max-performance-wheel-zoom",
             """
@@ -1083,12 +1083,12 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert not bool(canvas.property("highQualityRendering"))
             assert bool(canvas.property("gridSimplificationActive"))
             assert bool(canvas.property("minimapSimplificationActive"))
-            assert bool(canvas.property("shadowSimplificationActive"))
+            assert not bool(canvas.property("shadowSimplificationActive"))
             assert bool(canvas.property("snapshotProxyReuseActive"))
             assert bool(node_card.property("viewportInteractionCacheActive"))
-            assert bool(node_card.property("snapshotReuseActive"))
+            assert not bool(node_card.property("snapshotReuseActive"))
             assert bool(node_card.property("effectiveTextureCacheActive"))
-            assert not bool(shadow_item.property("visible"))
+            assert bool(shadow_item.property("visible"))
             assert not bool(background.property("effectiveShowGrid"))
             assert not bool(minimap_overlay.property("minimapContentVisible"))
             assert not bool(minimap_viewport.property("visible"))
@@ -1121,9 +1121,9 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_canvas_media_performance_mode_uses_proxy_surface_during_wheel_zoom_and_recovers(self) -> None:
+    def test_graph_canvas_media_performance_mode_keeps_full_surface_during_wheel_zoom_and_recovers(self) -> None:
         self._run_qml_probe(
-            "graph-canvas-media-max-performance-proxy",
+            "graph-canvas-media-max-performance-wheel-cache",
             """
             import tempfile
 
@@ -1207,6 +1207,145 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 wait_for_condition_or_raise(
                     lambda: (
                         bool(canvas.property("transientDegradedWindowActive"))
+                        and bool(node_card.property("viewportInteractionCacheActive"))
+                        and not bool(node_card.property("snapshotReuseActive"))
+                        and node_card.property("resolvedQualityTier") == "full"
+                        and not bool(node_card.property("proxySurfaceRequested"))
+                        and not bool(surface.property("proxySurfaceActive"))
+                        and not bool(loader.property("proxySurfaceActive"))
+                        and not bool(proxy_preview.property("visible"))
+                        and bool(applied_viewport.property("visible"))
+                    ),
+                    timeout_ms=240,
+                    app=app,
+                    timeout_message="Timed out waiting for media viewport cache activation.",
+                )
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        not bool(canvas.property("interactionActive"))
+                        and not bool(canvas.property("transientDegradedWindowActive"))
+                        and not bool(node_card.property("viewportInteractionCacheActive"))
+                        and node_card.property("resolvedQualityTier") == "full"
+                        and not bool(node_card.property("proxySurfaceRequested"))
+                        and not bool(surface.property("proxySurfaceActive"))
+                        and not bool(loader.property("proxySurfaceActive"))
+                        and not bool(proxy_preview.property("visible"))
+                        and bool(applied_viewport.property("visible"))
+                    ),
+                    timeout_ms=400,
+                    app=app,
+                    timeout_message="Timed out waiting for media viewport cache recovery.",
+                )
+
+                canvas.deleteLater()
+                app.processEvents()
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_media_performance_mode_uses_proxy_surface_during_mutation_burst_and_recovers(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-media-max-performance-mutation-proxy",
+            """
+            import tempfile
+
+            from PyQt6.QtGui import QColor, QImage
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "canvas-mutation-proxy-image.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                model = GraphModel()
+                registry = build_default_registry()
+                workspace_id = model.active_workspace.workspace_id
+                scene = GraphSceneBridge()
+                scene.set_workspace(model, registry, workspace_id)
+                node_id = scene.add_node_from_type("passive.media.image_panel", 120.0, 140.0)
+                scene.set_node_property(node_id, "source_path", str(image_path))
+                scene.set_node_property(node_id, "caption", "Mutation proxy preview")
+                scene.set_node_property(node_id, "fit_mode", "contain")
+
+                view = ViewportBridge()
+                view.set_viewport_size(1280.0, 720.0)
+
+                canvas = create_component(
+                    graph_canvas_qml_path,
+                    {
+                        "mainWindowBridge": {
+                            "graphics_show_grid": True,
+                            "graphics_show_minimap": True,
+                            "graphics_minimap_expanded": True,
+                            "graphics_node_shadow": True,
+                            "graphics_shadow_strength": 70,
+                            "graphics_shadow_softness": 50,
+                            "graphics_shadow_offset": 4,
+                            "graphics_performance_mode": "max_performance",
+                            "snap_to_grid_enabled": False,
+                            "snap_grid_size": 20.0,
+                        },
+                        "sceneBridge": scene,
+                        "viewBridge": view,
+                        "width": 1280.0,
+                        "height": 720.0,
+                    },
+                )
+                node_cards = [
+                    card for card in named_child_items(canvas, "graphNodeCard")
+                    if str(card.property("surfaceFamily")) == "media"
+                ]
+                assert len(node_cards) == 1
+
+                node_card = node_cards[0]
+                loader = node_card.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = node_card.findChild(QObject, "graphNodeMediaSurface")
+                proxy_preview = node_card.findChild(QObject, "graphNodeMediaProxyPreview")
+                applied_viewport = node_card.findChild(QObject, "graphNodeMediaAppliedImageViewport")
+                assert loader is not None
+                assert surface is not None
+                assert proxy_preview is not None
+                assert applied_viewport is not None
+
+                wait_for_condition_or_raise(
+                    lambda: str(surface.property("previewState")) == "ready",
+                    timeout_ms=600,
+                    app=app,
+                    timeout_message="Timed out waiting for media preview to reach ready state.",
+                )
+                assert node_card.property("resolvedQualityTier") == "full"
+                assert not bool(node_card.property("proxySurfaceRequested"))
+                assert not bool(surface.property("proxySurfaceActive"))
+                assert not bool(loader.property("proxySurfaceActive"))
+                assert not bool(proxy_preview.property("visible"))
+                assert bool(applied_viewport.property("visible"))
+
+                scene.add_node_from_type("core.logger", 360.0, 210.0)
+                app.processEvents()
+
+                node_cards = [
+                    card for card in named_child_items(canvas, "graphNodeCard")
+                    if str(card.property("surfaceFamily")) == "media"
+                ]
+                assert len(node_cards) == 1
+                node_card = node_cards[0]
+                loader = node_card.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = node_card.findChild(QObject, "graphNodeMediaSurface")
+                proxy_preview = node_card.findChild(QObject, "graphNodeMediaProxyPreview")
+                applied_viewport = node_card.findChild(QObject, "graphNodeMediaAppliedImageViewport")
+                assert loader is not None
+                assert surface is not None
+                assert proxy_preview is not None
+                assert applied_viewport is not None
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        bool(canvas.property("mutationBurstActive"))
+                        and bool(canvas.property("transientDegradedWindowActive"))
+                        and not bool(node_card.property("viewportInteractionCacheActive"))
                         and bool(node_card.property("snapshotReuseActive"))
                         and node_card.property("resolvedQualityTier") == "proxy"
                         and bool(node_card.property("proxySurfaceRequested"))
@@ -1217,13 +1356,14 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     ),
                     timeout_ms=240,
                     app=app,
-                    timeout_message="Timed out waiting for media proxy surface activation.",
+                    timeout_message="Timed out waiting for media mutation proxy activation.",
                 )
 
                 wait_for_condition_or_raise(
                     lambda: (
-                        not bool(canvas.property("interactionActive"))
+                        not bool(canvas.property("mutationBurstActive"))
                         and not bool(canvas.property("transientDegradedWindowActive"))
+                        and not bool(node_card.property("snapshotReuseActive"))
                         and node_card.property("resolvedQualityTier") == "full"
                         and not bool(node_card.property("proxySurfaceRequested"))
                         and not bool(surface.property("proxySurfaceActive"))
@@ -1233,7 +1373,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     ),
                     timeout_ms=400,
                     app=app,
-                    timeout_message="Timed out waiting for media proxy surface recovery.",
+                    timeout_message="Timed out waiting for media mutation proxy recovery.",
                 )
 
                 canvas.deleteLater()
