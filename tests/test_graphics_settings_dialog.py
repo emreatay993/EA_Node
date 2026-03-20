@@ -5,6 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
@@ -265,6 +267,31 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             )
             self.assertFalse(dialog.full_fidelity_mode_button.isChecked())
             self.assertTrue(dialog.max_performance_mode_button.isChecked())
+            self.assertEqual(dialog.values()["performance"]["mode"], "max_performance")
+        finally:
+            dialog.close()
+
+    def test_clicking_performance_mode_option_card_updates_selection(self) -> None:
+        dialog = GraphicsSettingsDialog()
+        try:
+            dialog.show()
+            QApplication.instance().processEvents()
+
+            self.assertTrue(dialog.full_fidelity_mode_button.isChecked())
+            self.assertEqual(dialog.full_fidelity_mode_option.property("performanceModeSelected"), True)
+            self.assertEqual(dialog.max_performance_mode_option.property("performanceModeSelected"), False)
+
+            QTest.mouseClick(
+                dialog.max_performance_mode_option,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+            )
+            QApplication.instance().processEvents()
+
+            self.assertFalse(dialog.full_fidelity_mode_button.isChecked())
+            self.assertTrue(dialog.max_performance_mode_button.isChecked())
+            self.assertEqual(dialog.full_fidelity_mode_option.property("performanceModeSelected"), False)
+            self.assertEqual(dialog.max_performance_mode_option.property("performanceModeSelected"), True)
             self.assertEqual(dialog.values()["performance"]["mode"], "max_performance")
         finally:
             dialog.close()

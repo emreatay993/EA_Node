@@ -4,7 +4,7 @@ import copy
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -39,6 +39,17 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
 from ea_node_editor.ui.theme import resolve_theme_id, theme_choices
 
 
+class _ClickableOptionCard(QWidget):
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event) -> None:  # type: ignore[override]
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+
 class GraphicsSettingsDialog(SectionedSettingsDialog):
     _SECTIONS = [
         ("canvas", "Canvas"),
@@ -53,6 +64,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
     _PERFORMANCE_MODE_BUTTON_NAMES = {
         "full_fidelity": "graphicsSettingsFullFidelityModeRadio",
         "max_performance": "graphicsSettingsMaxPerformanceModeRadio",
+    }
+    _PERFORMANCE_MODE_OPTION_NAMES = {
+        "full_fidelity": "graphicsSettingsFullFidelityModeOption",
+        "max_performance": "graphicsSettingsMaxPerformanceModeOption",
     }
     _PERFORMANCE_MODE_COPY_NAMES = {
         "full_fidelity": "graphicsSettingsFullFidelityModeCopy",
@@ -253,37 +268,52 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.performance_mode_summary_label.setObjectName("graphicsSettingsPerformanceModeSummary")
         self.performance_mode_summary_label.setWordWrap(True)
         performance_lay.addWidget(self.performance_mode_summary_label)
+        performance_lay.setSpacing(8)
 
         self.performance_mode_group = QButtonGroup(performance_card)
         self.performance_mode_group.setExclusive(True)
         self.performance_mode_buttons: dict[str, QRadioButton] = {}
+        self.performance_mode_option_cards: dict[str, QWidget] = {}
         self.performance_mode_copy_labels: dict[str, QLabel] = {}
         for mode_id, label in GRAPHICS_PERFORMANCE_MODE_CHOICES:
-            option = QWidget(performance_card)
+            option = _ClickableOptionCard(performance_card)
+            option.setObjectName(self._PERFORMANCE_MODE_OPTION_NAMES.get(mode_id, ""))
+            option.setProperty("performanceModeOption", True)
+            option.setProperty("performanceModeSelected", False)
+            option.setCursor(Qt.CursorShape.PointingHandCursor)
             option_layout = QVBoxLayout(option)
-            option_layout.setContentsMargins(0, 2, 0, 2)
-            option_layout.setSpacing(2)
+            option_layout.setContentsMargins(12, 10, 12, 10)
+            option_layout.setSpacing(4)
 
             button = QRadioButton(label, option)
             button.setObjectName(self._PERFORMANCE_MODE_BUTTON_NAMES.get(mode_id, ""))
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
             self.performance_mode_group.addButton(button)
             self.performance_mode_buttons[mode_id] = button
+            self.performance_mode_option_cards[mode_id] = option
             if mode_id == "full_fidelity":
                 self.full_fidelity_mode_button = button
+                self.full_fidelity_mode_option = option
             elif mode_id == "max_performance":
                 self.max_performance_mode_button = button
+                self.max_performance_mode_option = option
             option_layout.addWidget(button)
 
             copy_label = QLabel(self._PERFORMANCE_MODE_COPY.get(mode_id, ""), option)
             copy_label.setObjectName(self._PERFORMANCE_MODE_COPY_NAMES.get(mode_id, ""))
             copy_label.setWordWrap(True)
             copy_label.setIndent(24)
+            copy_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             self.performance_mode_copy_labels[mode_id] = copy_label
             if mode_id == "full_fidelity":
                 self.full_fidelity_mode_copy_label = copy_label
             elif mode_id == "max_performance":
                 self.max_performance_mode_copy_label = copy_label
             option_layout.addWidget(copy_label)
+            option.clicked.connect(lambda button=button: button.setChecked(True))
+            button.toggled.connect(
+                lambda checked, option=option: self._set_performance_mode_option_selected(option, checked)
+            )
 
             performance_lay.addWidget(option)
         outer.addWidget(performance_card)
@@ -433,6 +463,15 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             if button.isChecked():
                 return mode_id
         return str(DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
+
+    @staticmethod
+    def _set_performance_mode_option_selected(option: QWidget, selected: bool) -> None:
+        option.setProperty("performanceModeSelected", selected)
+        style = option.style()
+        if style is not None:
+            style.unpolish(option)
+            style.polish(option)
+        option.update()
 
     def _sync_graph_theme_combo_enabled(self, _checked: bool | None = None) -> None:
         self.graph_theme_combo.setEnabled(not self.follow_shell_theme_check.isChecked())

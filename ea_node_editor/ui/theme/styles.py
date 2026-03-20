@@ -125,6 +125,11 @@ QCheckBox {{
     padding: 3px 0;
     background: transparent;
 }}
+QRadioButton {{
+    spacing: 8px;
+    padding: 3px 0;
+    background: transparent;
+}}
 QCheckBox::indicator {{
     width: 16px;
     height: 16px;
@@ -145,6 +150,26 @@ QCheckBox::indicator:checked:hover {{
     background: {tokens.accent};
     border-color: {tokens.accent};
     image: url({check_icon});
+}}
+QRadioButton::indicator {{
+    width: 16px;
+    height: 16px;
+    border: 2px solid {tokens.input_border};
+    border-radius: 8px;
+    background: {tokens.input_bg};
+}}
+QRadioButton::indicator:hover {{
+    border-color: {tokens.accent};
+    background: {tokens.hover};
+}}
+QRadioButton::indicator:checked {{
+    border: 5px solid {tokens.accent_strong};
+    border-radius: 8px;
+    background: {tokens.input_bg};
+}}
+QRadioButton::indicator:checked:hover {{
+    border-color: {tokens.accent};
+    background: {tokens.input_bg};
 }}
 QSlider {{
     background: transparent;
@@ -177,6 +202,19 @@ QWidget[settingsCard="true"] {{
     background: {tokens.panel_alt_bg};
     border: 1px solid {tokens.border};
     border-radius: 8px;
+}}
+QWidget[performanceModeOption="true"] {{
+    background: {tokens.input_bg};
+    border: 1px solid {tokens.input_border};
+    border-radius: 6px;
+}}
+QWidget[performanceModeOption="true"]:hover {{
+    background: {tokens.hover};
+    border-color: {tokens.accent};
+}}
+QWidget[performanceModeOption="true"][performanceModeSelected="true"] {{
+    background: {tokens.panel_alt_bg};
+    border-color: {tokens.accent_strong};
 }}
 QLabel[settingsSectionTitle="true"] {{
     font-weight: 600;
