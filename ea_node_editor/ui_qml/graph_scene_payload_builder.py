@@ -175,6 +175,7 @@ class GraphScenePayloadBuilder:
             "runtime_behavior": spec.runtime_behavior,
             "surface_family": spec.surface_family,
             "surface_variant": spec.surface_variant,
+            "render_quality": spec.render_quality.to_payload(),
             "surface_metrics": surface_metrics.to_payload(),
             "visual_style": copy.deepcopy(node.visual_style),
             "can_enter_scope": is_subnode_shell_type(node.type_id),

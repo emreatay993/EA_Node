@@ -63,6 +63,20 @@ class PassiveNodeContractsTests(unittest.TestCase):
             self.assertTrue(spec.surface_family)
             self.assertEqual(plugin.execute(_context()).outputs, {})
 
+    def test_passive_plugins_publish_normalized_render_quality_metadata(self) -> None:
+        for plugin_cls in (
+            *PASSIVE_FLOWCHART_NODE_PLUGINS,
+            *PASSIVE_PLANNING_NODE_PLUGINS,
+            *PASSIVE_ANNOTATION_NODE_PLUGINS,
+            *PASSIVE_MEDIA_NODE_PLUGINS,
+        ):
+            spec = plugin_cls().spec()
+
+            self.assertTrue(spec.render_quality.weight_class)
+            self.assertTrue(spec.render_quality.max_performance_strategy)
+            self.assertTrue(spec.render_quality.supported_quality_tiers)
+            self.assertIn("full", spec.render_quality.supported_quality_tiers)
+
     def test_flowchart_passive_nodes_use_flow_only_ports_and_branch_contracts(self) -> None:
         registry = build_default_registry()
         flowchart_type_ids = (

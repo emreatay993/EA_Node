@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal, Protocol
@@ -13,6 +14,55 @@ InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum"]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
 SurfaceFamily = Literal["standard", "flowchart", "planning", "annotation", "media"]
 PluginProvenanceKind = Literal["runtime", "file", "package", "entry_point"]
+RenderWeightClass = Literal["standard", "heavy"]
+MaxPerformanceStrategy = Literal["generic_fallback", "proxy_surface"]
+RenderQualityTier = Literal["full", "reduced", "proxy"]
+
+_SUPPORTED_RENDER_WEIGHT_CLASSES = {"standard", "heavy"}
+_SUPPORTED_MAX_PERFORMANCE_STRATEGIES = {"generic_fallback", "proxy_surface"}
+_SUPPORTED_RENDER_QUALITY_TIERS = {"full", "reduced", "proxy"}
+
+
+def _normalize_render_quality_token(
+    field_name: str,
+    value: object,
+    *,
+    allowed: set[str],
+) -> str:
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string")
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must be a non-empty trimmed string")
+    if normalized not in allowed:
+        raise ValueError(f"{field_name} has invalid value: {normalized}")
+    return normalized
+
+
+def _normalize_render_quality_tiers(value: object) -> tuple[RenderQualityTier, ...]:
+    if isinstance(value, str):
+        raw_tiers: Sequence[object] = (value,)
+    elif isinstance(value, Sequence):
+        raw_tiers = value
+    else:
+        raise TypeError("render_quality.supported_quality_tiers must be a sequence of strings")
+
+    normalized: list[RenderQualityTier] = []
+    seen: set[str] = set()
+    for raw_tier in raw_tiers:
+        tier = _normalize_render_quality_token(
+            "render_quality.supported_quality_tiers",
+            raw_tier,
+            allowed=_SUPPORTED_RENDER_QUALITY_TIERS,
+        )
+        if tier in seen:
+            continue
+        normalized.append(tier)  # type: ignore[arg-type]
+        seen.add(tier)
+
+    if not normalized:
+        raise ValueError("render_quality.supported_quality_tiers must contain at least one tier")
+    return tuple(normalized)
 
 
 @dataclass(slots=True, frozen=True)
@@ -40,6 +90,60 @@ class PropertySpec:
 
 
 @dataclass(slots=True, frozen=True)
+class NodeRenderQualitySpec:
+    weight_class: RenderWeightClass = "standard"
+    max_performance_strategy: MaxPerformanceStrategy = "generic_fallback"
+    supported_quality_tiers: tuple[RenderQualityTier, ...] = ("full",)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "weight_class",
+            _normalize_render_quality_token(
+                "render_quality.weight_class",
+                self.weight_class,
+                allowed=_SUPPORTED_RENDER_WEIGHT_CLASSES,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "max_performance_strategy",
+            _normalize_render_quality_token(
+                "render_quality.max_performance_strategy",
+                self.max_performance_strategy,
+                allowed=_SUPPORTED_MAX_PERFORMANCE_STRATEGIES,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "supported_quality_tiers",
+            _normalize_render_quality_tiers(self.supported_quality_tiers),
+        )
+
+    @classmethod
+    def from_value(cls, value: object) -> NodeRenderQualitySpec:
+        if value is None:
+            return cls()
+        if isinstance(value, cls):
+            return value
+        if not isinstance(value, Mapping):
+            raise TypeError("render_quality must be a NodeRenderQualitySpec, mapping, or None")
+        raw_tiers = value.get("supported_quality_tiers", ("full",))
+        return cls(
+            weight_class=value.get("weight_class", "standard"),  # type: ignore[arg-type]
+            max_performance_strategy=value.get("max_performance_strategy", "generic_fallback"),  # type: ignore[arg-type]
+            supported_quality_tiers=raw_tiers,  # type: ignore[arg-type]
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "weight_class": self.weight_class,
+            "max_performance_strategy": self.max_performance_strategy,
+            "supported_quality_tiers": list(self.supported_quality_tiers),
+        }
+
+
+@dataclass(slots=True, frozen=True)
 class NodeTypeSpec:
     type_id: str
     display_name: str
@@ -53,6 +157,14 @@ class NodeTypeSpec:
     runtime_behavior: RuntimeBehavior = "active"
     surface_family: SurfaceFamily = "standard"
     surface_variant: str = ""
+    render_quality: NodeRenderQualitySpec = field(default_factory=NodeRenderQualitySpec)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "render_quality",
+            NodeRenderQualitySpec.from_value(self.render_quality),
+        )
 
 
 @dataclass(slots=True)

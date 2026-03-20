@@ -5,6 +5,11 @@ import textwrap
 import unittest
 from unittest.mock import patch
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from tests.graph_surface_pointer_regression import (
     QML_POINTER_REGRESSION_HELPERS,
     assert_no_graph_surface_pointer_regressions,
@@ -12,6 +17,17 @@ from tests.graph_surface_pointer_regression import (
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _RenderQualityPayloadPlugin:
+    def __init__(self, spec: NodeTypeSpec) -> None:
+        self._spec = spec
+
+    def spec(self) -> NodeTypeSpec:
+        return self._spec
+
+    def execute(self, _ctx) -> NodeResult:  # noqa: ANN001
+        return NodeResult()
 
 
 class GraphSurfaceInputContractTests(unittest.TestCase):
@@ -194,6 +210,52 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
 
     def test_graph_surface_pointer_audit_rejects_hover_proxy_shims_and_untracked_surface_mouse_areas(self) -> None:
         assert_no_graph_surface_pointer_regressions(self)
+
+    def test_graph_scene_payload_builder_publishes_normalized_render_quality_metadata(self) -> None:
+        registry: NodeRegistry = build_default_registry()
+        spec = NodeTypeSpec(
+            type_id="tests.render_quality_payload",
+            display_name="Render Quality Payload",
+            category="Tests",
+            icon="",
+            ports=(),
+            properties=(),
+            render_quality={
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            },  # type: ignore[arg-type]
+        )
+        registry.register(lambda: _RenderQualityPayloadPlugin(spec))
+
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(
+            workspace_id,
+            spec.type_id,
+            spec.display_name,
+            80.0,
+            120.0,
+        )
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=None,
+        )
+
+        payload = next(item for item in nodes_payload if item["type_id"] == spec.type_id)
+        self.assertEqual(
+            payload["render_quality"],
+            {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            },
+        )
 
     def test_surface_loader_forwards_embedded_interactive_rects_for_inline_properties(self) -> None:
         self._run_qml_probe(
