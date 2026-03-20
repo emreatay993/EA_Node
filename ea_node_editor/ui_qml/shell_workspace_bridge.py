@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -12,27 +12,62 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 
 
+class _SignalLike(Protocol):
+    def connect(self, slot) -> object: ...  # noqa: ANN001
+
+
+class _ShellWorkspaceSource(Protocol):
+    project_meta_changed: _SignalLike
+    workspace_state_changed: _SignalLike
+    graphics_preferences_changed: _SignalLike
+    project_display_name: str
+    graphics_tab_strip_density: str
+    active_workspace_id: str
+    active_scope_breadcrumb_items: list[dict[str, str]]
+    active_view_items: list[dict[str, Any]]
+
+    def request_run_workflow(self) -> None: ...
+
+    def request_toggle_run_pause(self) -> None: ...
+
+    def request_stop_workflow(self) -> None: ...
+
+    def show_workflow_settings_dialog(self, checked: bool = False) -> None: ...
+
+    def set_script_editor_panel_visible(self, checked: bool | None = None) -> None: ...
+
+    def request_open_scope_breadcrumb(self, node_id: str) -> bool: ...
+
+    def request_switch_view(self, view_id: str) -> None: ...
+
+    def request_move_view_tab(self, from_index: int, to_index: int) -> bool: ...
+
+    def request_rename_view(self, view_id: str) -> bool: ...
+
+    def request_close_view(self, view_id: str) -> bool: ...
+
+    def request_create_view(self) -> None: ...
+
+    def request_move_workspace_tab(self, from_index: int, to_index: int) -> bool: ...
+
+    def request_rename_workspace_by_id(self, workspace_id: str) -> bool: ...
+
+    def request_close_workspace_by_id(self, workspace_id: str) -> bool: ...
+
+    def request_create_workspace(self) -> None: ...
+
+
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _source_attr(source: object | None, name: str, default: Any) -> Any:
-    if source is None:
-        return default
-    return getattr(source, name, default)
-
-
-def _invoke(source: object | None, name: str, *args, default: Any = None) -> Any:
-    callback = getattr(source, name, None) if source is not None else None
-    if not callable(callback):
-        return default
-    return callback(*args)
-
-
-def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
-    signal = getattr(source, name, None) if source is not None else None
-    if signal is not None and hasattr(signal, "connect"):
-        signal.connect(slot)
+def _resolve_workspace_source(shell_window: "ShellWindow | None") -> _ShellWorkspaceSource:
+    if shell_window is None:
+        raise TypeError("ShellWorkspaceBridge requires a shell window with a shell workspace contract.")
+    try:
+        return cast(_ShellWorkspaceSource, shell_window.shell_workspace_presenter)
+    except AttributeError:
+        return cast(_ShellWorkspaceSource, shell_window)
 
 
 class ShellWorkspaceBridge(QObject):
@@ -61,21 +96,20 @@ class ShellWorkspaceBridge(QObject):
         self._view_bridge = view_bridge
         self._console_bridge = console_bridge
         self._workspace_tabs_bridge = workspace_tabs_bridge
-        self._workspace_source = getattr(shell_window, "shell_workspace_presenter", shell_window)
+        self._workspace_source = _resolve_workspace_source(shell_window)
 
-        _connect_signal(self._workspace_source, "project_meta_changed", self.project_meta_changed.emit)
-        _connect_signal(self._workspace_source, "workspace_state_changed", self.workspace_state_changed.emit)
-        _connect_signal(
-            self._workspace_source,
-            "graphics_preferences_changed",
-            self.graphics_preferences_changed.emit,
-        )
-        _connect_signal(scene_bridge, "scope_changed", self.workspace_state_changed.emit)
-        _connect_signal(workspace_tabs_bridge, "tabs_changed", self.workspace_tabs_changed.emit)
-        _connect_signal(console_bridge, "output_changed", self.console_output_changed.emit)
-        _connect_signal(console_bridge, "errors_changed", self.console_errors_changed.emit)
-        _connect_signal(console_bridge, "warnings_changed", self.console_warnings_changed.emit)
-        _connect_signal(console_bridge, "counts_changed", self.console_counts_changed.emit)
+        self._workspace_source.project_meta_changed.connect(self.project_meta_changed.emit)
+        self._workspace_source.workspace_state_changed.connect(self.workspace_state_changed.emit)
+        self._workspace_source.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+        if scene_bridge is not None:
+            scene_bridge.scope_changed.connect(self.workspace_state_changed.emit)
+        if workspace_tabs_bridge is not None:
+            workspace_tabs_bridge.tabs_changed.connect(self.workspace_tabs_changed.emit)
+        if console_bridge is not None:
+            console_bridge.output_changed.connect(self.console_output_changed.emit)
+            console_bridge.errors_changed.connect(self.console_errors_changed.emit)
+            console_bridge.warnings_changed.connect(self.console_warnings_changed.emit)
+            console_bridge.counts_changed.connect(self.console_counts_changed.emit)
 
     @property
     def shell_window(self) -> "ShellWindow | None":
@@ -99,130 +133,131 @@ class ShellWorkspaceBridge(QObject):
 
     @pyqtProperty(str, notify=project_meta_changed)
     def project_display_name(self) -> str:
-        return str(_source_attr(self._workspace_source, "project_display_name", ""))
+        return str(self._workspace_source.project_display_name)
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_tab_strip_density(self) -> str:
-        return str(_source_attr(self._workspace_source, "graphics_tab_strip_density", "compact"))
+        return str(self._workspace_source.graphics_tab_strip_density)
 
     @pyqtProperty(str, notify=workspace_state_changed)
     def active_workspace_id(self) -> str:
-        return str(_source_attr(self._workspace_source, "active_workspace_id", ""))
+        return str(self._workspace_source.active_workspace_id)
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def active_scope_breadcrumb_items(self) -> list[dict[str, str]]:
-        return _copy_list(_source_attr(self._workspace_source, "active_scope_breadcrumb_items", []))
+        return _copy_list(self._workspace_source.active_scope_breadcrumb_items)
 
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def active_view_items(self) -> list[dict[str, Any]]:
-        return _copy_list(_source_attr(self._workspace_source, "active_view_items", []))
+        return _copy_list(self._workspace_source.active_view_items)
 
     @pyqtProperty("QVariantList", notify=workspace_tabs_changed)
     def workspace_tabs(self) -> list[dict[str, Any]]:
-        return _copy_list(_source_attr(self._workspace_tabs_bridge, "tabs", []))
+        if self._workspace_tabs_bridge is None:
+            return []
+        return _copy_list(self._workspace_tabs_bridge.tabs)
 
     @pyqtProperty(str, notify=console_output_changed)
     def output_text(self) -> str:
-        return str(_source_attr(self._console_bridge, "output_text", ""))
+        if self._console_bridge is None:
+            return ""
+        return str(self._console_bridge.output_text)
 
     @pyqtProperty(str, notify=console_errors_changed)
     def errors_text(self) -> str:
-        return str(_source_attr(self._console_bridge, "errors_text", ""))
+        if self._console_bridge is None:
+            return ""
+        return str(self._console_bridge.errors_text)
 
     @pyqtProperty(str, notify=console_warnings_changed)
     def warnings_text(self) -> str:
-        return str(_source_attr(self._console_bridge, "warnings_text", ""))
+        if self._console_bridge is None:
+            return ""
+        return str(self._console_bridge.warnings_text)
 
     @pyqtProperty(int, notify=console_counts_changed)
     def warning_count_value(self) -> int:
-        return int(_source_attr(self._console_bridge, "warning_count_value", 0))
+        if self._console_bridge is None:
+            return 0
+        return int(self._console_bridge.warning_count_value)
 
     @pyqtProperty(int, notify=console_counts_changed)
     def error_count_value(self) -> int:
-        return int(_source_attr(self._console_bridge, "error_count_value", 0))
+        if self._console_bridge is None:
+            return 0
+        return int(self._console_bridge.error_count_value)
 
     @pyqtSlot()
     def request_run_workflow(self) -> None:
-        _invoke(self._workspace_source, "request_run_workflow")
+        self._workspace_source.request_run_workflow()
 
     @pyqtSlot()
     def request_toggle_run_pause(self) -> None:
-        _invoke(self._workspace_source, "request_toggle_run_pause")
+        self._workspace_source.request_toggle_run_pause()
 
     @pyqtSlot()
     def request_stop_workflow(self) -> None:
-        _invoke(self._workspace_source, "request_stop_workflow")
+        self._workspace_source.request_stop_workflow()
 
     @pyqtSlot()
     @pyqtSlot(bool)
     def show_workflow_settings_dialog(self, checked: bool = False) -> None:
-        _invoke(self._workspace_source, "show_workflow_settings_dialog", checked)
+        self._workspace_source.show_workflow_settings_dialog(checked)
 
     @pyqtSlot()
     @pyqtSlot(bool)
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
-        if checked is None:
-            _invoke(self._workspace_source, "set_script_editor_panel_visible")
-            return
-        _invoke(self._workspace_source, "set_script_editor_panel_visible", checked)
+        self._workspace_source.set_script_editor_panel_visible(checked)
 
     @pyqtSlot(str, result=bool)
     def request_open_scope_breadcrumb(self, node_id: str) -> bool:
-        return bool(
-            _invoke(self._workspace_source, "request_open_scope_breadcrumb", node_id, default=False)
-        )
+        return bool(self._workspace_source.request_open_scope_breadcrumb(node_id))
 
     @pyqtSlot(str)
     def request_switch_view(self, view_id: str) -> None:
-        _invoke(self._workspace_source, "request_switch_view", view_id)
+        self._workspace_source.request_switch_view(view_id)
 
     @pyqtSlot(int, int, result=bool)
     def request_move_view_tab(self, from_index: int, to_index: int) -> bool:
-        return bool(
-            _invoke(self._workspace_source, "request_move_view_tab", from_index, to_index, default=False)
-        )
+        return bool(self._workspace_source.request_move_view_tab(from_index, to_index))
 
     @pyqtSlot(str, result=bool)
     def request_rename_view(self, view_id: str) -> bool:
-        return bool(_invoke(self._workspace_source, "request_rename_view", view_id, default=False))
+        return bool(self._workspace_source.request_rename_view(view_id))
 
     @pyqtSlot(str, result=bool)
     def request_close_view(self, view_id: str) -> bool:
-        return bool(_invoke(self._workspace_source, "request_close_view", view_id, default=False))
+        return bool(self._workspace_source.request_close_view(view_id))
 
     @pyqtSlot()
     def request_create_view(self) -> None:
-        _invoke(self._workspace_source, "request_create_view")
+        self._workspace_source.request_create_view()
 
     @pyqtSlot(str)
     def activate_workspace(self, workspace_id: str) -> None:
-        _invoke(self._workspace_tabs_bridge, "activate_workspace", workspace_id)
+        if self._workspace_tabs_bridge is not None:
+            self._workspace_tabs_bridge.activate_workspace(workspace_id)
 
     @pyqtSlot(int, int, result=bool)
     def request_move_workspace_tab(self, from_index: int, to_index: int) -> bool:
-        return bool(
-            _invoke(self._workspace_source, "request_move_workspace_tab", from_index, to_index, default=False)
-        )
+        return bool(self._workspace_source.request_move_workspace_tab(from_index, to_index))
 
     @pyqtSlot(str, result=bool)
     def request_rename_workspace_by_id(self, workspace_id: str) -> bool:
-        return bool(
-            _invoke(self._workspace_source, "request_rename_workspace_by_id", workspace_id, default=False)
-        )
+        return bool(self._workspace_source.request_rename_workspace_by_id(workspace_id))
 
     @pyqtSlot(str, result=bool)
     def request_close_workspace_by_id(self, workspace_id: str) -> bool:
-        return bool(
-            _invoke(self._workspace_source, "request_close_workspace_by_id", workspace_id, default=False)
-        )
+        return bool(self._workspace_source.request_close_workspace_by_id(workspace_id))
 
     @pyqtSlot()
     def request_create_workspace(self) -> None:
-        _invoke(self._workspace_source, "request_create_workspace")
+        self._workspace_source.request_create_workspace()
 
     @pyqtSlot()
     def clear_all(self) -> None:
-        _invoke(self._console_bridge, "clear_all")
+        if self._console_bridge is not None:
+            self._console_bridge.clear_all()
 
 
 __all__ = ["ShellWorkspaceBridge"]

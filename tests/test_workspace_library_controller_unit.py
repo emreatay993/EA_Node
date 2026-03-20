@@ -186,17 +186,43 @@ class _DropConnectControllerStub:
 
 
 class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
-    def test_controller_initializes_focused_controller_owners(self) -> None:
+    def test_controller_initializes_focused_controller_owners_with_explicit_capabilities(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
 
         self.assertIsInstance(controller.workflow_library_controller, WorkflowLibraryController)
         self.assertIsInstance(controller.workspace_navigation_controller, WorkspaceNavigationController)
         self.assertIsInstance(controller.workspace_graph_edit_controller, WorkspaceGraphEditController)
         self.assertIsInstance(controller.workspace_package_io_controller, WorkspacePackageIOController)
-        self.assertIs(controller._custom_workflow_capability, controller.workflow_library_controller)
-        self.assertIs(controller._navigation_capability, controller.workspace_navigation_controller)
-        self.assertIs(controller._edit_command_capability, controller.workspace_graph_edit_controller)
-        self.assertIs(controller._import_export_capability, controller.workspace_package_io_controller)
+        self.assertIsNot(controller._custom_workflow_capability, controller.workflow_library_controller)
+        self.assertIsNot(controller._navigation_capability, controller.workspace_navigation_controller)
+        self.assertIsNot(controller._edit_command_capability, controller.workspace_graph_edit_controller)
+        self.assertIsNot(controller._import_export_capability, controller.workspace_package_io_controller)
+
+    def test_internal_capabilities_delegate_only_to_focused_subcontrollers(self) -> None:
+        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
+        refresh_calls: list[str] = []
+        controller.workspace_graph_edit_controller.selected_node_context = lambda: "selected"  # type: ignore[method-assign]
+        controller.refresh_workspace_tabs = lambda: refresh_calls.append("tabs")  # type: ignore[method-assign]
+        controller.workflow_library_controller.resolve_custom_workflow_definition = lambda workflow_id: {  # type: ignore[method-assign]
+            "workflow_id": workflow_id
+        }
+        controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = (  # type: ignore[method-assign]
+            lambda definitions: definitions[0] if definitions else None
+        )
+
+        self.assertEqual(controller._custom_workflow_capability.selected_node_context(), "selected")
+        controller._navigation_capability.refresh_workspace_tabs()
+        self.assertEqual(refresh_calls, ["tabs"])
+        self.assertEqual(
+            controller._edit_command_capability.resolve_custom_workflow_definition("wf-1"),
+            {"workflow_id": "wf-1"},
+        )
+        self.assertEqual(
+            controller._import_export_capability._prompt_custom_workflow_export_definition(
+                [{"workflow_id": "wf-2"}]
+            ),
+            {"workflow_id": "wf-2"},
+        )
 
 
 class WorkspaceLibraryControllerSurfaceDelegationTests(unittest.TestCase):
