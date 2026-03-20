@@ -1,0 +1,204 @@
+{
+  "baseline_series": {
+    "mode": "offscreen",
+    "notes": "Variance checks are informative when run_count >= 2. Single-run captures still provide point-in-time regression evidence.",
+    "performance_mode": "max_performance",
+    "run_count": 1,
+    "runs": [
+      {
+        "environment": {
+          "cpu_count": 12,
+          "hostname": "EA",
+          "machine": "AMD64",
+          "platform": "Windows-10-10.0.26200-SP0",
+          "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+          "python_version": "3.10.0",
+          "qsg_rhi_backend": "software",
+          "qt_qpa_platform": "offscreen",
+          "qt_quick_backend": "software",
+          "release": "10",
+          "system": "Windows"
+        },
+        "generated_at_utc": "2026-03-20T19:18:02.729798+00:00",
+        "metrics": {
+          "load_p95_ms": 57.73710005450994,
+          "pan_zoom_p95_ms": 139.05084498110227
+        },
+        "mode": "offscreen",
+        "performance_mode": "max_performance",
+        "run_id": "run_01",
+        "scenario": "heavy_media",
+        "tag": "local"
+      }
+    ],
+    "scenario": "heavy_media",
+    "tag": "local",
+    "triage_policy": [
+      "If variance check fails, first rerun 3x on the same machine with no background workloads.",
+      "If variance remains high, classify by hardware tier (CPU/GPU/RAM/display) and keep separate baselines.",
+      "Investigate regressions only when thresholds fail on at least two consecutive runs in the same hardware tier."
+    ],
+    "variance_eval": {
+      "load_p95_ms": {
+        "cv": 0.0,
+        "details": "cv=0.0000 (<= 0.25), range=0.000 ms (<= 500.0 ms)",
+        "pass": true,
+        "range_ms": 0.0,
+        "requires_min_runs": 2
+      },
+      "pan_zoom_p95_ms": {
+        "cv": 0.0,
+        "details": "cv=0.0000 (<= 0.20), range=0.000 ms (<= 8.0 ms)",
+        "pass": true,
+        "range_ms": 0.0,
+        "requires_min_runs": 2
+      }
+    },
+    "variance_thresholds": {
+      "load_p95_ms": {
+        "max_cv": 0.25,
+        "max_range_ms": 500.0
+      },
+      "pan_zoom_p95_ms": {
+        "max_cv": 0.2,
+        "max_range_ms": 8.0
+      }
+    }
+  },
+  "config": {
+    "interaction_samples": 4,
+    "interaction_zoom_max": 2.0,
+    "interaction_zoom_min": 0.5,
+    "load_iterations": 1,
+    "performance_mode": "max_performance",
+    "scenario": "heavy_media",
+    "scenario_details": {
+      "description": "Generated local PNG/PDF fixtures reused across passive media nodes inside the real GraphCanvas.qml benchmark path.",
+      "expected_media_surface_count": 6,
+      "fixture_strategy": "generated_local_media_reuse",
+      "generated_fixture_count": {
+        "images": 3,
+        "pdfs": 1
+      },
+      "node_mix": {
+        "execution_nodes": 44,
+        "image_panel_nodes": 3,
+        "pdf_panel_nodes": 3
+      }
+    },
+    "synthetic_graph": {
+      "edge_count": 120,
+      "node_count": 50,
+      "seed": 1337
+    }
+  },
+  "environment": {
+    "cpu_count": 12,
+    "hostname": "EA",
+    "machine": "AMD64",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+    "python_version": "3.10.0",
+    "qsg_rhi_backend": "software",
+    "qt_qpa_platform": "offscreen",
+    "qt_quick_backend": "software",
+    "release": "10",
+    "system": "Windows"
+  },
+  "generated_at_utc": "2026-03-20T19:18:02.729798+00:00",
+  "interaction_benchmark": {
+    "graph_theme_id": "graph_stitch_dark",
+    "kind": "graph_canvas_qml",
+    "measurement_driver": "ViewportBridge.centerOn + ViewportBridge.set_zoom with QQuickWindow.grabWindow()",
+    "media_surface_count": 6,
+    "performance_mode": "max_performance",
+    "render_path": "ea_node_editor/ui_qml/components/GraphCanvas.qml",
+    "resolved_graphics_performance_mode": "max_performance",
+    "scenario": "heavy_media",
+    "theme_id": "stitch_dark",
+    "uses_actual_canvas_render_path": true,
+    "viewport": {
+      "height": 720,
+      "width": 1280
+    }
+  },
+  "limitations": [
+    "Pan/zoom timings instantiate GraphCanvas.qml in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.",
+    "Project+graph load timing still measures serializer/model/bridge setup and does not instantiate GraphCanvas.qml.",
+    "Runs use Qt offscreen platform (QT_QPA_PLATFORM=offscreen), so GPU/compositor behavior differs from interactive desktop rendering.",
+    "Absolute timings are machine- and load-dependent; compare trends on the same hardware for regressions."
+  ],
+  "metrics": {
+    "pan_interaction_ms": {
+      "samples": [
+        52.6167000643909,
+        54.212799994274974,
+        53.27119992580265,
+        53.46179998014122
+      ],
+      "summary": {
+        "max": 54.212799994274974,
+        "mean": 53.390624991152436,
+        "min": 52.6167000643909,
+        "p50": 53.366499952971935,
+        "p95": 54.10014999215491
+      }
+    },
+    "pan_zoom_combined_ms": {
+      "samples": [
+        136.92950003314763,
+        139.3540999852121,
+        136.99519995134324,
+        137.33239995781332
+      ],
+      "summary": {
+        "max": 139.3540999852121,
+        "mean": 137.65279998187907,
+        "min": 136.92950003314763,
+        "p50": 137.16379995457828,
+        "p95": 139.05084498110227
+      }
+    },
+    "project_graph_load_ms": {
+      "samples": [
+        57.73710005450994
+      ],
+      "summary": {
+        "max": 57.73710005450994,
+        "mean": 57.73710005450994,
+        "min": 57.73710005450994,
+        "p50": 57.73710005450994,
+        "p95": 57.73710005450994
+      }
+    },
+    "zoom_interaction_ms": {
+      "samples": [
+        84.31279996875674,
+        85.14129999093711,
+        83.72400002554059,
+        83.8705999776721
+      ],
+      "summary": {
+        "max": 85.14129999093711,
+        "mean": 84.26217499072663,
+        "min": 83.72400002554059,
+        "p50": 84.09169997321442,
+        "p95": 85.01702498761006
+      }
+    }
+  },
+  "requirements_eval": {
+    "REQ-PERF-001": {
+      "details": "Generated graph size 50 nodes / 120 edges",
+      "pass": false
+    },
+    "REQ-PERF-002": {
+      "details": "Real GraphCanvas pan p95=54.100 ms, zoom p95=85.017 ms (frame p95 target <= 33 ms)",
+      "pass": false
+    },
+    "REQ-PERF-003": {
+      "details": "Project+graph load p95=57.737 ms (target < 3000 ms)",
+      "pass": true
+    }
+  }
+}
