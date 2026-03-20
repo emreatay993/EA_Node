@@ -53,6 +53,13 @@ TAB_STRIP_DENSITY_CHOICES = (
     ("regular", "Regular"),
 )
 
+GRAPHICS_PERFORMANCE_MODE_CHOICES = (
+    ("full_fidelity", "Full Fidelity"),
+    ("max_performance", "Max Performance"),
+)
+
+DEFAULT_GRAPHICS_PERFORMANCE_MODE = GRAPHICS_PERFORMANCE_MODE_CHOICES[0][0]
+
 DEFAULT_GRAPHICS_SETTINGS = {
     "canvas": {
         "show_grid": True,
@@ -65,6 +72,9 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "interaction": {
         "snap_to_grid": False,
+    },
+    "performance": {
+        "mode": DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     },
     "shell": {
         "tab_strip_density": "compact",

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from ea_node_editor.app_preferences import normalize_graphics_performance_mode
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
@@ -49,6 +50,7 @@ class ShellWorkspaceUiState:
     shadow_strength: int
     shadow_softness: int
     shadow_offset: int
+    graphics_performance_mode: str
     tab_strip_density: str
     active_theme_id: str
 
@@ -58,6 +60,7 @@ def build_default_shell_workspace_ui_state(
 ) -> ShellWorkspaceUiState:
     canvas = graphics_settings.get("canvas", {}) if isinstance(graphics_settings, dict) else {}
     shell = graphics_settings.get("shell", {}) if isinstance(graphics_settings, dict) else {}
+    performance = graphics_settings.get("performance", {}) if isinstance(graphics_settings, dict) else {}
     theme = graphics_settings.get("theme", {}) if isinstance(graphics_settings, dict) else {}
     return ShellWorkspaceUiState(
         show_grid=bool(canvas.get("show_grid", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])),
@@ -66,6 +69,9 @@ def build_default_shell_workspace_ui_state(
         shadow_strength=int(canvas.get("shadow_strength", DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])),
         shadow_softness=int(canvas.get("shadow_softness", DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_softness"])),
         shadow_offset=int(canvas.get("shadow_offset", DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])),
+        graphics_performance_mode=normalize_graphics_performance_mode(
+            performance.get("mode", DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
+        ),
         tab_strip_density=str(
             shell.get("tab_strip_density", DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
         ),
@@ -610,6 +616,10 @@ class ShellWorkspacePresenter(QObject):
         return str(self._ui_state.tab_strip_density)
 
     @property
+    def graphics_performance_mode(self) -> str:
+        return str(self._ui_state.graphics_performance_mode)
+
+    @property
     def active_theme_id(self) -> str:
         return str(self._ui_state.active_theme_id)
 
@@ -674,6 +684,9 @@ class ShellWorkspacePresenter(QObject):
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
         self._host.project_session_controller.set_script_editor_panel_visible(checked)
 
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        self._host.set_graphics_performance_mode(mode)
+
     def request_open_scope_breadcrumb(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()
         return bool(self._host.search_scope_controller.navigate_scope(lambda: self._host.scene.navigate_scope_to(normalized_node_id)))
@@ -721,6 +734,7 @@ class ShellWorkspacePresenter(QObject):
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
         canvas = graphics.get("canvas", {}) if isinstance(graphics, dict) else {}
         interaction = graphics.get("interaction", {}) if isinstance(graphics, dict) else {}
+        performance = graphics.get("performance", {}) if isinstance(graphics, dict) else {}
         shell = graphics.get("shell", {}) if isinstance(graphics, dict) else {}
         theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
         graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
@@ -735,6 +749,10 @@ class ShellWorkspacePresenter(QObject):
         shadow_strength = int(canvas.get("shadow_strength", self._ui_state.shadow_strength))
         shadow_softness = int(canvas.get("shadow_softness", self._ui_state.shadow_softness))
         shadow_offset = int(canvas.get("shadow_offset", self._ui_state.shadow_offset))
+        graphics_performance_mode = normalize_graphics_performance_mode(
+            performance.get("mode", self._ui_state.graphics_performance_mode),
+            self._ui_state.graphics_performance_mode,
+        )
         tab_strip_density = str(shell.get("tab_strip_density", self._ui_state.tab_strip_density))
         active_theme_id = self._host.shell_host_presenter.apply_theme(
             theme.get("theme_id", self._ui_state.active_theme_id)
@@ -782,6 +800,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.shadow_offset != shadow_offset:
             self._ui_state.shadow_offset = shadow_offset
             changed = True
+        if self._ui_state.graphics_performance_mode != graphics_performance_mode:
+            self._ui_state.graphics_performance_mode = graphics_performance_mode
+            changed = True
         if self._ui_state.tab_strip_density != tab_strip_density:
             self._ui_state.tab_strip_density = tab_strip_density
             changed = True
@@ -810,6 +831,9 @@ class ShellWorkspacePresenter(QObject):
             },
             "interaction": {
                 "snap_to_grid": bool(self._host.search_scope_state.snap_to_grid_enabled),
+            },
+            "performance": {
+                "mode": str(self._ui_state.graphics_performance_mode),
             },
             "shell": {
                 "tab_strip_density": str(self._ui_state.tab_strip_density),
@@ -1081,6 +1105,10 @@ class GraphCanvasPresenter(QObject):
         return int(self._host.workspace_ui_state.shadow_offset)
 
     @property
+    def graphics_performance_mode(self) -> str:
+        return str(self._host.workspace_ui_state.graphics_performance_mode)
+
+    @property
     def snap_to_grid_enabled(self) -> bool:
         return bool(self._host.search_scope_state.snap_to_grid_enabled)
 
@@ -1093,6 +1121,9 @@ class GraphCanvasPresenter(QObject):
 
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self._host.search_scope_controller.set_graphics_minimap_expanded(expanded)
+
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        self._host.set_graphics_performance_mode(mode)
 
     def request_open_subnode_scope(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()

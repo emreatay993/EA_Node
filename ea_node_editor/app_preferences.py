@@ -12,7 +12,9 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
+    DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     DEFAULT_GRAPHICS_SETTINGS,
+    GRAPHICS_PERFORMANCE_MODE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
     app_preferences_path,
 )
@@ -25,6 +27,9 @@ from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id, resolve
 
 
 _APP_PREFERENCES_MIGRATION_VERSION = 1
+_GRAPHICS_PERFORMANCE_MODE_VALUES = {
+    str(choice[0]).strip().lower() for choice in GRAPHICS_PERFORMANCE_MODE_CHOICES
+}
 _TAB_STRIP_DENSITY_VALUES = {str(choice[0]).strip().lower() for choice in TAB_STRIP_DENSITY_CHOICES}
 
 
@@ -58,6 +63,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
 
     canvas_payload = payload.get("canvas")
     interaction_payload = payload.get("interaction")
+    performance_payload = payload.get("performance")
     shell_payload = payload.get("shell")
     theme_payload = payload.get("theme")
     graph_theme_payload = payload.get("graph_theme")
@@ -102,6 +108,11 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
             interaction_payload.get("snap_to_grid"),
             defaults["interaction"]["snap_to_grid"],
+        )
+    if isinstance(performance_payload, Mapping):
+        normalized["performance"]["mode"] = normalize_graphics_performance_mode(
+            performance_payload.get("mode"),
+            defaults["performance"]["mode"],
         )
     if isinstance(shell_payload, Mapping):
         normalized["shell"]["tab_strip_density"] = _normalize_tab_strip_density(
@@ -219,11 +230,22 @@ def _normalize_tab_strip_density(value: Any, default: str) -> str:
     return str(DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
 
 
+def normalize_graphics_performance_mode(value: Any, default: str = DEFAULT_GRAPHICS_PERFORMANCE_MODE) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _GRAPHICS_PERFORMANCE_MODE_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _GRAPHICS_PERFORMANCE_MODE_VALUES:
+        return resolved_default
+    return DEFAULT_GRAPHICS_PERFORMANCE_MODE
+
+
 __all__ = [
     "AppPreferencesStore",
     "default_app_preferences_document",
     "normalize_app_preferences_document",
     "normalize_graph_theme_settings",
+    "normalize_graphics_performance_mode",
     "normalize_graphics_settings",
     "resolve_startup_theme_id",
 ]

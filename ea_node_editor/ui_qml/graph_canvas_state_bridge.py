@@ -110,6 +110,10 @@ class GraphCanvasStateBridge(QObject):
     def graphics_shadow_offset(self) -> int:
         return int(_source_attr(self._canvas_source, "graphics_shadow_offset", 4))
 
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_performance_mode(self) -> str:
+        return str(_source_attr(self._canvas_source, "graphics_performance_mode", "full_fidelity"))
+
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
         return bool(_source_attr(self._canvas_source, "snap_to_grid_enabled", False))

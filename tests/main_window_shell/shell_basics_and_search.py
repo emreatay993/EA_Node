@@ -62,12 +62,14 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_grid"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_minimap"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_minimap_expanded"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_performance_mode"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_tab_strip_density"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("active_theme_id"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("snap_to_grid_enabled"), 0)
         self.assertTrue(self.window.graphics_show_grid)
         self.assertTrue(self.window.graphics_show_minimap)
         self.assertTrue(self.window.graphics_minimap_expanded)
+        self.assertEqual(self.window.graphics_performance_mode, "full_fidelity")
         self.assertEqual(self.window.graphics_tab_strip_density, "compact")
         self.assertEqual(self.window.active_theme_id, "stitch_dark")
         self.assertFalse(self.window.snap_to_grid_enabled)
@@ -252,11 +254,26 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertFalse(self.window.graphics_minimap_expanded)
         self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
 
+    def test_graphics_performance_mode_persists_across_window_restart(self) -> None:
+        self.assertEqual(self.window.graphics_performance_mode, "full_fidelity")
+
+        self.window.set_graphics_performance_mode("max_performance")
+        self.app.processEvents()
+
+        self.assertEqual(self.window.graphics_performance_mode, "max_performance")
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["graphics"]["performance"]["mode"], "max_performance")
+
+        self._reopen_window()
+
+        self.assertEqual(self.window.graphics_performance_mode, "max_performance")
+
     def test_qml_invokable_slots_exist_for_shell_buttons(self) -> None:
         meta = self.window.metaObject()
         self.assertGreaterEqual(meta.indexOfMethod("show_workflow_settings_dialog()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("show_graphics_settings_dialog()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_graphics_minimap_expanded(bool)"), 0)
+        self.assertGreaterEqual(meta.indexOfMethod("set_graphics_performance_mode(QString)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible()"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("set_script_editor_panel_visible(bool)"), 0)
         self.assertGreaterEqual(meta.indexOfMethod("request_connect_ports(QString,QString,QString,QString)"), 0)

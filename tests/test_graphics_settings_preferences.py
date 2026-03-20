@@ -83,6 +83,9 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                         "interaction": {
                             "snap_to_grid": True,
                         },
+                        "performance": {
+                            "mode": "warp_speed",
+                        },
                         "shell": {
                             "tab_strip_density": "dense",
                         },
@@ -110,6 +113,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(graphics["canvas"]["shadow_softness"], 25)
         self.assertEqual(graphics["canvas"]["shadow_offset"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
         self.assertEqual(graphics["interaction"]["snap_to_grid"], True)
+        self.assertEqual(graphics["performance"]["mode"], DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
         self.assertEqual(graphics["shell"]["tab_strip_density"], DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
         self.assertEqual(graphics["theme"]["theme_id"], DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
         self.assertFalse(graphics["graph_theme"]["follow_shell_theme"])
@@ -136,6 +140,9 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 "interaction": {
                     "snap_to_grid": True,
                 },
+                "performance": {
+                    "mode": " MAX_PERFORMANCE ",
+                },
                 "shell": {
                     "tab_strip_density": "regular",
                 },
@@ -152,6 +159,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         )
 
         self.assertEqual(host.applied_graphics, [graphics])
+        self.assertEqual(graphics["performance"]["mode"], "max_performance")
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["kind"], APP_PREFERENCES_KIND)
         self.assertEqual(persisted["version"], APP_PREFERENCES_VERSION)

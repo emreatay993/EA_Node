@@ -488,6 +488,10 @@ class ShellWindow(QMainWindow):
         return self.graph_canvas_presenter.graphics_shadow_offset
 
     @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_performance_mode(self) -> str:
+        return self.shell_workspace_presenter.graphics_performance_mode
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_tab_strip_density(self) -> str:
         return self.shell_workspace_presenter.graphics_tab_strip_density
 
@@ -668,6 +672,17 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self.graph_canvas_presenter.set_graphics_minimap_expanded(expanded)
+
+    @pyqtSlot(str)
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        self.app_preferences_controller.update_graphics_settings(
+            {
+                "performance": {
+                    "mode": mode,
+                }
+            },
+            host=self,
+        )
 
     @pyqtSlot(str)
     @pyqtSlot(str, int)
