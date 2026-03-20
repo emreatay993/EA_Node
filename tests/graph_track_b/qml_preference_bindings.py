@@ -127,6 +127,36 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertAlmostEqual(float(world.property("x")), expected_x, places=6)
         self.assertAlmostEqual(float(world.property("y")), expected_y, places=6)
 
+    def test_graph_canvas_wheel_zoom_keeps_cursor_anchor_with_single_viewport_commit(self) -> None:
+        self.view.centerOn(60.0, -30.0)
+        self.app.processEvents()
+
+        commits = 0
+
+        def _count_commit() -> None:
+            nonlocal commits
+            commits += 1
+
+        self.view.view_state_changed.connect(_count_commit)
+
+        cursor_x = 920.0
+        cursor_y = 410.0
+        scene_before_x = float(self.canvas.screenToSceneX(cursor_x))
+        scene_before_y = float(self.canvas.screenToSceneY(cursor_y))
+
+        applied = self.canvas.applyWheelZoom(
+            {"x": cursor_x, "y": cursor_y, "angleDelta": {"y": 120}, "inverted": False}
+        )
+        self.assertTrue(applied)
+        self.app.processEvents()
+
+        scene_after_x = float(self.canvas.screenToSceneX(cursor_x))
+        scene_after_y = float(self.canvas.screenToSceneY(cursor_y))
+        self.assertEqual(commits, 1)
+        self.assertAlmostEqual(float(self.view.zoom_value), 1.15, places=6)
+        self.assertAlmostEqual(scene_before_x, scene_after_x, places=6)
+        self.assertAlmostEqual(scene_before_y, scene_after_y, places=6)
+
     def test_graph_canvas_performance_policy_resolves_max_performance_idle_without_visual_degradation(self) -> None:
         policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
         background = self.canvas.findChild(QObject, "graphCanvasBackground")

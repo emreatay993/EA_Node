@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import QObject, pyqtSlot
+from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -61,6 +61,10 @@ class GraphCanvasCommandBridge(QObject):
     def view_bridge(self) -> "ViewportBridge | None":
         return self._view_bridge
 
+    @pyqtProperty(QObject, constant=True)
+    def viewport_bridge(self) -> "ViewportBridge | None":
+        return self._view_bridge
+
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         _invoke(self._canvas_source, "set_graphics_minimap_expanded", bool(expanded))
@@ -69,9 +73,35 @@ class GraphCanvasCommandBridge(QObject):
     def adjust_zoom(self, factor: float) -> None:
         _invoke(self._view_bridge, "adjust_zoom", float(factor))
 
+    @pyqtSlot(float, float, float, result=bool)
+    def adjust_zoom_at_viewport_point(self, factor: float, viewport_x: float, viewport_y: float) -> bool:
+        return bool(
+            _invoke(
+                self._view_bridge,
+                "adjust_zoom_at_viewport_point",
+                float(factor),
+                float(viewport_x),
+                float(viewport_y),
+                default=False,
+            )
+        )
+
     @pyqtSlot(float, float)
     def pan_by(self, delta_x: float, delta_y: float) -> None:
         _invoke(self._view_bridge, "pan_by", float(delta_x), float(delta_y))
+
+    @pyqtSlot(float, float, float, result=bool)
+    def set_view_state(self, zoom: float, center_x: float, center_y: float) -> bool:
+        return bool(
+            _invoke(
+                self._view_bridge,
+                "set_view_state",
+                float(zoom),
+                float(center_x),
+                float(center_y),
+                default=False,
+            )
+        )
 
     @pyqtSlot(float, float)
     def set_viewport_size(self, width: float, height: float) -> None:

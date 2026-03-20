@@ -31,9 +31,24 @@ Item {
     readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
         ? root.canvasStateBridgeRef
         : root.sceneBridge
-    readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef
-        ? root.canvasStateBridgeRef
-        : root.viewBridge
+    readonly property var _canvasStateViewportBridgeRef: root.canvasStateBridgeRef
+        && root.canvasStateBridgeRef.viewport_bridge
+        ? root.canvasStateBridgeRef.viewport_bridge
+        : null
+    readonly property var _canvasCommandViewportBridgeRef: root.canvasCommandBridgeRef
+        && root.canvasCommandBridgeRef.viewport_bridge
+        ? root.canvasCommandBridgeRef.viewport_bridge
+        : null
+    readonly property var _canvasRawViewBridgeRef: root._canvasStateViewportBridgeRef
+        ? root._canvasStateViewportBridgeRef
+        : (root._canvasCommandViewportBridgeRef
+            ? root._canvasCommandViewportBridgeRef
+            : root.viewBridge)
+    readonly property var _canvasViewStateBridgeRef: root._canvasRawViewBridgeRef
+        ? root._canvasRawViewBridgeRef
+        : (root.canvasStateBridgeRef
+            ? root.canvasStateBridgeRef
+            : root.viewBridge)
     readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
         ? root.canvasCommandBridgeRef
         : root.mainWindowBridge
@@ -42,14 +57,16 @@ Item {
         : root.sceneBridge
     readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
         ? root.canvasCommandBridgeRef
-        : root.viewBridge
+        : root._canvasRawViewBridgeRef
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
     readonly property var visibleSceneRectPayload: root._canvasViewStateBridgeRef
-        ? root._canvasViewStateBridgeRef.visible_scene_rect_payload
+        ? (root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached !== undefined
+            ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
+            : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
         : ({})
     property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
@@ -218,9 +235,8 @@ Item {
     }
 
     function applyWheelZoom(eventObj) {
-        var viewState = root._canvasViewStateBridgeRef;
         var viewCommand = root._canvasViewCommandBridgeRef;
-        if (!viewState || !viewCommand)
+        if (!viewCommand)
             return false;
         var deltaY = _wheelDeltaY(eventObj);
         if (Math.abs(deltaY) < 0.001)
@@ -242,6 +258,11 @@ Item {
             steps = deltaY > 0 ? 1.0 : -1.0;
         steps = Math.max(-1.0, Math.min(1.0, steps));
         var factor = Math.pow(1.15, steps);
+        if (hasCursor && viewCommand.adjust_zoom_at_viewport_point) {
+            viewCommand.adjust_zoom_at_viewport_point(factor, cursorX, cursorY);
+            return true;
+        }
+
         if (viewCommand.adjust_zoom)
             viewCommand.adjust_zoom(factor);
 
@@ -940,7 +961,6 @@ Item {
                 shadowStrength: root.shadowStrength
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
-                zoom: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
                 snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
                 shadowSimplificationActive: root.shadowSimplificationActive

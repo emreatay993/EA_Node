@@ -18,7 +18,6 @@ Item {
     property int shadowStrength: 70
     property int shadowSoftness: 50
     property int shadowOffset: 4
-    property real zoom: 1.0
     property bool viewportInteractionCacheActive: false
     property bool snapshotReuseActive: false
     property bool shadowSimplificationActive: false
@@ -457,6 +456,14 @@ Item {
 
     function _surfaceClaimsBodyInteractionAt(localX, localY) {
         return GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, surfaceLoader.embeddedInteractiveRects);
+    }
+
+    function currentViewportZoom() {
+        var viewBridge = card.canvasItem ? card.canvasItem._canvasViewStateBridgeRef : null;
+        var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;
+        if (!isFinite(zoom) || zoom <= 0.0001)
+            return 1.0;
+        return zoom;
     }
 
     HoverHandler {

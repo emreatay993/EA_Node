@@ -82,6 +82,10 @@ class GraphCanvasStateBridge(QObject):
     def view_bridge(self) -> "ViewportBridge | None":
         return self._view_bridge
 
+    @pyqtProperty(QObject, constant=True)
+    def viewport_bridge(self) -> "ViewportBridge | None":
+        return self._view_bridge
+
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_minimap_expanded(self) -> bool:
         return bool(_source_attr(self._canvas_source, "graphics_minimap_expanded", True))
@@ -136,7 +140,14 @@ class GraphCanvasStateBridge(QObject):
 
     @pyqtProperty("QVariantMap", notify=view_state_changed)
     def visible_scene_rect_payload(self) -> dict[str, Any]:
-        return _copy_dict(_source_attr(self._view_bridge, "visible_scene_rect_payload", {}))
+        payload = _source_attr(self._view_bridge, "visible_scene_rect_payload_cached", None)
+        if payload is None:
+            payload = _source_attr(self._view_bridge, "visible_scene_rect_payload", {})
+        return _copy_dict(payload)
+
+    @pyqtProperty("QVariantMap", notify=view_state_changed)
+    def visible_scene_rect_payload_cached(self) -> dict[str, Any]:
+        return self.visible_scene_rect_payload
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def nodes_model(self) -> list[dict]:

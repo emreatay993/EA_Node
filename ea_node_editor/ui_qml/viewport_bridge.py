@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 from PyQt6.QtCore import QObject, QPointF, QRect, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
 
 MIN_ZOOM = 0.1
@@ -18,41 +20,133 @@ class ViewportBridge(QObject):
         self._center_x = 0.0
         self._center_y = 0.0
         self._viewport_rect = QRect(0, 0, 1600, 900)
+        self._visible_scene_rect = QRectF()
+        self._visible_scene_rect_payload: dict[str, float] = {}
+        self._refresh_visible_scene_rect_cache()
 
     @property
     def zoom(self) -> float:
         return self._zoom
 
-    @pyqtProperty(float, notify=zoom_changed)
+    @pyqtProperty(float, notify=view_state_changed)
     def zoom_value(self) -> float:
         return self._zoom
 
-    @pyqtProperty(float, notify=center_changed)
+    @pyqtProperty(float, notify=view_state_changed)
     def center_x(self) -> float:
         return self._center_x
 
-    @pyqtProperty(float, notify=center_changed)
+    @pyqtProperty(float, notify=view_state_changed)
     def center_y(self) -> float:
         return self._center_y
 
     @pyqtProperty("QVariantMap", notify=view_state_changed)
     def visible_scene_rect_payload(self) -> dict[str, float]:
-        return self._rect_payload(self.visible_scene_rect())
+        return self._visible_scene_rect_payload
+
+    @pyqtProperty("QVariantMap", notify=view_state_changed)
+    def visible_scene_rect_payload_cached(self) -> dict[str, float]:
+        return self._visible_scene_rect_payload
 
     def _clamp_zoom(self, zoom: float) -> float:
-        return max(MIN_ZOOM, min(float(zoom), MAX_ZOOM))
+        normalized = float(zoom)
+        if not math.isfinite(normalized):
+            return self._zoom
+        return max(MIN_ZOOM, min(normalized, MAX_ZOOM))
+
+    def _scene_dimensions_for_zoom(self, zoom: float) -> tuple[float, float]:
+        normalized_zoom = self._clamp_zoom(zoom)
+        scene_width = float(self._viewport_rect.width()) / normalized_zoom
+        scene_height = float(self._viewport_rect.height()) / normalized_zoom
+        return scene_width, scene_height
+
+    def _visible_scene_rect_for_state(
+        self,
+        *,
+        zoom: float | None = None,
+        center_x: float | None = None,
+        center_y: float | None = None,
+    ) -> QRectF:
+        resolved_zoom = self._zoom if zoom is None else self._clamp_zoom(zoom)
+        resolved_center_x = self._center_x if center_x is None else float(center_x)
+        resolved_center_y = self._center_y if center_y is None else float(center_y)
+        scene_width, scene_height = self._scene_dimensions_for_zoom(resolved_zoom)
+        return QRectF(
+            resolved_center_x - (scene_width * 0.5),
+            resolved_center_y - (scene_height * 0.5),
+            scene_width,
+            scene_height,
+        )
+
+    def _refresh_visible_scene_rect_cache(self) -> None:
+        self._visible_scene_rect = self._visible_scene_rect_for_state()
+        self._visible_scene_rect_payload = self._rect_payload(self._visible_scene_rect)
+
+    def scene_point_for_viewport_point(self, viewport_x: float, viewport_y: float, *, zoom: float | None = None) -> QPointF:
+        resolved_zoom = self._zoom if zoom is None else self._clamp_zoom(zoom)
+        half_width = float(self._viewport_rect.width()) * 0.5
+        half_height = float(self._viewport_rect.height()) * 0.5
+        return QPointF(
+            self._center_x + ((float(viewport_x) - half_width) / resolved_zoom),
+            self._center_y + ((float(viewport_y) - half_height) / resolved_zoom),
+        )
+
+    def _center_for_scene_anchor(self, scene_x: float, scene_y: float, viewport_x: float, viewport_y: float, *, zoom: float) -> QPointF:
+        resolved_zoom = self._clamp_zoom(zoom)
+        half_width = float(self._viewport_rect.width()) * 0.5
+        half_height = float(self._viewport_rect.height()) * 0.5
+        return QPointF(
+            float(scene_x) - ((float(viewport_x) - half_width) / resolved_zoom),
+            float(scene_y) - ((float(viewport_y) - half_height) / resolved_zoom),
+        )
+
+    @pyqtSlot(float, float, float, result=bool)
+    def set_view_state(self, zoom: float, center_x: float, center_y: float) -> bool:
+        clamped_zoom = self._clamp_zoom(zoom)
+        next_center_x = float(center_x)
+        next_center_y = float(center_y)
+        if not math.isfinite(next_center_x) or not math.isfinite(next_center_y):
+            return False
+
+        zoom_changed = abs(self._zoom - clamped_zoom) >= 1e-6
+        center_changed = (
+            abs(self._center_x - next_center_x) >= 1e-6
+            or abs(self._center_y - next_center_y) >= 1e-6
+        )
+        if not zoom_changed and not center_changed:
+            return False
+
+        self._zoom = clamped_zoom
+        self._center_x = next_center_x
+        self._center_y = next_center_y
+        self._refresh_visible_scene_rect_cache()
+
+        if zoom_changed:
+            self.zoom_changed.emit(self._zoom)
+        if center_changed:
+            self.center_changed.emit(self._center_x, self._center_y)
+        self.view_state_changed.emit()
+        return True
 
     def set_zoom(self, zoom: float) -> None:
-        clamped = self._clamp_zoom(float(zoom))
-        if abs(self._zoom - clamped) < 1e-6:
-            return
-        self._zoom = clamped
-        self.zoom_changed.emit(self._zoom)
-        self.view_state_changed.emit()
+        self.set_view_state(zoom, self._center_x, self._center_y)
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
-        self.set_zoom(self._zoom * float(factor))
+        self.set_view_state(self._zoom * float(factor), self._center_x, self._center_y)
+
+    @pyqtSlot(float, float, float, result=bool)
+    def adjust_zoom_at_viewport_point(self, factor: float, viewport_x: float, viewport_y: float) -> bool:
+        target_zoom = self._clamp_zoom(self._zoom * float(factor))
+        anchor_scene_point = self.scene_point_for_viewport_point(viewport_x, viewport_y)
+        anchored_center = self._center_for_scene_anchor(
+            anchor_scene_point.x(),
+            anchor_scene_point.y(),
+            viewport_x,
+            viewport_y,
+            zoom=target_zoom,
+        )
+        return self.set_view_state(target_zoom, anchored_center.x(), anchored_center.y())
 
     def centerOn(self, x: float | QPointF, y: float | None = None) -> None:  # noqa: N802
         if isinstance(x, QPointF):
@@ -65,19 +159,22 @@ class ViewportBridge(QObject):
             cx = float(x)
             cy = float(y)
 
-        if abs(self._center_x - cx) < 1e-6 and abs(self._center_y - cy) < 1e-6:
-            return
-        self._center_x = cx
-        self._center_y = cy
-        self.center_changed.emit(self._center_x, self._center_y)
-        self.view_state_changed.emit()
+        self.set_view_state(self._zoom, cx, cy)
 
     @pyqtSlot(float, float)
     def pan_by(self, delta_x: float, delta_y: float) -> None:
-        self.centerOn(self._center_x + float(delta_x), self._center_y + float(delta_y))
+        self.set_view_state(self._zoom, self._center_x + float(delta_x), self._center_y + float(delta_y))
 
-    def mapToScene(self, _point) -> QPointF:  # noqa: ANN001, N802
-        return QPointF(self._center_x, self._center_y)
+    def mapToScene(self, point) -> QPointF:  # noqa: ANN001, N802
+        point_x = getattr(point, "x", None)
+        point_y = getattr(point, "y", None)
+        if point_x is None or point_y is None:
+            return QPointF(self._center_x, self._center_y)
+        viewport_x = point_x() if callable(point_x) else point_x
+        viewport_y = point_y() if callable(point_y) else point_y
+        if not math.isfinite(float(viewport_x)) or not math.isfinite(float(viewport_y)):
+            return QPointF(self._center_x, self._center_y)
+        return self.scene_point_for_viewport_point(float(viewport_x), float(viewport_y))
 
     def viewport(self) -> "ViewportBridge":
         return self
@@ -86,15 +183,7 @@ class ViewportBridge(QObject):
         return QRect(self._viewport_rect)
 
     def visible_scene_rect(self) -> QRectF:
-        zoom = max(MIN_ZOOM, self._zoom)
-        scene_width = float(self._viewport_rect.width()) / zoom
-        scene_height = float(self._viewport_rect.height()) / zoom
-        return QRectF(
-            self._center_x - (scene_width * 0.5),
-            self._center_y - (scene_height * 0.5),
-            scene_width,
-            scene_height,
-        )
+        return QRectF(self._visible_scene_rect)
 
     def _rect_payload(self, rect: QRectF) -> dict[str, float]:
         normalized = QRectF(rect).normalized()
@@ -107,7 +196,7 @@ class ViewportBridge(QObject):
 
     @pyqtSlot(result="QVariantMap")
     def visible_scene_rect_map(self) -> dict[str, float]:
-        return self._rect_payload(self.visible_scene_rect())
+        return dict(self._visible_scene_rect_payload)
 
     @pyqtSlot(float, float)
     def center_on_scene_point(self, x: float, y: float) -> None:
@@ -136,9 +225,11 @@ class ViewportBridge(QObject):
             return False
         if normalized.width() <= 0.0 or normalized.height() <= 0.0:
             return False
-        self.set_zoom(self.fit_zoom_for_scene_rect(normalized, padding_px=padding_px))
-        self.centerOn(normalized.center())
-        return True
+        return self.set_view_state(
+            self.fit_zoom_for_scene_rect(normalized, padding_px=padding_px),
+            normalized.center().x(),
+            normalized.center().y(),
+        )
 
     @pyqtSlot(float, float)
     def set_viewport_size(self, width: float, height: float) -> None:
@@ -147,6 +238,7 @@ class ViewportBridge(QObject):
         if self._viewport_rect.width() == w and self._viewport_rect.height() == h:
             return
         self._viewport_rect = QRect(0, 0, w, h)
+        self._refresh_visible_scene_rect_cache()
         self.view_state_changed.emit()
 
 

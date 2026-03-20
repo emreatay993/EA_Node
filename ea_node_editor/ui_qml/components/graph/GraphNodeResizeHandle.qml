@@ -127,8 +127,9 @@ Item {
             if (!root.host || !pressed)
                 return;
             var gp = mapToGlobal(mouse.x, mouse.y);
-            var dx = (gp.x - pressGlobalX) / root.host.zoom;
-            var dy = (gp.y - pressGlobalY) / root.host.zoom;
+            var zoom = root.host.currentViewportZoom ? root.host.currentViewportZoom() : 1.0;
+            var dx = (gp.x - pressGlobalX) / zoom;
+            var dy = (gp.y - pressGlobalY) / zoom;
             updatePreviewFromDelta(dx, dy, true);
         }
 

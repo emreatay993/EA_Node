@@ -103,6 +103,10 @@ class GraphCanvasBridge(QObject):
     def view_bridge(self) -> "ViewportBridge | None":
         return self._state_bridge.view_bridge or self._command_bridge.view_bridge
 
+    @pyqtProperty(QObject, constant=True)
+    def viewport_bridge(self) -> "ViewportBridge | None":
+        return self.view_bridge
+
     @property
     def state_bridge(self) -> GraphCanvasStateBridge:
         return self._state_bridge
@@ -167,6 +171,10 @@ class GraphCanvasBridge(QObject):
     def visible_scene_rect_payload(self) -> dict[str, Any]:
         return self._state_bridge.visible_scene_rect_payload
 
+    @pyqtProperty("QVariantMap", notify=view_state_changed)
+    def visible_scene_rect_payload_cached(self) -> dict[str, Any]:
+        return self._state_bridge.visible_scene_rect_payload_cached
+
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def nodes_model(self) -> list[dict]:
         return self._state_bridge.nodes_model
@@ -206,9 +214,17 @@ class GraphCanvasBridge(QObject):
     def adjust_zoom(self, factor: float) -> None:
         self._command_bridge.adjust_zoom(factor)
 
+    @pyqtSlot(float, float, float, result=bool)
+    def adjust_zoom_at_viewport_point(self, factor: float, viewport_x: float, viewport_y: float) -> bool:
+        return self._command_bridge.adjust_zoom_at_viewport_point(factor, viewport_x, viewport_y)
+
     @pyqtSlot(float, float)
     def pan_by(self, delta_x: float, delta_y: float) -> None:
         self._command_bridge.pan_by(delta_x, delta_y)
+
+    @pyqtSlot(float, float, float, result=bool)
+    def set_view_state(self, zoom: float, center_x: float, center_y: float) -> bool:
+        return self._command_bridge.set_view_state(zoom, center_x, center_y)
 
     @pyqtSlot(float, float)
     def set_viewport_size(self, width: float, height: float) -> None:
