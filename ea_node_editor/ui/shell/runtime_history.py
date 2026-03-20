@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import copy
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Iterator
 
-from ea_node_editor.graph.model import EdgeInstance, NodeInstance, ViewState, WorkspaceData
+from ea_node_editor.graph.model import WorkspaceData, WorkspaceSnapshot
 
 ACTION_ADD_NODE = "add-node"
 ACTION_REMOVE_NODE = "remove-node"
@@ -18,48 +17,6 @@ ACTION_EDIT_PROPERTY = "edit-property"
 ACTION_DELETE_SELECTED = "delete-selected"
 ACTION_MOVE_NODE = "move-node"
 ACTION_RESIZE_NODE = "resize-node"
-
-
-@dataclass(slots=True)
-class WorkspaceSnapshot:
-    name: str
-    nodes: dict[str, NodeInstance]
-    edges: dict[str, EdgeInstance]
-    views: dict[str, ViewState]
-    active_view_id: str
-    dirty: bool
-    unresolved_node_docs: dict[str, dict[str, object]]
-    unresolved_edge_docs: dict[str, dict[str, object]]
-    authored_node_overrides: dict[str, dict[str, object]]
-
-    @classmethod
-    def capture(cls, workspace: WorkspaceData) -> WorkspaceSnapshot:
-        return cls(
-            name=str(workspace.name),
-            nodes={node_id: node.clone() for node_id, node in workspace.nodes.items()},
-            edges={edge_id: edge.clone() for edge_id, edge in workspace.edges.items()},
-            views=copy.deepcopy(workspace.views),
-            active_view_id=str(workspace.active_view_id),
-            dirty=bool(workspace.dirty),
-            unresolved_node_docs=copy.deepcopy(workspace.unresolved_node_docs),
-            unresolved_edge_docs=copy.deepcopy(workspace.unresolved_edge_docs),
-            authored_node_overrides=copy.deepcopy(workspace.authored_node_overrides),
-        )
-
-    def restore(self, workspace: WorkspaceData) -> None:
-        workspace.name = str(self.name)
-        workspace.nodes = {node_id: node.clone() for node_id, node in self.nodes.items()}
-        workspace.edges = {edge_id: edge.clone() for edge_id, edge in self.edges.items()}
-        workspace.views = copy.deepcopy(self.views)
-        workspace.active_view_id = str(self.active_view_id)
-        workspace.dirty = bool(self.dirty)
-        workspace.unresolved_node_docs = copy.deepcopy(self.unresolved_node_docs)
-        workspace.unresolved_edge_docs = copy.deepcopy(self.unresolved_edge_docs)
-        workspace.authored_node_overrides = copy.deepcopy(self.authored_node_overrides)
-        workspace.ensure_default_view()
-        if workspace.active_view_id not in workspace.views:
-            workspace.active_view_id = next(iter(workspace.views))
-
 
 @dataclass(slots=True)
 class HistoryEntry:
@@ -83,7 +40,7 @@ class RuntimeGraphHistory:
 
     @staticmethod
     def capture_workspace(workspace: WorkspaceData) -> WorkspaceSnapshot:
-        return WorkspaceSnapshot.capture(workspace)
+        return workspace.capture_snapshot()
 
     def clear_all(self) -> None:
         self._undo_stacks.clear()
@@ -163,7 +120,7 @@ class RuntimeGraphHistory:
         if not undo_stack:
             return None
         entry = undo_stack.pop()
-        entry.before.restore(workspace)
+        workspace.restore_snapshot(entry.before)
         self._redo_stacks.setdefault(normalized_id, []).append(entry)
         return entry
 
@@ -175,7 +132,7 @@ class RuntimeGraphHistory:
         if not redo_stack:
             return None
         entry = redo_stack.pop()
-        entry.after.restore(workspace)
+        workspace.restore_snapshot(entry.after)
         self._undo_stacks.setdefault(normalized_id, []).append(entry)
         return entry
 

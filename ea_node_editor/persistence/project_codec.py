@@ -8,15 +8,16 @@ from ea_node_editor.graph.hierarchy import normalize_scope_path
 from ea_node_editor.graph.model import (
     ProjectData,
     ViewState,
+    WorkspacePersistenceState,
     WorkspaceData,
     edge_instance_from_mapping,
     edge_instance_to_mapping,
     node_instance_from_mapping,
     node_instance_to_mapping,
+    sanitize_workspace_parent_links,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.migration import JsonProjectMigration
-from ea_node_editor.persistence.overlay import workspace_persistence_overlay
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
 
@@ -51,7 +52,7 @@ class JsonProjectCodec:
         runtime_preservation: dict[str, dict[str, Any]] = {}
         for workspace_id in ownership.workspace_order:
             workspace = project.workspaces[workspace_id]
-            overlay = workspace_persistence_overlay(workspace)
+            persistence_state = workspace.capture_persistence_state()
             workspace.ensure_default_view()
             active_view_id = workspace.active_view_id
             if active_view_id not in workspace.views:
@@ -75,18 +76,18 @@ class JsonProjectCodec:
                     ],
                     "nodes": self._workspace_node_docs(
                         workspace,
-                        overlay=overlay,
+                        persistence_state=persistence_state,
                         include_unresolved=include_unresolved,
                     ),
                     "edges": self._workspace_edge_docs(
                         workspace,
-                        overlay=overlay,
+                        persistence_state=persistence_state,
                         include_unresolved=include_unresolved,
                     ),
                 }
             )
             if not include_unresolved:
-                sidecar = self._workspace_runtime_preservation(overlay)
+                sidecar = self._workspace_runtime_preservation(persistence_state)
                 if sidecar:
                     runtime_preservation[workspace.workspace_id] = sidecar
         if runtime_preservation:
@@ -148,7 +149,7 @@ class JsonProjectCodec:
                 payload=payload,
                 workspace_id=workspace.workspace_id,
             )
-            overlay = workspace_persistence_overlay(workspace)
+            persistence_state = WorkspacePersistenceState()
             for node_doc in ws_doc.get("nodes", []):
                 if not isinstance(node_doc, Mapping):
                     continue
@@ -157,7 +158,7 @@ class JsonProjectCodec:
                 if not node_id or not type_id:
                     continue
                 if self._registry is not None and self._registry.spec_or_none(type_id) is None:
-                    overlay.unresolved_plugins.node_docs[node_id] = self._copy_mapping(node_doc)
+                    persistence_state.unresolved_node_docs[node_id] = self._copy_mapping(node_doc)
                     continue
                 node = node_instance_from_mapping(node_doc)
                 if node is None:
@@ -171,12 +172,12 @@ class JsonProjectCodec:
                 if (
                     not node_id
                     or not type_id
-                    or node_id in overlay.unresolved_plugins.node_docs
+                    or node_id in persistence_state.unresolved_node_docs
                     or node_id in workspace.nodes
                 ):
                     continue
-                overlay.unresolved_plugins.node_docs[node_id] = self._copy_mapping(node_doc)
-            valid_node_ids = set(workspace.nodes) | set(overlay.unresolved_plugins.node_docs)
+                persistence_state.unresolved_node_docs[node_id] = self._copy_mapping(node_doc)
+            valid_node_ids = set(workspace.nodes) | set(persistence_state.unresolved_node_docs)
             for edge_doc in ws_doc.get("edges", []):
                 if not isinstance(edge_doc, Mapping):
                     continue
@@ -190,11 +191,11 @@ class JsonProjectCodec:
                 if (
                     self._registry is not None
                     and (
-                        source_node_id in overlay.unresolved_plugins.node_docs
-                        or target_node_id in overlay.unresolved_plugins.node_docs
+                        source_node_id in persistence_state.unresolved_node_docs
+                        or target_node_id in persistence_state.unresolved_node_docs
                     )
                 ):
-                    overlay.unresolved_plugins.edge_docs[edge_id] = self._copy_mapping(edge_doc)
+                    persistence_state.unresolved_edge_docs[edge_id] = self._copy_mapping(edge_doc)
                     continue
                 edge = edge_instance_from_mapping(edge_doc)
                 if edge is None:
@@ -206,16 +207,17 @@ class JsonProjectCodec:
                 edge_id = str(edge_doc.get("edge_id", "")).strip()
                 if (
                     not edge_id
-                    or edge_id in overlay.unresolved_plugins.edge_docs
+                    or edge_id in persistence_state.unresolved_edge_docs
                     or edge_id in workspace.edges
                 ):
                     continue
-                overlay.unresolved_plugins.edge_docs[edge_id] = self._copy_mapping(edge_doc)
+                persistence_state.unresolved_edge_docs[edge_id] = self._copy_mapping(edge_doc)
             for node_id, override_doc in self._authored_node_override_payload(runtime_sidecar).items():
                 if node_id not in workspace.nodes:
                     continue
-                overlay.authored_node_overrides.node_docs[node_id] = override_doc
-            self._sanitize_live_parent_links(workspace, overlay)
+                persistence_state.authored_node_overrides[node_id] = override_doc
+            sanitize_workspace_parent_links(workspace, persistence_state)
+            workspace.restore_persistence_state(persistence_state)
             for view in workspace.views.values():
                 view.scope_path = list(normalize_scope_path(workspace, view.scope_path))
             project.workspaces[workspace.workspace_id] = workspace
@@ -231,21 +233,21 @@ class JsonProjectCodec:
         self,
         workspace: WorkspaceData,
         *,
-        overlay,
+        persistence_state: WorkspacePersistenceState,
         include_unresolved: bool,
     ) -> list[dict[str, Any]]:
         node_docs_by_id = {
             node.node_id: self._merge_authored_node_override(
                 node_instance_to_mapping(node),
-                overlay.authored_node_overrides.node_docs.get(node.node_id) if include_unresolved else None,
+                persistence_state.authored_node_overrides.get(node.node_id) if include_unresolved else None,
             )
             for node in sorted(workspace.nodes.values(), key=lambda item: item.node_id)
         }
         if include_unresolved:
-            for node_id in sorted(overlay.unresolved_plugins.node_docs):
+            for node_id in sorted(persistence_state.unresolved_node_docs):
                 if node_id in node_docs_by_id:
                     continue
-                node_doc = overlay.unresolved_plugins.node_docs[node_id]
+                node_doc = persistence_state.unresolved_node_docs[node_id]
                 if not isinstance(node_doc, Mapping):
                     continue
                 node_docs_by_id[node_id] = self._copy_mapping(node_doc)
@@ -255,7 +257,7 @@ class JsonProjectCodec:
         self,
         workspace: WorkspaceData,
         *,
-        overlay,
+        persistence_state: WorkspacePersistenceState,
         include_unresolved: bool,
     ) -> list[dict[str, Any]]:
         edge_docs_by_id = {
@@ -263,20 +265,20 @@ class JsonProjectCodec:
             for edge in sorted(workspace.edges.values(), key=lambda item: item.edge_id)
         }
         if include_unresolved:
-            for edge_id in sorted(overlay.unresolved_plugins.edge_docs):
+            for edge_id in sorted(persistence_state.unresolved_edge_docs):
                 if edge_id in edge_docs_by_id:
                     continue
-                edge_doc = overlay.unresolved_plugins.edge_docs[edge_id]
+                edge_doc = persistence_state.unresolved_edge_docs[edge_id]
                 if not isinstance(edge_doc, Mapping):
                     continue
                 edge_docs_by_id[edge_id] = self._copy_mapping(edge_doc)
         return [edge_docs_by_id[edge_id] for edge_id in sorted(edge_docs_by_id)]
 
-    def _workspace_runtime_preservation(self, overlay) -> dict[str, Any]:
+    def _workspace_runtime_preservation(self, persistence_state: WorkspacePersistenceState) -> dict[str, Any]:
         sidecar: dict[str, Any] = {}
-        unresolved_nodes = overlay.unresolved_plugins.node_docs
-        unresolved_edges = overlay.unresolved_plugins.edge_docs
-        authored_overrides = overlay.authored_node_overrides.node_docs
+        unresolved_nodes = persistence_state.unresolved_node_docs
+        unresolved_edges = persistence_state.unresolved_edge_docs
+        authored_overrides = persistence_state.authored_node_overrides
         if unresolved_nodes:
             sidecar["nodes"] = [
                 self._copy_mapping(unresolved_nodes[node_id])
@@ -332,31 +334,3 @@ class JsonProjectCodec:
         if isinstance(override_doc, Mapping):
             merged.update(copy.deepcopy(dict(override_doc)))
         return merged
-
-    @staticmethod
-    def _sanitize_live_parent_links(workspace: WorkspaceData, overlay) -> None:
-        unresolved_nodes = overlay.unresolved_plugins.node_docs
-        authored_overrides = overlay.authored_node_overrides.node_docs
-        for node in workspace.nodes.values():
-            parent_id = str(node.parent_node_id or "").strip() or None
-            override_parent_id = (
-                str(authored_overrides.get(node.node_id, {}).get("parent_node_id", "")).strip()
-                or None
-            )
-            if parent_id is None:
-                if override_parent_id in unresolved_nodes:
-                    continue
-                authored_overrides.pop(node.node_id, None)
-                continue
-            if parent_id == node.node_id:
-                node.parent_node_id = None
-                authored_overrides.pop(node.node_id, None)
-                continue
-            if parent_id in workspace.nodes:
-                authored_overrides.pop(node.node_id, None)
-                continue
-            if parent_id in unresolved_nodes:
-                authored_overrides[node.node_id] = {"parent_node_id": parent_id}
-            else:
-                authored_overrides.pop(node.node_id, None)
-            node.parent_node_id = None

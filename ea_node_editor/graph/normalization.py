@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from ea_node_editor.graph.effective_ports import (
     EffectivePort,
@@ -18,6 +21,7 @@ from ea_node_editor.graph.model import (
     WorkspaceData,
     edge_instance_to_mapping,
     node_instance_to_mapping,
+    sanitize_workspace_parent_links,
 )
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_PIN_KIND_PROPERTY,
@@ -25,6 +29,177 @@ from ea_node_editor.graph.subnode_contract import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
+
+GRAPH_FRAGMENT_KIND = "ea-node-editor/graph-fragment"
+GRAPH_FRAGMENT_VERSION = 1
+
+
+def build_graph_fragment_payload(
+    *,
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "kind": GRAPH_FRAGMENT_KIND,
+        "version": GRAPH_FRAGMENT_VERSION,
+        "nodes": nodes,
+        "edges": edges,
+    }
+
+
+def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("kind") != GRAPH_FRAGMENT_KIND:
+        return None
+    if int(payload.get("version", -1)) != GRAPH_FRAGMENT_VERSION:
+        return None
+
+    raw_nodes = payload.get("nodes")
+    raw_edges = payload.get("edges")
+    if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
+        return None
+
+    normalized_nodes: list[dict[str, Any]] = []
+    seen_node_ids: set[str] = set()
+    for raw_node in raw_nodes:
+        normalized_node = _normalize_fragment_node_entry(raw_node)
+        if normalized_node is None:
+            return None
+        ref_id = normalized_node["ref_id"]
+        if ref_id in seen_node_ids:
+            return None
+        seen_node_ids.add(ref_id)
+        normalized_nodes.append(normalized_node)
+    if not normalized_nodes:
+        return None
+
+    normalized_edges: list[dict[str, Any]] = []
+    seen_edges: set[tuple[str, str, str, str]] = set()
+    for raw_edge in raw_edges:
+        normalized_edge = _normalize_fragment_edge_entry(raw_edge)
+        if normalized_edge is None:
+            return None
+        source_ref_id = normalized_edge["source_ref_id"]
+        target_ref_id = normalized_edge["target_ref_id"]
+        if source_ref_id not in seen_node_ids or target_ref_id not in seen_node_ids:
+            return None
+        edge_key = (
+            source_ref_id,
+            normalized_edge["source_port_key"],
+            target_ref_id,
+            normalized_edge["target_port_key"],
+        )
+        if edge_key in seen_edges:
+            continue
+        seen_edges.add(edge_key)
+        normalized_edges.append(normalized_edge)
+
+    return build_graph_fragment_payload(nodes=normalized_nodes, edges=normalized_edges)
+
+
+def normalize_edge_label(value: Any) -> str:
+    return str(value).strip() if value is not None else ""
+
+
+def normalize_visual_style_payload(value: Any) -> dict[str, Any]:
+    normalized = _normalize_visual_style_value(value)
+    if isinstance(normalized, dict):
+        return normalized
+    return {}
+
+
+def _normalize_fragment_node_entry(raw_node: Any) -> dict[str, Any] | None:
+    if not isinstance(raw_node, dict):
+        return None
+
+    ref_id = str(raw_node.get("ref_id", "")).strip()
+    type_id = str(raw_node.get("type_id", "")).strip()
+    if not ref_id or not type_id:
+        return None
+
+    try:
+        x = float(raw_node.get("x", 0.0))
+        y = float(raw_node.get("y", 0.0))
+    except (TypeError, ValueError):
+        return None
+    try:
+        custom_width = float(raw_node["custom_width"]) if raw_node.get("custom_width") is not None else None
+        custom_height = float(raw_node["custom_height"]) if raw_node.get("custom_height") is not None else None
+    except (TypeError, ValueError):
+        return None
+
+    raw_exposed_ports = raw_node.get("exposed_ports", {})
+    if not isinstance(raw_exposed_ports, dict):
+        return None
+    normalized_exposed_ports: dict[str, bool] = {}
+    for key, value in raw_exposed_ports.items():
+        normalized_key = str(key).strip()
+        if not normalized_key:
+            return None
+        normalized_exposed_ports[normalized_key] = bool(value)
+
+    raw_properties = raw_node.get("properties", {})
+    if not isinstance(raw_properties, dict):
+        return None
+
+    raw_parent = raw_node.get("parent_node_id")
+    parent_node_id: str | None = None
+    if raw_parent is not None:
+        normalized_parent = str(raw_parent).strip()
+        parent_node_id = normalized_parent or None
+
+    return {
+        "ref_id": ref_id,
+        "type_id": type_id,
+        "title": str(raw_node.get("title", "")),
+        "x": x,
+        "y": y,
+        "collapsed": bool(raw_node.get("collapsed", False)),
+        "properties": copy.deepcopy(raw_properties),
+        "exposed_ports": normalized_exposed_ports,
+        "visual_style": normalize_visual_style_payload(raw_node.get("visual_style")),
+        "parent_node_id": parent_node_id,
+        "custom_width": custom_width,
+        "custom_height": custom_height,
+    }
+
+
+def _normalize_fragment_edge_entry(raw_edge: Any) -> dict[str, Any] | None:
+    if not isinstance(raw_edge, dict):
+        return None
+    source_ref_id = str(raw_edge.get("source_ref_id", "")).strip()
+    source_port_key = str(raw_edge.get("source_port_key", "")).strip()
+    target_ref_id = str(raw_edge.get("target_ref_id", "")).strip()
+    target_port_key = str(raw_edge.get("target_port_key", "")).strip()
+    if not source_ref_id or not source_port_key or not target_ref_id or not target_port_key:
+        return None
+    return {
+        "source_ref_id": source_ref_id,
+        "source_port_key": source_port_key,
+        "target_ref_id": target_ref_id,
+        "target_port_key": target_port_key,
+        "label": normalize_edge_label(raw_edge.get("label")),
+        "visual_style": normalize_visual_style_payload(raw_edge.get("visual_style")),
+    }
+
+
+def _normalize_visual_style_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        normalized: dict[str, Any] = {}
+        for key, child in value.items():
+            normalized_key = str(key).strip()
+            if not normalized_key:
+                continue
+            normalized[normalized_key] = _normalize_visual_style_value(child)
+        return normalized
+    if isinstance(value, list):
+        return [_normalize_visual_style_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_normalize_visual_style_value(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return copy.deepcopy(value)
+    return str(value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -474,35 +649,10 @@ def accept_registry_edge(
     return True
 
 
-def _sanitize_live_parent_links(workspace) -> None:  # noqa: ANN001
-    for node in workspace.nodes.values():
-        parent_id = str(node.parent_node_id or "").strip() or None
-        override_parent_id = (
-            str(workspace.authored_node_overrides.get(node.node_id, {}).get("parent_node_id", "")).strip()
-            or None
-        )
-        if parent_id is None:
-            if override_parent_id in workspace.unresolved_node_docs:
-                continue
-            workspace.authored_node_overrides.pop(node.node_id, None)
-            continue
-        if parent_id == node.node_id:
-            node.parent_node_id = None
-            workspace.authored_node_overrides.pop(node.node_id, None)
-            continue
-        if parent_id in workspace.nodes:
-            workspace.authored_node_overrides.pop(node.node_id, None)
-            continue
-        if parent_id in workspace.unresolved_node_docs:
-            workspace.authored_node_overrides[node.node_id] = {"parent_node_id": parent_id}
-        else:
-            workspace.authored_node_overrides.pop(node.node_id, None)
-        node.parent_node_id = None
-
-
 def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry) -> None:
     """Normalize resolved content while preserving unresolved authored payloads."""
     for workspace in project.workspaces.values():
+        persistence_state = workspace.capture_persistence_state()
         resolved_nodes = resolve_registry_nodes(workspace.nodes, registry)
         unknown_node_ids = set(workspace.nodes) - set(resolved_nodes)
         for resolution in resolved_nodes.values():
@@ -513,15 +663,15 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
             node = workspace.nodes.pop(node_id, None)
             if node is None:
                 continue
-            workspace.unresolved_node_docs[node_id] = node_instance_to_mapping(node)
+            persistence_state.unresolved_node_docs[node_id] = node_instance_to_mapping(node)
 
         resolved_nodes = resolve_registry_nodes(workspace.nodes, registry)
         for edge_id, edge in list(workspace.edges.items()):
             if edge.source_node_id in unknown_node_ids or edge.target_node_id in unknown_node_ids:
-                workspace.unresolved_edge_docs[edge_id] = edge_instance_to_mapping(edge)
+                persistence_state.unresolved_edge_docs[edge_id] = edge_instance_to_mapping(edge)
                 workspace.edges.pop(edge_id, None)
 
-        _sanitize_live_parent_links(workspace)
+        sanitize_workspace_parent_links(workspace, persistence_state)
 
         for resolution in resolved_nodes.values():
             resolution.node.exposed_ports = normalized_exposed_ports(
@@ -548,3 +698,4 @@ def normalize_project_for_registry(project: ProjectData, registry: NodeRegistry)
                 occupied_single_target_ports=occupied_single_target_ports,
             ):
                 workspace.edges.pop(edge_id, None)
+        workspace.restore_persistence_state(persistence_state)

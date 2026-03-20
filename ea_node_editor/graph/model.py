@@ -7,7 +7,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.persistence.overlay import (
-    copy_workspace_persistence_overlay,
     set_workspace_authored_node_overrides,
     set_workspace_unresolved_edge_docs,
     set_workspace_unresolved_node_docs,
@@ -160,6 +159,89 @@ class ViewState:
     scope_path: list[str] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class WorkspacePersistenceState:
+    unresolved_node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    unresolved_edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    authored_node_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+    @classmethod
+    def capture(cls, workspace: WorkspaceData) -> "WorkspacePersistenceState":
+        return cls(
+            unresolved_node_docs=copy.deepcopy(workspace.unresolved_node_docs),
+            unresolved_edge_docs=copy.deepcopy(workspace.unresolved_edge_docs),
+            authored_node_overrides=copy.deepcopy(workspace.authored_node_overrides),
+        )
+
+    def restore(self, workspace: WorkspaceData) -> None:
+        workspace.unresolved_node_docs = copy.deepcopy(self.unresolved_node_docs)
+        workspace.unresolved_edge_docs = copy.deepcopy(self.unresolved_edge_docs)
+        workspace.authored_node_overrides = copy.deepcopy(self.authored_node_overrides)
+
+    def remove_node_references(self, node_id: str) -> None:
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return
+        self.unresolved_node_docs.pop(normalized_node_id, None)
+        self.authored_node_overrides.pop(normalized_node_id, None)
+        for edge_id, edge_doc in list(self.unresolved_edge_docs.items()):
+            if (
+                str(edge_doc.get("source_node_id", "")).strip() == normalized_node_id
+                or str(edge_doc.get("target_node_id", "")).strip() == normalized_node_id
+            ):
+                del self.unresolved_edge_docs[edge_id]
+        for child_node_id, override in list(self.authored_node_overrides.items()):
+            if str(override.get("parent_node_id", "")).strip() == normalized_node_id:
+                del self.authored_node_overrides[child_node_id]
+
+
+@dataclass(slots=True)
+class WorkspaceSnapshot:
+    name: str
+    nodes: dict[str, NodeInstance]
+    edges: dict[str, EdgeInstance]
+    views: dict[str, ViewState]
+    active_view_id: str
+    dirty: bool
+    persistence_state: WorkspacePersistenceState = field(default_factory=WorkspacePersistenceState)
+
+    @property
+    def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
+        return self.persistence_state.unresolved_node_docs
+
+    @property
+    def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
+        return self.persistence_state.unresolved_edge_docs
+
+    @property
+    def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
+        return self.persistence_state.authored_node_overrides
+
+    @classmethod
+    def capture(cls, workspace: WorkspaceData) -> "WorkspaceSnapshot":
+        return cls(
+            name=str(workspace.name),
+            nodes={node_id: node.clone() for node_id, node in workspace.nodes.items()},
+            edges={edge_id: edge.clone() for edge_id, edge in workspace.edges.items()},
+            views=copy.deepcopy(workspace.views),
+            active_view_id=str(workspace.active_view_id),
+            dirty=bool(workspace.dirty),
+            persistence_state=workspace.capture_persistence_state(),
+        )
+
+    def restore(self, workspace: WorkspaceData) -> None:
+        workspace.name = str(self.name)
+        workspace.nodes = {node_id: node.clone() for node_id, node in self.nodes.items()}
+        workspace.edges = {edge_id: edge.clone() for edge_id, edge in self.edges.items()}
+        workspace.views = copy.deepcopy(self.views)
+        workspace.active_view_id = str(self.active_view_id)
+        workspace.dirty = bool(self.dirty)
+        workspace.restore_persistence_state(self.persistence_state)
+        workspace.ensure_default_view()
+        if workspace.active_view_id not in workspace.views:
+            workspace.active_view_id = next(iter(workspace.views))
+
+
 class _WorkspaceOverlayRefBase:
     __slots__ = ("__weakref__",)
 
@@ -206,6 +288,18 @@ class WorkspaceData(_WorkspaceOverlayRefBase):
     def authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
         set_workspace_authored_node_overrides(self, value)
 
+    def capture_persistence_state(self) -> WorkspacePersistenceState:
+        return WorkspacePersistenceState.capture(self)
+
+    def restore_persistence_state(self, state: WorkspacePersistenceState) -> None:
+        state.restore(self)
+
+    def capture_snapshot(self) -> WorkspaceSnapshot:
+        return WorkspaceSnapshot.capture(self)
+
+    def restore_snapshot(self, snapshot: WorkspaceSnapshot) -> None:
+        snapshot.restore(self)
+
     def clone(self, new_workspace_id: str, name: str) -> "WorkspaceData":
         clone_nodes = {node_id: node.clone() for node_id, node in self.nodes.items()}
         clone_edges = {edge_id: edge.clone() for edge_id, edge in self.edges.items()}
@@ -219,9 +313,44 @@ class WorkspaceData(_WorkspaceOverlayRefBase):
             active_view_id=self.active_view_id,
             dirty=True,
         )
-        copy_workspace_persistence_overlay(self, duplicate)
+        duplicate.restore_persistence_state(self.capture_persistence_state())
         duplicate.ensure_default_view()
         return duplicate
+
+
+def sanitize_workspace_parent_links(
+    workspace: WorkspaceData,
+    persistence_state: WorkspacePersistenceState | None = None,
+) -> WorkspacePersistenceState:
+    state = persistence_state or workspace.capture_persistence_state()
+    unresolved_nodes = state.unresolved_node_docs
+    authored_overrides = state.authored_node_overrides
+    for node in workspace.nodes.values():
+        parent_id = str(node.parent_node_id or "").strip() or None
+        override_parent_id = (
+            str(authored_overrides.get(node.node_id, {}).get("parent_node_id", "")).strip()
+            or None
+        )
+        if parent_id is None:
+            if override_parent_id in unresolved_nodes:
+                continue
+            authored_overrides.pop(node.node_id, None)
+            continue
+        if parent_id == node.node_id:
+            node.parent_node_id = None
+            authored_overrides.pop(node.node_id, None)
+            continue
+        if parent_id in workspace.nodes:
+            authored_overrides.pop(node.node_id, None)
+            continue
+        if parent_id in unresolved_nodes:
+            authored_overrides[node.node_id] = {"parent_node_id": parent_id}
+        else:
+            authored_overrides.pop(node.node_id, None)
+        node.parent_node_id = None
+    if persistence_state is None:
+        workspace.restore_persistence_state(state)
+    return state
 
 
 @dataclass(slots=True)
@@ -397,25 +526,15 @@ class GraphModel:
 
     def remove_node(self, workspace_id: str, node_id: str) -> None:
         workspace = self.project.workspaces[workspace_id]
-        if node_id not in workspace.nodes:
-            workspace.unresolved_node_docs.pop(node_id, None)
-        else:
+        if node_id in workspace.nodes:
             del workspace.nodes[node_id]
-        workspace.authored_node_overrides.pop(node_id, None)
+        state = workspace.capture_persistence_state()
+        state.remove_node_references(node_id)
+        workspace.restore_persistence_state(state)
         for edge_id in list(workspace.edges):
             edge = workspace.edges[edge_id]
             if edge.source_node_id == node_id or edge.target_node_id == node_id:
                 del workspace.edges[edge_id]
-        for edge_id in list(workspace.unresolved_edge_docs):
-            edge = workspace.unresolved_edge_docs[edge_id]
-            if (
-                str(edge.get("source_node_id", "")).strip() == node_id
-                or str(edge.get("target_node_id", "")).strip() == node_id
-            ):
-                del workspace.unresolved_edge_docs[edge_id]
-        for child_node_id, override in list(workspace.authored_node_overrides.items()):
-            if str(override.get("parent_node_id", "")).strip() == node_id:
-                del workspace.authored_node_overrides[child_node_id]
         workspace.dirty = True
 
     def set_node_position(self, workspace_id: str, node_id: str, x: float, y: float) -> None:
