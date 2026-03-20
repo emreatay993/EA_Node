@@ -19,7 +19,6 @@ Item {
     property int shadowSoftness: 50
     property int shadowOffset: 4
     property real zoom: 1.0
-    property bool renderQualitySimplified: false
     property bool viewportInteractionCacheActive: false
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
@@ -218,7 +217,6 @@ Item {
     readonly property bool _suppressShadow: card.isFlowchartSurface && !card.isCollapsed
     readonly property bool _shadowVisible: card.showShadow
         && !card._suppressShadow
-        && !card.renderQualitySimplified
         && card._useHostChrome
     readonly property int nodeTextRenderType: Text.CurveRendering
 

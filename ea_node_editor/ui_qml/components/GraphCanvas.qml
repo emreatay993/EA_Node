@@ -872,7 +872,6 @@ Item {
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
                 zoom: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
-                renderQualitySimplified: root.viewportInteractionWorldCacheActive
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
 
                 onNodeClicked: function(nodeId, additive) {

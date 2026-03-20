@@ -861,7 +861,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_canvas_temporarily_simplifies_node_shadow_during_wheel_zoom(self) -> None:
+    def test_graph_canvas_keeps_node_shadow_visible_during_wheel_zoom(self) -> None:
         self._run_qml_probe(
             "graph-canvas-shadow-quality",
             """
@@ -906,7 +906,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert bool(canvas.property("viewportInteractionWorldCacheActive"))
             assert not bool(canvas.property("highQualityRendering"))
             assert bool(node_card.property("viewportInteractionCacheActive"))
-            assert not bool(shadow_item.property("visible"))
+            assert bool(shadow_item.property("visible"))
 
             wait_for_condition_or_raise(
                 lambda: (
@@ -916,7 +916,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 ),
                 timeout_ms=190,
                 app=app,
-                timeout_message="Timed out waiting for wheel-zoom rendering quality to recover.",
+                timeout_message="Timed out waiting for wheel-zoom interaction state to recover.",
             )
             assert not bool(canvas.property("interactionActive"))
             assert not bool(canvas.property("viewportInteractionWorldCacheActive"))
@@ -931,7 +931,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_canvas_temporarily_simplifies_node_shadow_during_wheel_zoom_only_for_viewport_interaction_not_port_drag(self) -> None:
+    def test_graph_canvas_viewport_interaction_cache_remains_viewport_only_not_port_drag(self) -> None:
         self._run_qml_probe(
             "graph-canvas-cache-scope",
             """
