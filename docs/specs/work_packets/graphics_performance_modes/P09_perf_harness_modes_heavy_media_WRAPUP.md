@@ -5,7 +5,7 @@
 - Packet: `P09`
 - Branch Label: `codex/graphics-performance-modes/p09-perf-harness-modes-heavy-media`
 - Commit Owner: `worker`
-- Commit SHA: `7daba42cd00cbdd909b66627fd46868f0b4ca2c1`
+- Commit SHA: `7daba42fa2ac3d0ff96af5106a1eb1817a4c8c15`
 - Changed Files: `ea_node_editor/ui/perf/performance_harness.py`, `tests/test_track_h_perf_harness.py`, `artifacts/graphics_performance_modes_p09/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graphics_performance_modes_p09/track_h_benchmark_report.json`, `artifacts/graphics_performance_modes_p09_review/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graphics_performance_modes_p09_review/track_h_benchmark_report.json`, `docs/specs/work_packets/graphics_performance_modes/P09_perf_harness_modes_heavy_media_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/graphics_performance_modes/P09_perf_harness_modes_heavy_media_WRAPUP.md`, `artifacts/graphics_performance_modes_p09/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graphics_performance_modes_p09/track_h_benchmark_report.json`, `artifacts/graphics_performance_modes_p09_review/TRACK_H_BENCHMARK_REPORT.md`, `artifacts/graphics_performance_modes_p09_review/track_h_benchmark_report.json`
 - Report Contract: `ea_node_editor/ui/perf/performance_harness.py` now records additive `performance_mode`, `scenario`, `scenario_details`, `resolved_graphics_performance_mode`, and `media_surface_count` fields while keeping the existing telemetry entrypoint stable.
