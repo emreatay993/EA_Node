@@ -51,6 +51,7 @@ class RunVerificationTests(unittest.TestCase):
         if use_xdist:
             expected.extend(["-n", str(worker_count), "--dist", "load"])
         expected.extend(["-m", phase_spec.marker_expression])
+        expected.extend(self.manifest.worktree_pytest_ignore_args())
         expected.extend(self.manifest.non_shell_pytest_ignore_args())
         self.assertEqual(phase_spec.phase, command.phase)
         self.assertEqual(tuple(expected), command.display_argv)

@@ -205,7 +205,7 @@ def shell_isolation_phase_pytest_args(
 ) -> tuple[str, ...]:
     """Return argv for the dedicated shell-isolation pytest phase."""
 
-    argv = ("-m", "pytest", SHELL_ISOLATION_PHASE_TEST, "-q")
+    argv = ("-m", "pytest", *worktree_pytest_ignore_args(), SHELL_ISOLATION_PHASE_TEST, "-q")
     if worker_count is not None:
         return (*argv, "-n", str(worker_count), "--dist", "load")
     return argv

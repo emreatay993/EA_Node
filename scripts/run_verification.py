@@ -87,6 +87,9 @@ def build_pytest_command(
         display_argv.extend(["-n", str(worker_count), "--dist", "load"])
     argv.extend(["-m", marker_expression])
     display_argv.extend(["-m", marker_expression])
+    for ignore_arg in manifest.worktree_pytest_ignore_args():
+        argv.append(ignore_arg)
+        display_argv.append(ignore_arg)
     for ignore_arg in manifest.non_shell_pytest_ignore_args():
         argv.append(ignore_arg)
         display_argv.append(ignore_arg)
