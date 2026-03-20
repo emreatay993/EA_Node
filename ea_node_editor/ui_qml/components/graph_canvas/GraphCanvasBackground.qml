@@ -5,6 +5,7 @@ Item {
     id: root
     property var viewBridge: null
     property bool showGrid: true
+    property bool degradedWindowActive: false
     property int _redrawRequestCount: 0
     readonly property var themePalette: themeBridge.palette
     readonly property color backgroundTopColor: themePalette.canvas_bg
@@ -12,6 +13,7 @@ Item {
     readonly property color backgroundFillColor: themePalette.canvas_bg
     readonly property color minorGridColor: themePalette.canvas_minor_grid
     readonly property color majorGridColor: themePalette.canvas_major_grid
+    readonly property bool effectiveShowGrid: root.showGrid && !root.degradedWindowActive
 
     function requestGridRedraw() {
         root._redrawRequestCount += 1;
@@ -19,6 +21,7 @@ Item {
     }
 
     onShowGridChanged: requestGridRedraw()
+    onDegradedWindowActiveChanged: requestGridRedraw()
     onThemePaletteChanged: requestGridRedraw()
 
     Rectangle {
@@ -37,7 +40,7 @@ Item {
             ctx.reset();
             ctx.fillStyle = root.backgroundFillColor;
             ctx.fillRect(0, 0, width, height);
-            if (!root.showGrid)
+            if (!root.effectiveShowGrid)
                 return;
 
             var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;

@@ -520,6 +520,8 @@ Item {
     function _flowLabelMode(edge) {
         if (!root._edgeIsFlow(edge) || !root._edgeLabelText(edge))
             return "hidden";
+        if (root.edgeLabelSimplificationActive)
+            return "hidden";
         var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
         if (zoom < root.flowLabelHideZoomThreshold)
             return "hidden";

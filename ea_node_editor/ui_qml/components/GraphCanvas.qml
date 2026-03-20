@@ -68,12 +68,18 @@ Item {
     readonly property bool transientPerformanceActivityActive: canvasPerformancePolicy.transientActivityActive
     readonly property bool transientDegradedWindowActive: canvasPerformancePolicy.transientDegradedWindowActive
     readonly property bool edgeLabelSimplificationActive: canvasPerformancePolicy.edgeLabelSimplificationActive
+        || root.transientDegradedWindowActive
     readonly property bool gridSimplificationActive: canvasPerformancePolicy.gridSimplificationActive
+        || root.transientDegradedWindowActive
     readonly property bool minimapSimplificationActive: canvasPerformancePolicy.minimapSimplificationActive
+        || root.transientDegradedWindowActive
     readonly property bool shadowSimplificationActive: canvasPerformancePolicy.shadowSimplificationActive
+        || root.transientDegradedWindowActive
     readonly property bool snapshotProxyReuseActive: canvasPerformancePolicy.snapshotProxyReuseActive
+        || root.transientDegradedWindowActive
     readonly property bool viewportInteractionWorldCacheActive: canvasPerformancePolicy.viewportWorldCacheActive
     readonly property bool highQualityRendering: canvasPerformancePolicy.highQualityRendering
+        && !root.transientDegradedWindowActive
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real worldSize: 12000
@@ -863,6 +869,7 @@ Item {
         anchors.fill: parent
         viewBridge: root._canvasViewStateBridgeRef
         showGrid: root.showGrid
+        degradedWindowActive: root.gridSimplificationActive
     }
 
     GraphComponents.EdgeLayer {
@@ -935,6 +942,8 @@ Item {
                 shadowOffset: root.shadowOffset
                 zoom: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
+                snapshotReuseActive: root.snapshotProxyReuseActive
+                shadowSimplificationActive: root.shadowSimplificationActive
 
                 onNodeClicked: function(nodeId, additive) {
                     var bridge = root._canvasSceneCommandBridgeRef;
@@ -1079,6 +1088,7 @@ Item {
         sceneStateBridge: root._canvasSceneStateBridgeRef
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
+        degradedWindowActive: root.minimapSimplificationActive
     }
 
     GraphCanvasComponents.GraphCanvasInputLayers {

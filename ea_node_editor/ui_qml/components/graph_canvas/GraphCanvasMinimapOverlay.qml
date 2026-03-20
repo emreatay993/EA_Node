@@ -9,8 +9,10 @@ Rectangle {
     property var sceneStateBridge: null
     property var viewStateBridge: null
     property var viewCommandBridge: null
+    property bool degradedWindowActive: false
     readonly property var themePalette: themeBridge.palette
     readonly property bool isExpanded: root.canvasItem ? root.canvasItem.minimapExpanded : false
+    readonly property bool minimapContentVisible: root.isExpanded && !root.degradedWindowActive
     readonly property color chromeColor: Qt.alpha(themePalette.panel_bg, 0.64)
     readonly property color chromeBorderColor: themePalette.border
     readonly property color titleColor: themePalette.group_title_fg
@@ -125,7 +127,7 @@ Rectangle {
     Item {
         id: minimapViewport
         objectName: "graphCanvasMinimapViewport"
-        visible: root.isExpanded
+        visible: root.minimapContentVisible
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
