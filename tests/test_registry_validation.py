@@ -33,21 +33,54 @@ def _factory(spec: NodeTypeSpec):
 
 
 class RegistryValidationTests(unittest.TestCase):
-    def test_workspace_data_exposes_persistence_overlay_state_via_compatibility_properties(self) -> None:
+    def test_workspace_data_owns_explicit_persistence_state_and_preserves_compatibility_properties(self) -> None:
+        self.assertIn("persistence_state", WorkspaceData.__dataclass_fields__)
         self.assertNotIn("unresolved_node_docs", WorkspaceData.__dataclass_fields__)
         self.assertNotIn("unresolved_edge_docs", WorkspaceData.__dataclass_fields__)
         self.assertNotIn("authored_node_overrides", WorkspaceData.__dataclass_fields__)
 
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
-        workspace.unresolved_node_docs = {"node_missing": {"type_id": "plugin.missing"}}
-        workspace.unresolved_edge_docs = {"edge_missing": {"source_node_id": "node_missing"}}
-        workspace.authored_node_overrides = {"node_known": {"parent_node_id": "node_missing"}}
+        workspace.persistence_state.replace_unresolved_node_docs(
+            {"node_missing": {"type_id": "plugin.missing"}}
+        )
+        workspace.persistence_state.replace_unresolved_edge_docs(
+            {"edge_missing": {"source_node_id": "node_missing"}}
+        )
+        workspace.persistence_state.replace_authored_node_overrides(
+            {"node_known": {"parent_node_id": "node_missing"}}
+        )
 
         self.assertEqual(workspace.unresolved_node_docs["node_missing"]["type_id"], "plugin.missing")
         self.assertEqual(workspace.unresolved_edge_docs["edge_missing"]["source_node_id"], "node_missing")
         self.assertEqual(
             workspace.authored_node_overrides["node_known"]["parent_node_id"],
             "node_missing",
+        )
+
+    def test_duplicate_workspace_receives_independent_persistence_state_copy(self) -> None:
+        model = GraphModel()
+        source = model.active_workspace
+        source.persistence_state.replace_unresolved_node_docs(
+            {"node_missing": {"type_id": "plugin.missing"}}
+        )
+        source.persistence_state.replace_unresolved_edge_docs(
+            {"edge_missing": {"source_node_id": "node_missing", "target_node_id": "node_known"}}
+        )
+        source.persistence_state.replace_authored_node_overrides(
+            {"node_known": {"parent_node_id": "node_missing"}}
+        )
+
+        duplicate = model.duplicate_workspace(source.workspace_id)
+
+        self.assertIsNot(duplicate.persistence_state, source.persistence_state)
+        self.assertEqual(
+            duplicate.persistence_state.unresolved_node_docs,
+            source.persistence_state.unresolved_node_docs,
+        )
+        duplicate.persistence_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
+        self.assertEqual(
+            source.persistence_state.unresolved_node_docs["node_missing"]["type_id"],
+            "plugin.missing",
         )
 
     def test_register_rejects_duplicate_port_keys(self) -> None:

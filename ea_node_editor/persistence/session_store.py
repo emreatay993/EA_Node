@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from ea_node_editor.graph.model import ProjectData
+from ea_node_editor.persistence.serializer import ProjectDocumentSnapshot
 from ea_node_editor.settings import autosave_project_path, recent_session_path
 from ea_node_editor.persistence.utils import (
     coerce_timestamp as coerce_timestamp_value,
@@ -43,18 +45,35 @@ class SessionAutosaveStore:
             return {}
         return payload if isinstance(payload, dict) else {}
 
+    def _coerce_snapshot(
+        self,
+        *,
+        project_snapshot: ProjectDocumentSnapshot | Mapping[str, Any] | None = None,
+        project_doc: Mapping[str, Any] | None = None,
+    ) -> ProjectDocumentSnapshot:
+        if isinstance(project_snapshot, ProjectDocumentSnapshot):
+            return project_snapshot
+        if isinstance(project_snapshot, Mapping):
+            return ProjectDocumentSnapshot.from_mapping(project_snapshot)
+        return ProjectDocumentSnapshot.from_mapping(project_doc)
+
+    def _project_snapshot(self, project: ProjectData) -> ProjectDocumentSnapshot:
+        return ProjectDocumentSnapshot.from_mapping(self._serializer.to_document(project))
+
     def persist_session(
         self,
         *,
         project_path: str,
         last_manual_save_ts: float,
-        project_doc: dict[str, Any],
         recent_project_paths: list[str],
+        project_doc: Mapping[str, Any] | None = None,
+        project_snapshot: ProjectDocumentSnapshot | Mapping[str, Any] | None = None,
     ) -> None:
+        snapshot = self._coerce_snapshot(project_snapshot=project_snapshot, project_doc=project_doc)
         session_payload = {
             "project_path": project_path,
             "last_manual_save_ts": last_manual_save_ts,
-            "project_doc": project_doc,
+            "project_doc": snapshot.document,
             "recent_project_paths": recent_project_paths,
         }
         write_json_atomic(self._session_path_provider(), session_payload)
@@ -71,22 +90,28 @@ class SessionAutosaveStore:
     def autosave_if_changed(
         self,
         *,
-        project_doc: dict[str, Any],
         last_fingerprint: str,
+        project_doc: Mapping[str, Any] | None = None,
+        project_snapshot: ProjectDocumentSnapshot | Mapping[str, Any] | None = None,
     ) -> str:
-        fingerprint = document_fingerprint_value(project_doc)
-        if fingerprint == last_fingerprint:
+        snapshot = self._coerce_snapshot(project_snapshot=project_snapshot, project_doc=project_doc)
+        if snapshot.fingerprint == last_fingerprint:
             return last_fingerprint
-        write_json_atomic(self._autosave_path_provider(), project_doc)
-        return fingerprint
+        write_json_atomic(self._autosave_path_provider(), snapshot.document)
+        return snapshot.fingerprint
 
     def load_recoverable_autosave(
         self,
         *,
-        current_project_doc: dict[str, Any],
         project_path: str,
         last_manual_save_ts: float,
+        current_project_doc: Mapping[str, Any] | None = None,
+        current_project_snapshot: ProjectDocumentSnapshot | Mapping[str, Any] | None = None,
     ) -> ProjectData | None:
+        current_snapshot = self._coerce_snapshot(
+            project_snapshot=current_project_snapshot,
+            project_doc=current_project_doc,
+        )
         autosave_path = self._autosave_path_provider()
         if not autosave_path.exists():
             return None
@@ -111,8 +136,8 @@ class SessionAutosaveStore:
             self.discard_autosave_snapshot()
             return None
 
-        recovered_doc = self._serializer.to_document(recovered_project)
-        if document_fingerprint_value(current_project_doc) == document_fingerprint_value(recovered_doc):
+        recovered_snapshot = self._project_snapshot(recovered_project)
+        if current_snapshot.fingerprint == recovered_snapshot.fingerprint:
             self.discard_autosave_snapshot()
             return None
 
@@ -123,5 +148,7 @@ class SessionAutosaveStore:
         return coerce_timestamp_value(value)
 
     @staticmethod
-    def document_fingerprint(project_doc: dict[str, Any]) -> str:
-        return document_fingerprint_value(project_doc)
+    def document_fingerprint(project_doc: Mapping[str, Any] | ProjectDocumentSnapshot) -> str:
+        if isinstance(project_doc, ProjectDocumentSnapshot):
+            return project_doc.fingerprint
+        return document_fingerprint_value(dict(project_doc))

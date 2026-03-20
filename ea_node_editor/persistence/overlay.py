@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import copy
-import weakref
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 
 def _copy_overlay_docs(value: Mapping[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -20,71 +19,78 @@ def _copy_overlay_docs(value: Mapping[str, Any] | None) -> dict[str, dict[str, A
 
 
 @dataclass(slots=True)
-class UnresolvedPluginOverlay:
-    node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+class WorkspacePersistenceState:
+    unresolved_node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    unresolved_edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    authored_node_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
 
-    def clone(self) -> "UnresolvedPluginOverlay":
-        return UnresolvedPluginOverlay(
-            node_docs=_copy_overlay_docs(self.node_docs),
-            edge_docs=_copy_overlay_docs(self.edge_docs),
+    def clone(self) -> "WorkspacePersistenceState":
+        return WorkspacePersistenceState(
+            unresolved_node_docs=_copy_overlay_docs(self.unresolved_node_docs),
+            unresolved_edge_docs=_copy_overlay_docs(self.unresolved_edge_docs),
+            authored_node_overrides=_copy_overlay_docs(self.authored_node_overrides),
         )
 
+    @classmethod
+    def capture(cls, workspace: WorkspacePersistenceStateOwner) -> "WorkspacePersistenceState":
+        return workspace.persistence_state.clone()
 
-@dataclass(slots=True)
-class AuthoredNodeOverrideOverlay:
-    node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    def restore(self, workspace: WorkspacePersistenceStateOwner) -> None:
+        workspace.persistence_state = self.clone()
 
-    def clone(self) -> "AuthoredNodeOverrideOverlay":
-        return AuthoredNodeOverrideOverlay(node_docs=_copy_overlay_docs(self.node_docs))
+    def replace_unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
+        self.unresolved_node_docs = _copy_overlay_docs(value)
+
+    def replace_unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
+        self.unresolved_edge_docs = _copy_overlay_docs(value)
+
+    def replace_authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
+        self.authored_node_overrides = _copy_overlay_docs(value)
+
+    def remove_node_references(self, node_id: str) -> None:
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return
+        self.unresolved_node_docs.pop(normalized_node_id, None)
+        self.authored_node_overrides.pop(normalized_node_id, None)
+        for edge_id, edge_doc in list(self.unresolved_edge_docs.items()):
+            if (
+                str(edge_doc.get("source_node_id", "")).strip() == normalized_node_id
+                or str(edge_doc.get("target_node_id", "")).strip() == normalized_node_id
+            ):
+                del self.unresolved_edge_docs[edge_id]
+        for child_node_id, override in list(self.authored_node_overrides.items()):
+            if str(override.get("parent_node_id", "")).strip() == normalized_node_id:
+                del self.authored_node_overrides[child_node_id]
 
 
-@dataclass(slots=True)
-class WorkspacePersistenceOverlay:
-    unresolved_plugins: UnresolvedPluginOverlay = field(default_factory=UnresolvedPluginOverlay)
-    authored_node_overrides: AuthoredNodeOverrideOverlay = field(default_factory=AuthoredNodeOverrideOverlay)
-
-    def clone(self) -> "WorkspacePersistenceOverlay":
-        return WorkspacePersistenceOverlay(
-            unresolved_plugins=self.unresolved_plugins.clone(),
-            authored_node_overrides=self.authored_node_overrides.clone(),
-        )
+class WorkspacePersistenceStateOwner(Protocol):
+    persistence_state: WorkspacePersistenceState
 
 
-_WORKSPACE_OVERLAYS: dict[int, tuple[weakref.ReferenceType[object], WorkspacePersistenceOverlay]] = {}
+def workspace_persistence_overlay(workspace: WorkspacePersistenceStateOwner) -> WorkspacePersistenceState:
+    return workspace.persistence_state
 
 
-def _overlay_ref(workspace: object, overlay: WorkspacePersistenceOverlay) -> tuple[weakref.ReferenceType[object], WorkspacePersistenceOverlay]:
-    workspace_id = id(workspace)
-    ref = weakref.ref(workspace, lambda _ref, workspace_id=workspace_id: _WORKSPACE_OVERLAYS.pop(workspace_id, None))
-    return ref, overlay
-
-
-def workspace_persistence_overlay(workspace: object) -> WorkspacePersistenceOverlay:
-    workspace_id = id(workspace)
-    existing = _WORKSPACE_OVERLAYS.get(workspace_id)
-    if existing is not None:
-        ref, overlay = existing
-        if ref() is workspace:
-            return overlay
-    overlay = WorkspacePersistenceOverlay()
-    _WORKSPACE_OVERLAYS[workspace_id] = _overlay_ref(workspace, overlay)
+def copy_workspace_persistence_overlay(
+    source: WorkspacePersistenceStateOwner,
+    target: WorkspacePersistenceStateOwner,
+) -> WorkspacePersistenceState:
+    overlay = source.persistence_state.clone()
+    target.persistence_state = overlay
     return overlay
 
 
-def copy_workspace_persistence_overlay(source: object, target: object) -> WorkspacePersistenceOverlay:
-    overlay = workspace_persistence_overlay(source).clone()
-    _WORKSPACE_OVERLAYS[id(target)] = _overlay_ref(target, overlay)
-    return overlay
+def set_workspace_unresolved_node_docs(workspace: WorkspacePersistenceStateOwner, value: Mapping[str, Any] | None) -> None:
+    workspace.persistence_state.replace_unresolved_node_docs(value)
 
 
-def set_workspace_unresolved_node_docs(workspace: object, value: Mapping[str, Any] | None) -> None:
-    workspace_persistence_overlay(workspace).unresolved_plugins.node_docs = _copy_overlay_docs(value)
+def set_workspace_unresolved_edge_docs(workspace: WorkspacePersistenceStateOwner, value: Mapping[str, Any] | None) -> None:
+    workspace.persistence_state.replace_unresolved_edge_docs(value)
 
 
-def set_workspace_unresolved_edge_docs(workspace: object, value: Mapping[str, Any] | None) -> None:
-    workspace_persistence_overlay(workspace).unresolved_plugins.edge_docs = _copy_overlay_docs(value)
-
-
-def set_workspace_authored_node_overrides(workspace: object, value: Mapping[str, Any] | None) -> None:
-    workspace_persistence_overlay(workspace).authored_node_overrides.node_docs = _copy_overlay_docs(value)
+def set_workspace_authored_node_overrides(
+    workspace: WorkspacePersistenceStateOwner,
+    value: Mapping[str, Any] | None,
+) -> None:
+    workspace.persistence_state.replace_authored_node_overrides(value)

@@ -7,10 +7,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.persistence.overlay import (
+    WorkspacePersistenceState,
     set_workspace_authored_node_overrides,
     set_workspace_unresolved_edge_docs,
     set_workspace_unresolved_node_docs,
-    workspace_persistence_overlay,
 )
 from ea_node_editor.settings import SCHEMA_VERSION
 
@@ -158,43 +158,6 @@ class ViewState:
     pan_y: float = 0.0
     scope_path: list[str] = field(default_factory=list)
 
-
-@dataclass(slots=True)
-class WorkspacePersistenceState:
-    unresolved_node_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    unresolved_edge_docs: dict[str, dict[str, Any]] = field(default_factory=dict)
-    authored_node_overrides: dict[str, dict[str, Any]] = field(default_factory=dict)
-
-    @classmethod
-    def capture(cls, workspace: WorkspaceData) -> "WorkspacePersistenceState":
-        return cls(
-            unresolved_node_docs=copy.deepcopy(workspace.unresolved_node_docs),
-            unresolved_edge_docs=copy.deepcopy(workspace.unresolved_edge_docs),
-            authored_node_overrides=copy.deepcopy(workspace.authored_node_overrides),
-        )
-
-    def restore(self, workspace: WorkspaceData) -> None:
-        workspace.unresolved_node_docs = copy.deepcopy(self.unresolved_node_docs)
-        workspace.unresolved_edge_docs = copy.deepcopy(self.unresolved_edge_docs)
-        workspace.authored_node_overrides = copy.deepcopy(self.authored_node_overrides)
-
-    def remove_node_references(self, node_id: str) -> None:
-        normalized_node_id = str(node_id).strip()
-        if not normalized_node_id:
-            return
-        self.unresolved_node_docs.pop(normalized_node_id, None)
-        self.authored_node_overrides.pop(normalized_node_id, None)
-        for edge_id, edge_doc in list(self.unresolved_edge_docs.items()):
-            if (
-                str(edge_doc.get("source_node_id", "")).strip() == normalized_node_id
-                or str(edge_doc.get("target_node_id", "")).strip() == normalized_node_id
-            ):
-                del self.unresolved_edge_docs[edge_id]
-        for child_node_id, override in list(self.authored_node_overrides.items()):
-            if str(override.get("parent_node_id", "")).strip() == normalized_node_id:
-                del self.authored_node_overrides[child_node_id]
-
-
 @dataclass(slots=True)
 class WorkspaceSnapshot:
     name: str
@@ -242,12 +205,8 @@ class WorkspaceSnapshot:
             workspace.active_view_id = next(iter(workspace.views))
 
 
-class _WorkspaceOverlayRefBase:
-    __slots__ = ("__weakref__",)
-
-
 @dataclass(slots=True)
-class WorkspaceData(_WorkspaceOverlayRefBase):
+class WorkspaceData:
     workspace_id: str
     name: str
     nodes: dict[str, NodeInstance] = field(default_factory=dict)
@@ -255,6 +214,11 @@ class WorkspaceData(_WorkspaceOverlayRefBase):
     views: dict[str, ViewState] = field(default_factory=dict)
     active_view_id: str = ""
     dirty: bool = False
+    persistence_state: WorkspacePersistenceState = field(
+        default_factory=WorkspacePersistenceState,
+        repr=False,
+        compare=False,
+    )
 
     def ensure_default_view(self) -> None:
         if not self.views:
@@ -266,7 +230,7 @@ class WorkspaceData(_WorkspaceOverlayRefBase):
 
     @property
     def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).unresolved_plugins.node_docs
+        return self.persistence_state.unresolved_node_docs
 
     @unresolved_node_docs.setter
     def unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
@@ -274,7 +238,7 @@ class WorkspaceData(_WorkspaceOverlayRefBase):
 
     @property
     def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).unresolved_plugins.edge_docs
+        return self.persistence_state.unresolved_edge_docs
 
     @unresolved_edge_docs.setter
     def unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
@@ -282,17 +246,17 @@ class WorkspaceData(_WorkspaceOverlayRefBase):
 
     @property
     def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).authored_node_overrides.node_docs
+        return self.persistence_state.authored_node_overrides
 
     @authored_node_overrides.setter
     def authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
         set_workspace_authored_node_overrides(self, value)
 
     def capture_persistence_state(self) -> WorkspacePersistenceState:
-        return WorkspacePersistenceState.capture(self)
+        return self.persistence_state.clone()
 
     def restore_persistence_state(self, state: WorkspacePersistenceState) -> None:
-        state.restore(self)
+        self.persistence_state = state.clone()
 
     def capture_snapshot(self) -> WorkspaceSnapshot:
         return WorkspaceSnapshot.capture(self)

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
 import json
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +13,21 @@ from ea_node_editor.settings import PROJECT_EXTENSION
 
 from .migration import JsonProjectMigration
 from .project_codec import JsonProjectCodec
+from .utils import document_fingerprint as document_fingerprint_value
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectDocumentSnapshot:
+    document: dict[str, Any]
+    fingerprint: str
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "ProjectDocumentSnapshot":
+        document = copy.deepcopy(dict(payload)) if isinstance(payload, Mapping) else {}
+        return cls(
+            document=document,
+            fingerprint=document_fingerprint_value(document),
+        )
 
 
 class JsonProjectSerializer:
@@ -34,6 +52,13 @@ class JsonProjectSerializer:
 
     def to_document(self, project: ProjectData) -> dict[str, Any]:
         return self._codec.to_document(project)
+
+    def document_snapshot(self, project: ProjectData) -> ProjectDocumentSnapshot:
+        return ProjectDocumentSnapshot.from_mapping(self.to_document(project))
+
+    @staticmethod
+    def snapshot_from_mapping(payload: Mapping[str, Any] | None) -> ProjectDocumentSnapshot:
+        return ProjectDocumentSnapshot.from_mapping(payload)
 
     def to_persistent_document(self, project: ProjectData) -> dict[str, Any]:
         return self._codec.to_persistent_document(project)
