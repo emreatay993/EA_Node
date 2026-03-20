@@ -33,6 +33,9 @@ Item {
     property real viewportCullMarginPx: 96.0
     property var _cachedNodeMap: null
     property var _cachedEdgeGeometries: ({})
+    property var _visibleEdgeSnapshots: []
+    property var _visibleEdgeSnapshotById: ({})
+    property int _visibleEdgeSnapshotRevision: 0
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
@@ -50,6 +53,7 @@ Item {
 
     function requestRedraw() {
         root._viewStateRedrawDirty = false;
+        root._refreshVisibleEdgeSnapshots();
         root._redrawRequestCount += 1;
         edgeCanvas.requestPaint();
     }
@@ -657,7 +661,7 @@ Item {
         return root.flowDefaultLabelBorderColor;
     }
 
-    function _flowLabelAnchor(geometry) {
+    function _flowLabelAnchorScene(geometry) {
         var anchor = null;
         if (geometry && geometry.route === "pipe") {
             var pipePoints = geometry.pipe_points || [];
@@ -693,12 +697,82 @@ Item {
             normalX = -normalX;
             normalY = -normalY;
         }
-        var viewportTransform = root._viewportTransform();
         return {
-            "screen_x": root._sceneXToScreen(anchor.x, viewportTransform) + normalX * 18.0,
-            "screen_y": root._sceneYToScreen(anchor.y, viewportTransform) + normalY * 18.0,
+            "x": anchor.x,
+            "y": anchor.y,
+            "dx": anchor.dx,
+            "dy": anchor.dy,
+            "normal_x": normalX,
+            "normal_y": normalY,
             "angle": anchor.angle
         };
+    }
+
+    function _flowLabelAnchor(labelAnchorScene) {
+        if (!labelAnchorScene)
+            return null;
+        return {
+            "screen_x": root.sceneToScreenX(labelAnchorScene.x) + Number(labelAnchorScene.normal_x) * 18.0,
+            "screen_y": root.sceneToScreenY(labelAnchorScene.y) + Number(labelAnchorScene.normal_y) * 18.0,
+            "angle": labelAnchorScene.angle
+        };
+    }
+
+    function _buildVisibleEdgeSnapshots(revision) {
+        var snapshots = [];
+        var snapshotById = {};
+        var edgesList = root.edges || [];
+        var nodeById = root._getNodeMap();
+        var viewportBounds = root._expandedVisibleSceneBounds();
+
+        for (var i = 0; i < edgesList.length; i++) {
+            var edge = edgesList[i];
+            if (!edge || !edge.edge_id)
+                continue;
+            var edgeId = String(edge.edge_id);
+            var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
+            var geometry = cullState && !cullState.culled ? cullState.geometry : null;
+            var selected = root._isSelected(edgeId);
+            var previewed = root.previewEdgeId && root.previewEdgeId === edgeId;
+            var labelMode = root._flowLabelMode(edge);
+            var snapshot = {
+                "revision": revision,
+                "edgeId": edgeId,
+                "edgeData": edge,
+                "culled": cullState ? Boolean(cullState.culled) : false,
+                "geometry": geometry,
+                "selected": selected,
+                "previewed": Boolean(previewed),
+                "flowEdge": root._edgeIsFlow(edge),
+                "labelText": root._edgeLabelText(edge),
+                "labelMode": labelMode,
+                "labelAnchorScene": labelMode !== "hidden" && geometry
+                    ? root._flowLabelAnchorScene(geometry)
+                    : null
+            };
+            snapshots.push(snapshot);
+            snapshotById[edgeId] = snapshot;
+        }
+
+        return {
+            "snapshots": snapshots,
+            "snapshotById": snapshotById
+        };
+    }
+
+    function _refreshVisibleEdgeSnapshots() {
+        var nextRevision = root._visibleEdgeSnapshotRevision + 1;
+        var model = root._buildVisibleEdgeSnapshots(nextRevision);
+        root._visibleEdgeSnapshots = model.snapshots;
+        root._visibleEdgeSnapshotById = model.snapshotById;
+        root._visibleEdgeSnapshotRevision = nextRevision;
+    }
+
+    function _visibleEdgeSnapshot(edgeId) {
+        var normalized = String(edgeId || "");
+        if (!normalized)
+            return null;
+        return root._visibleEdgeSnapshotById[normalized] || null;
     }
 
     function _drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom, viewportTransform) {
@@ -771,24 +845,25 @@ Item {
     }
 
     function edgeAtScreen(screenX, screenY) {
-        var edgesList = root.edges || [];
-        if (!edgesList.length)
+        var snapshots = root._visibleEdgeSnapshots || [];
+        if (!snapshots.length && (root.edges || []).length) {
+            root._refreshVisibleEdgeSnapshots();
+            snapshots = root._visibleEdgeSnapshots || [];
+        }
+        if (!snapshots.length)
             return "";
-        var nodeById = _nodeMap();
-        var viewportBounds = root._expandedVisibleSceneBounds();
         var viewportTransform = root._viewportTransform();
         var bestId = "";
         var bestDistance = Number.POSITIVE_INFINITY;
         var threshold = root._screenLengthToScene(8.0, viewportTransform);
-        for (var i = edgesList.length - 1; i >= 0; i--) {
-            var edge = edgesList[i];
-            var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
-            if (cullState.culled || !cullState.geometry)
+        for (var i = snapshots.length - 1; i >= 0; i--) {
+            var snapshot = snapshots[i];
+            if (!snapshot || snapshot.culled || !snapshot.geometry)
                 continue;
-            var distance = _edgeDistanceAtScreen(cullState.geometry, screenX, screenY, viewportTransform);
+            var distance = _edgeDistanceAtScreen(snapshot.geometry, screenX, screenY, viewportTransform);
             if (distance < bestDistance && distance <= threshold) {
                 bestDistance = distance;
-                bestId = edge.edge_id;
+                bestId = snapshot.edgeId;
             }
         }
         return bestId;
@@ -803,23 +878,21 @@ Item {
             var ctx = getContext("2d");
             ctx.reset();
             var zoom = root._zoomValue();
-            var edgesList = root.edges || [];
-            var nodeById = root._getNodeMap();
-            var viewportBounds = root._expandedVisibleSceneBounds();
+            var snapshots = root._visibleEdgeSnapshots || [];
             var viewportTransform = root._viewportTransform();
 
             ctx.save();
             root._applyViewportTransform(ctx, viewportTransform);
 
-            for (var i = 0; i < edgesList.length; i++) {
-                var edge = edgesList[i];
-                var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
-                if (cullState.culled || !cullState.geometry)
+            for (var i = 0; i < snapshots.length; i++) {
+                var snapshot = snapshots[i];
+                if (!snapshot || snapshot.culled || !snapshot.geometry)
                     continue;
-                var geometry = cullState.geometry;
-                var selected = root._isSelected(edge.edge_id);
-                var previewed = root.previewEdgeId && root.previewEdgeId === edge.edge_id;
-                var flowEdge = root._edgeIsFlow(edge);
+                var edge = snapshot.edgeData;
+                var geometry = snapshot.geometry;
+                var selected = snapshot.selected;
+                var previewed = snapshot.previewed;
+                var flowEdge = snapshot.flowEdge;
                 ctx.save();
                 ctx.beginPath();
                 root._traceGeometry(ctx, geometry);
@@ -878,8 +951,6 @@ Item {
     Item {
         id: flowLabelLayer
         anchors.fill: parent
-        readonly property var nodeById: root._getNodeMap()
-        readonly property var viewportBounds: root._expandedVisibleSceneBounds()
 
         Repeater {
             model: root.edges || []
@@ -887,21 +958,24 @@ Item {
             delegate: Item {
                 objectName: "graphEdgeFlowLabelItem"
                 property var edgeData: modelData
-                property string labelText: root._edgeLabelText(edgeData)
-                property string labelMode: root._flowLabelMode(edgeData)
+                property string edgeId: String(edgeData && edgeData.edge_id || "")
+                property var snapshotData: edgeId ? root._visibleEdgeSnapshot(edgeId) : null
+                property string labelText: snapshotData ? String(snapshotData.labelText || "") : ""
+                property string labelMode: snapshotData ? String(snapshotData.labelMode || "hidden") : "hidden"
                 property bool labelRequested: labelMode !== "hidden"
-                property var cullState: labelRequested
-                    ? root._edgeCullState(edgeData, flowLabelLayer.nodeById, flowLabelLayer.viewportBounds)
-                    : null
-                property bool culledByViewport: labelRequested && cullState ? Boolean(cullState.culled) : false
+                property var snapshotRevision: snapshotData ? snapshotData.revision : 0
+                property bool culledByViewport: labelRequested && snapshotData ? Boolean(snapshotData.culled) : false
                 property bool pillVisible: labelMode === "pill"
                 property real anchorScreenX: labelAnchor ? labelAnchor.screen_x : 0.0
                 property real anchorScreenY: labelAnchor ? labelAnchor.screen_y : 0.0
-                property var geometry: labelRequested && !culledByViewport && cullState ? cullState.geometry : null
-                property var labelAnchor: geometry ? root._flowLabelAnchor(geometry) : null
+                property var geometry: labelRequested && !culledByViewport && snapshotData ? snapshotData.geometry : null
+                property var labelAnchorScene: labelRequested && !culledByViewport && snapshotData
+                    ? snapshotData.labelAnchorScene
+                    : null
+                property var labelAnchor: labelAnchorScene ? root._flowLabelAnchor(labelAnchorScene) : null
                 property bool hitTestMatches: visible
-                property bool selectedEdge: root._isSelected(String(edgeData && edgeData.edge_id || ""))
-                property bool previewedEdge: root.previewEdgeId && root.previewEdgeId === String(edgeData && edgeData.edge_id || "")
+                property bool selectedEdge: snapshotData ? Boolean(snapshotData.selected) : false
+                property bool previewedEdge: snapshotData ? Boolean(snapshotData.previewed) : false
                 property real horizontalPadding: pillVisible ? 9.0 : 1.0
                 property real verticalPadding: pillVisible ? 5.0 : 0.0
                 property real maximumTextWidth: pillVisible ? 180.0 : 110.0
@@ -975,5 +1049,6 @@ Item {
     onEdgePaletteChanged: requestRedraw()
     onShellPaletteChanged: requestRedraw()
     onPortKindPaletteChanged: requestRedraw()
+    onEdgeLabelSimplificationActiveChanged: requestRedraw()
 
 }

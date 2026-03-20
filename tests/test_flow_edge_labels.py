@@ -169,6 +169,36 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     screen_y + normal_y * 10.0,
                 ) == ""
 
+            def assert_flow_label_snapshot_consistency(edge_layer, label_item, edge_id):
+                snapshot = to_variant(edge_layer._visibleEdgeSnapshot(edge_id))
+                assert snapshot is not None
+                assert snapshot["edgeId"] == edge_id
+                assert label_item.property("snapshotRevision") == snapshot["revision"]
+                assert label_item.property("labelMode") == snapshot["labelMode"]
+
+                label_requested = label_item.property("labelMode") != "hidden"
+                geometry = to_variant(label_item.property("geometry"))
+                label_anchor_scene = to_variant(label_item.property("labelAnchorScene"))
+
+                if not label_requested:
+                    assert geometry is None
+                    assert label_anchor_scene is None
+                    return snapshot
+
+                assert bool(label_item.property("culledByViewport")) == bool(snapshot["culled"])
+                if snapshot["culled"]:
+                    assert geometry is None
+                    assert label_anchor_scene is None
+                    return snapshot
+
+                assert geometry == snapshot["geometry"]
+                assert label_anchor_scene == snapshot["labelAnchorScene"]
+                expected_screen_x = edge_layer.sceneToScreenX(label_anchor_scene["x"]) + label_anchor_scene["normal_x"] * 18.0
+                expected_screen_y = edge_layer.sceneToScreenY(label_anchor_scene["y"]) + label_anchor_scene["normal_y"] * 18.0
+                assert abs(label_item.property("anchorScreenX") - expected_screen_x) < 0.001
+                assert abs(label_item.property("anchorScreenY") - expected_screen_y) < 0.001
+                return snapshot
+
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
@@ -248,6 +278,9 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")
             assert len(labels) == 1
             label_item = labels[0]
+            initial_snapshot = assert_flow_label_snapshot_consistency(edge_layer, label_item, edge_id)
+            initial_revision = int(edge_layer.property("_visibleEdgeSnapshotRevision"))
+            assert initial_revision == initial_snapshot["revision"]
             assert label_item.isVisible()
             assert label_item.property("labelMode") == "pill"
             label_text = label_item.findChild(QObject, "graphEdgeFlowLabelText")
@@ -260,12 +293,20 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
 
             view.set_zoom(0.7)
             app.processEvents()
+            simplified_snapshot = assert_flow_label_snapshot_consistency(edge_layer, label_item, edge_id)
+            simplified_revision = int(edge_layer.property("_visibleEdgeSnapshotRevision"))
+            assert simplified_revision > initial_revision
+            assert simplified_revision == simplified_snapshot["revision"]
             assert label_item.isVisible()
             assert label_item.property("labelMode") == "text"
             assert not bool(label_pill.property("visible"))
 
             view.set_zoom(0.5)
             app.processEvents()
+            hidden_snapshot = assert_flow_label_snapshot_consistency(edge_layer, label_item, edge_id)
+            hidden_revision = int(edge_layer.property("_visibleEdgeSnapshotRevision"))
+            assert hidden_revision > simplified_revision
+            assert hidden_revision == hidden_snapshot["revision"]
             assert label_item.property("labelMode") == "hidden"
             assert not label_item.isVisible()
 
@@ -301,23 +342,33 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert len(labels) == 2
             labels_by_text = {item.property("labelText"): item for item in labels}
             assert set(labels_by_text) == {"Primary path", "Offscreen path"}
+            snapshots = to_variant(edge_layer.property("_visibleEdgeSnapshots"))
+            assert len(snapshots) == 2
 
             visible_label = labels_by_text["Primary path"]
             culled_label = labels_by_text["Offscreen path"]
+            visible_snapshot = assert_flow_label_snapshot_consistency(edge_layer, visible_label, edge_id)
+            culled_snapshot = assert_flow_label_snapshot_consistency(edge_layer, culled_label, off_edge_id)
+            assert visible_snapshot["culled"] is False
+            assert culled_snapshot["culled"] is True
             assert visible_label.isVisible()
             assert not culled_label.isVisible()
             assert bool(culled_label.property("culledByViewport"))
             assert culled_label.property("geometry") is None
             assert culled_label.property("labelAnchor") is None
+            assert culled_label.property("labelAnchorScene") is None
             assert not bool(culled_label.property("hitTestMatches"))
 
             view.centerOn(4440.0, 3360.0)
             app.processEvents()
 
+            revealed_snapshot = assert_flow_label_snapshot_consistency(edge_layer, culled_label, off_edge_id)
+            assert revealed_snapshot["culled"] is False
             assert culled_label.isVisible()
             assert not bool(culled_label.property("culledByViewport"))
             assert culled_label.property("geometry") is not None
             assert culled_label.property("labelAnchor") is not None
+            assert culled_label.property("labelAnchorScene") is not None
             assert not visible_label.isVisible()
 
             canvas.deleteLater()
