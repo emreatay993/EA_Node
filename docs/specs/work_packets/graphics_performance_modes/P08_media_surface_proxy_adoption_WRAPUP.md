@@ -5,7 +5,7 @@
 - Packet: `P08`
 - Branch Label: `codex/graphics-performance-modes/p08-media-surface-proxy-adoption`
 - Commit Owner: `emreatay993`
-- Commit SHA: `pending packet-local commit creation`
+- Commit SHA: `addafed205dc6d57f06432dad144756cb0478ca5`
 - Changed Files: relative to `f666c440431c1e26f1c02ab28ca73336993faac7`, `ea_node_editor/nodes/builtins/passive_media.py`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelPreviewViewport.qml`, `tests/test_passive_image_nodes.py`, `tests/test_pdf_preview_provider.py`, `tests/test_passive_graph_surface_host.py`, and `docs/specs/work_packets/graphics_performance_modes/P08_media_surface_proxy_adoption_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/graphics_performance_modes/P08_media_surface_proxy_adoption_WRAPUP.md`
 - Built-in media node specs now publish the `P06` heavy-node render-quality contract with `weight_class="heavy"`, `max_performance_strategy="proxy_surface"`, and `supported_quality_tiers=["full", "proxy"]` for both image and PDF panels.
