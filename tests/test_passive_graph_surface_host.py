@@ -374,56 +374,87 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_media_host_render_quality_proxy_surface_request_preserves_current_surface(self) -> None:
+    def test_media_host_proxy_surface_activates_when_ready_image_enters_proxy_quality_tier(self) -> None:
         self._run_qml_probe(
             "media-render-quality-proxy-surface",
             """
+            import tempfile
+
+            from PyQt6.QtGui import QColor, QImage
+
             media_payload = node_payload(surface_family="media", surface_variant="image_panel")
             media_payload["runtime_behavior"] = "passive"
-            media_payload["surface_metrics"] = {}
-            media_payload["properties"] = {
-                "source_path": "",
-                "caption": "Proxy seam",
-                "fit_mode": "contain",
+            media_payload["type_id"] = "passive.media.image_panel"
+            media_payload["title"] = "Image Panel"
+            media_payload["width"] = 296.0
+            media_payload["height"] = 236.0
+            media_payload["surface_metrics"] = {
+                "body_height": 180.0,
             }
+            media_payload["ports"] = []
+            media_payload["inline_properties"] = []
             media_payload["render_quality"] = {
                 "weight_class": "heavy",
                 "max_performance_strategy": "proxy_surface",
                 "supported_quality_tiers": ["full", "proxy"],
             }
 
-            host = create_component(
-                graph_node_host_qml_path,
-                {
-                    "nodeData": media_payload,
-                    "snapshotReuseActive": True,
-                    "shadowSimplificationActive": True,
-                },
-            )
-            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
-            surface = host.findChild(QObject, "graphNodeMediaSurface")
-            assert loader is not None
-            assert surface is not None
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "proxy-image.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+                media_payload["properties"] = {
+                    "source_path": str(image_path),
+                    "caption": "Proxy seam",
+                    "fit_mode": "contain",
+                }
 
-            render_quality = variant_value(host.property("renderQuality"))
-            context = variant_value(host.property("surfaceQualityContext"))
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": media_payload,
+                        "snapshotReuseActive": True,
+                        "shadowSimplificationActive": True,
+                    },
+                )
+                loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                proxy_preview = host.findChild(QObject, "graphNodeMediaProxyPreview")
+                applied_viewport = host.findChild(QObject, "graphNodeMediaAppliedImageViewport")
+                assert loader is not None
+                assert surface is not None
+                assert proxy_preview is not None
+                assert applied_viewport is not None
 
-            assert render_quality == {
-                "weight_class": "heavy",
-                "max_performance_strategy": "proxy_surface",
-                "supported_quality_tiers": ["full", "proxy"],
-            }
-            assert host.property("requestedQualityTier") == "reduced"
-            assert host.property("resolvedQualityTier") == "proxy"
-            assert bool(host.property("proxySurfaceRequested"))
-            assert loader.property("requestedQualityTier") == "reduced"
-            assert loader.property("resolvedQualityTier") == "proxy"
-            assert bool(loader.property("proxySurfaceRequested"))
-            assert not bool(loader.property("proxySurfaceActive"))
-            assert context["resolved_quality_tier"] == "proxy"
-            assert bool(context["proxy_surface_requested"])
-            assert surface.property("host").property("resolvedQualityTier") == "proxy"
-            assert loader.property("loadedSurfaceKey") == "media"
+                for _index in range(50):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+
+                render_quality = variant_value(host.property("renderQuality"))
+                context = variant_value(host.property("surfaceQualityContext"))
+
+                assert surface.property("previewState") == "ready"
+                assert render_quality == {
+                    "weight_class": "heavy",
+                    "max_performance_strategy": "proxy_surface",
+                    "supported_quality_tiers": ["full", "proxy"],
+                }
+                assert host.property("requestedQualityTier") == "reduced"
+                assert host.property("resolvedQualityTier") == "proxy"
+                assert bool(host.property("proxySurfaceRequested"))
+                assert loader.property("requestedQualityTier") == "reduced"
+                assert loader.property("resolvedQualityTier") == "proxy"
+                assert bool(loader.property("proxySurfaceRequested"))
+                assert bool(loader.property("proxySurfaceActive"))
+                assert bool(proxy_preview.property("visible"))
+                assert not bool(applied_viewport.property("visible"))
+                assert context["resolved_quality_tier"] == "proxy"
+                assert bool(context["proxy_surface_requested"])
+                assert bool(surface.property("proxySurfaceActive"))
+                assert surface.property("host").property("resolvedQualityTier") == "proxy"
+                assert loader.property("loadedSurfaceKey") == "media"
             """,
         )
 
@@ -1087,6 +1118,128 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             app.processEvents()
             engine.deleteLater()
             app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_media_performance_mode_uses_proxy_surface_during_wheel_zoom_and_recovers(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-media-max-performance-proxy",
+            """
+            import tempfile
+
+            from PyQt6.QtGui import QColor, QImage
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "canvas-proxy-image.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(image_path))
+
+                model = GraphModel()
+                registry = build_default_registry()
+                workspace_id = model.active_workspace.workspace_id
+                scene = GraphSceneBridge()
+                scene.set_workspace(model, registry, workspace_id)
+                node_id = scene.add_node_from_type("passive.media.image_panel", 120.0, 140.0)
+                scene.set_node_property(node_id, "source_path", str(image_path))
+                scene.set_node_property(node_id, "caption", "Proxy preview")
+                scene.set_node_property(node_id, "fit_mode", "contain")
+
+                view = ViewportBridge()
+                view.set_viewport_size(1280.0, 720.0)
+
+                canvas = create_component(
+                    graph_canvas_qml_path,
+                    {
+                        "mainWindowBridge": {
+                            "graphics_show_grid": True,
+                            "graphics_show_minimap": True,
+                            "graphics_minimap_expanded": True,
+                            "graphics_node_shadow": True,
+                            "graphics_shadow_strength": 70,
+                            "graphics_shadow_softness": 50,
+                            "graphics_shadow_offset": 4,
+                            "graphics_performance_mode": "max_performance",
+                            "snap_to_grid_enabled": False,
+                            "snap_grid_size": 20.0,
+                        },
+                        "sceneBridge": scene,
+                        "viewBridge": view,
+                        "width": 1280.0,
+                        "height": 720.0,
+                    },
+                )
+                node_cards = [
+                    card for card in named_child_items(canvas, "graphNodeCard")
+                    if str(card.property("surfaceFamily")) == "media"
+                ]
+                assert len(node_cards) == 1
+
+                node_card = node_cards[0]
+                loader = node_card.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = node_card.findChild(QObject, "graphNodeMediaSurface")
+                proxy_preview = node_card.findChild(QObject, "graphNodeMediaProxyPreview")
+                applied_viewport = node_card.findChild(QObject, "graphNodeMediaAppliedImageViewport")
+                assert loader is not None
+                assert surface is not None
+                assert proxy_preview is not None
+                assert applied_viewport is not None
+
+                wait_for_condition_or_raise(
+                    lambda: str(surface.property("previewState")) == "ready",
+                    timeout_ms=600,
+                    app=app,
+                    timeout_message="Timed out waiting for media preview to reach ready state.",
+                )
+                assert node_card.property("resolvedQualityTier") == "full"
+                assert not bool(node_card.property("proxySurfaceRequested"))
+                assert not bool(surface.property("proxySurfaceActive"))
+                assert not bool(loader.property("proxySurfaceActive"))
+                assert not bool(proxy_preview.property("visible"))
+                assert bool(applied_viewport.property("visible"))
+
+                applied = canvas.applyWheelZoom(
+                    {"x": 640.0, "y": 360.0, "angleDelta": {"y": 120}, "inverted": False}
+                )
+                assert applied is True
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        bool(canvas.property("transientDegradedWindowActive"))
+                        and bool(node_card.property("snapshotReuseActive"))
+                        and node_card.property("resolvedQualityTier") == "proxy"
+                        and bool(node_card.property("proxySurfaceRequested"))
+                        and bool(surface.property("proxySurfaceActive"))
+                        and bool(loader.property("proxySurfaceActive"))
+                        and bool(proxy_preview.property("visible"))
+                        and not bool(applied_viewport.property("visible"))
+                    ),
+                    timeout_ms=240,
+                    app=app,
+                    timeout_message="Timed out waiting for media proxy surface activation.",
+                )
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        not bool(canvas.property("interactionActive"))
+                        and not bool(canvas.property("transientDegradedWindowActive"))
+                        and node_card.property("resolvedQualityTier") == "full"
+                        and not bool(node_card.property("proxySurfaceRequested"))
+                        and not bool(surface.property("proxySurfaceActive"))
+                        and not bool(loader.property("proxySurfaceActive"))
+                        and not bool(proxy_preview.property("visible"))
+                        and bool(applied_viewport.property("visible"))
+                    ),
+                    timeout_ms=400,
+                    app=app,
+                    timeout_message="Timed out waiting for media proxy surface recovery.",
+                )
+
+                canvas.deleteLater()
+                app.processEvents()
+                engine.deleteLater()
+                app.processEvents()
             """,
         )
 

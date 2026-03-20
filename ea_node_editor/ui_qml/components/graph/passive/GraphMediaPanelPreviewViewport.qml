@@ -71,6 +71,7 @@ Rectangle {
             root.overlayInteractiveRects
         ]
     )
+    readonly property bool proxyPreviewVisible: !!root.surface && Boolean(root.surface.proxySurfaceActive)
 
     objectName: "graphNodeMediaPreviewViewport"
     radius: 8
@@ -140,6 +141,7 @@ Rectangle {
             visible: root.surface
                 && root.surface.isPdfPanel
                 && root.surface.previewState === "ready"
+                && !root.proxyPreviewVisible
                 && !root.surface.cropModeActive
             smooth: true
         }
@@ -154,6 +156,7 @@ Rectangle {
             visible: root.surface
                 && !root.surface.isPdfPanel
                 && root.surface.previewState === "ready"
+                && !root.proxyPreviewVisible
                 && !root.surface.cropModeActive
             clip: true
 
@@ -170,6 +173,101 @@ Rectangle {
                 fillMode: Image.Stretch
                 source: root.surface ? root.surface.previewSourceUrl : ""
                 smooth: true
+            }
+        }
+
+        Item {
+            id: proxyPreview
+            objectName: "graphNodeMediaProxyPreview"
+            anchors.fill: parent
+            visible: root.proxyPreviewVisible
+
+            Rectangle {
+                anchors.fill: parent
+                radius: 6
+                color: Qt.alpha(root.surface ? root.surface.panelBorderColor : "#4a4f5a", 0.08)
+                border.width: 1
+                border.color: Qt.alpha(root.surface ? root.surface.panelBorderColor : "#4a4f5a", 0.38)
+            }
+
+            Column {
+                anchors.centerIn: parent
+                width: Math.min(parent.width - 24, root.surface && root.surface.isPdfPanel ? 224 : 208)
+                spacing: 8
+
+                Item {
+                    width: 44
+                    height: 44
+                    anchors.horizontalCenter: parent.horizontalCenter
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 10
+                        color: Qt.alpha(root.surface ? root.surface.panelFillColor : "#1b1d22", 0.82)
+                        border.width: 1
+                        border.color: Qt.alpha(root.surface ? root.surface.panelBorderColor : "#4a4f5a", 0.68)
+                    }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: root.surface && root.surface.isPdfPanel ? 18 : 20
+                        height: root.surface && root.surface.isPdfPanel ? 24 : 16
+                        radius: 3
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Qt.alpha(root.surface ? root.surface.hintTextColor : "#bdc5d3", 0.9)
+                    }
+
+                    Rectangle {
+                        visible: !(root.surface && root.surface.isPdfPanel)
+                        anchors.centerIn: parent
+                        width: 10
+                        height: 6
+                        radius: 2
+                        color: Qt.alpha(root.surface ? root.surface.hintTextColor : "#bdc5d3", 0.65)
+                    }
+
+                    Rectangle {
+                        visible: root.surface && root.surface.isPdfPanel
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.top
+                        anchors.topMargin: 12
+                        width: 12
+                        height: 6
+                        radius: 2
+                        color: Qt.alpha(root.surface ? root.surface.pdfBadgeFillColor : "#2C85BF", 0.92)
+                    }
+                }
+
+                Text {
+                    objectName: "graphNodeMediaProxyPreviewTitle"
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    color: root.surface ? root.surface.captionTextColor : "#f0f2f5"
+                    font.pixelSize: 12
+                    font.bold: true
+                    text: root.surface && root.surface.isPdfPanel ? "PDF proxy preview" : "Image proxy preview"
+                    renderType: root.surface && root.surface.host
+                        ? root.surface.host.nodeTextRenderType
+                        : Text.CurveRendering
+                }
+
+                Text {
+                    objectName: "graphNodeMediaProxyPreviewDetail"
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    color: root.surface ? root.surface.hintTextColor : "#bdc5d3"
+                    font.pixelSize: 11
+                    text: root.surface && root.surface.isPdfPanel && root.surface.pdfPageCount > 0
+                        ? "Page " + root.surface.pdfResolvedPageNumber + " of " + root.surface.pdfPageCount
+                            + " paused during max performance interaction."
+                        : "Full preview returns automatically after the interaction settles."
+                    renderType: root.surface && root.surface.host
+                        ? root.surface.host.nodeTextRenderType
+                        : Text.CurveRendering
+                }
             }
         }
 
