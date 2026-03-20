@@ -51,14 +51,17 @@ Design intent:
 
 ## Shell/scene boundary ownership
 
-- `MainShell.qml` remains the composition root for shell chrome and shell-owned overlays, but those QML surfaces now prefer focused facades over raw compatibility objects.
+- `MainShell.qml` remains the composition root for shell chrome and shell-owned overlays, but packet-owned QML now binds to focused bridges instead of raw host globals.
 - `shellLibraryBridge` owns library search/filter state, graph-search results, quick-insert candidates, and hint/insert shell overlays for QML consumers.
 - `shellWorkspaceBridge` owns workspace tabs, title/run/console state, and other shell-chrome workflows that belong to the main shell rather than the scene bridge.
 - `shellInspectorBridge` owns inspector-facing selection metadata, property-edit affordances, and exposed-port presentation for inspector QML surfaces.
-- `graphCanvasBridge` carries shell-owned canvas-host concerns back into `ShellWindow` while preserving the stable `graphCanvas` root contract methods used by drops, hit testing, and minimap toggles.
+- `graphCanvasStateBridge` owns the scene payloads, selection lookup, graphics flags, and camera/view state consumed by `GraphCanvas.qml`.
+- `graphCanvasCommandBridge` owns viewport mutations, scope-open/property-browse requests, drop/connect flows, and connection quick-insert requests flowing back into `ShellWindow`.
+- `GraphCanvas.qml` still exposes the stable root contract methods used by shell/drop workflows (`toggleMinimapExpanded()`, `clearLibraryDropPreview()`, `updateLibraryDropPreview()`, `isPointInCanvas()`, `performLibraryDrop()`).
+- `ShellWindow.graph_canvas_bridge` remains a host-side compatibility wrapper that composes the state/command bridges for packet-external callers, but packet-owned QML no longer receives it as a context property.
 - `GraphSceneBridge` remains the stable public scene contract for node/edge payloads and QML-invokable scene slots, but internal responsibility is split behind helper seams in `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder`.
 - `ThemeBridge` continues to own shell/canvas chrome tokens, while `graphThemeBridge` owns node/edge theming so shell-theme and graph-theme responsibilities stay separate.
-- Raw context properties such as `mainWindow`, `sceneBridge`, and `viewBridge` remain available as compatibility seams only; new QML ownership should land on the focused bridges above.
+- `consoleBridge` and `workspaceTabsBridge` are the remaining deferred compatibility context properties; new QML ownership should land on the focused bridges above.
 
 ## Passive visual authoring path
 
@@ -79,22 +82,22 @@ Design intent:
 - Hover-only affordances use `HoverHandler` or `MouseArea { acceptedButtons: Qt.NoButton }`. Do not reintroduce invisible click-swallowing overlays or compatibility-only hover proxies.
 - Graph-surface editors commit and browse by explicit `nodeId` bridge calls so surface editing does not depend on selected-node timing in the inspector path.
 
-## ARCH_FIFTH_PASS closure snapshot
+## ARCH_SIXTH_PASS closure snapshot
 
 - Startup entry, app-preferences loading, and the performance harness now land on explicit package seams: `ea_node_editor.bootstrap`, `ea_node_editor.app_preferences`, and `ea_node_editor.telemetry.performance_harness` own the packet-owned startup path rather than UI-host glue.
 - Shell construction now runs through `ea_node_editor.ui.shell.composition`, with `ShellWindow` acting as the host/facade while focused library, navigation, graph-edit, package-IO, run, session, and preferences controllers carry packet-owned orchestration.
-- QML now prefers focused shell and canvas bridges: `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, and `graphCanvasCommandBridge` sit behind the compatibility-preserving `graphCanvasBridge` and `GraphSceneBridge` surfaces instead of reopening raw context-global ownership.
+- Packet-owned QML now consumes `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, and `graphCanvasCommandBridge` as the primary context surface, while `consoleBridge`, `workspaceTabsBridge`, and the host-side `GraphCanvasBridge` wrapper remain compatibility-only seams.
 - Packet-owned graph authoring writes now route through the authoritative mutation-service path, and runtime history captures the mutable workspace state needed for undo/redo without leaving payload normalization as a live-model side effect.
 - Persistence-only overlay ownership now lives under `ea_node_editor.persistence.overlay`, current-schema `.sfe` documents stay stable, and pre-current-schema documents are intentionally rejected on this branch rather than silently migrating through packet-external compatibility code.
-- Packet-owned run flows now compile and submit `runtime_snapshot` payloads instead of raw `project_doc` transport, while packet-external callers still pass through a narrow compatibility adapter.
-- Plugin loading is descriptor-first through `PLUGIN_DESCRIPTORS` plus semantic package validation, with legacy constructor fallback preserved only for packages that have not published descriptors yet.
+- Packet-owned run flows now build and submit `RuntimeSnapshot` payloads instead of raw `project_doc` transport, while packet-external callers still pass through a narrow compatibility adapter.
+- Plugin loading is descriptor-first through `PLUGIN_DESCRIPTORS` plus provenance-aware package validation, with legacy constructor fallback preserved only for packages that have not published descriptors yet.
 - Oversized regression suites are split into focused modules, and `scripts/verification_manifest.py` is the canonical source for verification modes, shell-isolation catalogs, and proof-audit anchors consumed by the runner, checker, tests, and packet-owned docs.
 
 ## Current residual seams
 
 - Packet-external execution callers can still enter through the `project_doc` compatibility adapter, so the runtime-snapshot boundary is authoritative for packet-owned flows but not yet universal.
 - Legacy packages without `PLUGIN_DESCRIPTORS` still load through the constructor fallback path, which is intentional for compatibility but keeps a wider plugin discovery seam alive.
-- Raw compatibility context properties (`mainWindow`, `sceneBridge`, `viewBridge`) and the widened `GraphCanvasBridge` surface still ship for deferred QML consumers outside the packet-owned migration set.
+- The host-side `GraphCanvasBridge` wrapper plus deferred `consoleBridge` / `workspaceTabsBridge` context bindings still ship for deferred consumers outside the packet-owned QML migration set.
 - Some higher-level authoring callers still depend on internal mutation-service/raw-helper seams outside the packet-owned write scope, even though packet-owned graph edits now go through the authoritative service.
 - Pre-current-schema `.sfe` documents require an out-of-band conversion path before they can load on this branch.
 - Preserved unresolved payloads remain intentionally opaque in the live model, so there is still no packet-owned inspection or repair UI for missing-plugin content.
@@ -102,9 +105,9 @@ Design intent:
 
 ## Verification and traceability closure
 
-- `docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md` records the accepted packet outcomes, approved verification anchors, traceability evidence, and carried-forward residual risks for `ARCH_FIFTH_PASS`.
+- `docs/specs/work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md` records the accepted packet outcomes, approved verification anchors, traceability evidence, and carried-forward residual risks for `ARCH_SIXTH_PASS`.
 - `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, packet-owned doc anchors, and the declarative fact sets consumed by both `scripts/run_verification.py` and `scripts/check_traceability.py`.
-- The P13 closeout sweep is intentionally doc-focused and current-state oriented: `./venv/Scripts/python.exe scripts/check_traceability.py` and `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` in the project venv.
+- The P12 closeout sweep reruns `./venv/Scripts/python.exe scripts/check_traceability.py` and `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` in the project venv so the published architecture/docs state stays aligned with the landed code.
 
 ## Visual architecture maps
 If your Markdown viewer supports Mermaid, these diagrams render inline.
@@ -113,7 +116,7 @@ Static exports are generated into `docs/architecture_diagrams/`.
 To regenerate diagrams:
 
 ```bash
-python3 scripts/export_architecture_diagrams.py
+./venv/Scripts/python.exe scripts/export_architecture_diagrams.py
 ```
 
 ### 1) Component map (who talks to whom)
@@ -247,9 +250,9 @@ flowchart TD
     T --> U[Node library refresh includes custom workflow entries]
 
     K --> V[User clicks Run]
-    V --> W[RunController builds trigger with workflow settings and project_doc]
+    V --> W[RunController builds trigger with workflow settings and runtime_snapshot]
     W --> X[Execution client starts worker run]
-    X --> Y[Worker compiles workspace document and executes nodes]
+    X --> Y[Worker compiles the selected runtime snapshot workspace and executes nodes]
     Y --> Z[Run events and logs stream to RunController]
     Z --> ZA[Status, console, failed-node focus, and actions updated]
 
@@ -274,7 +277,7 @@ sequenceDiagram
     User->>QML: Click Run
     QML->>SW: request_run_workflow()
     SW->>RC: run_workflow()
-    RC->>RC: serializer.to_document() + workflow_settings_payload()
+    RC->>RC: build_runtime_snapshot(...) + workflow_settings_payload()
     RC->>EC: start_run(project_path, workspace_id, trigger)
     EC->>W: StartRunCommand (queue)
     W->>EC: run_started + run_state(running)
@@ -315,10 +318,10 @@ sequenceDiagram
 - serializer/session store (`JsonProjectSerializer`, `SessionAutosaveStore`),
 - `GraphModel` + `WorkspaceManager` + `RuntimeGraphHistory`,
 - controller layer (`AppPreferencesController`, `WorkspaceLibraryController`, `ProjectSessionController`, `RunController`),
-- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `GraphCanvasBridge`, console/status/script/workspace models),
+- QML bridges/models (`ThemeBridge`, `GraphThemeBridge`, `GraphSceneBridge`, `ViewportBridge`, `ShellLibraryBridge`, `ShellWorkspaceBridge`, `ShellInspectorBridge`, `GraphCanvasStateBridge`, `GraphCanvasCommandBridge`, host-side `GraphCanvasBridge`, console/status/script/workspace models),
 - execution client (`ProcessExecutionClient`) and event subscription.
 4. Graphics preferences are loaded into `ShellWindow`, updating runtime grid/minimap/snap, shell-theme, and graph-theme state before the shell is shown.
-5. QML shell is loaded (`ui_qml/MainShell.qml`) with focused facade context properties, compatibility raw context properties, and a composed `GraphCanvas` surface.
+5. QML shell is loaded (`ui_qml/MainShell.qml`) with bridge-first context properties plus deferred compatibility `consoleBridge` / `workspaceTabsBridge` bindings and a composed `GraphCanvas` surface.
 6. `GraphCanvas` composes dedicated background/minimap/input/context/drop-preview modules.
 7. Session restore + optional autosave recovery runs, then active workspace/view/scope are bound.
 
@@ -326,7 +329,7 @@ sequenceDiagram
 ### 1) Graph editing, hierarchy, and view sync
 - `GraphCanvasInputLayers`, `NodeCard`, and `EdgeLayer` capture pointer/keyboard interactions and issue `request_*` calls.
 - Shell-owned library/search/hint, workspace/run/title/console, and inspector panes talk to `shellLibraryBridge`, `shellWorkspaceBridge`, and `shellInspectorBridge`, which delegate to `ShellWindow` controllers and compatibility APIs.
-- `graphCanvasBridge` carries shell-owned canvas-host integration back into `ShellWindow` without reopening the public `GraphCanvas` root contract.
+- `graphCanvasStateBridge` publishes scene/view payloads into `GraphCanvas.qml`, while `graphCanvasCommandBridge` routes shell-owned canvas actions back into `ShellWindow` without reopening raw host globals.
 - `GraphSceneBridge` applies scoped mutations to `GraphModel` (only nodes in active scope).
 - `GraphSceneBridge` plus `GraphSceneScopeSelection`, `GraphSceneMutationHistory`, and `GraphScenePayloadBuilder` own scope state, history grouping, and payload/theme/media construction before payloads reach QML.
 - `GraphSceneBridge` and edge-routing helpers shape node accents and edge colors from the active graph theme before payloads reach QML.
@@ -337,7 +340,7 @@ sequenceDiagram
 ### 1a) Connection-aware quick insert
 - A port drag begins and ends entirely in `NodeCard` plus `GraphCanvas`.
 - If a drag is released over a valid compatible port, normal `request_connect_ports()` flow runs.
-- If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `graphCanvasBridge` and `shellLibraryBridge`.
+- If the drag is released on empty space, `GraphCanvas.qml` opens `ConnectionQuickInsertOverlay.qml` through `graphCanvasCommandBridge` and `shellLibraryBridge`.
 - `ShellWindow` builds source-port context using effective port resolution and asks `window_library_inspector.py` for compatible node-library results.
 - Quick insert acceptance reuses `request_drop_node_from_library(..., target_mode="port", ...)`, so insertion and auto-connect still flow through `WorkspaceDropConnectOps`.
 
@@ -368,13 +371,15 @@ sequenceDiagram
 - `.eawf` import/export is handled in `custom_workflows.file_codec` + workspace IO ops.
 
 ### 5) Workflow execution
-- `RunController.run_workflow()` serializes a project snapshot and starts `ProcessExecutionClient`.
+- `RunController.run_workflow()` builds a `RuntimeSnapshot`, adds workflow settings, and starts `ProcessExecutionClient`.
 - Client sends typed commands through multiprocessing queues.
 - Worker executes `run_workflow()`:
-- compiles the selected workspace document,
+- normalizes the selected `RuntimeSnapshot` through the shared compatibility adapter,
+- compiles the selected workspace snapshot,
 - creates node plugins from registry,
 - executes sync/async node logic,
 - emits typed events (`run_state`, `node_started`, `node_completed`, `log`, terminal events).
+- For manual runs, the worker still preserves `trigger.project_doc` inside the workflow trigger payload seen by nodes so packet-external compatibility callers keep the same trigger shape.
 - On failure, UI focuses the failed node path and updates run state/counters.
 
 ### 6) Persistence and recovery
@@ -390,14 +395,18 @@ sequenceDiagram
 - Hierarchy fields:
 - `NodeInstance.parent_node_id`, `ViewState.scope_path`.
 - Node SDK contracts:
-- `NodeTypeSpec`, `PortSpec`, `PropertySpec`, `ExecutionContext`, `NodeResult`.
+- `NodeTypeSpec`, `PortSpec`, `PropertySpec`, `PluginDescriptor`, `PluginProvenance`, `ExecutionContext`, `NodeResult`.
 - `PropertySpec.inline_editor` controls whether a property participates in inline node-card editing.
+- Plugin/package discovery contract:
+- `PLUGIN_DESCRIPTORS` is the preferred packet-owned registration surface, and registry descriptors carry provenance for file, package, and entry-point sources so export/import flows do not inspect private registry state.
 - QML scene payloads can include `inline_properties` for node-card rendering and fast property updates.
 - Internal identity versus presentation identity:
 - `NodeInstance.node_id` is the canonical reference for persistence, execution, and navigation, while shell presentation derives user-facing titles and per-type sequential IDs for inspector/script surfaces.
 - Execution protocol contracts:
 - commands (`StartRunCommand`, `StopRunCommand`, `PauseRunCommand`, `ResumeRunCommand`, `ShutdownCommand`),
 - events (`RunStartedEvent`, `RunStateEvent`, `NodeStartedEvent`, `NodeCompletedEvent`, `RunCompletedEvent`, `RunFailedEvent`, `RunStoppedEvent`, `LogEvent`, `ProtocolErrorEvent`).
+- Runtime payload contract:
+- `RuntimeSnapshot` is the packet-owned run payload across the client/worker boundary; manual trigger payloads may still surface a compatibility `project_doc` document inside worker-visible trigger metadata.
 - Persistence contract:
 - schema-versioned `.sfe` JSON (`SCHEMA_VERSION = 3`) migrated before model construction.
 - App preferences contract:
@@ -411,7 +420,7 @@ sequenceDiagram
 - Graph theme bridge contract:
 - `graphThemeBridge` exposes node, edge, category-accent, and port-kind palettes to QML graph item surfaces without changing canvas chrome tokens.
 - QML shell boundary contract:
-- `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, and `graphCanvasBridge` partition shell-owned QML concerns while raw context properties remain compatibility-only until the remaining consumers are retired.
+- `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, and `graphCanvasCommandBridge` partition packet-owned QML concerns; `consoleBridge`, `workspaceTabsBridge`, and the host-side `graphCanvasBridge` alias remain compatibility-only seams.
 
 ## Key architecture rules currently enforced
 1. UI responsiveness through process isolation
@@ -424,7 +433,7 @@ sequenceDiagram
 - Node definitions are validated on registration; runtime property values are normalized.
 
 4. Queue-boundary protocol typing
-- Dataclasses are canonical in runtime; queues carry dict payloads only at boundaries.
+- `RuntimeSnapshot` and protocol dataclasses are canonical in runtime; queues carry dict payloads only at boundaries.
 
 5. App-wide preferences stay outside project/session files
 - Graphics/theme preferences persist in `app_preferences.json`; `.sfe` and `last_session.json` stay focused on project/session state only.
@@ -437,6 +446,9 @@ sequenceDiagram
 
 8. Workspace-local undo/redo snapshots
 - `RuntimeGraphHistory` tracks undo/redo stacks per workspace.
+
+9. Bridge-first QML shell boundary
+- Packet-owned QML binds to focused shell/canvas bridges; only `consoleBridge` and `workspaceTabsBridge` remain deferred compatibility context bindings.
 
 ## Folder map
 - `main.py`: launcher.
@@ -460,14 +472,14 @@ sequenceDiagram
 
 ## Where to change what
 - Add new built-in node behavior: `ea_node_editor/nodes/builtins/*.py`.
-- Add plugin loading sources/rules: `ea_node_editor/nodes/plugin_loader.py`.
+- Add plugin loading sources/rules: `ea_node_editor/nodes/plugin_loader.py` and `ea_node_editor/nodes/package_manager.py`.
 - Change graph hierarchy/scope behavior: `ea_node_editor/graph/hierarchy.py` and `ea_node_editor/ui_qml/graph_scene_bridge.py`.
 - Change grouping/ungrouping and fragment transforms: `ea_node_editor/graph/transforms.py`.
-- Change execution semantics or event behavior: `ea_node_editor/execution/worker.py` and `ea_node_editor/execution/protocol.py`.
+- Change execution semantics or event behavior: `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/worker.py`, and `ea_node_editor/execution/protocol.py`.
 - Change run orchestration/UI reaction: `ea_node_editor/ui/shell/controllers/run_controller.py`.
 - Change project/session/autosave orchestration: `ea_node_editor/ui/shell/controllers/project_session_controller.py`.
 - Change workspace/view/library/search behavior: `ea_node_editor/ui/shell/controllers/workspace_library_controller.py` and helper ops.
-- Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,graph_canvas_bridge.py}` plus the corresponding `ui_qml/components/shell/*` consumers.
+- Change shell-to-QML boundary ownership: `ea_node_editor/ui_qml/{shell_context_bootstrap.py,shell_library_bridge.py,shell_workspace_bridge.py,shell_inspector_bridge.py,graph_canvas_state_bridge.py,graph_canvas_command_bridge.py,graph_canvas_bridge.py}` plus the corresponding `ui_qml/components/shell/*` consumers.
 - Change graph-scene internal boundary ownership: `ea_node_editor/ui_qml/{graph_scene_bridge.py,graph_scene_scope_selection.py,graph_scene_mutation_history.py,graph_scene_payload_builder.py}`.
 - Change shell QML composition layout: `ea_node_editor/ui_qml/MainShell.qml` and `ea_node_editor/ui_qml/components/shell/*`.
 - Change quick insert result ranking/filtering or inline property payload generation: `ea_node_editor/ui/shell/window.py` and `ea_node_editor/ui/shell/window_library_inspector.py`.
@@ -476,7 +488,7 @@ sequenceDiagram
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ui_qml/components/graph_canvas/*`, and `ui_qml/graph_scene_bridge.py`.
 
 ## Practical summary
-EA Node Editor uses a QML-first UI with a Python shell facade, controller-based orchestration, shared app-wide graphics/theme preferences, scoped graph hierarchy, and a process-isolated execution engine.
+EA Node Editor uses a QML-first UI with a bridge-first shell context, controller-based orchestration, shared app-wide graphics/theme preferences, scoped graph hierarchy, and a process-isolated execution engine.
 This split keeps concerns clear:
 - interaction/rendering in QML and bridges,
 - canonical project state in `GraphModel`,

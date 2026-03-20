@@ -58,6 +58,7 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 50. [ARCH_FIFTH_PASS Status Ledger](work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_STATUS.md)
 51. [ARCH_SIXTH_PASS Work Packet Manifest](work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_MANIFEST.md)
 52. [ARCH_SIXTH_PASS Status Ledger](work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_STATUS.md)
+53. [ARCH_SIXTH_PASS QA Matrix](work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md)
 
 ## ADRs
 

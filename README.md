@@ -9,6 +9,7 @@ Recent UI/UX architecture highlights:
 
 - App-wide Graphics Settings modal for grid, minimap, snap-to-grid default, shell-theme selection, and graph-theme follow-shell or explicit selection
 - Split shell/chrome theming (`ThemeBridge` + `stitch_dark` / `stitch_light`) from node/edge graph theming (`graphThemeBridge` + built-in/custom graph themes)
+- Bridge-first shell/canvas QML context using `shellLibraryBridge`, `shellWorkspaceBridge`, `shellInspectorBridge`, `graphCanvasStateBridge`, and `graphCanvasCommandBridge` instead of raw `mainWindow` / `sceneBridge` / `viewBridge` globals
 - Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, and live apply for the active explicit custom theme
 - Graphics preferences now persist in `app_preferences.json` separately from project `.sfe` files and `last_session.json`
 - Passive visual node families now ship in the main graph model for flowcharting, planning, annotation, and local image/PDF presentation
@@ -247,13 +248,18 @@ class MultiplyNode:
 Restart the application and the node will appear in the Node Library under the
 "Math" category.
 
+For new plugin modules or installed packages, prefer exporting
+`PLUGIN_DESCRIPTORS` so the loader can register descriptors and provenance
+without constructor probing. The legacy class scan remains supported for older
+plugins.
+
 Installed `.eanp` packages use the same plugin root, but each package lives in
 its own public subdirectory named after `node_package.json` `name`. Supported
 package contents are `node_package.json` plus top-level `.py` modules only.
 
 ## Sharing Node Packages
 
-- **Export:** File > Export Node Package -- packages one current user-plugin source candidate into a `.eanp` archive. Export candidates come from the user plugins directory only: either one top-level `.py` drop-in or one installed package directory's top-level `.py` files.
+- **Export:** File > Export Node Package -- packages one current user-plugin source candidate into a `.eanp` archive. Export candidates come from descriptor provenance in the user plugins directory only: either one top-level `.py` drop-in or one installed package directory's top-level `.py` files.
 - **Import:** File > Import Node Package -- installs a `.eanp` archive as `%APPDATA%/EA_Node_Editor/plugins/<package_name>/` with `node_package.json` plus top-level `.py` files, then reloads user plugins for the current session.
 - **Current limitation:** If an imported package replaces node types that were already loaded earlier in the session, restart the application before relying on the replacement definitions.
 
@@ -298,6 +304,8 @@ When you change verification docs or packet-owned proof links, audit them with:
 ./venv/Scripts/python.exe scripts/check_traceability.py
 ```
 
+- The current architecture/docs closeout evidence is summarized in
+  `docs/specs/work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md`.
 - `fast` targets `pytest -m "not gui and not slow"` and, when
   `pytest-xdist` is available in the project venv, resolves an explicit worker
   count as `psutil.cpu_count(logical=True)`, else `os.cpu_count()`, else `1`,
@@ -363,7 +371,7 @@ packaging, installer creation, and code signing instructions.
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
-- [ARCH_FIFTH_PASS QA Matrix](docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md) -- accepted fifth-pass packet outcomes, carried verification anchors, final traceability evidence, and residual risks
+- [ARCH_SIXTH_PASS QA Matrix](docs/specs/work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md) -- accepted sixth-pass packet outcomes, closeout verification anchors, refreshed traceability evidence, and carried residual risks
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 
