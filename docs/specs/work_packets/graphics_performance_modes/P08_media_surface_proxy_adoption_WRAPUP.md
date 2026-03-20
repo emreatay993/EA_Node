@@ -4,9 +4,9 @@
 
 - Packet: `P08`
 - Branch Label: `codex/graphics-performance-modes/p08-media-surface-proxy-adoption`
-- Commit Owner: `emreatay993`
+- Commit Owner: `worker`
 - Commit SHA: `addafed205dc6d57f06432dad144756cb0478ca5`
-- Changed Files: relative to `f666c440431c1e26f1c02ab28ca73336993faac7`, `ea_node_editor/nodes/builtins/passive_media.py`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelPreviewViewport.qml`, `tests/test_passive_image_nodes.py`, `tests/test_pdf_preview_provider.py`, `tests/test_passive_graph_surface_host.py`, and `docs/specs/work_packets/graphics_performance_modes/P08_media_surface_proxy_adoption_WRAPUP.md`
+- Changed Files: `ea_node_editor/nodes/builtins/passive_media.py`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelPreviewViewport.qml`, `tests/test_passive_image_nodes.py`, `tests/test_pdf_preview_provider.py`, `tests/test_passive_graph_surface_host.py`, `docs/specs/work_packets/graphics_performance_modes/P08_media_surface_proxy_adoption_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/graphics_performance_modes/P08_media_surface_proxy_adoption_WRAPUP.md`
 - Built-in media node specs now publish the `P06` heavy-node render-quality contract with `weight_class="heavy"`, `max_performance_strategy="proxy_surface"`, and `supported_quality_tiers=["full", "proxy"]` for both image and PDF panels.
 - `GraphMediaPanelSurface.qml` now consumes the `P07` host quality seam, exposes media-surface quality state, activates a real proxy path for ready media panels during reduced-quality windows, keeps generic fallback defaults intact, and suppresses image crop affordances only while the proxy surface is active.
@@ -36,4 +36,4 @@
 
 ## Ready for Integration
 
-Yes: `P08` stays inside the built-in media packet scope, preserves idle/full-fidelity media behavior, exercises a real built-in proxy strategy under `Max Performance`, and passes the required verification commands plus review gate.
+- Yes: `P08` stays inside the built-in media packet scope, preserves idle/full-fidelity media behavior, exercises a real built-in proxy strategy under `Max Performance`, and passes the required verification commands plus review gate.
