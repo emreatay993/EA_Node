@@ -1,9 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Sequence
 
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
+from ea_node_editor.graph.transforms import (
+    GroupSubnodeResult,
+    UngroupSubnodeResult,
+    _group_selection_into_subnode_transaction,
+    _insert_graph_fragment_transaction,
+    _ungroup_subnode_transaction,
+)
 from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 
 if TYPE_CHECKING:
@@ -275,6 +282,48 @@ class WorkspaceMutationService:
 
     def set_edge_visual_style(self, edge_id: str, visual_style: dict[str, object] | None) -> None:
         self._validated().set_edge_visual_style(edge_id, visual_style)
+
+    def insert_graph_fragment(
+        self,
+        *,
+        fragment_payload: dict[str, Any],
+        delta_x: float,
+        delta_y: float,
+    ) -> list[str]:
+        return _insert_graph_fragment_transaction(
+            mutations=self,
+            workspace=self.workspace,
+            fragment_payload=fragment_payload,
+            delta_x=delta_x,
+            delta_y=delta_y,
+        )
+
+    def group_selection_into_subnode(
+        self,
+        *,
+        selected_node_ids: Sequence[object],
+        scope_path: Sequence[object] | None,
+        shell_x: float,
+        shell_y: float,
+    ) -> GroupSubnodeResult | None:
+        if self.registry is None:
+            raise RuntimeError("Node registry is required for subnode grouping transactions.")
+        return _group_selection_into_subnode_transaction(
+            mutations=self,
+            registry=self.registry,
+            workspace=self.workspace,
+            selected_node_ids=selected_node_ids,
+            scope_path=scope_path,
+            shell_x=shell_x,
+            shell_y=shell_y,
+        )
+
+    def ungroup_subnode(self, *, shell_node_id: object) -> UngroupSubnodeResult | None:
+        return _ungroup_subnode_transaction(
+            mutations=self,
+            workspace=self.workspace,
+            shell_node_id=shell_node_id,
+        )
 
     def normalize_pdf_panel_pages(self) -> bool:
         if self.registry is None:

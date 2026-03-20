@@ -20,12 +20,9 @@ from ea_node_editor.graph.transforms import (
     fragment_node_from_payload,
     graph_fragment_bounds,
     graph_fragment_payload_is_valid,
-    group_selection_into_subnode,
-    insert_graph_fragment,
     normalize_layout_position_updates,
     plan_subnode_shell_pin_addition,
     snap_coordinate,
-    ungroup_subnode,
 )
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_LABEL_PROPERTY,
@@ -53,6 +50,7 @@ from ea_node_editor.ui_qml.edge_routing import node_size
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 if TYPE_CHECKING:
+    from ea_node_editor.graph.mutation_service import WorkspaceMutationService
     from ea_node_editor.graph.normalization import ValidatedGraphMutation
     from ea_node_editor.ui.shell.runtime_history import WorkspaceSnapshot
     from ea_node_editor.ui_qml.graph_scene_bridge import _GraphSceneContext
@@ -707,15 +705,15 @@ class GraphSceneMutationHistory:
         selection_bounds = self._scope_selection.bounds_for_node_ids(selected_node_ids)
         if selection_bounds is None:
             return False
+        transactions = self._authoring_transactions()
+        if transactions is None:
+            return False
 
         history_group = self._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
 
         grouped = None
         with history_group:
-            grouped = group_selection_into_subnode(
-                model=model,
-                registry=registry,
-                workspace_id=self._scene_context.workspace_id,
+            grouped = transactions.group_selection_into_subnode(
                 selected_node_ids=selected_node_ids,
                 scope_path=self._scene_context.scope_path,
                 shell_x=selection_bounds.x(),
@@ -739,14 +737,15 @@ class GraphSceneMutationHistory:
         if len(selected_node_ids) != 1:
             return False
         shell_node_id = selected_node_ids[0]
+        transactions = self._authoring_transactions()
+        if transactions is None:
+            return False
 
         history_group = self._scene_context.grouped_history_action(ACTION_REMOVE_NODE, workspace)
 
         ungrouped = None
         with history_group:
-            ungrouped = ungroup_subnode(
-                model=model,
-                workspace_id=self._scene_context.workspace_id,
+            ungrouped = transactions.ungroup_subnode(
                 shell_node_id=shell_node_id,
             )
         if ungrouped is None:
@@ -818,6 +817,15 @@ class GraphSceneMutationHistory:
     def _mutation_boundary(self) -> ValidatedGraphMutation:
         model, registry = self._scene_context.require_bound()
         return model.validated_mutations(self._scene_context.workspace_id, registry)
+
+    def _authoring_transactions(self) -> WorkspaceMutationService | None:
+        model = self._scene_context.model
+        if model is None:
+            return None
+        return model.mutation_service(
+            self._scene_context.workspace_id,
+            registry=self._scene_context.registry,
+        )
 
     def _find_model_edge_id(
         self,
@@ -947,13 +955,14 @@ class GraphSceneMutationHistory:
             return []
         if not self._fragment_types_and_ports_are_valid(fragment_payload):
             return []
+        transactions = self._authoring_transactions()
+        if transactions is None:
+            return []
 
         history_group = self._scene_context.grouped_history_action(action_type, workspace)
 
         with history_group:
-            return insert_graph_fragment(
-                model=model,
-                workspace_id=self._scene_context.workspace_id,
+            return transactions.insert_graph_fragment(
                 fragment_payload=fragment_payload,
                 delta_x=delta_x,
                 delta_y=delta_y,

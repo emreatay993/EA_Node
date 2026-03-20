@@ -558,7 +558,23 @@ def insert_graph_fragment(
     workspace = model.project.workspaces.get(str(workspace_id).strip())
     if workspace is None:
         return []
-    mutations = model.mutation_service(workspace.workspace_id)
+    return _insert_graph_fragment_transaction(
+        mutations=model.mutation_service(workspace.workspace_id),
+        workspace=workspace,
+        fragment_payload=fragment_payload,
+        delta_x=delta_x,
+        delta_y=delta_y,
+    )
+
+
+def _insert_graph_fragment_transaction(
+    *,
+    mutations: "WorkspaceMutationService",
+    workspace: WorkspaceData,
+    fragment_payload: dict[str, Any],
+    delta_x: float,
+    delta_y: float,
+) -> list[str]:
 
     nodes_payload = fragment_payload.get("nodes")
     edges_payload = fragment_payload.get("edges")
@@ -712,6 +728,27 @@ def group_selection_into_subnode(
     workspace = model.project.workspaces.get(str(workspace_id).strip())
     if workspace is None:
         return None
+    return _group_selection_into_subnode_transaction(
+        mutations=model.validated_mutations(workspace.workspace_id, registry),
+        registry=registry,
+        workspace=workspace,
+        selected_node_ids=selected_node_ids,
+        scope_path=scope_path,
+        shell_x=shell_x,
+        shell_y=shell_y,
+    )
+
+
+def _group_selection_into_subnode_transaction(
+    *,
+    mutations: "WorkspaceMutationService",
+    registry: NodeRegistry,
+    workspace: WorkspaceData,
+    selected_node_ids: Sequence[object],
+    scope_path: Sequence[object] | None,
+    shell_x: float,
+    shell_y: float,
+) -> GroupSubnodeResult | None:
 
     normalized_scope = normalize_scope_path(workspace, scope_path)
     expected_parent_id = scope_parent_id(normalized_scope)
@@ -724,7 +761,6 @@ def group_selection_into_subnode(
         return None
     if not _roots_share_parent(workspace=workspace, node_ids=roots):
         return None
-    mutations = model.validated_mutations(workspace.workspace_id, registry)
 
     selected_set = set(roots)
     incoming_edges, outgoing_edges = _boundary_edges(
@@ -841,6 +877,19 @@ def ungroup_subnode(
     workspace = model.project.workspaces.get(str(workspace_id).strip())
     if workspace is None:
         return None
+    return _ungroup_subnode_transaction(
+        mutations=model.mutation_service(workspace.workspace_id),
+        workspace=workspace,
+        shell_node_id=shell_node_id,
+    )
+
+
+def _ungroup_subnode_transaction(
+    *,
+    mutations: "WorkspaceMutationService",
+    workspace: WorkspaceData,
+    shell_node_id: object,
+) -> UngroupSubnodeResult | None:
 
     normalized_shell_id = str(shell_node_id).strip()
     if not normalized_shell_id:
@@ -848,7 +897,6 @@ def ungroup_subnode(
     shell = workspace.nodes.get(normalized_shell_id)
     if shell is None or not is_subnode_shell_type(shell.type_id):
         return None
-    mutations = model.mutation_service(workspace.workspace_id)
 
     direct_children = [
         node
