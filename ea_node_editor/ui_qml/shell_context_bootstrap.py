@@ -112,6 +112,7 @@ def shell_context_property_bindings(
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
+        ("graphCanvasBridge", bridges.graph_canvas_bridge),
     )
     shared_service_bindings = (
         ("scriptEditorBridge", host.script_editor),

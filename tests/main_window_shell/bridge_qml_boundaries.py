@@ -217,9 +217,10 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var mainWindowRef",
                     "property var sceneBridgeRef",
                     "property var viewBridgeRef",
+                    "property var graphCanvasBridgeRef",
+                    "canvasBridge: root.graphCanvasBridgeRef",
                 ),
                 (
-                    "property var graphCanvasBridgeRef",
                     "property var graphCanvasStateBridgeRef",
                     "property var graphCanvasCommandBridgeRef",
                     "property var overlayHostItem",
@@ -246,7 +247,6 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "root.workspaceBridgeRef.output_text",
                     "root.workspaceBridgeRef.errors_text",
                     "root.workspaceBridgeRef.warnings_text",
-                    "canvasBridge: root.graphCanvasBridgeRef",
                     "canvasStateBridge: root.graphCanvasStateBridgeRef",
                     "canvasCommandBridge: root.graphCanvasCommandBridgeRef",
                 ),
@@ -301,13 +301,47 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
             "readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef",
             "WorkspaceCenterPane {",
-            "graphCanvasBridgeRef: root.canvasBridgeRef",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
             "overlayHostItem: root",
             "viewBridgeRef: root.canvasViewBridgeRef",
+            "ShellStatusStrip {",
+            "canvasBridgeRef: root.canvasBridgeRef",
             "scriptEditorBridgeRef: scriptEditorBridge",
             "scriptHighlighterBridgeRef: scriptHighlighterBridge",
+        )
+
+        for snippet in absent_snippets:
+            with self.subTest(snippet=snippet, expectation="absent"):
+                self.assertNotIn(snippet, qml_text)
+
+        for snippet in present_snippets:
+            with self.subTest(snippet=snippet, expectation="present"):
+                self.assertIn(snippet, qml_text)
+
+
+class ShellStatusStripQmlBoundaryTests(unittest.TestCase):
+    def test_status_strip_routes_graphics_quick_toggle_through_graph_canvas_bridge(self) -> None:
+        qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell/ShellStatusStrip.qml"
+        qml_text = qml_path.read_text(encoding="utf-8")
+
+        absent_snippets = (
+            "property var mainWindowRef",
+            "mainWindowRef.graphics_performance_mode",
+            "mainWindowRef.set_graphics_performance_mode",
+        )
+        present_snippets = (
+            'objectName: "shellStatusStrip"',
+            "property var canvasBridgeRef",
+            "readonly property string graphicsPerformanceMode",
+            "readonly property string graphicsPerformanceModeLabel",
+            'objectName: "shellStatusStripGraphicsModeSummary"',
+            'objectName: "shellStatusStripFullFidelityButton"',
+            'objectName: "shellStatusStripMaxPerformanceButton"',
+            "tooltipText: root.fullFidelityCopy",
+            "tooltipText: root.maxPerformanceCopy",
+            'root.canvasBridgeRef.set_graphics_performance_mode("full_fidelity")',
+            'root.canvasBridgeRef.set_graphics_performance_mode("max_performance")',
         )
 
         for snippet in absent_snippets:
@@ -325,6 +359,8 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         qml_text = qml_path.read_text(encoding="utf-8")
 
         absent_snippets = (
+            "property var canvasBridge: null",
+            "readonly property var canvasBridgeRef",
             "mainWindowBridge.graphics_minimap_expanded",
             "mainWindowBridge.graphics_show_grid",
             "mainWindowBridge.graphics_show_minimap",
@@ -359,6 +395,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var wireDragState: null",
             "property bool edgeContextVisible: false",
             "property bool interactionActive: false",
+            "readonly property var _canvasCommandBridgeRef",
             "readonly property var _canvasShellBridgeRef",
             "readonly property var _canvasSceneBridgeRef",
             "readonly property var _canvasViewBridgeRef",
@@ -367,9 +404,11 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasViewCompatRef",
         )
         present_snippets = (
-            "property var canvasBridge: null",
             "property var canvasStateBridge: null",
             "property var canvasCommandBridge: null",
+            "property var mainWindowBridge: root.canvasCommandBridgeRef",
+            "property var sceneBridge: root.canvasStateBridgeRef",
+            "property var viewBridge: root.canvasStateBridgeRef",
             "readonly property var canvasStateBridgeRef",
             "readonly property var canvasCommandBridgeRef",
             "readonly property var _canvasStateBridgeRef",
