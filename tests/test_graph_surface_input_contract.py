@@ -257,6 +257,56 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             },
         )
 
+    def test_graph_node_host_render_quality_contract_exposes_reduced_quality_tier(self) -> None:
+        self._run_qml_probe(
+            "host-render-quality-contract",
+            """
+            payload = node_payload()
+            payload["render_quality"] = {
+                "weight_class": "heavy",
+                "max_performance_strategy": "generic_fallback",
+                "supported_quality_tiers": ["full", "reduced"],
+            }
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                    "shadowSimplificationActive": True,
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeStandardSurface")
+            assert loader is not None
+            assert surface is not None
+
+            render_quality = variant_value(host.property("renderQuality"))
+            loader_render_quality = variant_value(loader.property("renderQuality"))
+            context = variant_value(host.property("surfaceQualityContext"))
+            loader_context = variant_value(loader.property("surfaceQualityContext"))
+
+            assert render_quality == {
+                "weight_class": "heavy",
+                "max_performance_strategy": "generic_fallback",
+                "supported_quality_tiers": ["full", "reduced"],
+            }
+            assert loader_render_quality == render_quality
+            assert host.property("requestedQualityTier") == "reduced"
+            assert host.property("resolvedQualityTier") == "reduced"
+            assert not bool(host.property("proxySurfaceRequested"))
+            assert loader.property("requestedQualityTier") == "reduced"
+            assert loader.property("resolvedQualityTier") == "reduced"
+            assert not bool(loader.property("proxySurfaceRequested"))
+            assert not bool(loader.property("proxySurfaceActive"))
+            assert context["requested_quality_tier"] == "reduced"
+            assert context["resolved_quality_tier"] == "reduced"
+            assert not bool(context["proxy_surface_requested"])
+            assert loader_context["resolved_quality_tier"] == "reduced"
+            assert surface.property("host").property("resolvedQualityTier") == "reduced"
+            """,
+        )
+
     def test_surface_loader_forwards_embedded_interactive_rects_for_inline_properties(self) -> None:
         self._run_qml_probe(
             "loader-embedded-rects",

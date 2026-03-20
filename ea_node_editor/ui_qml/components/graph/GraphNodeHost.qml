@@ -37,6 +37,25 @@ Item {
         && Boolean(selectedNodeLookup[String(nodeData.node_id || "")])
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
+    readonly property var renderQuality: card._normalizedRenderQuality(nodeData ? nodeData.render_quality : null)
+    readonly property bool reducedQualityRequested: card.snapshotReuseActive || card.shadowSimplificationActive
+    readonly property string requestedQualityTier: card.reducedQualityRequested ? "reduced" : "full"
+    readonly property bool proxySurfaceCapable: card.renderQuality.max_performance_strategy === "proxy_surface"
+        && card._supportsRenderQualityTier("proxy")
+    readonly property bool proxySurfaceRequested: card.requestedQualityTier === "reduced" && card.proxySurfaceCapable
+    readonly property string resolvedQualityTier: {
+        if (card.proxySurfaceRequested)
+            return "proxy";
+        if (card.requestedQualityTier === "reduced" && card._supportsRenderQualityTier("reduced"))
+            return "reduced";
+        return "full";
+    }
+    readonly property var surfaceQualityContext: ({
+        "requested_quality_tier": card.requestedQualityTier,
+        "resolved_quality_tier": card.resolvedQualityTier,
+        "render_quality": card.renderQuality,
+        "proxy_surface_requested": card.proxySurfaceRequested
+    })
     readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
     readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
     readonly property var passiveStyle: isPassiveNode && nodeData && nodeData.visual_style ? nodeData.visual_style : ({})
@@ -350,6 +369,59 @@ Item {
         if (allowZero ? numeric < 0.0 : numeric <= 0.0)
             return fallback;
         return numeric;
+    }
+
+    function _normalizedRenderQuality(renderQualityLike) {
+        var normalized = {
+            "weight_class": "standard",
+            "max_performance_strategy": "generic_fallback",
+            "supported_quality_tiers": ["full"]
+        };
+        if (!renderQualityLike)
+            return normalized;
+
+        var weightClass = String(renderQualityLike.weight_class || "").trim();
+        if (weightClass === "heavy")
+            normalized.weight_class = "heavy";
+
+        var strategy = String(renderQualityLike.max_performance_strategy || "").trim();
+        if (strategy === "proxy_surface")
+            normalized.max_performance_strategy = "proxy_surface";
+
+        var tiers = card._normalizedQualityTierList(renderQualityLike.supported_quality_tiers);
+        if (tiers.length > 0)
+            normalized.supported_quality_tiers = tiers;
+        return normalized;
+    }
+
+    function _normalizedQualityTierList(value) {
+        if (value === undefined || value === null)
+            return [];
+
+        var rawItems = [];
+        if (typeof value === "string")
+            rawItems = [value];
+        else if (value.length !== undefined)
+            rawItems = value;
+        else
+            rawItems = [value];
+
+        var normalized = [];
+        var seen = {};
+        for (var index = 0; index < rawItems.length; index++) {
+            var tier = String(rawItems[index] || "").trim();
+            if (tier !== "full" && tier !== "reduced" && tier !== "proxy")
+                continue;
+            if (seen[tier])
+                continue;
+            normalized.push(tier);
+            seen[tier] = true;
+        }
+        return normalized;
+    }
+
+    function _supportsRenderQualityTier(tier) {
+        return card.renderQuality.supported_quality_tiers.indexOf(String(tier || "").trim()) >= 0;
     }
 
     function _pointerInCanvas(mouseArea, mouse) {
