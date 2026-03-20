@@ -6,7 +6,7 @@
 - Branch Label: `codex/arch-sixth-pass/p07-workspace-lifecycle-authority`
 - Commit Owner: `worker`
 - Commit SHA: `fe104bca51c4e28a381e0f8c2822593a48205b35`
-- Changed Files: `ea_node_editor/graph/model.py`, `ea_node_editor/workspace/manager.py`, `tests/test_workspace_manager.py`
+- Changed Files: `docs/specs/work_packets/arch_sixth_pass/P07_workspace_lifecycle_authority_WRAPUP.md`, `ea_node_editor/graph/model.py`, `ea_node_editor/workspace/manager.py`, `tests/test_workspace_manager.py`
 - Artifacts Produced: `docs/specs/work_packets/arch_sixth_pass/P07_workspace_lifecycle_authority_WRAPUP.md`, `ea_node_editor/graph/model.py`, `ea_node_editor/workspace/manager.py`, `tests/test_workspace_manager.py`
 
 `GraphModel` now exposes internal workspace-record helpers so `WorkspaceManager` can own create, duplicate, close, rename, and active-workspace policy without inheriting model-side fallback behavior. Packet-owned manager tests now exercise workspace setup through `WorkspaceManager` and lock the authoritative order plus active-workspace semantics in that boundary.
