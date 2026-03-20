@@ -5,9 +5,9 @@
 - Packet: `P02`
 - Branch Label: `codex/arch-sixth-pass/p02-shell-window-facade-contraction`
 - Commit Owner: `worker`
-- Commit SHA: `n/a`
+- Commit SHA: `4997a0cf83bfc16cc6524ee9dfe0ec107938d09d`
 - Changed Files: `docs/specs/work_packets/arch_sixth_pass/P02_shell_window_facade_contraction_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/host_presenter.py`, `ea_node_editor/ui/shell/presenters.py`, `ea_node_editor/ui/shell/window.py`, `tests/test_main_window_shell.py`
-- Artifacts Produced: `docs/specs/work_packets/arch_sixth_pass/P02_shell_window_facade_contraction_WRAPUP.md`, `ea_node_editor/ui/shell/host_presenter.py`
+- Artifacts Produced: `docs/specs/work_packets/arch_sixth_pass/P02_shell_window_facade_contraction_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/host_presenter.py`, `ea_node_editor/ui/shell/presenters.py`, `ea_node_editor/ui/shell/window.py`, `tests/test_main_window_shell.py`
 
 Moved packet-owned nontrivial shell logic out of `ShellWindow` into a dedicated `ShellHostPresenter`, keeping the window as a thinner Qt host facade with stable public slots and dialog entry points. Updated shell composition and presenter wiring so workspace, inspector, cursor, graphics/theme, and style-edit flows use explicit host/controller seams instead of broad host passthroughs, while preserving existing shell behavior. Added delegation coverage in the main shell tests to lock the new facade boundary in place.
 
