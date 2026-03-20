@@ -21,6 +21,22 @@ from tests.graph_track_b.scene_and_model import (
     _alpha_color_name,
     _color_name,
 )
+from tests.qt_wait import wait_for_condition_or_raise
+
+
+def _main_window_graphics_state(*, performance_mode: str = "full_fidelity") -> dict[str, object]:
+    return {
+        "graphics_show_grid": True,
+        "graphics_show_minimap": True,
+        "graphics_minimap_expanded": True,
+        "graphics_node_shadow": True,
+        "graphics_shadow_strength": 70,
+        "graphics_shadow_softness": 50,
+        "graphics_shadow_offset": 4,
+        "graphics_performance_mode": performance_mode,
+        "snap_to_grid_enabled": False,
+        "snap_grid_size": 20.0,
+    }
 
 
 class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
@@ -110,6 +126,53 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         expected_y = 720.0 * 0.5 - ((18.0 + float(self.canvas.property("worldOffset"))) * 2.5)
         self.assertAlmostEqual(float(world.property("x")), expected_x, places=6)
         self.assertAlmostEqual(float(world.property("y")), expected_y, places=6)
+
+    def test_graph_canvas_performance_policy_resolves_max_performance_idle_without_visual_degradation(self) -> None:
+        policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
+        self.assertIsNotNone(policy)
+
+        self.canvas.setProperty("mainWindowBridge", _main_window_graphics_state(performance_mode="max_performance"))
+        self.app.processEvents()
+
+        self.assertEqual(self.canvas.property("resolvedGraphicsPerformanceMode"), "max_performance")
+        self.assertFalse(bool(self.canvas.property("mutationBurstActive")))
+        self.assertFalse(bool(self.canvas.property("transientPerformanceActivityActive")))
+        self.assertFalse(bool(self.canvas.property("transientDegradedWindowActive")))
+        self.assertFalse(bool(self.canvas.property("viewportInteractionWorldCacheActive")))
+        self.assertTrue(bool(self.canvas.property("highQualityRendering")))
+        self.assertFalse(bool(self.canvas.property("edgeLabelSimplificationActive")))
+        self.assertEqual(policy.property("resolvedMode"), "max_performance")
+
+    def test_graph_canvas_mutation_burst_policy_activates_and_recovers_with_existing_idle_window(self) -> None:
+        policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
+        self.assertIsNotNone(policy)
+
+        self.canvas.setProperty("mainWindowBridge", _main_window_graphics_state(performance_mode="max_performance"))
+        self.app.processEvents()
+
+        QMetaObject.invokeMethod(
+            policy,
+            "noteStructuralMutation",
+            Qt.ConnectionType.DirectConnection,
+        )
+        self.app.processEvents()
+
+        self.assertTrue(bool(policy.property("mutationBurstActive")))
+        self.assertTrue(bool(self.canvas.property("mutationBurstActive")))
+        self.assertTrue(bool(self.canvas.property("transientPerformanceActivityActive")))
+        self.assertTrue(bool(self.canvas.property("transientDegradedWindowActive")))
+        self.assertTrue(bool(self.canvas.property("highQualityRendering")))
+        self.assertFalse(bool(self.canvas.property("edgeLabelSimplificationActive")))
+
+        wait_for_condition_or_raise(
+            lambda: not bool(self.canvas.property("mutationBurstActive")),
+            timeout_ms=190,
+            app=self.app,
+            timeout_message="Timed out waiting for synthetic mutation burst policy to settle.",
+        )
+        self.assertFalse(bool(self.canvas.property("transientPerformanceActivityActive")))
+        self.assertFalse(bool(self.canvas.property("transientDegradedWindowActive")))
+        self.assertTrue(bool(self.canvas.property("highQualityRendering")))
 
     def test_canvas_qml_theme_surfaces_follow_runtime_theme_changes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")

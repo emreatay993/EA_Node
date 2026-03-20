@@ -23,6 +23,10 @@ Item {
     property var visibleSceneRectPayload: ({})
     property string previewEdgeId: ""
     property var dragConnection: null
+    property string performanceMode: "full_fidelity"
+    property bool transientPerformanceActivityActive: false
+    property bool transientDegradedWindowActive: false
+    property bool edgeLabelSimplificationActive: false
     property bool inputEnabled: true
     property int _redrawRequestCount: 0
     property real viewportCullMarginPx: 96.0
@@ -797,13 +801,8 @@ Item {
                 property real anchorScreenX: labelAnchor ? labelAnchor.screen_x : 0.0
                 property real anchorScreenY: labelAnchor ? labelAnchor.screen_y : 0.0
                 property var geometry: labelRequested && !culledByViewport && cullState ? cullState.geometry : null
-                property var pathAnchor: geometry ? root._edgeAnchor(geometry, 0.5) : null
-                property real edgeScreenX: pathAnchor ? root.sceneToScreenX(pathAnchor.x) : 0.0
-                property real edgeScreenY: pathAnchor ? root.sceneToScreenY(pathAnchor.y) : 0.0
                 property var labelAnchor: geometry ? root._flowLabelAnchor(geometry) : null
                 property bool hitTestMatches: visible
-                    ? root.edgeAtScreen(edgeScreenX, edgeScreenY) === String(edgeData && edgeData.edge_id || "")
-                    : false
                 property bool selectedEdge: root._isSelected(String(edgeData && edgeData.edge_id || ""))
                 property bool previewedEdge: root.previewEdgeId && root.previewEdgeId === String(edgeData && edgeData.edge_id || "")
                 property real horizontalPadding: pillVisible ? 9.0 : 1.0
