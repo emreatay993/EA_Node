@@ -338,6 +338,7 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_shadow_strength = 70
         self.graphics_shadow_softness = 50
         self.graphics_shadow_offset = 4
+        self.graphics_performance_mode = "full_fidelity"
         self.snap_to_grid_enabled = True
         self.snap_grid_size = 24.0
         self._return_values = {
@@ -372,6 +373,10 @@ class _GraphCanvasShellHostStub(QObject):
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self.graphics_minimap_expanded = bool(expanded)
         self._record("set_graphics_minimap_expanded", bool(expanded))
+
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        self.graphics_performance_mode = str(mode)
+        self._record("set_graphics_performance_mode", str(mode))
 
     def request_open_subnode_scope(self, node_id: str) -> bool:
         return bool(self._record("request_open_subnode_scope", node_id))
@@ -844,7 +849,7 @@ class ShellInspectorBridgeTests(unittest.TestCase):
 
 
 class GraphCanvasBridgeTests(unittest.TestCase):
-    def test_state_bridge_exposes_read_heavy_canvas_state_and_re_emits_signals(self) -> None:
+    def test_graphics_state_bridge_exposes_read_heavy_canvas_state_and_re_emits_signals(self) -> None:
         host = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
@@ -888,6 +893,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.graphics_shadow_strength, 70)
         self.assertEqual(bridge.graphics_shadow_softness, 50)
         self.assertEqual(bridge.graphics_shadow_offset, 4)
+        self.assertEqual(bridge.graphics_performance_mode, "full_fidelity")
         self.assertTrue(bridge.snap_to_grid_enabled)
         self.assertEqual(bridge.snap_grid_size, 24.0)
         self.assertEqual(bridge.center_x, 18.5)
@@ -1091,7 +1097,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             ],
         )
 
-    def test_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
+    def test_graphics_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
         host = _GraphCanvasShellHostStub()
         parent = _GraphCanvasParentStub(host)
         scene = _GraphCanvasSceneBridgeStub()
@@ -1121,6 +1127,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.graphics_shadow_strength, 70)
         self.assertEqual(bridge.graphics_shadow_softness, 50)
         self.assertEqual(bridge.graphics_shadow_offset, 4)
+        self.assertEqual(bridge.graphics_performance_mode, "full_fidelity")
         self.assertTrue(bridge.snap_to_grid_enabled)
         self.assertEqual(bridge.snap_grid_size, 24.0)
         self.assertEqual(bridge.center_x, 18.5)
@@ -1131,6 +1138,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.selected_node_lookup, scene.selected_node_lookup)
 
         bridge.set_graphics_minimap_expanded(False)
+        bridge.set_graphics_performance_mode("max_performance")
         bridge.adjust_zoom(1.15)
         bridge.pan_by(-12.0, 8.0)
         bridge.set_viewport_size(1280.0, 720.0)
@@ -1174,6 +1182,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host.calls,
             [
                 ("set_graphics_minimap_expanded", (False,)),
+                ("set_graphics_performance_mode", ("max_performance",)),
                 ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
                 (
@@ -1209,11 +1218,12 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             ],
         )
 
-    def test_bridge_prefers_graph_canvas_presenter_when_available(self) -> None:
+    def test_graphics_bridge_prefers_graph_canvas_presenter_when_available(self) -> None:
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
         presenter.graphics_show_grid = False
         presenter.graphics_show_minimap = False
+        presenter.graphics_performance_mode = "max_performance"
         presenter.snap_to_grid_enabled = False
         host.graph_canvas_presenter = presenter
         scene = _GraphCanvasSceneBridgeStub()
@@ -1237,10 +1247,18 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
         self.assertFalse(bridge.graphics_show_grid)
         self.assertFalse(bridge.graphics_show_minimap)
+        self.assertEqual(bridge.graphics_performance_mode, "max_performance")
         self.assertFalse(bridge.snap_to_grid_enabled)
 
         bridge.set_graphics_minimap_expanded(False)
-        self.assertEqual(presenter.calls, [("set_graphics_minimap_expanded", (False,))])
+        bridge.set_graphics_performance_mode("full_fidelity")
+        self.assertEqual(
+            presenter.calls,
+            [
+                ("set_graphics_minimap_expanded", (False,)),
+                ("set_graphics_performance_mode", ("full_fidelity",)),
+            ],
+        )
         self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_scene_and_view_signals(self) -> None:
@@ -1391,7 +1409,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             ],
         )
 
-    def test_bridge_keeps_safe_defaults_without_shell_host(self) -> None:
+    def test_graphics_bridge_keeps_safe_defaults_without_shell_host(self) -> None:
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
         bridge = GraphCanvasBridge(scene_bridge=scene, view_bridge=view)
@@ -1404,6 +1422,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.graphics_shadow_strength, 70)
         self.assertEqual(bridge.graphics_shadow_softness, 50)
         self.assertEqual(bridge.graphics_shadow_offset, 4)
+        self.assertEqual(bridge.graphics_performance_mode, "full_fidelity")
         self.assertFalse(bridge.snap_to_grid_enabled)
         self.assertEqual(bridge.snap_grid_size, 20.0)
         self.assertFalse(bridge.request_open_subnode_scope("subnode-1"))

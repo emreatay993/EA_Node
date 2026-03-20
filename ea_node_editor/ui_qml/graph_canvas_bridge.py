@@ -19,6 +19,15 @@ def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: AN
         signal.connect(slot)
 
 
+def _invoke_chain(sources: tuple[object | None, ...], name: str, *args) -> bool:
+    for source in sources:
+        callback = getattr(source, name, None) if source is not None else None
+        if callable(callback):
+            callback(*args)
+            return True
+    return False
+
+
 class GraphCanvasBridge(QObject):
     graphics_preferences_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
@@ -130,6 +139,10 @@ class GraphCanvasBridge(QObject):
     def graphics_shadow_offset(self) -> int:
         return self._state_bridge.graphics_shadow_offset
 
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_performance_mode(self) -> str:
+        return self._state_bridge.graphics_performance_mode
+
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
         return self._state_bridge.snap_to_grid_enabled
@@ -177,6 +190,17 @@ class GraphCanvasBridge(QObject):
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self._command_bridge.set_graphics_minimap_expanded(expanded)
+
+    @pyqtSlot(str)
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        _invoke_chain(
+            (
+                getattr(self.shell_window, "graph_canvas_presenter", None),
+                self.shell_window,
+            ),
+            "set_graphics_performance_mode",
+            mode,
+        )
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
