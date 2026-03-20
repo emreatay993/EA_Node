@@ -47,6 +47,9 @@ class PassiveImageNodeCatalogTests(unittest.TestCase):
         self.assertEqual(spec.surface_variant, "image_panel")
         self.assertFalse(spec.collapsible)
         self.assertEqual(spec.ports, ())
+        self.assertEqual(spec.render_quality.weight_class, "heavy")
+        self.assertEqual(spec.render_quality.max_performance_strategy, "proxy_surface")
+        self.assertEqual(spec.render_quality.supported_quality_tiers, ("full", "proxy"))
         self.assertEqual(
             tuple(prop.key for prop in spec.properties),
             ("source_path", "caption", "fit_mode", "crop_x", "crop_y", "crop_w", "crop_h"),
@@ -439,6 +442,60 @@ class PassiveImageNodeSurfaceQmlTests(unittest.TestCase):
                 assert original_surface.property("previewState") == "ready"
                 assert original_surface.property("appliedFitMode") == "original"
                 assert bool(original_surface.property("originalModeActive"))
+            """,
+        )
+
+    def test_image_panel_proxy_preview_activates_for_proxy_quality_tier(self) -> None:
+        self._run_qml_probe(
+            "media-proxy-image",
+            """
+            with tempfile.TemporaryDirectory() as temp_dir:
+                image_path = Path(temp_dir) / "proxy-image.png"
+                make_png(image_path, "#2c85bf")
+
+                payload = image_panel_payload(
+                    {
+                        "source_path": str(image_path),
+                        "caption": "Proxy preview",
+                        "fit_mode": "contain",
+                    }
+                )
+                payload["render_quality"] = {
+                    "weight_class": "heavy",
+                    "max_performance_strategy": "proxy_surface",
+                    "supported_quality_tiers": ["full", "proxy"],
+                }
+
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": payload,
+                        "snapshotReuseActive": True,
+                        "shadowSimplificationActive": True,
+                    },
+                )
+                loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                proxy_preview = host.findChild(QObject, "graphNodeMediaProxyPreview")
+                applied_viewport = host.findChild(QObject, "graphNodeMediaAppliedImageViewport")
+                preview_hint = host.findChild(QObject, "graphNodeMediaPreviewHint")
+                assert loader is not None
+                assert surface is not None
+                assert proxy_preview is not None
+                assert applied_viewport is not None
+                assert preview_hint is not None
+
+                wait_for_preview(surface)
+
+                assert surface.property("previewState") == "ready"
+                assert host.property("resolvedQualityTier") == "proxy"
+                assert bool(host.property("proxySurfaceRequested"))
+                assert bool(surface.property("proxySurfaceActive"))
+                assert bool(loader.property("proxySurfaceActive"))
+                assert bool(proxy_preview.property("visible"))
+                assert not bool(applied_viewport.property("visible"))
+                assert not bool(preview_hint.property("visible"))
+                assert not bool(surface.property("cropToolAvailable"))
             """,
         )
 

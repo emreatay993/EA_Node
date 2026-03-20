@@ -45,6 +45,11 @@ class _PassiveMediaNodePlugin:
     runtime_behavior="passive",
     surface_family="media",
     surface_variant="image_panel",
+    render_quality={
+        "weight_class": "heavy",
+        "max_performance_strategy": "proxy_surface",
+        "supported_quality_tiers": ["full", "proxy"],
+    },
 )
 class PassiveMediaImagePanelNodePlugin(_PassiveMediaNodePlugin):
     pass
@@ -73,6 +78,11 @@ class PassiveMediaImagePanelNodePlugin(_PassiveMediaNodePlugin):
     runtime_behavior="passive",
     surface_family="media",
     surface_variant="pdf_panel",
+    render_quality={
+        "weight_class": "heavy",
+        "max_performance_strategy": "proxy_surface",
+        "supported_quality_tiers": ["full", "proxy"],
+    },
 )
 class PassiveMediaPdfPanelNodePlugin(_PassiveMediaNodePlugin):
     pass

@@ -61,6 +61,9 @@ class PassivePdfNodeCatalogTests(unittest.TestCase):
         self.assertEqual(spec.surface_variant, "pdf_panel")
         self.assertFalse(spec.collapsible)
         self.assertEqual(spec.ports, ())
+        self.assertEqual(spec.render_quality.weight_class, "heavy")
+        self.assertEqual(spec.render_quality.max_performance_strategy, "proxy_surface")
+        self.assertEqual(spec.render_quality.supported_quality_tiers, ("full", "proxy"))
         self.assertEqual(tuple(prop.key for prop in spec.properties), ("source_path", "page_number", "caption"))
 
         source_path = next(prop for prop in spec.properties if prop.key == "source_path")
@@ -439,6 +442,90 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
             wait_for_preview(error_surface)
             assert error_surface.property("previewState") == "error"
             assert error_surface.property("resolvedSourceUrl") == ""
+            """,
+        )
+
+    def test_pdf_panel_proxy_preview_activates_for_proxy_quality_tier(self) -> None:
+        self._run_qml_probe(
+            "pdf-proxy-surface",
+            """
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                pdf_path = Path(temp_dir) / "proxy.pdf"
+                make_pdf(pdf_path, page_count=2)
+
+                registry = build_default_registry()
+                model = GraphModel()
+                workspace_id = model.active_workspace.workspace_id
+                scene = GraphSceneBridge()
+                scene.set_workspace(model, registry, workspace_id)
+                node_id = scene.add_node_from_type("passive.media.pdf_panel", 100.0, 110.0)
+                scene.set_node_property(node_id, "source_path", str(pdf_path))
+                scene.set_node_property(node_id, "page_number", 9)
+                scene.set_node_property(node_id, "caption", "Proxy preview")
+                payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+                pdf_canvas = PdfCanvasItem()
+
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "canvasItem": pdf_canvas,
+                        "nodeData": payload,
+                    },
+                )
+                loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                preview_image = host.findChild(QObject, "graphNodeMediaPreviewImage")
+                proxy_preview = host.findChild(QObject, "graphNodeMediaProxyPreview")
+                proxy_detail = host.findChild(QObject, "graphNodeMediaProxyPreviewDetail")
+                badge = host.findChild(QObject, "graphNodeMediaPageBadge")
+                assert loader is not None
+                assert surface is not None
+                assert preview_image is not None
+                assert proxy_preview is not None
+                assert proxy_detail is not None
+                assert badge is not None
+
+                wait_for_preview(surface)
+                idle_state = {
+                    "preview_state": surface.property("previewState"),
+                    "preview_visible": bool(preview_image.property("visible")),
+                    "host_quality": host.property("resolvedQualityTier"),
+                    "proxy_requested": bool(host.property("proxySurfaceRequested")),
+                }
+                assert surface.property("previewState") == "ready", idle_state
+                assert bool(preview_image.property("visible")), idle_state
+
+                host.setProperty("snapshotReuseActive", True)
+                host.setProperty("shadowSimplificationActive", True)
+                for _index in range(40):
+                    app.processEvents()
+                    if bool(surface.property("proxySurfaceActive")):
+                        break
+
+                proxy_state = {
+                    "preview_state": surface.property("previewState"),
+                    "host_quality": host.property("resolvedQualityTier"),
+                    "proxy_requested": bool(host.property("proxySurfaceRequested")),
+                    "surface_proxy_active": bool(surface.property("proxySurfaceActive")),
+                    "loader_proxy_active": bool(loader.property("proxySurfaceActive")),
+                    "proxy_visible": bool(proxy_preview.property("visible")),
+                    "preview_visible": bool(preview_image.property("visible")),
+                    "badge_visible": bool(badge.property("visible")),
+                    "detail_text": str(proxy_detail.property("text")),
+                }
+                assert surface.property("previewState") == "ready", proxy_state
+                assert host.property("resolvedQualityTier") == "proxy", proxy_state
+                assert bool(host.property("proxySurfaceRequested")), proxy_state
+                assert bool(surface.property("proxySurfaceActive")), proxy_state
+                assert bool(loader.property("proxySurfaceActive")), proxy_state
+                assert bool(proxy_preview.property("visible")), proxy_state
+                assert not bool(preview_image.property("visible")), proxy_state
+                assert bool(badge.property("visible")), proxy_state
+                assert "Page 2 of 2" in str(proxy_detail.property("text")), proxy_state
             """,
         )
 

@@ -21,6 +21,16 @@ Item {
         ? host.nodeData.properties
         : ({})
     readonly property string mediaVariant: host ? String(host.surfaceVariant || "") : ""
+    readonly property var renderQuality: host && host.renderQuality
+        ? host.renderQuality
+        : ({
+            "weight_class": "standard",
+            "max_performance_strategy": "generic_fallback",
+            "supported_quality_tiers": ["full"]
+        })
+    readonly property string requestedQualityTier: host ? String(host.requestedQualityTier || "full") : "full"
+    readonly property string resolvedQualityTier: host ? String(host.resolvedQualityTier || "full") : "full"
+    readonly property bool proxySurfaceRequested: host ? Boolean(host.proxySurfaceRequested) : false
     readonly property bool isPdfPanel: mediaVariant === "pdf_panel"
     readonly property string sourcePath: _value("source_path")
     readonly property var rawPageNumber: _rawValue("page_number", 1)
@@ -44,9 +54,13 @@ Item {
             var state = String(pdfPreviewInfo.state || "placeholder");
             if (state === "error")
                 return "error";
-            if (state === "ready" && previewViewport.previewImageStatus === Image.Ready)
-                return "ready";
-            if (previewViewport.previewImageStatus === Image.Error)
+            if (state === "ready") {
+                if (proxySurfaceRequested)
+                    return "ready";
+                if (previewViewport.previewImageStatus === Image.Ready)
+                    return "ready";
+            }
+            if (!proxySurfaceRequested && previewViewport.previewImageStatus === Image.Error)
                 return "error";
             return "placeholder";
         }
@@ -60,6 +74,9 @@ Item {
             return "ready";
         return "placeholder";
     }
+    readonly property bool proxySurfaceActive: proxySurfaceRequested
+        && previewState === "ready"
+        && !cropModeActive
     readonly property string appliedFitMode: isPdfPanel ? "contain" : normalizedFitMode
     readonly property bool originalModeActive: !isPdfPanel && normalizedFitMode === "original"
     readonly property real sourcePixelWidth: Number(previewViewport.sourcePixelWidth || 0)
@@ -72,6 +89,7 @@ Item {
     readonly property real appliedClipWidth: Number(appliedSourceClipRect.width || 0)
     readonly property real appliedClipHeight: Number(appliedSourceClipRect.height || 0)
     readonly property bool cropToolAvailable: !isPdfPanel
+        && !proxySurfaceActive
         && previewState === "ready"
         && sourcePixelWidth > 0
         && sourcePixelHeight > 0
