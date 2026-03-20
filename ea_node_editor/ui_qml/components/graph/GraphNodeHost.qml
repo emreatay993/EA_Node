@@ -8,6 +8,8 @@ Item {
     property var nodeData: null
     property real worldOffset: 0
     property Item canvasItem: null
+    property var renderActivationSceneRectPayload: ({})
+    property string contextTargetNodeId: ""
     property var hoveredPort: null
     property var previewPort: null
     property var pendingPort: null
@@ -466,6 +468,73 @@ Item {
         return zoom;
     }
 
+    function _normalizedSceneRectPayload(rectLike) {
+        if (rectLike === undefined || rectLike === null)
+            return null;
+
+        var x = Number(rectLike.x);
+        var y = Number(rectLike.y);
+        var width = Number(rectLike.width);
+        var height = Number(rectLike.height);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
+            return null;
+
+        if (width < 0.0) {
+            x += width;
+            width = Math.abs(width);
+        }
+        if (height < 0.0) {
+            y += height;
+            height = Math.abs(height);
+        }
+
+        return {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+
+    function _nodeSceneRect() {
+        if (!card.nodeData)
+            return null;
+
+        var x = card._liveGeometryActive ? Number(card._liveX) : Number(card.nodeData.x);
+        var y = card._liveGeometryActive ? Number(card._liveY) : Number(card.nodeData.y);
+        var width = card._liveGeometryActive ? Number(card._liveWidth) : Number(card.nodeData.width);
+        var height = card._liveGeometryActive ? Number(card._liveHeight) : Number(card.nodeData.height);
+        if (!isFinite(width) || width <= 0.0)
+            width = Number(card.surfaceMetrics.default_width);
+        if (!isFinite(height) || height <= 0.0)
+            height = Number(card.surfaceMetrics.default_height);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
+            return null;
+
+        return {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+
+    function _sceneRectsIntersect(firstRectLike, secondRectLike) {
+        var firstRect = card._normalizedSceneRectPayload(firstRectLike);
+        var secondRect = card._normalizedSceneRectPayload(secondRectLike);
+        if (!firstRect || !secondRect)
+            return true;
+
+        var firstRight = firstRect.x + firstRect.width;
+        var firstBottom = firstRect.y + firstRect.height;
+        var secondRight = secondRect.x + secondRect.width;
+        var secondBottom = secondRect.y + secondRect.height;
+        return firstRect.x < secondRight
+            && firstRight > secondRect.x
+            && firstRect.y < secondBottom
+            && firstBottom > secondRect.y;
+    }
+
     HoverHandler {
         id: cardHoverHandler
     }
@@ -479,9 +548,38 @@ Item {
         || topRightResizeHandle.dragActive
         || bottomLeftResizeHandle.dragActive
         || bottomRightResizeHandle.dragActive
+    readonly property bool _hoveredPortOnNode: !!card.nodeData
+        && !!card.hoveredPort
+        && card.hoveredPort.node_id === card.nodeData.node_id
+    readonly property bool _previewPortOnNode: !!card.nodeData
+        && !!card.previewPort
+        && card.previewPort.node_id === card.nodeData.node_id
+    readonly property bool _pendingPortOnNode: !!card.nodeData
+        && !!card.pendingPort
+        && card.pendingPort.node_id === card.nodeData.node_id
+    readonly property bool _dragSourcePortOnNode: !!card.nodeData
+        && !!card.dragSourcePort
+        && card.dragSourcePort.node_id === card.nodeData.node_id
+    readonly property bool _contextTargetActive: !!card.nodeData
+        && String(card.contextTargetNodeId || "") === String(card.nodeData.node_id || "")
+    readonly property bool _dragPreviewActive: Math.abs(Number(card.liveDragDx)) >= 0.01
+        || Math.abs(Number(card.liveDragDy)) >= 0.01
     readonly property bool hoverActive: card._hostHoverActive
         || card._resizeHandleContainsMouse
         || card._resizeInteractionActive
+    readonly property bool _forceRenderActive: card.isSelected
+        || card.hoverActive
+        || card._hoveredPortOnNode
+        || card._previewPortOnNode
+        || card._pendingPortOnNode
+        || card._dragSourcePortOnNode
+        || card._contextTargetActive
+        || hostGestureLayer.dragActive
+        || card._dragPreviewActive
+        || card._liveGeometryActive
+        || card._resizeInteractionActive
+    readonly property bool renderActive: card._forceRenderActive
+        || card._sceneRectsIntersect(card._nodeSceneRect(), card.renderActivationSceneRectPayload)
     readonly property bool _resizeHandlesVisible: !!card.nodeData
         && !card.isCollapsed
         && !card.surfaceInteractionLocked

@@ -68,6 +68,11 @@ Item {
             ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
             : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
         : ({})
+    readonly property real nodeRenderActivationPaddingPx: 240.0
+    readonly property var nodeRenderActivationSceneRectPayload: root._inflateSceneRectPayload(
+        root.visibleSceneRectPayload,
+        root._scenePaddingForViewportPixels(root.nodeRenderActivationPaddingPx)
+    )
     property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
     readonly property bool minimapVisible: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_minimap) : true
@@ -300,6 +305,62 @@ Item {
             root.height,
             (view ? view.zoom_value : 1.0)
         );
+    }
+
+    function _normalizedSceneRectPayload(rectLike) {
+        if (rectLike === undefined || rectLike === null)
+            return null;
+
+        var x = Number(rectLike.x);
+        var y = Number(rectLike.y);
+        var width = Number(rectLike.width);
+        var height = Number(rectLike.height);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
+            return null;
+
+        if (width < 0.0) {
+            x += width;
+            width = Math.abs(width);
+        }
+        if (height < 0.0) {
+            y += height;
+            height = Math.abs(height);
+        }
+
+        return {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+
+    function _scenePaddingForViewportPixels(paddingPx) {
+        var zoom = root._canvasViewStateBridgeRef ? Number(root._canvasViewStateBridgeRef.zoom_value) : 1.0;
+        if (!isFinite(zoom) || zoom <= 0.0001)
+            zoom = 1.0;
+
+        var padding = Number(paddingPx);
+        if (!isFinite(padding) || padding < 0.0)
+            padding = 0.0;
+        return padding / zoom;
+    }
+
+    function _inflateSceneRectPayload(rectLike, padding) {
+        var normalized = root._normalizedSceneRectPayload(rectLike);
+        if (!normalized)
+            return ({});
+
+        var resolvedPadding = Number(padding);
+        if (!isFinite(resolvedPadding) || resolvedPadding < 0.0)
+            resolvedPadding = 0.0;
+
+        return {
+            "x": normalized.x - resolvedPadding,
+            "y": normalized.y - resolvedPadding,
+            "width": normalized.width + (resolvedPadding * 2.0),
+            "height": normalized.height + (resolvedPadding * 2.0)
+        };
     }
 
     function snapToGridEnabled() {
@@ -983,6 +1044,8 @@ Item {
                 snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
                 shadowSimplificationActive: root.shadowSimplificationActive
                 fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
+                renderActivationSceneRectPayload: root.nodeRenderActivationSceneRectPayload
+                contextTargetNodeId: root.nodeContextNodeId
 
                 onNodeClicked: function(nodeId, additive) {
                     var bridge = root._canvasSceneCommandBridgeRef;

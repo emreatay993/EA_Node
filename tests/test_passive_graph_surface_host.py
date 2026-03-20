@@ -727,6 +727,76 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_render_activation_reloads_offscreen_surface_for_hover_drag_and_resize(self) -> None:
+        self._run_qml_probe(
+            "host-render-activation-force-active-states",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": node_payload(),
+                    "renderActivationSceneRectPayload": {
+                        "x": -400.0,
+                        "y": -300.0,
+                        "width": 60.0,
+                        "height": 40.0,
+                    },
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            assert loader is not None
+
+            settle_events(2)
+            assert not bool(host.property("renderActive"))
+            assert not bool(loader.property("renderActive"))
+            assert not bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("liveDragDx", 18.0)
+            settle_events(2)
+
+            assert bool(host.property("renderActive"))
+            assert bool(loader.property("renderActive"))
+            assert bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("liveDragDx", 0.0)
+            settle_events(2)
+
+            assert not bool(host.property("renderActive"))
+            assert not bool(loader.property("renderActive"))
+            assert not bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("_liveX", 90.0)
+            host.setProperty("_liveY", 100.0)
+            host.setProperty("_liveWidth", 240.0)
+            host.setProperty("_liveHeight", 108.0)
+            host.setProperty("_liveGeometryActive", True)
+            settle_events(2)
+
+            assert bool(host.property("renderActive"))
+            assert bool(loader.property("renderActive"))
+            assert bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("_liveGeometryActive", False)
+            settle_events(2)
+
+            assert not bool(host.property("renderActive"))
+            assert not bool(loader.property("renderActive"))
+            assert not bool(loader.property("surfaceLoaded"))
+
+            window = attach_host_to_window(host)
+            hover_host_local_point(window, host, 84.0, 40.0)
+
+            assert bool(host.property("hoverActive"))
+            assert bool(host.property("renderActive"))
+            assert bool(loader.property("renderActive"))
+            assert bool(loader.property("surfaceLoaded"))
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_keeps_live_drag_preview_continuous_when_snap_to_grid_is_enabled(self) -> None:
         self._run_qml_probe(
             "graph-canvas-snap-live-preview",

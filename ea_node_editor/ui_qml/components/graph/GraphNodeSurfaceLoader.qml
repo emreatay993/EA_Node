@@ -16,6 +16,8 @@ Item {
     readonly property string requestedQualityTier: host ? host.requestedQualityTier : "full"
     readonly property string resolvedQualityTier: host ? host.resolvedQualityTier : "full"
     readonly property bool proxySurfaceRequested: host ? Boolean(host.proxySurfaceRequested) : false
+    readonly property bool renderActive: host ? Boolean(host.renderActive) : true
+    readonly property bool surfaceLoaded: !!loader.item
     readonly property bool proxySurfaceActive: proxySurfaceRequested && loader.item
         ? Boolean(loader.item.proxySurfaceActive)
         : false
@@ -63,7 +65,7 @@ Item {
     Loader {
         id: loader
         anchors.fill: parent
-        active: !!root.host && !!root.nodeData && !Boolean(root.nodeData.collapsed)
+        active: !!root.host && !!root.nodeData && !Boolean(root.nodeData.collapsed) && root.renderActive
         sourceComponent: {
             if (root.loadedSurfaceKey === "flowchart")
                 return flowchartSurfaceComponent;
