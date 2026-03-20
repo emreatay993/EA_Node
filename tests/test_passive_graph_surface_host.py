@@ -523,6 +523,57 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_shadow_cache_key_ignores_viewport_cache_flags_but_tracks_geometry_and_shadow_preferences(self) -> None:
+        self._run_qml_probe(
+            "host-shadow-cache-key",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": node_payload(),
+                    "showShadow": True,
+                },
+            )
+            background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            shadow_item = host.findChild(QObject, "graphNodeShadow")
+            chrome_item = host.findChild(QObject, "graphNodeChrome")
+
+            assert background_layer is not None
+            assert shadow_item is not None
+            assert chrome_item is not None
+            assert bool(background_layer.property("cacheActive"))
+            assert bool(background_layer.property("chromeCacheActive"))
+            assert bool(background_layer.property("shadowCacheActive"))
+            assert bool(chrome_item.property("visible"))
+            assert bool(shadow_item.property("cached"))
+
+            baseline_key = str(background_layer.property("cacheKey") or "")
+            assert baseline_key
+
+            host.setProperty("viewportInteractionCacheActive", True)
+            app.processEvents()
+            assert str(background_layer.property("cacheKey") or "") == baseline_key
+
+            host.setProperty("snapshotReuseActive", True)
+            app.processEvents()
+            assert str(background_layer.property("cacheKey") or "") == baseline_key
+
+            host.setProperty("_liveWidth", 244.0)
+            host.setProperty("_liveHeight", 96.0)
+            host.setProperty("_liveGeometryActive", True)
+            app.processEvents()
+            geometry_key = str(background_layer.property("cacheKey") or "")
+            assert geometry_key != baseline_key
+
+            host.setProperty("_liveGeometryActive", False)
+            host.setProperty("shadowStrength", 55)
+            app.processEvents()
+            shadow_preference_key = str(background_layer.property("cacheKey") or "")
+            assert shadow_preference_key != baseline_key
+            assert shadow_preference_key != geometry_key
+            """,
+        )
+
     def test_graph_node_host_shows_four_resize_handles_only_on_hover_for_expanded_nodes(self) -> None:
         self._run_qml_probe(
             "host-hover-only-resize-handles",

@@ -5,6 +5,10 @@ Item {
     id: root
     objectName: "graphNodeChromeBackgroundLayer"
     property Item host: null
+    readonly property bool cacheActive: !!root.host && root.host.chromeShadowCacheActive
+    readonly property string cacheKey: root.host ? root.host.chromeShadowCacheKey : ""
+    readonly property bool chromeCacheActive: root.cacheActive
+    readonly property bool shadowCacheActive: root.cacheActive
     z: 0
 
     RectangularShadow {
@@ -20,7 +24,7 @@ Item {
         spread: Math.max(0.0, Math.min(1.0, (root.host ? root.host.shadowStrength : 70) / 100.0))
         radius: root.host ? root.host.resolvedCornerRadius : 0
         color: Qt.rgba(0, 0, 0, (root.host ? root.host.shadowStrength : 70) / 100.0)
-        cached: false
+        cached: root.shadowCacheActive
     }
 
     Rectangle {
@@ -35,5 +39,6 @@ Item {
             ? (root.host.isSelected ? root.host.selectedOutlineColor : root.host.outlineColor)
             : "transparent"
         radius: root.host ? root.host.resolvedCornerRadius : 0
+        layer.enabled: root.chromeCacheActive
     }
 }

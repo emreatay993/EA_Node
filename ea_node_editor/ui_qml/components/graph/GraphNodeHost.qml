@@ -264,6 +264,24 @@ Item {
         ? (card.isSelected ? Math.max(2.0, card.passiveBorderWidth) : card.passiveBorderWidth)
         : (card.isSelected ? 2.0 : 1.0)
     readonly property real resolvedCornerRadius: card.isPassiveNode ? card.passiveCornerRadius : 6.0
+    // The chrome/shadow background owns its own cache so viewport and policy
+    // churn do not invalidate it unless the local chrome/shadow pixels change.
+    readonly property bool chromeShadowCacheActive: card._useHostChrome
+    readonly property string chromeShadowCacheKey: [
+        card.chromeShadowCacheActive ? "host-chrome" : "surface-chrome",
+        Number(card.width).toFixed(3),
+        Number(card.height).toFixed(3),
+        Number(card.resolvedCornerRadius).toFixed(3),
+        Number(card.resolvedBorderWidth).toFixed(3),
+        card.isSelected ? "selected" : "idle",
+        String(card.surfaceColor),
+        String(card.outlineColor),
+        String(card.selectedOutlineColor),
+        card.showShadow ? "shadow-enabled" : "shadow-disabled",
+        String(Number(card.shadowStrength)),
+        String(Number(card.shadowSoftness)),
+        String(Number(card.shadowOffset))
+    ].join("|")
 
     function localPortPoint(direction, rowIndex) {
         if (!card.nodeData)
