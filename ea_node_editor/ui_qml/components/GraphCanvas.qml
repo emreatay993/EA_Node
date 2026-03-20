@@ -6,41 +6,40 @@ import "graph_canvas/GraphCanvasLogic.js" as GraphCanvasLogic
 Item {
     id: root
     objectName: "graphCanvas"
-    property var canvasBridge: null
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
-    readonly property var canvasBridgeRef: root.canvasBridge
-        ? root.canvasBridge
-        : null
     readonly property var canvasStateBridgeRef: root.canvasStateBridge
         ? root.canvasStateBridge
-        : (root.canvasBridgeRef ? root.canvasBridgeRef : null)
+        : null
     readonly property var canvasCommandBridgeRef: root.canvasCommandBridge
         ? root.canvasCommandBridge
-        : root.canvasBridgeRef
-    property var mainWindowBridge: root.canvasCommandBridgeRef ? root.canvasCommandBridgeRef : null
-    property var sceneBridge: root.canvasStateBridgeRef ? root.canvasStateBridgeRef : null
-    property var viewBridge: root.canvasBridgeRef ? root.canvasBridgeRef : root.canvasStateBridgeRef
+        : null
+    property var mainWindowBridge: root.canvasCommandBridgeRef
+        ? root.canvasCommandBridgeRef
+        : null
+    property var sceneBridge: root.canvasStateBridgeRef
+        ? root.canvasStateBridgeRef
+        : null
+    property var viewBridge: root.canvasStateBridgeRef
+        ? root.canvasStateBridgeRef
+        : null
     readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
         ? root.canvasStateBridgeRef
         : root.mainWindowBridge
     readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
         ? root.canvasStateBridgeRef
-        : (root.canvasBridgeRef ? root.canvasBridgeRef : root.sceneBridge)
+        : root.sceneBridge
     readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef
         ? root.canvasStateBridgeRef
-        : (root.canvasBridgeRef ? root.canvasBridgeRef : root.viewBridge)
-    readonly property var _canvasCommandBridgeRef: root.canvasCommandBridgeRef
+        : root.viewBridge
+    readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
         ? root.canvasCommandBridgeRef
-        : root.canvasBridgeRef
-    readonly property var _canvasShellCommandBridgeRef: root._canvasCommandBridgeRef
-        ? root._canvasCommandBridgeRef
         : root.mainWindowBridge
-    readonly property var _canvasSceneCommandBridgeRef: root._canvasCommandBridgeRef
-        ? root._canvasCommandBridgeRef
+    readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
+        ? root.canvasCommandBridgeRef
         : root.sceneBridge
-    readonly property var _canvasViewCommandBridgeRef: root._canvasCommandBridgeRef
-        ? root._canvasCommandBridgeRef
+    readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
+        ? root.canvasCommandBridgeRef
         : root.viewBridge
     property var overlayHostItem: null
     property var edgePayload: []
@@ -1076,7 +1075,6 @@ Item {
         root._syncEdgePayload();
     }
 
-    onCanvasBridgeChanged: root._resetCanvasSceneState()
     onCanvasStateBridgeChanged: root._resetCanvasSceneState()
     onCanvasCommandBridgeChanged: root._resetCanvasSceneState()
     onSceneBridgeChanged: root._resetCanvasSceneState()

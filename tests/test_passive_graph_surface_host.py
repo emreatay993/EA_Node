@@ -14,35 +14,168 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             self,
             label,
             """
+            import importlib.util
+            import sys
+            import types
             from pathlib import Path
 
-            from PyQt6.QtCore import QObject, QMetaObject, QUrl, pyqtSlot
+            from PyQt6.QtCore import QObject, QMetaObject, QUrl, pyqtProperty, pyqtSlot
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
 
-            from ea_node_editor.graph.model import GraphModel
-            from ea_node_editor.nodes.bootstrap import build_default_registry
             from ea_node_editor.ui.media_preview_provider import (
                 LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
                 LocalMediaPreviewImageProvider,
             )
-            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
-            from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
-            from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
-            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
-            engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
-            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
 
             repo_root = Path.cwd()
             components_dir = repo_root / "ea_node_editor" / "ui_qml" / "components"
             graph_canvas_qml_path = components_dir / "GraphCanvas.qml"
             graph_node_host_qml_path = components_dir / "graph" / "GraphNodeHost.qml"
             node_card_qml_path = components_dir / "graph" / "NodeCard.qml"
+
+            def ensure_namespace(package_name, package_dir):
+                if package_name in sys.modules:
+                    return
+                package = types.ModuleType(package_name)
+                package.__path__ = [str(repo_root / package_dir)]
+                sys.modules[package_name] = package
+
+            def load_module(module_name, relative_path):
+                if module_name in sys.modules:
+                    return sys.modules[module_name]
+                module_path = repo_root / relative_path
+                spec = importlib.util.spec_from_file_location(module_name, module_path)
+                module = importlib.util.module_from_spec(spec)
+                assert spec is not None and spec.loader is not None
+                sys.modules[module_name] = module
+                if module_name == "ea_node_editor.graph.model":
+                    def _lazy_symbol(name):
+                        def _wrapper(*args, **kwargs):
+                            actual = getattr(sys.modules[module_name], name)
+                            if actual is _wrapper:
+                                raise RuntimeError(f"{module_name}.{name} is not initialized yet")
+                            return actual(*args, **kwargs)
+                        return _wrapper
+
+                    class _NodeInstancePlaceholder:
+                        pass
+
+                    class _EdgeInstancePlaceholder:
+                        pass
+
+                    class _ViewStatePlaceholder:
+                        pass
+
+                    class _WorkspaceDataPlaceholder:
+                        pass
+
+                    class _ProjectDataPlaceholder:
+                        pass
+
+                    class _GraphModelPlaceholder:
+                        pass
+
+                    module.NodeInstance = _NodeInstancePlaceholder
+                    module.EdgeInstance = _EdgeInstancePlaceholder
+                    module.ViewState = _ViewStatePlaceholder
+                    module.WorkspaceData = _WorkspaceDataPlaceholder
+                    module.ProjectData = _ProjectDataPlaceholder
+                    module.GraphModel = _GraphModelPlaceholder
+                    module.node_instance_from_mapping = _lazy_symbol("node_instance_from_mapping")
+                    module.node_instance_to_mapping = _lazy_symbol("node_instance_to_mapping")
+                    module.edge_instance_from_mapping = _lazy_symbol("edge_instance_from_mapping")
+                    module.edge_instance_to_mapping = _lazy_symbol("edge_instance_to_mapping")
+                spec.loader.exec_module(module)
+                return module
+
+            ensure_namespace("ea_node_editor.graph", Path("ea_node_editor/graph"))
+            ensure_namespace("ea_node_editor.ui_qml", Path("ea_node_editor/ui_qml"))
+
+            GraphModel = load_module(
+                "ea_node_editor.graph.model",
+                Path("ea_node_editor/graph/model.py"),
+            ).GraphModel
+            GraphSceneBridge = load_module(
+                "ea_node_editor.ui_qml.graph_scene_bridge",
+                Path("ea_node_editor/ui_qml/graph_scene_bridge.py"),
+            ).GraphSceneBridge
+            ViewportBridge = load_module(
+                "ea_node_editor.ui_qml.viewport_bridge",
+                Path("ea_node_editor/ui_qml/viewport_bridge.py"),
+            ).ViewportBridge
+
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+
+            class ThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def palette(self):
+                    return {
+                        "accent": "#2F89FF",
+                        "border": "#3a4355",
+                        "canvas_bg": "#151821",
+                        "canvas_major_grid": "#2f3644",
+                        "canvas_minor_grid": "#222833",
+                        "group_title_fg": "#d5dbea",
+                        "hover": "#33405c",
+                        "muted_fg": "#95a0b8",
+                        "panel_bg": "#1b1f2a",
+                        "panel_title_fg": "#eef3ff",
+                        "pressed": "#22304a",
+                        "toolbar_bg": "#202635",
+                    }
+
+            class GraphThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def node_palette(self):
+                    return {
+                        "card_bg": "#1f2431",
+                        "card_border": "#414a5d",
+                        "card_selected_border": "#5da9ff",
+                        "header_bg": "#252c3c",
+                        "header_fg": "#eef3ff",
+                        "inline_driven_fg": "#aeb8ce",
+                        "inline_input_bg": "#18202d",
+                        "inline_input_border": "#465066",
+                        "inline_input_fg": "#eef3ff",
+                        "inline_label_fg": "#d5dbea",
+                        "inline_row_bg": "#202635",
+                        "inline_row_border": "#3a4355",
+                        "port_interactive_border": "#8ca0c7",
+                        "port_interactive_fill": "#101521",
+                        "port_interactive_ring_border": "#7fb2ff",
+                        "port_interactive_ring_fill": "#1a2233",
+                        "port_label_fg": "#d5dbea",
+                        "scope_badge_bg": "#1f3657",
+                        "scope_badge_border": "#4c7bc0",
+                        "scope_badge_fg": "#eef3ff",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def port_kind_palette(self):
+                    return {
+                        "data": "#7AA8FF",
+                        "exec": "#67D487",
+                        "completed": "#E4CE7D",
+                        "failed": "#D94F4F",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def edge_palette(self):
+                    return {
+                        "invalid_drag_stroke": "#D94F4F",
+                        "preview_stroke": "#95a0b8",
+                        "selected_stroke": "#5da9ff",
+                        "valid_drag_stroke": "#67D487",
+                    }
+
+            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
+            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
 
             def create_component(path, initial_properties):
                 component = QQmlComponent(engine, QUrl.fromLocalFile(str(path)))

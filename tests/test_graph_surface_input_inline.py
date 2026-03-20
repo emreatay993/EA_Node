@@ -17,7 +17,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             from pathlib import Path
             import textwrap
 
-            from PyQt6.QtCore import QEvent, QObject, Qt, QUrl
+            from PyQt6.QtCore import QEvent, QObject, Qt, QUrl, pyqtProperty
             from PyQt6.QtGui import QKeyEvent
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtWidgets import QApplication
@@ -26,14 +26,74 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                 LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
                 LocalMediaPreviewImageProvider,
             )
-            from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
-            from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
+
+            class ThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def palette(self):
+                    return {
+                        "accent": "#2F89FF",
+                        "border": "#3a4355",
+                        "canvas_bg": "#151821",
+                        "canvas_major_grid": "#2f3644",
+                        "canvas_minor_grid": "#222833",
+                        "group_title_fg": "#d5dbea",
+                        "hover": "#33405c",
+                        "muted_fg": "#95a0b8",
+                        "panel_bg": "#1b1f2a",
+                        "panel_title_fg": "#eef3ff",
+                        "pressed": "#22304a",
+                        "toolbar_bg": "#202635",
+                    }
+
+            class GraphThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def node_palette(self):
+                    return {
+                        "card_bg": "#1f2431",
+                        "card_border": "#414a5d",
+                        "card_selected_border": "#5da9ff",
+                        "header_bg": "#252c3c",
+                        "header_fg": "#eef3ff",
+                        "inline_driven_fg": "#aeb8ce",
+                        "inline_input_bg": "#18202d",
+                        "inline_input_border": "#465066",
+                        "inline_input_fg": "#eef3ff",
+                        "inline_label_fg": "#d5dbea",
+                        "inline_row_bg": "#202635",
+                        "inline_row_border": "#3a4355",
+                        "port_interactive_border": "#8ca0c7",
+                        "port_interactive_fill": "#101521",
+                        "port_interactive_ring_border": "#7fb2ff",
+                        "port_interactive_ring_fill": "#1a2233",
+                        "port_label_fg": "#d5dbea",
+                        "scope_badge_bg": "#1f3657",
+                        "scope_badge_border": "#4c7bc0",
+                        "scope_badge_fg": "#eef3ff",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def port_kind_palette(self):
+                    return {
+                        "data": "#7AA8FF",
+                        "exec": "#67D487",
+                        "completed": "#E4CE7D",
+                        "failed": "#D94F4F",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def edge_palette(self):
+                    return {
+                        "invalid_drag_stroke": "#D94F4F",
+                        "preview_stroke": "#95a0b8",
+                        "selected_stroke": "#5da9ff",
+                        "valid_drag_stroke": "#67D487",
+                    }
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
-            engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
-            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
+            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
+            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
 
             repo_root = Path.cwd()
             components_dir = repo_root / "ea_node_editor" / "ui_qml" / "components"

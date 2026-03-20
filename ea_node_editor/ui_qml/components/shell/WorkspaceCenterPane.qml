@@ -6,7 +6,6 @@ import ".." as Components
 Rectangle {
     id: root
     readonly property var workspaceBridgeRef: shellWorkspaceBridge
-    property var graphCanvasBridgeRef
     property var graphCanvasStateBridgeRef
     property var graphCanvasCommandBridgeRef
     property var overlayHostItem
@@ -115,7 +114,6 @@ Rectangle {
             id: graphCanvas
             Layout.fillWidth: true
             Layout.fillHeight: true
-            canvasBridge: root.graphCanvasBridgeRef
             canvasStateBridge: root.graphCanvasStateBridgeRef
             canvasCommandBridge: root.graphCanvasCommandBridgeRef
             overlayHostItem: root.overlayHostItem

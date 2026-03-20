@@ -8,7 +8,6 @@ Rectangle {
     id: root
     readonly property var themePalette: themeBridge.palette
     color: themePalette.app_bg
-    readonly property var canvasBridgeRef: graphCanvasBridge
     readonly property var canvasStateBridgeRef: graphCanvasStateBridge
     readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge
     readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef
@@ -46,7 +45,6 @@ Rectangle {
 
             WorkspaceCenterPane {
                 id: workspaceCenterPane
-                graphCanvasBridgeRef: root.canvasBridgeRef
                 graphCanvasStateBridgeRef: root.canvasStateBridgeRef
                 graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef
                 overlayHostItem: root

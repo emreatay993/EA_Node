@@ -22,7 +22,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """
             from pathlib import Path
 
-            from PyQt6.QtCore import QObject, QUrl
+            from PyQt6.QtCore import QObject, QUrl, pyqtProperty
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtWidgets import QApplication
 
@@ -30,14 +30,74 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
                 LocalMediaPreviewImageProvider,
             )
-            from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
-            from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
+
+            class ThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def palette(self):
+                    return {
+                        "accent": "#2F89FF",
+                        "border": "#3a4355",
+                        "canvas_bg": "#151821",
+                        "canvas_major_grid": "#2f3644",
+                        "canvas_minor_grid": "#222833",
+                        "group_title_fg": "#d5dbea",
+                        "hover": "#33405c",
+                        "muted_fg": "#95a0b8",
+                        "panel_bg": "#1b1f2a",
+                        "panel_title_fg": "#eef3ff",
+                        "pressed": "#22304a",
+                        "toolbar_bg": "#202635",
+                    }
+
+            class GraphThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def node_palette(self):
+                    return {
+                        "card_bg": "#1f2431",
+                        "card_border": "#414a5d",
+                        "card_selected_border": "#5da9ff",
+                        "header_bg": "#252c3c",
+                        "header_fg": "#eef3ff",
+                        "inline_driven_fg": "#aeb8ce",
+                        "inline_input_bg": "#18202d",
+                        "inline_input_border": "#465066",
+                        "inline_input_fg": "#eef3ff",
+                        "inline_label_fg": "#d5dbea",
+                        "inline_row_bg": "#202635",
+                        "inline_row_border": "#3a4355",
+                        "port_interactive_border": "#8ca0c7",
+                        "port_interactive_fill": "#101521",
+                        "port_interactive_ring_border": "#7fb2ff",
+                        "port_interactive_ring_fill": "#1a2233",
+                        "port_label_fg": "#d5dbea",
+                        "scope_badge_bg": "#1f3657",
+                        "scope_badge_border": "#4c7bc0",
+                        "scope_badge_fg": "#eef3ff",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def port_kind_palette(self):
+                    return {
+                        "data": "#7AA8FF",
+                        "exec": "#67D487",
+                        "completed": "#E4CE7D",
+                        "failed": "#D94F4F",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def edge_palette(self):
+                    return {
+                        "invalid_drag_stroke": "#D94F4F",
+                        "preview_stroke": "#95a0b8",
+                        "selected_stroke": "#5da9ff",
+                        "valid_drag_stroke": "#67D487",
+                    }
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
-            engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
-            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridge(theme_id="graph_stitch_dark"))
+            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
+            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
 
             repo_root = Path.cwd()
             components_dir = repo_root / "ea_node_editor" / "ui_qml" / "components"
@@ -444,18 +504,19 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
-    def test_graph_canvas_supports_surface_control_edits_via_unified_canvas_bridge(self) -> None:
+    def test_graph_canvas_supports_surface_control_edits_via_split_canvas_bridges(self) -> None:
         self._run_qml_probe(
-            "graph-canvas-unified-bridge-surface-control",
+            "graph-canvas-split-bridge-surface-control",
             """
             from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
-            from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
-
-            class SceneBridgeStub(QObject):
-                nodes_changed = pyqtSignal()
-                edges_changed = pyqtSignal()
-                selection_changed = pyqtSignal()
+            class CanvasStateBridgeStub(QObject):
+                graphics_preferences_changed = pyqtSignal()
+                snap_to_grid_changed = pyqtSignal()
+                scene_nodes_changed = pyqtSignal()
+                scene_edges_changed = pyqtSignal()
+                scene_selection_changed = pyqtSignal()
+                view_state_changed = pyqtSignal()
 
                 def __init__(self):
                     super().__init__()
@@ -463,77 +524,8 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                     self.set_node_property_calls = []
                     self._nodes_model = [node_payload()]
                     self._selected_node_lookup = {}
-
-                @pyqtProperty("QVariantList", notify=nodes_changed)
-                def nodes_model(self):
-                    return self._nodes_model
-
-                @pyqtProperty("QVariantList", notify=edges_changed)
-                def edges_model(self):
-                    return []
-
-                @pyqtProperty("QVariantMap", notify=selection_changed)
-                def selected_node_lookup(self):
-                    return self._selected_node_lookup
-
-                @pyqtSlot(str)
-                @pyqtSlot(str, bool)
-                def select_node(self, node_id, additive=False):
-                    normalized_node_id = str(node_id or "")
-                    self.select_calls.append((normalized_node_id, bool(additive)))
-                    self._selected_node_lookup = {normalized_node_id: True} if normalized_node_id else {}
-                    self.selection_changed.emit()
-
-                @pyqtSlot(str, str, "QVariant")
-                def set_node_property(self, node_id, key, value):
-                    self.set_node_property_calls.append((str(node_id or ""), str(key or ""), variant_value(value)))
-
-                @pyqtSlot(str, str, result=bool)
-                def are_port_kinds_compatible(self, _source_kind, _target_kind):
-                    return True
-
-                @pyqtSlot(str, str, result=bool)
-                def are_data_types_compatible(self, _source_type, _target_type):
-                    return True
-
-            class ViewBridgeStub(QObject):
-                view_state_changed = pyqtSignal()
-
-                def __init__(self):
-                    super().__init__()
                     self._width = 640.0
                     self._height = 480.0
-
-                @pyqtProperty(float, constant=True)
-                def center_x(self):
-                    return 0.0
-
-                @pyqtProperty(float, constant=True)
-                def center_y(self):
-                    return 0.0
-
-                @pyqtProperty(float, constant=True)
-                def zoom_value(self):
-                    return 1.0
-
-                @pyqtProperty("QVariantMap", notify=view_state_changed)
-                def visible_scene_rect_payload(self):
-                    return {
-                        "x": -(self._width * 0.5),
-                        "y": -(self._height * 0.5),
-                        "width": self._width,
-                        "height": self._height,
-                    }
-
-                @pyqtSlot(float, float)
-                def set_viewport_size(self, width, height):
-                    self._width = float(width)
-                    self._height = float(height)
-                    self.view_state_changed.emit()
-
-            class CanvasHostStub(QObject):
-                graphics_preferences_changed = pyqtSignal()
-                snap_to_grid_changed = pyqtSignal()
 
                 @pyqtProperty(bool, constant=True)
                 def graphics_minimap_expanded(self):
@@ -571,17 +563,94 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 def snap_grid_size(self):
                     return 20.0
 
-            scene_bridge = SceneBridgeStub()
-            view_bridge = ViewBridgeStub()
-            canvas_bridge = GraphCanvasBridge(
-                shell_window=CanvasHostStub(),
-                scene_bridge=scene_bridge,
-                view_bridge=view_bridge,
-            )
+                @pyqtProperty(float, constant=True)
+                def center_x(self):
+                    return 0.0
+
+                @pyqtProperty(float, constant=True)
+                def center_y(self):
+                    return 0.0
+
+                @pyqtProperty(float, constant=True)
+                def zoom_value(self):
+                    return 1.0
+
+                @pyqtProperty("QVariantMap", notify=view_state_changed)
+                def visible_scene_rect_payload(self):
+                    return {
+                        "x": -(self._width * 0.5),
+                        "y": -(self._height * 0.5),
+                        "width": self._width,
+                        "height": self._height,
+                    }
+
+                @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+                def nodes_model(self):
+                    return self._nodes_model
+
+                @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+                def minimap_nodes_model(self):
+                    return self._nodes_model
+
+                @pyqtProperty("QVariantMap", notify=scene_nodes_changed)
+                def workspace_scene_bounds_payload(self):
+                    return {
+                        "x": 0.0,
+                        "y": 0.0,
+                        "width": 640.0,
+                        "height": 480.0,
+                    }
+
+                @pyqtProperty("QVariantList", notify=scene_edges_changed)
+                def edges_model(self):
+                    return []
+
+                @pyqtProperty("QVariantMap", notify=scene_selection_changed)
+                def selected_node_lookup(self):
+                    return self._selected_node_lookup
+
+                @pyqtSlot(str, str, result=bool)
+                def are_port_kinds_compatible(self, _source_kind, _target_kind):
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def are_data_types_compatible(self, _source_type, _target_type):
+                    return True
+
+            class CanvasCommandBridgeStub(QObject):
+                def __init__(self, state_bridge):
+                    super().__init__()
+                    self._state_bridge = state_bridge
+
+                @pyqtSlot(float, float)
+                def set_viewport_size(self, width, height):
+                    self._state_bridge._width = float(width)
+                    self._state_bridge._height = float(height)
+                    self._state_bridge.view_state_changed.emit()
+
+                @pyqtSlot(str)
+                @pyqtSlot(str, bool)
+                def select_node(self, node_id, additive=False):
+                    normalized_node_id = str(node_id or "")
+                    self._state_bridge.select_calls.append((normalized_node_id, bool(additive)))
+                    self._state_bridge._selected_node_lookup = (
+                        {normalized_node_id: True} if normalized_node_id else {}
+                    )
+                    self._state_bridge.scene_selection_changed.emit()
+
+                @pyqtSlot(str, str, "QVariant")
+                def set_node_property(self, node_id, key, value):
+                    self._state_bridge.set_node_property_calls.append(
+                        (str(node_id or ""), str(key or ""), variant_value(value))
+                    )
+
+            canvas_state_bridge = CanvasStateBridgeStub()
+            canvas_command_bridge = CanvasCommandBridgeStub(canvas_state_bridge)
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "canvasBridge": canvas_bridge,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
                     "height": 480.0,
                 },
@@ -600,16 +669,16 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             node_card.inlinePropertyCommitted.emit(
                 "node_surface_contract_test",
                 "message",
-                "updated through unified bridge",
+                "updated through split bridges",
             )
             app.processEvents()
 
-            assert scene_bridge.select_calls == [
+            assert canvas_state_bridge.select_calls == [
                 ("node_surface_contract_test", False),
                 ("node_surface_contract_test", False),
             ]
-            assert scene_bridge.set_node_property_calls == [
-                ("node_surface_contract_test", "message", "updated through unified bridge")
+            assert canvas_state_bridge.set_node_property_calls == [
+                ("node_surface_contract_test", "message", "updated through split bridges")
             ]
 
             canvas.deleteLater()
