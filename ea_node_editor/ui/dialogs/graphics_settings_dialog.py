@@ -6,18 +6,24 @@ from typing import Any
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QRadioButton,
     QSlider,
     QVBoxLayout,
     QWidget,
 )
 
-from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS, TAB_STRIP_DENSITY_CHOICES
+from ea_node_editor.settings import (
+    DEFAULT_GRAPHICS_SETTINGS,
+    GRAPHICS_PERFORMANCE_MODE_CHOICES,
+    TAB_STRIP_DENSITY_CHOICES,
+)
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 from ea_node_editor.ui.graph_theme import (
     default_graph_theme_id_for_shell_theme,
@@ -40,6 +46,18 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         ("theme", "Theme"),
         ("layout", "Layout"),
     ]
+    _PERFORMANCE_MODE_COPY = {
+        "full_fidelity": "Keeps normal visual quality and applies only invisible structural optimizations.",
+        "max_performance": "Temporarily simplifies whole-canvas rendering during pan, zoom, and burst edits; idle quality restores automatically.",
+    }
+    _PERFORMANCE_MODE_BUTTON_NAMES = {
+        "full_fidelity": "graphicsSettingsFullFidelityModeRadio",
+        "max_performance": "graphicsSettingsMaxPerformanceModeRadio",
+    }
+    _PERFORMANCE_MODE_COPY_NAMES = {
+        "full_fidelity": "graphicsSettingsFullFidelityModeCopy",
+        "max_performance": "graphicsSettingsMaxPerformanceModeCopy",
+    }
 
     def __init__(
         self,
@@ -226,6 +244,50 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         renderer_lay.addLayout(renderer_form)
         outer.addWidget(renderer_card)
 
+        outer.addWidget(self._make_section_title("Performance", page))
+        performance_card, performance_lay = self._make_section_card(page)
+        self.performance_mode_summary_label = QLabel(
+            "Choose the app-wide graphics mode used across the shell and graph canvas.",
+            performance_card,
+        )
+        self.performance_mode_summary_label.setObjectName("graphicsSettingsPerformanceModeSummary")
+        self.performance_mode_summary_label.setWordWrap(True)
+        performance_lay.addWidget(self.performance_mode_summary_label)
+
+        self.performance_mode_group = QButtonGroup(performance_card)
+        self.performance_mode_group.setExclusive(True)
+        self.performance_mode_buttons: dict[str, QRadioButton] = {}
+        self.performance_mode_copy_labels: dict[str, QLabel] = {}
+        for mode_id, label in GRAPHICS_PERFORMANCE_MODE_CHOICES:
+            option = QWidget(performance_card)
+            option_layout = QVBoxLayout(option)
+            option_layout.setContentsMargins(0, 2, 0, 2)
+            option_layout.setSpacing(2)
+
+            button = QRadioButton(label, option)
+            button.setObjectName(self._PERFORMANCE_MODE_BUTTON_NAMES.get(mode_id, ""))
+            self.performance_mode_group.addButton(button)
+            self.performance_mode_buttons[mode_id] = button
+            if mode_id == "full_fidelity":
+                self.full_fidelity_mode_button = button
+            elif mode_id == "max_performance":
+                self.max_performance_mode_button = button
+            option_layout.addWidget(button)
+
+            copy_label = QLabel(self._PERFORMANCE_MODE_COPY.get(mode_id, ""), option)
+            copy_label.setObjectName(self._PERFORMANCE_MODE_COPY_NAMES.get(mode_id, ""))
+            copy_label.setWordWrap(True)
+            copy_label.setIndent(24)
+            self.performance_mode_copy_labels[mode_id] = copy_label
+            if mode_id == "full_fidelity":
+                self.full_fidelity_mode_copy_label = copy_label
+            elif mode_id == "max_performance":
+                self.max_performance_mode_copy_label = copy_label
+            option_layout.addWidget(copy_label)
+
+            performance_lay.addWidget(option)
+        outer.addWidget(performance_card)
+
         # ── Shell Theme section ──
         outer.addWidget(self._make_section_title("Shell Theme", page))
         shell_card, shell_lay = self._make_section_card(page)
@@ -321,6 +383,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.shadow_offset_slider.setValue(settings["canvas"]["shadow_offset"])
         self._sync_shadow_settings_visibility()
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
+        self._set_graphics_performance_mode(settings["performance"]["mode"])
         density_id = settings["shell"]["tab_strip_density"]
         density_index = self.tab_strip_density_combo.findData(density_id)
         self.tab_strip_density_combo.setCurrentIndex(density_index if density_index >= 0 else 0)
@@ -345,6 +408,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),
                 },
+                "performance": {
+                    "mode": self._graphics_performance_mode(),
+                },
                 "shell": {
                     "tab_strip_density": str(self.tab_strip_density_combo.currentData() or ""),
                 },
@@ -354,6 +420,19 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 "graph_theme": self._current_graph_theme_settings(),
             }
         )
+
+    def _set_graphics_performance_mode(self, mode: str) -> None:
+        button = self.performance_mode_buttons.get(str(mode))
+        if button is None:
+            button = self.performance_mode_buttons.get(DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
+        if button is not None:
+            button.setChecked(True)
+
+    def _graphics_performance_mode(self) -> str:
+        for mode_id, button in self.performance_mode_buttons.items():
+            if button.isChecked():
+                return mode_id
+        return str(DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
 
     def _sync_graph_theme_combo_enabled(self, _checked: bool | None = None) -> None:
         self.graph_theme_combo.setEnabled(not self.follow_shell_theme_check.isChecked())
