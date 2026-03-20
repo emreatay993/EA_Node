@@ -4,6 +4,8 @@ import copy
 import unittest
 from unittest.mock import patch
 
+from PyQt6.QtCore import Qt
+
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
@@ -210,6 +212,20 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             with patch.object(dialog, "_open_graph_theme_manager") as open_manager:
                 dialog.manage_graph_themes_button.click()
             open_manager.assert_not_called()
+        finally:
+            dialog.close()
+
+    def test_dialog_shows_active_renderer_as_read_only_runtime_info(self) -> None:
+        dialog = GraphicsSettingsDialog(active_renderer_label="Direct3D 11")
+        try:
+            self.assertEqual(dialog.active_renderer_value_label.text(), "Direct3D 11")
+            self.assertTrue(
+                bool(
+                    dialog.active_renderer_value_label.textInteractionFlags()
+                    & Qt.TextInteractionFlag.TextSelectableByMouse
+                )
+            )
+            self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
         finally:
             dialog.close()
 

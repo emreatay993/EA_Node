@@ -48,6 +48,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         *,
         available_graph_themes: Sequence[tuple[str, str]] | None = None,
         manage_graph_themes_callback: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None,
+        active_renderer_label: str | None = None,
     ) -> None:
         graph_themes = available_graph_themes or graph_theme_choices()
         self._available_graph_themes = tuple((str(theme_id), str(label)) for theme_id, label in graph_themes)
@@ -56,6 +57,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self._custom_graph_themes = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["custom_themes"])
         self._explicit_graph_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
         self._manage_graph_themes_callback = manage_graph_themes_callback
+        self._active_renderer_label = self._normalize_active_renderer_label(active_renderer_label)
         super().__init__(
             window_title="Graphics Settings",
             header_text="Configure app-wide graphics and interaction defaults.",
@@ -87,6 +89,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         label = QLabel(text, parent)
         label.setProperty("settingsSectionTitle", True)
         return label
+
+    @staticmethod
+    def _normalize_active_renderer_label(value: Any) -> str:
+        normalized = str(value or "").strip()
+        return normalized or "Unavailable"
 
     def _build_canvas_page(self) -> QWidget:
         page = QWidget(self)
@@ -206,6 +213,18 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         outer = QVBoxLayout(page)
         outer.setContentsMargins(4, 4, 4, 4)
         outer.setSpacing(12)
+
+        outer.addWidget(self._make_section_title("Renderer", page))
+        renderer_card, renderer_lay = self._make_section_card(page)
+        renderer_form = QFormLayout()
+        renderer_form.setContentsMargins(0, 0, 0, 0)
+        renderer_form.setVerticalSpacing(8)
+        self.active_renderer_value_label = QLabel(self._active_renderer_label, renderer_card)
+        self.active_renderer_value_label.setObjectName("graphicsSettingsActiveRendererValue")
+        self.active_renderer_value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        renderer_form.addRow("Active renderer", self.active_renderer_value_label)
+        renderer_lay.addLayout(renderer_form)
+        outer.addWidget(renderer_card)
 
         # ── Shell Theme section ──
         outer.addWidget(self._make_section_title("Shell Theme", page))

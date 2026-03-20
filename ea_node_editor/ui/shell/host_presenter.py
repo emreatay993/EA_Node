@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QCursor
+from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
@@ -29,6 +30,16 @@ _UNSET = object()
 _PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
 _FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
 _STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
+_RENDERER_LABELS = {
+    QSGRendererInterface.GraphicsApi.Direct3D11Rhi: "Direct3D 11",
+    QSGRendererInterface.GraphicsApi.Direct3D12: "Direct3D 12",
+    QSGRendererInterface.GraphicsApi.MetalRhi: "Metal",
+    QSGRendererInterface.GraphicsApi.NullRhi: "Null",
+    QSGRendererInterface.GraphicsApi.OpenGL: "OpenGL",
+    QSGRendererInterface.GraphicsApi.OpenVG: "OpenVG",
+    QSGRendererInterface.GraphicsApi.Software: "Software",
+    QSGRendererInterface.GraphicsApi.VulkanRhi: "Vulkan",
+}
 
 
 class ShellHostPresenter(QObject):
@@ -99,6 +110,19 @@ class ShellHostPresenter(QObject):
             graph_theme_settings=normalized,
         )
 
+    def active_renderer_label(self) -> str:
+        api = QSGRendererInterface.GraphicsApi.Unknown
+        quick_widget = getattr(self._host, "quick_widget", None)
+        if quick_widget is not None:
+            quick_window = quick_widget.quickWindow()
+            if quick_window is not None:
+                renderer_interface = quick_window.rendererInterface()
+                if renderer_interface is not None:
+                    api = renderer_interface.graphicsApi()
+        if api == QSGRendererInterface.GraphicsApi.Unknown:
+            api = QQuickWindow.graphicsApi()
+        return _RENDERER_LABELS.get(api, "Unavailable")
+
     def show_graphics_settings_dialog(self, _checked: bool = False) -> None:
         from ea_node_editor.ui.dialogs import GraphicsSettingsDialog
 
@@ -106,6 +130,7 @@ class ShellHostPresenter(QObject):
             initial_settings=self._host.app_preferences_controller.graphics_settings(),
             available_graph_themes=self._host.app_preferences_controller.graph_theme_choices(),
             manage_graph_themes_callback=self.edit_graph_theme_settings,
+            active_renderer_label=self.active_renderer_label(),
             parent=self._host,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:

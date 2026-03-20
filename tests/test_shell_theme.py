@@ -8,6 +8,7 @@ from PyQt6.QtCore import QObject
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QDialog
 
+import ea_node_editor.ui.dialogs as dialogs_module
 from ea_node_editor.app import APP_STYLESHEET
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
@@ -400,6 +401,28 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
 
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"], updated_graphics)
+
+    def test_graphics_settings_dialog_receives_active_renderer_label(self) -> None:
+        captured_kwargs: dict[str, object] = {}
+
+        class _CapturingGraphicsSettingsDialog:
+            DialogCode = QDialog.DialogCode
+
+            def __init__(self, *args, **kwargs) -> None:
+                del args
+                captured_kwargs.update(kwargs)
+
+            def exec(self) -> int:
+                return QDialog.DialogCode.Rejected
+
+        with patch.object(dialogs_module, "GraphicsSettingsDialog", _CapturingGraphicsSettingsDialog):
+            self.window.show_graphics_settings_dialog()
+
+        self.assertEqual(
+            captured_kwargs["active_renderer_label"],
+            self.window.shell_host_presenter.active_renderer_label(),
+        )
+        self.assertTrue(str(captured_kwargs["active_renderer_label"]).strip())
 
 
 if __name__ == "__main__":
