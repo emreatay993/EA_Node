@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from ea_node_editor.nodes.types import NodeTypeSpec, PluginDescriptor, PluginProvenance
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
 
 
@@ -22,11 +21,18 @@ class _SignalStub:
 
 class _RegistryStub:
     def __init__(self) -> None:
-        self._entries: dict[str, object] = {}
+        self._descriptors: list[PluginDescriptor] = []
         self._specs: dict[str, object] = {}
 
     def add_available(self, type_id: str) -> None:
         self._specs[type_id] = SimpleNamespace(type_id=type_id)
+
+    def add_descriptor(self, descriptor: PluginDescriptor) -> None:
+        self._descriptors.append(descriptor)
+        self._specs[descriptor.spec.type_id] = descriptor.spec
+
+    def all_descriptors(self) -> list[PluginDescriptor]:
+        return list(self._descriptors)
 
     def spec_or_none(self, type_id: str) -> object | None:
         return self._specs.get(type_id)
@@ -180,50 +186,57 @@ class WorkspaceIONodePackageTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            host.registry.add_descriptor(
+                PluginDescriptor(
+                    spec=NodeTypeSpec(
+                        type_id="packet.alpha",
+                        display_name="Packet",
+                        category="Packet Tests",
+                        icon="packet",
+                        ports=(),
+                        properties=(),
+                    ),
+                    factory=type("PacketPlugin", (), {}),
+                    provenance=PluginProvenance(
+                        kind="package",
+                        source_path=(package_dir / "package_plugin.py").resolve(),
+                        package_root=package_dir.resolve(),
+                        package_name="packet_pkg",
+                    ),
+                )
+            )
 
-            module_name = "_ea_plugin_pkg_packet_pkg.package_plugin"
-            original_module = sys.modules.get(module_name)
-            module = types.ModuleType(module_name)
-            module.__file__ = str(package_dir / "package_plugin.py")
-            sys.modules[module_name] = module
-            factory = type("PacketPlugin", (), {})
-            factory.__module__ = module_name
-            host.registry._entries["packet.alpha"] = SimpleNamespace(factory=factory)
-
-            try:
-                with (
-                    patch(
-                        "ea_node_editor.ui.shell.controllers.workspace_io_ops.plugins_dir",
-                        return_value=plugins_root,
-                    ),
-                    patch(
-                        "PyQt6.QtWidgets.QInputDialog.getText",
-                        return_value=("packet_pkg_export", True),
-                    ),
-                    patch(
-                        "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
-                        return_value=(str(Path(temp_dir) / "exports" / "packet_pkg_export.eanp"), "Node Package (*.eanp)"),
-                    ),
-                    patch(
-                        "ea_node_editor.nodes.package_manager.export_package",
-                        return_value=Path(temp_dir) / "exports" / "packet_pkg_export.eanp",
-                    ) as export_mock,
-                    patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
-                    patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
-                ):
-                    ops.export_node_package()
-            finally:
-                if original_module is None:
-                    sys.modules.pop(module_name, None)
-                else:
-                    sys.modules[module_name] = original_module
+            with (
+                patch(
+                    "ea_node_editor.ui.shell.controllers.workspace_io_ops.plugins_dir",
+                    return_value=plugins_root,
+                ),
+                patch(
+                    "PyQt6.QtWidgets.QInputDialog.getText",
+                    return_value=("packet_pkg_export", True),
+                ),
+                patch(
+                    "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+                    return_value=(str(Path(temp_dir) / "exports" / "packet_pkg_export.eanp"), "Node Package (*.eanp)"),
+                ),
+                patch(
+                    "ea_node_editor.nodes.package_manager.export_package",
+                    return_value=Path(temp_dir) / "exports" / "packet_pkg_export.eanp",
+                ) as export_mock,
+                patch("PyQt6.QtWidgets.QMessageBox.information") as info_mock,
+                patch("PyQt6.QtWidgets.QMessageBox.warning") as warning_mock,
+            ):
+                ops.export_node_package()
 
         self.assertEqual(export_mock.call_count, 1)
         export_sources, manifest, output_path = export_mock.call_args.args
+        export_descriptors = export_mock.call_args.kwargs["descriptors"]
         self.assertEqual(
             [source.archive_name for source in export_sources],
             ["helper.py", "package_plugin.py"],
         )
+        self.assertEqual([descriptor.spec.type_id for descriptor in export_descriptors], ["packet.alpha"])
+        self.assertEqual(export_descriptors[0].provenance.kind, "package")
         self.assertEqual(manifest.name, "packet_pkg_export")
         self.assertEqual(manifest.version, "3.2.1")
         self.assertEqual(manifest.author, "Packet Tests")

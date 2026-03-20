@@ -6,13 +6,28 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .types import NodePlugin, NodeTypeSpec, PluginDescriptor, PortSpec, PropertySpec
+from .types import (
+    NodePlugin,
+    NodeTypeSpec,
+    PluginDescriptor,
+    PluginProvenance,
+    PortSpec,
+    PropertySpec,
+)
 
 
 @dataclass(slots=True)
 class NodeRegistryEntry:
     spec: NodeTypeSpec
     factory: Callable[[], NodePlugin]
+    provenance: PluginProvenance | None = None
+
+    def descriptor(self) -> PluginDescriptor:
+        return PluginDescriptor(
+            spec=self.spec,
+            factory=self.factory,
+            provenance=self.provenance,
+        )
 
 
 class NodeRegistry:
@@ -33,26 +48,39 @@ class NodeRegistry:
     def __init__(self) -> None:
         self._entries: dict[str, NodeRegistryEntry] = {}
 
-    def register(self, factory: Callable[[], NodePlugin]) -> None:
+    def register(
+        self,
+        factory: Callable[[], NodePlugin],
+        *,
+        provenance: PluginProvenance | None = None,
+    ) -> None:
         plugin = factory()
         spec = plugin.spec()
-        self.register_descriptor(spec, factory)
+        self.register_descriptor(spec, factory, provenance=provenance)
 
     def register_descriptor(
         self,
         spec: NodeTypeSpec | PluginDescriptor,
         factory: Callable[[], NodePlugin] | None = None,
+        *,
+        provenance: PluginProvenance | None = None,
     ) -> None:
         if isinstance(spec, PluginDescriptor):
             descriptor = spec
             spec = descriptor.spec
             factory = descriptor.factory
+            if provenance is None:
+                provenance = descriptor.provenance
         if factory is None or not callable(factory):
             raise TypeError("Plugin factory must be callable")
         self._validate_spec(spec)
         if spec.type_id in self._entries:
             raise ValueError(f"Node type already registered: {spec.type_id}")
-        self._entries[spec.type_id] = NodeRegistryEntry(spec=spec, factory=factory)
+        self._entries[spec.type_id] = NodeRegistryEntry(
+            spec=spec,
+            factory=factory,
+            provenance=provenance,
+        )
 
     def create(self, type_id: str) -> NodePlugin:
         try:
@@ -73,8 +101,23 @@ class NodeRegistry:
             return None
         return entry.spec
 
+    def get_descriptor(self, type_id: str) -> PluginDescriptor:
+        try:
+            return self._entries[type_id].descriptor()
+        except KeyError as exc:
+            raise KeyError(f"Unknown node type: {type_id}") from exc
+
+    def descriptor_or_none(self, type_id: str) -> PluginDescriptor | None:
+        entry = self._entries.get(type_id)
+        if entry is None:
+            return None
+        return entry.descriptor()
+
     def all_specs(self) -> list[NodeTypeSpec]:
         return [entry.spec for entry in self._entries.values()]
+
+    def all_descriptors(self) -> list[PluginDescriptor]:
+        return [entry.descriptor() for entry in self._entries.values()]
 
     def default_properties(self, type_id: str) -> dict[str, Any]:
         spec = self.get_spec(type_id)

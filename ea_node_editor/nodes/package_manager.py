@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from ea_node_editor.nodes.plugin_loader import _load_plugins_from_package_directory
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import PluginDescriptor
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
@@ -219,6 +220,38 @@ def _validated_export_sources(
     return export_sources
 
 
+def _validated_descriptor_overrides(
+    descriptors: list[PluginDescriptor] | tuple[PluginDescriptor, ...] | None,
+    export_sources: list[PackageExportSource],
+) -> dict[str, tuple[PluginDescriptor, ...]] | None:
+    if descriptors is None:
+        return None
+
+    source_members = {
+        export_source.source_path.resolve(): export_source.archive_name
+        for export_source in export_sources
+    }
+    overrides: dict[str, list[PluginDescriptor]] = {}
+    for descriptor in tuple(descriptors):
+        if not isinstance(descriptor, PluginDescriptor):
+            raise TypeError("Package export descriptors must be PluginDescriptor values")
+        provenance = descriptor.provenance
+        source_path = provenance.source_path if provenance is not None else None
+        if source_path is None:
+            raise ValueError("Package export descriptors must include source_path provenance")
+        member_name = source_members.get(source_path.resolve())
+        if member_name is None:
+            raise ValueError(
+                f"Package export descriptor source is not included in export sources: {source_path}",
+            )
+        overrides.setdefault(member_name, []).append(descriptor)
+
+    return {
+        member_name: tuple(member_descriptors)
+        for member_name, member_descriptors in overrides.items()
+    }
+
+
 def _write_archive_members(
     archive: zipfile.ZipFile,
     members: list[zipfile.ZipInfo],
@@ -259,9 +292,17 @@ def _activate_staged_install(staged_dir: Path, package_dir: Path) -> None:
             shutil.rmtree(backup_dir)
 
 
-def _discovered_package_node_ids(package_dir: Path) -> tuple[str, ...]:
+def _discovered_package_node_ids(
+    package_dir: Path,
+    *,
+    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
+) -> tuple[str, ...]:
     registry = NodeRegistry()
-    loaded_type_ids = _load_plugins_from_package_directory(package_dir, registry)
+    loaded_type_ids = _load_plugins_from_package_directory(
+        package_dir,
+        registry,
+        descriptor_overrides=descriptor_overrides,
+    )
     normalized: list[str] = []
     seen: set[str] = set()
     for raw_type_id in loaded_type_ids:
@@ -276,9 +317,14 @@ def _discovered_package_node_ids(package_dir: Path) -> tuple[str, ...]:
 def _validate_manifest_against_package_directory(
     manifest: PackageManifest,
     package_dir: Path,
+    *,
+    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
 ) -> None:
     declared_node_ids = tuple(manifest.nodes)
-    discovered_node_ids = _discovered_package_node_ids(package_dir)
+    discovered_node_ids = _discovered_package_node_ids(
+        package_dir,
+        descriptor_overrides=descriptor_overrides,
+    )
 
     declared_node_id_set = set(declared_node_ids)
     discovered_node_id_set = set(discovered_node_ids)
@@ -335,10 +381,13 @@ def export_package(
     source_files: list[PackageExportSource | Path | str],
     manifest: PackageManifest,
     output_path: Path,
+    *,
+    descriptors: list[PluginDescriptor] | tuple[PluginDescriptor, ...] | None = None,
 ) -> Path:
     """Bundle explicit Python source files and a manifest into an .eanp archive."""
     normalized_manifest = _validated_manifest_for_export(manifest)
     export_sources = _validated_export_sources(source_files)
+    descriptor_overrides = _validated_descriptor_overrides(descriptors, export_sources)
     output_path = output_path.with_suffix(PACKAGE_EXTENSION)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     temporary_output_path = _temporary_export_archive_path(output_path)
@@ -346,7 +395,11 @@ def export_package(
 
     try:
         _stage_export_sources(staged_validation_dir, export_sources)
-        _validate_manifest_against_package_directory(normalized_manifest, staged_validation_dir)
+        _validate_manifest_against_package_directory(
+            normalized_manifest,
+            staged_validation_dir,
+            descriptor_overrides=descriptor_overrides,
+        )
         with zipfile.ZipFile(temporary_output_path, "w", zipfile.ZIP_DEFLATED) as archive:
             archive.writestr(MANIFEST_FILENAME, json.dumps(asdict(normalized_manifest), indent=2))
             for export_source in export_sources:

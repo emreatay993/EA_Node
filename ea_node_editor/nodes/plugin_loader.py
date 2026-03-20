@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import importlib
 from importlib.machinery import ModuleSpec
 import importlib.util
@@ -14,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec, PluginDescriptor
+from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec, PluginDescriptor, PluginProvenance
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
@@ -58,6 +59,49 @@ def _module_plugin_descriptors(module: Any) -> tuple[PluginDescriptor, ...] | No
         return tuple(_coerce_plugin_descriptor(item) for item in raw_descriptors)
     except TypeError as exc:
         raise TypeError("PLUGIN_DESCRIPTORS must be an iterable of plugin descriptors") from exc
+
+
+def _descriptor_with_provenance(
+    descriptor: PluginDescriptor,
+    provenance: PluginProvenance | None,
+) -> PluginDescriptor:
+    if provenance is None or descriptor.provenance == provenance:
+        return descriptor
+    return replace(descriptor, provenance=provenance)
+
+
+def _file_plugin_provenance(py_file: Path) -> PluginProvenance:
+    return PluginProvenance(kind="file", source_path=py_file.resolve())
+
+
+def _package_plugin_provenance(package_dir: Path, source_path: Path) -> PluginProvenance:
+    return PluginProvenance(
+        kind="package",
+        source_path=source_path.resolve(),
+        package_root=package_dir.resolve(),
+        package_name=package_dir.name,
+    )
+
+
+def _entry_point_plugin_provenance(entry_point: Any) -> PluginProvenance:
+    distribution = getattr(entry_point, "dist", None)
+    return PluginProvenance(
+        kind="entry_point",
+        entry_point_name=str(getattr(entry_point, "name", "") or ""),
+        distribution_name=str(getattr(distribution, "name", "") or ""),
+    )
+
+
+def _entry_points_for_group() -> tuple[Any, ...]:
+    from importlib.metadata import entry_points
+
+    try:
+        return tuple(entry_points(group=ENTRY_POINT_GROUP))
+    except TypeError:
+        all_entry_points = entry_points()
+        if hasattr(all_entry_points, "select"):
+            return tuple(all_entry_points.select(group=ENTRY_POINT_GROUP))
+        return tuple(all_entry_points.get(ENTRY_POINT_GROUP, ()))
 
 
 def _safe_module_segment(value: str, *, fallback: str) -> str:
@@ -118,9 +162,12 @@ def _register_plugin_descriptors(
     descriptors: tuple[PluginDescriptor, ...],
     registry: NodeRegistry,
     source: Path | str,
+    *,
+    provenance: PluginProvenance | None = None,
 ) -> list[str]:
     loaded: list[str] = []
     for index, descriptor in enumerate(descriptors):
+        descriptor = _descriptor_with_provenance(descriptor, provenance)
         descriptor_label = getattr(descriptor.spec, "type_id", f"descriptor[{index}]")
         try:
             registry.register_descriptor(descriptor)
@@ -135,7 +182,13 @@ def _register_plugin_descriptors(
     return loaded
 
 
-def _register_plugin_classes(module: Any, registry: NodeRegistry, source: Path) -> list[str]:
+def _register_plugin_classes(
+    module: Any,
+    registry: NodeRegistry,
+    source: Path,
+    *,
+    provenance: PluginProvenance | None = None,
+) -> list[str]:
     loaded: list[str] = []
     for attr_name in dir(module):
         obj = getattr(module, attr_name, None)
@@ -143,7 +196,7 @@ def _register_plugin_classes(module: Any, registry: NodeRegistry, source: Path) 
         if spec is None:
             continue
         try:
-            registry.register_descriptor(spec, obj)
+            registry.register_descriptor(spec, obj, provenance=provenance)
             loaded.append(spec.type_id)
         except (ValueError, TypeError, KeyError):
             logger.warning(
@@ -155,11 +208,30 @@ def _register_plugin_classes(module: Any, registry: NodeRegistry, source: Path) 
     return loaded
 
 
-def _register_module_plugins(module: Any, registry: NodeRegistry, source: Path) -> list[str]:
-    descriptors = _module_plugin_descriptors(module)
+def _register_module_plugins(
+    module: Any,
+    registry: NodeRegistry,
+    source: Path,
+    *,
+    provenance: PluginProvenance | None = None,
+    preferred_descriptors: tuple[PluginDescriptor, ...] | None = None,
+) -> list[str]:
+    descriptors = preferred_descriptors
+    if descriptors is None:
+        descriptors = _module_plugin_descriptors(module)
     if descriptors is not None:
-        return _register_plugin_descriptors(descriptors, registry, source)
-    return _register_plugin_classes(module, registry, source)
+        return _register_plugin_descriptors(
+            descriptors,
+            registry,
+            source,
+            provenance=provenance,
+        )
+    return _register_plugin_classes(
+        module,
+        registry,
+        source,
+        provenance=provenance,
+    )
 
 
 def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> list[str]:
@@ -173,7 +245,14 @@ def _load_plugins_from_directory(directory: Path, registry: NodeRegistry) -> lis
             logger.warning("Failed to load plugin file %s", py_file, exc_info=True)
             continue
 
-        loaded.extend(_register_module_plugins(module, registry, py_file))
+        loaded.extend(
+            _register_module_plugins(
+                module,
+                registry,
+                py_file,
+                provenance=_file_plugin_provenance(py_file),
+            )
+        )
     return loaded
 
 
@@ -188,7 +267,12 @@ def _create_namespace_package(package_name: str, package_dir: Path) -> None:
     sys.modules[package_name] = module
 
 
-def _load_plugins_from_package_directory(package_dir: Path, registry: NodeRegistry) -> list[str]:
+def _load_plugins_from_package_directory(
+    package_dir: Path,
+    registry: NodeRegistry,
+    *,
+    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
+) -> list[str]:
     """Import public plugin modules from a package directory beneath the plugins root."""
     loaded: list[str] = []
     if not package_dir.is_dir():
@@ -208,7 +292,15 @@ def _load_plugins_from_package_directory(package_dir: Path, registry: NodeRegist
             logger.warning("Failed to initialize plugin package %s", package_dir, exc_info=True)
             _create_namespace_package(package_name, package_dir)
         else:
-            loaded.extend(_register_module_plugins(package_module, registry, init_file))
+            loaded.extend(
+                _register_module_plugins(
+                    package_module,
+                    registry,
+                    init_file,
+                    provenance=_package_plugin_provenance(package_dir, init_file),
+                    preferred_descriptors=(descriptor_overrides or {}).get(init_file.name),
+                )
+            )
     else:
         _create_namespace_package(package_name, package_dir)
 
@@ -220,7 +312,15 @@ def _load_plugins_from_package_directory(package_dir: Path, registry: NodeRegist
             logger.warning("Failed to load plugin file %s", py_file, exc_info=True)
             continue
 
-        loaded.extend(_register_module_plugins(module, registry, py_file))
+        loaded.extend(
+            _register_module_plugins(
+                module,
+                registry,
+                py_file,
+                provenance=_package_plugin_provenance(package_dir, py_file),
+                preferred_descriptors=(descriptor_overrides or {}).get(py_file.name),
+            )
+        )
     return loaded
 
 
@@ -236,28 +336,30 @@ def _load_plugins_from_entry_points(registry: NodeRegistry) -> list[str]:
     """Load plugins registered via Python package entry points."""
     loaded: list[str] = []
     try:
-        if sys.version_info >= (3, 12):
-            from importlib.metadata import entry_points
-            eps = entry_points(group=ENTRY_POINT_GROUP)
-        else:
-            from importlib.metadata import entry_points
-            all_eps = entry_points()
-            eps = all_eps.get(ENTRY_POINT_GROUP, [])
+        eps = _entry_points_for_group()
     except Exception:  # noqa: BLE001
         return loaded
 
     for ep in eps:
+        provenance = _entry_point_plugin_provenance(ep)
         try:
             plugin_target = ep.load()
             descriptors = _module_plugin_descriptors(plugin_target)
             if descriptors is not None:
-                loaded.extend(_register_plugin_descriptors(descriptors, registry, ep.name))
+                loaded.extend(
+                    _register_plugin_descriptors(
+                        descriptors,
+                        registry,
+                        ep.name,
+                        provenance=provenance,
+                    )
+                )
                 continue
 
             spec = _legacy_plugin_spec(plugin_target)
             if spec is None:
                 continue
-            registry.register_descriptor(spec, plugin_target)
+            registry.register_descriptor(spec, plugin_target, provenance=provenance)
             loaded.append(spec.type_id)
         except Exception:  # noqa: BLE001
             logger.warning("Failed to load entry-point plugin %s", ep.name, exc_info=True)

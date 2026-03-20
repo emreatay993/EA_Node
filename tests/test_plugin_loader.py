@@ -55,6 +55,10 @@ def test_discover_and_load_plugins_preserves_root_py_dropins(
 
     assert loaded == ["packet.root"]
     assert registry.get_spec("packet.root").display_name == "Root Drop-In"
+    descriptor = registry.get_descriptor("packet.root")
+    assert descriptor.provenance is not None
+    assert descriptor.provenance.kind == "file"
+    assert descriptor.provenance.source_path == (plugins_root / "root_dropin.py").resolve()
     assert registry.spec_or_none("packet.private") is None
 
 
@@ -97,6 +101,11 @@ class PackagePlugin:
 
     assert loaded == ["packet.package"]
     assert registry.get_spec("packet.package").display_name == "Package Directory Plugin"
+    descriptor = registry.get_descriptor("packet.package")
+    assert descriptor.provenance is not None
+    assert descriptor.provenance.kind == "package"
+    assert descriptor.provenance.package_root == package_dir.resolve()
+    assert descriptor.provenance.source_path == (package_dir / "package_plugin.py").resolve()
 
 
 def test_discover_and_load_plugins_continues_after_bad_modules(
@@ -187,6 +196,8 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
+    calls: list[dict[str, object]] = []
+
     class EntryPointPlugin:
         def spec(self):
             from ea_node_editor.nodes.types import NodeTypeSpec
@@ -213,10 +224,10 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
             return EntryPointPlugin
 
     def fake_entry_points(*args, **kwargs):
+        calls.append(dict(kwargs))
         entry_points = [FakeEntryPoint("packet-entry-point")]
-        if kwargs.get("group") == plugin_loader.ENTRY_POINT_GROUP:
-            return entry_points
-        return {plugin_loader.ENTRY_POINT_GROUP: entry_points}
+        assert kwargs == {"group": plugin_loader.ENTRY_POINT_GROUP}
+        return entry_points
 
     monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: tmp_path / "plugins")
     monkeypatch.setattr(importlib.metadata, "entry_points", fake_entry_points)
@@ -226,3 +237,8 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
 
     assert loaded == ["packet.entry-point"]
     assert registry.get_spec("packet.entry-point").display_name == "Entry Point"
+    descriptor = registry.get_descriptor("packet.entry-point")
+    assert descriptor.provenance is not None
+    assert descriptor.provenance.kind == "entry_point"
+    assert descriptor.provenance.entry_point_name == "packet-entry-point"
+    assert calls == [{"group": plugin_loader.ENTRY_POINT_GROUP}]

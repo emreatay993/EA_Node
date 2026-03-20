@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
-import sys
 from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import Qt
@@ -17,6 +16,7 @@ from ea_node_editor.settings import plugins_dir
 
 if TYPE_CHECKING:
     from ea_node_editor.nodes.package_manager import PackageExportSource
+    from ea_node_editor.nodes.types import PluginDescriptor, PluginProvenance
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
@@ -59,6 +59,7 @@ class _NodePackageExportCandidate:
     source_kind: str
     node_type_ids: tuple[str, ...]
     source_files: tuple[PackageExportSource, ...]
+    descriptors: tuple[PluginDescriptor, ...]
     version: str = "1.0.0"
     author: str = ""
     description: str = ""
@@ -161,20 +162,65 @@ class WorkspaceIOOps:
         return metadata
 
     @staticmethod
-    def _registry_factory_module_path(factory: object) -> Path | None:
-        module_name = str(getattr(factory, "__module__", "") or "").strip()
-        if not module_name:
+    def _descriptor_export_source(
+        provenance: PluginProvenance | None,
+        plugin_root: Path,
+    ) -> tuple[tuple[str, str], tuple[PackageExportSource, ...], dict[str, Any]] | None:
+        from ea_node_editor.nodes.package_manager import PackageExportSource
+
+        if provenance is None:
             return None
-        module = sys.modules.get(module_name)
-        if module is None:
+
+        if provenance.kind == "file":
+            source_path = provenance.source_path
+            if source_path is None:
+                return None
+            source_path = source_path.resolve()
+            try:
+                relative_path = source_path.relative_to(plugin_root)
+            except ValueError:
+                return None
+            if len(relative_path.parts) != 1:
+                return None
+            return (
+                ("file", relative_path.name),
+                (PackageExportSource(source_path=source_path, archive_name=relative_path.name),),
+                {
+                    "name": source_path.stem,
+                    "version": "1.0.0",
+                    "author": "",
+                    "description": "",
+                    "dependencies": (),
+                },
+            )
+
+        if provenance.kind != "package":
             return None
-        module_file = str(getattr(module, "__file__", "") or "").strip()
-        if not module_file:
+
+        package_dir = provenance.package_root
+        if package_dir is None:
+            source_path = provenance.source_path
+            if source_path is None:
+                return None
+            package_dir = source_path.parent
+        package_dir = package_dir.resolve()
+        try:
+            relative_path = package_dir.relative_to(plugin_root)
+        except ValueError:
             return None
-        module_path = Path(module_file)
-        if module_path.suffix != ".py" or not module_path.is_file():
+        if len(relative_path.parts) != 1:
             return None
-        return module_path.resolve()
+
+        source_files = tuple(
+            PackageExportSource(source_path=source_path, archive_name=source_path.name)
+            for source_path in sorted(package_dir.glob("*.py"))
+            if source_path.is_file()
+        )
+        if not source_files:
+            return None
+        fallback_name = provenance.package_name or relative_path.parts[0]
+        metadata = WorkspaceIOOps._existing_package_metadata(package_dir, fallback_name)
+        return (("package", relative_path.parts[0]), source_files, metadata)
 
     @staticmethod
     def collect_node_package_export_candidates(
@@ -185,40 +231,15 @@ class WorkspaceIOOps:
 
         builders: dict[tuple[str, str], dict[str, Any]] = {}
         plugin_root = plugin_root.resolve()
-        for type_id, entry in getattr(registry, "_entries", {}).items():
-            module_path = WorkspaceIOOps._registry_factory_module_path(getattr(entry, "factory", None))
-            if module_path is None:
+        descriptors = tuple(registry.all_descriptors())
+        for descriptor in descriptors:
+            export_source = WorkspaceIOOps._descriptor_export_source(
+                descriptor.provenance,
+                plugin_root,
+            )
+            if export_source is None:
                 continue
-            try:
-                relative_path = module_path.relative_to(plugin_root)
-            except ValueError:
-                continue
-
-            if len(relative_path.parts) == 1:
-                key = ("file", relative_path.name)
-                source_files = (
-                    PackageExportSource(source_path=module_path, archive_name=relative_path.name),
-                )
-                metadata = {
-                    "name": module_path.stem,
-                    "version": "1.0.0",
-                    "author": "",
-                    "description": "",
-                    "dependencies": (),
-                }
-            elif len(relative_path.parts) == 2:
-                package_dir = plugin_root / relative_path.parts[0]
-                source_files = tuple(
-                    PackageExportSource(source_path=source_path, archive_name=source_path.name)
-                    for source_path in sorted(package_dir.glob("*.py"))
-                    if source_path.is_file()
-                )
-                if not source_files:
-                    continue
-                key = ("package", relative_path.parts[0])
-                metadata = WorkspaceIOOps._existing_package_metadata(package_dir, relative_path.parts[0])
-            else:
-                continue
+            key, source_files, metadata = export_source
 
             builder = builders.setdefault(
                 key,
@@ -227,13 +248,15 @@ class WorkspaceIOOps:
                     "source_kind": key[0],
                     "source_files": source_files,
                     "node_type_ids": [],
+                    "descriptors": [],
                     "version": metadata["version"],
                     "author": metadata["author"],
                     "description": metadata["description"],
                     "dependencies": metadata["dependencies"],
                 },
             )
-            builder["node_type_ids"].append(str(type_id))
+            builder["node_type_ids"].append(descriptor.spec.type_id)
+            builder["descriptors"].append(descriptor)
 
         candidates = [
             _NodePackageExportCandidate(
@@ -241,13 +264,14 @@ class WorkspaceIOOps:
                 source_kind=str(builder["source_kind"]),
                 node_type_ids=WorkspaceIOOps._normalized_node_type_ids(builder["node_type_ids"]),
                 source_files=tuple(builder["source_files"]),
+                descriptors=tuple(builder["descriptors"]),
                 version=str(builder["version"]),
                 author=str(builder["author"]),
                 description=str(builder["description"]),
                 dependencies=tuple(str(item) for item in builder["dependencies"]),
             )
             for builder in builders.values()
-            if builder["source_files"] and builder["node_type_ids"]
+            if builder["source_files"] and builder["node_type_ids"] and builder["descriptors"]
         ]
         candidates.sort(key=lambda candidate: (candidate.package_name.lower(), candidate.source_kind))
         return candidates
@@ -519,7 +543,12 @@ class WorkspaceIOOps:
             dependencies=list(selected_candidate.dependencies),
         )
         try:
-            saved_path = export_package(list(selected_candidate.source_files), manifest, Path(path))
+            saved_path = export_package(
+                list(selected_candidate.source_files),
+                manifest,
+                Path(path),
+                descriptors=selected_candidate.descriptors,
+            )
             QMessageBox.information(self._host, "Export Successful", f"Package saved to {saved_path}")
         except Exception as exc:  # noqa: BLE001
             QMessageBox.warning(self._host, "Export Failed", f"Could not export package.\n{exc}")

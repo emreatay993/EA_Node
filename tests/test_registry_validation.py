@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_INPUT_TYPE_ID,
@@ -14,7 +15,14 @@ from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.types import (
+    NodeResult,
+    NodeTypeSpec,
+    PluginDescriptor,
+    PluginProvenance,
+    PortSpec,
+    PropertySpec,
+)
 
 
 class _Plugin:
@@ -116,10 +124,22 @@ class RegistryValidationTests(unittest.TestCase):
             factory_calls += 1
             return _Plugin(spec)
 
-        registry.register_descriptor(spec, _descriptor_factory)
+        provenance = PluginProvenance(
+            kind="file",
+            source_path=Path("C:/packet/tests/descriptor.py"),
+        )
+        registry.register_descriptor(
+            PluginDescriptor(
+                spec=spec,
+                factory=_descriptor_factory,
+                provenance=provenance,
+            )
+        )
 
         self.assertEqual(factory_calls, 0)
         self.assertEqual(registry.get_spec("tests.descriptor").display_name, "Descriptor")
+        self.assertEqual(registry.get_descriptor("tests.descriptor").provenance, provenance)
+        self.assertEqual(registry.all_descriptors()[0].provenance, provenance)
         self.assertEqual(registry.create("tests.descriptor").spec().type_id, "tests.descriptor")
         self.assertEqual(factory_calls, 1)
 

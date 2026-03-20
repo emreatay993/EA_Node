@@ -8,6 +8,7 @@ import pytest
 
 from ea_node_editor.nodes import package_manager, plugin_loader
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import PluginDescriptor, PluginProvenance, NodeTypeSpec
 
 
 def _build_package_archive(
@@ -285,6 +286,85 @@ class ExportedPlugin:
         )
 
     assert not (tmp_path / "exports" / "roundtrip.eanp").exists()
+
+
+def test_export_package_uses_descriptor_provenance_to_avoid_legacy_constructor_probing(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    helper_source = _write_source_file(
+        tmp_path / "sources" / "helper.py",
+        'DISPLAY_NAME = "Exported Package"\n',
+    )
+    plugin_source = _write_source_file(
+        tmp_path / "sources" / "package_plugin.py",
+        """
+from .helper import DISPLAY_NAME
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class ExportedPlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.exported",
+            display_name=DISPLAY_NAME,
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+""".strip()
+        + "\n",
+    )
+    manifest = package_manager.PackageManifest(
+        name="roundtrip_package",
+        version="3.0.0",
+        author="Packet Tests",
+        description="P10 descriptor-backed export validation",
+        nodes=["packet.exported"],
+    )
+    descriptor = PluginDescriptor(
+        spec=NodeTypeSpec(
+            type_id="packet.exported",
+            display_name="Exported Package",
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        ),
+        factory=type("ExportedPlugin", (), {}),
+        provenance=PluginProvenance(
+            kind="package",
+            source_path=plugin_source.resolve(),
+            package_root=plugin_source.parent.resolve(),
+            package_name="roundtrip_package",
+        ),
+    )
+
+    original_legacy_plugin_spec = plugin_loader._legacy_plugin_spec
+
+    def _fail_on_exported_plugin(obj: object):
+        if getattr(obj, "__name__", "") == "ExportedPlugin":
+            raise AssertionError("legacy constructor probing should not run")
+        return original_legacy_plugin_spec(obj)
+
+    monkeypatch.setattr(plugin_loader, "_legacy_plugin_spec", _fail_on_exported_plugin)
+
+    package_path = package_manager.export_package(
+        [
+            package_manager.PackageExportSource(helper_source, "helper.py"),
+            package_manager.PackageExportSource(plugin_source, "package_plugin.py"),
+        ],
+        manifest,
+        tmp_path / "exports" / "roundtrip.eanp",
+        descriptors=(descriptor,),
+    )
+
+    assert package_path == tmp_path / "exports" / "roundtrip.eanp"
+    assert package_path.is_file()
 
 
 def test_export_package_round_trips_through_import_and_loader_discovery(

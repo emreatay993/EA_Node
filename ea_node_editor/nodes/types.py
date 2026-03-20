@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Literal, Protocol
 
 PortDirection = Literal["in", "out"]
@@ -11,6 +12,7 @@ InlineEditorType = Literal["", "text", "number", "toggle", "enum", "path", "text
 InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum"]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
 SurfaceFamily = Literal["standard", "flowchart", "planning", "annotation", "media"]
+PluginProvenanceKind = Literal["runtime", "file", "package", "entry_point"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -103,9 +105,20 @@ class AsyncNodePlugin(NodePlugin, Protocol):
 
 
 @dataclass(slots=True, frozen=True)
+class PluginProvenance:
+    kind: PluginProvenanceKind
+    source_path: Path | None = None
+    package_root: Path | None = None
+    package_name: str = ""
+    entry_point_name: str = ""
+    distribution_name: str = ""
+
+
+@dataclass(slots=True, frozen=True)
 class PluginDescriptor:
     spec: NodeTypeSpec
     factory: Callable[[], NodePlugin]
+    provenance: PluginProvenance | None = None
 
 
 def property_has_inline_editor(property_spec: PropertySpec) -> bool:
