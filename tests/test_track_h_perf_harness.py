@@ -47,6 +47,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
                 synthetic_graph=SyntheticGraphConfig(node_count=80, edge_count=220, seed=7),
                 load_iterations=2,
                 interaction_samples=8,
+                interaction_warmup_samples=1,
             )
         )
 
@@ -54,15 +55,26 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         pan_samples = report["metrics"]["pan_interaction_ms"]["samples"]
         zoom_samples = report["metrics"]["zoom_interaction_ms"]["samples"]
         combined_samples = report["metrics"]["pan_zoom_combined_ms"]["samples"]
+        node_drag_control_samples = report["metrics"]["node_drag_control_ms"]["samples"]
         interaction_benchmark = report["interaction_benchmark"]
+        phase_timings = report["phase_timings_ms"]
 
         self.assertEqual(len(load_samples), 2)
         self.assertEqual(len(pan_samples), 8)
         self.assertEqual(len(zoom_samples), 8)
         self.assertEqual(len(combined_samples), 8)
+        self.assertEqual(len(node_drag_control_samples), 8)
+        self.assertEqual(report["config"]["interaction_warmup_samples"], 1)
+        self.assertEqual(len(phase_timings["project_graph_load_ms"]["samples"]), 2)
+        self.assertEqual(len(phase_timings["canvas_setup_ms"]["samples"]), 1)
+        self.assertEqual(len(phase_timings["canvas_warmup_ms"]["samples"]), 1)
+        self.assertEqual(len(phase_timings["pan_interaction_ms"]["samples"]), 8)
+        self.assertEqual(len(phase_timings["zoom_interaction_ms"]["samples"]), 8)
+        self.assertEqual(len(phase_timings["node_drag_control_ms"]["samples"]), 8)
 
         self.assertGreaterEqual(report["metrics"]["project_graph_load_ms"]["summary"]["p95"], 0.0)
         self.assertGreaterEqual(report["metrics"]["pan_zoom_combined_ms"]["summary"]["p95"], 0.0)
+        self.assertGreaterEqual(report["metrics"]["node_drag_control_ms"]["summary"]["p95"], 0.0)
         self.assertEqual(report["config"]["performance_mode"], "full_fidelity")
         self.assertEqual(report["config"]["scenario"], "synthetic_exec")
         self.assertEqual(report["config"]["scenario_details"]["node_mix"]["image_panel_nodes"], 0)
@@ -74,6 +86,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         )
         self.assertEqual(interaction_benchmark["viewport"], {"width": 1280, "height": 720})
         self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+        self.assertTrue(interaction_benchmark["steady_state_canvas_host_reused"])
+        self.assertEqual(interaction_benchmark["warmup_samples"], 1)
         self.assertEqual(interaction_benchmark["performance_mode"], "full_fidelity")
         self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], "full_fidelity")
         self.assertEqual(interaction_benchmark["scenario"], "synthetic_exec")
@@ -85,7 +99,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             BenchmarkConfig(
                 synthetic_graph=SyntheticGraphConfig(node_count=60, edge_count=160, seed=11),
                 load_iterations=1,
-                interaction_samples=8,
+                interaction_samples=4,
+                interaction_warmup_samples=1,
             ),
             baseline_runs=2,
             baseline_mode="interactive",
@@ -112,11 +127,24 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("qt_quick_backend", first_run["environment"])
         self.assertIn("qsg_rhi_backend", first_run["environment"])
         self.assertIn("load_p95_ms", first_run["metrics"])
+        self.assertIn("pan_p95_ms", first_run["metrics"])
+        self.assertIn("zoom_p95_ms", first_run["metrics"])
         self.assertIn("pan_zoom_p95_ms", first_run["metrics"])
+        self.assertIn("node_drag_control_p95_ms", first_run["metrics"])
+
+        metric_series = baseline_series["metric_series"]
+        self.assertEqual(len(metric_series["load_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["pan_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["zoom_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["pan_zoom_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["node_drag_control_p95_ms"]), 2)
 
         variance_eval = baseline_series["variance_eval"]
         self.assertIn("load_p95_ms", variance_eval)
+        self.assertIn("pan_p95_ms", variance_eval)
+        self.assertIn("zoom_p95_ms", variance_eval)
         self.assertIn("pan_zoom_p95_ms", variance_eval)
+        self.assertIn("node_drag_control_p95_ms", variance_eval)
         self.assertIn("pass", variance_eval["load_p95_ms"])
         self.assertIn("details", variance_eval["pan_zoom_p95_ms"])
 
@@ -126,6 +154,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
                 synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
                 load_iterations=1,
                 interaction_samples=2,
+                interaction_warmup_samples=1,
                 performance_mode="max_performance",
                 scenario="heavy_media",
             )

@@ -58,6 +58,7 @@ class BenchmarkConfig:
     interaction_zoom_max: float = 2.0
     performance_mode: str = "full_fidelity"
     scenario: str = _DEFAULT_BENCHMARK_SCENARIO
+    interaction_warmup_samples: int = 3
 
 
 @dataclass(slots=True)
@@ -83,7 +84,19 @@ _BASELINE_VARIANCE_THRESHOLDS = {
         "max_cv": 0.25,
         "max_range_ms": 500.0,
     },
+    "pan_p95_ms": {
+        "max_cv": 0.20,
+        "max_range_ms": 8.0,
+    },
+    "zoom_p95_ms": {
+        "max_cv": 0.20,
+        "max_range_ms": 8.0,
+    },
     "pan_zoom_p95_ms": {
+        "max_cv": 0.20,
+        "max_range_ms": 8.0,
+    },
+    "node_drag_control_p95_ms": {
         "max_cv": 0.20,
         "max_range_ms": 8.0,
     },
@@ -143,6 +156,22 @@ def _coefficient_of_variation(values: list[float]) -> float:
     if mean == 0.0:
         return 0.0
     return float(statistics.pstdev(values) / mean)
+
+
+def _series_variance_eval(values: list[float], threshold: dict[str, float], *, enough_runs: bool) -> dict[str, Any]:
+    cv = _coefficient_of_variation(values)
+    value_range = max(values) - min(values) if values else 0.0
+    passed = (cv <= threshold["max_cv"] and value_range <= threshold["max_range_ms"]) if enough_runs else True
+    return {
+        "pass": passed,
+        "cv": cv,
+        "range_ms": value_range,
+        "requires_min_runs": 2,
+        "details": (
+            f"cv={cv:.4f} (<= {threshold['max_cv']:.2f}), "
+            f"range={value_range:.3f} ms (<= {threshold['max_range_ms']:.1f} ms)"
+        ),
+    }
 
 
 def _resolve_baseline_mode(requested_mode: str, qt_qpa_platform: str) -> str:
@@ -860,6 +889,35 @@ class _GraphCanvasBenchmarkHost:
                 raise RuntimeError("Timed out waiting for GraphCanvas.qml to render a frame")
             time.sleep(0.005)
 
+    def visible_scene_rect(self) -> QRectF:
+        return self.view.visible_scene_rect()
+
+    def node_cards(self) -> list[QQuickItem]:
+        if getattr(self, "canvas", None) is None:
+            return []
+        return [
+            item
+            for item in _iter_quick_item_tree(self.canvas)
+            if str(item.objectName() or "") == "graphNodeCard"
+        ]
+
+    def control_node_card(self) -> QQuickItem:
+        fallback: QQuickItem | None = None
+        visible_rect = self.visible_scene_rect()
+        for node_card in self.node_cards():
+            if fallback is None:
+                fallback = node_card
+            node_data = node_card.property("nodeData") or {}
+            node_x = float(node_data.get("x", 0.0))
+            node_y = float(node_data.get("y", 0.0))
+            node_width = max(1.0, float(node_data.get("width", node_card.width())))
+            node_height = max(1.0, float(node_data.get("height", node_card.height())))
+            if visible_rect.intersects(QRectF(node_x, node_y, node_width, node_height)):
+                return node_card
+        if fallback is None:
+            raise RuntimeError("Failed to locate a graphNodeCard for node-drag control sampling")
+        return fallback
+
     def close(self) -> None:
         if getattr(self, "canvas", None) is not None:
             self.canvas.setParentItem(None)
@@ -939,11 +997,98 @@ def benchmark_load_times_ms(*, doc: dict[str, Any], workspace_id: str, iteration
     return samples
 
 
+def _pan_zoom_target(
+    *,
+    current_center_x: float,
+    current_center_y: float,
+    current_zoom: float,
+    left: float,
+    right: float,
+    top: float,
+    bottom: float,
+    random_gen: random.Random,
+    index: int,
+    zoom_min: float,
+    zoom_max: float,
+) -> tuple[float, float, float]:
+    pan_x = max(
+        left,
+        min(right, current_center_x + random_gen.uniform(-180.0, 180.0)),
+    )
+    pan_y = max(
+        top,
+        min(bottom, current_center_y + random_gen.uniform(-120.0, 120.0)),
+    )
+    zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
+    zoom = max(zoom_min, min(zoom_max, current_zoom * zoom_step))
+    return pan_x, pan_y, zoom
+
+
+def _measure_pan_zoom_step(
+    canvas_host: _GraphCanvasBenchmarkHost,
+    *,
+    pan_to_x: float,
+    pan_to_y: float,
+    zoom_to: float,
+) -> tuple[float, float]:
+    canvas_host.begin_viewport_interaction()
+    started = time.perf_counter()
+    canvas_host.view.centerOn(pan_to_x, pan_to_y)
+    canvas_host.note_viewport_interaction()
+    canvas_host.render_frame()
+    pan_elapsed_ms = (time.perf_counter() - started) * 1000.0
+
+    started = time.perf_counter()
+    canvas_host.view.set_zoom(zoom_to)
+    canvas_host.note_viewport_interaction()
+    canvas_host.render_frame()
+    zoom_elapsed_ms = (time.perf_counter() - started) * 1000.0
+    canvas_host.finish_viewport_interaction()
+    canvas_host.wait_for_viewport_interaction_idle()
+    return pan_elapsed_ms, zoom_elapsed_ms
+
+
+def _node_drag_delta(sample_index: int) -> tuple[float, float]:
+    sequence = (
+        (16.0, 10.0),
+        (-14.0, 8.0),
+        (12.0, -9.0),
+        (-18.0, -11.0),
+    )
+    return sequence[sample_index % len(sequence)]
+
+
+def _measure_node_drag_control_step(canvas_host: _GraphCanvasBenchmarkHost, *, sample_index: int) -> float:
+    node_card = canvas_host.control_node_card()
+    node_data = node_card.property("nodeData") or {}
+    node_id = str(node_data.get("node_id", "")).strip()
+    if not node_id:
+        raise RuntimeError("Failed to resolve node id for node-drag control sampling")
+
+    drag_offset_signal = getattr(node_card, "dragOffsetChanged", None)
+    drag_canceled_signal = getattr(node_card, "dragCanceled", None)
+    if drag_offset_signal is None or drag_canceled_signal is None:
+        raise RuntimeError("GraphNodeHost drag signals are unavailable for control sampling")
+
+    delta_x, delta_y = _node_drag_delta(sample_index)
+    started = time.perf_counter()
+    drag_offset_signal.emit(node_id, delta_x, delta_y)
+    canvas_host.app.processEvents()
+    canvas_host.render_frame()
+    elapsed_ms = (time.perf_counter() - started) * 1000.0
+
+    drag_canceled_signal.emit(node_id)
+    canvas_host.app.processEvents()
+    canvas_host.render_frame()
+    return elapsed_ms
+
+
 def benchmark_pan_zoom_ms(
     *,
     doc: dict[str, Any],
     workspace_id: str,
     samples: int,
+    warmup_samples: int,
     seed: int,
     zoom_min: float,
     zoom_max: float,
@@ -953,9 +1098,14 @@ def benchmark_pan_zoom_ms(
 ) -> dict[str, Any]:
     if samples <= 0:
         raise ValueError("samples must be > 0")
+    if warmup_samples < 0:
+        raise ValueError("warmup_samples must be >= 0")
     app = QApplication.instance() or QApplication([])
     pan_samples_ms: list[float] = []
     zoom_samples_ms: list[float] = []
+    node_drag_control_samples_ms: list[float] = []
+    setup_samples_ms: list[float] = []
+    warmup_phase_samples_ms: list[float] = []
     resolved_performance_mode = ""
     random_gen = random.Random(seed)
     left = right = top = bottom = 0.0
@@ -963,131 +1113,116 @@ def benchmark_pan_zoom_ms(
     current_center_y = 0.0
     current_zoom = 1.0
 
-    def _sample_with_host(
-        *,
-        pan_to_x: float,
-        pan_to_y: float,
-        zoom_to: float,
-        preload_center_x: float,
-        preload_center_y: float,
-        preload_zoom: float,
-    ) -> tuple[float, float, str]:
-        with _GraphCanvasBenchmarkHost(
+    canvas_host: _GraphCanvasBenchmarkHost | None = None
+    try:
+        setup_started = time.perf_counter()
+        canvas_host = _GraphCanvasBenchmarkHost(
             app=app,
             doc=doc,
             workspace_id=workspace_id,
             performance_mode=performance_mode,
-        ) as canvas_host:
-            canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
-            if (
-                abs(preload_center_x) > 1e-6
-                or abs(preload_center_y) > 1e-6
-                or abs(preload_zoom - 1.0) > 1e-6
-            ):
-                if abs(preload_zoom - 1.0) > 1e-6:
-                    canvas_host.view.set_zoom(preload_zoom)
-                if abs(preload_center_x) > 1e-6 or abs(preload_center_y) > 1e-6:
-                    canvas_host.view.centerOn(preload_center_x, preload_center_y)
-                canvas_host.render_frame()
+        )
+        canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
+        setup_samples_ms.append((time.perf_counter() - setup_started) * 1000.0)
 
-            canvas_host.begin_viewport_interaction()
-            started = time.perf_counter()
-            canvas_host.view.centerOn(pan_to_x, pan_to_y)
-            canvas_host.note_viewport_interaction()
-            canvas_host.render_frame()
-            pan_elapsed_ms = (time.perf_counter() - started) * 1000.0
+        workspace = canvas_host.model.project.workspaces[workspace_id]
+        left, right, top, bottom = _workspace_bounds(workspace)
+        resolved_performance_mode = canvas_host.resolved_graphics_performance_mode()
+        current_center_x = float(canvas_host.view.center_x)
+        current_center_y = float(canvas_host.view.center_y)
+        current_zoom = float(canvas_host.view.zoom)
 
-            started = time.perf_counter()
-            canvas_host.view.set_zoom(zoom_to)
-            canvas_host.note_viewport_interaction()
-            canvas_host.render_frame()
-            zoom_elapsed_ms = (time.perf_counter() - started) * 1000.0
-            canvas_host.finish_viewport_interaction()
-            canvas_host.wait_for_viewport_interaction_idle()
-            return pan_elapsed_ms, zoom_elapsed_ms, canvas_host.resolved_graphics_performance_mode()
-
-    if expected_media_surface_count > 0:
-        with _GraphCanvasBenchmarkHost(
-            app=app,
-            doc=doc,
-            workspace_id=workspace_id,
-            performance_mode=performance_mode,
-        ) as canvas_host:
-            canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
-            workspace = canvas_host.model.project.workspaces[workspace_id]
-            left, right, top, bottom = _workspace_bounds(workspace)
-            resolved_performance_mode = canvas_host.resolved_graphics_performance_mode()
-
-        for index in range(samples):
-            pan_x = max(
-                left,
-                min(right, current_center_x + random_gen.uniform(-180.0, 180.0)),
+        for index in range(warmup_samples):
+            pan_x, pan_y, zoom = _pan_zoom_target(
+                current_center_x=current_center_x,
+                current_center_y=current_center_y,
+                current_zoom=current_zoom,
+                left=left,
+                right=right,
+                top=top,
+                bottom=bottom,
+                random_gen=random_gen,
+                index=index,
+                zoom_min=zoom_min,
+                zoom_max=zoom_max,
             )
-            pan_y = max(
-                top,
-                min(bottom, current_center_y + random_gen.uniform(-120.0, 120.0)),
-            )
-            zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
-            zoom = max(zoom_min, min(zoom_max, current_zoom * zoom_step))
-            pan_elapsed_ms, zoom_elapsed_ms, observed_mode = _sample_with_host(
+            started = time.perf_counter()
+            _measure_pan_zoom_step(
+                canvas_host,
                 pan_to_x=pan_x,
                 pan_to_y=pan_y,
                 zoom_to=zoom,
-                preload_center_x=current_center_x,
-                preload_center_y=current_center_y,
-                preload_zoom=current_zoom,
+            )
+            _measure_node_drag_control_step(canvas_host, sample_index=index)
+            warmup_phase_samples_ms.append((time.perf_counter() - started) * 1000.0)
+            current_center_x = pan_x
+            current_center_y = pan_y
+            current_zoom = zoom
+
+        for index in range(samples):
+            node_drag_control_samples_ms.append(
+                _measure_node_drag_control_step(canvas_host, sample_index=warmup_samples + index)
+            )
+
+        for index in range(samples):
+            pan_x, pan_y, zoom = _pan_zoom_target(
+                current_center_x=current_center_x,
+                current_center_y=current_center_y,
+                current_zoom=current_zoom,
+                left=left,
+                right=right,
+                top=top,
+                bottom=bottom,
+                random_gen=random_gen,
+                index=warmup_samples + index,
+                zoom_min=zoom_min,
+                zoom_max=zoom_max,
+            )
+            pan_elapsed_ms, zoom_elapsed_ms = _measure_pan_zoom_step(
+                canvas_host,
+                pan_to_x=pan_x,
+                pan_to_y=pan_y,
+                zoom_to=zoom,
             )
             pan_samples_ms.append(pan_elapsed_ms)
             zoom_samples_ms.append(zoom_elapsed_ms)
             current_center_x = pan_x
             current_center_y = pan_y
             current_zoom = zoom
-            if not resolved_performance_mode:
-                resolved_performance_mode = observed_mode
-    else:
-        with _GraphCanvasBenchmarkHost(
-            app=app,
-            doc=doc,
-            workspace_id=workspace_id,
-            performance_mode=performance_mode,
-        ) as canvas_host:
-            canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
-            workspace = canvas_host.model.project.workspaces[workspace_id]
-            left, right, top, bottom = _workspace_bounds(workspace)
-            resolved_performance_mode = canvas_host.resolved_graphics_performance_mode()
-
-            for index in range(samples):
-                current_center = canvas_host.view.mapToScene(canvas_host.view.viewport().rect().center())
-                pan_x = max(
-                    left,
-                    min(right, current_center.x() + random_gen.uniform(-180.0, 180.0)),
-                )
-                pan_y = max(
-                    top,
-                    min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
-                )
-                canvas_host.begin_viewport_interaction()
-                started = time.perf_counter()
-                canvas_host.view.centerOn(pan_x, pan_y)
-                canvas_host.note_viewport_interaction()
-                canvas_host.render_frame()
-                pan_samples_ms.append((time.perf_counter() - started) * 1000.0)
-
-                zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
-                zoom = max(zoom_min, min(zoom_max, canvas_host.view.zoom * zoom_step))
-                started = time.perf_counter()
-                canvas_host.view.set_zoom(zoom)
-                canvas_host.note_viewport_interaction()
-                canvas_host.render_frame()
-                zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
-                canvas_host.finish_viewport_interaction()
-                canvas_host.wait_for_viewport_interaction_idle()
+    finally:
+        if canvas_host is not None:
+            canvas_host.close()
 
     combined = [pan + zoom for pan, zoom in zip(pan_samples_ms, zoom_samples_ms, strict=True)]
     return {
+        "setup_ms": setup_samples_ms,
+        "warmup_ms": warmup_phase_samples_ms,
         "pan_ms": pan_samples_ms,
         "zoom_ms": zoom_samples_ms,
         "combined_ms": combined,
+        "node_drag_control_ms": node_drag_control_samples_ms,
+        "phase_timings_ms": {
+            "canvas_setup_ms": {
+                "samples": setup_samples_ms,
+                "summary": _metric_summary_ms(setup_samples_ms),
+            },
+            "canvas_warmup_ms": {
+                "samples": warmup_phase_samples_ms,
+                "summary": _metric_summary_ms(warmup_phase_samples_ms),
+            },
+            "pan_interaction_ms": {
+                "samples": pan_samples_ms,
+                "summary": _metric_summary_ms(pan_samples_ms),
+            },
+            "zoom_interaction_ms": {
+                "samples": zoom_samples_ms,
+                "summary": _metric_summary_ms(zoom_samples_ms),
+            },
+            "node_drag_control_ms": {
+                "samples": node_drag_control_samples_ms,
+                "summary": _metric_summary_ms(node_drag_control_samples_ms),
+            },
+        },
         "benchmark": {
             "kind": "graph_canvas_qml",
             "render_path": _graph_canvas_qml_path().relative_to(_repo_root_path()).as_posix(),
@@ -1098,9 +1233,13 @@ def benchmark_pan_zoom_ms(
             "theme_id": _CANVAS_THEME_ID,
             "graph_theme_id": _CANVAS_GRAPH_THEME_ID,
             "measurement_driver": (
-                "GraphCanvas begin/note/finish viewport interaction + ViewportBridge.centerOn/set_zoom with QQuickWindow.grabWindow()"
+                "Single warmed GraphCanvas host using begin/note/finish viewport interaction + "
+                "ViewportBridge.centerOn/set_zoom and GraphNodeHost.dragOffsetChanged with "
+                "QQuickWindow.grabWindow()"
             ),
             "uses_actual_canvas_render_path": True,
+            "steady_state_canvas_host_reused": True,
+            "warmup_samples": warmup_samples,
             "performance_mode": performance_mode,
             "resolved_graphics_performance_mode": resolved_performance_mode,
             "scenario": scenario,
@@ -1130,6 +1269,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             doc=doc,
             workspace_id=workspace_id,
             samples=config.interaction_samples,
+            warmup_samples=config.interaction_warmup_samples,
             seed=config.synthetic_graph.seed,
             zoom_min=config.interaction_zoom_min,
             zoom_max=config.interaction_zoom_max,
@@ -1141,8 +1281,16 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     pan_summary = _metric_summary_ms(interaction_samples["pan_ms"])
     zoom_summary = _metric_summary_ms(interaction_samples["zoom_ms"])
     combined_summary = _metric_summary_ms(interaction_samples["combined_ms"])
+    node_drag_control_summary = _metric_summary_ms(interaction_samples["node_drag_control_ms"])
     load_summary = _metric_summary_ms(load_samples)
     interaction_frame_p95 = max(pan_summary["p95"], zoom_summary["p95"])
+    phase_timings_ms = {
+        "project_graph_load_ms": {
+            "samples": load_samples,
+            "summary": load_summary,
+        },
+        **interaction_samples["phase_timings_ms"],
+    }
 
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
@@ -1151,6 +1299,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "synthetic_graph": asdict(config.synthetic_graph),
             "load_iterations": config.load_iterations,
             "interaction_samples": config.interaction_samples,
+            "interaction_warmup_samples": config.interaction_warmup_samples,
             "interaction_zoom_min": config.interaction_zoom_min,
             "interaction_zoom_max": config.interaction_zoom_max,
             "performance_mode": performance_mode,
@@ -1158,6 +1307,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "scenario_details": scenario_project.scenario_details,
         },
         "interaction_benchmark": interaction_samples["benchmark"],
+        "phase_timings_ms": phase_timings_ms,
         "metrics": {
             "project_graph_load_ms": {
                 "samples": load_samples,
@@ -1175,6 +1325,10 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
                 "samples": interaction_samples["combined_ms"],
                 "summary": combined_summary,
             },
+            "node_drag_control_ms": {
+                "samples": interaction_samples["node_drag_control_ms"],
+                "summary": node_drag_control_summary,
+            },
         },
         "requirements_eval": {
             "REQ-PERF-001": {
@@ -1185,7 +1339,8 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
                 "pass": interaction_frame_p95 <= 33.0,
                 "details": (
                     f"Real GraphCanvas pan p95={pan_summary['p95']:.3f} ms, "
-                    f"zoom p95={zoom_summary['p95']:.3f} ms "
+                    f"zoom p95={zoom_summary['p95']:.3f} ms, "
+                    f"node-drag control p95={node_drag_control_summary['p95']:.3f} ms "
                     f"(frame p95 target <= 33 ms)"
                 ),
             },
@@ -1195,7 +1350,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             },
         },
         "limitations": [
-            "Pan/zoom timings instantiate GraphCanvas.qml in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.",
+            "Pan/zoom and node-drag control timings reuse one warmed GraphCanvas.qml host in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.",
             "Project+graph load timing still measures serializer/model/bridge setup and does not instantiate GraphCanvas.qml.",
             "Runs use Qt offscreen platform (QT_QPA_PLATFORM=offscreen), so GPU/compositor behavior differs from interactive desktop rendering.",
             "Absolute timings are machine- and load-dependent; compare trends on the same hardware for regressions.",
@@ -1220,7 +1375,10 @@ def run_benchmark(
         full_runs.append(run_report)
         metrics = run_report["metrics"]
         load_p95 = float(metrics["project_graph_load_ms"]["summary"]["p95"])
+        pan_p95 = float(metrics["pan_interaction_ms"]["summary"]["p95"])
+        zoom_p95 = float(metrics["zoom_interaction_ms"]["summary"]["p95"])
         pan_zoom_p95 = float(metrics["pan_zoom_combined_ms"]["summary"]["p95"])
+        node_drag_control_p95 = float(metrics["node_drag_control_ms"]["summary"]["p95"])
         series_runs.append(
             {
                 "run_id": f"run_{run_index:02d}",
@@ -1232,7 +1390,10 @@ def run_benchmark(
                 "environment": run_report["environment"],
                 "metrics": {
                     "load_p95_ms": load_p95,
+                    "pan_p95_ms": pan_p95,
+                    "zoom_p95_ms": zoom_p95,
                     "pan_zoom_p95_ms": pan_zoom_p95,
+                    "node_drag_control_p95_ms": node_drag_control_p95,
                 },
             }
         )
@@ -1240,16 +1401,26 @@ def run_benchmark(
     latest_report = dict(full_runs[-1])
 
     load_p95_series = [float(run["metrics"]["load_p95_ms"]) for run in series_runs]
+    pan_p95_series = [float(run["metrics"]["pan_p95_ms"]) for run in series_runs]
+    zoom_p95_series = [float(run["metrics"]["zoom_p95_ms"]) for run in series_runs]
     pan_zoom_p95_series = [float(run["metrics"]["pan_zoom_p95_ms"]) for run in series_runs]
-
-    load_cv = _coefficient_of_variation(load_p95_series)
-    pan_zoom_cv = _coefficient_of_variation(pan_zoom_p95_series)
-    load_range = max(load_p95_series) - min(load_p95_series) if load_p95_series else 0.0
-    pan_zoom_range = max(pan_zoom_p95_series) - min(pan_zoom_p95_series) if pan_zoom_p95_series else 0.0
-
-    load_threshold = _BASELINE_VARIANCE_THRESHOLDS["load_p95_ms"]
-    pan_zoom_threshold = _BASELINE_VARIANCE_THRESHOLDS["pan_zoom_p95_ms"]
+    node_drag_control_p95_series = [float(run["metrics"]["node_drag_control_p95_ms"]) for run in series_runs]
     enough_runs = baseline_runs >= 2
+    metric_series = {
+        "load_p95_ms": load_p95_series,
+        "pan_p95_ms": pan_p95_series,
+        "zoom_p95_ms": zoom_p95_series,
+        "pan_zoom_p95_ms": pan_zoom_p95_series,
+        "node_drag_control_p95_ms": node_drag_control_p95_series,
+    }
+    variance_eval = {
+        metric_key: _series_variance_eval(
+            values,
+            _BASELINE_VARIANCE_THRESHOLDS[metric_key],
+            enough_runs=enough_runs,
+        )
+        for metric_key, values in metric_series.items()
+    }
 
     latest_report["baseline_series"] = {
         "mode": baseline_mode,
@@ -1258,36 +1429,9 @@ def run_benchmark(
         "scenario": str(latest_report["config"]["scenario"]),
         "run_count": baseline_runs,
         "runs": series_runs,
+        "metric_series": metric_series,
         "variance_thresholds": _BASELINE_VARIANCE_THRESHOLDS,
-        "variance_eval": {
-            "load_p95_ms": {
-                "pass": (load_cv <= load_threshold["max_cv"] and load_range <= load_threshold["max_range_ms"])
-                if enough_runs
-                else True,
-                "cv": load_cv,
-                "range_ms": load_range,
-                "requires_min_runs": 2,
-                "details": (
-                    f"cv={load_cv:.4f} (<= {load_threshold['max_cv']:.2f}), "
-                    f"range={load_range:.3f} ms (<= {load_threshold['max_range_ms']:.1f} ms)"
-                ),
-            },
-            "pan_zoom_p95_ms": {
-                "pass": (
-                    pan_zoom_cv <= pan_zoom_threshold["max_cv"]
-                    and pan_zoom_range <= pan_zoom_threshold["max_range_ms"]
-                )
-                if enough_runs
-                else True,
-                "cv": pan_zoom_cv,
-                "range_ms": pan_zoom_range,
-                "requires_min_runs": 2,
-                "details": (
-                    f"cv={pan_zoom_cv:.4f} (<= {pan_zoom_threshold['max_cv']:.2f}), "
-                    f"range={pan_zoom_range:.3f} ms (<= {pan_zoom_threshold['max_range_ms']:.1f} ms)"
-                ),
-            },
-        },
+        "variance_eval": variance_eval,
         "triage_policy": [
             "If variance check fails, first rerun 3x on the same machine with no background workloads.",
             "If variance remains high, classify by hardware tier (CPU/GPU/RAM/display) and keep separate baselines.",
@@ -1307,6 +1451,8 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     pan = metrics["pan_interaction_ms"]["summary"]
     zoom = metrics["zoom_interaction_ms"]["summary"]
     combined = metrics["pan_zoom_combined_ms"]["summary"]
+    node_drag_control = metrics["node_drag_control_ms"]["summary"]
+    phase_timings = report.get("phase_timings_ms", {})
     baseline_series = report.get("baseline_series", {})
     interaction_benchmark = report.get("interaction_benchmark", {})
 
@@ -1327,6 +1473,7 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     lines.append(f"- Synthetic graph: `{graph_cfg['node_count']}` nodes / `{graph_cfg['edge_count']}` edges")
     lines.append(f"- Seed: `{graph_cfg['seed']}`")
     lines.append(f"- Load iterations: `{cfg['load_iterations']}`")
+    lines.append(f"- Warmup samples: `{cfg.get('interaction_warmup_samples', 0)}`")
     lines.append(f"- Pan/zoom samples: `{cfg['interaction_samples']}`")
     lines.append(f"- Performance mode: `{cfg['performance_mode']}`")
     lines.append(f"- Scenario: `{cfg['scenario']}`")
@@ -1374,6 +1521,36 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(
             f"- Real canvas path: `{bool(interaction_benchmark.get('uses_actual_canvas_render_path', False))}`"
         )
+        lines.append(
+            f"- Reused steady-state host: `{bool(interaction_benchmark.get('steady_state_canvas_host_reused', False))}`"
+        )
+        lines.append("")
+    if phase_timings:
+        lines.append("## Phase Timings (ms)")
+        lines.append("")
+        lines.append("| Phase | p50 | p95 | Mean | Min | Max | Samples |")
+        lines.append("|---|---:|---:|---:|---:|---:|---:|")
+        for phase_key in (
+            "project_graph_load_ms",
+            "canvas_setup_ms",
+            "canvas_warmup_ms",
+            "pan_interaction_ms",
+            "zoom_interaction_ms",
+            "node_drag_control_ms",
+        ):
+            phase_entry = phase_timings.get(phase_key, {})
+            summary = phase_entry.get("summary", {})
+            phase_samples = phase_entry.get("samples", [])
+            lines.append(
+                "| "
+                f"{phase_key} | "
+                f"{float(summary.get('p50', 0.0)):.3f} | "
+                f"{float(summary.get('p95', 0.0)):.3f} | "
+                f"{float(summary.get('mean', 0.0)):.3f} | "
+                f"{float(summary.get('min', 0.0)):.3f} | "
+                f"{float(summary.get('max', 0.0)):.3f} | "
+                f"{len(phase_samples)} |"
+            )
         lines.append("")
     lines.append("## Metrics (ms)")
     lines.append("")
@@ -1390,6 +1567,9 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     )
     lines.append(
         f"| Pan + zoom (combined) | {combined['p50']:.3f} | {combined['p95']:.3f} | {combined['mean']:.3f} | {combined['min']:.3f} | {combined['max']:.3f} |"
+    )
+    lines.append(
+        f"| Node-drag control | {node_drag_control['p50']:.3f} | {node_drag_control['p95']:.3f} | {node_drag_control['mean']:.3f} | {node_drag_control['min']:.3f} | {node_drag_control['max']:.3f} |"
     )
     lines.append("")
     lines.append("## Requirement Check")
@@ -1409,8 +1589,8 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- Scenario: `{baseline_series.get('scenario', _DEFAULT_BENCHMARK_SCENARIO)}`")
         lines.append(f"- Run count: `{baseline_series.get('run_count', 0)}`")
         lines.append("")
-        lines.append("| Run | Mode | Load p95 (ms) | Pan+Zoom p95 (ms) | Qt Platform | Machine |")
-        lines.append("|---|---|---:|---:|---|---|")
+        lines.append("| Run | Mode | Load p95 (ms) | Pan p95 (ms) | Zoom p95 (ms) | Pan+Zoom p95 (ms) | Drag p95 (ms) | Qt Platform | Machine |")
+        lines.append("|---|---|---:|---:|---:|---:|---:|---|---|")
         for run in baseline_series.get("runs", []):
             env = run.get("environment", {})
             run_metrics = run.get("metrics", {})
@@ -1419,7 +1599,10 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
                 f"{run.get('run_id', '')} | "
                 f"{run.get('mode', '')} | "
                 f"{float(run_metrics.get('load_p95_ms', 0.0)):.3f} | "
+                f"{float(run_metrics.get('pan_p95_ms', 0.0)):.3f} | "
+                f"{float(run_metrics.get('zoom_p95_ms', 0.0)):.3f} | "
                 f"{float(run_metrics.get('pan_zoom_p95_ms', 0.0)):.3f} | "
+                f"{float(run_metrics.get('node_drag_control_p95_ms', 0.0)):.3f} | "
                 f"{env.get('qt_qpa_platform', '')} | "
                 f"{env.get('machine', '')} |"
             )
@@ -1430,7 +1613,13 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         variance_eval = baseline_series.get("variance_eval", {})
         lines.append("| Metric | CV Threshold | Range Threshold (ms) | Observed CV | Observed Range (ms) | Result |")
         lines.append("|---|---:|---:|---:|---:|---|")
-        for metric_key in ("load_p95_ms", "pan_zoom_p95_ms"):
+        for metric_key in (
+            "load_p95_ms",
+            "pan_p95_ms",
+            "zoom_p95_ms",
+            "pan_zoom_p95_ms",
+            "node_drag_control_p95_ms",
+        ):
             threshold = thresholds.get(metric_key, {})
             observed = variance_eval.get(metric_key, {})
             result = "PASS" if observed.get("pass", False) else "FAIL"
@@ -1470,6 +1659,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=1337, help="Deterministic random seed.")
     parser.add_argument("--load-iterations", type=int, default=5, help="Project/graph load iterations.")
     parser.add_argument("--interaction-samples", type=int, default=200, help="Pan/zoom sample count.")
+    parser.add_argument(
+        "--interaction-warmup-samples",
+        type=int,
+        default=3,
+        help="Unmeasured warmup interaction cycles to run on the real canvas host before steady-state sampling.",
+    )
     parser.add_argument(
         "--performance-mode",
         choices=("full_fidelity", "max_performance"),
@@ -1528,6 +1723,7 @@ def main(argv: list[str] | None = None) -> int:
         ),
         load_iterations=args.load_iterations,
         interaction_samples=args.interaction_samples,
+        interaction_warmup_samples=args.interaction_warmup_samples,
         performance_mode=args.performance_mode,
         scenario=args.scenario,
     )
@@ -1547,6 +1743,7 @@ def main(argv: list[str] | None = None) -> int:
 
     load = report["metrics"]["project_graph_load_ms"]["summary"]
     pan_zoom = report["metrics"]["pan_zoom_combined_ms"]["summary"]
+    node_drag_control = report["metrics"]["node_drag_control_ms"]["summary"]
     baseline = report.get("baseline_series", {})
     print(f"Benchmark report written: {md_path}")
     print(f"Benchmark data written:   {json_path}")
@@ -1561,6 +1758,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"load_p95_ms={load['p95']:.3f}")
     print(f"pan_zoom_p50_ms={pan_zoom['p50']:.3f}")
     print(f"pan_zoom_p95_ms={pan_zoom['p95']:.3f}")
+    print(f"node_drag_control_p95_ms={node_drag_control['p95']:.3f}")
     return 0
 
 
