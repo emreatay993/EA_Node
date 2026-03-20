@@ -4,7 +4,7 @@
 
 - Packet: `P01`
 - Branch Label: `codex/arch-sixth-pass/p01-shell-bootstrap-contract`
-- Commit Owner: `executor`
+- Commit Owner: `worker`
 - Commit SHA: `e3a373bc34466d7652be4a938f5b5ef09cb602e6`
 - Changed Files: `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/window.py`, `tests/test_main_bootstrap.py`, `docs/specs/work_packets/arch_sixth_pass/P01_shell_bootstrap_contract_WRAPUP.md`
 - Artifacts Produced: `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/window.py`, `tests/test_main_bootstrap.py`, `docs/specs/work_packets/arch_sixth_pass/P01_shell_bootstrap_contract_WRAPUP.md`
