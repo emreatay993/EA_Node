@@ -19,6 +19,8 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         try:
             self.assertIsInstance(dialog, SectionedSettingsDialog)
             self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
+            self.assertTrue(dialog.full_fidelity_mode_button.isChecked())
+            self.assertFalse(dialog.max_performance_mode_button.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
 
@@ -26,6 +28,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             dialog.show_minimap_check.setChecked(False)
             dialog.minimap_expanded_check.setChecked(False)
             dialog.snap_to_grid_check.setChecked(True)
+            dialog.max_performance_mode_button.setChecked(True)
             dialog.tab_strip_density_combo.setCurrentIndex(dialog.tab_strip_density_combo.findData("regular"))
             dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
             dialog.follow_shell_theme_check.setChecked(False)
@@ -36,6 +39,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["canvas"]["show_minimap"] = False
             expected["canvas"]["minimap_expanded"] = False
             expected["interaction"]["snap_to_grid"] = True
+            expected["performance"]["mode"] = "max_performance"
             expected["shell"]["tab_strip_density"] = "regular"
             expected["theme"]["theme_id"] = "stitch_light"
             expected["graph_theme"]["follow_shell_theme"] = False
@@ -86,6 +90,9 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 "interaction": {
                     "snap_to_grid": True,
                 },
+                "performance": {
+                    "mode": "warp_speed",
+                },
                 "shell": {
                     "tab_strip_density": "huge",
                 },
@@ -102,6 +109,8 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertEqual(dialog.section_list.count(), 4)
             self.assertEqual(dialog.theme_combo.count(), 2)
             self.assertEqual(dialog.graph_theme_combo.count(), len(graph_theme_choices()))
+            self.assertTrue(dialog.full_fidelity_mode_button.isChecked())
+            self.assertFalse(dialog.max_performance_mode_button.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
@@ -226,6 +235,37 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 )
             )
             self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
+        finally:
+            dialog.close()
+
+    def test_dialog_shows_performance_mode_copy_and_initial_selection(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "performance": {
+                    "mode": "max_performance",
+                }
+            }
+        )
+        try:
+            self.assertEqual(
+                dialog.performance_mode_summary_label.text(),
+                "Choose the app-wide graphics mode used across the shell and graph canvas.",
+            )
+            self.assertEqual(dialog.full_fidelity_mode_button.objectName(), "graphicsSettingsFullFidelityModeRadio")
+            self.assertEqual(dialog.full_fidelity_mode_button.text(), "Full Fidelity")
+            self.assertEqual(
+                dialog.full_fidelity_mode_copy_label.text(),
+                "Keeps normal visual quality and applies only invisible structural optimizations.",
+            )
+            self.assertEqual(dialog.max_performance_mode_button.objectName(), "graphicsSettingsMaxPerformanceModeRadio")
+            self.assertEqual(dialog.max_performance_mode_button.text(), "Max Performance")
+            self.assertEqual(
+                dialog.max_performance_mode_copy_label.text(),
+                "Temporarily simplifies whole-canvas rendering during pan, zoom, and burst edits; idle quality restores automatically.",
+            )
+            self.assertFalse(dialog.full_fidelity_mode_button.isChecked())
+            self.assertTrue(dialog.max_performance_mode_button.isChecked())
+            self.assertEqual(dialog.values()["performance"]["mode"], "max_performance")
         finally:
             dialog.close()
 

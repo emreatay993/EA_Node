@@ -382,6 +382,7 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         updated_graphics["canvas"]["show_minimap"] = False
         updated_graphics["canvas"]["minimap_expanded"] = False
         updated_graphics["interaction"]["snap_to_grid"] = True
+        updated_graphics["performance"]["mode"] = "max_performance"
         updated_graphics["theme"]["theme_id"] = "stitch_light"
 
         with patch.object(GraphicsSettingsDialog, "exec", return_value=QDialog.DialogCode.Accepted), patch.object(
@@ -397,10 +398,42 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         self.assertFalse(self.window.graphics_minimap_expanded)
         self.assertTrue(self.window.snap_to_grid_enabled)
         self.assertTrue(self.window.action_snap_to_grid.isChecked())
+        self.assertEqual(self.window.graphics_performance_mode, "max_performance")
         self.assertEqual(self.window.active_theme_id, "stitch_light")
 
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"], updated_graphics)
+
+    def test_graphics_settings_dialog_reopens_with_persisted_performance_mode(self) -> None:
+        updated_graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+        updated_graphics["performance"]["mode"] = "max_performance"
+
+        with patch.object(GraphicsSettingsDialog, "exec", return_value=QDialog.DialogCode.Accepted), patch.object(
+            GraphicsSettingsDialog,
+            "values",
+            return_value=updated_graphics,
+        ):
+            self.window.show_graphics_settings_dialog()
+        self.app.processEvents()
+
+        captured_kwargs: dict[str, object] = {}
+
+        class _CapturingGraphicsSettingsDialog:
+            DialogCode = QDialog.DialogCode
+
+            def __init__(self, *args, **kwargs) -> None:
+                del args
+                captured_kwargs.update(kwargs)
+
+            def exec(self) -> int:
+                return QDialog.DialogCode.Rejected
+
+        with patch.object(dialogs_module, "GraphicsSettingsDialog", _CapturingGraphicsSettingsDialog):
+            self.window.show_graphics_settings_dialog()
+
+        initial_settings = captured_kwargs["initial_settings"]
+        assert isinstance(initial_settings, dict)
+        self.assertEqual(initial_settings["performance"]["mode"], "max_performance")
 
     def test_graphics_settings_dialog_receives_active_renderer_label(self) -> None:
         captured_kwargs: dict[str, object] = {}
