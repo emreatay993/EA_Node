@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import platform
 import random
 import statistics
+import tempfile
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -15,18 +17,29 @@ from typing import Any
 # Force a deterministic non-interactive platform plugin for headless runs.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6.QtCore import QUrl
+from PyQt6.QtCore import QMarginsF, QObject, QRectF, Qt, QUrl, pyqtProperty, pyqtSlot
+from PyQt6.QtGui import QColor, QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtQuick import QQuickItem, QQuickWindow, QSGRendererInterface
 from PyQt6.QtWidgets import QApplication
 
+from ea_node_editor.app_preferences import normalize_graphics_performance_mode
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ProjectData, ViewState, WorkspaceData
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.ui.media_preview_provider import LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider
+from ea_node_editor.ui.pdf_preview_provider import (
+    LOCAL_PDF_PREVIEW_PROVIDER_ID,
+    LocalPdfPreviewImageProvider,
+    describe_pdf_preview,
+)
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+_DEFAULT_BENCHMARK_SCENARIO = "synthetic_exec"
+_BENCHMARK_SCENARIOS = (_DEFAULT_BENCHMARK_SCENARIO, "heavy_media")
 
 
 @dataclass(slots=True, frozen=True)
@@ -43,6 +56,26 @@ class BenchmarkConfig:
     interaction_samples: int = 200
     interaction_zoom_min: float = 0.5
     interaction_zoom_max: float = 2.0
+    performance_mode: str = "full_fidelity"
+    scenario: str = _DEFAULT_BENCHMARK_SCENARIO
+
+
+@dataclass(slots=True)
+class _ScenarioProject:
+    project: ProjectData
+    scenario_details: dict[str, Any]
+    temp_dir: tempfile.TemporaryDirectory[str] | None = None
+
+    def close(self) -> None:
+        if self.temp_dir is not None:
+            self.temp_dir.cleanup()
+            self.temp_dir = None
+
+    def __enter__(self) -> "_ScenarioProject":
+        return self
+
+    def __exit__(self, exc_type, exc, traceback) -> None:  # noqa: ANN001
+        self.close()
 
 
 _BASELINE_VARIANCE_THRESHOLDS = {
@@ -124,6 +157,16 @@ def _resolve_baseline_mode(requested_mode: str, qt_qpa_platform: str) -> str:
     return "interactive"
 
 
+def _normalize_benchmark_scenario(value: Any, default: str = _DEFAULT_BENCHMARK_SCENARIO) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _BENCHMARK_SCENARIOS:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _BENCHMARK_SCENARIOS:
+        return resolved_default
+    return _DEFAULT_BENCHMARK_SCENARIO
+
+
 def _collect_environment_snapshot() -> dict[str, Any]:
     uname = platform.uname()
     return {
@@ -139,6 +182,56 @@ def _collect_environment_snapshot() -> dict[str, Any]:
         "machine": uname.machine,
         "processor": uname.processor,
     }
+
+
+class _BenchmarkMainWindowBridge(QObject):
+    def __init__(self, *, performance_mode: str, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._graphics_performance_mode = normalize_graphics_performance_mode(performance_mode)
+
+    @pyqtProperty(bool, constant=True)
+    def graphics_minimap_expanded(self) -> bool:
+        return True
+
+    @pyqtProperty(bool, constant=True)
+    def graphics_show_grid(self) -> bool:
+        return True
+
+    @pyqtProperty(bool, constant=True)
+    def graphics_show_minimap(self) -> bool:
+        return True
+
+    @pyqtProperty(bool, constant=True)
+    def graphics_node_shadow(self) -> bool:
+        return True
+
+    @pyqtProperty(int, constant=True)
+    def graphics_shadow_strength(self) -> int:
+        return 70
+
+    @pyqtProperty(int, constant=True)
+    def graphics_shadow_softness(self) -> int:
+        return 50
+
+    @pyqtProperty(int, constant=True)
+    def graphics_shadow_offset(self) -> int:
+        return 4
+
+    @pyqtProperty(str, constant=True)
+    def graphics_performance_mode(self) -> str:
+        return self._graphics_performance_mode
+
+    @pyqtProperty(bool, constant=True)
+    def snap_to_grid_enabled(self) -> bool:
+        return False
+
+    @pyqtProperty(float, constant=True)
+    def snap_grid_size(self) -> float:
+        return 20.0
+
+    @pyqtSlot(str, "QVariant", result="QVariantMap")
+    def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
+        return describe_pdf_preview(source, page_number)
 
 
 def generate_synthetic_project(config: SyntheticGraphConfig) -> ProjectData:
@@ -227,6 +320,384 @@ def generate_synthetic_project(config: SyntheticGraphConfig) -> ProjectData:
     return project
 
 
+def _minimum_exec_nodes_for_edge_count(edge_count: int) -> int:
+    required = 3
+    while required * (required - 1) < edge_count:
+        required += 1
+    return required
+
+
+def _write_fixture_image(
+    path: Path,
+    *,
+    width: int,
+    height: int,
+    fill: str,
+    accent: str,
+    label: str,
+) -> None:
+    image = QImage(max(1, width), max(1, height), QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(QColor(fill))
+
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    painter.fillRect(0, 0, image.width(), image.height(), QColor(fill))
+    painter.fillRect(0, int(image.height() * 0.74), image.width(), int(image.height() * 0.26), QColor(accent))
+    painter.setPen(QColor("#F4F8FC"))
+    font = painter.font()
+    font.setPixelSize(max(18, int(min(image.width(), image.height()) * 0.08)))
+    font.setBold(True)
+    painter.setFont(font)
+    painter.drawText(
+        QRectF(32.0, 24.0, float(image.width() - 64), float(image.height() - 48)),
+        int(Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap),
+        label,
+    )
+    painter.end()
+
+    if not image.save(str(path)):
+        raise RuntimeError(f"Failed to save fixture image: {path}")
+
+
+def _write_fixture_pdf(path: Path, *, page_count: int = 3) -> None:
+    writer = QPdfWriter(str(path))
+    writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    writer.setPageOrientation(QPageLayout.Orientation.Portrait)
+    writer.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout.Unit.Millimeter)
+    painter = QPainter(writer)
+    for page_index in range(page_count):
+        if page_index > 0:
+            writer.newPage()
+        painter.setPen(QColor("#31414F"))
+        font = painter.font()
+        font.setPixelSize(20)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(
+            QRectF(72.0, 96.0, 420.0, 64.0),
+            int(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop),
+            f"Heavy Media Benchmark Page {page_index + 1}",
+        )
+        font.setPixelSize(12)
+        font.setBold(False)
+        painter.setFont(font)
+        painter.drawText(
+            QRectF(72.0, 176.0, 420.0, 140.0),
+            int(Qt.AlignmentFlag.AlignLeft | Qt.TextFlag.TextWordWrap),
+            "Generated local PDF fixture reused across passive media nodes for offscreen benchmark runs.",
+        )
+    painter.end()
+
+
+def _create_heavy_media_fixtures(temp_dir: Path) -> dict[str, Any]:
+    image_specs = (
+        ("briefing-board.png", 800, 450, "#234C6D", "#2F89FF", "Site Briefing"),
+        ("wiring-overview.png", 640, 480, "#5A3E2B", "#C98339", "Wiring Overview"),
+        ("inspection-capture.png", 720, 540, "#3F4F38", "#5FB174", "Inspection Capture"),
+    )
+    image_paths: list[Path] = []
+    for filename, width, height, fill, accent, label in image_specs:
+        image_path = temp_dir / filename
+        _write_fixture_image(
+            image_path,
+            width=width,
+            height=height,
+            fill=fill,
+            accent=accent,
+            label=label,
+        )
+        image_paths.append(image_path)
+
+    pdf_path = temp_dir / "heavy-media-reference.pdf"
+    _write_fixture_pdf(pdf_path, page_count=3)
+
+    return {
+        "image_paths": image_paths,
+        "pdf_path": pdf_path,
+        "pdf_page_count": 3,
+    }
+
+
+def _build_node_blueprints(
+    *,
+    execution_nodes: int,
+    image_nodes: int,
+    pdf_nodes: int,
+    fixtures: dict[str, Any],
+) -> list[dict[str, Any]]:
+    blueprints: list[dict[str, Any]] = [
+        {
+            "type_id": "core.start",
+            "title": "Start",
+            "properties": {},
+            "execution": True,
+        }
+    ]
+    execution_titles = [f"Logger {index}" for index in range(1, max(1, execution_nodes - 1))]
+    media_blueprints: list[dict[str, Any]] = []
+    image_paths: list[Path] = list(fixtures["image_paths"])
+    pdf_path = Path(fixtures["pdf_path"])
+    pdf_page_count = int(fixtures["pdf_page_count"])
+
+    for index in range(image_nodes):
+        image_path = image_paths[index % len(image_paths)]
+        fit_mode = ("contain", "cover", "original")[index % 3]
+        media_blueprints.append(
+            {
+                "type_id": "passive.media.image_panel",
+                "title": f"Image Panel {index + 1}",
+                "properties": {
+                    "source_path": str(image_path),
+                    "caption": f"Generated image fixture {index + 1}",
+                    "fit_mode": fit_mode,
+                },
+                "execution": False,
+            }
+        )
+    for index in range(pdf_nodes):
+        media_blueprints.append(
+            {
+                "type_id": "passive.media.pdf_panel",
+                "title": f"PDF Panel {index + 1}",
+                "properties": {
+                    "source_path": str(pdf_path),
+                    "page_number": (index % pdf_page_count) + 1,
+                    "caption": f"Generated PDF fixture page {(index % pdf_page_count) + 1}",
+                },
+                "execution": False,
+            }
+        )
+
+    body_exec_blueprints = [
+        {
+            "type_id": "core.logger",
+            "title": title,
+            "properties": {},
+            "execution": True,
+        }
+        for title in execution_titles
+    ]
+
+    media_index = 0
+    exec_index = 0
+    while media_index < len(media_blueprints) or exec_index < len(body_exec_blueprints):
+        if media_index < len(media_blueprints):
+            blueprints.append(media_blueprints[media_index])
+            media_index += 1
+        if exec_index < len(body_exec_blueprints):
+            blueprints.append(body_exec_blueprints[exec_index])
+            exec_index += 1
+        if media_index < len(media_blueprints) and len(media_blueprints) - media_index > len(body_exec_blueprints) - exec_index:
+            blueprints.append(media_blueprints[media_index])
+            media_index += 1
+
+    blueprints.append(
+        {
+            "type_id": "core.end",
+            "title": "End",
+            "properties": {},
+            "execution": True,
+        }
+    )
+    return blueprints
+
+
+def _build_synthetic_node_blueprints(total_nodes: int) -> list[dict[str, Any]]:
+    blueprints: list[dict[str, Any]] = []
+    for index in range(total_nodes):
+        if index == 0:
+            type_id = "core.start"
+            title = "Start"
+        elif index == total_nodes - 1:
+            type_id = "core.end"
+            title = "End"
+        else:
+            type_id = "core.logger"
+            title = f"Logger {index}"
+        blueprints.append(
+            {
+                "type_id": type_id,
+                "title": title,
+                "properties": {},
+                "execution": True,
+            }
+        )
+    return blueprints
+
+
+def _project_from_blueprints(
+    *,
+    config: SyntheticGraphConfig,
+    node_blueprints: list[dict[str, Any]],
+    max_cols: int,
+    spacing_x: float,
+    spacing_y: float,
+) -> tuple[ProjectData, list[str]]:
+    project = ProjectData(project_id="proj_perf_h", name="track_h_perf")
+    workspace_id = "ws_perf_h"
+    workspace = WorkspaceData(workspace_id=workspace_id, name="Perf Workspace")
+    workspace.views["view_perf_h"] = ViewState(
+        view_id="view_perf_h",
+        name="V1",
+        zoom=1.0,
+        pan_x=0.0,
+        pan_y=0.0,
+    )
+    workspace.active_view_id = "view_perf_h"
+
+    execution_node_ids: list[str] = []
+    for index, blueprint in enumerate(node_blueprints):
+        node_id = f"node_{index:04d}"
+        col = index % max_cols
+        row = index // max_cols
+        workspace.nodes[node_id] = NodeInstance(
+            node_id=node_id,
+            type_id=str(blueprint["type_id"]),
+            title=str(blueprint["title"]),
+            x=col * spacing_x,
+            y=row * spacing_y,
+            properties=dict(blueprint.get("properties", {})),
+            exposed_ports={},
+        )
+        if bool(blueprint.get("execution", False)):
+            execution_node_ids.append(node_id)
+
+    edge_connections: list[tuple[str, str, str, str]] = []
+    seen: set[tuple[str, str, str, str]] = set()
+    for index in range(len(execution_node_ids) - 1):
+        connection = (
+            execution_node_ids[index],
+            "exec_out",
+            execution_node_ids[index + 1],
+            "exec_in",
+        )
+        edge_connections.append(connection)
+        seen.add(connection)
+
+    source_candidates = execution_node_ids[:-1]
+    target_candidates = execution_node_ids[1:]
+    generator = random.Random(config.seed)
+    while len(edge_connections) < config.edge_count:
+        source_id = generator.choice(source_candidates)
+        target_id = generator.choice(target_candidates)
+        if source_id == target_id:
+            continue
+        connection = (source_id, "exec_out", target_id, "exec_in")
+        if connection in seen:
+            continue
+        edge_connections.append(connection)
+        seen.add(connection)
+
+    for index, (source_id, source_port, target_id, target_port) in enumerate(edge_connections):
+        edge_id = f"edge_{index:05d}"
+        workspace.edges[edge_id] = EdgeInstance(
+            edge_id=edge_id,
+            source_node_id=source_id,
+            source_port_key=source_port,
+            target_node_id=target_id,
+            target_port_key=target_port,
+        )
+
+    project.workspaces[workspace_id] = workspace
+    project.active_workspace_id = workspace_id
+    project.metadata["workspace_order"] = [workspace_id]
+    return project, execution_node_ids
+
+
+def _build_heavy_media_project(config: SyntheticGraphConfig) -> _ScenarioProject:
+    if config.node_count < 5:
+        raise ValueError("heavy_media scenario requires node_count >= 5")
+    app = QApplication.instance() or QApplication([])
+    _ = app
+
+    minimum_exec_nodes = _minimum_exec_nodes_for_edge_count(config.edge_count)
+    if minimum_exec_nodes > config.node_count - 2:
+        raise ValueError(
+            "heavy_media scenario requires enough node budget for execution backbone plus image/PDF panels"
+        )
+
+    target_media_nodes = min(
+        config.node_count - minimum_exec_nodes,
+        6,
+    )
+    target_media_nodes = max(2, target_media_nodes)
+    if target_media_nodes >= config.node_count:
+        target_media_nodes = config.node_count - minimum_exec_nodes
+    if target_media_nodes < 2:
+        raise ValueError("heavy_media scenario requires at least one image panel and one PDF panel")
+
+    image_nodes = math.ceil(target_media_nodes / 2)
+    pdf_nodes = target_media_nodes - image_nodes
+    if pdf_nodes <= 0:
+        pdf_nodes = 1
+        image_nodes = target_media_nodes - 1
+    execution_nodes = config.node_count - target_media_nodes
+
+    temp_dir = tempfile.TemporaryDirectory(prefix="track_h_heavy_media_")
+    fixture_dir = Path(temp_dir.name)
+    fixtures = _create_heavy_media_fixtures(fixture_dir)
+    node_blueprints = _build_node_blueprints(
+        execution_nodes=execution_nodes,
+        image_nodes=image_nodes,
+        pdf_nodes=pdf_nodes,
+        fixtures=fixtures,
+    )
+    project, execution_node_ids = _project_from_blueprints(
+        config=config,
+        node_blueprints=node_blueprints,
+        max_cols=6,
+        spacing_x=360.0,
+        spacing_y=320.0,
+    )
+
+    return _ScenarioProject(
+        project=project,
+        temp_dir=temp_dir,
+        scenario_details={
+            "description": (
+                "Generated local PNG/PDF fixtures reused across passive media nodes inside the real "
+                "GraphCanvas.qml benchmark path."
+            ),
+            "fixture_strategy": "generated_local_media_reuse",
+            "node_mix": {
+                "execution_nodes": len(execution_node_ids),
+                "image_panel_nodes": image_nodes,
+                "pdf_panel_nodes": pdf_nodes,
+            },
+            "generated_fixture_count": {
+                "images": len(fixtures["image_paths"]),
+                "pdfs": 1,
+            },
+            "expected_media_surface_count": image_nodes + pdf_nodes,
+        },
+    )
+
+
+def _build_scenario_project(config: BenchmarkConfig) -> _ScenarioProject:
+    scenario = _normalize_benchmark_scenario(config.scenario)
+    if scenario == "heavy_media":
+        return _build_heavy_media_project(config.synthetic_graph)
+
+    project = generate_synthetic_project(config.synthetic_graph)
+    return _ScenarioProject(
+        project=project,
+        scenario_details={
+            "description": "Synthetic execution-chain graph using core start/logger/end nodes only.",
+            "fixture_strategy": "none",
+            "node_mix": {
+                "execution_nodes": config.synthetic_graph.node_count,
+                "image_panel_nodes": 0,
+                "pdf_panel_nodes": 0,
+            },
+            "generated_fixture_count": {
+                "images": 0,
+                "pdfs": 0,
+            },
+            "expected_media_surface_count": 0,
+        },
+    )
+
+
 def _graph_canvas_qml_path() -> Path:
     return _package_root_path() / "ui_qml" / "components" / "GraphCanvas.qml"
 
@@ -243,6 +714,18 @@ def _qml_component_error_text(component: QQmlComponent) -> str:
     return "\n".join(error.toString() for error in component.errors())
 
 
+def _iter_quick_item_tree(root: QQuickItem | None) -> list[QQuickItem]:
+    if root is None:
+        return []
+    items: list[QQuickItem] = []
+    stack: list[QQuickItem] = [root]
+    while stack:
+        item = stack.pop()
+        items.append(item)
+        stack.extend(child for child in item.childItems() if isinstance(child, QQuickItem))
+    return items
+
+
 class _GraphCanvasBenchmarkHost:
     def __init__(
         self,
@@ -250,6 +733,7 @@ class _GraphCanvasBenchmarkHost:
         app: QApplication,
         doc: dict[str, Any],
         workspace_id: str,
+        performance_mode: str,
     ) -> None:
         self.app = app
         serializer = JsonProjectSerializer(build_default_registry())
@@ -263,8 +747,11 @@ class _GraphCanvasBenchmarkHost:
         self.view.set_viewport_size(float(_CANVAS_BENCHMARK_WIDTH), float(_CANVAS_BENCHMARK_HEIGHT))
 
         self.engine = QQmlEngine()
+        self.engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
+        self.engine.addImageProvider(LOCAL_PDF_PREVIEW_PROVIDER_ID, LocalPdfPreviewImageProvider())
         self.theme_bridge = ThemeBridge(self.engine, theme_id=_CANVAS_THEME_ID)
         self.graph_theme_bridge = GraphThemeBridge(self.engine, theme_id=_CANVAS_GRAPH_THEME_ID)
+        self.main_window_bridge = _BenchmarkMainWindowBridge(performance_mode=performance_mode)
         root_context = self.engine.rootContext()
         root_context.setContextProperty("themeBridge", self.theme_bridge)
         root_context.setContextProperty("graphThemeBridge", self.graph_theme_bridge)
@@ -277,6 +764,7 @@ class _GraphCanvasBenchmarkHost:
         self.window = QQuickWindow()
         self.window.resize(_CANVAS_BENCHMARK_WIDTH, _CANVAS_BENCHMARK_HEIGHT)
         initial_properties = {
+            "mainWindowBridge": self.main_window_bridge,
             "sceneBridge": self.scene,
             "viewBridge": self.view,
             "width": float(_CANVAS_BENCHMARK_WIDTH),
@@ -299,6 +787,34 @@ class _GraphCanvasBenchmarkHost:
         self.canvas.setParentItem(self.window.contentItem())
         self.window.show()
         self.render_frame()
+
+    def resolved_graphics_performance_mode(self) -> str:
+        if getattr(self, "canvas", None) is None:
+            return ""
+        return str(self.canvas.property("resolvedGraphicsPerformanceMode") or "")
+
+    def wait_for_media_surfaces_ready(self, *, expected_count: int, timeout_ms: int = 6000) -> None:
+        if expected_count <= 0 or getattr(self, "canvas", None) is None:
+            return
+        deadline = time.perf_counter() + (float(timeout_ms) / 1000.0)
+        while True:
+            self.app.processEvents()
+            self.window.update()
+            self.window.grabWindow()
+            media_surfaces = [
+                item for item in _iter_quick_item_tree(self.canvas) if str(item.objectName() or "") == "graphNodeMediaSurface"
+            ]
+            ready_count = sum(str(surface.property("previewState") or "") == "ready" for surface in media_surfaces)
+            if len(media_surfaces) >= expected_count and ready_count >= expected_count:
+                self.app.processEvents()
+                return
+            if time.perf_counter() >= deadline:
+                states = [str(surface.property("previewState") or "") for surface in media_surfaces]
+                raise RuntimeError(
+                    "Timed out waiting for heavy-media surfaces to reach ready state "
+                    f"(expected={expected_count}, found={len(media_surfaces)}, ready={ready_count}, states={states})"
+                )
+            time.sleep(0.01)
 
     def render_frame(self, *, timeout_ms: int = 2000) -> None:
         deadline = time.perf_counter() + (float(timeout_ms) / 1000.0)
@@ -331,6 +847,9 @@ class _GraphCanvasBenchmarkHost:
         if getattr(self, "engine", None) is not None:
             self.engine.deleteLater()
             self.engine = None
+        if getattr(self, "main_window_bridge", None) is not None:
+            self.main_window_bridge.deleteLater()
+            self.main_window_bridge = None
         self.app.processEvents()
 
     def __enter__(self) -> "_GraphCanvasBenchmarkHost":
@@ -397,38 +916,131 @@ def benchmark_pan_zoom_ms(
     seed: int,
     zoom_min: float,
     zoom_max: float,
+    performance_mode: str,
+    scenario: str,
+    expected_media_surface_count: int = 0,
 ) -> dict[str, Any]:
     if samples <= 0:
         raise ValueError("samples must be > 0")
     app = QApplication.instance() or QApplication([])
-    with _GraphCanvasBenchmarkHost(app=app, doc=doc, workspace_id=workspace_id) as canvas_host:
-        workspace = canvas_host.model.project.workspaces[workspace_id]
-        random_gen = random.Random(seed)
-        left, right, top, bottom = _workspace_bounds(workspace)
-        pan_samples_ms: list[float] = []
-        zoom_samples_ms: list[float] = []
+    pan_samples_ms: list[float] = []
+    zoom_samples_ms: list[float] = []
+    resolved_performance_mode = ""
+    random_gen = random.Random(seed)
+    left = right = top = bottom = 0.0
+    current_center_x = 0.0
+    current_center_y = 0.0
+    current_zoom = 1.0
+
+    def _sample_with_host(
+        *,
+        pan_to_x: float,
+        pan_to_y: float,
+        zoom_to: float,
+        preload_center_x: float,
+        preload_center_y: float,
+        preload_zoom: float,
+    ) -> tuple[float, float, str]:
+        with _GraphCanvasBenchmarkHost(
+            app=app,
+            doc=doc,
+            workspace_id=workspace_id,
+            performance_mode=performance_mode,
+        ) as canvas_host:
+            canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
+            if (
+                abs(preload_center_x) > 1e-6
+                or abs(preload_center_y) > 1e-6
+                or abs(preload_zoom - 1.0) > 1e-6
+            ):
+                if abs(preload_zoom - 1.0) > 1e-6:
+                    canvas_host.view.set_zoom(preload_zoom)
+                if abs(preload_center_x) > 1e-6 or abs(preload_center_y) > 1e-6:
+                    canvas_host.view.centerOn(preload_center_x, preload_center_y)
+                canvas_host.render_frame()
+
+            started = time.perf_counter()
+            canvas_host.view.centerOn(pan_to_x, pan_to_y)
+            canvas_host.render_frame()
+            pan_elapsed_ms = (time.perf_counter() - started) * 1000.0
+
+            started = time.perf_counter()
+            canvas_host.view.set_zoom(zoom_to)
+            canvas_host.render_frame()
+            zoom_elapsed_ms = (time.perf_counter() - started) * 1000.0
+            return pan_elapsed_ms, zoom_elapsed_ms, canvas_host.resolved_graphics_performance_mode()
+
+    if expected_media_surface_count > 0:
+        with _GraphCanvasBenchmarkHost(
+            app=app,
+            doc=doc,
+            workspace_id=workspace_id,
+            performance_mode=performance_mode,
+        ) as canvas_host:
+            canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
+            workspace = canvas_host.model.project.workspaces[workspace_id]
+            left, right, top, bottom = _workspace_bounds(workspace)
+            resolved_performance_mode = canvas_host.resolved_graphics_performance_mode()
 
         for index in range(samples):
-            current_center = canvas_host.view.mapToScene(canvas_host.view.viewport().rect().center())
             pan_x = max(
                 left,
-                min(right, current_center.x() + random_gen.uniform(-180.0, 180.0)),
+                min(right, current_center_x + random_gen.uniform(-180.0, 180.0)),
             )
             pan_y = max(
                 top,
-                min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
+                min(bottom, current_center_y + random_gen.uniform(-120.0, 120.0)),
             )
-            started = time.perf_counter()
-            canvas_host.view.centerOn(pan_x, pan_y)
-            canvas_host.render_frame()
-            pan_samples_ms.append((time.perf_counter() - started) * 1000.0)
-
             zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
-            zoom = max(zoom_min, min(zoom_max, canvas_host.view.zoom * zoom_step))
-            started = time.perf_counter()
-            canvas_host.view.set_zoom(zoom)
-            canvas_host.render_frame()
-            zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
+            zoom = max(zoom_min, min(zoom_max, current_zoom * zoom_step))
+            pan_elapsed_ms, zoom_elapsed_ms, observed_mode = _sample_with_host(
+                pan_to_x=pan_x,
+                pan_to_y=pan_y,
+                zoom_to=zoom,
+                preload_center_x=current_center_x,
+                preload_center_y=current_center_y,
+                preload_zoom=current_zoom,
+            )
+            pan_samples_ms.append(pan_elapsed_ms)
+            zoom_samples_ms.append(zoom_elapsed_ms)
+            current_center_x = pan_x
+            current_center_y = pan_y
+            current_zoom = zoom
+            if not resolved_performance_mode:
+                resolved_performance_mode = observed_mode
+    else:
+        with _GraphCanvasBenchmarkHost(
+            app=app,
+            doc=doc,
+            workspace_id=workspace_id,
+            performance_mode=performance_mode,
+        ) as canvas_host:
+            canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
+            workspace = canvas_host.model.project.workspaces[workspace_id]
+            left, right, top, bottom = _workspace_bounds(workspace)
+            resolved_performance_mode = canvas_host.resolved_graphics_performance_mode()
+
+            for index in range(samples):
+                current_center = canvas_host.view.mapToScene(canvas_host.view.viewport().rect().center())
+                pan_x = max(
+                    left,
+                    min(right, current_center.x() + random_gen.uniform(-180.0, 180.0)),
+                )
+                pan_y = max(
+                    top,
+                    min(bottom, current_center.y() + random_gen.uniform(-120.0, 120.0)),
+                )
+                started = time.perf_counter()
+                canvas_host.view.centerOn(pan_x, pan_y)
+                canvas_host.render_frame()
+                pan_samples_ms.append((time.perf_counter() - started) * 1000.0)
+
+                zoom_step = 1.05 if index % 2 == 0 else (1.0 / 1.05)
+                zoom = max(zoom_min, min(zoom_max, canvas_host.view.zoom * zoom_step))
+                started = time.perf_counter()
+                canvas_host.view.set_zoom(zoom)
+                canvas_host.render_frame()
+                zoom_samples_ms.append((time.perf_counter() - started) * 1000.0)
 
     combined = [pan + zoom for pan, zoom in zip(pan_samples_ms, zoom_samples_ms, strict=True)]
     return {
@@ -448,29 +1060,42 @@ def benchmark_pan_zoom_ms(
                 "ViewportBridge.centerOn + ViewportBridge.set_zoom with QQuickWindow.grabWindow()"
             ),
             "uses_actual_canvas_render_path": True,
+            "performance_mode": performance_mode,
+            "resolved_graphics_performance_mode": resolved_performance_mode,
+            "scenario": scenario,
+            "media_surface_count": expected_media_surface_count,
         },
     }
 
 
 def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
-    project = generate_synthetic_project(config.synthetic_graph)
-    serializer = JsonProjectSerializer(build_default_registry())
-    doc = serializer.to_document(project)
-    workspace_id = project.active_workspace_id
+    app = QApplication.instance() or QApplication([])
+    _ = app
+    performance_mode = normalize_graphics_performance_mode(config.performance_mode)
+    scenario = _normalize_benchmark_scenario(config.scenario)
 
-    load_samples = benchmark_load_times_ms(
-        doc=doc,
-        workspace_id=workspace_id,
-        iterations=config.load_iterations,
-    )
-    interaction_samples = benchmark_pan_zoom_ms(
-        doc=doc,
-        workspace_id=workspace_id,
-        samples=config.interaction_samples,
-        seed=config.synthetic_graph.seed,
-        zoom_min=config.interaction_zoom_min,
-        zoom_max=config.interaction_zoom_max,
-    )
+    with _build_scenario_project(config) as scenario_project:
+        project = scenario_project.project
+        serializer = JsonProjectSerializer(build_default_registry())
+        doc = serializer.to_document(project)
+        workspace_id = project.active_workspace_id
+
+        load_samples = benchmark_load_times_ms(
+            doc=doc,
+            workspace_id=workspace_id,
+            iterations=config.load_iterations,
+        )
+        interaction_samples = benchmark_pan_zoom_ms(
+            doc=doc,
+            workspace_id=workspace_id,
+            samples=config.interaction_samples,
+            seed=config.synthetic_graph.seed,
+            zoom_min=config.interaction_zoom_min,
+            zoom_max=config.interaction_zoom_max,
+            performance_mode=performance_mode,
+            scenario=scenario,
+            expected_media_surface_count=int(scenario_project.scenario_details["expected_media_surface_count"]),
+        )
 
     pan_summary = _metric_summary_ms(interaction_samples["pan_ms"])
     zoom_summary = _metric_summary_ms(interaction_samples["zoom_ms"])
@@ -487,6 +1112,9 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "interaction_samples": config.interaction_samples,
             "interaction_zoom_min": config.interaction_zoom_min,
             "interaction_zoom_max": config.interaction_zoom_max,
+            "performance_mode": performance_mode,
+            "scenario": scenario,
+            "scenario_details": scenario_project.scenario_details,
         },
         "interaction_benchmark": interaction_samples["benchmark"],
         "metrics": {
@@ -558,6 +1186,8 @@ def run_benchmark(
                 "generated_at_utc": run_report["generated_at_utc"],
                 "mode": baseline_mode,
                 "tag": baseline_tag,
+                "performance_mode": str(run_report["config"]["performance_mode"]),
+                "scenario": str(run_report["config"]["scenario"]),
                 "environment": run_report["environment"],
                 "metrics": {
                     "load_p95_ms": load_p95,
@@ -583,6 +1213,8 @@ def run_benchmark(
     latest_report["baseline_series"] = {
         "mode": baseline_mode,
         "tag": baseline_tag,
+        "performance_mode": str(latest_report["config"]["performance_mode"]),
+        "scenario": str(latest_report["config"]["scenario"]),
         "run_count": baseline_runs,
         "runs": series_runs,
         "variance_thresholds": _BASELINE_VARIANCE_THRESHOLDS,
@@ -655,6 +1287,27 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     lines.append(f"- Seed: `{graph_cfg['seed']}`")
     lines.append(f"- Load iterations: `{cfg['load_iterations']}`")
     lines.append(f"- Pan/zoom samples: `{cfg['interaction_samples']}`")
+    lines.append(f"- Performance mode: `{cfg['performance_mode']}`")
+    lines.append(f"- Scenario: `{cfg['scenario']}`")
+    scenario_details = cfg.get("scenario_details", {})
+    node_mix = scenario_details.get("node_mix", {})
+    if node_mix:
+        lines.append(
+            "- Node mix: "
+            f"`{node_mix.get('execution_nodes', 0)}` execution / "
+            f"`{node_mix.get('image_panel_nodes', 0)}` image panels / "
+            f"`{node_mix.get('pdf_panel_nodes', 0)}` PDF panels"
+        )
+    fixture_counts = scenario_details.get("generated_fixture_count", {})
+    if fixture_counts:
+        lines.append(
+            "- Generated fixtures: "
+            f"`{fixture_counts.get('images', 0)}` images / "
+            f"`{fixture_counts.get('pdfs', 0)}` PDFs"
+        )
+    scenario_description = str(scenario_details.get("description", "")).strip()
+    if scenario_description:
+        lines.append(f"- Scenario detail: {scenario_description}")
     lines.append("")
     if interaction_benchmark:
         viewport = interaction_benchmark.get("viewport", {})
@@ -671,6 +1324,12 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(
             f"- Theme pair: `{interaction_benchmark.get('theme_id', '')}` / `{interaction_benchmark.get('graph_theme_id', '')}`"
         )
+        lines.append(f"- Selected performance mode: `{interaction_benchmark.get('performance_mode', '')}`")
+        lines.append(
+            f"- Resolved canvas mode: `{interaction_benchmark.get('resolved_graphics_performance_mode', '')}`"
+        )
+        lines.append(f"- Scenario: `{interaction_benchmark.get('scenario', '')}`")
+        lines.append(f"- Media surface count: `{interaction_benchmark.get('media_surface_count', 0)}`")
         lines.append(
             f"- Real canvas path: `{bool(interaction_benchmark.get('uses_actual_canvas_render_path', False))}`"
         )
@@ -705,6 +1364,8 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append("")
         lines.append(f"- Mode: `{baseline_series.get('mode', 'offscreen')}`")
         lines.append(f"- Tag: `{baseline_series.get('tag', 'local')}`")
+        lines.append(f"- Performance mode: `{baseline_series.get('performance_mode', 'full_fidelity')}`")
+        lines.append(f"- Scenario: `{baseline_series.get('scenario', _DEFAULT_BENCHMARK_SCENARIO)}`")
         lines.append(f"- Run count: `{baseline_series.get('run_count', 0)}`")
         lines.append("")
         lines.append("| Run | Mode | Load p95 (ms) | Pan+Zoom p95 (ms) | Qt Platform | Machine |")
@@ -769,6 +1430,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--load-iterations", type=int, default=5, help="Project/graph load iterations.")
     parser.add_argument("--interaction-samples", type=int, default=200, help="Pan/zoom sample count.")
     parser.add_argument(
+        "--performance-mode",
+        choices=("full_fidelity", "max_performance"),
+        default="full_fidelity",
+        help="Graphics performance mode applied to the benchmark canvas.",
+    )
+    parser.add_argument(
+        "--scenario",
+        choices=_BENCHMARK_SCENARIOS,
+        default=_DEFAULT_BENCHMARK_SCENARIO,
+        help="Benchmark scene composition to load into GraphCanvas.qml.",
+    )
+    parser.add_argument(
         "--baseline-runs",
         type=int,
         default=1,
@@ -814,6 +1487,8 @@ def main(argv: list[str] | None = None) -> int:
         ),
         load_iterations=args.load_iterations,
         interaction_samples=args.interaction_samples,
+        performance_mode=args.performance_mode,
+        scenario=args.scenario,
     )
     report = run_benchmark(
         config,
@@ -839,6 +1514,8 @@ def main(argv: list[str] | None = None) -> int:
             "baseline_mode="
             f"{baseline.get('mode', 'offscreen')} baseline_runs={baseline.get('run_count', 1)}"
         )
+    print(f"performance_mode={report['config']['performance_mode']}")
+    print(f"scenario={report['config']['scenario']}")
     print(f"load_p50_ms={load['p50']:.3f}")
     print(f"load_p95_ms={load['p95']:.3f}")
     print(f"pan_zoom_p50_ms={pan_zoom['p50']:.3f}")
