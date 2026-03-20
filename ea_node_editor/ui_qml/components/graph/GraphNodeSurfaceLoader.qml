@@ -8,6 +8,23 @@ Item {
     property var nodeData: host ? host.nodeData : null
     property string surfaceFamily: host ? host.surfaceFamily : "standard"
     property string surfaceVariant: host ? host.surfaceVariant : ""
+    readonly property var renderQuality: host ? host.renderQuality : ({
+        "weight_class": "standard",
+        "max_performance_strategy": "generic_fallback",
+        "supported_quality_tiers": ["full"]
+    })
+    readonly property string requestedQualityTier: host ? host.requestedQualityTier : "full"
+    readonly property string resolvedQualityTier: host ? host.resolvedQualityTier : "full"
+    readonly property bool proxySurfaceRequested: host ? Boolean(host.proxySurfaceRequested) : false
+    readonly property bool proxySurfaceActive: proxySurfaceRequested && loader.item
+        ? Boolean(loader.item.proxySurfaceActive)
+        : false
+    readonly property var surfaceQualityContext: host ? host.surfaceQualityContext : ({
+        "requested_quality_tier": root.requestedQualityTier,
+        "resolved_quality_tier": root.resolvedQualityTier,
+        "render_quality": root.renderQuality,
+        "proxy_surface_requested": root.proxySurfaceRequested
+    })
     readonly property string loadedSurfaceKey: _loadedSurfaceKey(surfaceFamily, surfaceVariant)
     readonly property real contentHeight: {
         if (!host || !nodeData)

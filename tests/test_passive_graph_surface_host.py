@@ -374,6 +374,59 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_media_host_render_quality_proxy_surface_request_preserves_current_surface(self) -> None:
+        self._run_qml_probe(
+            "media-render-quality-proxy-surface",
+            """
+            media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+            media_payload["runtime_behavior"] = "passive"
+            media_payload["surface_metrics"] = {}
+            media_payload["properties"] = {
+                "source_path": "",
+                "caption": "Proxy seam",
+                "fit_mode": "contain",
+            }
+            media_payload["render_quality"] = {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            }
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": media_payload,
+                    "snapshotReuseActive": True,
+                    "shadowSimplificationActive": True,
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeMediaSurface")
+            assert loader is not None
+            assert surface is not None
+
+            render_quality = variant_value(host.property("renderQuality"))
+            context = variant_value(host.property("surfaceQualityContext"))
+
+            assert render_quality == {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            }
+            assert host.property("requestedQualityTier") == "reduced"
+            assert host.property("resolvedQualityTier") == "proxy"
+            assert bool(host.property("proxySurfaceRequested"))
+            assert loader.property("requestedQualityTier") == "reduced"
+            assert loader.property("resolvedQualityTier") == "proxy"
+            assert bool(loader.property("proxySurfaceRequested"))
+            assert not bool(loader.property("proxySurfaceActive"))
+            assert context["resolved_quality_tier"] == "proxy"
+            assert bool(context["proxy_surface_requested"])
+            assert surface.property("host").property("resolvedQualityTier") == "proxy"
+            assert loader.property("loadedSurfaceKey") == "media"
+            """,
+        )
+
     def test_standard_host_keeps_port_labels_tied_to_port_handles(self) -> None:
         self._run_qml_probe(
             "port-label-geometry-host",
