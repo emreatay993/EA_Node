@@ -30,6 +30,8 @@ Item {
     property bool inputEnabled: true
     property int _redrawRequestCount: 0
     property real viewportCullMarginPx: 96.0
+    property var _cachedNodeMap: null
+    property var _cachedEdgeGeometries: ({})
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
@@ -48,6 +50,28 @@ Item {
     function requestRedraw() {
         root._redrawRequestCount += 1;
         edgeCanvas.requestPaint();
+    }
+
+    function _invalidateGeometryCache() {
+        root._cachedNodeMap = null;
+        root._cachedEdgeGeometries = ({});
+    }
+
+    function _getNodeMap() {
+        if (root._cachedNodeMap !== null)
+            return root._cachedNodeMap;
+        root._cachedNodeMap = root._nodeMap();
+        return root._cachedNodeMap;
+    }
+
+    function _getCachedEdgeGeometry(edge, nodeById) {
+        var edgeId = edge.edge_id;
+        var cached = root._cachedEdgeGeometries[edgeId];
+        if (cached !== undefined)
+            return cached;
+        var geometry = root._edgeGeometry(edge, nodeById);
+        root._cachedEdgeGeometries[edgeId] = geometry;
+        return geometry;
     }
 
     function sceneToScreenX(worldX) {
@@ -383,7 +407,7 @@ Item {
     }
 
     function _edgeCullState(edge, nodeById, viewportBounds) {
-        var geometry = root._edgeGeometry(edge, nodeById);
+        var geometry = root._getCachedEdgeGeometry(edge, nodeById);
         var sceneBounds = root._geometrySceneBounds(geometry);
         var visibleBounds = viewportBounds || root._expandedVisibleSceneBounds();
         var culled = sceneBounds && visibleBounds ? !root._rectIntersects(sceneBounds, visibleBounds) : false;
@@ -697,7 +721,7 @@ Item {
             ctx.reset();
             var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
             var edgesList = root.edges || [];
-            var nodeById = root._nodeMap();
+            var nodeById = root._getNodeMap();
             var viewportBounds = root._expandedVisibleSceneBounds();
 
             for (var i = 0; i < edgesList.length; i++) {
@@ -783,7 +807,7 @@ Item {
     Item {
         id: flowLabelLayer
         anchors.fill: parent
-        readonly property var nodeById: root._nodeMap()
+        readonly property var nodeById: root._getNodeMap()
         readonly property var viewportBounds: root._expandedVisibleSceneBounds()
 
         Repeater {
@@ -870,10 +894,10 @@ Item {
         }
     }
 
-    onEdgesChanged: requestRedraw()
-    onNodesChanged: requestRedraw()
-    onDragOffsetsChanged: requestRedraw()
-    onLiveNodeGeometryChanged: requestRedraw()
+    onEdgesChanged: { _invalidateGeometryCache(); requestRedraw(); }
+    onNodesChanged: { _invalidateGeometryCache(); requestRedraw(); }
+    onDragOffsetsChanged: { _invalidateGeometryCache(); requestRedraw(); }
+    onLiveNodeGeometryChanged: { _invalidateGeometryCache(); requestRedraw(); }
     onSelectedEdgeIdsChanged: requestRedraw()
     onPreviewEdgeIdChanged: requestRedraw()
     onDragConnectionChanged: requestRedraw()

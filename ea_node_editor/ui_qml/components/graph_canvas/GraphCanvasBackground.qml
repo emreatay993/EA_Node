@@ -58,32 +58,28 @@ Item {
 
             ctx.lineWidth = 1;
             ctx.strokeStyle = root.minorGridColor;
+            ctx.beginPath();
             for (var x = minorStartX; x <= width; x += step) {
-                ctx.beginPath();
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, height);
-                ctx.stroke();
             }
             for (var y = minorStartY; y <= height; y += step) {
-                ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(width, y);
-                ctx.stroke();
             }
+            ctx.stroke();
 
             ctx.strokeStyle = root.majorGridColor;
+            ctx.beginPath();
             for (x = majorStartX; x <= width; x += major) {
-                ctx.beginPath();
                 ctx.moveTo(x, 0);
                 ctx.lineTo(x, height);
-                ctx.stroke();
             }
             for (y = majorStartY; y <= height; y += major) {
-                ctx.beginPath();
                 ctx.moveTo(0, y);
                 ctx.lineTo(width, y);
-                ctx.stroke();
             }
+            ctx.stroke();
         }
     }
 }
