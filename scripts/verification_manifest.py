@@ -8,6 +8,9 @@ LOCAL_VENV_PYTHON_DISPLAY = "./venv/Scripts/python.exe"
 RUN_VERIFICATION_SCRIPT = "scripts/run_verification.py"
 CHECK_TRACEABILITY_SCRIPT = "scripts/check_traceability.py"
 OFFSCREEN_ENV = {"QT_QPA_PLATFORM": "offscreen"}
+WORKTREE_PYTEST_IGNORE_PATHS = ("venv",)
+SHELL_LIFECYCLE_TRUTH = "fresh-process shell isolation"
+SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE = "one isolated child process"
 
 MODE_NAMES = ("fast", "gui", "slow", "full")
 MAX_GUI_PARALLEL_WORKERS = 6
@@ -182,6 +185,12 @@ def non_shell_pytest_ignore_args() -> tuple[str, ...]:
     return tuple(f"--ignore={path}" for path in NON_SHELL_PYTEST_IGNORES)
 
 
+def worktree_pytest_ignore_args() -> tuple[str, ...]:
+    """Return pytest ignore arguments required by packet worktrees."""
+
+    return tuple(f"--ignore={path}" for path in WORKTREE_PYTEST_IGNORE_PATHS)
+
+
 def run_verification_command(mode: str, *, dry_run: bool = False) -> str:
     """Return the documented developer-facing verification command."""
 
@@ -191,20 +200,43 @@ def run_verification_command(mode: str, *, dry_run: bool = False) -> str:
     return " ".join(argv)
 
 
+def shell_isolation_phase_pytest_args(
+    worker_count: int | str | None = "<resolved_count>",
+) -> tuple[str, ...]:
+    """Return argv for the dedicated shell-isolation pytest phase."""
+
+    argv = ("-m", "pytest", SHELL_ISOLATION_PHASE_TEST, "-q")
+    if worker_count is not None:
+        return (*argv, "-n", str(worker_count), "--dist", "load")
+    return argv
+
+
 def shell_isolation_pytest_command(worker_count: int | str | None = "<resolved_count>") -> str:
     """Return the documented dedicated shell-isolation pytest command."""
 
     argv = [
         "QT_QPA_PLATFORM=offscreen",
         LOCAL_VENV_PYTHON_DISPLAY,
-        "-m",
-        "pytest",
-        SHELL_ISOLATION_PHASE_TEST,
-        "-q",
+        *shell_isolation_phase_pytest_args(worker_count),
     ]
-    if worker_count is not None:
-        argv.extend(["-n", str(worker_count), "--dist", "load"])
     return " ".join(argv)
+
+
+def shell_isolation_target_catalog_module_names() -> tuple[str, ...]:
+    """Return the target catalog module names for shell-isolated child runs."""
+
+    return tuple(
+        path.removesuffix(".py").replace("/", ".")
+        for path in SHELL_ISOLATION_SPEC.target_catalog_paths
+    )
+
+
+def shell_isolation_target_pytest_args(*nodeids: str) -> tuple[str, ...]:
+    """Return argv for one or more shell-isolated pytest child targets."""
+
+    if not nodeids:
+        raise ValueError("shell_isolation_target_pytest_args requires at least one nodeid.")
+    return ("-m", "pytest", *worktree_pytest_ignore_args(), *nodeids, "-q")
 
 
 def shell_direct_unittest_commands() -> tuple[str, ...]:

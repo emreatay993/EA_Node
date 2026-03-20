@@ -11,6 +11,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_VERIFICATION_PATH = REPO_ROOT / "scripts" / "run_verification.py"
 VERIFICATION_MANIFEST_PATH = REPO_ROOT / "scripts" / "verification_manifest.py"
 CONFTEST_PATH = REPO_ROOT / "tests" / "conftest.py"
+SHELL_ISOLATION_RUNTIME_PATH = REPO_ROOT / "tests" / "shell_isolation_runtime.py"
 
 
 def load_module(module_name: str, module_path: Path):
@@ -29,6 +30,10 @@ class RunVerificationTests(unittest.TestCase):
         cls.manifest = load_module("verification_manifest_under_test", VERIFICATION_MANIFEST_PATH)
         cls.runner = load_module("run_verification_under_test", RUN_VERIFICATION_PATH)
         cls.packet_conftest = load_module("packet_conftest_under_test", CONFTEST_PATH)
+        cls.shell_runtime = load_module(
+            "shell_isolation_runtime_under_test",
+            SHELL_ISOLATION_RUNTIME_PATH,
+        )
 
     def assert_pytest_phase_command(
         self,
@@ -59,13 +64,10 @@ class RunVerificationTests(unittest.TestCase):
     ) -> None:
         expected = [
             "./venv/Scripts/python.exe",
-            "-m",
-            "pytest",
-            self.manifest.SHELL_ISOLATION_SPEC.test_path,
-            "-q",
+            *self.manifest.shell_isolation_phase_pytest_args(
+                worker_count if use_xdist else None
+            ),
         ]
-        if use_xdist:
-            expected.extend(["-n", str(worker_count), "--dist", "load"])
         self.assertEqual(self.manifest.SHELL_ISOLATION_SPEC.phase, command.phase)
         self.assertEqual(tuple(expected), command.display_argv)
 
@@ -143,6 +145,31 @@ class RunVerificationTests(unittest.TestCase):
         self.assertEqual(
             "pytest-xdist is unavailable; falling back to serial pytest for gui mode.",
             gui_command.notice,
+        )
+
+    def test_resolve_python_falls_back_to_current_venv_when_worktree_helper_is_inaccessible(self) -> None:
+        with (
+            patch.object(self.runner, "local_venv_python_exists", return_value=False),
+            patch.object(self.runner, "current_python_matches_project_venv", return_value=True),
+            patch.object(self.runner.sys, "executable", "C:/real/project/venv/Scripts/python.exe"),
+        ):
+            python_exec, python_display = self.runner.resolve_python()
+
+        self.assertEqual("C:/real/project/venv/Scripts/python.exe", python_exec)
+        self.assertEqual("./venv/Scripts/python.exe", python_display)
+
+    def test_shell_isolation_runtime_uses_manifest_owned_pytest_child_args(self) -> None:
+        nodeid = "tests/main_window_shell/passive_image_nodes.py::MainWindowShellPassiveImageNodesTests"
+        expected = (
+            sys.executable,
+            *self.manifest.shell_isolation_target_pytest_args(nodeid),
+        )
+        self.assertEqual(expected, self.shell_runtime.build_pytest_nodeid_command(nodeid))
+
+    def test_shell_isolation_runtime_uses_manifest_owned_target_catalogs(self) -> None:
+        self.assertEqual(
+            self.manifest.shell_isolation_target_catalog_module_names(),
+            ("tests.shell_isolation_main_window_targets", "tests.shell_isolation_controller_targets"),
         )
 
     def test_pytest_marker_catalogs_follow_verification_manifest(self) -> None:

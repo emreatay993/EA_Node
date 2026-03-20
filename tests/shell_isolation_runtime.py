@@ -1,6 +1,7 @@
 """Shared runtime for shell-isolated verification targets."""
 from __future__ import annotations
 
+import importlib
 import os
 import subprocess
 import sys
@@ -8,12 +9,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from tests import shell_isolation_controller_targets
-from tests import shell_isolation_main_window_targets
+try:
+    import verification_manifest as manifest
+except ModuleNotFoundError:
+    import scripts.verification_manifest as manifest
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_QT_PLATFORM_ENV = "QT_QPA_PLATFORM"
-_QT_PLATFORM_VALUE = "offscreen"
 _PROJECT_SESSION_SCENARIO_ARG = "--scenario"
 _PROJECT_SESSION_SCENARIO_MODULE = "tests.test_shell_project_session_controller"
 
@@ -44,7 +45,13 @@ def build_unittest_target_list_command(dotted_targets: Sequence[str]) -> tuple[s
 
 
 def build_pytest_nodeid_command(nodeid: str) -> tuple[str, ...]:
-    return (sys.executable, "-m", "pytest", nodeid, "-q")
+    return (sys.executable, *manifest.shell_isolation_target_pytest_args(nodeid))
+
+
+def build_pytest_nodeid_list_command(nodeids: Sequence[str]) -> tuple[str, ...]:
+    if not nodeids:
+        raise ValueError("pytest_nodeid_list requires at least one nodeid.")
+    return (sys.executable, *manifest.shell_isolation_target_pytest_args(*nodeids))
 
 
 def build_project_session_scenario_command(scenario_name: str) -> tuple[str, ...]:
@@ -122,6 +129,20 @@ class ShellIsolationTarget:
         )
 
     @classmethod
+    def pytest_nodeid_list(
+        cls,
+        target_id: str,
+        nodeids: Sequence[str],
+        *,
+        extra_env: Mapping[str, str] | None = None,
+    ) -> "ShellIsolationTarget":
+        return cls(
+            target_id=target_id,
+            command=build_pytest_nodeid_list_command(nodeids),
+            extra_env=_normalized_env_overrides(extra_env),
+        )
+
+    @classmethod
     def project_session_scenario(
         cls,
         scenario_name: str,
@@ -142,11 +163,8 @@ class ShellIsolationTarget:
 
 def load_target_registry() -> dict[str, ShellIsolationTarget]:
     registry: dict[str, ShellIsolationTarget] = {}
-    catalog_modules = (
-        ("tests.shell_isolation_main_window_targets", shell_isolation_main_window_targets),
-        ("tests.shell_isolation_controller_targets", shell_isolation_controller_targets),
-    )
-    for module_name, catalog_module in catalog_modules:
+    for module_name in manifest.shell_isolation_target_catalog_module_names():
+        catalog_module = importlib.import_module(module_name)
         targets = getattr(catalog_module, "TARGETS", ())
         for target in targets:
             if not isinstance(target, ShellIsolationTarget):
@@ -183,7 +201,7 @@ def run_shell_isolation_target(
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.update(target.env_overrides)
-    env[_QT_PLATFORM_ENV] = _QT_PLATFORM_VALUE
+    env.update(manifest.OFFSCREEN_ENV)
     return subprocess.run(
         target.command,
         cwd=_PROJECT_ROOT,

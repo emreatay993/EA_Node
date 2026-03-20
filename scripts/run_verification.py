@@ -33,9 +33,22 @@ class CommandSpec:
     notice: str | None = None
 
 
+def local_venv_python_exists() -> bool:
+    try:
+        return LOCAL_VENV_PYTHON.exists()
+    except OSError:
+        return False
+
+
+def current_python_matches_project_venv() -> bool:
+    return Path(sys.executable).as_posix().lower().endswith("/venv/scripts/python.exe")
+
+
 def resolve_python() -> tuple[str, str]:
-    if LOCAL_VENV_PYTHON.exists():
+    if local_venv_python_exists():
         return str(LOCAL_VENV_PYTHON), manifest.LOCAL_VENV_PYTHON_DISPLAY
+    if current_python_matches_project_venv():
+        return sys.executable, manifest.LOCAL_VENV_PYTHON_DISPLAY
     return sys.executable, sys.executable
 
 
@@ -94,17 +107,11 @@ def build_shell_isolation_phase_command(
     worker_count: int,
     notice: str | None = None,
 ) -> CommandSpec:
-    argv = [python_exec, "-m", "pytest", manifest.SHELL_ISOLATION_SPEC.test_path, "-q"]
-    display_argv = [
-        python_display,
-        "-m",
-        "pytest",
-        manifest.SHELL_ISOLATION_SPEC.test_path,
-        "-q",
-    ]
-    if use_xdist:
-        argv.extend(["-n", str(worker_count), "--dist", "load"])
-        display_argv.extend(["-n", str(worker_count), "--dist", "load"])
+    phase_args = manifest.shell_isolation_phase_pytest_args(
+        worker_count if use_xdist else None
+    )
+    argv = [python_exec, *phase_args]
+    display_argv = [python_display, *phase_args]
     return CommandSpec(
         phase=manifest.SHELL_ISOLATION_SPEC.phase,
         argv=tuple(argv),

@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import QApplication, QMessageBox
 from ea_node_editor.custom_workflows import import_custom_workflow_file
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.window import ShellWindow
+from scripts import verification_manifest as manifest
 from tests.conftest import ShellTestEnvironment
 
 
@@ -51,6 +52,11 @@ def _flush_shell_qt_events(app: QApplication) -> None:
     app.processEvents()
 
 
+def _prepare_shell_test_process(app: QApplication) -> None:
+    _flush_shell_qt_events(app)
+    gc.collect()
+
+
 def _destroy_shell_window(window: ShellWindow | None) -> None:
     if window is None:
         return
@@ -69,6 +75,14 @@ def _destroy_shell_window(window: ShellWindow | None) -> None:
     window.deleteLater()
 
 
+def _create_shell_window(app: QApplication) -> ShellWindow:
+    window = ShellWindow()
+    window.resize(1200, 800)
+    window.show()
+    _flush_shell_qt_events(app)
+    return window
+
+
 class MainWindowShellTestBase(unittest.TestCase):
     """Base class for tests that need a full ``ShellWindow`` environment.
 
@@ -79,11 +93,7 @@ class MainWindowShellTestBase(unittest.TestCase):
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
         self.app.setQuitOnLastWindowClosed(False)
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.app.processEvents()
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.app.processEvents()
-        gc.collect()
+        _prepare_shell_test_process(self.app)
         self._env = ShellTestEnvironment()
         self._env.start()
         self._execution_client_patch = patch(
@@ -96,33 +106,13 @@ class MainWindowShellTestBase(unittest.TestCase):
         self._autosave_path = self._env.autosave_path
         self._app_preferences_path = self._env.app_preferences_path
         self._global_custom_workflows_path = self._env.global_custom_workflows_path
-        self.window = ShellWindow()
-        self.window.resize(1200, 800)
-        self.window.show()
-        self.app.sendPostedEvents()
-        self.app.processEvents()
-        self.app.processEvents()
+        self.window = _create_shell_window(self.app)
 
     def tearDown(self) -> None:
         window = self.window
-        for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
-            timer = getattr(window, timer_name, None)
-            if timer is not None:
-                timer.stop()
-        window.close()
-        quick_widget = getattr(window, "quick_widget", None)
-        if quick_widget is not None:
-            window.takeCentralWidget()
-            quick_widget.setSource(QUrl())
-            quick_widget.hide()
-            quick_widget.deleteLater()
-            window.quick_widget = None
-        window.deleteLater()
+        _destroy_shell_window(window)
         self.window = None
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.app.processEvents()
-        self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-        self.app.processEvents()
+        _flush_shell_qt_events(self.app)
         self._env.stop()
         self._execution_client_patch.stop()
         gc.collect()
@@ -227,6 +217,12 @@ class MainWindowShellTestBase(unittest.TestCase):
 
 
 class SharedMainWindowShellTestBase(MainWindowShellTestBase):
+    """Reuse a shell only within one already-isolated child process."""
+
+    _SHELL_LIFECYCLE_NOTE = (
+        f"{manifest.SHELL_LIFECYCLE_TRUTH} remains the outer contract; shared reuse is "
+        f"limited to {manifest.SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE}."
+    )
     _shared_env: ShellTestEnvironment | None = None
     _shared_execution_client_patch = None
     _shared_window: ShellWindow | None = None
@@ -235,8 +231,7 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
     def setUpClass(cls) -> None:
         cls.app = QApplication.instance() or QApplication([])
         cls.app.setQuitOnLastWindowClosed(False)
-        _flush_shell_qt_events(cls.app)
-        gc.collect()
+        _prepare_shell_test_process(cls.app)
         cls._shared_env = ShellTestEnvironment()
         cls._shared_env.start()
         cls._shared_execution_client_patch = patch(
@@ -271,11 +266,7 @@ class SharedMainWindowShellTestBase(MainWindowShellTestBase):
 
     @classmethod
     def _create_shared_window(cls) -> ShellWindow:
-        window = ShellWindow()
-        window.resize(1200, 800)
-        window.show()
-        _flush_shell_qt_events(cls.app)
-        return window
+        return _create_shell_window(cls.app)
 
     def setUp(self) -> None:
         cls = self.__class__

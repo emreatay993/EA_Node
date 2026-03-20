@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import pytest
 
 from tests.shell_isolation_runtime import format_child_output
@@ -19,6 +21,29 @@ def _target_params():
             marks=pytest.mark.skip(reason="Shell isolation target catalogs are empty in P01."),
         )
     ]
+
+
+def test_shell_isolation_target_catalog_uses_pytest_nodeids_for_bridge_local_pack() -> None:
+    target = resolve_target("main_window__bridge_local_pack")
+
+    assert target.command[0] == sys.executable
+    assert target.command[1:3] == ("-m", "pytest")
+    assert "--ignore=venv" in target.command
+    assert "tests/test_main_window_shell.py::ShellLibraryBridgeTests" in target.command
+    assert "tests/test_main_window_shell.py::MainWindowShellTelemetryTests" in target.command
+
+
+def test_shell_isolation_pytest_targets_ignore_worktree_venv() -> None:
+    target = resolve_target("main_window__graph_canvas_host_subprocess")
+
+    assert target.command == (
+        sys.executable,
+        "-m",
+        "pytest",
+        "--ignore=venv",
+        "tests/test_main_window_shell.py::_MainWindowShellGraphCanvasHostDirectTests",
+        "-q",
+    )
 
 
 @pytest.mark.parametrize(
