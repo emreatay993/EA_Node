@@ -87,18 +87,6 @@ Item {
         return geometry;
     }
 
-    function sceneToScreenX(worldX) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        var centerX = viewBridge ? viewBridge.center_x : 0.0;
-        return root.width * 0.5 + (worldX - centerX) * zoom;
-    }
-
-    function sceneToScreenY(worldY) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        var centerY = viewBridge ? viewBridge.center_y : 0.0;
-        return root.height * 0.5 + (worldY - centerY) * zoom;
-    }
-
     function _zoomValue() {
         var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;
         if (!isFinite(zoom) || zoom <= 0.0001)
@@ -106,8 +94,65 @@ Item {
         return zoom;
     }
 
+    function _viewportTransform() {
+        var zoom = root._zoomValue();
+        var centerX = viewBridge ? Number(viewBridge.center_x) : 0.0;
+        var centerY = viewBridge ? Number(viewBridge.center_y) : 0.0;
+        if (!isFinite(centerX))
+            centerX = 0.0;
+        if (!isFinite(centerY))
+            centerY = 0.0;
+        return {
+            "zoom": zoom,
+            "offsetX": root.width * 0.5 - centerX * zoom,
+            "offsetY": root.height * 0.5 - centerY * zoom
+        };
+    }
+
+    function _sceneXToScreen(worldX, viewportTransform) {
+        return Number(worldX) * viewportTransform.zoom + viewportTransform.offsetX;
+    }
+
+    function _sceneYToScreen(worldY, viewportTransform) {
+        return Number(worldY) * viewportTransform.zoom + viewportTransform.offsetY;
+    }
+
+    function sceneToScreenX(worldX) {
+        return root._sceneXToScreen(worldX, root._viewportTransform());
+    }
+
+    function sceneToScreenY(worldY) {
+        return root._sceneYToScreen(worldY, root._viewportTransform());
+    }
+
+    function _screenToSceneX(screenX, viewportTransform) {
+        return (Number(screenX) - viewportTransform.offsetX) / viewportTransform.zoom;
+    }
+
+    function _screenToSceneY(screenY, viewportTransform) {
+        return (Number(screenY) - viewportTransform.offsetY) / viewportTransform.zoom;
+    }
+
+    function _screenLengthToScene(screenLengthPx, viewportTransform) {
+        var transform = viewportTransform || root._viewportTransform();
+        return Math.max(0.0, Number(screenLengthPx || 0.0)) / transform.zoom;
+    }
+
     function _screenMarginToScene(screenMarginPx) {
-        return Math.max(0.0, Number(screenMarginPx || 0.0)) / root._zoomValue();
+        return root._screenLengthToScene(screenMarginPx);
+    }
+
+    function _dashPatternToScene(screenPattern, viewportTransform) {
+        var pattern = screenPattern || [];
+        var scenePattern = [];
+        for (var i = 0; i < pattern.length; i++)
+            scenePattern.push(root._screenLengthToScene(pattern[i], viewportTransform));
+        return scenePattern;
+    }
+
+    function _applyViewportTransform(ctx, viewportTransform) {
+        ctx.translate(viewportTransform.offsetX, viewportTransform.offsetY);
+        ctx.scale(viewportTransform.zoom, viewportTransform.zoom);
     }
 
     function _expandedVisibleSceneBounds() {
@@ -531,6 +576,37 @@ Item {
         return [];
     }
 
+    function _traceBezierGeometry(ctx, geometry) {
+        ctx.moveTo(geometry.sx, geometry.sy);
+        ctx.bezierCurveTo(
+            geometry.c1x,
+            geometry.c1y,
+            geometry.c2x,
+            geometry.c2y,
+            geometry.tx,
+            geometry.ty
+        );
+    }
+
+    function _traceGeometry(ctx, geometry) {
+        if (!geometry)
+            return;
+        if (geometry.route === "pipe") {
+            var pipePoints = geometry.pipe_points || [];
+            for (var i = 0; i < pipePoints.length; i++) {
+                var point = pipePoints[i];
+                if (i === 0)
+                    ctx.moveTo(point.x, point.y);
+                else
+                    ctx.lineTo(point.x, point.y);
+            }
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            return;
+        }
+        root._traceBezierGeometry(ctx, geometry);
+    }
+
     function _edgeAnchor(geometry, fraction) {
         if (!geometry)
             return null;
@@ -617,24 +693,25 @@ Item {
             normalX = -normalX;
             normalY = -normalY;
         }
+        var viewportTransform = root._viewportTransform();
         return {
-            "screen_x": root.sceneToScreenX(anchor.x) + normalX * 18.0,
-            "screen_y": root.sceneToScreenY(anchor.y) + normalY * 18.0,
+            "screen_x": root._sceneXToScreen(anchor.x, viewportTransform) + normalX * 18.0,
+            "screen_y": root._sceneYToScreen(anchor.y, viewportTransform) + normalY * 18.0,
             "angle": anchor.angle
         };
     }
 
-    function _drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom) {
+    function _drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom, viewportTransform) {
         var arrowHead = root._flowArrowHead(edge);
         if (arrowHead === "none")
             return;
         var anchor = root._edgeAnchor(geometry, 1.0);
         if (!anchor)
             return;
-        var tipX = root.sceneToScreenX(anchor.x);
-        var tipY = root.sceneToScreenY(anchor.y);
-        var size = Math.max(6.0, 8.0 * zoom);
-        var wing = Math.max(3.0, 4.5 * zoom);
+        var tipX = anchor.x;
+        var tipY = anchor.y;
+        var size = root._screenLengthToScene(Math.max(6.0, 8.0 * zoom), viewportTransform);
+        var wing = root._screenLengthToScene(Math.max(3.0, 4.5 * zoom), viewportTransform);
         var baseX = tipX - anchor.dx * size;
         var baseY = tipY - anchor.dy * size;
         var normalX = -anchor.dy;
@@ -650,7 +727,7 @@ Item {
         ctx.lineCap = "round";
         ctx.strokeStyle = strokeColor;
         ctx.fillStyle = strokeColor;
-        ctx.lineWidth = Math.max(1.0, 1.4 * zoom);
+        ctx.lineWidth = root._screenLengthToScene(Math.max(1.0, 1.4 * zoom), viewportTransform);
         ctx.beginPath();
         ctx.moveTo(leftX, leftY);
         ctx.lineTo(tipX, tipY);
@@ -669,34 +746,26 @@ Item {
         return (root.selectedEdgeIds || []).indexOf(edgeId) >= 0;
     }
 
-    function _edgeDistanceAtScreen(geometry, screenX, screenY) {
+    function _edgeDistanceAtScreen(geometry, screenX, screenY, viewportTransform) {
         if (!geometry)
             return Number.POSITIVE_INFINITY;
+        var sceneX = root._screenToSceneX(screenX, viewportTransform);
+        var sceneY = root._screenToSceneY(screenY, viewportTransform);
         if (geometry.route === "pipe") {
-            var screenPoints = [];
-            var pipePoints = geometry.pipe_points || [];
-            for (var i = 0; i < pipePoints.length; i++) {
-                screenPoints.push(
-                    {
-                        "x": root.sceneToScreenX(pipePoints[i].x),
-                        "y": root.sceneToScreenY(pipePoints[i].y)
-                    }
-                );
-            }
-            return EdgeMath.distancePolyline(screenX, screenY, screenPoints);
+            return EdgeMath.distancePolyline(sceneX, sceneY, geometry.pipe_points || []);
         }
 
         return EdgeMath.distanceBezier(
-            screenX,
-            screenY,
-            root.sceneToScreenX(geometry.sx),
-            root.sceneToScreenY(geometry.sy),
-            root.sceneToScreenX(geometry.c1x),
-            root.sceneToScreenY(geometry.c1y),
-            root.sceneToScreenX(geometry.c2x),
-            root.sceneToScreenY(geometry.c2y),
-            root.sceneToScreenX(geometry.tx),
-            root.sceneToScreenY(geometry.ty),
+            sceneX,
+            sceneY,
+            geometry.sx,
+            geometry.sy,
+            geometry.c1x,
+            geometry.c1y,
+            geometry.c2x,
+            geometry.c2y,
+            geometry.tx,
+            geometry.ty,
             28
         );
     }
@@ -707,15 +776,16 @@ Item {
             return "";
         var nodeById = _nodeMap();
         var viewportBounds = root._expandedVisibleSceneBounds();
+        var viewportTransform = root._viewportTransform();
         var bestId = "";
         var bestDistance = Number.POSITIVE_INFINITY;
-        var threshold = 8.0;
+        var threshold = root._screenLengthToScene(8.0, viewportTransform);
         for (var i = edgesList.length - 1; i >= 0; i--) {
             var edge = edgesList[i];
             var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
             if (cullState.culled || !cullState.geometry)
                 continue;
-            var distance = _edgeDistanceAtScreen(cullState.geometry, screenX, screenY);
+            var distance = _edgeDistanceAtScreen(cullState.geometry, screenX, screenY, viewportTransform);
             if (distance < bestDistance && distance <= threshold) {
                 bestDistance = distance;
                 bestId = edge.edge_id;
@@ -732,10 +802,14 @@ Item {
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
-            var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
+            var zoom = root._zoomValue();
             var edgesList = root.edges || [];
             var nodeById = root._getNodeMap();
             var viewportBounds = root._expandedVisibleSceneBounds();
+            var viewportTransform = root._viewportTransform();
+
+            ctx.save();
+            root._applyViewportTransform(ctx, viewportTransform);
 
             for (var i = 0; i < edgesList.length; i++) {
                 var edge = edgesList[i];
@@ -748,43 +822,26 @@ Item {
                 var flowEdge = root._edgeIsFlow(edge);
                 ctx.save();
                 ctx.beginPath();
-                if (geometry.route === "pipe") {
-                    var pipePoints = geometry.pipe_points || [];
-                    for (var j = 0; j < pipePoints.length; j++) {
-                        var point = pipePoints[j];
-                        var px = root.sceneToScreenX(point.x);
-                        var py = root.sceneToScreenY(point.y);
-                        if (j === 0)
-                            ctx.moveTo(px, py);
-                        else
-                            ctx.lineTo(px, py);
-                    }
-                    ctx.lineJoin = "round";
-                    ctx.lineCap = "round";
-                } else {
-                    ctx.moveTo(root.sceneToScreenX(geometry.sx), root.sceneToScreenY(geometry.sy));
-                    ctx.bezierCurveTo(
-                        root.sceneToScreenX(geometry.c1x),
-                        root.sceneToScreenY(geometry.c1y),
-                        root.sceneToScreenX(geometry.c2x),
-                        root.sceneToScreenY(geometry.c2y),
-                        root.sceneToScreenX(geometry.tx),
-                        root.sceneToScreenY(geometry.ty)
-                    );
-                }
+                root._traceGeometry(ctx, geometry);
 
                 if (flowEdge) {
                     var flowStrokeColor = root._flowStrokeColor(edge, selected, previewed);
                     ctx.strokeStyle = flowStrokeColor;
-                    ctx.lineWidth = root._flowStrokeWidth(edge, selected, previewed, zoom);
-                    ctx.setLineDash(root._flowDashPattern(edge, zoom));
+                    ctx.lineWidth = root._screenLengthToScene(
+                        root._flowStrokeWidth(edge, selected, previewed, zoom),
+                        viewportTransform
+                    );
+                    ctx.setLineDash(root._dashPatternToScene(root._flowDashPattern(edge, zoom), viewportTransform));
                     ctx.stroke();
-                    root._drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom);
+                    root._drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom, viewportTransform);
                 } else {
                     ctx.strokeStyle = selected
                         ? root.selectedStrokeColor
                         : (previewed ? root.previewStrokeColor : (edge.color || root.fallbackStrokeColor));
-                    ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
+                    ctx.lineWidth = root._screenLengthToScene(
+                        Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom),
+                        viewportTransform
+                    );
                     ctx.stroke();
                 }
                 ctx.restore();
@@ -796,24 +853,25 @@ Item {
                 if (dragGeometry) {
                     ctx.save();
                     ctx.beginPath();
-                    ctx.moveTo(root.sceneToScreenX(dragGeometry.sx), root.sceneToScreenY(dragGeometry.sy));
-                    ctx.bezierCurveTo(
-                        root.sceneToScreenX(dragGeometry.c1x),
-                        root.sceneToScreenY(dragGeometry.c1y),
-                        root.sceneToScreenX(dragGeometry.c2x),
-                        root.sceneToScreenY(dragGeometry.c2y),
-                        root.sceneToScreenX(dragGeometry.tx),
-                        root.sceneToScreenY(dragGeometry.ty)
-                    );
+                    root._traceBezierGeometry(ctx, dragGeometry);
                     ctx.strokeStyle = liveDrag.valid_drop ? root.validDragStrokeColor : root.invalidDragStrokeColor;
-                    ctx.lineWidth = Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom);
-                    ctx.setLineDash([Math.max(2.0, 6.0 * zoom), Math.max(1.0, 4.0 * zoom)]);
+                    ctx.lineWidth = root._screenLengthToScene(
+                        Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom),
+                        viewportTransform
+                    );
+                    ctx.setLineDash(
+                        root._dashPatternToScene(
+                            [Math.max(2.0, 6.0 * zoom), Math.max(1.0, 4.0 * zoom)],
+                            viewportTransform
+                        )
+                    );
                     ctx.lineCap = "round";
                     ctx.stroke();
                     ctx.restore();
                 }
             }
 
+            ctx.restore();
         }
     }
 

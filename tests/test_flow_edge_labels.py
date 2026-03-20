@@ -147,6 +147,28 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 visit(root)
                 return matches
 
+            def edges_by_id(scene):
+                return {item["edge_id"]: item for item in scene.edges_model}
+
+            def to_variant(value):
+                return value.toVariant() if hasattr(value, "toVariant") else value
+
+            def assert_edge_screen_hit(edge_layer, edge_id, anchor):
+                screen_x = edge_layer.sceneToScreenX(anchor["x"])
+                screen_y = edge_layer.sceneToScreenY(anchor["y"])
+                normal_x = -anchor["dy"]
+                normal_y = anchor["dx"]
+
+                assert edge_layer.edgeAtScreen(screen_x, screen_y) == edge_id
+                assert edge_layer.edgeAtScreen(
+                    screen_x + normal_x * 6.0,
+                    screen_y + normal_y * 6.0,
+                ) == edge_id
+                assert edge_layer.edgeAtScreen(
+                    screen_x + normal_x * 10.0,
+                    screen_y + normal_y * 10.0,
+                ) == ""
+
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
@@ -297,6 +319,69 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert culled_label.property("geometry") is not None
             assert culled_label.property("labelAnchor") is not None
             assert not visible_label.isVisible()
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_flow_edge_hit_testing_keeps_screen_pick_threshold_across_zoom(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-hit-threshold",
+            """
+            labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")
+            assert len(labels) == 1
+            geometry = to_variant(labels[0].property("geometry"))
+            assert geometry is not None
+            anchor = to_variant(edge_layer._edgeAnchor(geometry, 0.5))
+            assert anchor is not None
+
+            view.centerOn(anchor["x"], anchor["y"])
+            app.processEvents()
+            assert_edge_screen_hit(edge_layer, edge_id, anchor)
+
+            view.set_zoom(2.0)
+            app.processEvents()
+            assert_edge_screen_hit(edge_layer, edge_id, anchor)
+
+            view.set_zoom(0.5)
+            app.processEvents()
+            assert_edge_screen_hit(edge_layer, edge_id, anchor)
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_pipe_flow_edge_hit_testing_keeps_screen_pick_threshold_across_zoom(self) -> None:
+        self._run_qml_probe(
+            "flow-pipe-edge-hit-threshold",
+            """
+            pipe_source_id = scene.add_node_from_type("passive.flowchart.process", 520.0, 40.0)
+            pipe_target_id = scene.add_node_from_type("passive.flowchart.process", 544.0, 260.0)
+            pipe_edge_id = scene.add_edge(pipe_source_id, "flow_out", pipe_target_id, "flow_in")
+            app.processEvents()
+
+            pipe_edge = edges_by_id(scene)[pipe_edge_id]
+            assert pipe_edge["route"] == "pipe"
+            anchor = to_variant(edge_layer._edgeAnchor(pipe_edge, 0.5))
+            assert anchor is not None
+
+            view.centerOn(anchor["x"], anchor["y"])
+            app.processEvents()
+            assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
+
+            view.set_zoom(2.0)
+            app.processEvents()
+            assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
+
+            view.set_zoom(0.5)
+            app.processEvents()
+            assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
 
             canvas.deleteLater()
             app.processEvents()
