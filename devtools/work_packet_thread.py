@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
 
-from ea_node_editor.work_packet_runner import (
+from devtools.work_packet_runner import (
     PacketDefinition,
     PacketRunnerError,
     PacketSet,

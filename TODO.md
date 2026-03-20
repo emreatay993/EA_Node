@@ -145,6 +145,35 @@
 - `ea_node_editor/nodes/builtins/subnode.py`
 - `docs/specs/work_packets/arch_fourth_pass/ARCH_FOURTH_PASS_QA_MATRIX.md`
 
+### 8. Make `workspace/manager.py` the Public Workspace Lifecycle Authority
+
+**Status:** Deferred follow-up
+
+**Goal:** Make `ea_node_editor/workspace/manager.py` the single public authority for workspace lifecycle and ordering because it already owns `workspace_order` semantics.
+
+**Why This Matters:**
+- Workspace lifecycle rules are currently split between `GraphModel` and `WorkspaceManager`
+- `GraphModel.close_workspace(...)` falls back by raw dict iteration, while `WorkspaceManager.close_workspace(...)` follows `metadata["workspace_order"]`
+- Duplicated ownership makes active-workspace fallback, duplication placement, and future tab-order behavior harder to reason about and test
+
+**Authority Decision:**
+- Treat `WorkspaceManager` as the public API for create/duplicate/rename/close/set-active workspace flows
+- Keep ordering semantics and active-workspace fallback decisions in the workspace layer
+- Reduce direct lifecycle callers of `GraphModel` to internal implementation details or remove those public methods entirely once migration is complete
+
+**Expected Cleanup Scope:**
+- Route workspace lifecycle callers through `WorkspaceManager`
+- Decide whether view lifecycle should follow the same pattern or stay explicitly model-owned
+- Tighten tests so one layer, not two, defines the expected close/duplicate/order behavior
+- Update architecture docs after the ownership boundary is settled
+
+**Key Files:**
+- `ea_node_editor/workspace/manager.py`
+- `ea_node_editor/workspace/ownership.py`
+- `ea_node_editor/graph/model.py`
+- `tests/test_workspace_manager.py`
+- `tests/test_shell_project_session_controller.py`
+
 ## Implemented
 
 ### Shell/Scene/QML Boundary Ownership Refactor

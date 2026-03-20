@@ -28,7 +28,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ea_node_editor.work_packet_runner import (
+from devtools.work_packet_runner import (
     PACKET_FILE_RE,
     PacketDefinition,
     PacketRunnerError,
@@ -195,7 +195,7 @@ class WorkPacketMonitorWindow(QMainWindow):
         parent=None,
     ) -> None:
         super().__init__(parent)
-        self.repo_root = (repo_root or Path(__file__).resolve().parents[2]).resolve()
+        self.repo_root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
         self.packet_root = (
             packet_root or self.repo_root / "docs" / "specs" / "work_packets"
         ).resolve()

@@ -2,13 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ea_node_editor.work_packet_runner import (
+from devtools.work_packet_runner import (
     PacketRunnerError,
     discover_packet_set_dirs,
     load_packet_set,
     select_next_ready_packet,
 )
-from ea_node_editor.work_packet_thread import (
+from devtools.work_packet_thread import (
     PacketThreadError,
     packet_set_relative_path,
     safe_worktree_leaf,
