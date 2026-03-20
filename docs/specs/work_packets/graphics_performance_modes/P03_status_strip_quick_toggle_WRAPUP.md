@@ -5,7 +5,7 @@
 - Packet: `P03`
 - Branch Label: `codex/graphics-performance-modes/p03-status-strip-quick-toggle`
 - Commit Owner: `worker`
-- Commit SHA: `n/a`
+- Commit SHA: `7ca07d9b26272bc02484a5a96b096244a8299c4b`
 - Changed Files: `ea_node_editor/ui_qml/MainShell.qml`, `ea_node_editor/ui_qml/components/shell/ShellStatusStrip.qml`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_main_window_shell.py`, `tests/main_window_shell/shell_runtime_contracts.py`, `tests/main_window_shell/bridge_qml_boundaries.py`, `docs/specs/work_packets/graphics_performance_modes/P03_status_strip_quick_toggle_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/graphics_performance_modes/P03_status_strip_quick_toggle_WRAPUP.md`
 - Runtime Path Reused: `ShellStatusStrip.canvasBridgeRef` -> `GraphCanvasBridge.set_graphics_performance_mode(...)` -> `ShellWindow.set_graphics_performance_mode(...)` -> `AppPreferencesController.update_graphics_settings(...)`
