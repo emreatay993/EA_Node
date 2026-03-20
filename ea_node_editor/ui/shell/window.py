@@ -49,7 +49,11 @@ from ea_node_editor.ui.dialogs.passive_style_controls import (
     normalize_passive_node_style_payload,
 )
 from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
-from ea_node_editor.ui.shell.composition import bootstrap_shell_window, build_shell_window_composition
+from ea_node_editor.ui.shell.composition import (
+    ShellWindowComposition,
+    bootstrap_shell_window,
+    build_shell_window_composition,
+)
 from ea_node_editor.ui.shell.controllers import (
     AppPreferencesController,
     ProjectSessionController,
@@ -158,7 +162,7 @@ class ShellWindow(QMainWindow):
         SUBNODE_OUTPUT_TYPE_ID,
     }
 
-    def __init__(self, composition: object | None = None, *, _defer_bootstrap: bool = False) -> None:
+    def __init__(self, composition: ShellWindowComposition | None = None, *, _defer_bootstrap: bool = False) -> None:
         super().__init__()
         if _defer_bootstrap:
             return

@@ -148,6 +148,22 @@ class AppBootstrapTests(unittest.TestCase):
         self.app.sendPostedEvents()
         self.app.processEvents()
 
+    def test_build_shell_window_composition_returns_typed_contract(self) -> None:
+        window = shell_window_module.ShellWindow(_defer_bootstrap=True)
+
+        composition = shell_composition_module.build_shell_window_composition(window)
+
+        self.assertIsInstance(composition, shell_composition_module.ShellWindowComposition)
+        self.assertIsInstance(composition.state, shell_composition_module.ShellStateDependencies)
+        self.assertIsInstance(composition.primitives, shell_composition_module.ShellPrimitiveDependencies)
+        self.assertIsInstance(composition.controllers, shell_composition_module.ShellControllerDependencies)
+        self.assertIsInstance(composition.presenters, shell_composition_module.ShellPresenterDependencies)
+        self.assertIsInstance(composition.context_bridges, shell_composition_module.ShellContextBridgeDependencies)
+        window.close()
+        window.deleteLater()
+        self.app.sendPostedEvents()
+        self.app.processEvents()
+
     def test_shell_window_accepts_injected_composition_bundle(self) -> None:
         composition = object()
         with patch.object(shell_window_module, "build_shell_window_composition") as build_composition_mock, patch.object(

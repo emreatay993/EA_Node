@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QTimer, Qt
@@ -35,13 +35,14 @@ from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.shell_context_bootstrap import (
     ShellContextBridges,
     bootstrap_shell_qml_context,
-    create_shell_context_bridges,
 )
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
@@ -58,7 +59,7 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
-class _ShellStateBundle:
+class ShellStateDependencies:
     state: ShellState
     project_session_state: object
     library_filter_state: object
@@ -66,9 +67,17 @@ class _ShellStateBundle:
     search_scope_state: object
     workspace_ui_state: object
 
+    def attach(self, host: "ShellWindow") -> None:
+        host.state = self.state
+        host.project_session_state = self.project_session_state
+        host.library_filter_state = self.library_filter_state
+        host.run_state = self.run_state
+        host.search_scope_state = self.search_scope_state
+        host.workspace_ui_state = self.workspace_ui_state
+
 
 @dataclass(frozen=True, slots=True)
-class _ShellPrimitiveBundle:
+class ShellPrimitiveDependencies:
     registry: object
     serializer: JsonProjectSerializer
     _session_store: object
@@ -96,9 +105,37 @@ class _ShellPrimitiveBundle:
     theme_bridge: ThemeBridge
     graph_theme_bridge: GraphThemeBridge
 
+    def attach(self, host: "ShellWindow") -> None:
+        host.registry = self.registry
+        host.serializer = self.serializer
+        host._session_store = self._session_store
+        host.session_store = self.session_store
+        host.model = self.model
+        host.workspace_manager = self.workspace_manager
+        host.runtime_history = self.runtime_history
+        host.scene = self.scene
+        host.view = self.view
+        host._graph_interactions = self._graph_interactions
+        host.graph_interactions = self.graph_interactions
+        host.console_panel = self.console_panel
+        host.script_editor = self.script_editor
+        host.script_highlighter = self.script_highlighter
+        host.workspace_tabs = self.workspace_tabs
+        host.ui_icons = self.ui_icons
+        host._ui_icon_image_provider = self._ui_icon_image_provider
+        host._local_media_preview_provider = self._local_media_preview_provider
+        host._local_pdf_preview_provider = self._local_pdf_preview_provider
+        host.status_engine = self.status_engine
+        host.status_jobs = self.status_jobs
+        host.status_metrics = self.status_metrics
+        host.status_notifications = self.status_notifications
+        host._frame_rate_sampler = self._frame_rate_sampler
+        host.theme_bridge = self.theme_bridge
+        host.graph_theme_bridge = self.graph_theme_bridge
+
 
 @dataclass(frozen=True, slots=True)
-class _ShellControllerBundle:
+class ShellControllerDependencies:
     search_scope_controller: WindowSearchScopeController
     workspace_library_controller: WorkspaceLibraryController
     project_session_controller: ProjectSessionController
@@ -106,38 +143,123 @@ class _ShellControllerBundle:
     app_preferences_controller: AppPreferencesController
     execution_client: object
 
+    def attach(self, host: "ShellWindow") -> None:
+        host.search_scope_controller = self.search_scope_controller
+        host.workspace_library_controller = self.workspace_library_controller
+        host.project_session_controller = self.project_session_controller
+        host.run_controller = self.run_controller
+        host.app_preferences_controller = self.app_preferences_controller
+        host.execution_client = self.execution_client
+
 
 @dataclass(frozen=True, slots=True)
-class _ShellPresenterBundle:
+class ShellPresenterDependencies:
     shell_library_presenter: ShellLibraryPresenter
     shell_workspace_presenter: ShellWorkspacePresenter
     shell_inspector_presenter: ShellInspectorPresenter
     graph_canvas_presenter: GraphCanvasPresenter
 
+    def attach(self, host: "ShellWindow") -> None:
+        host.shell_library_presenter = self.shell_library_presenter
+        host.shell_workspace_presenter = self.shell_workspace_presenter
+        host.shell_inspector_presenter = self.shell_inspector_presenter
+        host.graph_canvas_presenter = self.graph_canvas_presenter
+
 
 @dataclass(frozen=True, slots=True)
-class _ShellContextBridgeBundle:
+class ShellContextBridgeDependencies:
     _shell_context_bridges: ShellContextBridges
     shell_library_bridge: ShellLibraryBridge
     shell_workspace_bridge: ShellWorkspaceBridge
     shell_inspector_bridge: ShellInspectorBridge
     graph_canvas_bridge: GraphCanvasBridge
 
+    def attach(self, host: "ShellWindow") -> None:
+        host._shell_context_bridges = self._shell_context_bridges
+        host.shell_library_bridge = self.shell_library_bridge
+        host.shell_workspace_bridge = self.shell_workspace_bridge
+        host.shell_inspector_bridge = self.shell_inspector_bridge
+        host.graph_canvas_bridge = self.graph_canvas_bridge
+
 
 @dataclass(frozen=True, slots=True)
-class _ShellTimerBundle:
+class ShellTimerDependencies:
     metrics_timer: QTimer
     graph_hint_timer: QTimer
     autosave_timer: QTimer
 
+    def attach(self, host: "ShellWindow") -> None:
+        host.metrics_timer = self.metrics_timer
+        host.graph_hint_timer = self.graph_hint_timer
+        host.autosave_timer = self.autosave_timer
+
 
 @dataclass(frozen=True, slots=True)
-class _ShellWindowComposition:
-    state: _ShellStateBundle
-    primitives: _ShellPrimitiveBundle
-    controllers: _ShellControllerBundle
-    presenters: _ShellPresenterBundle
-    context_bridges: _ShellContextBridgeBundle
+class ShellWindowComposition:
+    state: ShellStateDependencies
+    primitives: ShellPrimitiveDependencies
+    controllers: ShellControllerDependencies
+    presenters: ShellPresenterDependencies
+    context_bridges: ShellContextBridgeDependencies
+
+
+class ShellWindowDependencyFactory:
+    def __init__(self, host: "ShellWindow") -> None:
+        self._host = host
+
+    def build_composition(self) -> ShellWindowComposition:
+        state = self.create_state_dependencies()
+        state.attach(self._host)
+
+        primitives = self.create_primitive_dependencies()
+        primitives.attach(self._host)
+
+        controllers = self.create_controller_dependencies()
+        controllers.attach(self._host)
+
+        presenters = self.create_presenter_dependencies()
+        presenters.attach(self._host)
+
+        context_bridges = self.create_context_bridge_dependencies()
+
+        return ShellWindowComposition(
+            state=state,
+            primitives=primitives,
+            controllers=controllers,
+            presenters=presenters,
+            context_bridges=context_bridges,
+        )
+
+    def create_state_dependencies(self) -> ShellStateDependencies:
+        return _create_shell_state_dependencies()
+
+    def create_primitive_dependencies(self) -> ShellPrimitiveDependencies:
+        return _create_shell_primitive_dependencies(self._host)
+
+    def create_controller_dependencies(self) -> ShellControllerDependencies:
+        return _create_shell_controller_dependencies(self._host)
+
+    def create_presenter_dependencies(self) -> ShellPresenterDependencies:
+        return _create_shell_presenter_dependencies(self._host)
+
+    def create_context_bridge_dependencies(self) -> ShellContextBridgeDependencies:
+        return _create_shell_context_bridge_dependencies(self._host)
+
+
+class ShellWindowBootstrapCoordinator:
+    def bootstrap(self, host: "ShellWindow", composition: ShellWindowComposition) -> None:
+        _configure_shell_window_host(host)
+        composition.state.attach(host)
+        composition.primitives.attach(host)
+        composition.controllers.attach(host)
+        composition.presenters.attach(host)
+        composition.context_bridges.attach(host)
+        _run_shell_startup_sequence(host)
+        self.create_timer_dependencies(host).attach(host)
+        _finalize_shell_window_bootstrap(host)
+
+    def create_timer_dependencies(self, host: "ShellWindow") -> ShellTimerDependencies:
+        return _create_shell_timer_dependencies(host)
 
 
 def create_shell_window() -> "ShellWindow":
@@ -149,40 +271,12 @@ def create_shell_window() -> "ShellWindow":
     return host
 
 
-def build_shell_window_composition(host: "ShellWindow") -> _ShellWindowComposition:
-    state_bundle = _create_shell_state_bundle()
-    _apply_bootstrap_bundle(host, state_bundle)
-
-    primitive_bundle = _create_shell_primitive_bundle(host)
-    _apply_bootstrap_bundle(host, primitive_bundle)
-
-    controller_bundle = _create_shell_controller_bundle(host)
-    _apply_bootstrap_bundle(host, controller_bundle)
-
-    presenter_bundle = _create_shell_presenter_bundle(host)
-    _apply_bootstrap_bundle(host, presenter_bundle)
-
-    context_bridge_bundle = _create_shell_context_bridge_bundle(host)
-
-    return _ShellWindowComposition(
-        state=state_bundle,
-        primitives=primitive_bundle,
-        controllers=controller_bundle,
-        presenters=presenter_bundle,
-        context_bridges=context_bridge_bundle,
-    )
+def build_shell_window_composition(host: "ShellWindow") -> ShellWindowComposition:
+    return ShellWindowDependencyFactory(host).build_composition()
 
 
-def bootstrap_shell_window(host: "ShellWindow", composition: _ShellWindowComposition) -> None:
-    _configure_shell_window_host(host)
-    _apply_bootstrap_bundle(host, composition.state)
-    _apply_bootstrap_bundle(host, composition.primitives)
-    _apply_bootstrap_bundle(host, composition.controllers)
-    _apply_bootstrap_bundle(host, composition.presenters)
-    _apply_bootstrap_bundle(host, composition.context_bridges)
-    _run_shell_startup_sequence(host)
-    _apply_bootstrap_bundle(host, _create_shell_timer_bundle(host))
-    _finalize_shell_window_bootstrap(host)
+def bootstrap_shell_window(host: "ShellWindow", composition: ShellWindowComposition) -> None:
+    ShellWindowBootstrapCoordinator().bootstrap(host, composition)
 
 
 def _configure_shell_window_host(host: "ShellWindow") -> None:
@@ -190,7 +284,7 @@ def _configure_shell_window_host(host: "ShellWindow") -> None:
     host.resize(1600, 900)
 
 
-def _create_shell_state_bundle() -> _ShellStateBundle:
+def _create_shell_state_dependencies() -> ShellStateDependencies:
     state = ShellState()
     project_session_state = state.project_session
     library_filter_state = state.library_filters
@@ -202,7 +296,7 @@ def _create_shell_state_bundle() -> _ShellStateBundle:
     search_scope_state.graphics_minimap_expanded = bool(graphics_settings["canvas"]["minimap_expanded"])
     search_scope_state.snap_to_grid_enabled = bool(graphics_settings["interaction"]["snap_to_grid"])
 
-    return _ShellStateBundle(
+    return ShellStateDependencies(
         state=state,
         project_session_state=project_session_state,
         library_filter_state=library_filter_state,
@@ -212,7 +306,7 @@ def _create_shell_state_bundle() -> _ShellStateBundle:
     )
 
 
-def _create_shell_primitive_bundle(host: "ShellWindow") -> _ShellPrimitiveBundle:
+def _create_shell_primitive_dependencies(host: "ShellWindow") -> ShellPrimitiveDependencies:
     registry = build_default_registry()
     serializer = JsonProjectSerializer(registry)
     session_store = host._create_session_store(serializer)
@@ -246,7 +340,7 @@ def _create_shell_primitive_bundle(host: "ShellWindow") -> _ShellPrimitiveBundle
         theme_id=default_graph_theme_id_for_shell_theme(host.workspace_ui_state.active_theme_id),
     )
     scene.bind_graph_theme_bridge(graph_theme_bridge)
-    return _ShellPrimitiveBundle(
+    return ShellPrimitiveDependencies(
         registry=registry,
         serializer=serializer,
         _session_store=session_store,
@@ -276,7 +370,7 @@ def _create_shell_primitive_bundle(host: "ShellWindow") -> _ShellPrimitiveBundle
     )
 
 
-def _create_shell_controller_bundle(host: "ShellWindow") -> _ShellControllerBundle:
+def _create_shell_controller_dependencies(host: "ShellWindow") -> ShellControllerDependencies:
     search_scope_controller = WindowSearchScopeController(host, host.search_scope_state)
     workspace_library_controller = WorkspaceLibraryController(host)
     project_session_controller = ProjectSessionController(host)
@@ -285,7 +379,7 @@ def _create_shell_controller_bundle(host: "ShellWindow") -> _ShellControllerBund
     execution_client = host._create_execution_client()
     execution_client.subscribe(host.execution_event.emit)
     host.execution_event.connect(host._handle_execution_event, Qt.ConnectionType.QueuedConnection)
-    return _ShellControllerBundle(
+    return ShellControllerDependencies(
         search_scope_controller=search_scope_controller,
         workspace_library_controller=workspace_library_controller,
         project_session_controller=project_session_controller,
@@ -295,7 +389,7 @@ def _create_shell_controller_bundle(host: "ShellWindow") -> _ShellControllerBund
     )
 
 
-def _create_shell_presenter_bundle(host: "ShellWindow") -> _ShellPresenterBundle:
+def _create_shell_presenter_dependencies(host: "ShellWindow") -> ShellPresenterDependencies:
     shell_library_presenter = ShellLibraryPresenter(host)
     shell_workspace_presenter = ShellWorkspacePresenter(host)
     shell_inspector_presenter = ShellInspectorPresenter(host)
@@ -305,7 +399,7 @@ def _create_shell_presenter_bundle(host: "ShellWindow") -> _ShellPresenterBundle
         library_presenter=shell_library_presenter,
         inspector_presenter=shell_inspector_presenter,
     )
-    return _ShellPresenterBundle(
+    return ShellPresenterDependencies(
         shell_library_presenter=shell_library_presenter,
         shell_workspace_presenter=shell_workspace_presenter,
         shell_inspector_presenter=shell_inspector_presenter,
@@ -313,9 +407,49 @@ def _create_shell_presenter_bundle(host: "ShellWindow") -> _ShellPresenterBundle
     )
 
 
-def _create_shell_context_bridge_bundle(host: "ShellWindow") -> _ShellContextBridgeBundle:
-    shell_context_bridges = create_shell_context_bridges(host)
-    return _ShellContextBridgeBundle(
+def _create_shell_context_bridge_dependencies(host: "ShellWindow") -> ShellContextBridgeDependencies:
+    graph_canvas_state_bridge = GraphCanvasStateBridge(
+        host,
+        shell_window=host,
+        scene_bridge=host.scene,
+        view_bridge=host.view,
+    )
+    graph_canvas_command_bridge = GraphCanvasCommandBridge(
+        host,
+        shell_window=host,
+        scene_bridge=host.scene,
+        view_bridge=host.view,
+    )
+    shell_context_bridges = ShellContextBridges(
+        shell_library_bridge=ShellLibraryBridge(
+            host,
+            shell_window=host,
+        ),
+        shell_workspace_bridge=ShellWorkspaceBridge(
+            host,
+            shell_window=host,
+            scene_bridge=host.scene,
+            view_bridge=host.view,
+            console_bridge=host.console_panel,
+            workspace_tabs_bridge=host.workspace_tabs,
+        ),
+        shell_inspector_bridge=ShellInspectorBridge(
+            host,
+            shell_window=host,
+            scene_bridge=host.scene,
+        ),
+        graph_canvas_state_bridge=graph_canvas_state_bridge,
+        graph_canvas_command_bridge=graph_canvas_command_bridge,
+        graph_canvas_bridge=GraphCanvasBridge(
+            host,
+            shell_window=host,
+            scene_bridge=host.scene,
+            view_bridge=host.view,
+            state_bridge=graph_canvas_state_bridge,
+            command_bridge=graph_canvas_command_bridge,
+        ),
+    )
+    return ShellContextBridgeDependencies(
         _shell_context_bridges=shell_context_bridges,
         shell_library_bridge=shell_context_bridges.shell_library_bridge,
         shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
@@ -349,7 +483,7 @@ def _build_shell_qml_widget(host: "ShellWindow") -> QQuickWidget:
     return widget
 
 
-def _create_shell_timer_bundle(host: "ShellWindow") -> _ShellTimerBundle:
+def _create_shell_timer_dependencies(host: "ShellWindow") -> ShellTimerDependencies:
     metrics_timer = QTimer(host)
     metrics_timer.setInterval(1000)
     metrics_timer.timeout.connect(host._update_metrics)
@@ -364,7 +498,7 @@ def _create_shell_timer_bundle(host: "ShellWindow") -> _ShellTimerBundle:
     autosave_timer.timeout.connect(host._autosave_tick)
     autosave_timer.start()
 
-    return _ShellTimerBundle(
+    return ShellTimerDependencies(
         metrics_timer=metrics_timer,
         graph_hint_timer=graph_hint_timer,
         autosave_timer=autosave_timer,
@@ -374,9 +508,3 @@ def _create_shell_timer_bundle(host: "ShellWindow") -> _ShellTimerBundle:
 def _finalize_shell_window_bootstrap(host: "ShellWindow") -> None:
     host._set_run_ui_state("ready", "Idle", 0, 0, 0, 0, clear_run=True)
     host._update_metrics()
-
-
-def _apply_bootstrap_bundle(host: "ShellWindow", bundle: object) -> None:
-    for field in fields(bundle):
-        setattr(host, field.name, getattr(bundle, field.name))
-
