@@ -74,7 +74,7 @@ Item {
     readonly property bool minimapSimplificationActive: canvasPerformancePolicy.minimapSimplificationActive
         || root.transientDegradedWindowActive
     readonly property bool shadowSimplificationActive: canvasPerformancePolicy.shadowSimplificationActive
-        || root.mutationBurstActive
+        || (canvasPerformancePolicy.maxPerformanceMode && root.mutationBurstActive)
     readonly property bool snapshotProxyReuseActive: canvasPerformancePolicy.snapshotProxyReuseActive
         || root.transientDegradedWindowActive
     readonly property bool viewportInteractionWorldCacheActive: canvasPerformancePolicy.viewportWorldCacheActive
@@ -944,6 +944,7 @@ Item {
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
                 snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
                 shadowSimplificationActive: root.shadowSimplificationActive
+                fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
 
                 onNodeClicked: function(nodeId, additive) {
                     var bridge = root._canvasSceneCommandBridgeRef;

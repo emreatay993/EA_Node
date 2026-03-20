@@ -990,6 +990,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert bool(canvas.property("viewportInteractionWorldCacheActive"))
             assert not bool(canvas.property("highQualityRendering"))
             assert bool(node_card.property("viewportInteractionCacheActive"))
+            assert not bool(node_card.property("effectiveTextureCacheActive"))
             assert bool(shadow_item.property("visible"))
 
             wait_for_condition_or_raise(
@@ -1006,6 +1007,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert not bool(canvas.property("viewportInteractionWorldCacheActive"))
             assert bool(canvas.property("highQualityRendering"))
             assert not bool(node_card.property("viewportInteractionCacheActive"))
+            assert not bool(node_card.property("effectiveTextureCacheActive"))
             assert bool(shadow_item.property("visible"))
 
             canvas.deleteLater()
@@ -1409,25 +1411,43 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 },
             )
             policy = canvas.findChild(QObject, "graphCanvasPerformancePolicy")
+            node_cards = {
+                card.property("nodeData")["node_id"]: card
+                for card in named_child_items(canvas, "graphNodeCard")
+            }
             assert policy is not None
+            assert len(node_cards) == 1
+            tracked_node_id = next(iter(node_cards))
+            shadow_item = node_cards[tracked_node_id].findChild(QObject, "graphNodeShadow")
+            assert shadow_item is not None
 
             assert canvas.property("resolvedGraphicsPerformanceMode") == "full_fidelity"
             assert not bool(canvas.property("mutationBurstActive"))
             assert not bool(canvas.property("transientPerformanceActivityActive"))
             assert not bool(canvas.property("transientDegradedWindowActive"))
             assert bool(canvas.property("highQualityRendering"))
+            assert not bool(canvas.property("shadowSimplificationActive"))
+            assert bool(shadow_item.property("visible"))
 
             scene.add_node_from_type("core.logger", 360.0, 210.0)
             app.processEvents()
+            node_cards = {
+                card.property("nodeData")["node_id"]: card
+                for card in named_child_items(canvas, "graphNodeCard")
+            }
+            shadow_item = node_cards[tracked_node_id].findChild(QObject, "graphNodeShadow")
+            assert shadow_item is not None
 
             assert bool(policy.property("mutationBurstActive"))
             assert bool(canvas.property("mutationBurstActive"))
             assert bool(canvas.property("transientPerformanceActivityActive"))
             assert not bool(canvas.property("transientDegradedWindowActive"))
             assert bool(canvas.property("highQualityRendering"))
+            assert not bool(canvas.property("shadowSimplificationActive"))
+            assert bool(shadow_item.property("visible"))
 
             wait_for_condition_or_raise(
-                lambda: not bool(canvas.property("mutationBurstActive")),
+                lambda: not bool(canvas.property("mutationBurstActive")) and bool(shadow_item.property("visible")),
                 timeout_ms=190,
                 app=app,
                 timeout_message="Timed out waiting for scene mutation burst policy to settle.",
@@ -1435,6 +1455,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert not bool(canvas.property("transientPerformanceActivityActive"))
             assert not bool(canvas.property("transientDegradedWindowActive"))
             assert bool(canvas.property("highQualityRendering"))
+            assert not bool(canvas.property("shadowSimplificationActive"))
+            assert bool(shadow_item.property("visible"))
 
             canvas.deleteLater()
             app.processEvents()

@@ -22,6 +22,7 @@ Item {
     property bool viewportInteractionCacheActive: false
     property bool snapshotReuseActive: false
     property bool shadowSimplificationActive: false
+    property bool fullFidelityMode: true
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
@@ -242,7 +243,10 @@ Item {
         && !card._suppressShadow
         && card._useHostChrome
         && !card.shadowSimplificationActive
-    readonly property bool effectiveTextureCacheActive: card.viewportInteractionCacheActive || card.snapshotReuseActive
+    // Full-fidelity viewport motion must keep live shadows, so avoid the host
+    // texture layer there; it clips shadow pixels outside the node bounds.
+    readonly property bool effectiveTextureCacheActive: card.snapshotReuseActive
+        || (card.viewportInteractionCacheActive && !card.fullFidelityMode)
     readonly property int nodeTextRenderType: Text.CurveRendering
 
     readonly property var inputPorts: {
