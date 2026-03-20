@@ -56,6 +56,8 @@ docs/specs/work_packets/*
 !docs/specs/work_packets/arch_fourth_pass/*
 !docs/specs/work_packets/arch_fifth_pass/
 !docs/specs/work_packets/arch_fifth_pass/*
+!docs/specs/work_packets/arch_sixth_pass/
+!docs/specs/work_packets/arch_sixth_pass/*
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md
