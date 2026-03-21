@@ -572,6 +572,10 @@ class GraphSceneBridge(QObject):
     def _notify_selected_node_context_updated(self, node_id: str) -> None:
         self._mutation_history.notify_selected_node_context_updated(node_id)
 
+    @pyqtSlot(str, str, str)
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        self._mutation_history.set_node_port_label(node_id, port_key, label)
+
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         self._mutation_history.set_node_property(node_id, key, value)

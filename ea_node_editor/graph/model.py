@@ -61,6 +61,7 @@ def node_instance_from_mapping(payload: Mapping[str, Any]) -> NodeInstance | Non
         collapsed=bool(payload.get("collapsed", False)),
         properties=_as_mapping(payload.get("properties")),
         exposed_ports={key: bool(value) for key, value in _as_mapping(payload.get("exposed_ports")).items()},
+        port_labels={str(k): str(v) for k, v in _as_mapping(payload.get("port_labels")).items() if str(v).strip()},
         visual_style=_as_mapping(payload.get("visual_style")),
         parent_node_id=parent_node_id,
         custom_width=_coerce_float(payload.get("custom_width")) if payload.get("custom_width") is not None else None,
@@ -78,6 +79,7 @@ def node_instance_to_mapping(node: "NodeInstance") -> dict[str, Any]:
         "collapsed": node.collapsed,
         "properties": copy.deepcopy(node.properties),
         "exposed_ports": copy.deepcopy(node.exposed_ports),
+        "port_labels": copy.deepcopy(node.port_labels),
         "visual_style": copy.deepcopy(node.visual_style),
         "parent_node_id": node.parent_node_id,
         "custom_width": node.custom_width,
@@ -126,6 +128,7 @@ class NodeInstance:
     collapsed: bool = False
     properties: dict[str, Any] = field(default_factory=dict)
     exposed_ports: dict[str, bool] = field(default_factory=dict)
+    port_labels: dict[str, str] = field(default_factory=dict)
     visual_style: dict[str, Any] = field(default_factory=dict)
     parent_node_id: str | None = None
     custom_width: float | None = None
@@ -572,6 +575,15 @@ class GraphModel:
     def set_exposed_port(self, workspace_id: str, node_id: str, key: str, exposed: bool) -> None:
         workspace = self.project.workspaces[workspace_id]
         workspace.nodes[node_id].exposed_ports[key] = exposed
+        workspace.dirty = True
+
+    def set_port_label(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
+        workspace = self.project.workspaces[workspace_id]
+        node = workspace.nodes[node_id]
+        if label:
+            node.port_labels[port_key] = label
+        else:
+            node.port_labels.pop(port_key, None)
         workspace.dirty = True
 
     def add_edge(

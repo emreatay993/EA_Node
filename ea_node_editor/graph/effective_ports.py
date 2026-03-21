@@ -67,7 +67,7 @@ def effective_ports(
     return tuple(
         EffectivePort(
             key=port.key,
-            label=port.key,
+            label=node.port_labels.get(port.key) or port.label or port.key,
             direction=port.direction,
             kind=port.kind,
             data_type=port.data_type,

@@ -14,6 +14,7 @@ ShellCollapsibleSidePane {
     readonly property bool isPinInspector: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_is_subnode_pin
     readonly property bool showPortSection: root.hasSelectedNode && !root.isPinInspector
     readonly property bool canManageSubnodePorts: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_is_subnode_shell
+    readonly property bool canEditPortLabels: root.hasSelectedNode && !root.isPinInspector
     readonly property string selectedNodeTitle: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_title : ""
     readonly property string selectedNodeSubtitle: root.inspectorBridgeRef ? root.inspectorBridgeRef.selected_node_subtitle : ""
     readonly property bool selectedNodeCollapsible: !!root.inspectorBridgeRef && root.inspectorBridgeRef.selected_node_collapsible
@@ -112,11 +113,18 @@ ShellCollapsibleSidePane {
         selectedPortKey = normalizedKey
     }
 
+    function _isEditablePortKind(kind) {
+        var k = String(kind || "").toLowerCase();
+        return k !== "exec" && k !== "completed" && k !== "failed";
+    }
+
     function beginPortLabelEdit(portKey) {
         var normalizedKey = String(portKey || "")
-        if (!canManageSubnodePorts || !normalizedKey.length)
+        if (!canEditPortLabels || !normalizedKey.length)
             return
         var item = portItemByKey(normalizedKey)
+        if (!item || !root._isEditablePortKind(item.kind))
+            return
         editingPortLabel = String(item ? (item.label || item.key || "") : normalizedKey)
         selectPort(normalizedKey)
         editingPortKey = normalizedKey

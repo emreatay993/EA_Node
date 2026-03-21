@@ -66,7 +66,8 @@ Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    visible: portRow.pane.canManageSubnodePorts
+                    visible: portRow.pane.canEditPortLabels
+                        && portRow.pane._isEditablePortKind(portRow.portItem.kind)
                         && portRow.pane.editingPortKey === portRow.portKey
                     implicitHeight: 24
                     leftPadding: 4
@@ -106,7 +107,9 @@ Rectangle {
 
                 MouseArea {
                     anchors.fill: parent
-                    enabled: portRow.pane.canManageSubnodePorts && !portLabelEditor.visible
+                    enabled: portRow.pane.canEditPortLabels
+                        && portRow.pane._isEditablePortKind(portRow.portItem.kind)
+                        && !portLabelEditor.visible
                     cursorShape: Qt.IBeamCursor
                     onClicked: {
                         portRow.pane.beginPortLabelEdit(portRow.portKey)

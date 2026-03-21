@@ -470,6 +470,10 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 def set_node_property(self, node_id, key, value):
                     self.set_node_property_calls.append((str(node_id or ""), str(key or ""), variant_value(value)))
 
+                @pyqtSlot(str, str, str)
+                def set_node_port_label(self, node_id, port_key, label):
+                    pass
+
                 @pyqtSlot(str, str, result=bool)
                 def are_port_kinds_compatible(self, _source_kind, _target_kind):
                     return True
@@ -874,6 +878,10 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                     self._state_bridge.set_node_property_calls.append(
                         (str(node_id or ""), str(key or ""), variant_value(value))
                     )
+
+                @pyqtSlot(str, str, str)
+                def set_node_port_label(self, node_id, port_key, label):
+                    pass
 
             canvas_state_bridge = CanvasStateBridgeStub()
             canvas_command_bridge = CanvasCommandBridgeStub(canvas_state_bridge)

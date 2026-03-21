@@ -1,10 +1,42 @@
 import QtQuick 2.15
+import "surface_controls" as SurfaceControls
 
 Item {
     id: root
     objectName: "graphNodePortsLayer"
     property Item host: null
+    property string editingPortKey: ""
+    property string editingPortDirection: ""
     z: 5
+
+    function _isEditablePort(portData) {
+        return portData.kind !== "exec" && portData.kind !== "completed" && portData.kind !== "failed";
+    }
+
+    function beginPortLabelEdit(portKey, direction) {
+        root.editingPortKey = portKey;
+        root.editingPortDirection = direction;
+    }
+
+    function cancelPortLabelEdit() {
+        root.editingPortKey = "";
+        root.editingPortDirection = "";
+    }
+
+    function commitPortLabelEdit(portKey, label) {
+        if (root.editingPortKey !== portKey)
+            return;
+        root.editingPortKey = "";
+        root.editingPortDirection = "";
+        if (!root.host || !root.host.nodeData)
+            return;
+        var nodeId = root.host.nodeData.node_id;
+        var hostRef = root.host;
+        Qt.callLater(function() {
+            if (hostRef)
+                hostRef.portLabelCommitted(nodeId, portKey, label);
+        });
+    }
     visible: root.host && root.host.nodeData ? !root.host.nodeData.collapsed : false
 
     Repeater {
@@ -174,19 +206,94 @@ Item {
                 }
             }
 
-            Text {
-                objectName: "graphNodeInputPortLabel"
-                property int effectiveRenderType: renderType
-                readonly property real availableWidth: Math.max(0, (root.host ? root.host.width : 0) - x - 4)
+            Item {
+                id: inputLabelContainer
+                readonly property bool isEditing: root.editingPortKey === modelData.key && root.editingPortDirection === "in"
+                readonly property bool isEditable: root._isEditablePort(modelData) && (root.host ? root.host._portLabelsVisible : true)
+                readonly property real labelX: Math.max(0, inputDot.x + inputDot.width + (root.host ? root.host._portLabelGap : 6))
+                readonly property real availableWidth: Math.max(0, (root.host ? root.host.width : 0) - labelX - 4)
                 visible: root.host ? root.host._portLabelsVisible : true
                 anchors.verticalCenter: parent.verticalCenter
-                x: Math.max(0, inputDot.x + inputDot.width + (root.host ? root.host._portLabelGap : 6))
-                width: root.host ? root.host.portLabelWidth(implicitWidth, availableWidth) : 0
-                text: modelData.label || modelData.key
-                color: root.host ? root.host.portLabelColor : "#d0d5de"
-                font.pixelSize: 10
-                elide: Text.ElideRight
-                renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+                x: labelX
+                width: availableWidth
+                height: Math.max(inputLabelText.implicitHeight, 18)
+
+                Text {
+                    id: inputLabelText
+                    objectName: "graphNodeInputPortLabel"
+                    property int effectiveRenderType: renderType
+                    visible: !inputLabelContainer.isEditing
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: root.host ? root.host.portLabelWidth(implicitWidth, inputLabelContainer.availableWidth) : 0
+                    text: modelData.label || modelData.key
+                    color: root.host ? root.host.portLabelColor : "#d0d5de"
+                    font.pixelSize: 10
+                    elide: Text.ElideRight
+                    renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+
+                    Rectangle {
+                        visible: inputLabelMouse.containsMouse && inputLabelContainer.isEditable
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 1
+                        color: root.host ? root.host.portLabelColor : "#d0d5de"
+                        opacity: 0.5
+                    }
+                }
+
+                MouseArea {
+                    id: inputLabelMouse
+                    anchors.fill: inputLabelText
+                    visible: inputLabelContainer.isEditable && !inputLabelContainer.isEditing
+                    hoverEnabled: true
+                    cursorShape: containsMouse ? Qt.IBeamCursor : Qt.ArrowCursor
+                    acceptedButtons: Qt.LeftButton
+                    onClicked: {
+                        root.beginPortLabelEdit(modelData.key, "in");
+                    }
+                }
+
+                SurfaceControls.GraphSurfaceTextField {
+                    id: inputLabelEditor
+                    visible: inputLabelContainer.isEditing
+                    host: root.host
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: Math.min(Math.max(60, inputLabelText.implicitWidth + 16), inputLabelContainer.availableWidth)
+                    height: 20
+                    font.pixelSize: 10
+                    topPadding: 2
+                    bottomPadding: 2
+                    leftPadding: 4
+                    rightPadding: 4
+
+                    onVisibleChanged: {
+                        if (visible) {
+                            text = modelData.label || modelData.key;
+                            forceActiveFocus();
+                            selectAll();
+                        }
+                    }
+
+                    onAccepted: {
+                        root.commitPortLabelEdit(modelData.key, text);
+                    }
+
+                    onActiveFocusChanged: {
+                        if (!activeFocus && inputLabelContainer.isEditing) {
+                            root.commitPortLabelEdit(modelData.key, text);
+                        }
+                    }
+
+                    Keys.onEscapePressed: {
+                        root.cancelPortLabelEdit();
+                    }
+
+                    onControlStarted: {
+                        if (root.host && root.host.nodeData)
+                            root.host.surfaceControlInteractionStarted(root.host.nodeData.node_id);
+                    }
+                }
             }
         }
     }
@@ -380,20 +487,97 @@ Item {
                 }
             }
 
-            Text {
-                objectName: "graphNodeOutputPortLabel"
-                property int effectiveRenderType: renderType
+            Item {
+                id: outputLabelContainer
+                readonly property bool isEditing: root.editingPortKey === modelData.key && root.editingPortDirection === "out"
+                readonly property bool isEditable: root._isEditablePort(modelData) && (root.host ? root.host._portLabelsVisible : true)
                 readonly property real availableWidth: Math.max(0, outputDot.x - (root.host ? root.host._portLabelGap : 6) - 4)
                 visible: root.host ? root.host._portLabelsVisible : true
                 anchors.verticalCenter: parent.verticalCenter
-                width: root.host ? root.host.portLabelWidth(implicitWidth, availableWidth) : 0
-                x: Math.max(4, outputDot.x - (root.host ? root.host._portLabelGap : 6) - width)
-                text: modelData.label || modelData.key
-                color: root.host ? root.host.portLabelColor : "#d0d5de"
-                font.pixelSize: 10
-                horizontalAlignment: Text.AlignRight
-                elide: Text.ElideLeft
-                renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+                width: availableWidth
+                height: Math.max(outputLabelText.implicitHeight, 18)
+                x: 4
+
+                Text {
+                    id: outputLabelText
+                    objectName: "graphNodeOutputPortLabel"
+                    property int effectiveRenderType: renderType
+                    visible: !outputLabelContainer.isEditing
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: parent.right
+                    width: root.host ? root.host.portLabelWidth(implicitWidth, outputLabelContainer.availableWidth) : 0
+                    text: modelData.label || modelData.key
+                    color: root.host ? root.host.portLabelColor : "#d0d5de"
+                    font.pixelSize: 10
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideLeft
+                    renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+
+                    Rectangle {
+                        visible: outputLabelMouse.containsMouse && outputLabelContainer.isEditable
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        height: 1
+                        color: root.host ? root.host.portLabelColor : "#d0d5de"
+                        opacity: 0.5
+                    }
+                }
+
+                MouseArea {
+                    id: outputLabelMouse
+                    anchors.fill: outputLabelText
+                    visible: outputLabelContainer.isEditable && !outputLabelContainer.isEditing
+                    hoverEnabled: true
+                    cursorShape: containsMouse ? Qt.IBeamCursor : Qt.ArrowCursor
+                    acceptedButtons: Qt.LeftButton
+                    onClicked: {
+                        root.beginPortLabelEdit(modelData.key, "out");
+                    }
+                }
+
+                SurfaceControls.GraphSurfaceTextField {
+                    id: outputLabelEditor
+                    visible: outputLabelContainer.isEditing
+                    host: root.host
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: parent.right
+                    width: Math.min(Math.max(60, outputLabelText.implicitWidth + 16), outputLabelContainer.availableWidth)
+                    height: 20
+                    font.pixelSize: 10
+                    topPadding: 2
+                    bottomPadding: 2
+                    leftPadding: 4
+                    rightPadding: 4
+                    horizontalAlignment: TextInput.AlignRight
+
+                    onVisibleChanged: {
+                        if (visible) {
+                            text = modelData.label || modelData.key;
+                            forceActiveFocus();
+                            selectAll();
+                        }
+                    }
+
+                    onAccepted: {
+                        root.commitPortLabelEdit(modelData.key, text);
+                    }
+
+                    onActiveFocusChanged: {
+                        if (!activeFocus && outputLabelContainer.isEditing) {
+                            root.commitPortLabelEdit(modelData.key, text);
+                        }
+                    }
+
+                    Keys.onEscapePressed: {
+                        root.cancelPortLabelEdit();
+                    }
+
+                    onControlStarted: {
+                        if (root.host && root.host.nodeData)
+                            root.host.surfaceControlInteractionStarted(root.host.nodeData.node_id);
+                    }
+                }
             }
         }
     }

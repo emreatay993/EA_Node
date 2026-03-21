@@ -291,6 +291,10 @@ class GraphCanvasCommandBridge(QObject):
             bool(additive),
         )
 
+    @pyqtSlot(str, str, str)
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        _invoke(self._scene_bridge, "set_node_port_label", node_id, port_key, label)
+
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         _invoke(self._scene_bridge, "set_node_property", node_id, key, value)

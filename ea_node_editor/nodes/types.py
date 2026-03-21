@@ -71,6 +71,7 @@ class PortSpec:
     direction: PortDirection
     kind: PortKind
     data_type: str
+    label: str = ""
     required: bool = False
     exposed: bool = True
     allow_multiple_connections: bool = False

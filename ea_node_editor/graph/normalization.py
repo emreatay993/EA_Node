@@ -385,6 +385,9 @@ class ValidatedGraphMutation:
             self._prune_edges_for_nodes({node_id})
         return True
 
+    def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        self.model.set_port_label(self.workspace_id, node_id, port_key, label)
+
     def remove_edge(self, edge_id: str) -> None:
         self.model.remove_edge(self.workspace_id, edge_id)
 

@@ -168,6 +168,9 @@ class _PinPropertySceneStub:
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         self.property_calls.append((node_id, key, value))
 
+    def set_port_label(self, workspace_id: str, node_id: str, port_key: str, label: str) -> None:
+        self.property_calls.append((node_id, port_key, label))
+
     def refresh_workspace_from_model(self, workspace_id: str) -> None:
         self.refreshed_workspaces.append(workspace_id)
 

@@ -563,6 +563,9 @@ class _GraphCanvasSceneBridgeStub(QObject):
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         self._record("set_node_property", node_id, key, value)
 
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        self._record("set_node_port_label", node_id, port_key, label)
+
     def clear_selection(self) -> None:
         self._record("clear_selection")
 

@@ -198,6 +198,7 @@ Item {
     signal portDragCanceled(string nodeId, string portKey, string direction)
     signal surfaceControlInteractionStarted(string nodeId)
     signal inlinePropertyCommitted(string nodeId, string key, var value)
+    signal portLabelCommitted(string nodeId, string portKey, string label)
     signal portHoverChanged(
         string nodeId,
         string portKey,

@@ -353,6 +353,10 @@ class GraphCanvasBridge(QObject):
     ) -> None:
         self._command_bridge.select_nodes_in_rect(x1, y1, x2, y2, additive)
 
+    @pyqtSlot(str, str, str)
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        self._command_bridge.set_node_port_label(node_id, port_key, label)
+
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
         self._command_bridge.set_node_property(node_id, key, value)

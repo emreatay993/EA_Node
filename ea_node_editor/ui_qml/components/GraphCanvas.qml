@@ -544,6 +544,19 @@ Item {
         return true;
     }
 
+    function commitNodePortLabel(nodeId, portKey, label) {
+        var normalizedNodeId = String(nodeId || "").trim();
+        var normalizedPortKey = String(portKey || "").trim();
+        if (!normalizedNodeId || !normalizedPortKey)
+            return false;
+        root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
+        var bridge = root._canvasSceneCommandBridgeRef;
+        if (!bridge || !bridge.set_node_port_label)
+            return false;
+        bridge.set_node_port_label(normalizedNodeId, normalizedPortKey, String(label || ""));
+        return true;
+    }
+
     function requestNodeSurfaceCropEdit(nodeId) {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
@@ -1177,6 +1190,10 @@ Item {
                 }
                 onInlinePropertyCommitted: function(nodeId, key, value) {
                     if (root.commitNodeSurfaceProperty(nodeId, key, value))
+                        root.forceActiveFocus();
+                }
+                onPortLabelCommitted: function(nodeId, portKey, label) {
+                    if (root.commitNodePortLabel(nodeId, portKey, label))
                         root.forceActiveFocus();
                 }
             }

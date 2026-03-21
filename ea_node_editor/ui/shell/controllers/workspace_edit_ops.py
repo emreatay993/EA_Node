@@ -155,20 +155,42 @@ class WorkspaceEditOps:
 
     def set_selected_port_label(self, key: str, label: Any) -> bool:
         pin_node = self._selected_shell_pin_node(key)
-        if pin_node is None:
-            return False
+        if pin_node is not None:
+            normalized_label = str(label or "").strip()
+            if not normalized_label:
+                return False
+            current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+            if not current_label:
+                current_label = "Input" if pin_node.type_id == SUBNODE_INPUT_TYPE_ID else "Output"
+            if normalized_label == current_label:
+                return False
+            self.on_node_property_changed(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+            return True
 
+        context = self._controller.selected_node_context()
+        if context is None:
+            return False
+        node, spec = context
+        port_key = str(key or "").strip()
+        if not port_key:
+            return False
+        port_spec = next((p for p in spec.ports if p.key == port_key), None)
+        if port_spec is None:
+            return False
+        if port_spec.kind in ("exec", "completed", "failed"):
+            return False
         normalized_label = str(label or "").strip()
-        if not normalized_label:
-            return False
-
-        current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
-        if not current_label:
-            current_label = "Input" if pin_node.type_id == SUBNODE_INPUT_TYPE_ID else "Output"
+        default_label = port_spec.label or port_spec.key
+        current_label = node.port_labels.get(port_key) or default_label
         if normalized_label == current_label:
             return False
-
-        self.on_node_property_changed(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+        store_label = "" if normalized_label == default_label else normalized_label
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return False
+        self._host.scene.set_port_label(workspace.workspace_id, node.node_id, port_key, store_label)
+        self._host.selected_node_changed.emit()
+        self._controller.refresh_workspace_tabs()
         return True
 
     def request_rename_selected_port(self, key: str) -> ControllerResult[bool]:
