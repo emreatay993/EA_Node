@@ -39,6 +39,9 @@ include = ["ea_node_editor*"]
 
 [tool.setuptools.package-data]
 ea_node_editor = [
+    "assets/app_icon/*.svg",
+    "assets/app_icon/*.png",
+    "assets/app_icon/*.ico",
     "ui_qml/*.qml",
     "ui_qml/**/*.qml",
     "ui_qml/**/*.js",

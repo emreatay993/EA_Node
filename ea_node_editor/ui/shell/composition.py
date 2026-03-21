@@ -12,6 +12,7 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import AUTOSAVE_INTERVAL_MS, DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
+from ea_node_editor.ui.app_icon import apply_window_icon
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.graph_theme import default_graph_theme_id_for_shell_theme
 from ea_node_editor.ui.icon_registry import UiIconImageProvider, UiIconRegistryBridge
@@ -284,6 +285,7 @@ def bootstrap_shell_window(host: "ShellWindow", composition: ShellWindowComposit
 
 def _configure_shell_window_host(host: "ShellWindow") -> None:
     host.setWindowTitle("COREX Node Editor")
+    apply_window_icon(host)
     host.resize(1600, 900)
 
 

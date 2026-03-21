@@ -1,6 +1,7 @@
 # Windows Packaging Guide (PyInstaller)
 
 This project ships a Windows package using PyInstaller and the repository-root spec file `ea_node_editor.spec`.
+The packaged executable icon is embedded from `ea_node_editor/assets/app_icon/corex_app.ico`.
 
 ## Prerequisites
 
@@ -11,6 +12,12 @@ This project ships a Windows package using PyInstaller and the repository-root s
 
 ```powershell
 .\scripts\build_windows_package.ps1 -Clean
+```
+
+If the app icon assets change, regenerate the committed SVG/PNG/ICO set first:
+
+```powershell
+.\venv\Scripts\python.exe .\scripts\generate_app_icons.py
 ```
 
 ## Optional Flags

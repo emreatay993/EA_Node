@@ -197,6 +197,9 @@ class AppBootstrapTests(unittest.TestCase):
             side_effect=lambda theme_id: f"stylesheet:{theme_id}",
         ), patch.object(
             app_module,
+            "apply_application_icon",
+        ), patch.object(
+            app_module,
             "build_and_show_shell_window",
         ) as build_window_mock:
             self.assertEqual(app_module.run(), 17)
@@ -207,6 +210,15 @@ class AppBootstrapTests(unittest.TestCase):
         fake_app.setStyleSheet.assert_called_once_with("stylesheet:packet-theme")
         build_window_mock.assert_called_once_with()
         fake_app.exec.assert_called_once_with()
+
+    def test_shell_window_configuration_applies_title_size_and_icon(self) -> None:
+        host = Mock()
+        with patch.object(shell_composition_module, "apply_window_icon") as apply_window_icon_mock:
+            shell_composition_module._configure_shell_window_host(host)
+
+        host.setWindowTitle.assert_called_once_with("COREX Node Editor")
+        host.resize.assert_called_once_with(1600, 900)
+        apply_window_icon_mock.assert_called_once_with(host)
 
 
 if __name__ == "__main__":

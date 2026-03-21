@@ -40,6 +40,10 @@ datas += collect_data_files(
     "ea_node_editor.ui.theme",
     includes=["icons/*.svg"],
 )
+datas += collect_data_files(
+    "ea_node_editor",
+    includes=["assets/app_icon/*.svg", "assets/app_icon/*.png", "assets/app_icon/*.ico"],
+)
 
 hiddenimports = sorted(set(hiddenimports))
 datas = list(dict.fromkeys(datas))
@@ -65,6 +69,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="COREX_Node_Editor",
+    icon=str(PROJECT_ROOT / "ea_node_editor" / "assets" / "app_icon" / "corex_app.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

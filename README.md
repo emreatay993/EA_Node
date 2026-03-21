@@ -94,6 +94,7 @@ ea_node_editor/
     performance_harness.py
     system_metrics.py
   ui/
+    app_icon.py
     graph_interactions.py
     graph_theme/
       presentation.py
@@ -139,6 +140,15 @@ ea_node_editor/
       registry.py
       styles.py
       tokens.py
+  assets/
+    app_icon/
+      corex_app.svg
+      corex_app_*.png
+      corex_app_transparent.svg
+      corex_app_transparent_*.png
+      corex_app_minimal.svg
+      corex_app_minimal_*.png
+      corex_app.ico
   ui_qml/
     MainShell.qml
     graph_scene_bridge.py
@@ -359,6 +369,12 @@ QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest \
 
 See [docs/PACKAGING_WINDOWS.md](docs/PACKAGING_WINDOWS.md) for PyInstaller
 packaging, installer creation, and code signing instructions.
+
+Regenerate the committed app icon asset set with:
+
+```bash
+./venv/Scripts/python.exe scripts/generate_app_icons.py
+```
 
 ## Documentation
 

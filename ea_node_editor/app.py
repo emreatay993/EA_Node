@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.app_preferences import resolve_startup_theme_id
+from ea_node_editor.ui.app_icon import apply_application_icon
 from ea_node_editor.ui.shell.composition import create_shell_window
 from ea_node_editor.ui.theme import DEFAULT_THEME_ID, build_theme_stylesheet
 
@@ -30,6 +31,7 @@ def run() -> int:
     mp.freeze_support()
     app = QApplication(sys.argv)
     app.setApplicationName("COREX Node Editor")
+    apply_application_icon(app)
     app.setStyleSheet(build_theme_stylesheet(_startup_theme_id()))
     build_and_show_shell_window()
     return app.exec()
