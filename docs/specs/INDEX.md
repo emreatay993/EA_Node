@@ -61,6 +61,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 53. [ARCH_SIXTH_PASS QA Matrix](work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md)
 54. [GRAPHICS_PERFORMANCE_MODES Work Packet Manifest](work_packets/graphics_performance_modes/GRAPHICS_PERFORMANCE_MODES_MANIFEST.md)
 55. [GRAPHICS_PERFORMANCE_MODES Status Ledger](work_packets/graphics_performance_modes/GRAPHICS_PERFORMANCE_MODES_STATUS.md)
+56. [GRAPH_CANVAS_INTERACTION_PERF Work Packet Manifest](work_packets/graph_canvas_interaction_perf/GRAPH_CANVAS_INTERACTION_PERF_MANIFEST.md)
+57. [GRAPH_CANVAS_INTERACTION_PERF Status Ledger](work_packets/graph_canvas_interaction_perf/GRAPH_CANVAS_INTERACTION_PERF_STATUS.md)
 
 ## ADRs
 
