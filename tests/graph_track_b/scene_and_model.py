@@ -14,8 +14,8 @@ from ea_node_editor.graph.hierarchy import subtree_node_ids
 from ea_node_editor.graph.model import GraphModel, ViewState
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.decorators import in_port, node_type, out_port
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.nodes.decorators import node_type
+from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec
 from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, RuntimeGraphHistory
 from ea_node_editor.ui.graph_theme import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
@@ -49,9 +49,10 @@ _NODE_CARD_QML_PATH = (
     category="Tests",
     icon="branch",
     ports=(
-        in_port("flow_in", kind="flow"),
-        out_port("branch_a", kind="flow", allow_multiple_connections=True),
-        out_port("branch_b", kind="flow", allow_multiple_connections=True),
+        PortSpec("top", "neutral", "flow", "flow", side="top", allow_multiple_connections=True),
+        PortSpec("right", "neutral", "flow", "flow", side="right", allow_multiple_connections=True),
+        PortSpec("bottom", "neutral", "flow", "flow", side="bottom", allow_multiple_connections=True),
+        PortSpec("left", "neutral", "flow", "flow", side="left", allow_multiple_connections=True),
     ),
     properties=(),
     runtime_behavior="passive",
@@ -69,8 +70,10 @@ class _TrackBFlowchartDecisionNode:
     category="Tests",
     icon="circle",
     ports=(
-        in_port("flow_in", kind="flow"),
-        out_port("flow_out", kind="flow", allow_multiple_connections=True),
+        PortSpec("top", "neutral", "flow", "flow", side="top", allow_multiple_connections=True),
+        PortSpec("right", "neutral", "flow", "flow", side="right", allow_multiple_connections=True),
+        PortSpec("bottom", "neutral", "flow", "flow", side="bottom", allow_multiple_connections=True),
+        PortSpec("left", "neutral", "flow", "flow", side="left", allow_multiple_connections=True),
     ),
     properties=(),
     runtime_behavior="passive",
@@ -542,7 +545,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         source_id = self.scene.add_node_from_type("tests.track_b_flowchart_decision", 20.0, 30.0)
         target_id = self.scene.add_node_from_type("tests.track_b_flowchart_connector", 360.0, 90.0)
-        edge_id = self.scene.add_edge(source_id, "branch_b", target_id, "flow_in")
+        edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
 
         node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
         edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
@@ -554,11 +557,10 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertTrue(bool(source_payload["surface_metrics"]["title_centered"]))
         self.assertGreaterEqual(source_payload["surface_metrics"]["min_height"], 120.0)
         self.assertGreaterEqual(source_payload["width"], 220.0)
-
-        local_y = edge_payload["sy"] - source_payload["y"]
-        expected_left_offset = abs((source_payload["height"] * 0.5) - local_y) * source_payload["width"] / source_payload["height"]
-        expected_right_x = source_payload["x"] + (source_payload["width"] - expected_left_offset)
-        self.assertAlmostEqual(edge_payload["sx"], expected_right_x, places=4)
+        self.assertEqual(edge_payload["source_port_side"], "right")
+        self.assertEqual(edge_payload["target_port_side"], "left")
+        self.assertAlmostEqual(edge_payload["sx"], source_payload["x"] + source_payload["width"] - 0.5, places=4)
+        self.assertAlmostEqual(edge_payload["sy"], source_payload["y"] + source_payload["height"] * 0.5, places=4)
 
     def test_builtin_flowchart_catalog_nodes_keep_display_titles_and_cardinal_neutral_ports(self) -> None:
         decision_id = self.scene.add_node_from_type("passive.flowchart.decision", 20.0, 30.0)

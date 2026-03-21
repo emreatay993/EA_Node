@@ -8,7 +8,7 @@ import textwrap
 import unittest
 
 from ea_node_editor.graph.model import NodeInstance
-from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui_qml.edge_routing import port_scene_pos
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
@@ -16,36 +16,55 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class FlowchartSurfaceGeometryTests(unittest.TestCase):
-    def test_terminator_anchor_hugs_the_curved_edge(self) -> None:
-        spec = NodeTypeSpec(
-            type_id="tests.flowchart_start",
-            display_name="Start",
-            category="Tests",
-            icon="play",
-            ports=(
-                PortSpec("flow_in", "in", "flow", "any"),
-                PortSpec("flow_out", "out", "flow", "any", allow_multiple_connections=True),
-            ),
-            properties=(),
-            runtime_behavior="passive",
-            surface_family="flowchart",
-            surface_variant="start",
-        )
+    def setUp(self) -> None:
+        self.registry = build_default_registry()
+
+    def _local_anchor(self, type_id: str, port_key: str) -> tuple[float, float]:
+        spec = self.registry.get_spec(type_id)
         node = NodeInstance(
-            node_id="node_start",
-            type_id=spec.type_id,
-            title="Start",
+            node_id=f"node_{type_id.rsplit('.', 1)[-1]}",
+            type_id=type_id,
+            title=spec.display_name,
             x=40.0,
             y=30.0,
         )
+        point = port_scene_pos(node, spec, port_key, {node.node_id: node})
+        return point.x() - node.x, point.y() - node.y
 
-        metrics = node_surface_metrics(node, spec, {node.node_id: node})
-        input_point = port_scene_pos(node, spec, "flow_in", {node.node_id: node})
+    def _assert_anchor(self, type_id: str, port_key: str, expected_x: float, expected_y: float) -> None:
+        actual_x, actual_y = self._local_anchor(type_id, port_key)
+        self.assertAlmostEqual(actual_x, expected_x, places=4)
+        self.assertAlmostEqual(actual_y, expected_y, places=4)
 
-        self.assertEqual(metrics.default_width, 228.0)
-        self.assertGreaterEqual(metrics.min_height, 78.0)
-        self.assertGreater(input_point.x() - node.x, 0.0)
-        self.assertLess(input_point.x() - node.x, 2.0)
+    def test_cardinal_anchor_points_cover_rectangular_diamond_curved_and_slanted_shapes(self) -> None:
+        self._assert_anchor("passive.flowchart.process", "top", 112.0, 0.5)
+        self._assert_anchor("passive.flowchart.process", "right", 223.5, 42.0)
+        self._assert_anchor("passive.flowchart.process", "bottom", 112.0, 83.5)
+        self._assert_anchor("passive.flowchart.process", "left", 0.5, 42.0)
+
+        self._assert_anchor("passive.flowchart.decision", "top", 118.0, 0.5)
+        self._assert_anchor("passive.flowchart.decision", "right", 235.5, 64.0)
+        self._assert_anchor("passive.flowchart.decision", "bottom", 118.0, 127.5)
+        self._assert_anchor("passive.flowchart.decision", "left", 0.5, 64.0)
+
+        self._assert_anchor("passive.flowchart.start", "top", 114.0, 0.5)
+        self._assert_anchor("passive.flowchart.start", "right", 227.5, 39.0)
+        self._assert_anchor("passive.flowchart.start", "bottom", 114.0, 77.5)
+        self._assert_anchor("passive.flowchart.start", "left", 0.5, 39.0)
+
+        self._assert_anchor("passive.flowchart.input_output", "top", 118.0, 0.5)
+        self._assert_anchor("passive.flowchart.input_output", "right", 223.41, 47.0)
+        self._assert_anchor("passive.flowchart.input_output", "bottom", 118.0, 93.5)
+        self._assert_anchor("passive.flowchart.input_output", "left", 12.59, 47.0)
+
+    def test_database_and_input_output_side_anchors_stay_on_true_visual_midsides(self) -> None:
+        self._assert_anchor("passive.flowchart.database", "top", 114.0, 0.5)
+        self._assert_anchor("passive.flowchart.database", "right", 227.5, 64.0)
+        self._assert_anchor("passive.flowchart.database", "bottom", 114.0, 127.5)
+        self._assert_anchor("passive.flowchart.database", "left", 0.5, 64.0)
+
+        self._assert_anchor("passive.flowchart.input_output", "left", 12.59, 47.0)
+        self._assert_anchor("passive.flowchart.input_output", "right", 223.41, 47.0)
 
 
 class FlowchartSurfaceQmlTests(unittest.TestCase):
@@ -112,8 +131,8 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                     "display_name": "Flowchart",
                     "x": 120.0,
                     "y": 120.0,
-                    "width": 220.0,
-                    "height": 124.0,
+                    "width": 236.0,
+                    "height": 128.0,
                     "accent": "#2F89FF",
                     "collapsed": False,
                     "selected": False,
@@ -124,29 +143,38 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                     "can_enter_scope": False,
                     "ports": [
                         {
-                            "key": "flow_in",
-                            "label": "In",
-                            "direction": "in",
+                            "key": "top",
+                            "label": "top",
+                            "direction": "neutral",
                             "kind": "flow",
-                            "data_type": "any",
+                            "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
                         {
-                            "key": "branch_a",
-                            "label": "A",
-                            "direction": "out",
+                            "key": "right",
+                            "label": "right",
+                            "direction": "neutral",
                             "kind": "flow",
-                            "data_type": "any",
+                            "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
                         {
-                            "key": "branch_b",
-                            "label": "B",
-                            "direction": "out",
+                            "key": "bottom",
+                            "label": "bottom",
+                            "direction": "neutral",
                             "kind": "flow",
-                            "data_type": "any",
+                            "data_type": "flow",
+                            "exposed": True,
+                            "connected": False,
+                        },
+                        {
+                            "key": "left",
+                            "label": "left",
+                            "direction": "neutral",
+                            "kind": "flow",
+                            "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
@@ -184,7 +212,7 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
             assert not bool(host.property("_useHostChrome"))
             assert host.findChild(QObject, "graphNodeFlowchartSurface") is not None
             assert len(named_child_items(host, "graphFlowchartSilhouette")) >= 1
-            assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 1
+            assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2
             assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeOutputPortLabel"))
@@ -216,6 +244,8 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
             assert float(drop_preview.property("width")) > 0.0
             assert float(drop_preview.property("height")) > 0.0
             assert len(named_child_items(drop_preview, "graphFlowchartSilhouette")) >= 1
+            assert len(named_child_items(drop_preview, "graphCanvasDropPreviewInputPortDot")) == 2
+            assert len(named_child_items(drop_preview, "graphCanvasDropPreviewOutputPortDot")) == 2
             assert not bool(drop_preview.property("clip"))
             assert not bool(drop_preview.property("previewPortLabelsEnabled"))
             assert not any(item.isVisible() for item in named_child_items(drop_preview, "graphCanvasDropPreviewInputPortLabel"))

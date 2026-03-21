@@ -185,6 +185,7 @@ function libraryPorts(payload) {
                 "direction": String(sourcePort.direction || ""),
                 "kind": String(sourcePort.kind || ""),
                 "data_type": String(sourcePort.data_type || ""),
+                "side": GraphNodeSurfaceMetrics.portCardinalSide(sourcePort),
                 "exposed": sourcePort.exposed !== false
             }
         );
@@ -201,15 +202,7 @@ function previewNodeMetrics(payload) {
 }
 
 function previewVisiblePorts(payload, direction) {
-    var source = libraryPorts(payload);
-    var output = [];
-    for (var i = 0; i < source.length; i++) {
-        var port = source[i];
-        if (!port || port.exposed === false || port.direction !== direction)
-            continue;
-        output.push(port);
-    }
-    return output;
+    return GraphNodeSurfaceMetrics.visiblePortsForDirection(payload, direction);
 }
 
 function previewPortColor(kind) {

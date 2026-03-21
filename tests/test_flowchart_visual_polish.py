@@ -58,36 +58,51 @@ class FlowchartVisualPolishRoutingTests(unittest.TestCase):
     def test_vertical_flowchart_edges_prefer_pipe_routes(self) -> None:
         source_id = self.scene.add_node_from_type("passive.flowchart.process", 40.0, 40.0)
         target_id = self.scene.add_node_from_type("passive.flowchart.process", 64.0, 250.0)
-        edge_id = self.scene.add_edge(source_id, "flow_out", target_id, "flow_in")
+        edge_id = self.scene.add_edge(source_id, "bottom", target_id, "top")
 
         edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
 
         self.assertEqual(edge_payload["route"], "pipe")
         self.assertEqual(len(edge_payload["pipe_points"]), 6)
+        self.assertEqual(edge_payload["source_port_side"], "bottom")
+        self.assertEqual(edge_payload["target_port_side"], "top")
+        self.assertAlmostEqual(edge_payload["pipe_points"][1]["x"], edge_payload["pipe_points"][0]["x"], places=4)
         self.assertGreater(edge_payload["pipe_points"][2]["y"], edge_payload["pipe_points"][0]["y"])
 
     def test_wide_left_to_right_flowchart_edges_keep_bezier_routes(self) -> None:
         source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 40.0)
         target_id = self.scene.add_node_from_type("passive.flowchart.process", 420.0, 72.0)
-        edge_id = self.scene.add_edge(source_id, "flow_out", target_id, "flow_in")
+        edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
 
         edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
 
         self.assertEqual(edge_payload["route"], "bezier")
         self.assertEqual(edge_payload["pipe_points"], [])
+        self.assertEqual(edge_payload["source_port_side"], "right")
+        self.assertEqual(edge_payload["target_port_side"], "left")
+        self.assertGreater(edge_payload["c1x"], edge_payload["sx"])
+        self.assertLess(edge_payload["c2x"], edge_payload["tx"])
 
-    def test_decision_branch_edges_keep_distinct_lane_biases(self) -> None:
+    def test_cardinal_flowchart_edges_publish_side_normals_and_oriented_leads(self) -> None:
         decision_id = self.scene.add_node_from_type("passive.flowchart.decision", 40.0, 40.0)
-        branch_a_target = self.scene.add_node_from_type("passive.flowchart.process", 260.0, 210.0)
-        branch_b_target = self.scene.add_node_from_type("passive.flowchart.process", 260.0, 320.0)
-        edge_a = self.scene.add_edge(decision_id, "branch_a", branch_a_target, "flow_in")
-        edge_b = self.scene.add_edge(decision_id, "branch_b", branch_b_target, "flow_in")
+        right_target = self.scene.add_node_from_type("passive.flowchart.process", 340.0, 96.0)
+        bottom_target = self.scene.add_node_from_type("passive.flowchart.process", 120.0, 320.0)
+        edge_right = self.scene.add_edge(decision_id, "right", right_target, "left")
+        edge_bottom = self.scene.add_edge(decision_id, "bottom", bottom_target, "top")
 
         payload = {item["edge_id"]: item for item in self.scene.edges_model}
 
-        self.assertEqual(payload[edge_a]["route"], "pipe")
-        self.assertEqual(payload[edge_b]["route"], "pipe")
-        self.assertGreaterEqual(abs(payload[edge_a]["lane_bias"] - payload[edge_b]["lane_bias"]), 20.0)
+        self.assertEqual(payload[edge_right]["source_port_side"], "right")
+        self.assertEqual(payload[edge_right]["target_port_side"], "left")
+        self.assertEqual((payload[edge_right]["source_normal_x"], payload[edge_right]["source_normal_y"]), (1.0, 0.0))
+        self.assertGreater(payload[edge_right]["c1x"], payload[edge_right]["sx"])
+
+        self.assertEqual(payload[edge_bottom]["route"], "pipe")
+        self.assertEqual(payload[edge_bottom]["source_port_side"], "bottom")
+        self.assertEqual(payload[edge_bottom]["target_port_side"], "top")
+        self.assertEqual((payload[edge_bottom]["source_normal_x"], payload[edge_bottom]["source_normal_y"]), (0.0, 1.0))
+        self.assertAlmostEqual(payload[edge_bottom]["pipe_points"][1]["x"], payload[edge_bottom]["sx"], places=4)
+        self.assertGreater(payload[edge_bottom]["pipe_points"][1]["y"], payload[edge_bottom]["sy"])
 
 
 class FlowchartVisualPolishQmlTests(unittest.TestCase):
@@ -166,27 +181,36 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                     "can_enter_scope": False,
                     "ports": [
                         {
-                            "key": "flow_in",
-                            "label": "flow_in",
-                            "direction": "in",
+                            "key": "top",
+                            "label": "top",
+                            "direction": "neutral",
                             "kind": "flow",
                             "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
                         {
-                            "key": "branch_a",
-                            "label": "branch_a",
-                            "direction": "out",
+                            "key": "right",
+                            "label": "right",
+                            "direction": "neutral",
                             "kind": "flow",
                             "data_type": "flow",
                             "exposed": True,
                             "connected": False,
                         },
                         {
-                            "key": "branch_b",
-                            "label": "branch_b",
-                            "direction": "out",
+                            "key": "bottom",
+                            "label": "bottom",
+                            "direction": "neutral",
+                            "kind": "flow",
+                            "data_type": "flow",
+                            "exposed": True,
+                            "connected": False,
+                        },
+                        {
+                            "key": "left",
+                            "label": "left",
+                            "direction": "neutral",
                             "kind": "flow",
                             "data_type": "flow",
                             "exposed": True,
@@ -223,9 +247,9 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             assert bool(host.property("isFlowchartSurface"))
             assert not bool(host.property("_useHostChrome"))
             assert bool(host.property("_suppressShadow"))
-            assert len(named_child_items(host, "graphNodeInputPortDot")) == 1
+            assert len(named_child_items(host, "graphNodeInputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeOutputPortDot")) == 2
-            assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 1
+            assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2
             assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
             assert host.findChild(QObject, "graphFlowchartVectorShape") is not None
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
@@ -259,7 +283,7 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             assert not bool(drop_preview.property("previewPortLabelsEnabled"))
             assert len(named_child_items(drop_preview, "graphFlowchartSilhouette")) >= 1
             assert len(named_child_items(drop_preview, "graphFlowchartVectorShape")) >= 1
-            assert len(named_child_items(drop_preview, "graphCanvasDropPreviewInputPortDot")) == 1
+            assert len(named_child_items(drop_preview, "graphCanvasDropPreviewInputPortDot")) == 2
             assert len(named_child_items(drop_preview, "graphCanvasDropPreviewOutputPortDot")) == 2
             assert not any(item.isVisible() for item in named_child_items(drop_preview, "graphCanvasDropPreviewInputPortLabel"))
             assert not any(item.isVisible() for item in named_child_items(drop_preview, "graphCanvasDropPreviewOutputPortLabel"))

@@ -17,6 +17,9 @@ from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition, resolve_edge_color
 from ea_node_editor.ui_qml.graph_surface_metrics import (
+    flowchart_anchor_normal,
+    flowchart_anchor_tangent,
+    flowchart_port_side,
     node_surface_metrics,
     surface_port_local_point,
 )
@@ -105,7 +108,31 @@ def edge_control_points(
     pair_lane: float,
     source_fan: float,
     target_fan: float,
+    source_side: str = "",
+    target_side: str = "",
 ) -> tuple[float, float, float, float]:
+    normalized_source_side = str(source_side or "").strip().lower()
+    normalized_target_side = str(target_side or "").strip().lower()
+    if normalized_source_side and normalized_target_side:
+        delta_extent = max(
+            abs(float(target.x() - source.x())),
+            abs(float(target.y() - source.y())),
+        )
+        lead = max(EDGE_FORWARD_LEAD_MIN * 0.55, min(EDGE_FORWARD_LEAD_MIN * 1.2, delta_extent * 0.42))
+        lead += abs(pair_lane) * 0.2
+        source_normal_x, source_normal_y = flowchart_anchor_normal(normalized_source_side)
+        target_normal_x, target_normal_y = flowchart_anchor_normal(normalized_target_side)
+        source_tangent_x, source_tangent_y = flowchart_anchor_tangent(normalized_source_side)
+        target_tangent_x, target_tangent_y = flowchart_anchor_tangent(normalized_target_side)
+        source_bias = source_fan + pair_lane * 0.35
+        target_bias = target_fan - pair_lane * 0.35
+        return (
+            float(source.x() + source_normal_x * lead + source_tangent_x * source_bias),
+            float(source.y() + source_normal_y * lead + source_tangent_y * source_bias),
+            float(target.x() + target_normal_x * lead + target_tangent_x * target_bias),
+            float(target.y() + target_normal_y * lead + target_tangent_y * target_bias),
+        )
+
     dx = float(target.x() - source.x())
 
     lead = max(EDGE_FORWARD_LEAD_MIN, abs(dx) * 0.5)
@@ -142,7 +169,11 @@ def _should_use_flowchart_pipe_route(
     target: QPointF,
     source_bounds: QRectF,
     target_bounds: QRectF,
+    source_side: str = "",
+    target_side: str = "",
 ) -> bool:
+    normalized_source_side = str(source_side or "").strip().lower()
+    normalized_target_side = str(target_side or "").strip().lower()
     dx = float(target.x() - source.x())
     dy = float(target.y() - source.y())
     horizontal_gap = float(target_bounds.left() - source_bounds.right())
@@ -153,10 +184,25 @@ def _should_use_flowchart_pipe_route(
     stacked_vertical = dy >= 42.0 and center_dx <= max_width * 0.78
     near_vertical = abs(dx) <= max(96.0, min_width * 0.42) and dy >= 24.0
     cramped_forward = horizontal_gap <= max(56.0, min_width * 0.22)
+    if normalized_source_side in {"top", "bottom"} and normalized_target_side in {"top", "bottom"}:
+        if abs(dx) <= max(96.0, min_width * 0.42):
+            return abs(dy) >= 24.0
     return dx < 104.0 or overlap or stacked_vertical or (near_vertical and cramped_forward)
 
 
-def edge_pipe_points(
+def _transpose_point(point: QPointF) -> QPointF:
+    return QPointF(float(point.y()), float(point.x()))
+
+
+def _transpose_rect(bounds: QRectF) -> QRectF:
+    return QRectF(float(bounds.y()), float(bounds.x()), float(bounds.height()), float(bounds.width()))
+
+
+def _transpose_pipe_points(points: list[dict[str, float]]) -> list[dict[str, float]]:
+    return [{"x": float(point["y"]), "y": float(point["x"])} for point in points]
+
+
+def _horizontal_edge_pipe_points(
     source: QPointF,
     target: QPointF,
     source_bounds: QRectF,
@@ -227,6 +273,93 @@ def edge_pipe_points(
         {"x": target_stub_x, "y": target_y},
         {"x": float(target.x()), "y": target_y},
     ]
+
+
+def _mixed_cardinal_pipe_points(
+    source: QPointF,
+    target: QPointF,
+    *,
+    pair_lane: float,
+    source_side: str,
+    target_side: str,
+) -> list[dict[str, float]]:
+    source_normal_x, source_normal_y = flowchart_anchor_normal(source_side)
+    target_normal_x, target_normal_y = flowchart_anchor_normal(target_side)
+    stub = EDGE_PIPE_STUB
+    source_stub = {
+        "x": float(source.x() + source_normal_x * stub),
+        "y": float(source.y() + source_normal_y * stub),
+    }
+    target_stub = {
+        "x": float(target.x() + target_normal_x * stub),
+        "y": float(target.y() + target_normal_y * stub),
+    }
+    if source_side in {"left", "right"}:
+        middle_x = (source_stub["x"] + target_stub["x"]) * 0.5 + pair_lane * 0.25
+        return [
+            {"x": float(source.x()), "y": float(source.y())},
+            source_stub,
+            {"x": middle_x, "y": source_stub["y"]},
+            {"x": middle_x, "y": target_stub["y"]},
+            target_stub,
+            {"x": float(target.x()), "y": float(target.y())},
+        ]
+    middle_y = (source_stub["y"] + target_stub["y"]) * 0.5 + pair_lane * 0.25
+    return [
+        {"x": float(source.x()), "y": float(source.y())},
+        source_stub,
+        {"x": source_stub["x"], "y": middle_y},
+        {"x": target_stub["x"], "y": middle_y},
+        target_stub,
+        {"x": float(target.x()), "y": float(target.y())},
+    ]
+
+
+def edge_pipe_points(
+    source: QPointF,
+    target: QPointF,
+    source_bounds: QRectF,
+    target_bounds: QRectF,
+    *,
+    pair_lane: float,
+    source_fan: float,
+    target_fan: float,
+    source_side: str = "",
+    target_side: str = "",
+) -> list[dict[str, float]]:
+    normalized_source_side = str(source_side or "").strip().lower()
+    normalized_target_side = str(target_side or "").strip().lower()
+    if normalized_source_side in {"top", "bottom"} and normalized_target_side in {"top", "bottom"}:
+        return _transpose_pipe_points(
+            _horizontal_edge_pipe_points(
+                _transpose_point(source),
+                _transpose_point(target),
+                _transpose_rect(source_bounds),
+                _transpose_rect(target_bounds),
+                pair_lane=pair_lane,
+                source_fan=source_fan,
+                target_fan=target_fan,
+            )
+        )
+    if normalized_source_side and normalized_target_side and (
+        normalized_source_side in {"top", "bottom"} or normalized_target_side in {"top", "bottom"}
+    ):
+        return _mixed_cardinal_pipe_points(
+            source,
+            target,
+            pair_lane=pair_lane,
+            source_side=normalized_source_side,
+            target_side=normalized_target_side,
+        )
+    return _horizontal_edge_pipe_points(
+        source,
+        target,
+        source_bounds,
+        target_bounds,
+        pair_lane=pair_lane,
+        source_fan=source_fan,
+        target_fan=target_fan,
+    )
 
 
 def normalize_flow_edge_visual_style_payload(visual_style: Any) -> dict[str, Any]:
@@ -349,6 +482,12 @@ def build_edge_payload(
             and _is_flowchart_surface(source_spec)
             and _is_flowchart_surface(target_spec)
         )
+        source_side = flowchart_port_side(source_node, source_spec, edge.source_port_key, workspace_nodes)
+        target_side = flowchart_port_side(target_node, target_spec, edge.target_port_key, workspace_nodes)
+        source_normal_x, source_normal_y = flowchart_anchor_normal(source_side)
+        target_normal_x, target_normal_y = flowchart_anchor_normal(target_side)
+        source_tangent_x, source_tangent_y = flowchart_anchor_tangent(source_side)
+        target_tangent_x, target_tangent_y = flowchart_anchor_tangent(target_side)
         if flowchart_edge:
             source_fan += _flowchart_decision_source_fan_bias(source_spec, edge.source_port_key)
         lane_bias = pair_lane + source_fan - target_fan
@@ -356,7 +495,14 @@ def build_edge_payload(
         pipe_points: list[dict[str, float]] = []
 
         if float(target.x()) < float(source.x()) - 8.0 or (
-            flowchart_edge and _should_use_flowchart_pipe_route(source, target, source_bounds, target_bounds)
+            flowchart_edge and _should_use_flowchart_pipe_route(
+                source,
+                target,
+                source_bounds,
+                target_bounds,
+                source_side=source_side,
+                target_side=target_side,
+            )
         ):
             route_mode = "pipe"
             pipe_points = edge_pipe_points(
@@ -367,6 +513,8 @@ def build_edge_payload(
                 pair_lane=pair_lane,
                 source_fan=source_fan,
                 target_fan=target_fan,
+                source_side=source_side,
+                target_side=target_side,
             )
             c1x = float(pipe_points[1]["x"])
             c1y = float(pipe_points[1]["y"])
@@ -381,6 +529,8 @@ def build_edge_payload(
                 pair_lane=pair_lane,
                 source_fan=source_fan,
                 target_fan=target_fan,
+                source_side=source_side if flowchart_edge else "",
+                target_side=target_side if flowchart_edge else "",
             )
         src_dt = port_data_type(
             node=source_node,
@@ -414,6 +564,16 @@ def build_edge_payload(
                 "label": str(edge.label),
                 "visual_style": copy.deepcopy(edge.visual_style),
                 "flow_style": flow_style,
+                "source_port_side": source_side,
+                "target_port_side": target_side,
+                "source_normal_x": float(source_normal_x),
+                "source_normal_y": float(source_normal_y),
+                "target_normal_x": float(target_normal_x),
+                "target_normal_y": float(target_normal_y),
+                "source_tangent_x": float(source_tangent_x),
+                "source_tangent_y": float(source_tangent_y),
+                "target_tangent_x": float(target_tangent_x),
+                "target_tangent_y": float(target_tangent_y),
                 "route": route_mode,
                 "pipe_points": pipe_points,
                 "lane_bias": float(lane_bias),

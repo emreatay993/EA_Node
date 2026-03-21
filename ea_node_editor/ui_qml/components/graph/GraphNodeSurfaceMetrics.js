@@ -479,6 +479,236 @@ function _normalizedFlowchartVariant(value) {
     return _normalizedVariant(value, _variantLayouts(_flowchartContract()), "process");
 }
 
+function _flowchartBounds(width, height) {
+    if (!(width > 0.0) || !(height > 0.0)) {
+        var safeWidth = Math.max(1.0, Number(width) || 0.0);
+        var safeHeight = Math.max(1.0, Number(height) || 0.0);
+        return {
+            "left": 0.0,
+            "top": 0.0,
+            "right": Math.max(0.0, Number(width) || 0.0),
+            "bottom": Math.max(0.0, Number(height) || 0.0),
+            "widthValue": safeWidth,
+            "heightValue": safeHeight,
+            "centerX": Math.max(0.0, Number(width) || 0.0) * 0.5,
+            "centerY": Math.max(0.0, Number(height) || 0.0) * 0.5
+        };
+    }
+    var inset = 0.5;
+    var left = inset;
+    var top = inset;
+    var right = Math.max(left + 1.0, width - inset);
+    var bottom = Math.max(top + 1.0, height - inset);
+    return {
+        "left": left,
+        "top": top,
+        "right": right,
+        "bottom": bottom,
+        "widthValue": Math.max(1.0, right - left),
+        "heightValue": Math.max(1.0, bottom - top),
+        "centerX": (left + right) * 0.5,
+        "centerY": (top + bottom) * 0.5
+    };
+}
+
+function _cubicBezierCoordinate(p0, p1, p2, p3, t) {
+    var omt = 1.0 - t;
+    return omt * omt * omt * p0
+        + 3.0 * omt * omt * t * p1
+        + 3.0 * omt * t * t * p2
+        + t * t * t * p3;
+}
+
+function _solveMonotonicBezierT(target, p0, p1, p2, p3) {
+    var increasing = p3 >= p0;
+    var low = 0.0;
+    var high = 1.0;
+    for (var i = 0; i < 32; i++) {
+        var mid = (low + high) * 0.5;
+        var value = _cubicBezierCoordinate(p0, p1, p2, p3, mid);
+        if ((value < target) === increasing)
+            low = mid;
+        else
+            high = mid;
+    }
+    return (low + high) * 0.5;
+}
+
+function _documentBottomAnchor(bounds) {
+    var waveDepth = Math.min(bounds.heightValue * 0.11, 11.5);
+    var waveBase = bounds.bottom - waveDepth * 0.58;
+    var waveCrest = bounds.bottom - waveDepth * 1.08;
+    var waveTrough = bounds.bottom - waveDepth * 0.12;
+    var middleX = bounds.left + bounds.widthValue * 0.52;
+    var targetX = bounds.centerX;
+    var p0x;
+    var p1x;
+    var p2x;
+    var p3x;
+    var p0y;
+    var p1y;
+    var p2y;
+    var p3y;
+
+    if (targetX >= middleX) {
+        p0x = bounds.right;
+        p1x = bounds.right - bounds.widthValue * 0.17;
+        p2x = bounds.left + bounds.widthValue * 0.7;
+        p3x = middleX;
+        p0y = waveBase;
+        p1y = waveTrough;
+        p2y = waveTrough;
+        p3y = waveBase - waveDepth * 0.34;
+    } else {
+        p0x = middleX;
+        p1x = bounds.left + bounds.widthValue * 0.33;
+        p2x = bounds.left + bounds.widthValue * 0.14;
+        p3x = bounds.left;
+        p0y = waveBase - waveDepth * 0.34;
+        p1y = waveCrest;
+        p2y = waveCrest;
+        p3y = waveBase;
+    }
+
+    var t = _solveMonotonicBezierT(targetX, p0x, p1x, p2x, p3x);
+    return {
+        "x": targetX,
+        "y": _cubicBezierCoordinate(p0y, p1y, p2y, p3y, t)
+    };
+}
+
+function flowchartAnchorPoint(variant, width, height, side) {
+    var normalizedSide = String(side || "").trim().toLowerCase();
+    var bounds = _flowchartBounds(width, height);
+    if (normalizedSide !== "top" && normalizedSide !== "right"
+        && normalizedSide !== "bottom" && normalizedSide !== "left") {
+        return {"x": bounds.centerX, "y": bounds.centerY};
+    }
+
+    var normalizedVariant = _normalizedFlowchartVariant(variant);
+    if (normalizedVariant === "start" || normalizedVariant === "end" || normalizedVariant === "process"
+        || normalizedVariant === "predefined_process" || normalizedVariant === "decision"
+        || normalizedVariant === "connector") {
+        if (normalizedSide === "top")
+            return {"x": bounds.centerX, "y": bounds.top};
+        if (normalizedSide === "right")
+            return {"x": bounds.right, "y": bounds.centerY};
+        if (normalizedSide === "bottom")
+            return {"x": bounds.centerX, "y": bounds.bottom};
+        return {"x": bounds.left, "y": bounds.centerY};
+    }
+
+    if (normalizedVariant === "input_output") {
+        var slant = Math.min(bounds.widthValue * 0.13, bounds.heightValue * 0.26);
+        if (normalizedSide === "top")
+            return {"x": bounds.centerX, "y": bounds.top};
+        if (normalizedSide === "right")
+            return {"x": bounds.right - slant * 0.5, "y": bounds.centerY};
+        if (normalizedSide === "bottom")
+            return {"x": bounds.centerX, "y": bounds.bottom};
+        return {"x": bounds.left + slant * 0.5, "y": bounds.centerY};
+    }
+
+    if (normalizedVariant === "database") {
+        if (normalizedSide === "top")
+            return {"x": bounds.centerX, "y": bounds.top};
+        if (normalizedSide === "right")
+            return {"x": bounds.right, "y": bounds.centerY};
+        if (normalizedSide === "bottom")
+            return {"x": bounds.centerX, "y": bounds.bottom};
+        return {"x": bounds.left, "y": bounds.centerY};
+    }
+
+    if (normalizedVariant === "document") {
+        if (normalizedSide === "top")
+            return {"x": bounds.centerX, "y": bounds.top};
+        if (normalizedSide === "right")
+            return {"x": bounds.right, "y": bounds.centerY};
+        if (normalizedSide === "bottom")
+            return _documentBottomAnchor(bounds);
+        return {"x": bounds.left, "y": bounds.centerY};
+    }
+
+    if (normalizedSide === "top")
+        return {"x": bounds.centerX, "y": bounds.top};
+    if (normalizedSide === "right")
+        return {"x": bounds.right, "y": bounds.centerY};
+    if (normalizedSide === "bottom")
+        return {"x": bounds.centerX, "y": bounds.bottom};
+    return {"x": bounds.left, "y": bounds.centerY};
+}
+
+function flowchartAnchorNormal(side) {
+    var normalizedSide = String(side || "").trim().toLowerCase();
+    if (normalizedSide === "top")
+        return {"x": 0.0, "y": -1.0};
+    if (normalizedSide === "right")
+        return {"x": 1.0, "y": 0.0};
+    if (normalizedSide === "bottom")
+        return {"x": 0.0, "y": 1.0};
+    if (normalizedSide === "left")
+        return {"x": -1.0, "y": 0.0};
+    return {"x": 0.0, "y": 0.0};
+}
+
+function flowchartAnchorTangent(side) {
+    var normalizedSide = String(side || "").trim().toLowerCase();
+    if (normalizedSide === "top" || normalizedSide === "bottom")
+        return {"x": 1.0, "y": 0.0};
+    if (normalizedSide === "left" || normalizedSide === "right")
+        return {"x": 0.0, "y": 1.0};
+    return {"x": 0.0, "y": 0.0};
+}
+
+function portCardinalSide(port) {
+    var side = String(port && (port.side !== undefined ? port.side : port.key) || "").trim().toLowerCase();
+    if (side === "top" || side === "right" || side === "bottom" || side === "left")
+        return side;
+    return "";
+}
+
+function portLayoutDirection(port) {
+    var rawDirection = String(port && port.direction || "").trim().toLowerCase();
+    var side = portCardinalSide(port);
+    if (rawDirection === "neutral" && side)
+        return (side === "top" || side === "left") ? "in" : "out";
+    return rawDirection;
+}
+
+function visiblePortsForDirection(node, direction) {
+    var ports = node && node.ports ? node.ports : [];
+    var normalizedDirection = String(direction || "").trim().toLowerCase();
+    var output = [];
+    for (var i = 0; i < ports.length; i++) {
+        var port = ports[i];
+        if (!port || port.exposed === false)
+            continue;
+        if (portLayoutDirection(port) !== normalizedDirection)
+            continue;
+        output.push(port);
+    }
+    if (String(node && node.surface_family || "standard") !== "flowchart")
+        return output;
+
+    var sideOrder = normalizedDirection === "in"
+        ? {"top": 0, "left": 1}
+        : {"right": 0, "bottom": 1};
+    output.sort(function(a, b) {
+        var aSide = portCardinalSide(a);
+        var bSide = portCardinalSide(b);
+        var aOrder = sideOrder[aSide];
+        var bOrder = sideOrder[bSide];
+        if (aOrder === undefined)
+            aOrder = 99;
+        if (bOrder === undefined)
+            bOrder = 99;
+        if (aOrder !== bOrder)
+            return aOrder - bOrder;
+        return String(a && a.key || "").localeCompare(String(b && b.key || ""));
+    });
+    return output;
+}
+
 function _flowchartHorizontalBounds(variant, width, height, localY) {
     if (!(width > 0.0) || !(height > 0.0))
         return {"left": 0.0, "right": Math.max(0.0, width)};
@@ -514,9 +744,61 @@ function _flowchartHorizontalBounds(variant, width, height, localY) {
     return {"left": 0.0, "right": width};
 }
 
+function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride) {
+    if (!node || !port)
+        return {"x": 0.0, "y": 0.0};
+    var metrics = surfaceMetrics(node);
+    var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
+    var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
+    var direction = portLayoutDirection(port);
+    if (node.collapsed) {
+        return {
+            "x": direction === "in" ? 0.0 : widthValue,
+            "y": metrics.collapsed_height * 0.5
+        };
+    }
+
+    if (String(node.surface_family || "standard") === "flowchart") {
+        var side = portCardinalSide(port);
+        if (side)
+            return flowchartAnchorPoint(node.surface_variant, widthValue, heightValue, side);
+    }
+
+    var rowIndex = direction === "in" ? Number(inputRow) : Number(outputRow);
+    if (!isFinite(rowIndex))
+        rowIndex = 0;
+    var localY = metrics.port_top + metrics.port_center_offset + metrics.port_height * rowIndex;
+    if (String(node.surface_family || "standard") === "flowchart") {
+        var bounds = _flowchartHorizontalBounds(
+            _normalizedFlowchartVariant(node.surface_variant),
+            widthValue,
+            heightValue,
+            localY
+        );
+        return {
+            "x": direction === "in" ? bounds.left : bounds.right,
+            "y": localY
+        };
+    }
+    return {
+        "x": direction === "in"
+            ? metrics.port_side_margin + metrics.port_dot_radius
+            : widthValue - metrics.port_side_margin - metrics.port_dot_radius,
+        "y": localY
+    };
+}
+
 function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride) {
     if (!node)
         return {"x": 0.0, "y": 0.0};
+    if (String(node.surface_family || "standard") === "flowchart") {
+        var flowchartPorts = visiblePortsForDirection(node, direction);
+        var resolvedRow = Number(rowIndex);
+        if (!isFinite(resolvedRow))
+            resolvedRow = 0;
+        if (resolvedRow >= 0 && resolvedRow < flowchartPorts.length)
+            return localPortPointForPort(node, flowchartPorts[resolvedRow], resolvedRow, resolvedRow, widthOverride, heightOverride);
+    }
     var metrics = surfaceMetrics(node);
     var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);
     var heightValue = _resolvedDimension(heightOverride !== undefined ? heightOverride : node.height, metrics.default_height);
@@ -560,12 +842,9 @@ function portScenePoint(node, direction, rowIndex, widthOverride, heightOverride
 function portScenePointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride) {
     if (!node || !port)
         return {"x": 0.0, "y": 0.0};
-    var direction = String(port.direction || "");
-    return portScenePoint(
-        node,
-        direction,
-        direction === "in" ? inputRow : outputRow,
-        widthOverride,
-        heightOverride
-    );
+    var localPoint = localPortPointForPort(node, port, inputRow, outputRow, widthOverride, heightOverride);
+    return {
+        "x": Number(node.x || 0.0) + localPoint.x,
+        "y": Number(node.y || 0.0) + localPoint.y
+    };
 }

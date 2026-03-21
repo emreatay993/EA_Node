@@ -252,14 +252,10 @@ Item {
     readonly property int nodeTextRenderType: Text.CurveRendering
 
     readonly property var inputPorts: {
-        if (!card.nodeData || !card.nodeData.ports)
-            return [];
-        return card.nodeData.ports.filter(function(port) { return port.direction === "in"; });
+        return GraphNodeSurfaceMetrics.visiblePortsForDirection(card.nodeData, "in");
     }
     readonly property var outputPorts: {
-        if (!card.nodeData || !card.nodeData.ports)
-            return [];
-        return card.nodeData.ports.filter(function(port) { return port.direction === "out"; });
+        return GraphNodeSurfaceMetrics.visiblePortsForDirection(card.nodeData, "out");
     }
     readonly property real resolvedBorderWidth: card.isPassiveNode
         ? (card.isSelected ? Math.max(2.0, card.passiveBorderWidth) : card.passiveBorderWidth)
