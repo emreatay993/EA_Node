@@ -7,6 +7,8 @@ import os
 import platform
 import random
 import statistics
+import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import asdict, dataclass
@@ -1425,8 +1427,16 @@ def run_benchmark(
 
     full_runs: list[dict[str, Any]] = []
     series_runs: list[dict[str, Any]] = []
+    qt_qpa_platform = os.environ.get("QT_QPA_PLATFORM", "").strip().lower()
     for run_index in range(1, baseline_runs + 1):
-        run_report = _run_single_benchmark(config)
+        if baseline_runs > 1 and qt_qpa_platform == "windows":
+            run_report = _run_single_benchmark_subprocess(
+                config,
+                baseline_mode=baseline_mode,
+                baseline_tag=baseline_tag,
+            )
+        else:
+            run_report = _run_single_benchmark(config)
         full_runs.append(run_report)
         metrics = run_report["metrics"]
         load_p95 = float(metrics["project_graph_load_ms"]["summary"]["p95"])
@@ -1498,6 +1508,66 @@ def run_benchmark(
         ),
     }
     return latest_report
+
+
+def _run_single_benchmark_subprocess(
+    config: BenchmarkConfig,
+    *,
+    baseline_mode: str,
+    baseline_tag: str,
+) -> dict[str, Any]:
+    with tempfile.TemporaryDirectory(prefix="track_h_baseline_subprocess_") as temp_dir:
+        report_dir = Path(temp_dir)
+        command = [
+            sys.executable,
+            "-m",
+            "ea_node_editor.telemetry.performance_harness",
+            "--nodes",
+            str(config.synthetic_graph.node_count),
+            "--edges",
+            str(config.synthetic_graph.edge_count),
+            "--seed",
+            str(config.synthetic_graph.seed),
+            "--load-iterations",
+            str(config.load_iterations),
+            "--interaction-samples",
+            str(config.interaction_samples),
+            "--interaction-warmup-samples",
+            str(config.interaction_warmup_samples),
+            "--performance-mode",
+            str(config.performance_mode),
+            "--scenario",
+            str(config.scenario),
+            "--baseline-runs",
+            "1",
+            "--baseline-mode",
+            str(baseline_mode),
+            "--baseline-tag",
+            str(baseline_tag),
+            "--report-dir",
+            str(report_dir),
+        ]
+        qt_qpa_platform = os.environ.get("QT_QPA_PLATFORM", "").strip()
+        if qt_qpa_platform:
+            command.extend(["--qt-platform", qt_qpa_platform])
+        completed = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            raise RuntimeError(
+                "Benchmark subprocess failed "
+                f"(code={completed.returncode})\nSTDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+            )
+        json_path = report_dir / "track_h_benchmark_report.json"
+        if not json_path.exists():
+            raise RuntimeError(
+                "Benchmark subprocess did not produce track_h_benchmark_report.json\n"
+                f"STDOUT:\n{completed.stdout}\nSTDERR:\n{completed.stderr}"
+            )
+        return json.loads(json_path.read_text(encoding="utf-8"))
 
 
 def _write_markdown_report(report: dict[str, Any], path: Path) -> None:

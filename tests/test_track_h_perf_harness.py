@@ -17,6 +17,29 @@ from ea_node_editor.ui.perf import performance_harness as ui_performance_harness
 
 
 class TrackHPerformanceHarnessTests(unittest.TestCase):
+    def _mock_single_run_report(self) -> dict:
+        return {
+            "generated_at_utc": "2026-03-21T00:00:00+00:00",
+            "config": {
+                "performance_mode": "full_fidelity",
+                "scenario": "synthetic_exec",
+            },
+            "environment": {
+                "hostname": "test-host",
+                "machine": "x86_64",
+                "qt_qpa_platform": "windows",
+                "qt_quick_backend": "",
+                "qsg_rhi_backend": "",
+            },
+            "metrics": {
+                "project_graph_load_ms": {"summary": {"p95": 10.0}},
+                "pan_interaction_ms": {"summary": {"p95": 20.0}},
+                "zoom_interaction_ms": {"summary": {"p95": 30.0}},
+                "pan_zoom_combined_ms": {"summary": {"p95": 40.0}},
+                "node_drag_control_ms": {"summary": {"p95": 50.0}},
+            },
+        }
+
     def _assert_heavy_media_scenario(self, performance_mode: str) -> None:
         report = run_benchmark(
             BenchmarkConfig(
@@ -186,6 +209,32 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("node_drag_control_p95_ms", variance_eval)
         self.assertIn("pass", variance_eval["load_p95_ms"])
         self.assertIn("details", variance_eval["pan_zoom_p95_ms"])
+
+    def test_windows_baseline_series_uses_subprocess_runner(self) -> None:
+        sample_report = self._mock_single_run_report()
+        with patch.dict(ui_performance_harness.os.environ, {"QT_QPA_PLATFORM": "windows"}, clear=False):
+            with patch.object(
+                ui_performance_harness,
+                "_run_single_benchmark_subprocess",
+                side_effect=[sample_report, sample_report],
+            ) as subprocess_runner:
+                with patch.object(ui_performance_harness, "_run_single_benchmark") as in_process_runner:
+                    report = run_benchmark(
+                        BenchmarkConfig(
+                            synthetic_graph=SyntheticGraphConfig(node_count=60, edge_count=160, seed=11),
+                            load_iterations=1,
+                            interaction_samples=4,
+                            interaction_warmup_samples=1,
+                        ),
+                        baseline_runs=2,
+                        baseline_mode="interactive",
+                        baseline_tag="unit_test",
+                    )
+
+        self.assertEqual(subprocess_runner.call_count, 2)
+        in_process_runner.assert_not_called()
+        self.assertEqual(report["baseline_series"]["run_count"], 2)
+        self.assertEqual(len(report["baseline_series"]["runs"]), 2)
 
     def test_heavy_media_scenario_records_mode_and_media_mix(self) -> None:
         self._assert_heavy_media_scenario("max_performance")
