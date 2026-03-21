@@ -246,11 +246,12 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                     "viewBridge": view,
                     "width": 1280.0,
                     "height": 720.0,
-                    "dropPreviewNodePayload": flowchart_payload("document"),
-                    "dropPreviewScreenX": 180.0,
-                    "dropPreviewScreenY": 220.0,
                 },
             )
+            canvas.setProperty("dropPreviewNodePayload", flowchart_payload("document"))
+            canvas.setProperty("dropPreviewScreenX", 180.0)
+            canvas.setProperty("dropPreviewScreenY", 220.0)
+            app.processEvents()
             drop_preview = canvas.findChild(QObject, "graphCanvasDropPreview")
             assert drop_preview is not None
             assert bool(drop_preview.property("previewIsFlowchart"))

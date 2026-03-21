@@ -360,24 +360,24 @@ QtObject {
     }
 
     function previewNodeScreenWidth() {
-        var zoom = root.canvasItem && root.canvasItem._canvasViewBridgeRef
-            ? root.canvasItem._canvasViewBridgeRef.zoom_value
+        var zoom = root.canvasItem && root.canvasItem._canvasViewStateBridgeRef
+            ? root.canvasItem._canvasViewStateBridgeRef.zoom_value
             : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
         return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_width, zoom);
     }
 
     function previewNodeScreenHeight() {
-        var zoom = root.canvasItem && root.canvasItem._canvasViewBridgeRef
-            ? root.canvasItem._canvasViewBridgeRef.zoom_value
+        var zoom = root.canvasItem && root.canvasItem._canvasViewStateBridgeRef
+            ? root.canvasItem._canvasViewStateBridgeRef.zoom_value
             : 1.0;
         var metrics = _previewNodeMetrics(root.dropPreviewNodePayload);
         return GraphCanvasLogic.previewNodeScreenExtent(metrics.default_height, zoom);
     }
 
     function previewPortLabelsVisible() {
-        var zoom = root.canvasItem && root.canvasItem._canvasViewBridgeRef
-            ? root.canvasItem._canvasViewBridgeRef.zoom_value
+        var zoom = root.canvasItem && root.canvasItem._canvasViewStateBridgeRef
+            ? root.canvasItem._canvasViewStateBridgeRef.zoom_value
             : 1.0;
         return GraphCanvasLogic.previewPortLabelsVisible(zoom, root.previewNodeScreenWidth());
     }

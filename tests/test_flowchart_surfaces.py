@@ -204,11 +204,12 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                     "viewBridge": view,
                     "width": 1280.0,
                     "height": 720.0,
-                    "dropPreviewNodePayload": flowchart_payload("database"),
-                    "dropPreviewScreenX": 180.0,
-                    "dropPreviewScreenY": 220.0,
                 },
             )
+            canvas.setProperty("dropPreviewNodePayload", flowchart_payload("database"))
+            canvas.setProperty("dropPreviewScreenX", 180.0)
+            canvas.setProperty("dropPreviewScreenY", 220.0)
+            app.processEvents()
             drop_preview = canvas.findChild(QObject, "graphCanvasDropPreview")
             assert drop_preview is not None
             assert bool(drop_preview.property("visible"))
