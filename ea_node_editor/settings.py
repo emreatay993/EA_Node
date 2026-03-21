@@ -5,8 +5,10 @@ from pathlib import Path
 
 from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 
-APP_NAME = "EA Node Editor"
-APP_ID = "com.ea.node_editor"
+APP_NAME = "COREX Node Editor"
+APP_ID = "com.corex.node_editor"
+APP_DATA_DIR_NAME = "COREX_Node_Editor"
+LEGACY_APP_DATA_DIR_NAME = "EA_Node_Editor"
 PROJECT_EXTENSION = ".sfe"
 SCHEMA_VERSION = 4
 AUTOSAVE_INTERVAL_MS = 30_000
@@ -102,7 +104,9 @@ def user_data_dir() -> Path:
         base_dir = Path(app_data)
     else:
         base_dir = Path.home() / ".config"
-    data_dir = base_dir / "EA_Node_Editor"
+    preferred_dir = base_dir / APP_DATA_DIR_NAME
+    legacy_dir = base_dir / LEGACY_APP_DATA_DIR_NAME
+    data_dir = preferred_dir if preferred_dir.exists() or not legacy_dir.exists() else legacy_dir
     data_dir.mkdir(parents=True, exist_ok=True)
     return data_dir
 

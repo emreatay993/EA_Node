@@ -33,7 +33,7 @@ class EmailSendNodePlugin:
                 PropertySpec("password", "str", "", "Password"),
                 PropertySpec("sender", "str", "", "Sender"),
                 PropertySpec("to", "str", "", "To"),
-                PropertySpec("subject", "str", "EA Node Editor Notification", "Subject"),
+                PropertySpec("subject", "str", "COREX Node Editor Notification", "Subject"),
                 PropertySpec("body", "str", "Workflow run completed.", "Body"),
                 PropertySpec("use_tls", "bool", False, "Use TLS"),
             ),

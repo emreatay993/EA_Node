@@ -609,7 +609,7 @@ class ShellWorkspacePresenter(QObject):
     @property
     def project_display_name(self) -> str:
         filename = Path(self._host.project_path).name if self._host.project_path else "untitled.sfe"
-        return f"EA Node Editor - {filename}"
+        return f"COREX Node Editor - {filename}"
 
     @property
     def graphics_tab_strip_density(self) -> str:

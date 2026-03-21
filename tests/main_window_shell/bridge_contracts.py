@@ -215,7 +215,7 @@ class _ShellWorkspaceHostStub(QObject):
     def __init__(self) -> None:
         super().__init__()
         self.calls: list[tuple[str, tuple[object, ...]]] = []
-        self.project_display_name = "EA Node Editor - packet.sfe"
+        self.project_display_name = "COREX Node Editor - packet.sfe"
         self.graphics_tab_strip_density = "relaxed"
         self.active_workspace_id = "ws-2"
         self.active_scope_breadcrumb_items = [
@@ -1522,7 +1522,7 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
         self.assertIs(bridge.scene_bridge, scene_bridge)
         self.assertIs(bridge.console_bridge, console_bridge)
         self.assertIs(bridge.workspace_tabs_bridge, tabs_bridge)
-        self.assertEqual(bridge.project_display_name, "EA Node Editor - packet.sfe")
+        self.assertEqual(bridge.project_display_name, "COREX Node Editor - packet.sfe")
         self.assertEqual(bridge.graphics_tab_strip_density, "relaxed")
         self.assertEqual(bridge.active_workspace_id, "ws-2")
         self.assertEqual(

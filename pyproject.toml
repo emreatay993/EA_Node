@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ea-node-editor"
+name = "corex-node-editor"
 version = "0.1.0"
 description = "A visual node editor for engineering dataflow pipelines, HPC job monitoring, and calculation workflows."
 readme = "README.md"
@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-ea-node-editor = "ea_node_editor.bootstrap:main"
+corex-node-editor = "ea_node_editor.bootstrap:main"
 
 [project.entry-points."ea_node_editor.plugins"]
 

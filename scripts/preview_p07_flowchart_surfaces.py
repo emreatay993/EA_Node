@@ -210,7 +210,7 @@ def _disable_persistence(window: ShellWindow) -> None:
 def _seed_preview(window: ShellWindow) -> None:
     _register_preview_nodes(window.registry)
     window.project_session_controller.new_project()
-    window.setWindowTitle("EA Node Editor - P07 Flowchart Surface Preview")
+    window.setWindowTitle("COREX Node Editor - P07 Flowchart Surface Preview")
 
     node_ids: dict[str, str] = {}
     for definition in _PREVIEW_NODES:
@@ -273,7 +273,7 @@ def _startup_theme_id() -> str:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(list(argv or sys.argv[1:]))
     app = QApplication(sys.argv)
-    app.setApplicationName("EA Node Editor - P07 Preview")
+    app.setApplicationName("COREX Node Editor - P07 Preview")
     app.setStyleSheet(build_theme_stylesheet(_startup_theme_id()))
 
     window = ShellWindow()

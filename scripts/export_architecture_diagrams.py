@@ -44,7 +44,7 @@ def _render_with_kroki(diagram_source: str, fmt: str) -> bytes:
         method="POST",
         headers={
             "Content-Type": "text/plain",
-            "User-Agent": "ea-node-editor-architecture-export/1.0",
+            "User-Agent": "corex-node-editor-architecture-export/1.0",
         },
     )
     with urllib.request.urlopen(request, timeout=60) as response:

@@ -2,20 +2,20 @@
 
 ## Scope
 
-- Audience: internal pilot operators validating packaged desktop build `EA_Node_Editor.exe`.
-- Release: `EA_Node_Editor_RC1_2026-03-01`.
-- Package root: `artifacts/releases/EA_Node_Editor_RC1_2026-03-01/`.
+- Audience: internal pilot operators validating packaged desktop build `COREX_Node_Editor.exe`.
+- Release: `COREX_Node_Editor_RC1_2026-03-01`.
+- Package root: `artifacts/releases/COREX_Node_Editor_RC1_2026-03-01/`.
 
 ## Install And Start
 
 1. Open PowerShell in repository root.
 2. Confirm executable exists:
-   `Test-Path artifacts\releases\EA_Node_Editor_RC1_2026-03-01\dist\EA_Node_Editor\EA_Node_Editor.exe`
+   `Test-Path artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\dist\COREX_Node_Editor\COREX_Node_Editor.exe`
 3. (Recommended) Validate checksum:
-   `Get-FileHash artifacts\releases\EA_Node_Editor_RC1_2026-03-01\dist\EA_Node_Editor\EA_Node_Editor.exe -Algorithm SHA256`
-   Compare with `artifacts\releases\EA_Node_Editor_RC1_2026-03-01\EA_Node_Editor.exe.sha256`.
+   `Get-FileHash artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\dist\COREX_Node_Editor\COREX_Node_Editor.exe -Algorithm SHA256`
+   Compare with `artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\COREX_Node_Editor.exe.sha256`.
 4. Launch app:
-   `.\artifacts\releases\EA_Node_Editor_RC1_2026-03-01\dist\EA_Node_Editor\EA_Node_Editor.exe`
+   `.\artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\dist\COREX_Node_Editor\COREX_Node_Editor.exe`
 5. Wait for main window and verify the status bar initializes to an idle/ready state.
 6. Open `Settings > Graphics Settings` and confirm the dialog shows controls for grid, minimap, snap-to-grid, and theme selection.
 
@@ -54,8 +54,8 @@ Use this template in pilot issue reports:
 Title: [Pilot][RC1] <short failure title>
 Date/Time (UTC): <YYYY-MM-DDTHH:MM:SSZ>
 Operator: <name>
-Build Label: EA_Node_Editor_RC1_2026-03-01
-Executable Path: artifacts/releases/EA_Node_Editor_RC1_2026-03-01/dist/EA_Node_Editor/EA_Node_Editor.exe
+Build Label: COREX_Node_Editor_RC1_2026-03-01
+Executable Path: artifacts/releases/COREX_Node_Editor_RC1_2026-03-01/dist/COREX_Node_Editor/COREX_Node_Editor.exe
 Workflow: <1-6 from runbook>
 Expected Result: <expected behavior>
 Actual Result: <observed behavior>

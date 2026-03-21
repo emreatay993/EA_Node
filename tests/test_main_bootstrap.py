@@ -31,7 +31,7 @@ class MainBootstrapTests(unittest.TestCase):
         pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
         pyproject_text = pyproject_path.read_text(encoding="utf-8")
 
-        self.assertIn('ea-node-editor = "ea_node_editor.bootstrap:main"', pyproject_text)
+        self.assertIn('corex-node-editor = "ea_node_editor.bootstrap:main"', pyproject_text)
 
     def test_preferred_python_prefers_local_venv_over_shared_worktree(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -203,7 +203,7 @@ class AppBootstrapTests(unittest.TestCase):
 
         freeze_support_mock.assert_called_once_with()
         app_ctor.assert_called_once()
-        fake_app.setApplicationName.assert_called_once_with("EA Node Editor")
+        fake_app.setApplicationName.assert_called_once_with("COREX Node Editor")
         fake_app.setStyleSheet.assert_called_once_with("stylesheet:packet-theme")
         build_window_mock.assert_called_once_with()
         fake_app.exec.assert_called_once_with()

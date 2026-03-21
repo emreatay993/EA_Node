@@ -1,4 +1,4 @@
-# EA Node Editor - Release Candidate Notes
+# COREX Node Editor - Release Candidate Notes
 
 Date: `2026-03-16`
 

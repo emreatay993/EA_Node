@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide is the fastest way to get EA Node Editor running locally with the
+This guide is the fastest way to get COREX Node Editor running locally with the
 current Windows-first workflow.
 
 ## Prerequisites
@@ -24,7 +24,7 @@ Notes:
 
 - `.[all,dev]` installs the optional spreadsheet/HPC dependencies plus the local dev tools used in this repo.
 - The repo uses a Windows-style virtualenv layout even when opened from `bash`, so prefer `./venv/Scripts/python.exe` over a shell-default `python`.
-- Editable install also exposes the `ea-node-editor` console entry point inside `venv/Scripts/`.
+- Editable install also exposes the `corex-node-editor` console entry point inside `venv/Scripts/`.
 
 ## First Launch
 
@@ -102,17 +102,17 @@ Manual passive-media fixture:
 
 ## Common Paths
 
-- User data directory: `%APPDATA%\EA_Node_Editor\`
-- Plugin directory root: `%APPDATA%\EA_Node_Editor\plugins\`
-- App-wide graphics preferences: `%APPDATA%\EA_Node_Editor\app_preferences.json`
-- Session state: `%APPDATA%\EA_Node_Editor\last_session.json`
-- Autosave project: `%APPDATA%\EA_Node_Editor\autosave.sfe`
+- User data directory: `%APPDATA%\COREX_Node_Editor\`
+- Plugin directory root: `%APPDATA%\COREX_Node_Editor\plugins\`
+- App-wide graphics preferences: `%APPDATA%\COREX_Node_Editor\app_preferences.json`
+- Session state: `%APPDATA%\COREX_Node_Editor\last_session.json`
+- Autosave project: `%APPDATA%\COREX_Node_Editor\autosave.sfe`
 
 ## Plugins and Node Packages
 
-- Raw plugin drop-ins live directly under `%APPDATA%\EA_Node_Editor\plugins\` as public `*.py` files. Files whose names start with `_` are ignored.
+- Raw plugin drop-ins live directly under `%APPDATA%\COREX_Node_Editor\plugins\` as public `*.py` files. Files whose names start with `_` are ignored.
 - For new plugin modules or installed packages, prefer `PLUGIN_DESCRIPTORS` so loader registration and package export can use descriptor provenance instead of constructor probing. Legacy class discovery remains supported for older plugins.
-- Imported `.eanp` packages install as `%APPDATA%\EA_Node_Editor\plugins\<package_name>\`. Each archive must contain `node_package.json` plus top-level `.py` files only; nested directories and non-Python payload files are rejected.
+- Imported `.eanp` packages install as `%APPDATA%\COREX_Node_Editor\plugins\<package_name>\`. Each archive must contain `node_package.json` plus top-level `.py` files only; nested directories and non-Python payload files are rejected.
 - File > Export Node Package only exports sources already loaded from the user plugins directory. The shell can package one public root `.py` drop-in or one installed package directory at a time; it does not build an archive from arbitrary node selections or built-in nodes.
 - File > Import Node Package reloads user plugins after install. If the imported package replaces node types that were already loaded in the current session, restart the app before assuming the replacements took effect.
 

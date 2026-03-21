@@ -48,7 +48,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller build failed with exit code $LASTEXITCODE."
 }
 
-$exePath = Join-Path $distDir "EA_Node_Editor\EA_Node_Editor.exe"
+$exePath = Join-Path $distDir "COREX_Node_Editor\COREX_Node_Editor.exe"
 if (-not (Test-Path $exePath)) {
     throw "Expected executable was not created: $exePath"
 }

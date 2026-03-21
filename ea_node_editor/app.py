@@ -29,7 +29,7 @@ def build_and_show_shell_window() -> ShellWindow:
 def run() -> int:
     mp.freeze_support()
     app = QApplication(sys.argv)
-    app.setApplicationName("EA Node Editor")
+    app.setApplicationName("COREX Node Editor")
     app.setStyleSheet(build_theme_stylesheet(_startup_theme_id()))
     build_and_show_shell_window()
     return app.exec()

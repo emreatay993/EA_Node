@@ -283,7 +283,7 @@ def bootstrap_shell_window(host: "ShellWindow", composition: ShellWindowComposit
 
 
 def _configure_shell_window_host(host: "ShellWindow") -> None:
-    host.setWindowTitle("EA Node Editor")
+    host.setWindowTitle("COREX Node Editor")
     host.resize(1600, 900)
 
 

@@ -32,7 +32,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.app.processEvents()
 
         self.assertEqual(self.window.project_path, "")
-        self.assertEqual(self.window.project_display_name, "EA Node Editor - untitled.sfe")
+        self.assertEqual(self.window.project_display_name, "COREX Node Editor - untitled.sfe")
         self.assertEqual(len(self.window.model.project.workspaces), 1)
         active_workspace_id = self.window.workspace_manager.active_workspace_id()
         active_workspace = self.window.model.project.workspaces[active_workspace_id]

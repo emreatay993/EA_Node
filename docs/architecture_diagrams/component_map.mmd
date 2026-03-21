@@ -77,7 +77,7 @@ flowchart LR
     SW --> REG[NodeRegistry]
     REG --> BUILTINS[nodes.builtins.*]
     REG --> PLUG[plugin_loader]
-    PLUG --> PLUGDIR[(APPDATA/EA_Node_Editor/plugins)]
+    PLUG --> PLUGDIR[(APPDATA/COREX_Node_Editor/plugins)]
     PLUG --> ENTRYPTS[(Python entry points)]
 
     RUN --> EXEC[ProcessExecutionClient]

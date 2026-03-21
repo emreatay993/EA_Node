@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run split verification phases for the EA Node Editor repo."""
+"""Run split verification phases for the COREX Node Editor repo."""
 
 from __future__ import annotations
 

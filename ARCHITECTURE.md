@@ -1,11 +1,11 @@
-# EA Node Editor Architecture (Plain English)
+# COREX Node Editor Architecture (Plain English)
 
 ## Purpose of this document
-This file explains how EA Node Editor is structured, how runtime data moves through the app, and where to make changes safely.
+This file explains how COREX Node Editor is structured, how runtime data moves through the app, and where to make changes safely.
 It is a practical map for engineers working in this repository.
 
 ## What this app does
-EA Node Editor is a desktop visual workflow editor that:
+COREX Node Editor is a desktop visual workflow editor that:
 - lets users build node graphs on a QML canvas,
 - supports passive visual authoring families for flowcharts, planning boards, annotations, and local media panels on the same canvas,
 - supports nested subnode scopes (graph hierarchy),
@@ -207,7 +207,7 @@ flowchart LR
     SW --> REG[NodeRegistry]
     REG --> BUILTINS[nodes.builtins.*]
     REG --> PLUG[plugin_loader]
-    PLUG --> PLUGDIR[(APPDATA/EA_Node_Editor/plugins)]
+    PLUG --> PLUGDIR[(APPDATA/COREX_Node_Editor/plugins)]
     PLUG --> ENTRYPTS[(Python entry points)]
 
     RUN --> EXEC[ProcessExecutionClient]
@@ -495,7 +495,7 @@ sequenceDiagram
 - Change QML canvas rendering/interaction: `ea_node_editor/ui_qml/components/GraphCanvas.qml`, `ui_qml/components/graph_canvas/*`, and `ui_qml/graph_scene_bridge.py`.
 
 ## Practical summary
-EA Node Editor uses a QML-first UI with a bridge-first shell context, controller-based orchestration, shared app-wide graphics/theme preferences, scoped graph hierarchy, and a process-isolated execution engine.
+COREX Node Editor uses a QML-first UI with a bridge-first shell context, controller-based orchestration, shared app-wide graphics/theme preferences, scoped graph hierarchy, and a process-isolated execution engine.
 This split keeps concerns clear:
 - interaction/rendering in QML and bridges,
 - canonical project state in `GraphModel`,

@@ -1778,7 +1778,7 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Track H performance harness for EA Node Editor.")
+    parser = argparse.ArgumentParser(description="Track H performance harness for COREX Node Editor.")
     parser.add_argument("--nodes", type=int, default=1000, help="Synthetic node count.")
     parser.add_argument("--edges", type=int, default=5000, help="Synthetic edge count.")
     parser.add_argument("--seed", type=int, default=1337, help="Deterministic random seed.")

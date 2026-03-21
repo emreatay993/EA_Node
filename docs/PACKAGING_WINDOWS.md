@@ -23,9 +23,9 @@ This project ships a Windows package using PyInstaller and the repository-root s
 
 - `artifacts\pyinstaller\build\`:
   PyInstaller work files (safe to delete).
-- `artifacts\pyinstaller\dist\EA_Node_Editor\`:
+- `artifacts\pyinstaller\dist\COREX_Node_Editor\`:
   distributable onedir package.
-- `artifacts\pyinstaller\dist\EA_Node_Editor\EA_Node_Editor.exe`:
+- `artifacts\pyinstaller\dist\COREX_Node_Editor\COREX_Node_Editor.exe`:
   packaged desktop executable.
 - `ea_node_editor.spec`:
   repository-root PyInstaller build configuration used by the script.
@@ -35,7 +35,7 @@ This project ships a Windows package using PyInstaller and the repository-root s
 The build script runs an automated startup smoke test by default:
 
 1. sets `QT_QPA_PLATFORM=offscreen`,
-2. launches `EA_Node_Editor.exe`,
+2. launches `COREX_Node_Editor.exe`,
 3. waits for the configured short duration,
 4. fails if process exits early,
 5. terminates the process after successful startup verification.
@@ -84,16 +84,16 @@ Generate unattended installer bundle artifacts and validate install/uninstall li
 Installer outputs are written under:
 
 - `artifacts\releases\installer\<run_id>\`
-  - `EA_Node_Editor_installer_bundle_<run_id>.zip`
-  - `scripts\Install-EA_Node_Editor.ps1`
-  - `scripts\Uninstall-EA_Node_Editor.ps1`
+  - `COREX_Node_Editor_installer_bundle_<run_id>.zip`
+  - `scripts\Install-COREX_Node_Editor.ps1`
+  - `scripts\Uninstall-COREX_Node_Editor.ps1`
   - `installer_manifest.json`
   - `installer_validation.json`
 
 Validation performed by the installer script:
 
 1. Install payload to a temporary target root.
-2. Verify installed `EA_Node_Editor.exe` exists.
+2. Verify installed `COREX_Node_Editor.exe` exists.
 3. Launch installed executable in `QT_QPA_PLATFORM=offscreen` mode for short liveness check.
 4. Execute uninstall and verify executable removal.
 

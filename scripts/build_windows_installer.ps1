@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$DistPath = "artifacts\pyinstaller\dist\EA_Node_Editor",
+    [string]$DistPath = "artifacts\pyinstaller\dist\COREX_Node_Editor",
     [string]$OutputRoot = "artifacts\releases\installer",
     [ValidateRange(2, 60)]
     [int]$SmokeSeconds = 5
@@ -27,7 +27,7 @@ if (-not (Test-Path $resolvedDistPath)) {
     throw "PyInstaller dist folder not found: $resolvedDistPath"
 }
 
-$sourceExe = Join-Path $resolvedDistPath "EA_Node_Editor.exe"
+$sourceExe = Join-Path $resolvedDistPath "COREX_Node_Editor.exe"
 if (-not (Test-Path $sourceExe)) {
     throw "Expected packaged executable not found: $sourceExe"
 }
@@ -37,7 +37,7 @@ New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
 
 $runId = Get-Date -Format "yyyyMMdd_HHmmss"
 $bundleRoot = Join-Path $resolvedOutputRoot $runId
-$payloadRoot = Join-Path $bundleRoot "payload\EA_Node_Editor"
+$payloadRoot = Join-Path $bundleRoot "payload\COREX_Node_Editor"
 $scriptRoot = Join-Path $bundleRoot "scripts"
 
 New-Item -ItemType Directory -Path $payloadRoot -Force | Out-Null
@@ -45,23 +45,23 @@ New-Item -ItemType Directory -Path $scriptRoot -Force | Out-Null
 
 Copy-Item -Path (Join-Path $resolvedDistPath "*") -Destination $payloadRoot -Recurse -Force
 
-$installScriptPath = Join-Path $scriptRoot "Install-EA_Node_Editor.ps1"
-$uninstallScriptPath = Join-Path $scriptRoot "Uninstall-EA_Node_Editor.ps1"
+$installScriptPath = Join-Path $scriptRoot "Install-COREX_Node_Editor.ps1"
+$uninstallScriptPath = Join-Path $scriptRoot "Uninstall-COREX_Node_Editor.ps1"
 
 $installScript = @'
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = "$env:LOCALAPPDATA\EA_Node_Editor"
+    [string]$InstallRoot = "$env:LOCALAPPDATA\COREX_Node_Editor"
 )
 
 $ErrorActionPreference = "Stop"
 $packageRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
-$payload = Join-Path $packageRoot "payload\EA_Node_Editor"
+$payload = Join-Path $packageRoot "payload\COREX_Node_Editor"
 if (-not (Test-Path $payload)) {
     throw "Installer payload not found: $payload"
 }
 
-$targetDir = Join-Path $InstallRoot "EA_Node_Editor"
+$targetDir = Join-Path $InstallRoot "COREX_Node_Editor"
 if (Test-Path $targetDir) {
     Remove-Item -Recurse -Force $targetDir
 }
@@ -72,7 +72,7 @@ $record = [ordered]@{
     installed_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     install_root = $InstallRoot
     install_dir = $targetDir
-    executable = (Join-Path $targetDir "EA_Node_Editor.exe")
+    executable = (Join-Path $targetDir "COREX_Node_Editor.exe")
 }
 $recordPath = Join-Path $InstallRoot "install_record.json"
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
@@ -83,11 +83,11 @@ Write-Host "Installed to: $targetDir"
 $uninstallScript = @'
 [CmdletBinding()]
 param(
-    [string]$InstallRoot = "$env:LOCALAPPDATA\EA_Node_Editor"
+    [string]$InstallRoot = "$env:LOCALAPPDATA\COREX_Node_Editor"
 )
 
 $ErrorActionPreference = "Stop"
-$targetDir = Join-Path $InstallRoot "EA_Node_Editor"
+$targetDir = Join-Path $InstallRoot "COREX_Node_Editor"
 if (Test-Path $targetDir) {
     Remove-Item -Recurse -Force $targetDir
 }
@@ -101,7 +101,7 @@ Write-Host "Uninstalled from: $targetDir"
 Set-Content -Path $installScriptPath -Value $installScript
 Set-Content -Path $uninstallScriptPath -Value $uninstallScript
 
-$bundleZip = Join-Path $bundleRoot "EA_Node_Editor_installer_bundle_$runId.zip"
+$bundleZip = Join-Path $bundleRoot "COREX_Node_Editor_installer_bundle_$runId.zip"
 $zipCreated = $false
 $zipError = ""
 for ($attempt = 1; $attempt -le 5; $attempt++) {
@@ -136,15 +136,15 @@ if ($zipCreated) {
 }
 
 $validationInstallRoot = Join-Path $validationTempRoot "install_root"
-$expandedInstallScript = Join-Path $packageRootForValidation "scripts\Install-EA_Node_Editor.ps1"
-$expandedUninstallScript = Join-Path $packageRootForValidation "scripts\Uninstall-EA_Node_Editor.ps1"
+$expandedInstallScript = Join-Path $packageRootForValidation "scripts\Install-COREX_Node_Editor.ps1"
+$expandedUninstallScript = Join-Path $packageRootForValidation "scripts\Uninstall-COREX_Node_Editor.ps1"
 
 & powershell -NoProfile -ExecutionPolicy Bypass -File $expandedInstallScript -InstallRoot $validationInstallRoot
 if ($LASTEXITCODE -ne 0) {
     throw "Installer validation failed during install phase."
 }
 
-$installedExe = Join-Path $validationInstallRoot "EA_Node_Editor\EA_Node_Editor.exe"
+$installedExe = Join-Path $validationInstallRoot "COREX_Node_Editor\COREX_Node_Editor.exe"
 if (-not (Test-Path $installedExe)) {
     throw "Installer validation failed: installed executable not found at $installedExe"
 }
@@ -181,7 +181,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Installer validation failed during uninstall phase."
 }
 
-$postUninstallExe = Join-Path $validationInstallRoot "EA_Node_Editor\EA_Node_Editor.exe"
+$postUninstallExe = Join-Path $validationInstallRoot "COREX_Node_Editor\COREX_Node_Editor.exe"
 $uninstallPassed = -not (Test-Path $postUninstallExe)
 if (-not $uninstallPassed) {
     throw "Installer validation failed: executable still exists after uninstall."

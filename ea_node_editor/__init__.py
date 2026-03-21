@@ -1,4 +1,4 @@
-"""EA Node Editor package."""
+"""COREX Node Editor package."""
 
 __all__ = ["__version__"]
 

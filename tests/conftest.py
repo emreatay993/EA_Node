@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for the EA Node Editor test suite."""
+"""Shared pytest fixtures for the COREX Node Editor test suite."""
 from __future__ import annotations
 
 import os

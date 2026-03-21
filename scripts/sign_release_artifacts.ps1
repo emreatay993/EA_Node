@@ -5,7 +5,7 @@ param(
     [string]$CertThumbprint = "",
     [string]$TimestampServer = "",
     [string]$SigningOutputRoot = "artifacts\releases\signing",
-    [string]$PackagedExePath = "artifacts\pyinstaller\dist\EA_Node_Editor\EA_Node_Editor.exe",
+    [string]$PackagedExePath = "artifacts\pyinstaller\dist\COREX_Node_Editor\COREX_Node_Editor.exe",
     [string]$InstallerRoot = "artifacts\releases\installer"
 )
 
@@ -159,9 +159,9 @@ $targetFiles = New-Object System.Collections.ArrayList
 [void]$targetFiles.Add($resolvedPackagedExePath)
 if ($null -ne $latestInstallerRun) {
     $installerRunPath = $latestInstallerRun.FullName
-    $installerBundle = Join-Path $installerRunPath ("EA_Node_Editor_installer_bundle_" + $latestInstallerRun.Name + ".zip")
-    $installerScript = Join-Path $installerRunPath "scripts\Install-EA_Node_Editor.ps1"
-    $uninstallScript = Join-Path $installerRunPath "scripts\Uninstall-EA_Node_Editor.ps1"
+    $installerBundle = Join-Path $installerRunPath ("COREX_Node_Editor_installer_bundle_" + $latestInstallerRun.Name + ".zip")
+    $installerScript = Join-Path $installerRunPath "scripts\Install-COREX_Node_Editor.ps1"
+    $uninstallScript = Join-Path $installerRunPath "scripts\Uninstall-COREX_Node_Editor.ps1"
     [void]$targetFiles.Add($installerBundle)
     [void]$targetFiles.Add($installerScript)
     [void]$targetFiles.Add($uninstallScript)
