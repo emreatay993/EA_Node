@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
+import subprocess
+import sys
 import unittest
 from tests.graph_track_b.scene_and_model import (
     QApplication,
@@ -21,6 +25,15 @@ from tests.graph_track_b.scene_and_model import (
     _color_name,
 )
 from tests.qt_wait import wait_for_condition_or_raise
+
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SUBPROCESS_TEST_RUNNER = (
+    "import sys, unittest; "
+    "target = sys.argv[1]; "
+    "suite = unittest.defaultTestLoader.loadTestsFromName(target); "
+    "result = unittest.TextTestRunner(verbosity=2).run(suite); "
+    "sys.exit(0 if result.wasSuccessful() else 1)"
+)
 
 
 def _main_window_graphics_state(*, performance_mode: str = "full_fidelity") -> dict[str, object]:
@@ -894,4 +907,64 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.app.processEvents()
 
 
-__all__ = ["GraphCanvasQmlPreferenceBindingTests"]
+class _SubprocessGraphCanvasQmlPreferenceBindingTest(unittest.TestCase):
+    __test__ = False
+
+    def __init__(self, target: str) -> None:
+        super().__init__(methodName="runTest")
+        self._target = target
+
+    def id(self) -> str:
+        return self._target
+
+    def __str__(self) -> str:
+        return self._target
+
+    def shortDescription(self) -> str:
+        return self._target
+
+    def runTest(self) -> None:
+        env = os.environ.copy()
+        env.setdefault("QT_QPA_PLATFORM", "offscreen")
+        result = subprocess.run(
+            [sys.executable, "-c", _SUBPROCESS_TEST_RUNNER, self._target],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0:
+            return
+        output = "\n".join(
+            part.strip()
+            for part in (result.stdout, result.stderr)
+            if part and part.strip()
+        )
+        self.fail(
+            "Subprocess QML preference binding test failed for "
+            f"{self._target} (exit={result.returncode}).\n{output}"
+        )
+
+
+def build_graph_canvas_qml_preference_binding_subprocess_suite(
+    loader: unittest.TestLoader,
+) -> unittest.TestSuite:
+    suite = unittest.TestSuite()
+    for test_name in loader.getTestCaseNames(GraphCanvasQmlPreferenceBindingTests):
+        target = (
+            f"{GraphCanvasQmlPreferenceBindingTests.__module__}."
+            f"{GraphCanvasQmlPreferenceBindingTests.__qualname__}.{test_name}"
+        )
+        suite.addTest(_SubprocessGraphCanvasQmlPreferenceBindingTest(target))
+    return suite
+
+
+def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
+    return build_graph_canvas_qml_preference_binding_subprocess_suite(loader)
+
+
+__all__ = [
+    "GraphCanvasQmlPreferenceBindingTests",
+    "build_graph_canvas_qml_preference_binding_subprocess_suite",
+]
