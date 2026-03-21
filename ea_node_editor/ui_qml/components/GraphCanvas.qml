@@ -1165,21 +1165,32 @@ Item {
                         return;
                     if (hovered) {
                         var hoveredPortData = root._scenePortData(nodeId, portKey);
+                        var hoveredDirection = String(
+                            hoveredPortData && hoveredPortData.direction !== undefined
+                                ? hoveredPortData.direction
+                                : direction
+                        ).trim().toLowerCase();
+                        var hoveredSide = GraphCanvasLogic.normalizedPortSide(
+                            hoveredPortData && hoveredPortData.side !== undefined
+                                ? hoveredPortData.side
+                                : portKey
+                        );
                         root.hoveredPort = {
                             "node_id": nodeId,
                             "port_key": portKey,
-                            "direction": direction,
+                            "direction": hoveredDirection,
                             "allow_multiple_connections": hoveredPortData ? Boolean(hoveredPortData.allow_multiple_connections) : false,
                             "scene_x": sceneX,
                             "scene_y": sceneY,
                             "valid_drop": false
                         };
+                        if (hoveredSide)
+                            root.hoveredPort.side = hoveredSide;
                         edgeLayer.requestRedraw();
                     } else if (
                         root.hoveredPort
                         && root.hoveredPort.node_id === nodeId
                         && root.hoveredPort.port_key === portKey
-                        && root.hoveredPort.direction === direction
                     ) {
                         root.hoveredPort = null;
                         edgeLayer.requestRedraw();

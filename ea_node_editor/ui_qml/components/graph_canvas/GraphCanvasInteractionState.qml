@@ -64,6 +64,44 @@ QtObject {
         return null;
     }
 
+    function _normalizedPortDirection(directionLike, fallbackDirection) {
+        var normalized = String(directionLike || "").trim().toLowerCase();
+        if (normalized === "in" || normalized === "out" || normalized === "neutral")
+            return normalized;
+        return String(fallbackDirection || "").trim().toLowerCase();
+    }
+
+    function _portCardinalSide(portLike, fallbackPortKey) {
+        return GraphCanvasLogic.normalizedPortSide(
+            portLike && portLike.side !== undefined
+                ? portLike.side
+                : fallbackPortKey
+        );
+    }
+
+    function _authoringPortPayload(nodeId, portKey, fallbackDirection, sceneX, sceneY) {
+        var portData = _scenePortData(nodeId, portKey);
+        var direction = _normalizedPortDirection(
+            portData ? portData.direction : fallbackDirection,
+            fallbackDirection
+        );
+        var side = _portCardinalSide(portData, portKey);
+        var payload = {
+            "node_id": nodeId,
+            "port_key": portKey,
+            "direction": direction,
+            "allow_multiple_connections": portData ? Boolean(portData.allow_multiple_connections) : false,
+            "scene_x": sceneX,
+            "scene_y": sceneY,
+            "valid_drop": false
+        };
+        if (side)
+            payload.side = side;
+        if (GraphCanvasLogic.isNeutralFlowPort(payload))
+            payload.origin_side = side;
+        return payload;
+    }
+
     function _dropTargetInput(sourceDrag, candidate) {
         return GraphCanvasLogic.dropTargetInput(sourceDrag, candidate);
     }
@@ -154,15 +192,18 @@ QtObject {
                 var distance = Math.sqrt(dx * dx + dy * dy);
                 if (distance > threshold || distance >= bestDistance)
                     continue;
+                var side = _portCardinalSide(port, port.key);
                 var candidate = {
                     "node_id": node.node_id,
                     "port_key": port.key,
-                    "direction": port.direction,
+                    "direction": _normalizedPortDirection(port.direction, ""),
                     "allow_multiple_connections": Boolean(port.allow_multiple_connections),
                     "scene_x": point.x,
                     "scene_y": point.y,
                     "valid_drop": false
                 };
+                if (side)
+                    candidate.side = side;
                 candidate.valid_drop = _isDropAllowed(sourceDrag, candidate);
                 if (!candidate.valid_drop)
                     continue;
@@ -436,7 +477,7 @@ QtObject {
     function _samePort(a, b) {
         if (!a || !b)
             return false;
-        return a.node_id === b.node_id && a.port_key === b.port_key && a.direction === b.direction;
+        return a.node_id === b.node_id && a.port_key === b.port_key;
     }
 
     function clearPendingConnection() {
@@ -451,27 +492,41 @@ QtObject {
         if (!state)
             return null;
         var sourcePort = _scenePortData(state.node_id, state.port_key);
-        return {
+        var payload = {
             "node_id": state.node_id,
             "port_key": state.port_key,
-            "source_direction": state.source_direction,
+            "source_direction": _normalizedPortDirection(
+                state.source_direction,
+                sourcePort ? sourcePort.direction : ""
+            ),
             "allow_multiple_connections": sourcePort ? Boolean(sourcePort.allow_multiple_connections) : false,
             "start_x": state.start_x,
             "start_y": state.start_y,
             "cursor_x": state.cursor_x,
             "cursor_y": state.cursor_y
         };
+        var side = _portCardinalSide(sourcePort, state.port_key);
+        if (side)
+            payload.side = side;
+        if (state.origin_side !== undefined)
+            payload.origin_side = GraphCanvasLogic.normalizedPortSide(state.origin_side);
+        else if (GraphCanvasLogic.isNeutralFlowPort(payload))
+            payload.origin_side = side;
+        return payload;
     }
 
     function wireDragSourcePort() {
         var state = root.wireDragState;
         if (!state || !state.active)
             return null;
-        return {
+        var payload = {
             "node_id": state.node_id,
             "port_key": state.port_key,
             "direction": state.source_direction
         };
+        if (state.origin_side !== undefined)
+            payload.origin_side = GraphCanvasLogic.normalizedPortSide(state.origin_side);
+        return payload;
     }
 
     function wireDragPreviewConnection() {
@@ -480,14 +535,19 @@ QtObject {
             state = null;
         if (state) {
             var target = root.wireDropCandidate;
-            return {
+            var preview = {
                 "source_direction": state.source_direction,
                 "start_x": state.start_x,
                 "start_y": state.start_y,
                 "target_x": target ? target.scene_x : state.cursor_x,
                 "target_y": target ? target.scene_y : state.cursor_y,
-                "valid_drop": !!target
+                "valid_drop": target ? Boolean(target.valid_drop) : false
             };
+            if (state.origin_side !== undefined)
+                preview.origin_side = GraphCanvasLogic.normalizedPortSide(state.origin_side);
+            if (target && target.side !== undefined)
+                preview.target_side = GraphCanvasLogic.normalizedPortSide(target.side);
+            return preview;
         }
 
         var pending = root.pendingConnectionPort;
@@ -505,6 +565,10 @@ QtObject {
             "cursor_x": hovered.scene_x,
             "cursor_y": hovered.scene_y
         };
+        if (pending.side !== undefined)
+            pendingSource.side = pending.side;
+        if (pending.origin_side !== undefined)
+            pendingSource.origin_side = pending.origin_side;
         var pendingCandidate = {
             "node_id": hovered.node_id,
             "port_key": hovered.port_key,
@@ -514,7 +578,9 @@ QtObject {
             "scene_y": hovered.scene_y,
             "valid_drop": _isDropAllowed(pendingSource, hovered)
         };
-        return {
+        if (hovered.side !== undefined)
+            pendingCandidate.side = hovered.side;
+        var pendingPreview = {
             "source_direction": pending.direction,
             "start_x": pending.scene_x,
             "start_y": pending.scene_y,
@@ -522,6 +588,11 @@ QtObject {
             "target_y": pendingCandidate.scene_y,
             "valid_drop": pendingCandidate.valid_drop
         };
+        if (pending.origin_side !== undefined)
+            pendingPreview.origin_side = pending.origin_side;
+        if (pendingCandidate.side !== undefined)
+            pendingPreview.target_side = pendingCandidate.side;
+        return pendingPreview;
     }
 
     function _updateWireDropCandidate(screenX, screenY, state) {
@@ -549,18 +620,22 @@ QtObject {
         root.canvasItem.forceActiveFocus();
         root._closeContextMenus();
         root.wireDropCandidate = null;
-        root.wireDragState = {
-            "node_id": nodeId,
-            "port_key": portKey,
-            "source_direction": direction,
-            "start_x": sceneX,
-            "start_y": sceneY,
+        var source = _authoringPortPayload(nodeId, portKey, direction, sceneX, sceneY);
+        var state = {
+            "node_id": source.node_id,
+            "port_key": source.port_key,
+            "source_direction": source.direction,
+            "start_x": source.scene_x,
+            "start_y": source.scene_y,
             "cursor_x": sceneX,
             "cursor_y": sceneY,
             "press_screen_x": Number(screenX),
             "press_screen_y": Number(screenY),
             "active": false
         };
+        if (source.origin_side !== undefined)
+            state.origin_side = source.origin_side;
+        root.wireDragState = state;
     }
 
     function updatePortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
@@ -569,7 +644,11 @@ QtObject {
         var state = root.wireDragState;
         if (!state)
             return;
-        if (state.node_id !== nodeId || state.port_key !== portKey || state.source_direction !== direction)
+        var normalizedDirection = _normalizedPortDirection(
+            (_scenePortData(nodeId, portKey) || {}).direction,
+            direction
+        );
+        if (state.node_id !== nodeId || state.port_key !== portKey || state.source_direction !== normalizedDirection)
             return;
 
         var movedEnough = Boolean(dragActive)
@@ -587,6 +666,8 @@ QtObject {
             "press_screen_y": state.press_screen_y,
             "active": state.active || movedEnough
         };
+        if (state.origin_side !== undefined)
+            next.origin_side = state.origin_side;
         var becameActive = movedEnough && !state.active;
         root.wireDragState = next;
         if (!next.active)
@@ -603,7 +684,11 @@ QtObject {
         var state = root.wireDragState;
         if (!state)
             return;
-        if (state.node_id !== nodeId || state.port_key !== portKey || state.source_direction !== direction) {
+        var normalizedDirection = _normalizedPortDirection(
+            (_scenePortData(nodeId, portKey) || {}).direction,
+            direction
+        );
+        if (state.node_id !== nodeId || state.port_key !== portKey || state.source_direction !== normalizedDirection) {
             root._clearWireDragState();
             return;
         }
@@ -629,6 +714,8 @@ QtObject {
             "press_screen_y": state.press_screen_y,
             "active": true
         };
+        if (state.origin_side !== undefined)
+            finalState.origin_side = state.origin_side;
         root.wireDragState = finalState;
         root.clearPendingConnection();
         root._updateWireDropCandidate(screenX, screenY, finalState);
@@ -683,16 +770,7 @@ QtObject {
             return;
         root.canvasItem.forceActiveFocus();
         root._closeContextMenus();
-        var clickedPort = _scenePortData(nodeId, portKey);
-        var clicked = {
-            "node_id": nodeId,
-            "port_key": portKey,
-            "direction": direction,
-            "allow_multiple_connections": clickedPort ? Boolean(clickedPort.allow_multiple_connections) : false,
-            "scene_x": sceneX,
-            "scene_y": sceneY,
-            "valid_drop": false
-        };
+        var clicked = _authoringPortPayload(nodeId, portKey, direction, sceneX, sceneY);
 
         if (!root.pendingConnectionPort) {
             root.pendingConnectionPort = clicked;
@@ -709,7 +787,9 @@ QtObject {
             return;
         }
 
-        if (pending.direction === clicked.direction) {
+        var neutralGesturePair = GraphCanvasLogic.isNeutralFlowPort(pending)
+            && GraphCanvasLogic.isNeutralFlowPort(clicked);
+        if (pending.direction === clicked.direction && !neutralGesturePair) {
             root.pendingConnectionPort = clicked;
             root.hoveredPort = clicked;
             _requestEdgeRedraw();
@@ -726,6 +806,10 @@ QtObject {
             "cursor_x": sceneX,
             "cursor_y": sceneY
         };
+        if (pending.side !== undefined)
+            sourceDrag.side = pending.side;
+        if (pending.origin_side !== undefined)
+            sourceDrag.origin_side = pending.origin_side;
         clicked.valid_drop = _isDropAllowed(sourceDrag, clicked);
         if (clicked.valid_drop && root.shellBridge && root.shellBridge.request_connect_ports) {
             var created = root.shellBridge.request_connect_ports(

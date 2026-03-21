@@ -108,30 +108,86 @@ function pruneSelectedEdgeIds(selectedEdgeIds, availableIds) {
     return next;
 }
 
-function dropTargetInput(sourceDrag, candidate) {
-    if (sourceDrag.source_direction === "out") {
-        return {
-            "node_id": candidate.node_id,
-            "port_key": candidate.port_key
+function normalizedPortSide(sideLike) {
+    var normalized = String(sideLike || "").trim().toLowerCase();
+    if (normalized === "top" || normalized === "right" || normalized === "bottom" || normalized === "left")
+        return normalized;
+    return "";
+}
+
+function portSide(port) {
+    return normalizedPortSide(GraphNodeSurfaceMetrics.portCardinalSide(port));
+}
+
+function isNeutralFlowPort(portLike) {
+    if (!portLike)
+        return false;
+    var direction = String(
+        portLike.direction !== undefined
+            ? portLike.direction
+            : (portLike.source_direction !== undefined ? portLike.source_direction : "")
+    ).trim().toLowerCase();
+    var side = normalizedPortSide(
+        portLike.origin_side !== undefined
+            ? portLike.origin_side
+            : portSide(portLike)
+    );
+    var kind = String(portLike.kind || "").trim().toLowerCase();
+    var dataType = String(portLike.data_type || "").trim().toLowerCase();
+    return direction === "neutral"
+        && !!side
+        && (!kind || kind === "flow")
+        && (!dataType || dataType === "flow");
+}
+
+function authoredConnection(sourceDrag, candidate) {
+    var gestureOrderedNeutral = isNeutralFlowPort(sourceDrag) && isNeutralFlowPort(candidate);
+    var sourceDirection = String(sourceDrag && sourceDrag.source_direction || "").trim().toLowerCase();
+    var candidateDirection = String(candidate && candidate.direction || "").trim().toLowerCase();
+    var sourceFirst = true;
+    if (gestureOrderedNeutral)
+        sourceFirst = true;
+    else if (sourceDirection === "out")
+        sourceFirst = true;
+    else if (sourceDirection === "in")
+        sourceFirst = false;
+    else if (candidateDirection === "in")
+        sourceFirst = true;
+    else if (candidateDirection === "out")
+        sourceFirst = false;
+    return sourceFirst
+        ? {
+            "source_node_id": sourceDrag.node_id,
+            "source_port_key": sourceDrag.port_key,
+            "target_node_id": candidate.node_id,
+            "target_port_key": candidate.port_key,
+            "target_allows_multiple": Boolean(candidate.allow_multiple_connections),
+            "gesture_ordered_neutral": gestureOrderedNeutral
+        }
+        : {
+            "source_node_id": candidate.node_id,
+            "source_port_key": candidate.port_key,
+            "target_node_id": sourceDrag.node_id,
+            "target_port_key": sourceDrag.port_key,
+            "target_allows_multiple": Boolean(sourceDrag.allow_multiple_connections),
+            "gesture_ordered_neutral": gestureOrderedNeutral
         };
-    }
+}
+
+function dropTargetInput(sourceDrag, candidate) {
+    var connection = authoredConnection(sourceDrag, candidate);
     return {
-        "node_id": sourceDrag.node_id,
-        "port_key": sourceDrag.port_key
+        "node_id": connection.target_node_id,
+        "port_key": connection.target_port_key
     };
 }
 
 function isExactDuplicate(sourceDrag, candidate, edge) {
-    if (sourceDrag.source_direction === "out") {
-        return edge.source_node_id === sourceDrag.node_id
-            && edge.source_port_key === sourceDrag.port_key
-            && edge.target_node_id === candidate.node_id
-            && edge.target_port_key === candidate.port_key;
-    }
-    return edge.source_node_id === candidate.node_id
-        && edge.source_port_key === candidate.port_key
-        && edge.target_node_id === sourceDrag.node_id
-        && edge.target_port_key === sourceDrag.port_key;
+    var connection = authoredConnection(sourceDrag, candidate);
+    return edge.source_node_id === connection.source_node_id
+        && edge.source_port_key === connection.source_port_key
+        && edge.target_node_id === connection.target_node_id
+        && edge.target_port_key === connection.target_port_key;
 }
 
 function isDropAllowedWithCompatibility(sourceDrag, candidate, edges, kindsCompatible, typesCompatible) {
@@ -139,17 +195,19 @@ function isDropAllowedWithCompatibility(sourceDrag, candidate, edges, kindsCompa
         return false;
     if (candidate.node_id === sourceDrag.node_id && candidate.port_key === sourceDrag.port_key)
         return false;
-    if (candidate.direction === sourceDrag.source_direction)
+    var connection = authoredConnection(sourceDrag, candidate);
+    if (!connection.gesture_ordered_neutral && candidate.direction === sourceDrag.source_direction)
         return false;
     if (!kindsCompatible)
         return false;
     if (!typesCompatible)
         return false;
 
-    var targetInput = dropTargetInput(sourceDrag, candidate);
-    var targetAllowsMultiple = sourceDrag.source_direction === "out"
-        ? Boolean(candidate.allow_multiple_connections)
-        : Boolean(sourceDrag.allow_multiple_connections);
+    var targetInput = {
+        "node_id": connection.target_node_id,
+        "port_key": connection.target_port_key
+    };
+    var targetAllowsMultiple = connection.target_allows_multiple;
     var edgePayload = edges || [];
     for (var i = 0; i < edgePayload.length; i++) {
         var edge = edgePayload[i];

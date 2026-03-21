@@ -414,12 +414,14 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """
             pipe_source_id = scene.add_node_from_type("passive.flowchart.process", 520.0, 40.0)
             pipe_target_id = scene.add_node_from_type("passive.flowchart.process", 544.0, 260.0)
-            pipe_edge_id = scene.add_edge(pipe_source_id, "flow_out", pipe_target_id, "flow_in")
+            pipe_edge_id = scene.add_edge(pipe_source_id, "bottom", pipe_target_id, "top")
             app.processEvents()
 
-            pipe_edge = edges_by_id(scene)[pipe_edge_id]
-            assert pipe_edge["route"] == "pipe"
-            anchor = to_variant(edge_layer._edgeAnchor(pipe_edge, 0.5))
+            pipe_snapshot = to_variant(edge_layer._visibleEdgeSnapshot(pipe_edge_id))
+            assert pipe_snapshot is not None
+            pipe_geometry = pipe_snapshot["geometry"]
+            assert pipe_geometry["route"] == "pipe"
+            anchor = to_variant(edge_layer._edgeAnchor(pipe_geometry, 0.5))
             assert anchor is not None
 
             view.centerOn(anchor["x"], anchor["y"])
@@ -433,6 +435,78 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             view.set_zoom(0.5)
             app.processEvents()
             assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_flow_edge_preview_geometry_uses_origin_side_for_neutral_flowchart_ports(self) -> None:
+        self._run_qml_probe(
+            "flowchart-preview-origin-side",
+            """
+            flow_source_id = scene.add_node_from_type("passive.flowchart.process", 520.0, 40.0)
+            flow_target_id = scene.add_node_from_type("passive.flowchart.process", 760.0, 220.0)
+            app.processEvents()
+
+            nodes_by_id = {item["node_id"]: item for item in scene.nodes_model}
+            source_point = to_variant(edge_layer._portScenePoint(nodes_by_id[flow_source_id], "top"))
+            target_point = to_variant(edge_layer._portScenePoint(nodes_by_id[flow_target_id], "left"))
+            assert source_point is not None
+            assert target_point is not None
+
+            canvas.beginPortWireDrag(
+                flow_source_id,
+                "top",
+                "neutral",
+                source_point["x"],
+                source_point["y"],
+                320.0,
+                180.0,
+            )
+            canvas.updatePortWireDrag(
+                flow_source_id,
+                "top",
+                "neutral",
+                source_point["x"],
+                source_point["y"],
+                420.0,
+                260.0,
+                True,
+            )
+            canvas.setProperty(
+                "wireDropCandidate",
+                {
+                    "node_id": flow_target_id,
+                    "port_key": "left",
+                    "direction": "neutral",
+                    "side": "left",
+                    "scene_x": target_point["x"],
+                    "scene_y": target_point["y"],
+                    "valid_drop": True,
+                },
+            )
+            app.processEvents()
+
+            preview = to_variant(canvas.wireDragPreviewConnection())
+            assert preview is not None
+            assert preview["origin_side"] == "top"
+            assert preview["target_side"] == "left"
+            assert bool(preview["valid_drop"])
+
+            geometry = to_variant(edge_layer._dragGeometry(preview))
+            assert geometry is not None
+            assert abs(geometry["sx"] - source_point["x"]) < 0.001
+            assert abs(geometry["sy"] - source_point["y"]) < 0.001
+            assert abs(geometry["c1x"] - source_point["x"]) < 0.001
+            assert geometry["c1y"] < source_point["y"]
+            assert geometry["c2x"] < target_point["x"]
+            assert abs(geometry["c2y"] - target_point["y"]) < 0.001
+
+            assert canvas.cancelWireDrag()
+            app.processEvents()
 
             canvas.deleteLater()
             app.processEvents()

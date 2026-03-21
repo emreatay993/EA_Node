@@ -16,6 +16,7 @@ from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec
+from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, RuntimeGraphHistory
 from ea_node_editor.ui.graph_theme import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
@@ -605,6 +606,29 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(vertical_edge.source_port_key, "bottom")
         self.assertEqual(vertical_edge.target_node_id, vertical_target_id)
         self.assertEqual(vertical_edge.target_port_key, "top")
+
+    def test_connect_ports_reverses_stored_flowchart_arrow_when_neutral_click_order_reverses(self) -> None:
+        forward_source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 30.0)
+        forward_target_id = self.scene.add_node_from_type("passive.flowchart.process", 360.0, 90.0)
+        reverse_source_id = self.scene.add_node_from_type("passive.flowchart.process", 720.0, 40.0)
+        reverse_target_id = self.scene.add_node_from_type("passive.flowchart.process", 1060.0, 120.0)
+
+        interactions = GraphInteractions(self.scene, self.registry)
+        self.assertTrue(interactions.connect_ports(forward_source_id, "right", forward_target_id, "left").ok)
+        self.assertTrue(interactions.connect_ports(reverse_target_id, "left", reverse_source_id, "right").ok)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        edge_by_source_target = {
+            (edge.source_node_id, edge.target_node_id): edge
+            for edge in workspace.edges.values()
+        }
+        forward_edge = edge_by_source_target[(forward_source_id, forward_target_id)]
+        reverse_edge = edge_by_source_target[(reverse_target_id, reverse_source_id)]
+
+        self.assertEqual(forward_edge.source_port_key, "right")
+        self.assertEqual(forward_edge.target_port_key, "left")
+        self.assertEqual(reverse_edge.source_port_key, "left")
+        self.assertEqual(reverse_edge.target_port_key, "right")
 
     def test_planning_and_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
         task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)

@@ -927,6 +927,163 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_pendingConnectionPort_request_connect_ports_preserves_flowchart_gesture_order(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-flowchart-gesture-order",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui.graph_interactions import GraphInteractions
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            class FlowchartShellBridgeStub(QObject):
+                def __init__(self, interactions):
+                    super().__init__()
+                    self._interactions = interactions
+                    self.connect_calls = []
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(str, constant=True)
+                def graphics_performance_mode(self):
+                    return "full_fidelity"
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                @pyqtSlot(str, str, str, str, result=bool)
+                def request_connect_ports(self, node_a_id, port_a, node_b_id, port_b):
+                    request = (
+                        str(node_a_id or ""),
+                        str(port_a or ""),
+                        str(node_b_id or ""),
+                        str(port_b or ""),
+                    )
+                    self.connect_calls.append(request)
+                    result = self._interactions.connect_ports(*request)
+                    return bool(result.ok)
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            interactions = GraphInteractions(scene, registry)
+            shell_bridge = FlowchartShellBridgeStub(interactions)
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+
+            first_source_id = scene.add_node_from_type("passive.flowchart.process", 20.0, 20.0)
+            first_target_id = scene.add_node_from_type("passive.flowchart.process", 360.0, 160.0)
+            second_source_id = scene.add_node_from_type("passive.flowchart.process", 720.0, 40.0)
+            second_target_id = scene.add_node_from_type("passive.flowchart.process", 1060.0, 180.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "mainWindowBridge": shell_bridge,
+                    "viewBridge": view,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+
+            canvas.handlePortClick(first_source_id, "right", "neutral", 120.0, 90.0)
+            app.processEvents()
+
+            pending = variant_value(canvas.property("pendingConnectionPort"))
+            assert pending is not None
+            assert pending["direction"] == "neutral"
+            assert pending["origin_side"] == "right"
+
+            canvas.handlePortClick(first_target_id, "top", "neutral", 460.0, 200.0)
+            app.processEvents()
+
+            assert shell_bridge.connect_calls[0] == (
+                first_source_id,
+                "right",
+                first_target_id,
+                "top",
+            )
+            assert canvas.property("pendingConnectionPort") is None
+
+            canvas.handlePortClick(second_target_id, "left", "neutral", 1160.0, 230.0)
+            app.processEvents()
+
+            pending = variant_value(canvas.property("pendingConnectionPort"))
+            assert pending is not None
+            assert pending["direction"] == "neutral"
+            assert pending["origin_side"] == "left"
+
+            canvas.handlePortClick(second_source_id, "bottom", "neutral", 820.0, 150.0)
+            app.processEvents()
+
+            assert shell_bridge.connect_calls[1] == (
+                second_target_id,
+                "left",
+                second_source_id,
+                "bottom",
+            )
+
+            workspace = model.active_workspace
+            stored_edges = {
+                (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+                for edge in workspace.edges.values()
+            }
+            assert (
+                first_source_id,
+                "right",
+                first_target_id,
+                "top",
+            ) in stored_edges
+            assert (
+                second_target_id,
+                "left",
+                second_source_id,
+                "bottom",
+            ) in stored_edges
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_media_whole_surface_lock_remains_independent_from_local_interactive_rects(self) -> None:
         self._run_qml_probe(
             "media-whole-surface-lock",

@@ -13,6 +13,13 @@ Item {
         return portData.kind !== "exec" && portData.kind !== "completed" && portData.kind !== "failed";
     }
 
+    function _interactionDirection(portData, fallbackDirection) {
+        var direction = String(portData && portData.direction || "").trim().toLowerCase();
+        if (direction === "in" || direction === "out" || direction === "neutral")
+            return direction;
+        return String(fallbackDirection || "").trim().toLowerCase();
+    }
+
     function beginPortLabelEdit(portKey, direction) {
         root.editingPortKey = portKey;
         root.editingPortDirection = direction;
@@ -44,6 +51,7 @@ Item {
 
         delegate: Item {
             property int rowIndex: index
+            readonly property string interactionDirection: root._interactionDirection(modelData, "in")
             readonly property var portPoint: root.host
                 ? root.host.localPortPoint("in", rowIndex)
                 : ({"x": 0.0, "y": 0.0})
@@ -56,9 +64,10 @@ Item {
             Rectangle {
                 id: inputDot
                 objectName: "graphNodeInputPortDot"
-                property bool hoveredState: root.host ? root.host.isHoveredPort("in", modelData.key) : false
-                property bool pendingState: root.host ? root.host.isPendingPort("in", modelData.key) : false
-                property bool dragSourceState: root.host ? root.host.isDragSourcePort("in", modelData.key) : false
+                readonly property string interactionDirection: parent.interactionDirection
+                property bool hoveredState: root.host ? root.host.isHoveredPort(parent.interactionDirection, modelData.key) : false
+                property bool pendingState: root.host ? root.host.isPendingPort(parent.interactionDirection, modelData.key) : false
+                property bool dragSourceState: root.host ? root.host.isDragSourcePort(parent.interactionDirection, modelData.key) : false
                 property bool selectedState: root.host ? (root.host.isFlowchartSurface && root.host.isSelected) : false
                 property bool attentionState: hoveredState || pendingState || dragSourceState
                 property bool interactiveState: attentionState || selectedState
@@ -132,7 +141,7 @@ Item {
                         root.host.portDragStarted(
                             root.host.nodeData.node_id,
                             modelData.key,
-                            "in",
+                            inputDot.interactionDirection,
                             scenePos.x,
                             scenePos.y,
                             pointerPos.x,
@@ -153,7 +162,7 @@ Item {
                         root.host.portDragMoved(
                             root.host.nodeData.node_id,
                             modelData.key,
-                            "in",
+                            inputDot.interactionDirection,
                             scenePos.x,
                             scenePos.y,
                             pointerPos.x,
@@ -170,7 +179,7 @@ Item {
                         root.host.portDragFinished(
                             root.host.nodeData.node_id,
                             modelData.key,
-                            "in",
+                            inputDot.interactionDirection,
                             scenePos.x,
                             scenePos.y,
                             pointerPos.x,
@@ -178,7 +187,13 @@ Item {
                             movedState
                         );
                         if (!movedState) {
-                            root.host.portClicked(root.host.nodeData.node_id, modelData.key, "in", scenePos.x, scenePos.y);
+                            root.host.portClicked(
+                                root.host.nodeData.node_id,
+                                modelData.key,
+                                inputDot.interactionDirection,
+                                scenePos.x,
+                                scenePos.y
+                            );
                         }
                         movedState = false;
                     }
@@ -186,7 +201,7 @@ Item {
                     onCanceled: {
                         if (!root.host || !root.host.nodeData)
                             return;
-                        root.host.portDragCanceled(root.host.nodeData.node_id, modelData.key, "in");
+                        root.host.portDragCanceled(root.host.nodeData.node_id, modelData.key, inputDot.interactionDirection);
                         movedState = false;
                     }
 
@@ -194,14 +209,28 @@ Item {
                         if (!root.host || !root.host.nodeData)
                             return;
                         var pos = root.host.portScenePos("in", rowIndex);
-                        root.host.portHoverChanged(root.host.nodeData.node_id, modelData.key, "in", pos.x, pos.y, true);
+                        root.host.portHoverChanged(
+                            root.host.nodeData.node_id,
+                            modelData.key,
+                            inputDot.interactionDirection,
+                            pos.x,
+                            pos.y,
+                            true
+                        );
                     }
 
                     onExited: {
                         if (!root.host || !root.host.nodeData)
                             return;
                         var pos = root.host.portScenePos("in", rowIndex);
-                        root.host.portHoverChanged(root.host.nodeData.node_id, modelData.key, "in", pos.x, pos.y, false);
+                        root.host.portHoverChanged(
+                            root.host.nodeData.node_id,
+                            modelData.key,
+                            inputDot.interactionDirection,
+                            pos.x,
+                            pos.y,
+                            false
+                        );
                     }
                 }
             }
@@ -303,6 +332,7 @@ Item {
 
         delegate: Item {
             property int rowIndex: index
+            readonly property string interactionDirection: root._interactionDirection(modelData, "out")
             readonly property var portPoint: root.host
                 ? root.host.localPortPoint("out", rowIndex)
                 : ({"x": 0.0, "y": 0.0})
@@ -315,9 +345,10 @@ Item {
             Rectangle {
                 id: outputDot
                 objectName: "graphNodeOutputPortDot"
-                property bool hoveredState: root.host ? root.host.isHoveredPort("out", modelData.key) : false
-                property bool pendingState: root.host ? root.host.isPendingPort("out", modelData.key) : false
-                property bool dragSourceState: root.host ? root.host.isDragSourcePort("out", modelData.key) : false
+                readonly property string interactionDirection: parent.interactionDirection
+                property bool hoveredState: root.host ? root.host.isHoveredPort(parent.interactionDirection, modelData.key) : false
+                property bool pendingState: root.host ? root.host.isPendingPort(parent.interactionDirection, modelData.key) : false
+                property bool dragSourceState: root.host ? root.host.isDragSourcePort(parent.interactionDirection, modelData.key) : false
                 property bool selectedState: root.host ? (root.host.isFlowchartSurface && root.host.isSelected) : false
                 property bool attentionState: hoveredState || pendingState || dragSourceState
                 property bool interactiveState: attentionState || selectedState
@@ -389,7 +420,14 @@ Item {
                         if (!root.host || !root.host.nodeData)
                             return;
                         var pos = root.host.portScenePos("out", rowIndex);
-                        root.host.portHoverChanged(root.host.nodeData.node_id, modelData.key, "out", pos.x, pos.y, nextHover);
+                        root.host.portHoverChanged(
+                            root.host.nodeData.node_id,
+                            modelData.key,
+                            outputDot.interactionDirection,
+                            pos.x,
+                            pos.y,
+                            nextHover
+                        );
                     }
 
                     onPressed: function(mouse) {
@@ -408,7 +446,7 @@ Item {
                         root.host.portDragStarted(
                             root.host.nodeData.node_id,
                             modelData.key,
-                            "out",
+                            outputDot.interactionDirection,
                             scenePos.x,
                             scenePos.y,
                             pointerPos.x,
@@ -433,7 +471,7 @@ Item {
                         root.host.portDragMoved(
                             root.host.nodeData.node_id,
                             modelData.key,
-                            "out",
+                            outputDot.interactionDirection,
                             scenePos.x,
                             scenePos.y,
                             pointerPos.x,
@@ -450,7 +488,7 @@ Item {
                         root.host.portDragFinished(
                             root.host.nodeData.node_id,
                             modelData.key,
-                            "out",
+                            outputDot.interactionDirection,
                             scenePos.x,
                             scenePos.y,
                             pointerPos.x,
@@ -458,7 +496,13 @@ Item {
                             movedState
                         );
                         if (!movedState) {
-                            root.host.portClicked(root.host.nodeData.node_id, modelData.key, "out", scenePos.x, scenePos.y);
+                            root.host.portClicked(
+                                root.host.nodeData.node_id,
+                                modelData.key,
+                                outputDot.interactionDirection,
+                                scenePos.x,
+                                scenePos.y
+                            );
                         }
                         movedState = false;
                     }
@@ -466,7 +510,7 @@ Item {
                     onCanceled: {
                         if (!root.host || !root.host.nodeData)
                             return;
-                        root.host.portDragCanceled(root.host.nodeData.node_id, modelData.key, "out");
+                        root.host.portDragCanceled(root.host.nodeData.node_id, modelData.key, outputDot.interactionDirection);
                         movedState = false;
                     }
 
@@ -482,7 +526,14 @@ Item {
                             return;
                         hoverActive = false;
                         var pos = root.host.portScenePos("out", rowIndex);
-                        root.host.portHoverChanged(root.host.nodeData.node_id, modelData.key, "out", pos.x, pos.y, false);
+                        root.host.portHoverChanged(
+                            root.host.nodeData.node_id,
+                            modelData.key,
+                            outputDot.interactionDirection,
+                            pos.x,
+                            pos.y,
+                            false
+                        );
                     }
                 }
             }

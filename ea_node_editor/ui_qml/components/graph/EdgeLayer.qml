@@ -264,10 +264,9 @@ Item {
             var port = ports[i];
             if (!port)
                 continue;
-            var direction = String(port.direction || "");
-            var rowIndex = direction === "in" ? inputRow : outputRow;
             if (String(port.key || "") === String(portKey))
-                return GraphNodeSurfaceMetrics.portScenePoint(node, direction, rowIndex);
+                return GraphNodeSurfaceMetrics.portScenePointForPort(node, port, inputRow, outputRow);
+            var direction = GraphNodeSurfaceMetrics.portLayoutDirection(port);
             if (direction === "in")
                 inputRow += 1;
             else if (direction === "out")
@@ -486,20 +485,26 @@ Item {
         var sourceY = Number(connection.start_y);
         var targetX = Number(connection.target_x);
         var targetY = Number(connection.target_y);
-        var horizontalDistance = Math.abs(targetX - sourceX);
-        var handle = Math.max(42.0, Math.min(170.0, horizontalDistance * 0.42));
+        var dominantDistance = Math.max(Math.abs(targetX - sourceX), Math.abs(targetY - sourceY));
+        var handle = Math.max(42.0, Math.min(170.0, dominantDistance * 0.42));
         var sourceDirection = String(connection.source_direction || "out");
-        var sourceSign = sourceDirection === "in" ? -1.0 : 1.0;
-        var targetSign = sourceDirection === "in" ? 1.0 : -1.0;
+        var originSide = GraphNodeSurfaceMetrics.portCardinalSide({"side": connection.origin_side});
+        var targetSide = GraphNodeSurfaceMetrics.portCardinalSide({"side": connection.target_side});
+        var sourceNormal = originSide
+            ? GraphNodeSurfaceMetrics.flowchartAnchorNormal(originSide)
+            : (sourceDirection === "in" ? {"x": -1.0, "y": 0.0} : {"x": 1.0, "y": 0.0});
+        var targetNormal = targetSide
+            ? GraphNodeSurfaceMetrics.flowchartAnchorNormal(targetSide)
+            : (sourceDirection === "in" ? {"x": 1.0, "y": 0.0} : {"x": -1.0, "y": 0.0});
         return {
             "sx": sourceX,
             "sy": sourceY,
             "tx": targetX,
             "ty": targetY,
-            "c1x": sourceX + sourceSign * handle,
-            "c1y": sourceY,
-            "c2x": targetX + targetSign * handle,
-            "c2y": targetY
+            "c1x": sourceX + sourceNormal.x * handle,
+            "c1y": sourceY + sourceNormal.y * handle,
+            "c2x": targetX + targetNormal.x * handle,
+            "c2y": targetY + targetNormal.y * handle
         };
     }
 
