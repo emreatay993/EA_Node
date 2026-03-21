@@ -28,24 +28,73 @@ GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD = (
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON = (
     f"{GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR}/track_h_benchmark_report.json"
 )
+P09_FULL_FIDELITY_REPORT_MD = (
+    "artifacts/graph_canvas_interaction_perf_p09_full_fidelity/TRACK_H_BENCHMARK_REPORT.md"
+)
+P09_FULL_FIDELITY_REPORT_JSON = (
+    "artifacts/graph_canvas_interaction_perf_p09_full_fidelity/track_h_benchmark_report.json"
+)
+P09_MAX_PERFORMANCE_REPORT_MD = (
+    "artifacts/graph_canvas_interaction_perf_p09_max_performance/TRACK_H_BENCHMARK_REPORT.md"
+)
+P09_MAX_PERFORMANCE_REPORT_JSON = (
+    "artifacts/graph_canvas_interaction_perf_p09_max_performance/track_h_benchmark_report.json"
+)
+P09_NODE_DRAG_REPORT_MD = (
+    "artifacts/graph_canvas_interaction_perf_p09_node_drag_control/TRACK_H_BENCHMARK_REPORT.md"
+)
+P09_NODE_DRAG_REPORT_JSON = (
+    "artifacts/graph_canvas_interaction_perf_p09_node_drag_control/track_h_benchmark_report.json"
+)
+P09_DESKTOP_REFERENCE_REPORT_MD = (
+    "artifacts/graph_canvas_interaction_perf_p09_desktop_reference/TRACK_H_BENCHMARK_REPORT.md"
+)
+P09_DESKTOP_REFERENCE_REPORT_JSON = (
+    "artifacts/graph_canvas_interaction_perf_p09_desktop_reference/track_h_benchmark_report.json"
+)
+P09_WRAPUP_PATH = (
+    "docs/specs/work_packets/graph_canvas_interaction_perf/P09_evidence_refresh_traceability_WRAPUP.md"
+)
 P10_REQUIRED_GENERATED_ARTIFACTS = (
     GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD,
     GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON,
+    P09_FULL_FIDELITY_REPORT_MD,
+    P09_FULL_FIDELITY_REPORT_JSON,
+    P09_MAX_PERFORMANCE_REPORT_MD,
+    P09_MAX_PERFORMANCE_REPORT_JSON,
+    P09_NODE_DRAG_REPORT_MD,
+    P09_NODE_DRAG_REPORT_JSON,
+    P09_DESKTOP_REFERENCE_REPORT_MD,
+    P09_DESKTOP_REFERENCE_REPORT_JSON,
 )
 GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND = (
     "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe "
     "-m ea_node_editor.telemetry.performance_harness "
     "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
-    "--baseline-runs 1 --performance-mode max_performance --scenario heavy_media "
-    f"--report-dir {GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR}"
+    "--baseline-runs 3 --performance-mode max_performance --scenario heavy_media "
+    f"--report-dir artifacts/graph_canvas_interaction_perf_p09_max_performance"
+)
+P09_FULL_FIDELITY_OFFSCREEN_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe "
+    "-m ea_node_editor.telemetry.performance_harness "
+    "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
+    "--baseline-runs 3 --performance-mode full_fidelity --scenario heavy_media "
+    "--report-dir artifacts/graph_canvas_interaction_perf_p09_full_fidelity"
+)
+P09_NODE_DRAG_OFFSCREEN_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe "
+    "-m ea_node_editor.telemetry.performance_harness "
+    "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
+    "--baseline-runs 3 --performance-mode full_fidelity --scenario heavy_media "
+    "--report-dir artifacts/graph_canvas_interaction_perf_p09_node_drag_control"
 )
 GRAPHICS_PERFORMANCE_MODES_INTERACTIVE_COMMAND = (
-    "QT_QPA_PLATFORM=windows ./venv/Scripts/python.exe "
+    "./venv/Scripts/python.exe "
     "-m ea_node_editor.telemetry.performance_harness "
     "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
     "--baseline-runs 3 --baseline-mode interactive --baseline-tag desktop_reference "
-    "--performance-mode max_performance --scenario heavy_media "
-    f"--report-dir {GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR}"
+    "--performance-mode full_fidelity --scenario heavy_media --qt-platform windows "
+    "--report-dir artifacts/graph_canvas_interaction_perf_p09_desktop_reference"
 )
 
 P10_REQUIREMENT_DOC_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
@@ -85,13 +134,14 @@ P10_REQUIREMENT_DOC_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
             "GraphCanvas.qml",
         ),
         "AC-REQ-PERF-002-02": (
-            "--performance-mode max_performance --scenario heavy_media",
+            "--baseline-runs 3 --performance-mode max_performance --scenario heavy_media",
             GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR,
-            "interactive desktop/manual",
+            "desktop/manual exit-gate status",
+            "desktop_reference",
         ),
         "AC-REQ-PERF-003-01": (
             GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR,
-            "mode-aware heavy-media benchmark workflow",
+            "3-run mode-aware heavy-media benchmark workflow",
         ),
     },
 }
@@ -103,7 +153,7 @@ P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         "performance_mode",
         "scenario",
         "canonical artifact path",
-        "interactive desktop/manual follow-up",
+        "desktop/manual exit-gate status",
     ),
     "AC-REQ-QA-018-01": (
         GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
@@ -112,22 +162,27 @@ P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         manifest.TRACK_H_BENCHMARK_REPORT_DOC,
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD,
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON,
+        P09_DESKTOP_REFERENCE_REPORT_MD,
+        P09_WRAPUP_PATH,
     ),
 }
 QA_ACCEPTANCE_REQUIREMENT_TOKENS = dict(manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS)
 QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS)
 
 GRAPHICS_PERFORMANCE_MODES_MATRIX_REQUIRED_TOKENS = (
-    "GRAPHICS_PERFORMANCE_MODES",
     "GraphCanvas.qml",
-    "--performance-mode max_performance --scenario heavy_media",
+    "--baseline-runs 3 --performance-mode max_performance --scenario heavy_media",
     GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR,
-    "## Desktop/Manual Follow-Up",
-    "outstanding",
+    "## Desktop/Manual Exit Gate",
+    "Status: `PASS`",
+    P09_DESKTOP_REFERENCE_REPORT_MD,
 )
 GRAPHICS_PERFORMANCE_MODES_MATRIX_AUDIT_COMMANDS = (
     P10_TRACEABILITY_TEST_COMMAND,
+    P09_FULL_FIDELITY_OFFSCREEN_COMMAND,
     GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
+    P09_NODE_DRAG_OFFSCREEN_COMMAND,
+    GRAPHICS_PERFORMANCE_MODES_INTERACTIVE_COMMAND,
     manifest.proof_audit_command(),
 )
 GRAPHICS_PERFORMANCE_MODES_TRACK_H_REPORT_REQUIRED_TOKENS = (
@@ -140,8 +195,11 @@ GRAPHICS_PERFORMANCE_MODES_TRACK_H_REPORT_REQUIRED_TOKENS = (
     "Scenario: `heavy_media`",
     "Resolved canvas mode: `max_performance`",
     "Media surface count: `6`",
-    "## 2026-03-20 Offscreen Snapshot",
-    "Interactive desktop/GPU validation remains required",
+    "## 2026-03-21 Offscreen Snapshot",
+    "## Windows Desktop Exit Gate",
+    "Status: `PASS`",
+    P09_DESKTOP_REFERENCE_REPORT_MD,
+    P09_DESKTOP_REFERENCE_REPORT_JSON,
     manifest.GRAPH_CANVAS_PERF_MATRIX_DOC,
 )
 GRAPHICS_PERFORMANCE_MODES_TRACK_H_REPORT_FORBIDDEN_TOKENS = (
@@ -149,6 +207,7 @@ GRAPHICS_PERFORMANCE_MODES_TRACK_H_REPORT_FORBIDDEN_TOKENS = (
     "Historical offscreen harness baseline restored from repo",
     "`P04`",
     "P08 did not rerun the performance harness.",
+    "Interactive desktop/GPU validation remains required",
 )
 
 P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
@@ -222,6 +281,8 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
         "GRAPH_CANVAS_PERF_QA_MATRIX.md",
         "TRACK_H_BENCHMARK_REPORT.md",
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON,
+        P09_DESKTOP_REFERENCE_REPORT_JSON,
+        P09_WRAPUP_PATH,
         manifest.CHECK_TRACEABILITY_SCRIPT,
     ),
     "AC-REQ-PERF-002-01": (
@@ -232,11 +293,14 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
     "AC-REQ-PERF-003-01": (
         "TRACK_H_BENCHMARK_REPORT.md",
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR,
+        P09_MAX_PERFORMANCE_REPORT_JSON,
     ),
     "AC-REQ-PERF-002-02": (
         "GRAPH_CANVAS_PERF_QA_MATRIX.md",
         "TRACK_H_BENCHMARK_REPORT.md",
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR,
+        P09_DESKTOP_REFERENCE_REPORT_JSON,
+        P09_WRAPUP_PATH,
     ),
     "AC-REQ-QA-018-01": (
         GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND,
@@ -244,6 +308,8 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
         "TRACK_H_BENCHMARK_REPORT.md",
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD,
         GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON,
+        P09_DESKTOP_REFERENCE_REPORT_MD,
+        P09_WRAPUP_PATH,
         manifest.CHECK_TRACEABILITY_SCRIPT,
     ),
 }
@@ -646,7 +712,7 @@ def audit_graph_canvas_perf_matrix(text: str, relative_path: str, issues: list[s
     execution_rows = table_after_heading(
         text,
         relative_path=relative_path,
-        heading="2026-03-20 Execution Results",
+        heading="2026-03-21 Execution Results",
         issues=issues,
     )
     if execution_rows is not None:
@@ -654,7 +720,7 @@ def audit_graph_canvas_perf_matrix(text: str, relative_path: str, issues: list[s
             require_command_result(
                 execution_rows,
                 relative_path=relative_path,
-                heading="2026-03-20 Execution Results",
+                heading="2026-03-21 Execution Results",
                 predicate=lambda value, command=command: value == command,
                 label=command,
                 issues=issues,

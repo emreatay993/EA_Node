@@ -1,11 +1,11 @@
 # Track H Benchmark Report
 
-- Generated (UTC): `2026-03-21T08:21:32.521494+00:00`
+- Generated (UTC): `2026-03-21T08:45:38.255600+00:00`
 - Command:
   `venv\Scripts\python -m ea_node_editor.telemetry.performance_harness`
 - Platform: `Windows-10-10.0.26200-SP0`
 - Python: `3.10.0`
-- Qt platform: `offscreen`
+- Qt platform: `windows`
 
 ## Config
 
@@ -14,7 +14,7 @@
 - Load iterations: `1`
 - Warmup samples: `3`
 - Pan/zoom samples: `10`
-- Performance mode: `max_performance`
+- Performance mode: `full_fidelity`
 - Scenario: `heavy_media`
 - Node mix: `114` execution / `3` image panels / `3` PDF panels
 - Generated fixtures: `3` images / `1` PDFs
@@ -27,8 +27,8 @@
 - Driver: `Single warmed GraphCanvas host using begin/note/finish viewport interaction + ViewportBridge.centerOn/set_zoom and GraphNodeHost.dragOffsetChanged with QQuickWindow.grabWindow()`
 - Viewport: `1280` x `720`
 - Theme pair: `stitch_dark` / `graph_stitch_dark`
-- Selected performance mode: `max_performance`
-- Resolved canvas mode: `max_performance`
+- Selected performance mode: `full_fidelity`
+- Resolved canvas mode: `full_fidelity`
 - Scenario: `heavy_media`
 - Media surface count: `6`
 - Real canvas path: `True`
@@ -38,54 +38,54 @@
 
 | Phase | p50 | p95 | Mean | Min | Max | Samples |
 |---|---:|---:|---:|---:|---:|---:|
-| project_graph_load_ms | 67.842 | 67.842 | 67.842 | 67.842 | 67.842 | 1 |
-| canvas_setup_ms | 1697.221 | 1697.221 | 1697.221 | 1697.221 | 1697.221 | 1 |
-| canvas_warmup_ms | 445.664 | 453.075 | 441.770 | 425.748 | 453.898 | 3 |
-| pan_interaction_ms | 80.335 | 97.890 | 81.644 | 70.279 | 103.589 | 10 |
-| zoom_interaction_ms | 14.530 | 16.657 | 14.771 | 13.503 | 16.728 | 10 |
-| node_drag_control_ms | 30.960 | 48.352 | 36.818 | 28.899 | 48.524 | 10 |
+| project_graph_load_ms | 146.767 | 146.767 | 146.767 | 146.767 | 146.767 | 1 |
+| canvas_setup_ms | 2871.894 | 2871.894 | 2871.894 | 2871.894 | 2871.894 | 1 |
+| canvas_warmup_ms | 868.972 | 1286.211 | 1009.813 | 827.896 | 1332.571 | 3 |
+| pan_interaction_ms | 176.901 | 191.553 | 174.775 | 158.124 | 198.449 | 10 |
+| zoom_interaction_ms | 171.866 | 276.627 | 189.663 | 156.546 | 349.500 | 10 |
+| node_drag_control_ms | 167.467 | 413.152 | 262.723 | 161.184 | 413.400 | 10 |
 
 ## Metrics (ms)
 
 | Metric | p50 | p95 | Mean | Min | Max |
 |---|---:|---:|---:|---:|---:|
-| Project + graph load | 67.842 | 67.842 | 67.842 | 67.842 | 67.842 |
-| Pan interaction | 80.335 | 97.890 | 81.644 | 70.279 | 103.589 |
-| Zoom interaction | 14.530 | 16.657 | 14.771 | 13.503 | 16.728 |
-| Pan + zoom (combined) | 94.454 | 112.350 | 96.414 | 84.430 | 118.474 |
-| Node-drag control | 30.960 | 48.352 | 36.818 | 28.899 | 48.524 |
+| Project + graph load | 146.767 | 146.767 | 146.767 | 146.767 | 146.767 |
+| Pan interaction | 176.901 | 191.553 | 174.775 | 158.124 | 198.449 |
+| Zoom interaction | 171.866 | 276.627 | 189.663 | 156.546 | 349.500 |
+| Pan + zoom (combined) | 350.344 | 467.096 | 364.439 | 319.303 | 547.948 |
+| Node-drag control | 167.467 | 413.152 | 262.723 | 161.184 | 413.400 |
 
 ## Requirement Check
 
 | Requirement | Result | Details |
 |---|---|---|
 | REQ-PERF-001 | FAIL | Generated graph size 120 nodes / 320 edges |
-| REQ-PERF-002 | FAIL | Real GraphCanvas pan p95=97.890 ms, zoom p95=16.657 ms, node-drag control p95=48.352 ms (frame p95 target <= 33 ms) |
-| REQ-PERF-003 | PASS | Project+graph load p95=67.842 ms (target < 3000 ms) |
+| REQ-PERF-002 | FAIL | Real GraphCanvas pan p95=191.553 ms, zoom p95=276.627 ms, node-drag control p95=413.152 ms (frame p95 target <= 33 ms) |
+| REQ-PERF-003 | PASS | Project+graph load p95=146.767 ms (target < 3000 ms) |
 
 ## Baseline Series
 
-- Mode: `offscreen`
-- Tag: `local`
-- Performance mode: `max_performance`
+- Mode: `interactive`
+- Tag: `desktop_reference`
+- Performance mode: `full_fidelity`
 - Scenario: `heavy_media`
 - Run count: `3`
 
 | Run | Mode | Load p95 (ms) | Pan p95 (ms) | Zoom p95 (ms) | Pan+Zoom p95 (ms) | Drag p95 (ms) | Qt Platform | Machine |
 |---|---|---:|---:|---:|---:|---:|---|---|
-| run_01 | offscreen | 76.941 | 97.164 | 15.557 | 111.300 | 47.783 | offscreen | AMD64 |
-| run_02 | offscreen | 64.792 | 96.687 | 16.063 | 111.519 | 46.515 | offscreen | AMD64 |
-| run_03 | offscreen | 67.842 | 97.890 | 16.657 | 112.350 | 48.352 | offscreen | AMD64 |
+| run_01 | interactive | 94.886 | 193.745 | 190.784 | 383.914 | 418.899 | windows | AMD64 |
+| run_02 | interactive | 205.614 | 192.332 | 190.031 | 382.363 | 426.157 | windows | AMD64 |
+| run_03 | interactive | 146.767 | 191.553 | 276.627 | 467.096 | 413.152 | windows | AMD64 |
 
 ### Variance Policy
 
 | Metric | CV Threshold | Range Threshold (ms) | Observed CV | Observed Range (ms) | Result |
 |---|---:|---:|---:|---:|---|
-| load_p95_ms | 0.25 | 500.0 | 0.0739 | 12.148 | PASS |
-| pan_p95_ms | 0.20 | 8.0 | 0.0051 | 1.203 | PASS |
-| zoom_p95_ms | 0.20 | 8.0 | 0.0279 | 1.100 | PASS |
-| pan_zoom_p95_ms | 0.20 | 8.0 | 0.0040 | 1.049 | PASS |
-| node_drag_control_p95_ms | 0.20 | 8.0 | 0.0161 | 1.837 | PASS |
+| load_p95_ms | 0.25 | 500.0 | 0.3034 | 110.728 | FAIL |
+| pan_p95_ms | 0.20 | 8.0 | 0.0047 | 2.192 | PASS |
+| zoom_p95_ms | 0.20 | 8.0 | 0.1855 | 86.596 | FAIL |
+| pan_zoom_p95_ms | 0.20 | 8.0 | 0.0963 | 84.734 | FAIL |
+| node_drag_control_p95_ms | 0.20 | 8.0 | 0.0127 | 13.005 | FAIL |
 
 ### Triage
 
@@ -99,5 +99,5 @@
 
 - Pan/zoom and node-drag control timings reuse one warmed GraphCanvas.qml host in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.
 - Project+graph load timing still measures serializer/model/bridge setup and does not instantiate GraphCanvas.qml.
-- Runs use Qt offscreen platform (QT_QPA_PLATFORM=offscreen), so GPU/compositor behavior differs from interactive desktop rendering.
+- This desktop-reference capture used `Qt platform: windows`; timings still include `QQuickWindow.grabWindow()` readback overhead, so treat it as same-machine desktop evidence rather than release sign-off.
 - Absolute timings are machine- and load-dependent; compare trends on the same hardware for regressions.

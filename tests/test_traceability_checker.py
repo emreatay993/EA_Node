@@ -138,6 +138,7 @@ class TraceabilityCheckerTests(unittest.TestCase):
                 "Pending",
                 "Mode-aware heavy-media snapshot was not rerun",
             )
+            replace_text(graph_canvas_doc, "Status: `PASS`", "Status: `PENDING`")
 
             track_h_doc = repo_root / self.manifest.TRACK_H_BENCHMARK_REPORT_DOC
             replace_text(track_h_doc, "Scenario: `heavy_media`", "Scenario: `synthetic_exec`")
@@ -145,6 +146,11 @@ class TraceabilityCheckerTests(unittest.TestCase):
                 track_h_doc,
                 "artifacts/graphics_performance_modes_docs/track_h_benchmark_report.json",
                 "artifacts/graphics_performance_modes_docs/report.json",
+            )
+            replace_text(
+                track_h_doc,
+                "artifacts/graph_canvas_interaction_perf_p09_desktop_reference/track_h_benchmark_report.json",
+                "artifacts/graph_canvas_interaction_perf_p09_desktop_reference/report.json",
             )
 
             traceability_matrix = repo_root / self.manifest.TRACEABILITY_MATRIX_DOC
@@ -157,8 +163,13 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues = self.checker.audit_repository(repo_root)
 
         self.assertIn(
-            f"{self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}: 2026-03-20 Execution Results command "
+            f"{self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}: 2026-03-21 Execution Results command "
             f"{self.checker.GRAPHICS_PERFORMANCE_MODES_OFFSCREEN_COMMAND} has unexpected result: Pending",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.GRAPH_CANVAS_PERF_MATRIX_DOC}: graph-canvas perf matrix missing fact: "
+            "Status: `PASS`",
             issues,
         )
         self.assertIn(
@@ -169,6 +180,11 @@ class TraceabilityCheckerTests(unittest.TestCase):
         self.assertIn(
             f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: track-h benchmark report missing fact: "
             f"{self.checker.GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_JSON}",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.TRACK_H_BENCHMARK_REPORT_DOC}: track-h benchmark report missing fact: "
+            "artifacts/graph_canvas_interaction_perf_p09_desktop_reference/track_h_benchmark_report.json",
             issues,
         )
         self.assertIn(
