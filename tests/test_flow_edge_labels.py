@@ -92,6 +92,25 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         self.assertEqual(edge_payload["source_port_kind"], "exec")
         self.assertEqual(edge_payload["target_port_kind"], "exec")
 
+    def test_backward_flow_edges_publish_orthogonal_pipe_polylines(self) -> None:
+        source_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 380.0, 130.0)
+        target_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 40.0, 30.0)
+        edge_id = self.scene.add_edge(source_id, "flow_out", target_id, "flow_in")
+
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
+        self.assertEqual(edge_payload["edge_family"], "flow")
+        self.assertEqual(edge_payload["route"], "pipe")
+        self.assertGreaterEqual(len(edge_payload["pipe_points"]), 4)
+        self.assertEqual(edge_payload["pipe_points"][0], {"x": edge_payload["sx"], "y": edge_payload["sy"]})
+        self.assertEqual(edge_payload["pipe_points"][-1], {"x": edge_payload["tx"], "y": edge_payload["ty"]})
+        for index in range(1, len(edge_payload["pipe_points"])):
+            start = edge_payload["pipe_points"][index - 1]
+            end = edge_payload["pipe_points"][index]
+            self.assertTrue(
+                abs(start["x"] - end["x"]) < 0.001 or abs(start["y"] - end["y"]) < 0.001,
+                msg=f"segment {index - 1}->{index} is not orthogonal: {start} -> {end}",
+            )
+
 
 class FlowEdgeLabelQmlTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
@@ -417,24 +436,37 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             pipe_edge_id = scene.add_edge(pipe_source_id, "bottom", pipe_target_id, "top")
             app.processEvents()
 
+            pipe_payload = edges_by_id(scene)[pipe_edge_id]
             pipe_snapshot = to_variant(edge_layer._visibleEdgeSnapshot(pipe_edge_id))
             assert pipe_snapshot is not None
             pipe_geometry = pipe_snapshot["geometry"]
             assert pipe_geometry["route"] == "pipe"
+            assert pipe_geometry["pipe_points"] == pipe_payload["pipe_points"]
             anchor = to_variant(edge_layer._edgeAnchor(pipe_geometry, 0.5))
             assert anchor is not None
 
+            def assert_pipe_edge_screen_hit(edge_id, anchor_payload):
+                screen_x = edge_layer.sceneToScreenX(anchor_payload["x"])
+                screen_y = edge_layer.sceneToScreenY(anchor_payload["y"])
+                normal_x = -anchor_payload["dy"]
+                normal_y = anchor_payload["dx"]
+                assert edge_layer.edgeAtScreen(screen_x, screen_y) == edge_id
+                assert edge_layer.edgeAtScreen(
+                    screen_x + normal_x * 6.0,
+                    screen_y + normal_y * 6.0,
+                ) == edge_id
+
             view.centerOn(anchor["x"], anchor["y"])
             app.processEvents()
-            assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
+            assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
             view.set_zoom(2.0)
             app.processEvents()
-            assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
+            assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
             view.set_zoom(0.5)
             app.processEvents()
-            assert_edge_screen_hit(edge_layer, pipe_edge_id, anchor)
+            assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
             canvas.deleteLater()
             app.processEvents()
@@ -498,12 +530,16 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
 
             geometry = to_variant(edge_layer._dragGeometry(preview))
             assert geometry is not None
+            assert geometry["route"] == "pipe"
             assert abs(geometry["sx"] - source_point["x"]) < 0.001
             assert abs(geometry["sy"] - source_point["y"]) < 0.001
-            assert abs(geometry["c1x"] - source_point["x"]) < 0.001
-            assert geometry["c1y"] < source_point["y"]
-            assert geometry["c2x"] < target_point["x"]
-            assert abs(geometry["c2y"] - target_point["y"]) < 0.001
+            pipe_points = geometry["pipe_points"]
+            assert pipe_points[0] == {"x": source_point["x"], "y": source_point["y"]}
+            assert pipe_points[-1] == {"x": target_point["x"], "y": target_point["y"]}
+            assert abs(pipe_points[1]["x"] - source_point["x"]) < 0.001
+            assert pipe_points[1]["y"] < source_point["y"]
+            assert pipe_points[-2]["x"] < target_point["x"]
+            assert abs(pipe_points[-2]["y"] - target_point["y"]) < 0.001
 
             assert canvas.cancelWireDrag()
             app.processEvents()

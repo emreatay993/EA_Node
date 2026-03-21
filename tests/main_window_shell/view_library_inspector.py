@@ -145,18 +145,29 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(edge["route"], "pipe")
 
         pipe_points = edge["pipe_points"]
-        self.assertGreaterEqual(len(pipe_points), 6)
+        self.assertGreaterEqual(len(pipe_points), 4)
         self.assertAlmostEqual(pipe_points[0]["x"], edge["sx"], places=4)
         self.assertAlmostEqual(pipe_points[0]["y"], edge["sy"], places=4)
         self.assertAlmostEqual(pipe_points[-1]["x"], edge["tx"], places=4)
         self.assertAlmostEqual(pipe_points[-1]["y"], edge["ty"], places=4)
         self.assertGreater(pipe_points[1]["x"], source_right)
         self.assertLess(pipe_points[-2]["x"], target_left)
-        self.assertAlmostEqual(pipe_points[2]["y"], pipe_points[3]["y"], places=4)
-        self.assertGreater(pipe_points[2]["y"], source_bottom)
-        self.assertLess(pipe_points[2]["y"], target_top)
-        self.assertTrue(pipe_points[2]["y"] < source_top or pipe_points[2]["y"] > source_bottom)
-        self.assertTrue(pipe_points[2]["y"] < target_top or pipe_points[2]["y"] > target_bottom)
+        for index in range(1, len(pipe_points)):
+            start = pipe_points[index - 1]
+            end = pipe_points[index]
+            self.assertTrue(
+                abs(start["x"] - end["x"]) < 0.001 or abs(start["y"] - end["y"]) < 0.001,
+                msg=f"segment {index - 1}->{index} is not orthogonal: {start} -> {end}",
+            )
+        horizontal_lanes = [
+            start["y"]
+            for index, start in enumerate(pipe_points[:-1])
+            if abs(start["y"] - pipe_points[index + 1]["y"]) < 0.001
+        ]
+        self.assertTrue(
+            any(source_bottom < y < target_top for y in horizontal_lanes),
+            msg=f"expected a routing lane between nodes, got {pipe_points}",
+        )
 
     def test_qml_library_filter_slots_apply_category_direction_and_type(self) -> None:
         self.window.set_library_query("")

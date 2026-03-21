@@ -297,7 +297,7 @@ Item {
             + Math.abs(targetX - targetStubX);
     }
 
-    function _buildLivePipePoints(edge, sourceOffset, targetOffset, sourceX, sourceY, targetX, targetY, nodeById) {
+    function _buildLegacyPipePoints(edge, sourceOffset, targetOffset, sourceX, sourceY, targetX, targetY, nodeById) {
         var sourceBounds = _nodeBounds(edge.source_node_id, sourceOffset, nodeById);
         var targetBounds = _nodeBounds(edge.target_node_id, targetOffset, nodeById);
         var laneBias = edge.lane_bias || 0.0;
@@ -384,6 +384,39 @@ Item {
         ];
     }
 
+    function _buildFlowPipePoints(sourceX, sourceY, targetX, targetY, edge, sourceBounds, targetBounds) {
+        return EdgeMath.flowPipeRoute(
+            {"x": sourceX, "y": sourceY},
+            {"x": targetX, "y": targetY},
+            {
+                "sourceSide": String(edge && edge.source_port_side || ""),
+                "targetSide": String(edge && edge.target_port_side || ""),
+                "sourceBounds": sourceBounds,
+                "targetBounds": targetBounds,
+                "laneBias": Number(edge && edge.lane_bias || 0.0)
+            }
+        );
+    }
+
+    function _previewIsFlow(connection) {
+        if (!connection)
+            return false;
+        var sourceKind = String(connection.source_kind || "").trim().toLowerCase();
+        var targetKind = String(connection.target_kind || "").trim().toLowerCase();
+        if (sourceKind === "flow" && (!targetKind || targetKind === "flow"))
+            return true;
+        return !!String(connection.origin_side || "").trim()
+            || !!String(connection.target_side || "").trim();
+    }
+
+    function _previewFallbackTargetSide(sourceX, sourceY, targetX, targetY) {
+        var dx = Number(targetX) - Number(sourceX);
+        var dy = Number(targetY) - Number(sourceY);
+        if (Math.abs(dx) >= Math.abs(dy))
+            return dx >= 0.0 ? "left" : "right";
+        return dy >= 0.0 ? "top" : "bottom";
+    }
+
     function _edgeGeometry(edge, nodeById) {
         var sxWorld = edge.sx;
         var syWorld = edge.sy;
@@ -428,16 +461,25 @@ Item {
 
         var pipePoints = edge.pipe_points || [];
         if (edge.route === "pipe") {
-            pipePoints = _buildLivePipePoints(
-                edge,
-                sourceOffset,
-                targetOffset,
-                sxWorld,
-                syWorld,
-                txWorld,
-                tyWorld,
-                nodeById
-            );
+            var sourceBounds = _nodeBounds(edge.source_node_id, sourceOffset, nodeById);
+            var targetBounds = _nodeBounds(edge.target_node_id, targetOffset, nodeById);
+            pipePoints = root._edgeIsFlow(edge)
+                ? _buildFlowPipePoints(sxWorld, syWorld, txWorld, tyWorld, edge, sourceBounds, targetBounds)
+                : _buildLegacyPipePoints(
+                    edge,
+                    sourceOffset,
+                    targetOffset,
+                    sxWorld,
+                    syWorld,
+                    txWorld,
+                    tyWorld,
+                    nodeById
+                );
+            var pipeHandles = EdgeMath.pipeControlHandles(pipePoints);
+            c1xWorld = pipeHandles.first.x;
+            c1yWorld = pipeHandles.first.y;
+            c2xWorld = pipeHandles.last.x;
+            c2yWorld = pipeHandles.last.y;
         }
 
         return {
@@ -490,6 +532,49 @@ Item {
         var sourceDirection = String(connection.source_direction || "out");
         var originSide = GraphNodeSurfaceMetrics.portCardinalSide({"side": connection.origin_side});
         var targetSide = GraphNodeSurfaceMetrics.portCardinalSide({"side": connection.target_side});
+        var flowPreview = root._previewIsFlow(connection);
+        if (flowPreview) {
+            var nodeById = root._getNodeMap();
+            var sourceBounds = connection.source_node_id ? root._nodeBounds(connection.source_node_id, null, nodeById) : null;
+            var targetBounds = connection.target_node_id ? root._nodeBounds(connection.target_node_id, null, nodeById) : null;
+            var resolvedSourceSide = EdgeMath.normalizeCardinalSide(
+                originSide,
+                sourceDirection === "in" ? "left" : "right"
+            );
+            var resolvedTargetSide = EdgeMath.normalizeCardinalSide(
+                targetSide,
+                root._previewFallbackTargetSide(
+                    sourceX,
+                    sourceY,
+                    targetX,
+                    targetY
+                )
+            );
+            var pipePoints = EdgeMath.flowPipeRoute(
+                {"x": sourceX, "y": sourceY},
+                {"x": targetX, "y": targetY},
+                {
+                    "sourceSide": resolvedSourceSide,
+                    "targetSide": resolvedTargetSide,
+                    "sourceBounds": sourceBounds,
+                    "targetBounds": targetBounds,
+                    "laneBias": 0.0
+                }
+            );
+            var pipeHandles = EdgeMath.pipeControlHandles(pipePoints);
+            return {
+                "sx": sourceX,
+                "sy": sourceY,
+                "tx": targetX,
+                "ty": targetY,
+                "c1x": pipeHandles.first.x,
+                "c1y": pipeHandles.first.y,
+                "c2x": pipeHandles.last.x,
+                "c2y": pipeHandles.last.y,
+                "route": "pipe",
+                "pipe_points": pipePoints
+            };
+        }
         var sourceNormal = originSide
             ? GraphNodeSurfaceMetrics.flowchartAnchorNormal(originSide)
             : (sourceDirection === "in" ? {"x": -1.0, "y": 0.0} : {"x": 1.0, "y": 0.0});
@@ -504,7 +589,9 @@ Item {
             "c1x": sourceX + sourceNormal.x * handle,
             "c1y": sourceY + sourceNormal.y * handle,
             "c2x": targetX + targetNormal.x * handle,
-            "c2y": targetY + targetNormal.y * handle
+            "c2y": targetY + targetNormal.y * handle,
+            "route": "bezier",
+            "pipe_points": []
         };
     }
 
@@ -931,7 +1018,7 @@ Item {
                 if (dragGeometry) {
                     ctx.save();
                     ctx.beginPath();
-                    root._traceBezierGeometry(ctx, dragGeometry);
+                    root._traceGeometry(ctx, dragGeometry);
                     ctx.strokeStyle = liveDrag.valid_drop ? root.validDragStrokeColor : root.invalidDragStrokeColor;
                     ctx.lineWidth = root._screenLengthToScene(
                         Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom),

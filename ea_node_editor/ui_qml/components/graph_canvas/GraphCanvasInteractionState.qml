@@ -567,8 +567,12 @@ QtObject {
             state = null;
         if (state) {
             var target = root.wireDropCandidate;
+            var sourcePort = _scenePortData(state.node_id, state.port_key);
             var preview = {
                 "source_direction": state.source_direction,
+                "source_node_id": state.node_id,
+                "source_port_key": state.port_key,
+                "source_kind": sourcePort ? String(sourcePort.kind || "") : "",
                 "start_x": state.start_x,
                 "start_y": state.start_y,
                 "target_x": target ? target.scene_x : state.cursor_x,
@@ -577,8 +581,13 @@ QtObject {
             };
             if (state.origin_side !== undefined)
                 preview.origin_side = GraphCanvasLogic.normalizedPortSide(state.origin_side);
-            if (target && target.side !== undefined)
-                preview.target_side = GraphCanvasLogic.normalizedPortSide(target.side);
+            if (target) {
+                preview.target_node_id = target.node_id;
+                preview.target_port_key = target.port_key;
+                preview.target_kind = String(_portKind(target.node_id, target.port_key) || "");
+                if (target.side !== undefined)
+                    preview.target_side = GraphCanvasLogic.normalizedPortSide(target.side);
+            }
             return preview;
         }
 
@@ -614,12 +623,18 @@ QtObject {
             pendingCandidate.side = hovered.side;
         var pendingPreview = {
             "source_direction": pending.direction,
+            "source_node_id": pending.node_id,
+            "source_port_key": pending.port_key,
+            "source_kind": String(_portKind(pending.node_id, pending.port_key) || ""),
             "start_x": pending.scene_x,
             "start_y": pending.scene_y,
             "target_x": pendingCandidate.scene_x,
             "target_y": pendingCandidate.scene_y,
             "valid_drop": pendingCandidate.valid_drop
         };
+        pendingPreview.target_node_id = pendingCandidate.node_id;
+        pendingPreview.target_port_key = pendingCandidate.port_key;
+        pendingPreview.target_kind = String(_portKind(pendingCandidate.node_id, pendingCandidate.port_key) || "");
         if (pending.origin_side !== undefined)
             pendingPreview.origin_side = pending.origin_side;
         if (pendingCandidate.side !== undefined)

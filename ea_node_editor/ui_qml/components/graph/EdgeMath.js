@@ -180,3 +180,395 @@ function pointTangentAlongPolyline(points, fraction) {
         "angle": _vectorAngleDegrees(tailNormalized.dx, tailNormalized.dy)
     };
 }
+
+function normalizeCardinalSide(sideLike, fallback) {
+    var normalized = String(sideLike || "").trim().toLowerCase();
+    if (normalized === "top" || normalized === "right" || normalized === "bottom" || normalized === "left")
+        return normalized;
+    return String(fallback || "").trim().toLowerCase();
+}
+
+function flowAnchorNormal(sideLike) {
+    var side = normalizeCardinalSide(sideLike, "");
+    if (side === "top")
+        return {"x": 0.0, "y": -1.0};
+    if (side === "right")
+        return {"x": 1.0, "y": 0.0};
+    if (side === "bottom")
+        return {"x": 0.0, "y": 1.0};
+    if (side === "left")
+        return {"x": -1.0, "y": 0.0};
+    return {"x": 0.0, "y": 0.0};
+}
+
+function _axisValuePush(values, value) {
+    var numeric = Number(value);
+    if (!isFinite(numeric))
+        return;
+    for (var i = 0; i < values.length; i++) {
+        if (Math.abs(values[i] - numeric) <= 0.001)
+            return;
+    }
+    values.push(numeric);
+}
+
+function _sortedNumeric(values) {
+    var next = (values || []).slice();
+    next.sort(function(a, b) { return a - b; });
+    return next;
+}
+
+function _axisGapOrOverlapInterval(aLow, aHigh, bLow, bHigh) {
+    if (aHigh <= bLow)
+        return {"low": aHigh, "high": bLow};
+    if (bHigh <= aLow)
+        return {"low": bHigh, "high": aLow};
+    var overlapLow = Math.max(aLow, bLow);
+    var overlapHigh = Math.min(aHigh, bHigh);
+    if (overlapLow <= overlapHigh)
+        return {"low": overlapLow, "high": overlapHigh};
+    return null;
+}
+
+function _axisIntervalCandidates(values, preferred, interval, laneBias) {
+    if (!interval)
+        return;
+    var low = Number(interval.low);
+    var high = Number(interval.high);
+    var center = (low + high) * 0.5;
+    var biased = clamp(center + Number(laneBias || 0.0) * 0.35, low, high);
+    _axisValuePush(values, center);
+    preferred.push(center);
+    if (Math.abs(biased - center) > 0.001) {
+        _axisValuePush(values, biased);
+        preferred.unshift(biased);
+    }
+}
+
+function _flowPipeStubLength(sourcePoint, targetPoint) {
+    var dx = Math.abs(Number(targetPoint.x) - Number(sourcePoint.x));
+    var dy = Math.abs(Number(targetPoint.y) - Number(sourcePoint.y));
+    var dominantGap = Math.max(dx, dy);
+    return Math.min(72.0, Math.max(32.0, Math.max(44.0, dominantGap * 0.2)));
+}
+
+function _flowPipeStubPoint(point, sideLike, stubLength) {
+    var normal = flowAnchorNormal(sideLike);
+    return {
+        "x": Number(point.x) + normal.x * stubLength,
+        "y": Number(point.y) + normal.y * stubLength
+    };
+}
+
+function _flowPipeCandidateAxes(sourcePoint, targetPoint, sourceStub, targetStub, sourceBounds, targetBounds, laneBias, clearance) {
+    var xValues = [
+        Number(sourcePoint.x),
+        Number(targetPoint.x),
+        Number(sourceStub.x),
+        Number(targetStub.x),
+        (Number(sourceStub.x) + Number(targetStub.x)) * 0.5
+    ];
+    var yValues = [
+        Number(sourcePoint.y),
+        Number(targetPoint.y),
+        Number(sourceStub.y),
+        Number(targetStub.y),
+        (Number(sourceStub.y) + Number(targetStub.y)) * 0.5
+    ];
+    var preferredXs = [];
+    var preferredYs = [];
+
+    if (sourceBounds && targetBounds) {
+        var leftBound = Math.min(Number(sourceBounds.left), Number(targetBounds.left));
+        var rightBound = Math.max(Number(sourceBounds.right), Number(targetBounds.right));
+        var topBound = Math.min(Number(sourceBounds.top), Number(targetBounds.top));
+        var bottomBound = Math.max(Number(sourceBounds.bottom), Number(targetBounds.bottom));
+        _axisValuePush(xValues, leftBound - clearance - Math.max(0.0, laneBias));
+        _axisValuePush(xValues, rightBound + clearance + Math.max(0.0, -laneBias));
+        _axisValuePush(yValues, topBound - clearance - Math.max(0.0, laneBias));
+        _axisValuePush(yValues, bottomBound + clearance + Math.max(0.0, -laneBias));
+        _axisIntervalCandidates(
+            xValues,
+            preferredXs,
+            _axisGapOrOverlapInterval(
+                Number(sourceBounds.left),
+                Number(sourceBounds.right),
+                Number(targetBounds.left),
+                Number(targetBounds.right)
+            ),
+            laneBias
+        );
+        _axisIntervalCandidates(
+            yValues,
+            preferredYs,
+            _axisGapOrOverlapInterval(
+                Number(sourceBounds.top),
+                Number(sourceBounds.bottom),
+                Number(targetBounds.top),
+                Number(targetBounds.bottom)
+            ),
+            laneBias
+        );
+    }
+
+    return {
+        "xValues": _sortedNumeric(xValues),
+        "yValues": _sortedNumeric(yValues),
+        "preferredXs": preferredXs,
+        "preferredYs": preferredYs
+    };
+}
+
+function _pointInsideBounds(point, bounds) {
+    if (!bounds)
+        return false;
+    return Number(bounds.left) + 0.001 < Number(point.x)
+        && Number(point.x) < Number(bounds.right) - 0.001
+        && Number(bounds.top) + 0.001 < Number(point.y)
+        && Number(point.y) < Number(bounds.bottom) - 0.001;
+}
+
+function _segmentClear(start, end, obstacles) {
+    var x1 = Number(start.x);
+    var y1 = Number(start.y);
+    var x2 = Number(end.x);
+    var y2 = Number(end.y);
+    var sourceObstacles = obstacles || [];
+
+    if (Math.abs(x1 - x2) <= 0.001) {
+        var x = x1;
+        var lowY = Math.min(y1, y2);
+        var highY = Math.max(y1, y2);
+        for (var i = 0; i < sourceObstacles.length; i++) {
+            var bounds = sourceObstacles[i];
+            if (!bounds)
+                continue;
+            if (!(Number(bounds.left) + 0.001 < x && x < Number(bounds.right) - 0.001))
+                continue;
+            var overlapLowY = Math.max(lowY, Number(bounds.top) + 0.001);
+            var overlapHighY = Math.min(highY, Number(bounds.bottom) - 0.001);
+            if (overlapLowY < overlapHighY)
+                return false;
+        }
+        return true;
+    }
+
+    if (Math.abs(y1 - y2) <= 0.001) {
+        var y = y1;
+        var lowX = Math.min(x1, x2);
+        var highX = Math.max(x1, x2);
+        for (var j = 0; j < sourceObstacles.length; j++) {
+            var obstacle = sourceObstacles[j];
+            if (!obstacle)
+                continue;
+            if (!(Number(obstacle.top) + 0.001 < y && y < Number(obstacle.bottom) - 0.001))
+                continue;
+            var overlapLowX = Math.max(lowX, Number(obstacle.left) + 0.001);
+            var overlapHighX = Math.min(highX, Number(obstacle.right) - 0.001);
+            if (overlapLowX < overlapHighX)
+                return false;
+        }
+        return true;
+    }
+
+    return false;
+}
+
+function _simplifyOrthogonalPoints(points) {
+    var deduped = [];
+    var i;
+    for (i = 0; i < (points || []).length; i++) {
+        var point = points[i];
+        if (!point)
+            continue;
+        if (deduped.length > 0) {
+            var prev = deduped[deduped.length - 1];
+            if (Math.abs(Number(prev.x) - Number(point.x)) <= 0.001
+                && Math.abs(Number(prev.y) - Number(point.y)) <= 0.001) {
+                continue;
+            }
+        }
+        deduped.push({"x": Number(point.x), "y": Number(point.y)});
+    }
+
+    var simplified = [];
+    for (i = 0; i < deduped.length; i++) {
+        var current = deduped[i];
+        if (simplified.length < 2) {
+            simplified.push(current);
+            continue;
+        }
+        var prevPoint = simplified[simplified.length - 1];
+        var prevPrevPoint = simplified[simplified.length - 2];
+        var sameX = Math.abs(Number(prevPrevPoint.x) - Number(prevPoint.x)) <= 0.001
+            && Math.abs(Number(prevPoint.x) - Number(current.x)) <= 0.001;
+        var sameY = Math.abs(Number(prevPrevPoint.y) - Number(prevPoint.y)) <= 0.001
+            && Math.abs(Number(prevPoint.y) - Number(current.y)) <= 0.001;
+        if (sameX || sameY)
+            simplified[simplified.length - 1] = current;
+        else
+            simplified.push(current);
+    }
+    return simplified;
+}
+
+function _polylineScore(points, preferredXs, preferredYs) {
+    var bends = Math.max(0, (points || []).length - 2);
+    var length = 0.0;
+    var lanePenalty = 0.0;
+    for (var i = 1; i < (points || []).length; i++) {
+        var start = points[i - 1];
+        var end = points[i];
+        length += Math.abs(Number(end.x) - Number(start.x)) + Math.abs(Number(end.y) - Number(start.y));
+        if (Math.abs(Number(end.x) - Number(start.x)) <= 0.001 && (preferredXs || []).length > 0) {
+            var bestXPenalty = Number.POSITIVE_INFINITY;
+            for (var px = 0; px < preferredXs.length; px++)
+                bestXPenalty = Math.min(bestXPenalty, Math.abs(Number(start.x) - Number(preferredXs[px])));
+            lanePenalty += bestXPenalty;
+        } else if (Math.abs(Number(end.y) - Number(start.y)) <= 0.001 && (preferredYs || []).length > 0) {
+            var bestYPenalty = Number.POSITIVE_INFINITY;
+            for (var py = 0; py < preferredYs.length; py++)
+                bestYPenalty = Math.min(bestYPenalty, Math.abs(Number(start.y) - Number(preferredYs[py])));
+            lanePenalty += bestYPenalty;
+        }
+    }
+    return {
+        "bends": bends,
+        "length": length,
+        "lanePenalty": lanePenalty
+    };
+}
+
+function _scoreLessThan(a, b) {
+    if (!b)
+        return true;
+    if (a.bends !== b.bends)
+        return a.bends < b.bends;
+    if (Math.abs(a.length - b.length) > 0.001)
+        return a.length < b.length;
+    return a.lanePenalty < b.lanePenalty - 0.001;
+}
+
+function flowPipeRoute(sourcePoint, targetPoint, options) {
+    var config = options || {};
+    var source = {"x": Number(sourcePoint.x), "y": Number(sourcePoint.y)};
+    var target = {"x": Number(targetPoint.x), "y": Number(targetPoint.y)};
+    var laneBias = Number(config.laneBias || 0.0);
+    var sourceSide = normalizeCardinalSide(config.sourceSide, "right");
+    var targetSide = normalizeCardinalSide(config.targetSide, "left");
+    var sourceBounds = config.sourceBounds || null;
+    var targetBounds = config.targetBounds || null;
+    var stubLength = _flowPipeStubLength(source, target);
+    var sourceStub = _flowPipeStubPoint(source, sourceSide, stubLength);
+    var targetStub = _flowPipeStubPoint(target, targetSide, stubLength);
+    var clearance = 56.0 * 0.6 + Math.abs(laneBias) * 0.8;
+    var axisModel = _flowPipeCandidateAxes(
+        source,
+        target,
+        sourceStub,
+        targetStub,
+        sourceBounds,
+        targetBounds,
+        laneBias,
+        clearance
+    );
+    var obstacles = [];
+    if (sourceBounds)
+        obstacles.push(sourceBounds);
+    if (targetBounds)
+        obstacles.push(targetBounds);
+
+    var candidates = [
+        [sourceStub, targetStub],
+        [sourceStub, {"x": sourceStub.x, "y": targetStub.y}, targetStub],
+        [sourceStub, {"x": targetStub.x, "y": sourceStub.y}, targetStub]
+    ];
+    var xValues = axisModel.xValues;
+    var yValues = axisModel.yValues;
+    var xIndex;
+    var yIndex;
+    for (xIndex = 0; xIndex < xValues.length; xIndex++) {
+        candidates.push([
+            sourceStub,
+            {"x": xValues[xIndex], "y": sourceStub.y},
+            {"x": xValues[xIndex], "y": targetStub.y},
+            targetStub
+        ]);
+    }
+    for (yIndex = 0; yIndex < yValues.length; yIndex++) {
+        candidates.push([
+            sourceStub,
+            {"x": sourceStub.x, "y": yValues[yIndex]},
+            {"x": targetStub.x, "y": yValues[yIndex]},
+            targetStub
+        ]);
+    }
+    for (xIndex = 0; xIndex < xValues.length; xIndex++) {
+        for (yIndex = 0; yIndex < yValues.length; yIndex++) {
+            candidates.push([
+                sourceStub,
+                {"x": xValues[xIndex], "y": sourceStub.y},
+                {"x": xValues[xIndex], "y": yValues[yIndex]},
+                {"x": targetStub.x, "y": yValues[yIndex]},
+                targetStub
+            ]);
+            candidates.push([
+                sourceStub,
+                {"x": sourceStub.x, "y": yValues[yIndex]},
+                {"x": xValues[xIndex], "y": yValues[yIndex]},
+                {"x": xValues[xIndex], "y": targetStub.y},
+                targetStub
+            ]);
+        }
+    }
+
+    var bestPoints = null;
+    var bestScore = null;
+    for (var i = 0; i < candidates.length; i++) {
+        var routedPoints = _simplifyOrthogonalPoints(candidates[i]);
+        var valid = true;
+        for (var p = 1; p < routedPoints.length - 1 && valid; p++) {
+            for (var o = 0; o < obstacles.length; o++) {
+                if (_pointInsideBounds(routedPoints[p], obstacles[o])) {
+                    valid = false;
+                    break;
+                }
+            }
+        }
+        for (var s = 1; s < routedPoints.length && valid; s++) {
+            if (!_segmentClear(routedPoints[s - 1], routedPoints[s], obstacles))
+                valid = false;
+        }
+        if (!valid)
+            continue;
+        var fullPoints = _simplifyOrthogonalPoints([source].concat(routedPoints).concat([target]));
+        var score = _polylineScore(fullPoints, axisModel.preferredXs, axisModel.preferredYs);
+        if (_scoreLessThan(score, bestScore)) {
+            bestScore = score;
+            bestPoints = fullPoints;
+        }
+    }
+
+    if (bestPoints)
+        return bestPoints;
+    return _simplifyOrthogonalPoints([
+        source,
+        sourceStub,
+        {"x": sourceStub.x, "y": targetStub.y},
+        targetStub,
+        target
+    ]);
+}
+
+function pipeControlHandles(pipePoints) {
+    var points = pipePoints || [];
+    if (points.length <= 0)
+        return {
+            "first": {"x": 0.0, "y": 0.0},
+            "last": {"x": 0.0, "y": 0.0}
+        };
+    return {
+        "first": points[Math.min(1, points.length - 1)],
+        "last": points[Math.max(0, points.length - 2)]
+    };
+}
