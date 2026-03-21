@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, Callable
 from PyQt6.QtCore import QPointF, QRectF
 
 from ea_node_editor.graph.effective_ports import (
-    default_port,
     find_port,
+    preferred_connection_port,
     ports_compatible,
 )
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_parent_id
@@ -241,37 +241,44 @@ class GraphSceneMutationHistory:
         spec_b = registry.get_spec(node_b.type_id)
 
         a_to_b = (
-            default_port(
+            preferred_connection_port(
                 node=node_a,
                 spec=spec_a,
                 workspace_nodes=workspace.nodes,
                 direction="out",
+                peer_node=node_b,
             ),
-            default_port(
+            preferred_connection_port(
                 node=node_b,
                 spec=spec_b,
                 workspace_nodes=workspace.nodes,
                 direction="in",
+                peer_node=node_a,
             ),
         )
         b_to_a = (
-            default_port(
+            preferred_connection_port(
                 node=node_b,
                 spec=spec_b,
                 workspace_nodes=workspace.nodes,
                 direction="out",
+                peer_node=node_a,
             ),
-            default_port(
+            preferred_connection_port(
                 node=node_a,
                 spec=spec_a,
                 workspace_nodes=workspace.nodes,
                 direction="in",
+                peer_node=node_b,
             ),
         )
 
         can_a_to_b = all(a_to_b)
         can_b_to_a = all(b_to_a)
-        if can_a_to_b and (not can_b_to_a or node_a.x <= node_b.x):
+        prefer_a_to_b = float(node_a.x) < float(node_b.x) or (
+            float(node_a.x) == float(node_b.x) and float(node_a.y) <= float(node_b.y)
+        )
+        if can_a_to_b and (not can_b_to_a or prefer_a_to_b):
             return self.add_edge(node_a_id, a_to_b[0], node_b_id, a_to_b[1])
         if can_b_to_a:
             return self.add_edge(node_b_id, b_to_a[0], node_a_id, b_to_a[1])

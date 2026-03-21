@@ -96,16 +96,20 @@ class PassiveNodeContractsTests(unittest.TestCase):
             self.assertEqual(spec.surface_family, "flowchart")
             self.assertTrue(spec.ports)
             self.assertTrue(all(port.kind == "flow" and port.data_type == "flow" for port in spec.ports))
+            self.assertEqual([port.key for port in spec.ports], ["top", "right", "bottom", "left"])
+            self.assertTrue(all(port.direction == "neutral" for port in spec.ports))
+            self.assertTrue(all(port.side == port.key for port in spec.ports))
+            self.assertTrue(all(port.allow_multiple_connections for port in spec.ports))
 
         start_spec = registry.get_spec(PASSIVE_FLOWCHART_START_TYPE_ID)
-        self.assertEqual([port.key for port in start_spec.ports], ["flow_out"])
+        self.assertEqual([port.key for port in start_spec.ports], ["top", "right", "bottom", "left"])
 
         end_spec = registry.get_spec(PASSIVE_FLOWCHART_END_TYPE_ID)
-        self.assertEqual([port.key for port in end_spec.ports], ["flow_in"])
-        self.assertTrue(end_spec.ports[0].allow_multiple_connections)
+        self.assertEqual([port.key for port in end_spec.ports], ["top", "right", "bottom", "left"])
+        self.assertTrue(all(port.allow_multiple_connections for port in end_spec.ports))
 
         decision_spec = registry.get_spec(PASSIVE_FLOWCHART_DECISION_TYPE_ID)
-        self.assertEqual([port.key for port in decision_spec.ports], ["flow_in", "branch_a", "branch_b"])
+        self.assertEqual([port.key for port in decision_spec.ports], ["top", "right", "bottom", "left"])
 
     def test_non_flow_passive_nodes_do_not_expose_ports(self) -> None:
         registry = build_default_registry()

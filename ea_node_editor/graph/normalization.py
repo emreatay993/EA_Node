@@ -10,6 +10,8 @@ from ea_node_editor.graph.effective_ports import (
     are_port_kinds_compatible,
     effective_ports,
     find_port,
+    port_supports_incoming_edge,
+    port_supports_outgoing_edge,
     ports_compatible,
     target_port_has_capacity,
 )
@@ -297,10 +299,10 @@ class ValidatedGraphMutation:
                 return existing
         source_node, source_spec, source_port = self._resolved_port(source_node_id, source_port_key)
         target_node, target_spec, target_port = self._resolved_port(target_node_id, target_port_key)
-        if source_port.direction != "out":
-            raise ValueError(f"Source port must be an output: {source_node_id}.{source_port_key}")
-        if target_port.direction != "in":
-            raise ValueError(f"Target port must be an input: {target_node_id}.{target_port_key}")
+        if not port_supports_outgoing_edge(source_port):
+            raise ValueError(f"Source port must support outgoing edges: {source_node_id}.{source_port_key}")
+        if not port_supports_incoming_edge(target_port):
+            raise ValueError(f"Target port must support incoming edges: {target_node_id}.{target_port_key}")
         if not are_port_kinds_compatible(source_port.kind, target_port.kind):
             raise ValueError(
                 "Incompatible ports: "
@@ -615,9 +617,9 @@ def validate_registry_edge(
     )
     if target_port is None:
         return None
-    if require_source_output and source_port.direction != "out":
+    if require_source_output and not port_supports_outgoing_edge(source_port):
         return None
-    if require_target_input and target_port.direction != "in":
+    if require_target_input and not port_supports_incoming_edge(target_port):
         return None
     if require_exposed_ports and (not source_port.exposed or not target_port.exposed):
         return None

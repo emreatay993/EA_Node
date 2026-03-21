@@ -34,7 +34,8 @@ class NodeRegistry:
     _TYPE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     _SUPPORTED_PROPERTY_TYPES = {"str", "int", "float", "bool", "path", "enum", "json"}
     _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum"}
-    _SUPPORTED_DIRECTIONS = {"in", "out"}
+    _SUPPORTED_DIRECTIONS = {"in", "out", "neutral"}
+    _SUPPORTED_PORT_SIDES = {"", "top", "right", "bottom", "left"}
     _SUPPORTED_KINDS = {"exec", "completed", "failed", "data", "flow"}
     _SUPPORTED_RUNTIME_BEHAVIORS = {"active", "passive", "compile_only"}
     _SUPPORTED_SURFACE_FAMILIES = {
@@ -248,7 +249,7 @@ class NodeRegistry:
 
         port_keys: set[str] = set()
         for port in spec.ports:
-            self._validate_port(spec.type_id, port)
+            self._validate_port(spec, port)
             if port.key in port_keys:
                 raise ValueError(f"Node {spec.type_id} has duplicate port key: {port.key}")
             port_keys.add(port.key)
@@ -260,7 +261,8 @@ class NodeRegistry:
                 raise ValueError(f"Node {spec.type_id} has duplicate property key: {prop.key}")
             property_keys.add(prop.key)
 
-    def _validate_port(self, type_id: str, port: PortSpec) -> None:
+    def _validate_port(self, spec: NodeTypeSpec, port: PortSpec) -> None:
+        type_id = spec.type_id
         if not isinstance(port, PortSpec):
             raise TypeError(f"Node {type_id} ports must be PortSpec instances")
         if not port.key or port.key.strip() != port.key:
@@ -271,6 +273,10 @@ class NodeRegistry:
             raise ValueError(f"Node {type_id} port {port.key} has invalid kind: {port.kind}")
         if not port.data_type or port.data_type.strip() != port.data_type:
             raise ValueError(f"Node {type_id} port {port.key} has invalid data_type: {port.data_type!r}")
+        if not isinstance(port.side, str) or port.side.strip() != port.side:
+            raise ValueError(f"Node {type_id} port {port.key} side must be a trimmed string")
+        if port.side not in self._SUPPORTED_PORT_SIDES:
+            raise ValueError(f"Node {type_id} port {port.key} has invalid side: {port.side}")
         if not isinstance(port.required, bool):
             raise TypeError(f"Node {type_id} port {port.key} required must be bool")
         if not isinstance(port.exposed, bool):
@@ -278,6 +284,29 @@ class NodeRegistry:
         if not isinstance(port.allow_multiple_connections, bool):
             raise TypeError(
                 f"Node {type_id} port {port.key} allow_multiple_connections must be bool"
+            )
+        if port.direction == "neutral":
+            if spec.surface_family != "flowchart":
+                raise ValueError(
+                    f"Node {type_id} port {port.key} neutral direction is only supported on flowchart surfaces"
+                )
+            if port.kind != "flow" or port.data_type != "flow":
+                raise ValueError(
+                    f"Node {type_id} port {port.key} neutral direction requires flow kind and data_type"
+                )
+            if not port.side:
+                raise ValueError(f"Node {type_id} port {port.key} neutral direction requires a cardinal side")
+            if port.key != port.side:
+                raise ValueError(
+                    f"Node {type_id} port {port.key} neutral direction side must match the stored port key"
+                )
+            if not port.allow_multiple_connections:
+                raise ValueError(
+                    f"Node {type_id} port {port.key} neutral flowchart ports must allow multiple connections"
+                )
+        elif port.side:
+            raise ValueError(
+                f"Node {type_id} port {port.key} side metadata is only supported on neutral flowchart ports"
             )
 
     def _validate_property(self, type_id: str, prop: PropertySpec) -> None:

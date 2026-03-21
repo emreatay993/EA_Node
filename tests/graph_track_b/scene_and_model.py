@@ -560,10 +560,10 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         expected_right_x = source_payload["x"] + (source_payload["width"] - expected_left_offset)
         self.assertAlmostEqual(edge_payload["sx"], expected_right_x, places=4)
 
-    def test_builtin_flowchart_catalog_nodes_keep_display_titles_and_neutral_branch_keys(self) -> None:
+    def test_builtin_flowchart_catalog_nodes_keep_display_titles_and_cardinal_neutral_ports(self) -> None:
         decision_id = self.scene.add_node_from_type("passive.flowchart.decision", 20.0, 30.0)
         end_id = self.scene.add_node_from_type("passive.flowchart.end", 360.0, 90.0)
-        edge_id = self.scene.add_edge(decision_id, "branch_a", end_id, "flow_in")
+        edge_id = self.scene.add_edge(decision_id, "right", end_id, "left")
 
         workspace = self.model.project.workspaces[self.workspace_id]
         self.assertEqual(workspace.nodes[decision_id].title, "Decision")
@@ -573,13 +573,36 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
         decision_ports = {port["key"]: port for port in node_payload[decision_id]["ports"]}
 
-        self.assertEqual(set(decision_ports), {"flow_in", "branch_a", "branch_b"})
-        self.assertEqual(decision_ports["branch_a"]["label"], "branch_a")
-        self.assertEqual(decision_ports["branch_b"]["label"], "branch_b")
-        self.assertEqual(decision_ports["branch_a"]["kind"], "flow")
-        self.assertEqual(decision_ports["branch_b"]["data_type"], "flow")
+        self.assertEqual(set(decision_ports), {"top", "right", "bottom", "left"})
+        self.assertTrue(all(port["direction"] == "neutral" for port in decision_ports.values()))
+        self.assertEqual(decision_ports["right"]["label"], "right")
+        self.assertEqual(decision_ports["left"]["label"], "left")
+        self.assertEqual(decision_ports["right"]["kind"], "flow")
+        self.assertEqual(decision_ports["left"]["data_type"], "flow")
         self.assertEqual(edge_payload["source_port_kind"], "flow")
         self.assertEqual(edge_payload["target_port_kind"], "flow")
+
+    def test_connect_nodes_selects_facing_cardinal_ports_for_neutral_flowchart_nodes(self) -> None:
+        horizontal_source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 30.0)
+        horizontal_target_id = self.scene.add_node_from_type("passive.flowchart.process", 360.0, 90.0)
+        vertical_source_id = self.scene.add_node_from_type("passive.flowchart.process", 720.0, 40.0)
+        vertical_target_id = self.scene.add_node_from_type("passive.flowchart.process", 720.0, 320.0)
+
+        horizontal_edge_id = self.scene.connect_nodes(horizontal_source_id, horizontal_target_id)
+        vertical_edge_id = self.scene.connect_nodes(vertical_source_id, vertical_target_id)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        horizontal_edge = workspace.edges[horizontal_edge_id]
+        vertical_edge = workspace.edges[vertical_edge_id]
+
+        self.assertEqual(horizontal_edge.source_node_id, horizontal_source_id)
+        self.assertEqual(horizontal_edge.source_port_key, "right")
+        self.assertEqual(horizontal_edge.target_node_id, horizontal_target_id)
+        self.assertEqual(horizontal_edge.target_port_key, "left")
+        self.assertEqual(vertical_edge.source_node_id, vertical_source_id)
+        self.assertEqual(vertical_edge.source_port_key, "bottom")
+        self.assertEqual(vertical_edge.target_node_id, vertical_target_id)
+        self.assertEqual(vertical_edge.target_port_key, "top")
 
     def test_planning_and_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
         task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)

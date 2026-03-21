@@ -2,75 +2,62 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.graph.effective_ports import effective_ports
+from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+
+_EXPECTED_CARDINAL_PORTS = (
+    ("top", "neutral", True, "top"),
+    ("right", "neutral", True, "right"),
+    ("bottom", "neutral", True, "bottom"),
+    ("left", "neutral", True, "left"),
+)
 
 _EXPECTED_FLOWCHART_SPECS = {
     "passive.flowchart.start": {
         "display_name": "Start",
         "surface_variant": "start",
-        "ports": (("flow_out", "out", False),),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.end": {
         "display_name": "End",
         "surface_variant": "end",
-        "ports": (("flow_in", "in", True),),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.process": {
         "display_name": "Process",
         "surface_variant": "process",
-        "ports": (
-            ("flow_in", "in", True),
-            ("flow_out", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.decision": {
         "display_name": "Decision",
         "surface_variant": "decision",
-        "ports": (
-            ("flow_in", "in", False),
-            ("branch_a", "out", False),
-            ("branch_b", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.document": {
         "display_name": "Document",
         "surface_variant": "document",
-        "ports": (
-            ("flow_in", "in", True),
-            ("flow_out", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.connector": {
         "display_name": "Connector",
         "surface_variant": "connector",
-        "ports": (
-            ("flow_in", "in", True),
-            ("flow_out", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.input_output": {
         "display_name": "Input / Output",
         "surface_variant": "input_output",
-        "ports": (
-            ("flow_in", "in", True),
-            ("flow_out", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.predefined_process": {
         "display_name": "Predefined Process",
         "surface_variant": "predefined_process",
-        "ports": (
-            ("flow_in", "in", True),
-            ("flow_out", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
     "passive.flowchart.database": {
         "display_name": "Database",
         "surface_variant": "database",
-        "ports": (
-            ("flow_in", "in", True),
-            ("flow_out", "out", False),
-        ),
+        "ports": _EXPECTED_CARDINAL_PORTS,
     },
 }
 
@@ -110,7 +97,7 @@ class PassiveFlowchartCatalogTests(unittest.TestCase):
             self.assertFalse(spec.collapsible)
             self.assertEqual(
                 tuple(
-                    (port.key, port.direction, port.allow_multiple_connections)
+                    (port.key, port.direction, port.allow_multiple_connections, port.side)
                     for port in spec.ports
                 ),
                 expected["ports"],
@@ -118,14 +105,39 @@ class PassiveFlowchartCatalogTests(unittest.TestCase):
             self.assertTrue(all(port.kind == "flow" for port in spec.ports))
             self.assertTrue(all(port.data_type == "flow" for port in spec.ports))
 
-    def test_decision_branch_ports_remain_neutral_and_edge_label_driven(self) -> None:
+    def test_effective_flowchart_ports_publish_cardinal_side_metadata(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "passive.flowchart.decision",
+            "Decision",
+            40.0,
+            60.0,
+        )
+        spec = registry.get_spec("passive.flowchart.decision")
+        ports = effective_ports(node=node, spec=spec, workspace_nodes=workspace.nodes)
+
+        self.assertEqual(
+            tuple((port.key, port.direction, port.side) for port in ports),
+            (
+                ("top", "neutral", "top"),
+                ("right", "neutral", "right"),
+                ("bottom", "neutral", "bottom"),
+                ("left", "neutral", "left"),
+            ),
+        )
+
+    def test_flowchart_decision_ports_are_cardinal_and_edge_label_driven(self) -> None:
         registry = build_default_registry()
         spec = registry.get_spec("passive.flowchart.decision")
 
         self.assertEqual(
-            [port.key for port in spec.ports if port.direction == "out"],
-            ["branch_a", "branch_b"],
+            [port.key for port in spec.ports],
+            ["top", "right", "bottom", "left"],
         )
+        self.assertFalse(any(port.key in {"branch_a", "branch_b"} for port in spec.ports))
         self.assertFalse(any(port.key.lower() in {"yes", "no"} for port in spec.ports))
 
 

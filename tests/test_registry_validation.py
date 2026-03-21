@@ -194,6 +194,91 @@ class RegistryValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             registry.register(_factory(spec))
 
+    def test_register_accepts_neutral_flowchart_ports_with_matching_cardinal_side(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.neutral_flowchart",
+            display_name="Neutral Flowchart",
+            category="Tests",
+            icon="",
+            ports=(
+                PortSpec(
+                    "top",
+                    "neutral",
+                    "flow",
+                    "flow",
+                    side="top",
+                    allow_multiple_connections=True,
+                ),
+                PortSpec(
+                    "right",
+                    "neutral",
+                    "flow",
+                    "flow",
+                    side="right",
+                    allow_multiple_connections=True,
+                ),
+            ),
+            properties=(),
+            surface_family="flowchart",
+            surface_variant="process",
+        )
+
+        registry.register(_factory(spec))
+
+        registered = registry.get_spec("tests.neutral_flowchart")
+        self.assertEqual(tuple(port.direction for port in registered.ports), ("neutral", "neutral"))
+        self.assertEqual(tuple(port.side for port in registered.ports), ("top", "right"))
+
+    def test_register_rejects_neutral_ports_outside_flowchart_surface(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.bad_neutral_standard",
+            display_name="Bad Neutral Standard",
+            category="Tests",
+            icon="",
+            ports=(
+                PortSpec(
+                    "top",
+                    "neutral",
+                    "flow",
+                    "flow",
+                    side="top",
+                    allow_multiple_connections=True,
+                ),
+            ),
+            properties=(),
+            surface_family="standard",
+        )
+
+        with self.assertRaises(ValueError):
+            registry.register(_factory(spec))
+
+    def test_register_rejects_neutral_ports_without_matching_cardinal_key(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.bad_neutral_side",
+            display_name="Bad Neutral Side",
+            category="Tests",
+            icon="",
+            ports=(
+                PortSpec(
+                    "branch",
+                    "neutral",
+                    "flow",
+                    "flow",
+                    side="right",
+                    allow_multiple_connections=True,
+                ),
+            ),
+            properties=(),
+            surface_family="flowchart",
+            surface_variant="decision",
+        )
+
+        with self.assertRaises(ValueError):
+            registry.register(_factory(spec))
+
     def test_node_type_spec_defaults_render_quality_contract(self) -> None:
         spec = NodeTypeSpec(
             type_id="tests.render_quality_defaults",
@@ -358,6 +443,27 @@ class RegistryValidationTests(unittest.TestCase):
                 "visual_style": {},
             },
         )
+
+    def test_normalize_project_for_registry_keeps_directed_neutral_flowchart_edges(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        source = model.add_node(workspace.workspace_id, "passive.flowchart.process", "Process", 20.0, 30.0)
+        target = model.add_node(workspace.workspace_id, "passive.flowchart.process", "Process", 320.0, 30.0)
+        edge = model.add_edge(
+            workspace.workspace_id,
+            source.node_id,
+            "right",
+            target.node_id,
+            "left",
+        )
+
+        normalize_project_for_registry(model.project, registry)
+
+        self.assertIn(edge.edge_id, workspace.edges)
+        kept_edge = workspace.edges[edge.edge_id]
+        self.assertEqual(kept_edge.source_port_key, "right")
+        self.assertEqual(kept_edge.target_port_key, "left")
 
     def test_default_registry_preserves_promoted_subnode_contract(self) -> None:
         registry = build_default_registry()

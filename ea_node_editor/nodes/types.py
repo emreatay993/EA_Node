@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal, Protocol
 
-PortDirection = Literal["in", "out"]
+PortDirection = Literal["in", "out", "neutral"]
+PortSide = Literal["", "top", "right", "bottom", "left"]
 PortKind = Literal["exec", "completed", "failed", "data", "flow"]
 PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
 InlineEditorType = Literal["", "text", "number", "toggle", "enum", "path", "textarea"]
@@ -75,6 +76,7 @@ class PortSpec:
     required: bool = False
     exposed: bool = True
     allow_multiple_connections: bool = False
+    side: PortSide = ""
 
 
 @dataclass(slots=True, frozen=True)

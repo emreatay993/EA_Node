@@ -9,6 +9,9 @@ from ea_node_editor.graph.effective_ports import (
     effective_ports as resolve_effective_ports,
     find_port,
     is_subnode_pin_type,
+    port_side,
+    port_supports_incoming_edge,
+    port_supports_outgoing_edge,
 )
 from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id, subtree_node_ids
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, WorkspaceData
@@ -416,6 +419,7 @@ def build_subnode_custom_workflow_snapshot_data(
                 "direction": port.direction,
                 "kind": port.kind,
                 "data_type": port.data_type,
+                "side": port_side(port),
                 "exposed": bool(port.exposed),
             }
         )
@@ -537,7 +541,7 @@ def graph_fragment_payload_is_valid(
         )
         if source_port is None or target_port is None:
             return False
-        if source_port.direction != "out" or target_port.direction != "in":
+        if not port_supports_outgoing_edge(source_port) or not port_supports_incoming_edge(target_port):
             return False
         target_key = (target_ref_id, target_port_key)
         if not target_port.allow_multiple_connections and target_key in occupied_single_target_ports:

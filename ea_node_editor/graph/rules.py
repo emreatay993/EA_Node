@@ -5,6 +5,11 @@ from typing import Iterable
 from ea_node_editor.graph.effective_ports import (
     are_data_types_compatible,
     are_port_kinds_compatible,
+    is_neutral_flow_port,
+    port_layout_direction,
+    port_side as _port_side,
+    port_supports_incoming_edge,
+    port_supports_outgoing_edge,
     ports_compatible as effective_ports_compatible,
 )
 from ea_node_editor.graph.model import NodeInstance
@@ -22,7 +27,7 @@ def port_direction(spec: NodeTypeSpec, port_key: str) -> str:
     port = find_port(spec, port_key)
     if port is None:
         raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
-    return port.direction
+    return port_layout_direction(port)
 
 
 def port_kind(spec: NodeTypeSpec, port_key: str) -> str:
@@ -52,7 +57,7 @@ def is_port_exposed(node: NodeInstance, spec: NodeTypeSpec, port_key: str) -> bo
 
 def default_port(node: NodeInstance, spec: NodeTypeSpec, direction: str) -> str | None:
     for port in spec.ports:
-        if port.direction != direction:
+        if port_layout_direction(port) != direction:
             continue
         if bool(node.exposed_ports.get(port.key, port.exposed)):
             return port.key
@@ -65,7 +70,7 @@ def visible_ports(node: NodeInstance, spec: NodeTypeSpec) -> tuple[list[PortSpec
     for port in spec.ports:
         if not bool(node.exposed_ports.get(port.key, port.exposed)):
             continue
-        if port.direction == "in":
+        if port_layout_direction(port) == "in":
             in_ports.append(port)
         else:
             out_ports.append(port)
@@ -80,7 +85,7 @@ def first_compatible_port(
     candidates: Iterable[PortSpec],
 ) -> PortSpec | None:
     for port in spec.ports:
-        if port.direction != direction:
+        if port_layout_direction(port) != direction:
             continue
         if not is_port_exposed(node, spec, port.key):
             continue
@@ -88,3 +93,29 @@ def first_compatible_port(
             if ports_compatible(candidate, port):
                 return port
     return None
+
+
+def port_side(spec: NodeTypeSpec, port_key: str) -> str:
+    port = find_port(spec, port_key)
+    if port is None:
+        raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
+    return _port_side(port)
+
+
+__all__ = [
+    "are_data_types_compatible",
+    "are_port_kinds_compatible",
+    "default_port",
+    "find_port",
+    "first_compatible_port",
+    "is_neutral_flow_port",
+    "is_port_exposed",
+    "port_data_type",
+    "port_direction",
+    "port_kind",
+    "port_side",
+    "port_supports_incoming_edge",
+    "port_supports_outgoing_edge",
+    "ports_compatible",
+    "visible_ports",
+]

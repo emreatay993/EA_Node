@@ -4,7 +4,12 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Iterable, Protocol
 
-from ea_node_editor.graph.effective_ports import are_port_kinds_compatible, find_port
+from ea_node_editor.graph.effective_ports import (
+    are_port_kinds_compatible,
+    find_port,
+    port_supports_incoming_edge,
+    port_supports_outgoing_edge,
+)
 from ea_node_editor.graph.hierarchy import root_node_ids_for_fragment, subtree_node_ids
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -71,8 +76,6 @@ class GraphInteractions:
             return GraphActionResult(False, "One or more ports are missing.")
         direction_a = port_a.direction
         direction_b = port_b.direction
-        if direction_a == direction_b:
-            return GraphActionResult(False, "Ports must have opposite directions.")
         kind_a = port_a.kind
         kind_b = port_b.kind
         if not self._are_port_kinds_compatible(kind_a, kind_b):
@@ -81,20 +84,46 @@ class GraphInteractions:
                 f"Incompatible port kinds: {kind_a} -> {kind_b}.",
             )
 
-        if direction_a == "out":
+        can_a_to_b = port_supports_outgoing_edge(port_a) and port_supports_incoming_edge(port_b)
+        can_b_to_a = port_supports_outgoing_edge(port_b) and port_supports_incoming_edge(port_a)
+
+        if direction_a == "neutral" and direction_b == "neutral":
             source_node_id, source_port_key, target_node_id, target_port_key = (
                 source_node_id,
                 source_port_key,
                 target_node_id,
                 target_port_key,
+            )
+        elif can_a_to_b and not can_b_to_a:
+            source_node_id, source_port_key, target_node_id, target_port_key = (
+                source_node_id,
+                source_port_key,
+                target_node_id,
+                target_port_key,
+            )
+        elif can_b_to_a and not can_a_to_b:
+            source_node_id, source_port_key, target_node_id, target_port_key = (
+                target_node_id,
+                target_port_key,
+                source_node_id,
+                source_port_key,
+            )
+        elif direction_a == "out" and direction_b == "in":
+            source_node_id, source_port_key, target_node_id, target_port_key = (
+                source_node_id,
+                source_port_key,
+                target_node_id,
+                target_port_key,
+            )
+        elif direction_a == "in" and direction_b == "out":
+            source_node_id, source_port_key, target_node_id, target_port_key = (
+                target_node_id,
+                target_port_key,
+                source_node_id,
+                source_port_key,
             )
         else:
-            source_node_id, source_port_key, target_node_id, target_port_key = (
-                target_node_id,
-                target_port_key,
-                source_node_id,
-                source_port_key,
-            )
+            return GraphActionResult(False, "Ports must have compatible directions.")
 
         try:
             self._scene.add_edge(source_node_id, source_port_key, target_node_id, target_port_key)
