@@ -18,6 +18,8 @@
 - `REQ-GRAPH-008`: Collapsed nodes shall reduce visual footprint and use side connection anchors.
 - `REQ-GRAPH-009`: Graph canvas and item rendering shall support Stitch-aligned visual chrome with zoom-aware level-of-detail simplification.
 - `REQ-GRAPH-013`: `flow` edges shall support labels and flow-only visual style overrides while allowing multi-incoming targets where the declared target port permits them.
+- `REQ-GRAPH-014`: passive flowchart edges shall persist the stored cardinal flowchart port keys `top`, `right`, `bottom`, and `left`; edge labels and edge styling, not decision-specific port keys, shall carry branch meaning.
+- `REQ-GRAPH-015`: flowchart edge routing and handle placement shall resolve anchors from the exact silhouette perimeter at the referenced cardinal side rather than row-band approximations.
 
 ## Acceptance
 - `AC-REQ-GRAPH-004-01`: Node drag updates persisted model position.
@@ -28,3 +30,5 @@
 - `AC-REQ-GRAPH-011-01`: Hierarchy-aware duplicate/copy/paste/search/focus flows preserve rewired boundary edges and avoid cross-scope corruption.
 - `AC-REQ-GRAPH-012-01`: passive-only workspaces save, load, duplicate, and reopen through the normal graph serializer without introducing a separate artifact document model.
 - `AC-REQ-GRAPH-013-01`: labeled `flow` edges render authored labels/styles, and targets such as passive connectors/end nodes can accept multiple incoming `flow` edges when the registry spec allows it.
+- `AC-REQ-GRAPH-014-01`: serializer/scene round-trip preserves `top/right/bottom/left` flowchart port keys and labeled branch edges in the passive reference workspace without reviving legacy flowchart key aliases.
+- `AC-REQ-GRAPH-015-01`: flowchart surface and routing regressions confirm exact top/right/bottom/left silhouette anchors and side normals across the supported passive flowchart variants.

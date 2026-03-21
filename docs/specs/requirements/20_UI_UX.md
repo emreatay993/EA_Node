@@ -39,6 +39,7 @@
 - `REQ-UI-021`: passive nodes and `flow` edges shall expose style edit/reset/copy/paste workflows plus project-local preset CRUD from the shell/canvas context-menu path.
 - `REQ-UI-022`: passive image and PDF media panels shall preview local filesystem sources and keep those previews after save/reopen.
 - `REQ-UI-023`: interactive graph surfaces shall follow the locked host/surface input pattern: node-body interactions stay under the loaded surface, ordinary controls publish `embeddedInteractiveRects`, whole-surface modal tools use `blocksHostInteraction`, and reusable controls come from `ea_node_editor/ui_qml/components/graph/surface_controls/` without reopening the public `graphNodeCard` / `graphCanvas` contract.
+- `REQ-UI-025`: passive flowchart surfaces shall render four exposed handles keyed `top`, `right`, `bottom`, and `left`, keep raw port labels hidden on flowchart host/drop-preview surfaces, anchor those handles on the exact silhouette perimeter, and publish `origin_side` plus gesture-ordered source/target authoring when a connect gesture starts from a neutral flowchart port.
 
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.
@@ -58,3 +59,4 @@
 - `AC-REQ-UI-022-01`: reopening a project restores passive image and PDF previews for valid local sources and keeps the authored captions and fit/page settings.
 - `AC-REQ-UI-023-01`: host, inline-control, media-surface, and shell graph-surface regressions pass without reintroducing hover-proxy shims or click-swallowing overlays, and the final matrix is recorded in `docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md`.
 - `AC-REQ-UI-024-01`: the status-strip summary and buttons switch the active graphics-performance mode immediately, stay synchronized with Graphics Settings, and restore the same saved mode after relaunch.
+- `AC-REQ-UI-025-01`: flowchart surface, visual-polish, flow-edge preview, and graph-surface input regressions confirm four-handle rendering, hidden raw labels, exact cardinal anchors, `origin_side` interaction payloads, and gesture-ordered neutral flowchart authoring without regressing non-flowchart node behavior.

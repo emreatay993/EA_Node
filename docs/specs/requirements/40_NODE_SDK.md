@@ -15,6 +15,7 @@
 - `REQ-NODE-008`: Decorator-authored nodes and class-spec-authored nodes shall be registry-compatible.
 - `REQ-NODE-016`: `NodeTypeSpec` shall expose `runtime_behavior` plus `surface_family` / `surface_variant` hints and additive `render_quality` metadata (`weight_class`, `max_performance_strategy`, `supported_quality_tiers`) so the registry can describe passive-vs-active behavior, host-routed canvas surfaces, and heavy-node quality/proxy behavior declaratively with safe defaults when the field is omitted.
 - `REQ-NODE-017`: node authoring contracts shall support `flow` port kinds and declarative editor hints such as multiline text and filesystem path pickers for passive-node properties.
+- `REQ-NODE-020`: passive flowchart SDK contracts shall publish exactly four stored ports keyed `top`, `right`, `bottom`, and `left`; those ports shall use `direction="neutral"`, `kind="flow"`, `data_type="flow"`, `allow_multiple_connections=True`, and a `side` value that matches the stored key, while non-flowchart specs keep the existing fixed-direction port contract.
 
 Example:
 
@@ -41,3 +42,4 @@ class ScaleNode:
 - `AC-REQ-NODE-008-01`: Decorator-authored node plugins register and execute identically to class-spec plugins.
 - `AC-REQ-NODE-016-01`: registry validation, graph-surface payload coverage, and passive catalog coverage confirm passive flowchart/planning/annotation/media specs publish stable runtime, surface, and `render_quality` metadata, while specs that omit the field inherit the safe defaults.
 - `AC-REQ-NODE-017-01`: passive property-editor and media-node regressions confirm `flow` ports plus `textarea` / `path` editor hints round-trip and render without custom plugin code outside the SDK contract.
+- `AC-REQ-NODE-020-01`: registry validation, passive node contract, and flowchart catalog regressions confirm the locked four-port neutral flowchart contract and reject neutral-port declarations outside the flowchart surface contract.

@@ -81,9 +81,9 @@
           "edge_id": "edge_0400226921",
           "label": "Draft ready",
           "source_node_id": "node_955b5e35ae",
-          "source_port_key": "flow_out",
+          "source_port_key": "right",
           "target_node_id": "node_d84aca3401",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "filled",
             "label_background_color": "#EAF4FB",
@@ -97,9 +97,9 @@
           "edge_id": "edge_2f67493fb9",
           "label": "Comments logged",
           "source_node_id": "node_690da0b3b4",
-          "source_port_key": "flow_out",
+          "source_port_key": "right",
           "target_node_id": "node_985e85ba23",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "filled",
             "label_background_color": "#EAF4FB",
@@ -113,9 +113,9 @@
           "edge_id": "edge_3a85562886",
           "label": "Needs input",
           "source_node_id": "node_d84aca3401",
-          "source_port_key": "branch_b",
+          "source_port_key": "bottom",
           "target_node_id": "node_c4c06ba676",
-          "target_port_key": "flow_in",
+          "target_port_key": "top",
           "visual_style": {
             "arrow_head": "open",
             "label_background_color": "#FFF1DE",
@@ -129,9 +129,9 @@
           "edge_id": "edge_3d279ffbc0",
           "label": "Review",
           "source_node_id": "node_d84aca3401",
-          "source_port_key": "branch_a",
+          "source_port_key": "right",
           "target_node_id": "node_690da0b3b4",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "filled",
             "label_background_color": "#EAF4FB",
@@ -145,9 +145,9 @@
           "edge_id": "edge_d7ce44bda2",
           "label": "Close",
           "source_node_id": "node_56d3ad48a0",
-          "source_port_key": "flow_out",
+          "source_port_key": "right",
           "target_node_id": "node_459cab9b77",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "filled",
             "label_background_color": "#EAF4FB",
@@ -161,9 +161,9 @@
           "edge_id": "edge_e22f258404",
           "label": "Resubmit",
           "source_node_id": "node_985e85ba23",
-          "source_port_key": "flow_out",
+          "source_port_key": "right",
           "target_node_id": "node_9351213121",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "open",
             "label_background_color": "#FFF1DE",
@@ -177,9 +177,9 @@
           "edge_id": "edge_fa1de614bb",
           "label": "Begin",
           "source_node_id": "node_7b28c3db08",
-          "source_port_key": "flow_out",
+          "source_port_key": "right",
           "target_node_id": "node_955b5e35ae",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "filled",
             "label_background_color": "#EAF4FB",
@@ -193,9 +193,9 @@
           "edge_id": "edge_ff7c1b1642",
           "label": "Approved",
           "source_node_id": "node_9351213121",
-          "source_port_key": "flow_out",
+          "source_port_key": "right",
           "target_node_id": "node_56d3ad48a0",
-          "target_port_key": "flow_in",
+          "target_port_key": "left",
           "visual_style": {
             "arrow_head": "filled",
             "label_background_color": "#EAF4FB",
@@ -241,7 +241,10 @@
           "custom_height": null,
           "custom_width": null,
           "exposed_ports": {
-            "flow_in": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_459cab9b77",
           "parent_node_id": null,
@@ -257,8 +260,10 @@
           "custom_height": 122.0,
           "custom_width": 222.0,
           "exposed_ports": {
-            "flow_in": true,
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_56d3ad48a0",
           "parent_node_id": null,
@@ -326,8 +331,10 @@
           "custom_height": 116.0,
           "custom_width": 238.0,
           "exposed_ports": {
-            "flow_in": true,
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_690da0b3b4",
           "parent_node_id": null,
@@ -348,7 +355,10 @@
           "custom_height": null,
           "custom_width": null,
           "exposed_ports": {
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_7b28c3db08",
           "parent_node_id": null,
@@ -364,8 +374,10 @@
           "custom_height": 110.0,
           "custom_width": 258.0,
           "exposed_ports": {
-            "flow_in": true,
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_9351213121",
           "parent_node_id": null,
@@ -386,8 +398,10 @@
           "custom_height": 96.0,
           "custom_width": 220.0,
           "exposed_ports": {
-            "flow_in": true,
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_955b5e35ae",
           "parent_node_id": null,
@@ -409,8 +423,10 @@
           "custom_height": 132.0,
           "custom_width": 132.0,
           "exposed_ports": {
-            "flow_in": true,
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_985e85ba23",
           "parent_node_id": null,
@@ -455,8 +471,10 @@
           "custom_height": 104.0,
           "custom_width": 238.0,
           "exposed_ports": {
-            "flow_in": true,
-            "flow_out": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_c4c06ba676",
           "parent_node_id": null,
@@ -477,9 +495,10 @@
           "custom_height": 136.0,
           "custom_width": 232.0,
           "exposed_ports": {
-            "branch_a": true,
-            "branch_b": true,
-            "flow_in": true
+            "top": true,
+            "right": true,
+            "bottom": true,
+            "left": true
           },
           "node_id": "node_d84aca3401",
           "parent_node_id": null,

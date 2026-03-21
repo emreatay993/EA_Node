@@ -71,6 +71,13 @@ Design intent:
 - Passive style editing is project-local. Node and flow-edge presets are stored under `metadata.ui.passive_style_presets` inside the `.sfe` document rather than in app-wide preferences.
 - Media panels resolve local filesystem sources only. Image panels display local image files, and PDF panels render a single-page QtPdf preview through the Python-side preview provider.
 
+## Passive flowchart neutral-port contract
+
+- Passive flowchart built-ins now store exactly four ports with keys `top`, `right`, `bottom`, and `left`; each port is `direction="neutral"`, `kind="flow"`, `data_type="flow"`, `allow_multiple_connections=True`, and publishes a matching cardinal `side`.
+- Persisted passive flowchart edges keep those stored cardinal keys in `source_port_key` and `target_port_key`. Legacy `flow_in`, `flow_out`, `branch_a`, and `branch_b` identities are retired; branch meaning now lives on edge labels and edge styling.
+- Graph-scene and QML interaction payloads carry the same cardinal metadata. When a gesture starts from a neutral flowchart port, the live payload publishes `origin_side`, and when both endpoints are neutral flowchart ports the first selected or dragged port is authoritative as the source.
+- Flowchart node surfaces anchor those four handles on the exact silhouette perimeter at the referenced cardinal side instead of left/right row-band approximations. Flowchart surfaces and drop previews keep raw port labels hidden while non-flowchart nodes continue to use fixed `in` / `out` authoring and validation.
+
 ## Graph-surface input routing
 
 - `GraphNodeHost.qml` owns node-body gestures, but those handlers now live under the loaded surface content so graph surfaces can keep normal body drag/select/open/context behavior without sitting behind a drag-swallowing overlay.
