@@ -106,6 +106,7 @@ _CANVAS_BENCHMARK_WIDTH = 1280
 _CANVAS_BENCHMARK_HEIGHT = 720
 _CANVAS_THEME_ID = "stitch_dark"
 _CANVAS_GRAPH_THEME_ID = "graph_stitch_dark"
+_PASSIVE_MEDIA_TYPE_PREFIX = "passive.media."
 
 
 def _configure_qtquick_backend() -> None:
@@ -901,6 +902,39 @@ class _GraphCanvasBenchmarkHost:
             if str(item.objectName() or "") == "graphNodeCard"
         ]
 
+    def media_node_scene_rect(self) -> QRectF:
+        media_scene_rect = QRectF()
+        found_media = False
+        for node_card in self.node_cards():
+            node_data = node_card.property("nodeData") or {}
+            if not _node_payload_is_media(node_data):
+                continue
+            node_rect = _node_payload_scene_rect(
+                node_data,
+                fallback_width=node_card.width(),
+                fallback_height=node_card.height(),
+            )
+            media_scene_rect = node_rect if not found_media else media_scene_rect.united(node_rect)
+            found_media = True
+        return media_scene_rect if found_media else QRectF()
+
+    def frame_scene_rect(self, scene_rect: QRectF) -> bool:
+        normalized = QRectF(scene_rect).normalized()
+        if not normalized.isValid() or normalized.isEmpty():
+            return False
+        framed = bool(self.view.frame_scene_rect(normalized))
+        self.app.processEvents()
+        self.render_frame()
+        return framed
+
+    def prepare_media_ready_view(self) -> bool:
+        media_scene_rect = self.media_node_scene_rect()
+        if self.frame_scene_rect(media_scene_rect):
+            return True
+        workspace = self.model.project.workspaces[self.model.project.active_workspace_id]
+        left, right, top, bottom = _workspace_bounds(workspace)
+        return self.frame_scene_rect(QRectF(left, top, right - left, bottom - top))
+
     def control_node_card(self) -> QQuickItem:
         fallback: QQuickItem | None = None
         visible_rect = self.visible_scene_rect()
@@ -976,6 +1010,25 @@ def _workspace_bounds(workspace: WorkspaceData) -> tuple[float, float, float, fl
         min(ys) - margin_y,
         max(ys) + margin_y,
     )
+
+
+def _node_payload_is_media(node_payload: Any) -> bool:
+    if not isinstance(node_payload, dict):
+        return False
+    surface_family = str(node_payload.get("surface_family", "")).strip().lower()
+    if surface_family == "media":
+        return True
+    type_id = str(node_payload.get("type_id", "")).strip().lower()
+    return type_id.startswith(_PASSIVE_MEDIA_TYPE_PREFIX)
+
+
+def _node_payload_scene_rect(node_payload: Any, *, fallback_width: float, fallback_height: float) -> QRectF:
+    payload = node_payload if isinstance(node_payload, dict) else {}
+    node_x = float(payload.get("x", 0.0))
+    node_y = float(payload.get("y", 0.0))
+    node_width = max(1.0, float(payload.get("width", fallback_width)))
+    node_height = max(1.0, float(payload.get("height", fallback_height)))
+    return QRectF(node_x, node_y, node_width, node_height)
 
 
 def benchmark_load_times_ms(*, doc: dict[str, Any], workspace_id: str, iterations: int) -> list[float]:
@@ -1122,6 +1175,8 @@ def benchmark_pan_zoom_ms(
             workspace_id=workspace_id,
             performance_mode=performance_mode,
         )
+        if expected_media_surface_count > 0:
+            canvas_host.prepare_media_ready_view()
         canvas_host.wait_for_media_surfaces_ready(expected_count=expected_media_surface_count)
         setup_samples_ms.append((time.perf_counter() - setup_started) * 1000.0)
 

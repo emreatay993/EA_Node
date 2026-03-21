@@ -17,6 +17,45 @@ from ea_node_editor.ui.perf import performance_harness as ui_performance_harness
 
 
 class TrackHPerformanceHarnessTests(unittest.TestCase):
+    def _assert_heavy_media_scenario(self, performance_mode: str) -> None:
+        report = run_benchmark(
+            BenchmarkConfig(
+                synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
+                load_iterations=1,
+                interaction_samples=1,
+                interaction_warmup_samples=0,
+                performance_mode=performance_mode,
+                scenario="heavy_media",
+            )
+        )
+
+        config = report["config"]
+        interaction_benchmark = report["interaction_benchmark"]
+        scenario_details = config["scenario_details"]
+        node_mix = scenario_details["node_mix"]
+
+        self.assertEqual(config["performance_mode"], performance_mode)
+        self.assertEqual(config["scenario"], "heavy_media")
+        self.assertEqual(scenario_details["fixture_strategy"], "generated_local_media_reuse")
+        self.assertGreater(node_mix["image_panel_nodes"], 0)
+        self.assertGreater(node_mix["pdf_panel_nodes"], 0)
+        self.assertEqual(
+            node_mix["execution_nodes"] + node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
+            18,
+        )
+        self.assertEqual(
+            scenario_details["expected_media_surface_count"],
+            node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
+        )
+        self.assertEqual(interaction_benchmark["performance_mode"], performance_mode)
+        self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], performance_mode)
+        self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
+        self.assertEqual(
+            interaction_benchmark["media_surface_count"],
+            scenario_details["expected_media_surface_count"],
+        )
+        self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+
     def test_public_telemetry_import_path_remains_a_compatibility_surface(self) -> None:
         self.assertIs(telemetry_performance_harness.run_benchmark, ui_performance_harness.run_benchmark)
         self.assertEqual(
@@ -149,43 +188,10 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("details", variance_eval["pan_zoom_p95_ms"])
 
     def test_heavy_media_scenario_records_mode_and_media_mix(self) -> None:
-        report = run_benchmark(
-            BenchmarkConfig(
-                synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
-                load_iterations=1,
-                interaction_samples=2,
-                interaction_warmup_samples=1,
-                performance_mode="max_performance",
-                scenario="heavy_media",
-            )
-        )
+        self._assert_heavy_media_scenario("max_performance")
 
-        config = report["config"]
-        interaction_benchmark = report["interaction_benchmark"]
-        scenario_details = config["scenario_details"]
-        node_mix = scenario_details["node_mix"]
-
-        self.assertEqual(config["performance_mode"], "max_performance")
-        self.assertEqual(config["scenario"], "heavy_media")
-        self.assertEqual(scenario_details["fixture_strategy"], "generated_local_media_reuse")
-        self.assertGreater(node_mix["image_panel_nodes"], 0)
-        self.assertGreater(node_mix["pdf_panel_nodes"], 0)
-        self.assertEqual(
-            node_mix["execution_nodes"] + node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
-            18,
-        )
-        self.assertEqual(
-            scenario_details["expected_media_surface_count"],
-            node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
-        )
-        self.assertEqual(interaction_benchmark["performance_mode"], "max_performance")
-        self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], "max_performance")
-        self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
-        self.assertEqual(
-            interaction_benchmark["media_surface_count"],
-            scenario_details["expected_media_surface_count"],
-        )
-        self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+    def test_heavy_media_full_fidelity_records_all_media_surfaces(self) -> None:
+        self._assert_heavy_media_scenario("full_fidelity")
 
     def test_resolve_baseline_mode_auto(self) -> None:
         self.assertEqual(_resolve_baseline_mode("auto", "offscreen"), "offscreen")
