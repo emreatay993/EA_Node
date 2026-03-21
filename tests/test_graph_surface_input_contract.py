@@ -616,6 +616,125 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_deactivates_far_offscreen_node_surfaces_but_keeps_force_active_exceptions(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-offscreen-render-activation",
+            """
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            def node_card_for(node_id):
+                for item in named_child_items(canvas, "graphNodeCard"):
+                    node_data = variant_value(item.property("nodeData")) or {}
+                    if str(node_data.get("node_id", "")) == str(node_id):
+                        return item
+                raise AssertionError(f"Missing node card for {node_id!r}")
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+
+            padded_node_id = scene.add_node_from_type("core.logger", 340.0, 40.0)
+            offscreen_node_id = scene.add_node_from_type("core.logger", 900.0, 620.0)
+            scene.clear_selection()
+
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+            view.set_view_state(1.0, 0.0, 0.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            settle_events(3)
+
+            padded_card = node_card_for(padded_node_id)
+            offscreen_card = node_card_for(offscreen_node_id)
+            padded_loader = padded_card.findChild(QObject, "graphNodeSurfaceLoader")
+            offscreen_loader = offscreen_card.findChild(QObject, "graphNodeSurfaceLoader")
+
+            assert padded_loader is not None
+            assert offscreen_loader is not None
+            assert bool(padded_card.property("renderActive"))
+            assert bool(padded_loader.property("renderActive"))
+            assert bool(padded_loader.property("surfaceLoaded"))
+            assert not bool(offscreen_card.property("renderActive"))
+            assert not bool(offscreen_loader.property("renderActive"))
+            assert not bool(offscreen_loader.property("surfaceLoaded"))
+
+            scene.select_node(offscreen_node_id, False)
+            settle_events(2)
+
+            assert bool(offscreen_card.property("renderActive"))
+            assert bool(offscreen_loader.property("renderActive"))
+            assert bool(offscreen_loader.property("surfaceLoaded"))
+
+            scene.clear_selection()
+            settle_events(2)
+
+            assert not bool(offscreen_card.property("renderActive"))
+            assert not bool(offscreen_loader.property("renderActive"))
+            assert not bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.setProperty(
+                "pendingConnectionPort",
+                {"node_id": offscreen_node_id, "port_key": "exec_in", "direction": "in"},
+            )
+            settle_events(2)
+
+            assert bool(offscreen_card.property("renderActive"))
+            assert bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.setProperty("pendingConnectionPort", None)
+            settle_events(2)
+
+            assert not bool(offscreen_card.property("renderActive"))
+            assert not bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.setProperty(
+                "dropPreviewPort",
+                {"node_id": offscreen_node_id, "port_key": "exec_in", "direction": "in"},
+            )
+            settle_events(2)
+
+            assert bool(offscreen_card.property("renderActive"))
+            assert bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.setProperty("dropPreviewPort", None)
+            settle_events(2)
+
+            assert not bool(offscreen_card.property("renderActive"))
+            assert not bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.setProperty("nodeContextNodeId", offscreen_node_id)
+            settle_events(2)
+
+            assert bool(offscreen_card.property("renderActive"))
+            assert bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.setProperty("nodeContextNodeId", "")
+            settle_events(2)
+
+            assert not bool(offscreen_card.property("renderActive"))
+            assert not bool(offscreen_loader.property("surfaceLoaded"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_supports_surface_control_edits_via_split_canvas_bridges(self) -> None:
         self._run_qml_probe(
             "graph-canvas-split-bridge-surface-control",

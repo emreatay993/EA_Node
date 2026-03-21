@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import unittest
 
+from PyQt6.QtCore import QPointF
+
 from tests.graph_track_b.scene_and_model import QRectF, ViewportBridge
 
 
@@ -72,6 +74,46 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
         view.center_on_scene_point(240.0, 120.0)
         self.assertAlmostEqual(view.center_x, 240.0, places=6)
         self.assertAlmostEqual(view.center_y, 120.0, places=6)
+
+    def test_adjust_zoom_at_viewport_point_keeps_cursor_anchor_with_one_view_commit(self) -> None:
+        view = ViewportBridge()
+        view.set_viewport_size(800.0, 600.0)
+        view.centerOn(100.0, -50.0)
+
+        zoom_commits = 0
+        center_commits = 0
+        commits = 0
+
+        def _count_zoom(_zoom: float) -> None:
+            nonlocal zoom_commits
+            zoom_commits += 1
+
+        def _count_center(_center_x: float, _center_y: float) -> None:
+            nonlocal center_commits
+            center_commits += 1
+
+        def _count_commit() -> None:
+            nonlocal commits
+            commits += 1
+
+        view.zoom_changed.connect(_count_zoom)
+        view.center_changed.connect(_count_center)
+        view.view_state_changed.connect(_count_commit)
+
+        anchor_viewport_point = QPointF(560.0, 380.0)
+        scene_before = view.mapToScene(anchor_viewport_point)
+
+        changed = view.adjust_zoom_at_viewport_point(1.15, anchor_viewport_point.x(), anchor_viewport_point.y())
+
+        scene_after = view.mapToScene(anchor_viewport_point)
+        self.assertTrue(changed)
+        self.assertEqual(zoom_commits, 1)
+        self.assertEqual(center_commits, 1)
+        self.assertEqual(commits, 1)
+        self.assertAlmostEqual(view.zoom, 1.15, places=6)
+        self.assertAlmostEqual(scene_before.x(), scene_after.x(), places=6)
+        self.assertAlmostEqual(scene_before.y(), scene_after.y(), places=6)
+        self.assertEqual(view.visible_scene_rect_payload_cached, view.visible_scene_rect_payload)
 
 
 __all__ = ["ViewportBridgeTrackBTests"]

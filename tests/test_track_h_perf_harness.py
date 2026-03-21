@@ -17,6 +17,68 @@ from ea_node_editor.ui.perf import performance_harness as ui_performance_harness
 
 
 class TrackHPerformanceHarnessTests(unittest.TestCase):
+    def _mock_single_run_report(self) -> dict:
+        return {
+            "generated_at_utc": "2026-03-21T00:00:00+00:00",
+            "config": {
+                "performance_mode": "full_fidelity",
+                "scenario": "synthetic_exec",
+            },
+            "environment": {
+                "hostname": "test-host",
+                "machine": "x86_64",
+                "qt_qpa_platform": "windows",
+                "qt_quick_backend": "",
+                "qsg_rhi_backend": "",
+            },
+            "metrics": {
+                "project_graph_load_ms": {"summary": {"p95": 10.0}},
+                "pan_interaction_ms": {"summary": {"p95": 20.0}},
+                "zoom_interaction_ms": {"summary": {"p95": 30.0}},
+                "pan_zoom_combined_ms": {"summary": {"p95": 40.0}},
+                "node_drag_control_ms": {"summary": {"p95": 50.0}},
+            },
+        }
+
+    def _assert_heavy_media_scenario(self, performance_mode: str) -> None:
+        report = run_benchmark(
+            BenchmarkConfig(
+                synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
+                load_iterations=1,
+                interaction_samples=1,
+                interaction_warmup_samples=0,
+                performance_mode=performance_mode,
+                scenario="heavy_media",
+            )
+        )
+
+        config = report["config"]
+        interaction_benchmark = report["interaction_benchmark"]
+        scenario_details = config["scenario_details"]
+        node_mix = scenario_details["node_mix"]
+
+        self.assertEqual(config["performance_mode"], performance_mode)
+        self.assertEqual(config["scenario"], "heavy_media")
+        self.assertEqual(scenario_details["fixture_strategy"], "generated_local_media_reuse")
+        self.assertGreater(node_mix["image_panel_nodes"], 0)
+        self.assertGreater(node_mix["pdf_panel_nodes"], 0)
+        self.assertEqual(
+            node_mix["execution_nodes"] + node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
+            18,
+        )
+        self.assertEqual(
+            scenario_details["expected_media_surface_count"],
+            node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
+        )
+        self.assertEqual(interaction_benchmark["performance_mode"], performance_mode)
+        self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], performance_mode)
+        self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
+        self.assertEqual(
+            interaction_benchmark["media_surface_count"],
+            scenario_details["expected_media_surface_count"],
+        )
+        self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+
     def test_public_telemetry_import_path_remains_a_compatibility_surface(self) -> None:
         self.assertIs(telemetry_performance_harness.run_benchmark, ui_performance_harness.run_benchmark)
         self.assertEqual(
@@ -47,6 +109,7 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
                 synthetic_graph=SyntheticGraphConfig(node_count=80, edge_count=220, seed=7),
                 load_iterations=2,
                 interaction_samples=8,
+                interaction_warmup_samples=1,
             )
         )
 
@@ -54,15 +117,26 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         pan_samples = report["metrics"]["pan_interaction_ms"]["samples"]
         zoom_samples = report["metrics"]["zoom_interaction_ms"]["samples"]
         combined_samples = report["metrics"]["pan_zoom_combined_ms"]["samples"]
+        node_drag_control_samples = report["metrics"]["node_drag_control_ms"]["samples"]
         interaction_benchmark = report["interaction_benchmark"]
+        phase_timings = report["phase_timings_ms"]
 
         self.assertEqual(len(load_samples), 2)
         self.assertEqual(len(pan_samples), 8)
         self.assertEqual(len(zoom_samples), 8)
         self.assertEqual(len(combined_samples), 8)
+        self.assertEqual(len(node_drag_control_samples), 8)
+        self.assertEqual(report["config"]["interaction_warmup_samples"], 1)
+        self.assertEqual(len(phase_timings["project_graph_load_ms"]["samples"]), 2)
+        self.assertEqual(len(phase_timings["canvas_setup_ms"]["samples"]), 1)
+        self.assertEqual(len(phase_timings["canvas_warmup_ms"]["samples"]), 1)
+        self.assertEqual(len(phase_timings["pan_interaction_ms"]["samples"]), 8)
+        self.assertEqual(len(phase_timings["zoom_interaction_ms"]["samples"]), 8)
+        self.assertEqual(len(phase_timings["node_drag_control_ms"]["samples"]), 8)
 
         self.assertGreaterEqual(report["metrics"]["project_graph_load_ms"]["summary"]["p95"], 0.0)
         self.assertGreaterEqual(report["metrics"]["pan_zoom_combined_ms"]["summary"]["p95"], 0.0)
+        self.assertGreaterEqual(report["metrics"]["node_drag_control_ms"]["summary"]["p95"], 0.0)
         self.assertEqual(report["config"]["performance_mode"], "full_fidelity")
         self.assertEqual(report["config"]["scenario"], "synthetic_exec")
         self.assertEqual(report["config"]["scenario_details"]["node_mix"]["image_panel_nodes"], 0)
@@ -74,6 +148,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         )
         self.assertEqual(interaction_benchmark["viewport"], {"width": 1280, "height": 720})
         self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+        self.assertTrue(interaction_benchmark["steady_state_canvas_host_reused"])
+        self.assertEqual(interaction_benchmark["warmup_samples"], 1)
         self.assertEqual(interaction_benchmark["performance_mode"], "full_fidelity")
         self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], "full_fidelity")
         self.assertEqual(interaction_benchmark["scenario"], "synthetic_exec")
@@ -85,7 +161,8 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             BenchmarkConfig(
                 synthetic_graph=SyntheticGraphConfig(node_count=60, edge_count=160, seed=11),
                 load_iterations=1,
-                interaction_samples=8,
+                interaction_samples=4,
+                interaction_warmup_samples=1,
             ),
             baseline_runs=2,
             baseline_mode="interactive",
@@ -112,51 +189,58 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("qt_quick_backend", first_run["environment"])
         self.assertIn("qsg_rhi_backend", first_run["environment"])
         self.assertIn("load_p95_ms", first_run["metrics"])
+        self.assertIn("pan_p95_ms", first_run["metrics"])
+        self.assertIn("zoom_p95_ms", first_run["metrics"])
         self.assertIn("pan_zoom_p95_ms", first_run["metrics"])
+        self.assertIn("node_drag_control_p95_ms", first_run["metrics"])
+
+        metric_series = baseline_series["metric_series"]
+        self.assertEqual(len(metric_series["load_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["pan_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["zoom_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["pan_zoom_p95_ms"]), 2)
+        self.assertEqual(len(metric_series["node_drag_control_p95_ms"]), 2)
 
         variance_eval = baseline_series["variance_eval"]
         self.assertIn("load_p95_ms", variance_eval)
+        self.assertIn("pan_p95_ms", variance_eval)
+        self.assertIn("zoom_p95_ms", variance_eval)
         self.assertIn("pan_zoom_p95_ms", variance_eval)
+        self.assertIn("node_drag_control_p95_ms", variance_eval)
         self.assertIn("pass", variance_eval["load_p95_ms"])
         self.assertIn("details", variance_eval["pan_zoom_p95_ms"])
 
+    def test_windows_baseline_series_uses_subprocess_runner(self) -> None:
+        sample_report = self._mock_single_run_report()
+        with patch.dict(ui_performance_harness.os.environ, {"QT_QPA_PLATFORM": "windows"}, clear=False):
+            with patch.object(
+                ui_performance_harness,
+                "_run_single_benchmark_subprocess",
+                side_effect=[sample_report, sample_report],
+            ) as subprocess_runner:
+                with patch.object(ui_performance_harness, "_run_single_benchmark") as in_process_runner:
+                    report = run_benchmark(
+                        BenchmarkConfig(
+                            synthetic_graph=SyntheticGraphConfig(node_count=60, edge_count=160, seed=11),
+                            load_iterations=1,
+                            interaction_samples=4,
+                            interaction_warmup_samples=1,
+                        ),
+                        baseline_runs=2,
+                        baseline_mode="interactive",
+                        baseline_tag="unit_test",
+                    )
+
+        self.assertEqual(subprocess_runner.call_count, 2)
+        in_process_runner.assert_not_called()
+        self.assertEqual(report["baseline_series"]["run_count"], 2)
+        self.assertEqual(len(report["baseline_series"]["runs"]), 2)
+
     def test_heavy_media_scenario_records_mode_and_media_mix(self) -> None:
-        report = run_benchmark(
-            BenchmarkConfig(
-                synthetic_graph=SyntheticGraphConfig(node_count=18, edge_count=30, seed=17),
-                load_iterations=1,
-                interaction_samples=2,
-                performance_mode="max_performance",
-                scenario="heavy_media",
-            )
-        )
+        self._assert_heavy_media_scenario("max_performance")
 
-        config = report["config"]
-        interaction_benchmark = report["interaction_benchmark"]
-        scenario_details = config["scenario_details"]
-        node_mix = scenario_details["node_mix"]
-
-        self.assertEqual(config["performance_mode"], "max_performance")
-        self.assertEqual(config["scenario"], "heavy_media")
-        self.assertEqual(scenario_details["fixture_strategy"], "generated_local_media_reuse")
-        self.assertGreater(node_mix["image_panel_nodes"], 0)
-        self.assertGreater(node_mix["pdf_panel_nodes"], 0)
-        self.assertEqual(
-            node_mix["execution_nodes"] + node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
-            18,
-        )
-        self.assertEqual(
-            scenario_details["expected_media_surface_count"],
-            node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
-        )
-        self.assertEqual(interaction_benchmark["performance_mode"], "max_performance")
-        self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], "max_performance")
-        self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
-        self.assertEqual(
-            interaction_benchmark["media_surface_count"],
-            scenario_details["expected_media_surface_count"],
-        )
-        self.assertTrue(interaction_benchmark["uses_actual_canvas_render_path"])
+    def test_heavy_media_full_fidelity_records_all_media_surfaces(self) -> None:
+        self._assert_heavy_media_scenario("full_fidelity")
 
     def test_resolve_baseline_mode_auto(self) -> None:
         self.assertEqual(_resolve_baseline_mode("auto", "offscreen"), "offscreen")

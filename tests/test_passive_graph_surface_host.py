@@ -523,6 +523,57 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_shadow_cache_key_ignores_viewport_cache_flags_but_tracks_geometry_and_shadow_preferences(self) -> None:
+        self._run_qml_probe(
+            "host-shadow-cache-key",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": node_payload(),
+                    "showShadow": True,
+                },
+            )
+            background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            shadow_item = host.findChild(QObject, "graphNodeShadow")
+            chrome_item = host.findChild(QObject, "graphNodeChrome")
+
+            assert background_layer is not None
+            assert shadow_item is not None
+            assert chrome_item is not None
+            assert bool(background_layer.property("cacheActive"))
+            assert bool(background_layer.property("chromeCacheActive"))
+            assert bool(background_layer.property("shadowCacheActive"))
+            assert bool(chrome_item.property("visible"))
+            assert bool(shadow_item.property("cached"))
+
+            baseline_key = str(background_layer.property("cacheKey") or "")
+            assert baseline_key
+
+            host.setProperty("viewportInteractionCacheActive", True)
+            app.processEvents()
+            assert str(background_layer.property("cacheKey") or "") == baseline_key
+
+            host.setProperty("snapshotReuseActive", True)
+            app.processEvents()
+            assert str(background_layer.property("cacheKey") or "") == baseline_key
+
+            host.setProperty("_liveWidth", 244.0)
+            host.setProperty("_liveHeight", 96.0)
+            host.setProperty("_liveGeometryActive", True)
+            app.processEvents()
+            geometry_key = str(background_layer.property("cacheKey") or "")
+            assert geometry_key != baseline_key
+
+            host.setProperty("_liveGeometryActive", False)
+            host.setProperty("shadowStrength", 55)
+            app.processEvents()
+            shadow_preference_key = str(background_layer.property("cacheKey") or "")
+            assert shadow_preference_key != baseline_key
+            assert shadow_preference_key != geometry_key
+            """,
+        )
+
     def test_graph_node_host_shows_four_resize_handles_only_on_hover_for_expanded_nodes(self) -> None:
         self._run_qml_probe(
             "host-hover-only-resize-handles",
@@ -722,6 +773,76 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert node_cards[0].findChild(QObject, "graphNodeStandardSurface") is not None
             canvas.deleteLater()
             app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_node_host_render_activation_reloads_offscreen_surface_for_hover_drag_and_resize(self) -> None:
+        self._run_qml_probe(
+            "host-render-activation-force-active-states",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": node_payload(),
+                    "renderActivationSceneRectPayload": {
+                        "x": -400.0,
+                        "y": -300.0,
+                        "width": 60.0,
+                        "height": 40.0,
+                    },
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            assert loader is not None
+
+            settle_events(2)
+            assert not bool(host.property("renderActive"))
+            assert not bool(loader.property("renderActive"))
+            assert not bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("liveDragDx", 18.0)
+            settle_events(2)
+
+            assert bool(host.property("renderActive"))
+            assert bool(loader.property("renderActive"))
+            assert bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("liveDragDx", 0.0)
+            settle_events(2)
+
+            assert not bool(host.property("renderActive"))
+            assert not bool(loader.property("renderActive"))
+            assert not bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("_liveX", 90.0)
+            host.setProperty("_liveY", 100.0)
+            host.setProperty("_liveWidth", 240.0)
+            host.setProperty("_liveHeight", 108.0)
+            host.setProperty("_liveGeometryActive", True)
+            settle_events(2)
+
+            assert bool(host.property("renderActive"))
+            assert bool(loader.property("renderActive"))
+            assert bool(loader.property("surfaceLoaded"))
+
+            host.setProperty("_liveGeometryActive", False)
+            settle_events(2)
+
+            assert not bool(host.property("renderActive"))
+            assert not bool(loader.property("renderActive"))
+            assert not bool(loader.property("surfaceLoaded"))
+
+            window = attach_host_to_window(host)
+            hover_host_local_point(window, host, 84.0, 40.0)
+
+            assert bool(host.property("hoverActive"))
+            assert bool(host.property("renderActive"))
+            assert bool(loader.property("renderActive"))
+            assert bool(loader.property("surfaceLoaded"))
+
+            dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
             """,
@@ -1115,6 +1236,86 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert bool(background.property("effectiveShowGrid"))
             assert bool(minimap_overlay.property("minimapContentVisible"))
             assert bool(minimap_viewport.property("visible"))
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_minimap_keeps_node_geometry_static_when_center_changes(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-minimap-center-stability",
+            """
+            from tests.qt_wait import wait_for_condition_or_raise
+
+            model = GraphModel()
+            registry = build_default_registry()
+            workspace_id = model.active_workspace.workspace_id
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, workspace_id)
+            scene.add_node_from_type("core.logger", 120.0, 140.0)
+            scene.add_node_from_type("core.logger", 460.0, 280.0)
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_show_grid": True,
+                        "graphics_show_minimap": True,
+                        "graphics_minimap_expanded": True,
+                        "graphics_node_shadow": True,
+                        "graphics_shadow_strength": 70,
+                        "graphics_shadow_softness": 50,
+                        "graphics_shadow_offset": 4,
+                        "graphics_performance_mode": "full_fidelity",
+                        "snap_to_grid_enabled": False,
+                        "snap_grid_size": 20.0,
+                    },
+                    "sceneBridge": scene,
+                    "viewBridge": view,
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            minimap_viewport = canvas.findChild(QObject, "graphCanvasMinimapViewport")
+            minimap_viewport_rect = canvas.findChild(QObject, "graphCanvasMinimapViewportRect")
+            minimap_node_content = canvas.findChild(QObject, "graphCanvasMinimapNodeContent")
+            assert minimap_viewport is not None
+            assert minimap_viewport_rect is not None
+            assert minimap_node_content is not None
+
+            wait_for_condition_or_raise(
+                lambda: int(minimap_viewport.property("_nodeDelegateCreationCount")) == 2,
+                timeout_ms=120,
+                app=app,
+                timeout_message="Timed out waiting for minimap node delegates to settle.",
+            )
+
+            baseline_node_key = str(minimap_viewport.property("nodeGeometryCacheKey"))
+            baseline_creation_count = int(minimap_viewport.property("_nodeDelegateCreationCount"))
+            baseline_node_x = float(minimap_node_content.property("x"))
+            baseline_node_y = float(minimap_node_content.property("y"))
+            baseline_node_scale = float(minimap_node_content.property("scale"))
+            baseline_rect_key = str(minimap_viewport_rect.property("geometryKey"))
+            baseline_rect_updates = int(minimap_viewport_rect.property("_geometryUpdateCount"))
+
+            view.centerOn(160.0, 80.0)
+            app.processEvents()
+            view.centerOn(260.0, 210.0)
+            app.processEvents()
+
+            assert str(minimap_viewport.property("nodeGeometryCacheKey")) == baseline_node_key
+            assert int(minimap_viewport.property("_nodeDelegateCreationCount")) == baseline_creation_count
+            assert abs(float(minimap_node_content.property("x")) - baseline_node_x) < 0.001
+            assert abs(float(minimap_node_content.property("y")) - baseline_node_y) < 0.001
+            assert abs(float(minimap_node_content.property("scale")) - baseline_node_scale) < 1e-6
+            assert str(minimap_viewport_rect.property("geometryKey")) != baseline_rect_key
+            assert int(minimap_viewport_rect.property("_geometryUpdateCount")) > baseline_rect_updates
 
             canvas.deleteLater()
             app.processEvents()

@@ -1,9 +1,36 @@
 {
   "baseline_series": {
+    "metric_series": {
+      "load_p95_ms": [
+        76.94069994613528,
+        64.79219999164343,
+        67.84230004996061
+      ],
+      "node_drag_control_p95_ms": [
+        47.78298000455834,
+        46.51511497795582,
+        48.352414986584336
+      ],
+      "pan_p95_ms": [
+        97.1642100077588,
+        96.68708499521016,
+        97.88990998058578
+      ],
+      "pan_zoom_p95_ms": [
+        111.30040997522882,
+        111.51930498890577,
+        112.34973000828175
+      ],
+      "zoom_p95_ms": [
+        15.557300008367747,
+        16.063014999963343,
+        16.6571700014174
+      ]
+    },
     "mode": "offscreen",
     "notes": "Variance checks are informative when run_count >= 2. Single-run captures still provide point-in-time regression evidence.",
     "performance_mode": "max_performance",
-    "run_count": 1,
+    "run_count": 3,
     "runs": [
       {
         "environment": {
@@ -19,14 +46,73 @@
           "release": "10",
           "system": "Windows"
         },
-        "generated_at_utc": "2026-03-20T19:34:47.516064+00:00",
+        "generated_at_utc": "2026-03-21T08:21:17.910815+00:00",
         "metrics": {
-          "load_p95_ms": 82.35609997063875,
-          "pan_zoom_p95_ms": 246.4953450660687
+          "load_p95_ms": 76.94069994613528,
+          "node_drag_control_p95_ms": 47.78298000455834,
+          "pan_p95_ms": 97.1642100077588,
+          "pan_zoom_p95_ms": 111.30040997522882,
+          "zoom_p95_ms": 15.557300008367747
         },
         "mode": "offscreen",
         "performance_mode": "max_performance",
         "run_id": "run_01",
+        "scenario": "heavy_media",
+        "tag": "local"
+      },
+      {
+        "environment": {
+          "cpu_count": 12,
+          "hostname": "EA",
+          "machine": "AMD64",
+          "platform": "Windows-10-10.0.26200-SP0",
+          "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+          "python_version": "3.10.0",
+          "qsg_rhi_backend": "software",
+          "qt_qpa_platform": "offscreen",
+          "qt_quick_backend": "software",
+          "release": "10",
+          "system": "Windows"
+        },
+        "generated_at_utc": "2026-03-21T08:21:25.220153+00:00",
+        "metrics": {
+          "load_p95_ms": 64.79219999164343,
+          "node_drag_control_p95_ms": 46.51511497795582,
+          "pan_p95_ms": 96.68708499521016,
+          "pan_zoom_p95_ms": 111.51930498890577,
+          "zoom_p95_ms": 16.063014999963343
+        },
+        "mode": "offscreen",
+        "performance_mode": "max_performance",
+        "run_id": "run_02",
+        "scenario": "heavy_media",
+        "tag": "local"
+      },
+      {
+        "environment": {
+          "cpu_count": 12,
+          "hostname": "EA",
+          "machine": "AMD64",
+          "platform": "Windows-10-10.0.26200-SP0",
+          "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+          "python_version": "3.10.0",
+          "qsg_rhi_backend": "software",
+          "qt_qpa_platform": "offscreen",
+          "qt_quick_backend": "software",
+          "release": "10",
+          "system": "Windows"
+        },
+        "generated_at_utc": "2026-03-21T08:21:32.521494+00:00",
+        "metrics": {
+          "load_p95_ms": 67.84230004996061,
+          "node_drag_control_p95_ms": 48.352414986584336,
+          "pan_p95_ms": 97.88990998058578,
+          "pan_zoom_p95_ms": 112.34973000828175,
+          "zoom_p95_ms": 16.6571700014174
+        },
+        "mode": "offscreen",
+        "performance_mode": "max_performance",
+        "run_id": "run_03",
         "scenario": "heavy_media",
         "tag": "local"
       }
@@ -40,17 +126,38 @@
     ],
     "variance_eval": {
       "load_p95_ms": {
-        "cv": 0.0,
-        "details": "cv=0.0000 (<= 0.25), range=0.000 ms (<= 500.0 ms)",
+        "cv": 0.07386981083710804,
+        "details": "cv=0.0739 (<= 0.25), range=12.148 ms (<= 500.0 ms)",
         "pass": true,
-        "range_ms": 0.0,
+        "range_ms": 12.148499954491854,
+        "requires_min_runs": 2
+      },
+      "node_drag_control_p95_ms": {
+        "cv": 0.01614983017284439,
+        "details": "cv=0.0161 (<= 0.20), range=1.837 ms (<= 8.0 ms)",
+        "pass": true,
+        "range_ms": 1.8373000086285174,
+        "requires_min_runs": 2
+      },
+      "pan_p95_ms": {
+        "cv": 0.005085337875756741,
+        "details": "cv=0.0051 (<= 0.20), range=1.203 ms (<= 8.0 ms)",
+        "pass": true,
+        "range_ms": 1.2028249853756279,
         "requires_min_runs": 2
       },
       "pan_zoom_p95_ms": {
-        "cv": 0.0,
-        "details": "cv=0.0000 (<= 0.20), range=0.000 ms (<= 8.0 ms)",
+        "cv": 0.004045557824098326,
+        "details": "cv=0.0040 (<= 0.20), range=1.049 ms (<= 8.0 ms)",
         "pass": true,
-        "range_ms": 0.0,
+        "range_ms": 1.0493200330529362,
+        "requires_min_runs": 2
+      },
+      "zoom_p95_ms": {
+        "cv": 0.027932502361090964,
+        "details": "cv=0.0279 (<= 0.20), range=1.100 ms (<= 8.0 ms)",
+        "pass": true,
+        "range_ms": 1.0998699930496514,
         "requires_min_runs": 2
       }
     },
@@ -59,7 +166,19 @@
         "max_cv": 0.25,
         "max_range_ms": 500.0
       },
+      "node_drag_control_p95_ms": {
+        "max_cv": 0.2,
+        "max_range_ms": 8.0
+      },
+      "pan_p95_ms": {
+        "max_cv": 0.2,
+        "max_range_ms": 8.0
+      },
       "pan_zoom_p95_ms": {
+        "max_cv": 0.2,
+        "max_range_ms": 8.0
+      },
+      "zoom_p95_ms": {
         "max_cv": 0.2,
         "max_range_ms": 8.0
       }
@@ -67,6 +186,7 @@
   },
   "config": {
     "interaction_samples": 10,
+    "interaction_warmup_samples": 3,
     "interaction_zoom_max": 2.0,
     "interaction_zoom_min": 0.5,
     "load_iterations": 1,
@@ -105,103 +225,229 @@
     "release": "10",
     "system": "Windows"
   },
-  "generated_at_utc": "2026-03-20T19:34:47.516064+00:00",
+  "generated_at_utc": "2026-03-21T08:21:32.521494+00:00",
   "interaction_benchmark": {
     "graph_theme_id": "graph_stitch_dark",
     "kind": "graph_canvas_qml",
-    "measurement_driver": "ViewportBridge.centerOn + ViewportBridge.set_zoom with QQuickWindow.grabWindow()",
+    "measurement_driver": "Single warmed GraphCanvas host using begin/note/finish viewport interaction + ViewportBridge.centerOn/set_zoom and GraphNodeHost.dragOffsetChanged with QQuickWindow.grabWindow()",
     "media_surface_count": 6,
     "performance_mode": "max_performance",
     "render_path": "ea_node_editor/ui_qml/components/GraphCanvas.qml",
     "resolved_graphics_performance_mode": "max_performance",
     "scenario": "heavy_media",
+    "steady_state_canvas_host_reused": true,
     "theme_id": "stitch_dark",
     "uses_actual_canvas_render_path": true,
     "viewport": {
       "height": 720,
       "width": 1280
-    }
+    },
+    "warmup_samples": 3
   },
   "limitations": [
-    "Pan/zoom timings instantiate GraphCanvas.qml in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.",
+    "Pan/zoom and node-drag control timings reuse one warmed GraphCanvas.qml host in a QQuickWindow and include QQuickWindow.grabWindow() readback overhead so frame completion is deterministic.",
     "Project+graph load timing still measures serializer/model/bridge setup and does not instantiate GraphCanvas.qml.",
     "Runs use Qt offscreen platform (QT_QPA_PLATFORM=offscreen), so GPU/compositor behavior differs from interactive desktop rendering.",
     "Absolute timings are machine- and load-dependent; compare trends on the same hardware for regressions."
   ],
   "metrics": {
-    "pan_interaction_ms": {
+    "node_drag_control_ms": {
       "samples": [
-        90.4177000047639,
-        90.8653000369668,
-        91.36099996976554,
-        92.39699994213879,
-        93.61109999008477,
-        92.65489992685616,
-        94.04400002676994,
-        93.74090004712343,
-        98.61610003281385,
-        93.9483999973163
+        29.152399976737797,
+        48.142699990421534,
+        30.455000000074506,
+        28.899300028569996,
+        46.585500007495284,
+        31.465200008824468,
+        28.95519998855889,
+        48.52399998344481,
+        29.563499963842332,
+        46.43450002186
       ],
       "summary": {
-        "max": 98.61610003281385,
-        "mean": 93.16563999745995,
-        "min": 90.4177000047639,
-        "p50": 93.13299995847046,
-        "p95": 96.55865503009409
+        "max": 48.52399998344481,
+        "mean": 36.81772999698296,
+        "min": 28.899300028569996,
+        "p50": 30.960100004449487,
+        "p95": 48.352414986584336
+      }
+    },
+    "pan_interaction_ms": {
+      "samples": [
+        87.17590000014752,
+        90.92460002284497,
+        70.27879997622222,
+        79.79809993412346,
+        103.58879994601011,
+        82.5246999738738,
+        72.76960008312017,
+        80.8726999675855,
+        75.8293999824673,
+        72.67390005290508
+      ],
+      "summary": {
+        "max": 103.58879994601011,
+        "mean": 81.64364999393001,
+        "min": 70.27879997622222,
+        "p50": 80.33539995085448,
+        "p95": 97.88990998058578
       }
     },
     "pan_zoom_combined_ms": {
       "samples": [
-        239.57819992210716,
-        235.8273999998346,
-        237.14419989846647,
-        242.4222999252379,
-        240.28439994435757,
-        244.29459997918457,
-        244.13840007036924,
-        245.78920006752014,
-        247.07310006488115,
-        245.00070000067353
+        103.7464999826625,
+        104.86500000115484,
+        84.43010004702955,
+        93.30109995789826,
+        118.47360001411289,
+        96.58159990794957,
+        87.09520008414984,
+        95.60659993439913,
+        90.6398999504745,
+        89.4019000697881
       ],
       "summary": {
-        "max": 247.07310006488115,
-        "mean": 242.15524998726323,
-        "min": 235.8273999998346,
-        "p50": 243.28034999780357,
-        "p95": 246.4953450660687
+        "max": 118.47360001411289,
+        "mean": 96.41414999496192,
+        "min": 84.43010004702955,
+        "p50": 94.4538499461487,
+        "p95": 112.34973000828175
       }
     },
     "project_graph_load_ms": {
       "samples": [
-        82.35609997063875
+        67.84230004996061
       ],
       "summary": {
-        "max": 82.35609997063875,
-        "mean": 82.35609997063875,
-        "min": 82.35609997063875,
-        "p50": 82.35609997063875,
-        "p95": 82.35609997063875
+        "max": 67.84230004996061,
+        "mean": 67.84230004996061,
+        "min": 67.84230004996061,
+        "p50": 67.84230004996061,
+        "p95": 67.84230004996061
       }
     },
     "zoom_interaction_ms": {
       "samples": [
-        149.16049991734326,
-        144.9620999628678,
-        145.78319992870092,
-        150.0252999830991,
-        146.6732999542728,
-        151.6397000523284,
-        150.0944000435993,
-        152.0483000203967,
-        148.4570000320673,
-        151.05230000335723
+        16.570599982514977,
+        13.94039997830987,
+        14.151300070807338,
+        13.503000023774803,
+        14.884800068102777,
+        14.056899934075773,
+        14.32560000102967,
+        14.733899966813624,
+        14.810499968007207,
+        16.728000016883016
       ],
       "summary": {
-        "max": 152.0483000203967,
-        "mean": 148.98960998980328,
-        "min": 144.9620999628678,
-        "p50": 149.59289995022118,
-        "p95": 151.86443003476597
+        "max": 16.728000016883016,
+        "mean": 14.770500001031905,
+        "min": 13.503000023774803,
+        "p50": 14.529749983921647,
+        "p95": 16.6571700014174
+      }
+    }
+  },
+  "phase_timings_ms": {
+    "canvas_setup_ms": {
+      "samples": [
+        1697.2214999841526
+      ],
+      "summary": {
+        "max": 1697.2214999841526,
+        "mean": 1697.2214999841526,
+        "min": 1697.2214999841526,
+        "p50": 1697.2214999841526,
+        "p95": 1697.2214999841526
+      }
+    },
+    "canvas_warmup_ms": {
+      "samples": [
+        453.8982000667602,
+        445.6637999974191,
+        425.74790003709495
+      ],
+      "summary": {
+        "max": 453.8982000667602,
+        "mean": 441.76996670042473,
+        "min": 425.74790003709495,
+        "p50": 445.6637999974191,
+        "p95": 453.0747600598261
+      }
+    },
+    "node_drag_control_ms": {
+      "samples": [
+        29.152399976737797,
+        48.142699990421534,
+        30.455000000074506,
+        28.899300028569996,
+        46.585500007495284,
+        31.465200008824468,
+        28.95519998855889,
+        48.52399998344481,
+        29.563499963842332,
+        46.43450002186
+      ],
+      "summary": {
+        "max": 48.52399998344481,
+        "mean": 36.81772999698296,
+        "min": 28.899300028569996,
+        "p50": 30.960100004449487,
+        "p95": 48.352414986584336
+      }
+    },
+    "pan_interaction_ms": {
+      "samples": [
+        87.17590000014752,
+        90.92460002284497,
+        70.27879997622222,
+        79.79809993412346,
+        103.58879994601011,
+        82.5246999738738,
+        72.76960008312017,
+        80.8726999675855,
+        75.8293999824673,
+        72.67390005290508
+      ],
+      "summary": {
+        "max": 103.58879994601011,
+        "mean": 81.64364999393001,
+        "min": 70.27879997622222,
+        "p50": 80.33539995085448,
+        "p95": 97.88990998058578
+      }
+    },
+    "project_graph_load_ms": {
+      "samples": [
+        67.84230004996061
+      ],
+      "summary": {
+        "max": 67.84230004996061,
+        "mean": 67.84230004996061,
+        "min": 67.84230004996061,
+        "p50": 67.84230004996061,
+        "p95": 67.84230004996061
+      }
+    },
+    "zoom_interaction_ms": {
+      "samples": [
+        16.570599982514977,
+        13.94039997830987,
+        14.151300070807338,
+        13.503000023774803,
+        14.884800068102777,
+        14.056899934075773,
+        14.32560000102967,
+        14.733899966813624,
+        14.810499968007207,
+        16.728000016883016
+      ],
+      "summary": {
+        "max": 16.728000016883016,
+        "mean": 14.770500001031905,
+        "min": 13.503000023774803,
+        "p50": 14.529749983921647,
+        "p95": 16.6571700014174
       }
     }
   },
@@ -211,11 +457,11 @@
       "pass": false
     },
     "REQ-PERF-002": {
-      "details": "Real GraphCanvas pan p95=96.559 ms, zoom p95=151.864 ms (frame p95 target <= 33 ms)",
+      "details": "Real GraphCanvas pan p95=97.890 ms, zoom p95=16.657 ms, node-drag control p95=48.352 ms (frame p95 target <= 33 ms)",
       "pass": false
     },
     "REQ-PERF-003": {
-      "details": "Project+graph load p95=82.356 ms (target < 3000 ms)",
+      "details": "Project+graph load p95=67.842 ms (target < 3000 ms)",
       "pass": true
     }
   }

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import unittest
-
 from tests.graph_track_b.scene_and_model import (
     QApplication,
     GraphThemeBridge,
@@ -37,6 +36,67 @@ def _main_window_graphics_state(*, performance_mode: str = "full_fidelity") -> d
         "snap_to_grid_enabled": False,
         "snap_grid_size": 20.0,
     }
+
+
+def _named_child_items(root: QObject, object_name: str) -> list[QObject]:
+    matches: list[QObject] = []
+
+    def _walk(item: QObject | None) -> None:
+        if item is None:
+            return
+        if item.objectName() == object_name:
+            matches.append(item)
+        child_items = getattr(item, "childItems", None)
+        if callable(child_items):
+            for child in child_items():
+                _walk(child)
+
+    _walk(root)
+    return matches
+
+
+class _GraphCanvasPerformancePreferenceBridge(_GraphCanvasPreferenceBridge):
+    def __init__(self) -> None:
+        super().__init__()
+        self._graphics_node_shadow = True
+        self._graphics_shadow_strength = 70
+        self._graphics_shadow_softness = 50
+        self._graphics_shadow_offset = 4
+        self._graphics_performance_mode = "full_fidelity"
+
+    @property
+    def graphics_node_shadow(self) -> bool:
+        return bool(self._graphics_node_shadow)
+
+    @property
+    def graphics_shadow_strength(self) -> int:
+        return int(self._graphics_shadow_strength)
+
+    @property
+    def graphics_shadow_softness(self) -> int:
+        return int(self._graphics_shadow_softness)
+
+    @property
+    def graphics_shadow_offset(self) -> int:
+        return int(self._graphics_shadow_offset)
+
+    @property
+    def graphics_performance_mode(self) -> str:
+        return str(self._graphics_performance_mode)
+
+    def set_graphics_shadow_softness_value(self, value: int) -> None:
+        normalized = int(value)
+        if self._graphics_shadow_softness == normalized:
+            return
+        self._graphics_shadow_softness = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_performance_mode_value(self, value: str) -> None:
+        normalized = str(value or "full_fidelity")
+        if self._graphics_performance_mode == normalized:
+            return
+        self._graphics_performance_mode = normalized
+        self.graphics_preferences_changed.emit()
 
 
 class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
@@ -127,6 +187,36 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertAlmostEqual(float(world.property("x")), expected_x, places=6)
         self.assertAlmostEqual(float(world.property("y")), expected_y, places=6)
 
+    def test_graph_canvas_wheel_zoom_keeps_cursor_anchor_with_single_viewport_commit(self) -> None:
+        self.view.centerOn(60.0, -30.0)
+        self.app.processEvents()
+
+        commits = 0
+
+        def _count_commit() -> None:
+            nonlocal commits
+            commits += 1
+
+        self.view.view_state_changed.connect(_count_commit)
+
+        cursor_x = 920.0
+        cursor_y = 410.0
+        scene_before_x = float(self.canvas.screenToSceneX(cursor_x))
+        scene_before_y = float(self.canvas.screenToSceneY(cursor_y))
+
+        applied = self.canvas.applyWheelZoom(
+            {"x": cursor_x, "y": cursor_y, "angleDelta": {"y": 120}, "inverted": False}
+        )
+        self.assertTrue(applied)
+        self.app.processEvents()
+
+        scene_after_x = float(self.canvas.screenToSceneX(cursor_x))
+        scene_after_y = float(self.canvas.screenToSceneY(cursor_y))
+        self.assertEqual(commits, 1)
+        self.assertAlmostEqual(float(self.view.zoom_value), 1.15, places=6)
+        self.assertAlmostEqual(scene_before_x, scene_after_x, places=6)
+        self.assertAlmostEqual(scene_before_y, scene_after_y, places=6)
+
     def test_graph_canvas_performance_policy_resolves_max_performance_idle_without_visual_degradation(self) -> None:
         policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
@@ -155,6 +245,257 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertTrue(bool(minimap_overlay.property("minimapContentVisible")))
         self.assertTrue(bool(minimap_viewport.property("visible")))
         self.assertEqual(policy.property("resolvedMode"), "max_performance")
+
+    def test_graph_canvas_performance_policy_keeps_node_chrome_shadow_cache_stable_through_transient_windows(self) -> None:
+        from PyQt6.QtCore import pyqtProperty, pyqtSignal
+
+        node_id = "node_preference_cache_test"
+        node_payload = {
+            "node_id": node_id,
+            "type_id": "core.logger",
+            "title": "Logger",
+            "x": 120.0,
+            "y": 140.0,
+            "width": 210.0,
+            "height": 88.0,
+            "accent": "#2F89FF",
+            "collapsed": False,
+            "selected": False,
+            "runtime_behavior": "active",
+            "surface_family": "standard",
+            "surface_variant": "",
+            "surface_metrics": {
+                "default_width": 210.0,
+                "default_height": 88.0,
+                "min_width": 120.0,
+                "min_height": 50.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_top": 30.0,
+                "body_height": 30.0,
+                "port_top": 60.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+            },
+            "visual_style": {},
+            "can_enter_scope": False,
+            "ports": [
+                {
+                    "key": "exec_in",
+                    "label": "Exec In",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "exec_out",
+                    "label": "Exec Out",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+            ],
+            "inline_properties": [
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "inline_editor": "text",
+                    "value": "log message",
+                    "overridden_by_input": False,
+                    "input_port_label": "message",
+                }
+            ],
+        }
+
+        class CanvasStateBridgeStub(QObject):
+            graphics_preferences_changed = pyqtSignal()
+            snap_to_grid_changed = pyqtSignal()
+            scene_nodes_changed = pyqtSignal()
+            scene_edges_changed = pyqtSignal()
+            scene_selection_changed = pyqtSignal()
+            view_state_changed = pyqtSignal()
+
+            def __init__(self, preference_bridge: _GraphCanvasPerformancePreferenceBridge, viewport_bridge: ViewportBridge):
+                super().__init__()
+                self._preference_bridge = preference_bridge
+                self._viewport_bridge = viewport_bridge
+                self._nodes_model = [dict(node_payload)]
+                self._selected_node_lookup: dict[str, bool] = {}
+                self._preference_bridge.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+                self._viewport_bridge.view_state_changed.connect(self.view_state_changed.emit)
+
+            @pyqtProperty(QObject, constant=True)
+            def viewport_bridge(self) -> ViewportBridge:
+                return self._viewport_bridge
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_minimap_expanded(self) -> bool:
+                return bool(self._preference_bridge.graphics_minimap_expanded)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_grid(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_grid)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_minimap(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_minimap)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_node_shadow(self) -> bool:
+                return bool(self._preference_bridge.graphics_node_shadow)
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_strength(self) -> int:
+                return int(self._preference_bridge.graphics_shadow_strength)
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_softness(self) -> int:
+                return int(self._preference_bridge.graphics_shadow_softness)
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_offset(self) -> int:
+                return int(self._preference_bridge.graphics_shadow_offset)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_performance_mode(self) -> str:
+                return str(self._preference_bridge.graphics_performance_mode)
+
+            @pyqtProperty(bool, notify=snap_to_grid_changed)
+            def snap_to_grid_enabled(self) -> bool:
+                return bool(self._preference_bridge.snap_to_grid_enabled)
+
+            @pyqtProperty(float, constant=True)
+            def snap_grid_size(self) -> float:
+                return float(self._preference_bridge.snap_grid_size)
+
+            @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+            def nodes_model(self) -> list[dict[str, object]]:
+                return list(self._nodes_model)
+
+            @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+            def minimap_nodes_model(self) -> list[dict[str, object]]:
+                return list(self._nodes_model)
+
+            @pyqtProperty("QVariantMap", notify=scene_nodes_changed)
+            def workspace_scene_bounds_payload(self) -> dict[str, float]:
+                return {
+                    "x": 120.0,
+                    "y": 140.0,
+                    "width": 210.0,
+                    "height": 88.0,
+                }
+
+            @pyqtProperty("QVariantList", notify=scene_edges_changed)
+            def edges_model(self) -> list[dict[str, object]]:
+                return []
+
+            @pyqtProperty("QVariantMap", notify=scene_selection_changed)
+            def selected_node_lookup(self) -> dict[str, bool]:
+                return dict(self._selected_node_lookup)
+
+            def select_node(self, node_id_value: str) -> None:
+                normalized = str(node_id_value or "")
+                self._selected_node_lookup = {normalized: True} if normalized else {}
+                self.scene_selection_changed.emit()
+
+            def are_port_kinds_compatible(self, _source_kind: str, _target_kind: str) -> bool:
+                return True
+
+            def are_data_types_compatible(self, _source_type: str, _target_type: str) -> bool:
+                return True
+
+        self._performance_preference_bridge = _GraphCanvasPerformancePreferenceBridge()
+        self._performance_preference_bridge.set_graphics_performance_mode_value("max_performance")
+        self._performance_state_bridge = CanvasStateBridgeStub(
+            self._performance_preference_bridge,
+            self.view,
+        )
+
+        self.canvas.deleteLater()
+        self.app.processEvents()
+
+        initial_properties = {
+            "canvasStateBridge": self._performance_state_bridge,
+            "width": 1280.0,
+            "height": 720.0,
+        }
+        if hasattr(self.component, "createWithInitialProperties"):
+            self.canvas = self.component.createWithInitialProperties(initial_properties)
+        else:
+            self.canvas = self.component.create()
+            for key, value in initial_properties.items():
+                self.canvas.setProperty(key, value)
+        if self.canvas is None:
+            errors = "\n".join(str(error) for error in self.component.errors())
+            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: len(_named_child_items(self.canvas, "graphNodeCard")) == 1,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas node host to appear.",
+        )
+        node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
+        background_layer = node_card.findChild(QObject, "graphNodeChromeBackgroundLayer")
+        shadow_item = node_card.findChild(QObject, "graphNodeShadow")
+        self.assertIsNotNone(background_layer)
+        self.assertIsNotNone(shadow_item)
+        self.assertTrue(bool(background_layer.property("cacheActive")))
+        self.assertTrue(bool(background_layer.property("chromeCacheActive")))
+        self.assertTrue(bool(background_layer.property("shadowCacheActive")))
+        self.assertTrue(bool(shadow_item.property("cached")))
+
+        baseline_key = str(background_layer.property("cacheKey") or "")
+        self.assertTrue(baseline_key)
+        self.assertFalse(bool(self.canvas.property("transientDegradedWindowActive")))
+
+        applied = self.canvas.applyWheelZoom(
+            {"x": 640.0, "y": 360.0, "angleDelta": {"y": 120}, "inverted": False}
+        )
+        self.assertTrue(applied)
+        self.app.processEvents()
+
+        self.assertTrue(bool(self.canvas.property("interactionActive")))
+        self.assertTrue(bool(self.canvas.property("transientDegradedWindowActive")))
+        self.assertEqual(str(background_layer.property("cacheKey") or ""), baseline_key)
+        self.assertTrue(bool(shadow_item.property("cached")))
+
+        wait_for_condition_or_raise(
+            lambda: (
+                not bool(self.canvas.property("interactionActive"))
+                and not bool(self.canvas.property("transientDegradedWindowActive"))
+                and str(background_layer.property("cacheKey") or "") == baseline_key
+            ),
+            timeout_ms=190,
+            app=self.app,
+            timeout_message="Timed out waiting for cached node chrome/shadow state to recover after wheel zoom.",
+        )
+        self.assertEqual(str(background_layer.property("cacheKey") or ""), baseline_key)
+
+        self._performance_state_bridge.select_node(node_id)
+        wait_for_condition_or_raise(
+            lambda: str(background_layer.property("cacheKey") or "") != baseline_key,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for selection-border cache invalidation.",
+        )
+        selected_key = str(background_layer.property("cacheKey") or "")
+
+        self._performance_preference_bridge.set_graphics_shadow_softness_value(35)
+        wait_for_condition_or_raise(
+            lambda: str(background_layer.property("cacheKey") or "") != selected_key,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for shadow-preference cache invalidation.",
+        )
 
     def test_graph_canvas_mutation_burst_policy_activates_and_recovers_with_existing_idle_window(self) -> None:
         policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")
@@ -342,21 +683,79 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         background_redraws = int(background.property("_redrawRequestCount"))
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+        background_cache_builds = int(background.property("_gridCacheBuildCount"))
 
         self.view.set_zoom(1.4)
-        self.app.processEvents()
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
+            and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
+            timeout_ms=120,
+            app=self.app,
+            timeout_message="Timed out waiting for deferred zoom redraw flush.",
+        )
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+        self.assertEqual(int(background.property("_gridCacheBuildCount")) - background_cache_builds, 1)
 
         background_redraws = int(background.property("_redrawRequestCount"))
         edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+        background_cache_builds = int(background.property("_gridCacheBuildCount"))
 
         self.view.centerOn(18.0, -22.0)
-        self.app.processEvents()
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
+            and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
+            timeout_ms=120,
+            app=self.app,
+            timeout_message="Timed out waiting for deferred pan redraw flush.",
+        )
 
         self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
         self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+        self.assertEqual(int(background.property("_gridCacheBuildCount")) - background_cache_builds, 0)
+
+        commits = 0
+
+        def _count_commit() -> None:
+            nonlocal commits
+            commits += 1
+
+        self.view.view_state_changed.connect(_count_commit)
+        background_redraws = int(background.property("_redrawRequestCount"))
+        edge_redraws = int(edge_layer.property("_redrawRequestCount"))
+
+        applied = self.canvas.applyWheelZoom(
+            {"x": 920.0, "y": 410.0, "angleDelta": {"y": 120}, "inverted": False}
+        )
+
+        self.assertTrue(applied)
+        self.assertEqual(commits, 1)
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 0)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 0)
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) - background_redraws == 1
+            and int(edge_layer.property("_redrawRequestCount")) - edge_redraws == 1,
+            timeout_ms=120,
+            app=self.app,
+            timeout_message="Timed out waiting for deferred wheel redraw flush.",
+        )
+
+        self.assertEqual(int(background.property("_redrawRequestCount")) - background_redraws, 1)
+        self.assertEqual(int(edge_layer.property("_redrawRequestCount")) - edge_redraws, 1)
+
+    def test_graph_canvas_input_layers_disable_full_canvas_hover_tracking(self) -> None:
+        marquee_area = self.canvas.findChild(QObject, "graphCanvasMarqueeArea")
+        pan_area = self.canvas.findChild(QObject, "graphCanvasPanArea")
+
+        self.assertIsNotNone(marquee_area)
+        self.assertIsNotNone(pan_area)
+        self.assertFalse(bool(marquee_area.property("hoverEnabled")))
+        self.assertFalse(bool(pan_area.property("hoverEnabled")))
 
     def test_a_node_card_theme_neutrals_follow_runtime_theme_changes(self) -> None:
         component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_NODE_CARD_QML_PATH)))

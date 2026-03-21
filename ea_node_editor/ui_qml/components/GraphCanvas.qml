@@ -31,9 +31,24 @@ Item {
     readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
         ? root.canvasStateBridgeRef
         : root.sceneBridge
-    readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef
-        ? root.canvasStateBridgeRef
-        : root.viewBridge
+    readonly property var _canvasStateViewportBridgeRef: root.canvasStateBridgeRef
+        && root.canvasStateBridgeRef.viewport_bridge
+        ? root.canvasStateBridgeRef.viewport_bridge
+        : null
+    readonly property var _canvasCommandViewportBridgeRef: root.canvasCommandBridgeRef
+        && root.canvasCommandBridgeRef.viewport_bridge
+        ? root.canvasCommandBridgeRef.viewport_bridge
+        : null
+    readonly property var _canvasRawViewBridgeRef: root._canvasStateViewportBridgeRef
+        ? root._canvasStateViewportBridgeRef
+        : (root._canvasCommandViewportBridgeRef
+            ? root._canvasCommandViewportBridgeRef
+            : root.viewBridge)
+    readonly property var _canvasViewStateBridgeRef: root._canvasRawViewBridgeRef
+        ? root._canvasRawViewBridgeRef
+        : (root.canvasStateBridgeRef
+            ? root.canvasStateBridgeRef
+            : root.viewBridge)
     readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
         ? root.canvasCommandBridgeRef
         : root.mainWindowBridge
@@ -42,15 +57,22 @@ Item {
         : root.sceneBridge
     readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
         ? root.canvasCommandBridgeRef
-        : root.viewBridge
+        : root._canvasRawViewBridgeRef
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
     readonly property var visibleSceneRectPayload: root._canvasViewStateBridgeRef
-        ? root._canvasViewStateBridgeRef.visible_scene_rect_payload
+        ? (root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached !== undefined
+            ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
+            : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
         : ({})
+    readonly property real nodeRenderActivationPaddingPx: 240.0
+    readonly property var nodeRenderActivationSceneRectPayload: root._inflateSceneRectPayload(
+        root.visibleSceneRectPayload,
+        root._scenePaddingForViewportPixels(root.nodeRenderActivationPaddingPx)
+    )
     property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
     readonly property bool minimapVisible: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_minimap) : true
@@ -193,6 +215,13 @@ Item {
         onTriggered: interactionState.endViewportInteraction()
     }
 
+    Timer {
+        id: viewStateRedrawFlushTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.flushViewStateRedraw()
+    }
+
     function screenToSceneX(screenX) {
         var view = root._canvasViewStateBridgeRef;
         return GraphCanvasLogic.screenToSceneX(
@@ -218,9 +247,8 @@ Item {
     }
 
     function applyWheelZoom(eventObj) {
-        var viewState = root._canvasViewStateBridgeRef;
         var viewCommand = root._canvasViewCommandBridgeRef;
-        if (!viewState || !viewCommand)
+        if (!viewCommand)
             return false;
         var deltaY = _wheelDeltaY(eventObj);
         if (Math.abs(deltaY) < 0.001)
@@ -242,6 +270,11 @@ Item {
             steps = deltaY > 0 ? 1.0 : -1.0;
         steps = Math.max(-1.0, Math.min(1.0, steps));
         var factor = Math.pow(1.15, steps);
+        if (hasCursor && viewCommand.adjust_zoom_at_viewport_point) {
+            viewCommand.adjust_zoom_at_viewport_point(factor, cursorX, cursorY);
+            return true;
+        }
+
         if (viewCommand.adjust_zoom)
             viewCommand.adjust_zoom(factor);
 
@@ -272,6 +305,62 @@ Item {
             root.height,
             (view ? view.zoom_value : 1.0)
         );
+    }
+
+    function _normalizedSceneRectPayload(rectLike) {
+        if (rectLike === undefined || rectLike === null)
+            return null;
+
+        var x = Number(rectLike.x);
+        var y = Number(rectLike.y);
+        var width = Number(rectLike.width);
+        var height = Number(rectLike.height);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
+            return null;
+
+        if (width < 0.0) {
+            x += width;
+            width = Math.abs(width);
+        }
+        if (height < 0.0) {
+            y += height;
+            height = Math.abs(height);
+        }
+
+        return {
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+
+    function _scenePaddingForViewportPixels(paddingPx) {
+        var zoom = root._canvasViewStateBridgeRef ? Number(root._canvasViewStateBridgeRef.zoom_value) : 1.0;
+        if (!isFinite(zoom) || zoom <= 0.0001)
+            zoom = 1.0;
+
+        var padding = Number(paddingPx);
+        if (!isFinite(padding) || padding < 0.0)
+            padding = 0.0;
+        return padding / zoom;
+    }
+
+    function _inflateSceneRectPayload(rectLike, padding) {
+        var normalized = root._normalizedSceneRectPayload(rectLike);
+        if (!normalized)
+            return ({});
+
+        var resolvedPadding = Number(padding);
+        if (!isFinite(resolvedPadding) || resolvedPadding < 0.0)
+            resolvedPadding = 0.0;
+
+        return {
+            "x": normalized.x - resolvedPadding,
+            "y": normalized.y - resolvedPadding,
+            "width": normalized.width + (resolvedPadding * 2.0),
+            "height": normalized.height + (resolvedPadding * 2.0)
+        };
     }
 
     function snapToGridEnabled() {
@@ -835,8 +924,19 @@ Item {
     }
 
     function requestViewStateRedraw() {
-        backgroundLayer.requestGridRedraw();
-        edgeLayer.requestRedraw();
+        if (backgroundLayer && backgroundLayer.markViewStateRedrawDirty)
+            backgroundLayer.markViewStateRedrawDirty();
+        if (edgeLayer && edgeLayer.markViewStateRedrawDirty)
+            edgeLayer.markViewStateRedrawDirty();
+        if (!viewStateRedrawFlushTimer.running)
+            viewStateRedrawFlushTimer.start();
+    }
+
+    function flushViewStateRedraw() {
+        if (backgroundLayer && backgroundLayer.flushViewStateRedraw)
+            backgroundLayer.flushViewStateRedraw();
+        if (edgeLayer && edgeLayer.flushViewStateRedraw)
+            edgeLayer.flushViewStateRedraw();
     }
 
     function _closeContextMenus() {
@@ -940,11 +1040,12 @@ Item {
                 shadowStrength: root.shadowStrength
                 shadowSoftness: root.shadowSoftness
                 shadowOffset: root.shadowOffset
-                zoom: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
                 viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
                 snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
                 shadowSimplificationActive: root.shadowSimplificationActive
                 fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
+                renderActivationSceneRectPayload: root.nodeRenderActivationSceneRectPayload
+                contextTargetNodeId: root.nodeContextNodeId
 
                 onNodeClicked: function(nodeId, additive) {
                     var bridge = root._canvasSceneCommandBridgeRef;
@@ -1167,6 +1268,7 @@ Item {
 
     Component.onDestruction: {
         canvasPerformancePolicy.clearStructuralMutation();
+        viewStateRedrawFlushTimer.stop();
         interactionIdleTimer.stop();
         interactionState.releaseHostReferences();
     }

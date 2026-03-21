@@ -29,9 +29,13 @@ Item {
     property bool edgeLabelSimplificationActive: false
     property bool inputEnabled: true
     property int _redrawRequestCount: 0
+    property bool _viewStateRedrawDirty: false
     property real viewportCullMarginPx: 96.0
     property var _cachedNodeMap: null
     property var _cachedEdgeGeometries: ({})
+    property var _visibleEdgeSnapshots: []
+    property var _visibleEdgeSnapshotById: ({})
+    property int _visibleEdgeSnapshotRevision: 0
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
@@ -48,8 +52,21 @@ Item {
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
 
     function requestRedraw() {
+        root._viewStateRedrawDirty = false;
+        root._refreshVisibleEdgeSnapshots();
         root._redrawRequestCount += 1;
         edgeCanvas.requestPaint();
+    }
+
+    function markViewStateRedrawDirty() {
+        root._viewStateRedrawDirty = true;
+    }
+
+    function flushViewStateRedraw() {
+        if (!root._viewStateRedrawDirty)
+            return false;
+        requestRedraw();
+        return true;
     }
 
     function _invalidateGeometryCache() {
@@ -74,18 +91,6 @@ Item {
         return geometry;
     }
 
-    function sceneToScreenX(worldX) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        var centerX = viewBridge ? viewBridge.center_x : 0.0;
-        return root.width * 0.5 + (worldX - centerX) * zoom;
-    }
-
-    function sceneToScreenY(worldY) {
-        var zoom = viewBridge ? viewBridge.zoom_value : 1.0;
-        var centerY = viewBridge ? viewBridge.center_y : 0.0;
-        return root.height * 0.5 + (worldY - centerY) * zoom;
-    }
-
     function _zoomValue() {
         var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;
         if (!isFinite(zoom) || zoom <= 0.0001)
@@ -93,8 +98,65 @@ Item {
         return zoom;
     }
 
+    function _viewportTransform() {
+        var zoom = root._zoomValue();
+        var centerX = viewBridge ? Number(viewBridge.center_x) : 0.0;
+        var centerY = viewBridge ? Number(viewBridge.center_y) : 0.0;
+        if (!isFinite(centerX))
+            centerX = 0.0;
+        if (!isFinite(centerY))
+            centerY = 0.0;
+        return {
+            "zoom": zoom,
+            "offsetX": root.width * 0.5 - centerX * zoom,
+            "offsetY": root.height * 0.5 - centerY * zoom
+        };
+    }
+
+    function _sceneXToScreen(worldX, viewportTransform) {
+        return Number(worldX) * viewportTransform.zoom + viewportTransform.offsetX;
+    }
+
+    function _sceneYToScreen(worldY, viewportTransform) {
+        return Number(worldY) * viewportTransform.zoom + viewportTransform.offsetY;
+    }
+
+    function sceneToScreenX(worldX) {
+        return root._sceneXToScreen(worldX, root._viewportTransform());
+    }
+
+    function sceneToScreenY(worldY) {
+        return root._sceneYToScreen(worldY, root._viewportTransform());
+    }
+
+    function _screenToSceneX(screenX, viewportTransform) {
+        return (Number(screenX) - viewportTransform.offsetX) / viewportTransform.zoom;
+    }
+
+    function _screenToSceneY(screenY, viewportTransform) {
+        return (Number(screenY) - viewportTransform.offsetY) / viewportTransform.zoom;
+    }
+
+    function _screenLengthToScene(screenLengthPx, viewportTransform) {
+        var transform = viewportTransform || root._viewportTransform();
+        return Math.max(0.0, Number(screenLengthPx || 0.0)) / transform.zoom;
+    }
+
     function _screenMarginToScene(screenMarginPx) {
-        return Math.max(0.0, Number(screenMarginPx || 0.0)) / root._zoomValue();
+        return root._screenLengthToScene(screenMarginPx);
+    }
+
+    function _dashPatternToScene(screenPattern, viewportTransform) {
+        var pattern = screenPattern || [];
+        var scenePattern = [];
+        for (var i = 0; i < pattern.length; i++)
+            scenePattern.push(root._screenLengthToScene(pattern[i], viewportTransform));
+        return scenePattern;
+    }
+
+    function _applyViewportTransform(ctx, viewportTransform) {
+        ctx.translate(viewportTransform.offsetX, viewportTransform.offsetY);
+        ctx.scale(viewportTransform.zoom, viewportTransform.zoom);
     }
 
     function _expandedVisibleSceneBounds() {
@@ -518,6 +580,37 @@ Item {
         return [];
     }
 
+    function _traceBezierGeometry(ctx, geometry) {
+        ctx.moveTo(geometry.sx, geometry.sy);
+        ctx.bezierCurveTo(
+            geometry.c1x,
+            geometry.c1y,
+            geometry.c2x,
+            geometry.c2y,
+            geometry.tx,
+            geometry.ty
+        );
+    }
+
+    function _traceGeometry(ctx, geometry) {
+        if (!geometry)
+            return;
+        if (geometry.route === "pipe") {
+            var pipePoints = geometry.pipe_points || [];
+            for (var i = 0; i < pipePoints.length; i++) {
+                var point = pipePoints[i];
+                if (i === 0)
+                    ctx.moveTo(point.x, point.y);
+                else
+                    ctx.lineTo(point.x, point.y);
+            }
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            return;
+        }
+        root._traceBezierGeometry(ctx, geometry);
+    }
+
     function _edgeAnchor(geometry, fraction) {
         if (!geometry)
             return null;
@@ -568,7 +661,7 @@ Item {
         return root.flowDefaultLabelBorderColor;
     }
 
-    function _flowLabelAnchor(geometry) {
+    function _flowLabelAnchorScene(geometry) {
         var anchor = null;
         if (geometry && geometry.route === "pipe") {
             var pipePoints = geometry.pipe_points || [];
@@ -605,23 +698,94 @@ Item {
             normalY = -normalY;
         }
         return {
-            "screen_x": root.sceneToScreenX(anchor.x) + normalX * 18.0,
-            "screen_y": root.sceneToScreenY(anchor.y) + normalY * 18.0,
+            "x": anchor.x,
+            "y": anchor.y,
+            "dx": anchor.dx,
+            "dy": anchor.dy,
+            "normal_x": normalX,
+            "normal_y": normalY,
             "angle": anchor.angle
         };
     }
 
-    function _drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom) {
+    function _flowLabelAnchor(labelAnchorScene) {
+        if (!labelAnchorScene)
+            return null;
+        return {
+            "screen_x": root.sceneToScreenX(labelAnchorScene.x) + Number(labelAnchorScene.normal_x) * 18.0,
+            "screen_y": root.sceneToScreenY(labelAnchorScene.y) + Number(labelAnchorScene.normal_y) * 18.0,
+            "angle": labelAnchorScene.angle
+        };
+    }
+
+    function _buildVisibleEdgeSnapshots(revision) {
+        var snapshots = [];
+        var snapshotById = {};
+        var edgesList = root.edges || [];
+        var nodeById = root._getNodeMap();
+        var viewportBounds = root._expandedVisibleSceneBounds();
+
+        for (var i = 0; i < edgesList.length; i++) {
+            var edge = edgesList[i];
+            if (!edge || !edge.edge_id)
+                continue;
+            var edgeId = String(edge.edge_id);
+            var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
+            var geometry = cullState && !cullState.culled ? cullState.geometry : null;
+            var selected = root._isSelected(edgeId);
+            var previewed = root.previewEdgeId && root.previewEdgeId === edgeId;
+            var labelMode = root._flowLabelMode(edge);
+            var snapshot = {
+                "revision": revision,
+                "edgeId": edgeId,
+                "edgeData": edge,
+                "culled": cullState ? Boolean(cullState.culled) : false,
+                "geometry": geometry,
+                "selected": selected,
+                "previewed": Boolean(previewed),
+                "flowEdge": root._edgeIsFlow(edge),
+                "labelText": root._edgeLabelText(edge),
+                "labelMode": labelMode,
+                "labelAnchorScene": labelMode !== "hidden" && geometry
+                    ? root._flowLabelAnchorScene(geometry)
+                    : null
+            };
+            snapshots.push(snapshot);
+            snapshotById[edgeId] = snapshot;
+        }
+
+        return {
+            "snapshots": snapshots,
+            "snapshotById": snapshotById
+        };
+    }
+
+    function _refreshVisibleEdgeSnapshots() {
+        var nextRevision = root._visibleEdgeSnapshotRevision + 1;
+        var model = root._buildVisibleEdgeSnapshots(nextRevision);
+        root._visibleEdgeSnapshots = model.snapshots;
+        root._visibleEdgeSnapshotById = model.snapshotById;
+        root._visibleEdgeSnapshotRevision = nextRevision;
+    }
+
+    function _visibleEdgeSnapshot(edgeId) {
+        var normalized = String(edgeId || "");
+        if (!normalized)
+            return null;
+        return root._visibleEdgeSnapshotById[normalized] || null;
+    }
+
+    function _drawFlowArrowHead(ctx, geometry, edge, strokeColor, zoom, viewportTransform) {
         var arrowHead = root._flowArrowHead(edge);
         if (arrowHead === "none")
             return;
         var anchor = root._edgeAnchor(geometry, 1.0);
         if (!anchor)
             return;
-        var tipX = root.sceneToScreenX(anchor.x);
-        var tipY = root.sceneToScreenY(anchor.y);
-        var size = Math.max(6.0, 8.0 * zoom);
-        var wing = Math.max(3.0, 4.5 * zoom);
+        var tipX = anchor.x;
+        var tipY = anchor.y;
+        var size = root._screenLengthToScene(Math.max(6.0, 8.0 * zoom), viewportTransform);
+        var wing = root._screenLengthToScene(Math.max(3.0, 4.5 * zoom), viewportTransform);
         var baseX = tipX - anchor.dx * size;
         var baseY = tipY - anchor.dy * size;
         var normalX = -anchor.dy;
@@ -637,7 +801,7 @@ Item {
         ctx.lineCap = "round";
         ctx.strokeStyle = strokeColor;
         ctx.fillStyle = strokeColor;
-        ctx.lineWidth = Math.max(1.0, 1.4 * zoom);
+        ctx.lineWidth = root._screenLengthToScene(Math.max(1.0, 1.4 * zoom), viewportTransform);
         ctx.beginPath();
         ctx.moveTo(leftX, leftY);
         ctx.lineTo(tipX, tipY);
@@ -656,56 +820,50 @@ Item {
         return (root.selectedEdgeIds || []).indexOf(edgeId) >= 0;
     }
 
-    function _edgeDistanceAtScreen(geometry, screenX, screenY) {
+    function _edgeDistanceAtScreen(geometry, screenX, screenY, viewportTransform) {
         if (!geometry)
             return Number.POSITIVE_INFINITY;
+        var sceneX = root._screenToSceneX(screenX, viewportTransform);
+        var sceneY = root._screenToSceneY(screenY, viewportTransform);
         if (geometry.route === "pipe") {
-            var screenPoints = [];
-            var pipePoints = geometry.pipe_points || [];
-            for (var i = 0; i < pipePoints.length; i++) {
-                screenPoints.push(
-                    {
-                        "x": root.sceneToScreenX(pipePoints[i].x),
-                        "y": root.sceneToScreenY(pipePoints[i].y)
-                    }
-                );
-            }
-            return EdgeMath.distancePolyline(screenX, screenY, screenPoints);
+            return EdgeMath.distancePolyline(sceneX, sceneY, geometry.pipe_points || []);
         }
 
         return EdgeMath.distanceBezier(
-            screenX,
-            screenY,
-            root.sceneToScreenX(geometry.sx),
-            root.sceneToScreenY(geometry.sy),
-            root.sceneToScreenX(geometry.c1x),
-            root.sceneToScreenY(geometry.c1y),
-            root.sceneToScreenX(geometry.c2x),
-            root.sceneToScreenY(geometry.c2y),
-            root.sceneToScreenX(geometry.tx),
-            root.sceneToScreenY(geometry.ty),
+            sceneX,
+            sceneY,
+            geometry.sx,
+            geometry.sy,
+            geometry.c1x,
+            geometry.c1y,
+            geometry.c2x,
+            geometry.c2y,
+            geometry.tx,
+            geometry.ty,
             28
         );
     }
 
     function edgeAtScreen(screenX, screenY) {
-        var edgesList = root.edges || [];
-        if (!edgesList.length)
+        var snapshots = root._visibleEdgeSnapshots || [];
+        if (!snapshots.length && (root.edges || []).length) {
+            root._refreshVisibleEdgeSnapshots();
+            snapshots = root._visibleEdgeSnapshots || [];
+        }
+        if (!snapshots.length)
             return "";
-        var nodeById = _nodeMap();
-        var viewportBounds = root._expandedVisibleSceneBounds();
+        var viewportTransform = root._viewportTransform();
         var bestId = "";
         var bestDistance = Number.POSITIVE_INFINITY;
-        var threshold = 8.0;
-        for (var i = edgesList.length - 1; i >= 0; i--) {
-            var edge = edgesList[i];
-            var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
-            if (cullState.culled || !cullState.geometry)
+        var threshold = root._screenLengthToScene(8.0, viewportTransform);
+        for (var i = snapshots.length - 1; i >= 0; i--) {
+            var snapshot = snapshots[i];
+            if (!snapshot || snapshot.culled || !snapshot.geometry)
                 continue;
-            var distance = _edgeDistanceAtScreen(cullState.geometry, screenX, screenY);
+            var distance = _edgeDistanceAtScreen(snapshot.geometry, screenX, screenY, viewportTransform);
             if (distance < bestDistance && distance <= threshold) {
                 bestDistance = distance;
-                bestId = edge.edge_id;
+                bestId = snapshot.edgeId;
             }
         }
         return bestId;
@@ -719,59 +877,44 @@ Item {
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
-            var zoom = root.viewBridge ? root.viewBridge.zoom_value : 1.0;
-            var edgesList = root.edges || [];
-            var nodeById = root._getNodeMap();
-            var viewportBounds = root._expandedVisibleSceneBounds();
+            var zoom = root._zoomValue();
+            var snapshots = root._visibleEdgeSnapshots || [];
+            var viewportTransform = root._viewportTransform();
 
-            for (var i = 0; i < edgesList.length; i++) {
-                var edge = edgesList[i];
-                var cullState = root._edgeCullState(edge, nodeById, viewportBounds);
-                if (cullState.culled || !cullState.geometry)
+            ctx.save();
+            root._applyViewportTransform(ctx, viewportTransform);
+
+            for (var i = 0; i < snapshots.length; i++) {
+                var snapshot = snapshots[i];
+                if (!snapshot || snapshot.culled || !snapshot.geometry)
                     continue;
-                var geometry = cullState.geometry;
-                var selected = root._isSelected(edge.edge_id);
-                var previewed = root.previewEdgeId && root.previewEdgeId === edge.edge_id;
-                var flowEdge = root._edgeIsFlow(edge);
+                var edge = snapshot.edgeData;
+                var geometry = snapshot.geometry;
+                var selected = snapshot.selected;
+                var previewed = snapshot.previewed;
+                var flowEdge = snapshot.flowEdge;
                 ctx.save();
                 ctx.beginPath();
-                if (geometry.route === "pipe") {
-                    var pipePoints = geometry.pipe_points || [];
-                    for (var j = 0; j < pipePoints.length; j++) {
-                        var point = pipePoints[j];
-                        var px = root.sceneToScreenX(point.x);
-                        var py = root.sceneToScreenY(point.y);
-                        if (j === 0)
-                            ctx.moveTo(px, py);
-                        else
-                            ctx.lineTo(px, py);
-                    }
-                    ctx.lineJoin = "round";
-                    ctx.lineCap = "round";
-                } else {
-                    ctx.moveTo(root.sceneToScreenX(geometry.sx), root.sceneToScreenY(geometry.sy));
-                    ctx.bezierCurveTo(
-                        root.sceneToScreenX(geometry.c1x),
-                        root.sceneToScreenY(geometry.c1y),
-                        root.sceneToScreenX(geometry.c2x),
-                        root.sceneToScreenY(geometry.c2y),
-                        root.sceneToScreenX(geometry.tx),
-                        root.sceneToScreenY(geometry.ty)
-                    );
-                }
+                root._traceGeometry(ctx, geometry);
 
                 if (flowEdge) {
                     var flowStrokeColor = root._flowStrokeColor(edge, selected, previewed);
                     ctx.strokeStyle = flowStrokeColor;
-                    ctx.lineWidth = root._flowStrokeWidth(edge, selected, previewed, zoom);
-                    ctx.setLineDash(root._flowDashPattern(edge, zoom));
+                    ctx.lineWidth = root._screenLengthToScene(
+                        root._flowStrokeWidth(edge, selected, previewed, zoom),
+                        viewportTransform
+                    );
+                    ctx.setLineDash(root._dashPatternToScene(root._flowDashPattern(edge, zoom), viewportTransform));
                     ctx.stroke();
-                    root._drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom);
+                    root._drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom, viewportTransform);
                 } else {
                     ctx.strokeStyle = selected
                         ? root.selectedStrokeColor
                         : (previewed ? root.previewStrokeColor : (edge.color || root.fallbackStrokeColor));
-                    ctx.lineWidth = Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom);
+                    ctx.lineWidth = root._screenLengthToScene(
+                        Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom),
+                        viewportTransform
+                    );
                     ctx.stroke();
                 }
                 ctx.restore();
@@ -783,32 +926,31 @@ Item {
                 if (dragGeometry) {
                     ctx.save();
                     ctx.beginPath();
-                    ctx.moveTo(root.sceneToScreenX(dragGeometry.sx), root.sceneToScreenY(dragGeometry.sy));
-                    ctx.bezierCurveTo(
-                        root.sceneToScreenX(dragGeometry.c1x),
-                        root.sceneToScreenY(dragGeometry.c1y),
-                        root.sceneToScreenX(dragGeometry.c2x),
-                        root.sceneToScreenY(dragGeometry.c2y),
-                        root.sceneToScreenX(dragGeometry.tx),
-                        root.sceneToScreenY(dragGeometry.ty)
-                    );
+                    root._traceBezierGeometry(ctx, dragGeometry);
                     ctx.strokeStyle = liveDrag.valid_drop ? root.validDragStrokeColor : root.invalidDragStrokeColor;
-                    ctx.lineWidth = Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom);
-                    ctx.setLineDash([Math.max(2.0, 6.0 * zoom), Math.max(1.0, 4.0 * zoom)]);
+                    ctx.lineWidth = root._screenLengthToScene(
+                        Math.max(1.0, (liveDrag.valid_drop ? 2.7 : 2.0) * zoom),
+                        viewportTransform
+                    );
+                    ctx.setLineDash(
+                        root._dashPatternToScene(
+                            [Math.max(2.0, 6.0 * zoom), Math.max(1.0, 4.0 * zoom)],
+                            viewportTransform
+                        )
+                    );
                     ctx.lineCap = "round";
                     ctx.stroke();
                     ctx.restore();
                 }
             }
 
+            ctx.restore();
         }
     }
 
     Item {
         id: flowLabelLayer
         anchors.fill: parent
-        readonly property var nodeById: root._getNodeMap()
-        readonly property var viewportBounds: root._expandedVisibleSceneBounds()
 
         Repeater {
             model: root.edges || []
@@ -816,21 +958,24 @@ Item {
             delegate: Item {
                 objectName: "graphEdgeFlowLabelItem"
                 property var edgeData: modelData
-                property string labelText: root._edgeLabelText(edgeData)
-                property string labelMode: root._flowLabelMode(edgeData)
+                property string edgeId: String(edgeData && edgeData.edge_id || "")
+                property var snapshotData: edgeId ? root._visibleEdgeSnapshot(edgeId) : null
+                property string labelText: snapshotData ? String(snapshotData.labelText || "") : ""
+                property string labelMode: snapshotData ? String(snapshotData.labelMode || "hidden") : "hidden"
                 property bool labelRequested: labelMode !== "hidden"
-                property var cullState: labelRequested
-                    ? root._edgeCullState(edgeData, flowLabelLayer.nodeById, flowLabelLayer.viewportBounds)
-                    : null
-                property bool culledByViewport: labelRequested && cullState ? Boolean(cullState.culled) : false
+                property var snapshotRevision: snapshotData ? snapshotData.revision : 0
+                property bool culledByViewport: labelRequested && snapshotData ? Boolean(snapshotData.culled) : false
                 property bool pillVisible: labelMode === "pill"
                 property real anchorScreenX: labelAnchor ? labelAnchor.screen_x : 0.0
                 property real anchorScreenY: labelAnchor ? labelAnchor.screen_y : 0.0
-                property var geometry: labelRequested && !culledByViewport && cullState ? cullState.geometry : null
-                property var labelAnchor: geometry ? root._flowLabelAnchor(geometry) : null
+                property var geometry: labelRequested && !culledByViewport && snapshotData ? snapshotData.geometry : null
+                property var labelAnchorScene: labelRequested && !culledByViewport && snapshotData
+                    ? snapshotData.labelAnchorScene
+                    : null
+                property var labelAnchor: labelAnchorScene ? root._flowLabelAnchor(labelAnchorScene) : null
                 property bool hitTestMatches: visible
-                property bool selectedEdge: root._isSelected(String(edgeData && edgeData.edge_id || ""))
-                property bool previewedEdge: root.previewEdgeId && root.previewEdgeId === String(edgeData && edgeData.edge_id || "")
+                property bool selectedEdge: snapshotData ? Boolean(snapshotData.selected) : false
+                property bool previewedEdge: snapshotData ? Boolean(snapshotData.previewed) : false
                 property real horizontalPadding: pillVisible ? 9.0 : 1.0
                 property real verticalPadding: pillVisible ? 5.0 : 0.0
                 property real maximumTextWidth: pillVisible ? 180.0 : 110.0
@@ -904,5 +1049,6 @@ Item {
     onEdgePaletteChanged: requestRedraw()
     onShellPaletteChanged: requestRedraw()
     onPortKindPaletteChanged: requestRedraw()
+    onEdgeLabelSimplificationActiveChanged: requestRedraw()
 
 }
