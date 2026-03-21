@@ -440,14 +440,17 @@ class WorkspaceEditOps:
         if fragment_signature != self._controller.clipboard_fragment_signature():
             self._controller.set_clipboard_fragment_signature(fragment_signature)
             self._controller.set_clipboard_paste_count(0)
-        cascade_x = float(self._controller.clipboard_paste_count()) * _PASTE_CASCADE_OFFSET_X
-        cascade_y = float(self._controller.clipboard_paste_count()) * _PASTE_CASCADE_OFFSET_Y
-        center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
+        frag_center = self._host.scene.fragment_bounds_center(fragment_payload)
+        if frag_center is None:
+            return False
+        paste_index = self._controller.clipboard_paste_count() + 1
+        cascade_x = float(paste_index) * _PASTE_CASCADE_OFFSET_X
+        cascade_y = float(paste_index) * _PASTE_CASCADE_OFFSET_Y
         pasted = bool(
             self._host.scene.paste_subgraph_fragment(
                 fragment_payload,
-                center.x() + cascade_x,
-                center.y() + cascade_y,
+                frag_center[0] + cascade_x,
+                frag_center[1] + cascade_y,
             )
         )
         if not pasted:

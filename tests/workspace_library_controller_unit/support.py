@@ -107,9 +107,13 @@ class _ClipboardSceneStub:
     def __init__(self) -> None:
         self.fragment_payload: dict[str, object] | None = None
         self.paste_calls: list[tuple[dict[str, object], float, float]] = []
+        self._fragment_center: tuple[float, float] = (100.0, 200.0)
 
     def serialize_selected_subgraph_fragment(self) -> dict[str, object] | None:
         return self.fragment_payload
+
+    def fragment_bounds_center(self, fragment_payload: object) -> tuple[float, float] | None:  # noqa: ARG002
+        return self._fragment_center
 
     def paste_subgraph_fragment(self, payload: dict[str, object], center_x: float, center_y: float) -> bool:
         self.paste_calls.append((payload, center_x, center_y))

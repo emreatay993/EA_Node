@@ -77,7 +77,7 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         self.assertTrue(cut)
         self.assertEqual(delete_calls, [[]])
 
-    def test_paste_nodes_from_clipboard_uses_viewport_center_and_refreshes(self) -> None:
+    def test_paste_nodes_from_clipboard_offsets_from_original_position_and_refreshes(self) -> None:
         host = _ClipboardHostStub()
         controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
         refreshed = {"value": False}
@@ -92,7 +92,7 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
         pasted = controller.paste_nodes_from_clipboard()
 
         self.assertTrue(pasted)
-        self.assertEqual(host.scene.paste_calls, [(payload, 120.0, 340.0)])
+        self.assertEqual(host.scene.paste_calls, [(payload, 140.0, 240.0)])
         self.assertEqual(host.selected_node_changed.calls, 1)
         self.assertTrue(refreshed["value"])
 
@@ -108,8 +108,8 @@ class WorkspaceLibraryControllerCoreOpsTests(WorkspaceLibraryControllerUnitTestB
 
         self.assertTrue(first)
         self.assertTrue(second)
-        self.assertEqual(host.scene.paste_calls[0], (payload, 120.0, 340.0))
-        self.assertEqual(host.scene.paste_calls[1], (payload, 160.0, 380.0))
+        self.assertEqual(host.scene.paste_calls[0], (payload, 140.0, 240.0))
+        self.assertEqual(host.scene.paste_calls[1], (payload, 180.0, 280.0))
 
     def test_paste_nodes_from_clipboard_is_noop_when_clipboard_is_missing(self) -> None:
         host = _ClipboardHostStub()

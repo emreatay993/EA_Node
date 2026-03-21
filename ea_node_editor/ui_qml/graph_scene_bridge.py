@@ -673,6 +673,9 @@ class GraphSceneBridge(QObject):
     def serialize_selected_subgraph_fragment(self) -> dict[str, Any] | None:
         return self._mutation_history.serialize_selected_subgraph_fragment()
 
+    def fragment_bounds_center(self, fragment_payload: Any) -> tuple[float, float] | None:
+        return self._mutation_history.fragment_bounds_center(fragment_payload)
+
     def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center_y: float) -> bool:
         return self._mutation_history.paste_subgraph_fragment(fragment_payload, center_x, center_y)
 

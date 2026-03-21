@@ -260,6 +260,10 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.window.view.centerOn(980.0, -210.0)
         self.app.processEvents()
 
+        original_selection_bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(original_selection_bounds)
+        original_center = original_selection_bounds.center()
+
         copied = self.window.request_copy_selected_nodes()
         self.assertTrue(copied)
         pasted = self.window.request_paste_selected_nodes()
@@ -306,9 +310,8 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
 
         selection_bounds = self.window.scene.selection_bounds()
         self.assertIsNotNone(selection_bounds)
-        viewport_center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
-        self.assertAlmostEqual(selection_bounds.center().x(), viewport_center.x(), places=5)
-        self.assertAlmostEqual(selection_bounds.center().y(), viewport_center.y(), places=5)
+        self.assertAlmostEqual(selection_bounds.center().x(), original_center.x() + 40.0, places=5)
+        self.assertAlmostEqual(selection_bounds.center().y(), original_center.y() + 40.0, places=5)
 
     def test_qml_request_paste_selected_nodes_into_other_workspace_selects_pasted_nodes(self) -> None:
         source_workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -354,6 +357,10 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.window.view.centerOn(300.0, -120.0)
         self.app.processEvents()
 
+        original_bounds = self.window.scene.selection_bounds()
+        self.assertIsNotNone(original_bounds)
+        original_center = original_bounds.center()
+
         self.assertTrue(self.window.request_copy_selected_nodes())
 
         self.assertTrue(self.window.request_paste_selected_nodes())
@@ -366,11 +373,10 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         second_bounds = self.window.scene.selection_bounds()
         self.assertIsNotNone(second_bounds)
 
-        viewport_center = self.window.view.mapToScene(self.window.view.viewport().rect().center())
-        self.assertAlmostEqual(first_bounds.center().x(), viewport_center.x(), places=5)
-        self.assertAlmostEqual(first_bounds.center().y(), viewport_center.y(), places=5)
-        self.assertAlmostEqual(second_bounds.center().x(), viewport_center.x() + 40.0, places=5)
-        self.assertAlmostEqual(second_bounds.center().y(), viewport_center.y() + 40.0, places=5)
+        self.assertAlmostEqual(first_bounds.center().x(), original_center.x() + 40.0, places=5)
+        self.assertAlmostEqual(first_bounds.center().y(), original_center.y() + 40.0, places=5)
+        self.assertAlmostEqual(second_bounds.center().x(), original_center.x() + 80.0, places=5)
+        self.assertAlmostEqual(second_bounds.center().y(), original_center.y() + 80.0, places=5)
 
     def test_qml_request_cut_selected_nodes_is_single_undoable_semantic_action(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

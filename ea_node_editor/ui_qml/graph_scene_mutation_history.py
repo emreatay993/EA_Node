@@ -784,6 +784,15 @@ class GraphSceneMutationHistory:
             return None
         return self._build_subgraph_fragment_payload(workspace, selected_node_ids)
 
+    def fragment_bounds_center(self, fragment_payload: Any) -> tuple[float, float] | None:
+        normalized = normalize_graph_fragment_payload(fragment_payload)
+        if normalized is None:
+            return None
+        bounds = self._fragment_bounds(normalized["nodes"])
+        if bounds is None:
+            return None
+        return (bounds.center().x(), bounds.center().y())
+
     def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center_y: float) -> bool:
         normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
         if normalized_fragment is None:
