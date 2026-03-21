@@ -10,6 +10,7 @@ Item {
     objectName: "graphNodeMediaSurface"
     property Item host: null
     property bool cropModeActive: false
+    property bool inlineEditorsOpened: false
     property real draftCropX: 0.0
     property real draftCropY: 0.0
     property real draftCropW: 1.0
@@ -96,7 +97,7 @@ Item {
     readonly property bool cropButtonVisible: cropToolAvailable
         && !cropModeActive
         && (host ? host.hoverActive : false)
-    readonly property bool inlineEditorsVisible: !!(host && host.isSelected) && !cropModeActive
+    readonly property bool inlineEditorsVisible: !!(host && host.isSelected) && inlineEditorsOpened && !cropModeActive
     readonly property var cropDisplayRect: previewViewport.cropDisplayRect
     readonly property var draftDisplayCropRect: previewViewport.draftDisplayCropRect
     readonly property real effectivePreviewSourceWidth: Number(previewViewport.effectivePreviewSourceWidth || 0)
@@ -179,8 +180,19 @@ Item {
         target: host
 
         function onIsSelectedChanged() {
-            if (host && host.isSelected)
+            if (host && host.isSelected) {
                 surface._tryConsumePendingSurfaceAction();
+            } else {
+                surface.inlineEditorsOpened = false;
+            }
+        }
+
+        function onNodeOpenRequested(nodeId) {
+            if (!host || !host.nodeData)
+                return;
+            if (String(nodeId || "") !== String(host.nodeData.node_id || ""))
+                return;
+            surface.inlineEditorsOpened = !surface.inlineEditorsOpened;
         }
     }
 
