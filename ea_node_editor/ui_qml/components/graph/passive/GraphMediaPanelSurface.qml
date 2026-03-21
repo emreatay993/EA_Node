@@ -122,7 +122,7 @@ Item {
         ? host.surfaceColor
         : Qt.darker(host ? host.surfaceColor : "#1b1d22", 1.03)
     readonly property color panelBorderColor: host && host.isSelected
-        ? host.selectedOutlineColor
+        ? host.themeSelectedOutlineColor
         : (host && host.hasPassiveBorderOverride
             ? host.outlineColor
             : (host ? Qt.lighter(host.outlineColor, 1.1) : "#4a4f5a"))
