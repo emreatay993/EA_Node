@@ -13,6 +13,19 @@ Item {
         return portData.kind !== "exec" && portData.kind !== "completed" && portData.kind !== "failed";
     }
 
+    function _isFlowEdgePort(portData) {
+        var kind = String(portData && portData.kind || "").trim().toLowerCase();
+        return kind === "flow" || kind === "exec" || kind === "completed" || kind === "failed";
+    }
+
+    function _flowEdgePortRevealActive(portData, attentionState, selectedState) {
+        if (!root._isFlowEdgePort(portData))
+            return true;
+        return Boolean(attentionState)
+            || Boolean(selectedState)
+            || (root.host ? Boolean(root.host.hoverActive) : false);
+    }
+
     function _interactionDirection(portData, fallbackDirection) {
         var direction = String(portData && portData.direction || "").trim().toLowerCase();
         if (direction === "in" || direction === "out" || direction === "neutral")
@@ -71,6 +84,7 @@ Item {
                 property bool selectedState: root.host ? (root.host.isFlowchartSurface && root.host.isSelected) : false
                 property bool attentionState: hoveredState || pendingState || dragSourceState
                 property bool interactiveState: attentionState || selectedState
+                property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
                 property real restDiameter: root.host && root.host.isFlowchartSurface
@@ -87,6 +101,7 @@ Item {
                 width: interactiveState ? activeDiameter : restDiameter
                 height: width
                 radius: width * 0.5
+                opacity: revealState ? 1.0 : 0.0
                 color: root.host && root.host.isFlowchartSurface
                     ? (attentionState
                         ? root.host.portInteractiveFillColor
@@ -352,6 +367,7 @@ Item {
                 property bool selectedState: root.host ? (root.host.isFlowchartSurface && root.host.isSelected) : false
                 property bool attentionState: hoveredState || pendingState || dragSourceState
                 property bool interactiveState: attentionState || selectedState
+                property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
                 property real restDiameter: root.host && root.host.isFlowchartSurface
@@ -368,6 +384,7 @@ Item {
                 width: interactiveState ? activeDiameter : restDiameter
                 height: width
                 radius: width * 0.5
+                opacity: revealState ? 1.0 : 0.0
                 color: root.host && root.host.isFlowchartSurface
                     ? (attentionState
                         ? root.host.portInteractiveFillColor

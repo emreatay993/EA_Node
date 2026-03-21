@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Protocol
 from ea_node_editor.graph.effective_ports import (
     are_port_kinds_compatible,
     find_port,
+    is_flow_edge_port,
     port_supports_incoming_edge,
     port_supports_outgoing_edge,
 )
@@ -83,6 +84,8 @@ class GraphInteractions:
                 False,
                 f"Incompatible port kinds: {kind_a} -> {kind_b}.",
             )
+        if source_node_id == target_node_id and is_flow_edge_port(port_a) and is_flow_edge_port(port_b):
+            return GraphActionResult(False, "Flow edges cannot connect ports on the same node.")
 
         can_a_to_b = port_supports_outgoing_edge(port_a) and port_supports_incoming_edge(port_b)
         can_b_to_a = port_supports_outgoing_edge(port_b) and port_supports_incoming_edge(port_a)

@@ -485,6 +485,44 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_flow_edge_ports_reveal_on_hover_and_pending_connection_only(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-port-reveal-host",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            input_dot = named_child_items(host, "graphNodeInputPortDot")[0]
+            output_dot = named_child_items(host, "graphNodeOutputPortDot")[0]
+
+            assert float(input_dot.property("opacity")) < 0.01
+            assert float(output_dot.property("opacity")) < 0.01
+
+            host.setProperty("pendingPort", {
+                "node_id": "node_surface_host_test",
+                "port_key": "exec_in",
+                "direction": "in",
+            })
+            app.processEvents()
+
+            assert float(input_dot.property("opacity")) > 0.99
+            assert float(output_dot.property("opacity")) < 0.01
+
+            host.setProperty("pendingPort", None)
+            app.processEvents()
+
+            assert float(input_dot.property("opacity")) < 0.01
+            assert float(output_dot.property("opacity")) < 0.01
+
+            window = attach_host_to_window(host)
+            try:
+                hover_host_local_point(window, host, float(host.width()) * 0.5, float(host.height()) * 0.5)
+                assert bool(host.property("hoverActive"))
+                assert float(input_dot.property("opacity")) > 0.99
+                assert float(output_dot.property("opacity")) > 0.99
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
     def test_graph_node_host_exposes_split_helper_layers_with_stable_stacking(self) -> None:
         self._run_qml_probe(
             "host-split-helper-layers",

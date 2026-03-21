@@ -10,6 +10,7 @@ from ea_node_editor.graph.effective_ports import (
     are_port_kinds_compatible,
     effective_ports,
     find_port,
+    is_flow_edge_port,
     port_supports_incoming_edge,
     port_supports_outgoing_edge,
     ports_compatible,
@@ -299,6 +300,8 @@ class ValidatedGraphMutation:
                 return existing
         source_node, source_spec, source_port = self._resolved_port(source_node_id, source_port_key)
         target_node, target_spec, target_port = self._resolved_port(target_node_id, target_port_key)
+        if source_node_id == target_node_id and is_flow_edge_port(source_port) and is_flow_edge_port(target_port):
+            raise ValueError("Flow edges cannot connect ports on the same node.")
         if not port_supports_outgoing_edge(source_port):
             raise ValueError(f"Source port must support outgoing edges: {source_node_id}.{source_port_key}")
         if not port_supports_incoming_edge(target_port):

@@ -119,6 +119,11 @@ function portSide(port) {
     return normalizedPortSide(GraphNodeSurfaceMetrics.portCardinalSide(port));
 }
 
+function isFlowEdgePortKind(kindLike) {
+    var kind = String(kindLike || "").trim().toLowerCase();
+    return kind === "flow" || kind === "exec" || kind === "completed" || kind === "failed";
+}
+
 function isNeutralFlowPort(portLike) {
     if (!portLike)
         return false;
@@ -194,6 +199,12 @@ function isDropAllowedWithCompatibility(sourceDrag, candidate, edges, kindsCompa
     if (!sourceDrag || !candidate)
         return false;
     if (candidate.node_id === sourceDrag.node_id && candidate.port_key === sourceDrag.port_key)
+        return false;
+    if (
+        candidate.node_id === sourceDrag.node_id
+        && isFlowEdgePortKind(sourceDrag.kind)
+        && isFlowEdgePortKind(candidate.kind)
+    )
         return false;
     var connection = authoredConnection(sourceDrag, candidate);
     if (!connection.gesture_ordered_neutral && candidate.direction === sourceDrag.source_direction)

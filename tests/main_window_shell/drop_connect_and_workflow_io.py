@@ -137,6 +137,13 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         created = self.window.request_connect_ports(source_id, "exec_out", target_id, "exec_out")
         self.assertFalse(created)
 
+    def test_qml_connect_ports_rejects_same_node_logic_flow_edge(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.logger", x=40.0, y=40.0)
+        self.app.processEvents()
+
+        created = self.window.request_connect_ports(node_id, "exec_out", node_id, "exec_in")
+        self.assertFalse(created)
+
     def test_qml_connect_ports_rejects_exec_to_data_kind_mismatch(self) -> None:
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)

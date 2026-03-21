@@ -1084,6 +1084,119 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_pendingConnectionPort_rejects_same_node_logic_flow_edge(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-same-node-logic-flow-rejected",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            class FlowShellBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.connect_calls = []
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(str, constant=True)
+                def graphics_performance_mode(self):
+                    return "full_fidelity"
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                @pyqtSlot(str, str, str, str, result=bool)
+                def request_connect_ports(self, node_a_id, port_a, node_b_id, port_b):
+                    self.connect_calls.append(
+                        (
+                            str(node_a_id or ""),
+                            str(port_a or ""),
+                            str(node_b_id or ""),
+                            str(port_b or ""),
+                        )
+                    )
+                    return True
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            shell_bridge = FlowShellBridgeStub()
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+
+            node_id = scene.add_node_from_type("core.logger", 20.0, 20.0)
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene,
+                    "mainWindowBridge": shell_bridge,
+                    "viewBridge": view,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+
+            canvas.handlePortClick(node_id, "exec_in", "in", 40.0, 84.0)
+            app.processEvents()
+
+            pending = variant_value(canvas.property("pendingConnectionPort"))
+            assert pending is not None
+            assert pending["node_id"] == node_id
+            assert pending["port_key"] == "exec_in"
+
+            canvas.handlePortClick(node_id, "exec_out", "out", 220.0, 84.0)
+            app.processEvents()
+
+            assert shell_bridge.connect_calls == []
+            pending = variant_value(canvas.property("pendingConnectionPort"))
+            assert pending is not None
+            assert pending["node_id"] == node_id
+            assert pending["port_key"] == "exec_in"
+
+            canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
     def test_media_whole_surface_lock_remains_independent_from_local_interactive_rects(self) -> None:
         self._run_qml_probe(
             "media-whole-surface-lock",

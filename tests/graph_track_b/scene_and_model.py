@@ -630,6 +630,17 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(reverse_edge.source_port_key, "left")
         self.assertEqual(reverse_edge.target_port_key, "right")
 
+    def test_connect_ports_rejects_same_node_flowchart_flow_edge(self) -> None:
+        node_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 30.0)
+
+        interactions = GraphInteractions(self.scene, self.registry)
+        result = interactions.connect_ports(node_id, "right", node_id, "bottom")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.message, "Flow edges cannot connect ports on the same node.")
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.assertEqual(len(workspace.edges), 0)
+
     def test_planning_and_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
         task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)
         note_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 340.0, 80.0)

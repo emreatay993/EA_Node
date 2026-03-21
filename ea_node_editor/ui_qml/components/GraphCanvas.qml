@@ -1179,6 +1179,8 @@ Item {
                             "node_id": nodeId,
                             "port_key": portKey,
                             "direction": hoveredDirection,
+                            "kind": hoveredPortData ? String(hoveredPortData.kind || "") : "",
+                            "data_type": hoveredPortData ? String(hoveredPortData.data_type || "") : "",
                             "allow_multiple_connections": hoveredPortData ? Boolean(hoveredPortData.allow_multiple_connections) : false,
                             "scene_x": sceneX,
                             "scene_y": sceneY,

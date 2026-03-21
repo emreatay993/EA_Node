@@ -13,6 +13,7 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
 
 _FLOW_KINDS = frozenset({"exec", "completed", "failed"})
+_FLOW_EDGE_KINDS = frozenset({"flow", *_FLOW_KINDS})
 _CARDINAL_SIDES = ("top", "right", "bottom", "left")
 _LAYOUT_INPUT_SIDES = frozenset({"top", "left"})
 
@@ -44,6 +45,14 @@ def is_neutral_flow_port(port: EffectivePort | PortSpec) -> bool:
         and str(port.data_type) == "flow"
         and bool(port_side(port))
     )
+
+
+def is_flow_edge_port_kind(kind: str) -> bool:
+    return str(kind or "").strip().lower() in _FLOW_EDGE_KINDS
+
+
+def is_flow_edge_port(port: EffectivePort | PortSpec) -> bool:
+    return is_flow_edge_port_kind(str(getattr(port, "kind", "")))
 
 
 def port_layout_direction(port: EffectivePort | PortSpec) -> str:
@@ -389,6 +398,8 @@ __all__ = [
     "effective_ports",
     "find_port",
     "first_compatible_port",
+    "is_flow_edge_port",
+    "is_flow_edge_port_kind",
     "is_port_exposed",
     "is_neutral_flow_port",
     "port_allows_multiple_connections",
