@@ -153,15 +153,19 @@ function _standardSurfaceMetrics(node, source) {
     var bottomPadding = _contractNumber(standard, "bottom_padding");
     var bodyTop = _contractNumber(standard, "body_top");
     var bodyHeight = _metricNumber(source, "body_height", inlineBodyHeight(node));
+    var contentHeight = headerHeight + bodyHeight + portCount * portHeight + bottomPadding;
     return {
         "default_width": _metricNumber(source, "default_width", _contractNumber(standard, "default_width")),
         "default_height": _metricNumber(
             source,
             "default_height",
-            headerHeight + bodyHeight + portCount * portHeight + bottomPadding
+            contentHeight
         ),
         "min_width": _metricNumber(source, "min_width", _contractNumber(standard, "min_width")),
-        "min_height": _metricNumber(source, "min_height", _contractNumber(standard, "min_height")),
+        "min_height": Math.max(
+            _metricNumber(source, "min_height", _contractNumber(standard, "min_height")),
+            contentHeight
+        ),
         "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(standard, "collapsed_width")),
         "collapsed_height": _metricNumber(source, "collapsed_height", _contractNumber(standard, "collapsed_height")),
         "header_height": _metricNumber(source, "header_height", headerHeight),
@@ -241,7 +245,11 @@ function _flowchartSurfaceMetrics(node, source) {
     defaultHeight = _metricNumber(source, "default_height", defaultHeight);
     defaultWidth = _metricNumber(source, "default_width", defaultWidth);
     minWidth = _metricNumber(source, "min_width", minWidth);
-    var minHeight = _metricNumber(source, "min_height", _contractNumber(layout, "min_height"));
+    var contentMinHeight = basePortSectionTop + portCount * portHeight + _contractNumber(layout, "body_bottom_margin");
+    var minHeight = Math.max(
+        _metricNumber(source, "min_height", _contractNumber(layout, "min_height")),
+        contentMinHeight
+    );
     var activeHeight = _resolvedDimension(node && node.height, defaultHeight);
     var titleTop = bodyHeight > 0.0
         ? _contractNumber(layout, "title_top")
