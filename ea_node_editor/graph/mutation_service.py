@@ -229,6 +229,9 @@ class WorkspaceMutationService:
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
         return self._validated().set_exposed_port(node_id, key, exposed)
 
+    def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        self.model.set_port_label(self.workspace_id, node_id, port_key, label)
+
     def remove_edge(self, edge_id: str) -> None:
         self._validated().remove_edge(edge_id)
 

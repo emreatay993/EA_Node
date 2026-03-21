@@ -26,6 +26,8 @@ from ea_node_editor.graph.transforms import (
 )
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_LABEL_PROPERTY,
+    SUBNODE_PIN_PORT_KEY,
+    is_subnode_pin_type,
     is_subnode_shell_type,
 )
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -533,6 +535,53 @@ class GraphSceneMutationHistory:
         self._scene_context.rebuild_models()
         self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
 
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
+            return
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        normalized_label = str(label or "").strip()
+
+        if is_subnode_shell_type(node.type_id):
+            pin_node = workspace.nodes.get(str(port_key or "").strip())
+            if pin_node is None or str(pin_node.parent_node_id or "").strip() != str(node.node_id):
+                return
+            current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+            if not normalized_label or normalized_label == current_label:
+                return
+            history_before = self._capture_history_snapshot()
+            self._mutation_boundary().set_node_property(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+            self._scene_context.rebuild_models()
+            self.notify_selected_node_context_updated(node.node_id)
+            self._record_history(ACTION_EDIT_PROPERTY, history_before)
+            return
+
+        if is_subnode_pin_type(node.type_id) and str(port_key or "").strip() == SUBNODE_PIN_PORT_KEY:
+            current_label = str(node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+            if not normalized_label or normalized_label == current_label:
+                return
+            history_before = self._capture_history_snapshot()
+            self._mutation_boundary().set_node_property(node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+            self._scene_context.rebuild_models()
+            self.notify_selected_node_context_updated(node.node_id)
+            self._record_history(ACTION_EDIT_PROPERTY, history_before)
+            return
+
+        current_label = node.port_labels.get(port_key, "")
+        if normalized_label == current_label:
+            return
+        history_before = self._capture_history_snapshot()
+        self._mutation_boundary().set_port_label(node_id, port_key, normalized_label)
+        self._scene_context.rebuild_models()
+        self.notify_selected_node_context_updated(node_id)
+        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+
     def move_node(self, node_id: str, x: float, y: float) -> None:
         model = self._scene_context.model
         if model is None:
@@ -823,7 +872,7 @@ class GraphSceneMutationHistory:
     def _node_or_raise(self, node_id: str) -> NodeInstance:
         return self._scene_context.node_or_raise(node_id)
 
-    def _mutation_boundary(self) -> ValidatedGraphMutation:
+    def _mutation_boundary(self) -> WorkspaceMutationService:
         model, registry = self._scene_context.require_bound()
         return model.validated_mutations(self._scene_context.workspace_id, registry)
 

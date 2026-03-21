@@ -250,6 +250,63 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(str(inspector_pane.property("editingPortKey")), "")
         self.assertEqual(workspace.nodes[port_node_id].properties["label"], "Committed From Pane")
 
+    def test_graph_canvas_command_bridge_commits_port_label_rename(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        node_id = self.window.scene.add_node_from_type("core.logger", x=180.0, y=120.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        self.window.graph_canvas_command_bridge.set_node_port_label(
+            node_id,
+            "message",
+            "Renamed From Canvas",
+        )
+        self.app.processEvents()
+
+        self.assertEqual(workspace.nodes[node_id].port_labels["message"], "Renamed From Canvas")
+
+    def test_graph_canvas_command_bridge_commits_subnode_shell_port_label_rename(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+        self.window.scene.focus_node(shell_id)
+        self.app.processEvents()
+
+        port_node_id = self.window.request_add_selected_subnode_pin("out")
+        self.assertTrue(port_node_id)
+
+        self.window.graph_canvas_command_bridge.set_node_port_label(
+            shell_id,
+            port_node_id,
+            "Renamed Shell Output",
+        )
+        self.app.processEvents()
+
+        self.assertEqual(workspace.nodes[port_node_id].properties["label"], "Renamed Shell Output")
+
+    def test_graph_canvas_command_bridge_commits_subnode_pin_port_label_rename(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        shell_id = self.window.scene.add_node_from_type("core.subnode", x=220.0, y=120.0)
+        self.window.scene.focus_node(shell_id)
+        self.app.processEvents()
+
+        port_node_id = self.window.request_add_selected_subnode_pin("out")
+        self.assertTrue(port_node_id)
+        self.assertTrue(self.window.request_open_subnode_scope(shell_id))
+        self.window.scene.focus_node(port_node_id)
+        self.app.processEvents()
+
+        self.window.graph_canvas_command_bridge.set_node_port_label(
+            port_node_id,
+            "pin",
+            "Renamed Inner Pin",
+        )
+        self.app.processEvents()
+
+        self.assertEqual(workspace.nodes[port_node_id].properties["label"], "Renamed Inner Pin")
+
     def test_qml_inspector_delete_selected_subnode_port_removes_pin_node(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
