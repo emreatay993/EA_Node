@@ -247,17 +247,21 @@ QtObject {
             var nodePort = nodePorts[i];
             if (!nodePort || nodePort.exposed === false)
                 continue;
-            if (targetPort.direction === "in") {
-                if (nodePort.direction !== "out")
-                    continue;
-                if (_portsCompatibleForAuto(nodePort, targetPort))
-                    return true;
-            } else {
-                if (nodePort.direction !== "in")
-                    continue;
-                if (_portsCompatibleForAuto(targetPort, nodePort))
-                    return true;
-            }
+            if (
+                GraphCanvasLogic.autoConnectCompatibleWithTarget(
+                    targetPort,
+                    nodePort,
+                    _arePortKindsCompatible(
+                        nodePort.kind || "",
+                        targetPort.kind || ""
+                    ),
+                    _areDataTypesCompatible(
+                        nodePort.data_type || "",
+                        targetPort.data_type || ""
+                    )
+                )
+            )
+                return true;
         }
         return false;
     }
@@ -339,9 +343,37 @@ QtObject {
             var nodePort = nodePorts[j];
             if (!nodePort || nodePort.exposed === false)
                 continue;
-            if (!hasInputCandidate && nodePort.direction === "in" && _portsCompatibleForAuto(sourcePort, nodePort))
+            if (
+                !hasInputCandidate
+                && GraphCanvasLogic.autoConnectCompatibleAsInsertedInput(
+                    sourcePort,
+                    nodePort,
+                    _arePortKindsCompatible(
+                        sourcePort.kind || "",
+                        nodePort.kind || ""
+                    ),
+                    _areDataTypesCompatible(
+                        sourcePort.data_type || "",
+                        nodePort.data_type || ""
+                    )
+                )
+            )
                 hasInputCandidate = true;
-            if (!hasOutputCandidate && nodePort.direction === "out" && _portsCompatibleForAuto(nodePort, targetPort))
+            if (
+                !hasOutputCandidate
+                && GraphCanvasLogic.autoConnectCompatibleAsInsertedOutput(
+                    nodePort,
+                    targetPort,
+                    _arePortKindsCompatible(
+                        nodePort.kind || "",
+                        targetPort.kind || ""
+                    ),
+                    _areDataTypesCompatible(
+                        nodePort.data_type || "",
+                        targetPort.data_type || ""
+                    )
+                )
+            )
                 hasOutputCandidate = true;
             if (hasInputCandidate && hasOutputCandidate)
                 return true;

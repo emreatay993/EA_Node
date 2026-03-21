@@ -229,6 +229,41 @@ function portsCompatibleForAuto(sourcePort, targetPort, kindsCompatible, typesCo
     return kindsCompatible && typesCompatible;
 }
 
+function autoConnectCompatibleWithTarget(targetPort, nodePort, kindsCompatible, typesCompatible) {
+    if (!portsCompatibleForAuto(nodePort, targetPort, kindsCompatible, typesCompatible))
+        return false;
+    var targetNeutral = isNeutralFlowPort(targetPort);
+    var nodeNeutral = isNeutralFlowPort(nodePort);
+    if (targetNeutral || nodeNeutral)
+        return targetNeutral && nodeNeutral;
+    var targetDirection = String(targetPort.direction || "").trim().toLowerCase();
+    if (targetDirection === "in")
+        return String(nodePort.direction || "").trim().toLowerCase() === "out";
+    if (targetDirection === "out")
+        return String(nodePort.direction || "").trim().toLowerCase() === "in";
+    return false;
+}
+
+function autoConnectCompatibleAsInsertedInput(sourcePort, nodePort, kindsCompatible, typesCompatible) {
+    if (!portsCompatibleForAuto(sourcePort, nodePort, kindsCompatible, typesCompatible))
+        return false;
+    var sourceNeutral = isNeutralFlowPort(sourcePort);
+    var nodeNeutral = isNeutralFlowPort(nodePort);
+    if (sourceNeutral || nodeNeutral)
+        return sourceNeutral && nodeNeutral;
+    return String(nodePort.direction || "").trim().toLowerCase() === "in";
+}
+
+function autoConnectCompatibleAsInsertedOutput(nodePort, targetPort, kindsCompatible, typesCompatible) {
+    if (!portsCompatibleForAuto(nodePort, targetPort, kindsCompatible, typesCompatible))
+        return false;
+    var targetNeutral = isNeutralFlowPort(targetPort);
+    var nodeNeutral = isNeutralFlowPort(nodePort);
+    if (targetNeutral || nodeNeutral)
+        return targetNeutral && nodeNeutral;
+    return String(nodePort.direction || "").trim().toLowerCase() === "out";
+}
+
 function libraryPorts(payload) {
     var ports = [];
     if (!payload || !payload.ports)

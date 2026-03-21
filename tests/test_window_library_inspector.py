@@ -60,6 +60,31 @@ class WindowLibraryInspectorQuickInsertTests(unittest.TestCase):
         self.assertTrue(results)
         self.assertTrue(all(item.get("compatible_port_labels") for item in results))
 
+    def test_connection_quick_insert_neutral_flow_source_returns_flowchart_nodes(self) -> None:
+        results = build_connection_quick_insert_items(
+            combined_items=self.combined_items,
+            query="",
+            source_direction="neutral",
+            source_kind="flow",
+            source_data_type="flow",
+        )
+
+        self.assertTrue(results)
+        results_by_type = {
+            str(item.get("type_id", "")): item
+            for item in results
+        }
+        self.assertIn("passive.flowchart.process", results_by_type)
+        self.assertNotIn("core.start", results_by_type)
+        self.assertEqual(
+            results_by_type["passive.flowchart.process"]["compatible_port_labels"],
+            ["top", "right", "bottom", "left"],
+        )
+        self.assertEqual(
+            results_by_type["passive.flowchart.process"]["compatible_direction"],
+            "neutral",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

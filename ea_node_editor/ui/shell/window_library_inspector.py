@@ -337,6 +337,13 @@ def _library_item_matches_query(item: dict[str, Any], *, query: str, compatible_
     return normalized_query in haystack
 
 
+def _is_neutral_flow_library_port(port: dict[str, Any]) -> bool:
+    direction = str(port.get("direction", "")).strip().lower()
+    kind = str(port.get("kind", "")).strip().lower()
+    data_type = str(port.get("data_type", "")).strip().lower()
+    return direction == "neutral" and kind == "flow" and data_type == "flow"
+
+
 def _compatible_library_ports(
     item: dict[str, Any],
     *,
@@ -345,12 +352,22 @@ def _compatible_library_ports(
     source_data_type: str,
 ) -> list[dict[str, Any]]:
     normalized_source_direction = str(source_direction).strip().lower()
+    normalized_source_kind = str(source_kind).strip().lower()
+    normalized_source_data_type = str(source_data_type).strip().lower() or "any"
+    source_is_neutral_flow = (
+        normalized_source_direction == "neutral"
+        and normalized_source_kind == "flow"
+        and normalized_source_data_type == "flow"
+    )
     compatible_ports: list[dict[str, Any]] = []
     for port in _normalized_library_ports(item):
         direction = str(port.get("direction", "")).strip().lower()
         kind = str(port.get("kind", "")).strip().lower()
         data_type = str(port.get("data_type", "")).strip().lower() or "any"
-        if normalized_source_direction == "out":
+        if source_is_neutral_flow:
+            if not _is_neutral_flow_library_port(port):
+                continue
+        elif normalized_source_direction == "out":
             if direction != "in":
                 continue
             if not are_port_kinds_compatible(source_kind, kind):
@@ -417,7 +434,13 @@ def build_connection_quick_insert_items(
             for port in compatible_ports
         ]
         payload["compatible_port_count"] = len(compatible_ports)
-        payload["compatible_direction"] = "in" if str(source_direction).strip().lower() == "out" else "out"
+        normalized_source_direction = str(source_direction).strip().lower()
+        if normalized_source_direction == "out":
+            payload["compatible_direction"] = "in"
+        elif normalized_source_direction == "in":
+            payload["compatible_direction"] = "out"
+        else:
+            payload["compatible_direction"] = "neutral"
         ranked.append(
             (
                 _connection_quick_insert_rank(

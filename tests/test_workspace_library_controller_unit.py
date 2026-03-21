@@ -185,6 +185,59 @@ class _DropConnectControllerStub:
         return
 
 
+class _SelectingDropConnectControllerStub(_DropConnectControllerStub):
+    def __init__(self, workspace) -> None:  # noqa: ANN001
+        super().__init__(workspace)
+        self.last_candidates: list[dict[str, object]] = []
+
+    def prompt_connection_candidate(
+        self,
+        *,
+        title: str,
+        label: str,
+        candidates: list[dict[str, object]],
+    ) -> dict[str, object] | None:
+        self.prompt_calls += 1
+        self.last_candidates = list(candidates)
+        return candidates[0] if candidates else None
+
+
+class _DropConnectSceneStub:
+    def __init__(self, model: GraphModel, workspace_id: str) -> None:
+        self._model = model
+        self._workspace_id = workspace_id
+        self.removed_edge_ids: list[str] = []
+        self.added_edges: list[tuple[str, str, str, str]] = []
+
+    def add_edge(
+        self,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> str:
+        edge = self._model.add_edge(
+            self._workspace_id,
+            source_node_id,
+            source_port_key,
+            target_node_id,
+            target_port_key,
+        )
+        self.added_edges.append(
+            (
+                source_node_id,
+                source_port_key,
+                target_node_id,
+                target_port_key,
+            )
+        )
+        return edge.edge_id
+
+    def remove_edge(self, edge_id: str) -> None:
+        self._model.remove_edge(self._workspace_id, edge_id)
+        self.removed_edge_ids.append(edge_id)
+
+
 class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
     def test_controller_initializes_focused_controller_owners_with_explicit_capabilities(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
@@ -376,6 +429,87 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
 
         self.assertFalse(connected)
         self.assertEqual(controller.prompt_calls, 0)
+
+    def test_auto_connect_dropped_flowchart_node_to_neutral_port_keeps_existing_port_as_source(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+        target = model.add_node(workspace_id, "passive.flowchart.process", "Existing", 120.0, 120.0)
+        new_node = model.add_node(workspace_id, "passive.flowchart.process", "Inserted", 420.0, 120.0)
+
+        scene = _DropConnectSceneStub(model, workspace_id)
+        host = SimpleNamespace(registry=registry, scene=scene)
+        controller = _SelectingDropConnectControllerStub(workspace)
+        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+
+        connected = ops.auto_connect_dropped_node_to_port(new_node.node_id, target.node_id, "right")
+
+        self.assertTrue(connected)
+        self.assertEqual(controller.prompt_calls, 1)
+        self.assertEqual(
+            controller.last_candidates,
+            [
+                {
+                    "source_node_id": target.node_id,
+                    "source_port_key": "right",
+                    "target_node_id": new_node.node_id,
+                    "target_port_key": "left",
+                    "label": "Process.right -> Process.left",
+                }
+            ],
+        )
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.source_node_id, target.node_id)
+        self.assertEqual(edge.source_port_key, "right")
+        self.assertEqual(edge.target_node_id, new_node.node_id)
+        self.assertEqual(edge.target_port_key, "left")
+        self.assertEqual(
+            scene.added_edges,
+            [(target.node_id, "right", new_node.node_id, "left")],
+        )
+
+    def test_auto_connect_dropped_flowchart_node_to_neutral_edge_uses_distinct_facing_sides(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+        source = model.add_node(workspace_id, "passive.flowchart.process", "Source", 40.0, 100.0)
+        target = model.add_node(workspace_id, "passive.flowchart.process", "Target", 640.0, 100.0)
+        new_node = model.add_node(workspace_id, "passive.flowchart.process", "Inserted", 340.0, 100.0)
+        original_edge = model.add_edge(workspace_id, source.node_id, "right", target.node_id, "left")
+
+        scene = _DropConnectSceneStub(model, workspace_id)
+        host = SimpleNamespace(registry=registry, scene=scene)
+        controller = _SelectingDropConnectControllerStub(workspace)
+        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+
+        connected = ops.auto_connect_dropped_node_to_edge(new_node.node_id, original_edge.edge_id)
+
+        self.assertTrue(connected)
+        self.assertEqual(controller.prompt_calls, 1)
+        self.assertEqual(
+            controller.last_candidates,
+            [
+                {
+                    "new_input_port": "left",
+                    "new_output_port": "right",
+                    "label": "Process.right -> Process.left, Process.right -> Process.left",
+                }
+            ],
+        )
+        self.assertEqual(scene.removed_edge_ids, [original_edge.edge_id])
+        edge_tuples = {
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key)
+            for edge in workspace.edges.values()
+        }
+        self.assertEqual(
+            edge_tuples,
+            {
+                (source.node_id, "right", new_node.node_id, "left"),
+                (new_node.node_id, "right", target.node_id, "left"),
+            },
+        )
 
 
 if __name__ == "__main__":

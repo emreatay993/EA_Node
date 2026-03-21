@@ -16,6 +16,39 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertIsNotNone(item)
         return item
 
+    @staticmethod
+    def _variant_value(value):  # noqa: ANN001
+        if isinstance(value, QJSValue):
+            return value.toVariant()
+        return value
+
+    def _library_item(self, type_id: str) -> dict[str, object]:
+        return next(
+            item
+            for item in self.window.filtered_node_library_items
+            if item.get("type_id") == type_id
+        )
+
+    def _scene_node_payload(self, node_id: str) -> dict[str, object]:
+        return next(
+            node
+            for node in self.window.scene.nodes_model
+            if node.get("node_id") == node_id
+        )
+
+    def _screen_point_for_port(self, node_id: str, port_key: str) -> tuple[float, float]:
+        graph_canvas = self._graph_canvas_item()
+        node_payload = self._scene_node_payload(node_id)
+        port_payload = next(
+            port
+            for port in node_payload.get("ports", [])
+            if port.get("key") == port_key
+        )
+        point = self._variant_value(graph_canvas._scenePortPoint(node_payload, port_payload, 0, 0))
+        screen_x = float(graph_canvas.sceneToScreenX(point["x"]))
+        screen_y = float(graph_canvas.sceneToScreenY(point["y"]))
+        return screen_x, screen_y
+
     def test_qml_side_panes_share_collapsible_shell_behavior(self) -> None:
         root_object = self.window.quick_widget.rootObject()
         self.assertIsNotNone(root_object)
@@ -138,6 +171,82 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertIn("io.excel_read", type_ids)
         self.assertIn("io.excel_write", type_ids)
         self.assertNotIn("core.logger", type_ids)
+
+    def test_qml_graph_canvas_library_drop_on_flowchart_port_autoconnects_neutral_side(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        target_id = self.window.scene.add_node_from_type("passive.flowchart.process", x=360.0, y=120.0)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        payload = self._library_item("passive.flowchart.process")
+        screen_x, screen_y = self._screen_point_for_port(target_id, "right")
+        graph_canvas.updateLibraryDropPreview(screen_x + 6.0, screen_y, payload)
+        self.app.processEvents()
+
+        preview = self._variant_value(graph_canvas.property("dropPreviewPort"))
+        self.assertEqual(
+            preview,
+            {
+                "node_id": target_id,
+                "port_key": "right",
+                "direction": "neutral",
+            },
+        )
+
+        graph_canvas.performLibraryDrop(screen_x + 6.0, screen_y, payload)
+        self.app.processEvents()
+
+        self.assertEqual(len(workspace.edges), 1)
+        new_node_id = self.window.scene.selected_node_id()
+        self.assertTrue(new_node_id)
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.source_node_id, target_id)
+        self.assertEqual(edge.source_port_key, "right")
+        self.assertEqual(edge.target_node_id, new_node_id)
+        self.assertEqual(edge.target_port_key, "left")
+
+    def test_qml_flowchart_connection_quick_insert_preserves_top_port_as_source(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        source_id = self.window.scene.add_node_from_type("passive.flowchart.process", x=80.0, y=140.0)
+        self.app.processEvents()
+
+        opened = self.window.request_open_connection_quick_insert(
+            source_id,
+            "top",
+            180.0,
+            80.0,
+            300.0,
+            160.0,
+        )
+        self.assertTrue(opened)
+        self.app.processEvents()
+
+        self.window.set_connection_quick_insert_query("end")
+        self.app.processEvents()
+
+        results = self.window.connection_quick_insert_results
+        self.assertTrue(results)
+        chosen_index = next(
+            index
+            for index, item in enumerate(results)
+            if item.get("type_id") == "passive.flowchart.end"
+        )
+
+        created = self.window.request_connection_quick_insert_choose(chosen_index)
+        self.assertTrue(created)
+        self.app.processEvents()
+
+        self.assertFalse(self.window.connection_quick_insert_open)
+        self.assertEqual(len(workspace.edges), 1)
+        new_node_id = self.window.scene.selected_node_id()
+        self.assertTrue(new_node_id)
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.source_node_id, source_id)
+        self.assertEqual(edge.source_port_key, "top")
+        self.assertEqual(edge.target_node_id, new_node_id)
+        self.assertEqual(edge.target_port_key, "left")
 
     def test_qml_subnode_library_category_contains_pin_nodes(self) -> None:
         self.window.set_library_query("")

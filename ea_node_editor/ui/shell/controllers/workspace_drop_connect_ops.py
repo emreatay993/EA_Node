@@ -5,8 +5,10 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from ea_node_editor.custom_workflows import parse_custom_workflow_type_id
 from ea_node_editor.graph.effective_ports import (
+    EffectivePort,
     effective_ports,
     find_port,
+    is_neutral_flow_port,
     ports_compatible,
     target_port_has_capacity,
 )
@@ -39,6 +41,74 @@ class _WorkspaceDropConnectControllerProtocol(Protocol):
     ) -> dict[str, Any] | None: ...
 
     def refresh_workspace_tabs(self) -> None: ...
+
+
+def _ordered_cardinal_sides_toward(*, node: NodeInstance, peer_node: NodeInstance) -> tuple[str, ...]:
+    dx = float(peer_node.x) - float(node.x)
+    dy = float(peer_node.y) - float(node.y)
+
+    if abs(dx) >= abs(dy):
+        primary = "right" if dx >= 0.0 else "left"
+        secondary = "bottom" if dy >= 0.0 else "top"
+    else:
+        primary = "bottom" if dy >= 0.0 else "top"
+        secondary = "right" if dx >= 0.0 else "left"
+
+    ordered = (
+        primary,
+        secondary,
+        _opposite_cardinal_side(secondary),
+        _opposite_cardinal_side(primary),
+    )
+    result: list[str] = []
+    seen: set[str] = set()
+    for side in ordered:
+        if side in seen:
+            continue
+        seen.add(side)
+        result.append(side)
+    return tuple(result)
+
+
+def _opposite_cardinal_side(side: str) -> str:
+    if side == "top":
+        return "bottom"
+    if side == "right":
+        return "left"
+    if side == "bottom":
+        return "top"
+    return "right"
+
+
+def _neutral_flow_ports(ports: list[EffectivePort]) -> list[EffectivePort]:
+    return [port for port in ports if is_neutral_flow_port(port)]
+
+
+def _preferred_neutral_flow_port(
+    *,
+    node: NodeInstance,
+    peer_node: NodeInstance,
+    neutral_ports: list[EffectivePort],
+    excluded_keys: set[str] | None = None,
+) -> EffectivePort | None:
+    if not neutral_ports:
+        return None
+
+    excluded = excluded_keys or set()
+    ordered_sides = _ordered_cardinal_sides_toward(node=node, peer_node=peer_node)
+    for allow_excluded in (False, True):
+        for side in ordered_sides:
+            for port in neutral_ports:
+                if port.side != side:
+                    continue
+                if not allow_excluded and port.key in excluded:
+                    continue
+                return port
+
+    for port in neutral_ports:
+        if port.key not in excluded:
+            return port
+    return neutral_ports[0]
 
 
 class WorkspaceDropConnectOps:
@@ -194,7 +264,26 @@ class WorkspaceDropConnectOps:
             if port.exposed
         ]
         candidates: list[dict[str, Any]] = []
-        if target_port.direction == "in":
+        if is_neutral_flow_port(target_port):
+            selected_port = _preferred_neutral_flow_port(
+                node=new_node,
+                peer_node=target_node,
+                neutral_ports=_neutral_flow_ports(new_ports),
+            )
+            if selected_port is not None:
+                candidates.append(
+                    {
+                        "source_node_id": target_node.node_id,
+                        "source_port_key": target_port.key,
+                        "target_node_id": new_node.node_id,
+                        "target_port_key": selected_port.key,
+                        "label": (
+                            f"{target_spec.display_name}.{target_port.label or target_port.key} -> "
+                            f"{new_spec.display_name}.{selected_port.label or selected_port.key}"
+                        ),
+                    }
+                )
+        elif target_port.direction == "in":
             if not target_port_has_capacity(
                 edges=workspace.edges.values(),
                 node=target_node,
@@ -301,22 +390,21 @@ class WorkspaceDropConnectOps:
             )
             if port.exposed
         ]
-        candidate_inputs = [
-            port
-            for port in new_ports
-            if port.direction == "in"
-            and ports_compatible(source_port, port)
-        ]
-        candidate_outputs = [
-            port
-            for port in new_ports
-            if port.direction == "out"
-            and ports_compatible(port, target_port)
-        ]
-
         candidates: list[dict[str, Any]] = []
-        for input_port in candidate_inputs:
-            for output_port in candidate_outputs:
+        if is_neutral_flow_port(source_port) and is_neutral_flow_port(target_port):
+            neutral_ports = _neutral_flow_ports(new_ports)
+            input_port = _preferred_neutral_flow_port(
+                node=new_node,
+                peer_node=source_node,
+                neutral_ports=neutral_ports,
+            )
+            output_port = _preferred_neutral_flow_port(
+                node=new_node,
+                peer_node=target_node,
+                neutral_ports=neutral_ports,
+                excluded_keys={input_port.key} if input_port is not None else None,
+            )
+            if input_port is not None and output_port is not None:
                 candidates.append(
                     {
                         "new_input_port": input_port.key,
@@ -329,6 +417,34 @@ class WorkspaceDropConnectOps:
                         ),
                     }
                 )
+        else:
+            candidate_inputs = [
+                port
+                for port in new_ports
+                if port.direction == "in"
+                and ports_compatible(source_port, port)
+            ]
+            candidate_outputs = [
+                port
+                for port in new_ports
+                if port.direction == "out"
+                and ports_compatible(port, target_port)
+            ]
+
+            for input_port in candidate_inputs:
+                for output_port in candidate_outputs:
+                    candidates.append(
+                        {
+                            "new_input_port": input_port.key,
+                            "new_output_port": output_port.key,
+                            "label": (
+                                f"{source_spec.display_name}.{source_port.label or source_port.key} -> "
+                                f"{new_spec.display_name}.{input_port.label or input_port.key}, "
+                                f"{new_spec.display_name}.{output_port.label or output_port.key} -> "
+                                f"{target_spec.display_name}.{target_port.label or target_port.key}"
+                            ),
+                        }
+                    )
 
         selected = self._controller.prompt_connection_candidate(
             title="Auto-Insert On Edge",
