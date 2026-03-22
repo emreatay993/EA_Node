@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "surface_controls" as SurfaceControls
+import "surface_controls/SurfaceControlGeometry.js" as SurfaceControlGeometry
 import "GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 
 Item {
@@ -11,7 +12,9 @@ Item {
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || "")
         : ""
-    readonly property var embeddedInteractiveRects: titleEditorInteractionRegion.embeddedInteractiveRects
+    readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
+        [titleEditorInteractionRegion.embeddedInteractiveRects, openBadgeInteractionRegion.embeddedInteractiveRects]
+    )
     z: 3
 
     function _beginTitleEdit() {
@@ -22,12 +25,29 @@ Item {
         return true;
     }
 
+    function _requestScopeOpen() {
+        if (!root.host || !root.host.nodeData || !root.host.canEnterScope)
+            return false;
+        if (root.isEditing)
+            root.commitTitleEdit(titleEditor.text);
+        root.host.nodeOpenRequested(String(root.host.nodeData.node_id || ""));
+        return true;
+    }
+
     function requestTitleEditAt(localX, localY) {
         if (!root.sharedHeaderTitleEditable || root.isEditing)
             return false;
         if (!GraphNodeHostHitTesting.pointInRect(localX, localY, titleHitRegion.interactiveRect))
             return false;
         return root._beginTitleEdit();
+    }
+
+    function requestScopeOpenAt(localX, localY) {
+        if (!root.host || !root.host.canEnterScope)
+            return false;
+        if (!GraphNodeHostHitTesting.pointInRect(localX, localY, openBadgeInteractionRegion.interactiveRect))
+            return false;
+        return root._requestScopeOpen();
     }
 
     function cancelTitleEdit() {
@@ -176,6 +196,8 @@ Item {
     }
 
     Rectangle {
+        id: openBadge
+        objectName: "graphNodeOpenBadge"
         visible: root.host ? root.host.canEnterScope : false
         anchors.right: parent.right
         anchors.rightMargin: 8
@@ -186,6 +208,29 @@ Item {
         color: root.host ? root.host.scopeBadgeColor : "#1D8CE0"
         border.color: root.host ? root.host.scopeBadgeBorderColor : "#60CDFF"
 
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+
+            onPressed: function(mouse) {
+                if (root.isEditing)
+                    root.commitTitleEdit(titleEditor.text);
+                mouse.accepted = true;
+            }
+
+            onClicked: function(mouse) {
+                if (mouse.button === Qt.LeftButton)
+                    root._requestScopeOpen();
+                mouse.accepted = true;
+            }
+
+            onDoubleClicked: function(mouse) {
+                mouse.accepted = true;
+            }
+        }
+
         Text {
             anchors.centerIn: parent
             text: "OPEN"
@@ -194,5 +239,12 @@ Item {
             font.bold: true
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
         }
+    }
+
+    SurfaceControls.GraphSurfaceInteractiveRegion {
+        id: openBadgeInteractionRegion
+        host: root.host
+        targetItem: openBadge
+        enabled: openBadge.visible
     }
 }

@@ -229,7 +229,7 @@ Item {
     readonly property real inlineBodyHeight: Number(surfaceMetrics.body_height)
     readonly property real _portDragThreshold: 2
     readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
-    readonly property bool sharedHeaderTitleEditable: !!card.nodeData && !card.isCollapsed && !card.canEnterScope
+    readonly property bool sharedHeaderTitleEditable: !!card.nodeData
     readonly property bool flowchartTitleEditable: card.isFlowchartSurface && card.sharedHeaderTitleEditable
     readonly property bool _useHostChrome: card.isCollapsed || Boolean(surfaceMetrics.use_host_chrome)
     readonly property bool _showAccentBar: card.isCollapsed || Boolean(surfaceMetrics.show_accent_bar)
@@ -510,6 +510,10 @@ Item {
 
     function requestInlineTitleEditAt(localX, localY) {
         return headerLayer.requestTitleEditAt(localX, localY);
+    }
+
+    function requestScopeOpenAt(localX, localY) {
+        return headerLayer.requestScopeOpenAt(localX, localY);
     }
 
     function commitInlineTitleEditAt(localX, localY) {

@@ -772,6 +772,168 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_routes_scoped_open_badge_through_request_open_subnode_scope(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-scoped-open-badge-route",
+            """
+            from PyQt6.QtCore import QObject, QPointF, pyqtProperty, pyqtSignal, pyqtSlot
+
+            scoped_payload = node_payload()
+            scoped_payload["can_enter_scope"] = True
+
+            class SceneBridgeStub(QObject):
+                nodes_changed = pyqtSignal()
+                edges_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self.select_calls = []
+                    self.set_node_property_calls = []
+                    self._nodes_model = [scoped_payload]
+                    self._selected_node_lookup = {}
+
+                @pyqtProperty("QVariantList", notify=nodes_changed)
+                def nodes_model(self):
+                    return self._nodes_model
+
+                @pyqtProperty("QVariantList", notify=edges_changed)
+                def edges_model(self):
+                    return []
+
+                @pyqtProperty("QVariantMap", notify=nodes_changed)
+                def selected_node_lookup(self):
+                    return self._selected_node_lookup
+
+                @pyqtSlot(str)
+                @pyqtSlot(str, bool)
+                def select_node(self, node_id, additive=False):
+                    normalized_node_id = str(node_id or "")
+                    self.select_calls.append((normalized_node_id, bool(additive)))
+                    self._selected_node_lookup = {normalized_node_id: True} if normalized_node_id else {}
+                    self.nodes_changed.emit()
+
+                @pyqtSlot(str, str, "QVariant")
+                def set_node_property(self, node_id, key, value):
+                    self.set_node_property_calls.append((str(node_id or ""), str(key or ""), variant_value(value)))
+
+                @pyqtSlot(str, str, str)
+                def set_node_port_label(self, node_id, port_key, label):
+                    pass
+
+                @pyqtSlot(str, str, result=bool)
+                def are_port_kinds_compatible(self, _source_kind, _target_kind):
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def are_data_types_compatible(self, _source_type, _target_type):
+                    return True
+
+            class MainWindowBridgeStub(QObject):
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                def __init__(self):
+                    super().__init__()
+                    self.scope_open_calls = []
+
+                @pyqtSlot(str, result=bool)
+                def request_open_subnode_scope(self, node_id):
+                    self.scope_open_calls.append(str(node_id or ""))
+                    return True
+
+            scene_bridge = SceneBridgeStub()
+            window_bridge = MainWindowBridgeStub()
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene_bridge,
+                    "mainWindowBridge": window_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            try:
+                node_card = next((item for item in walk_items(canvas) if item.objectName() == "graphNodeCard"), None)
+                assert node_card is not None
+                title_item = node_card.findChild(QObject, "graphNodeTitle")
+                editor = node_card.findChild(QObject, "graphNodeTitleEditor")
+                open_badge = node_card.findChild(QObject, "graphNodeOpenBadge")
+                assert title_item is not None
+                assert editor is not None
+                assert open_badge is not None
+                assert bool(node_card.property("sharedHeaderTitleEditable"))
+
+                title_point = title_item.mapToItem(
+                    node_card,
+                    QPointF(float(title_item.width()) * 0.5, float(title_item.height()) * 0.5),
+                )
+                open_point = open_badge.mapToItem(
+                    node_card,
+                    QPointF(float(open_badge.width()) * 0.5, float(open_badge.height()) * 0.5),
+                )
+
+                assert not node_card.requestScopeOpenAt(title_point.x(), title_point.y())
+                assert node_card.requestInlineTitleEditAt(title_point.x(), title_point.y())
+                settle_events(5)
+
+                assert bool(editor.property("visible"))
+                assert scene_bridge.select_calls == [("node_surface_contract_test", False)]
+
+                editor.setProperty("text", " Scoped Logger ")
+                app.processEvents()
+                assert node_card.requestScopeOpenAt(open_point.x(), open_point.y())
+                settle_events(5)
+
+                assert scene_bridge.set_node_property_calls == [
+                    ("node_surface_contract_test", "title", "Scoped Logger")
+                ]
+                assert scene_bridge.select_calls == [
+                    ("node_surface_contract_test", False),
+                    ("node_surface_contract_test", False),
+                ]
+                assert window_bridge.scope_open_calls == ["node_surface_contract_test"]
+                assert not bool(editor.property("visible"))
+            finally:
+                canvas.deleteLater()
+                app.processEvents()
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_deactivates_far_offscreen_node_surfaces_but_keeps_force_active_exceptions(self) -> None:
         self._run_qml_probe(
             "graph-canvas-offscreen-render-activation",

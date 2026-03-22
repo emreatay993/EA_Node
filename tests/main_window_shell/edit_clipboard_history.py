@@ -45,6 +45,26 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         self.assertEqual(node.title, "Renamed Node")
 
+    def test_qml_request_rename_node_updates_title_for_scoped_and_collapsed_nodes(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        scoped_node_id = self.window.scene.add_node_from_type("core.subnode", x=40.0, y=40.0)
+        collapsed_node_id = self.window.scene.add_node_from_type("core.logger", x=280.0, y=40.0)
+        self.window.scene.set_node_collapsed(collapsed_node_id, True)
+        self.app.processEvents()
+
+        with patch(
+            "PyQt6.QtWidgets.QInputDialog.getText",
+            side_effect=[("Scoped Shell", True), ("Collapsed Logger", True)],
+        ):
+            scoped_renamed = self.window.request_rename_node(scoped_node_id)
+            collapsed_renamed = self.window.request_rename_node(collapsed_node_id)
+
+        self.assertTrue(scoped_renamed)
+        self.assertTrue(collapsed_renamed)
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(workspace.nodes[scoped_node_id].title, "Scoped Shell")
+        self.assertEqual(workspace.nodes[collapsed_node_id].title, "Collapsed Logger")
+
     def test_qml_request_rename_selected_port_updates_subnode_pin_label(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         shell_id = self.window.scene.add_node_from_type("core.subnode", x=120.0, y=80.0)

@@ -690,12 +690,78 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_scope_capable_title_double_click_remains_on_open_path_until_p03(self) -> None:
+    def test_scope_capable_nodes_publish_open_badge_hit_region_and_keep_title_double_click_for_editing(self) -> None:
         self._run_qml_probe(
-            "shared-header-title-rollout-scope-exclusion",
+            "shared-header-title-rollout-scope-open-badge",
             """
             payload = node_payload()
             payload["can_enter_scope"] = True
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                header = host.findChild(QObject, "graphNodeHeaderLayer")
+                title_item = host.findChild(QObject, "graphNodeTitle")
+                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                open_badge = host.findChild(QObject, "graphNodeOpenBadge")
+                assert header is not None
+                assert title_item is not None
+                assert editor is not None
+                assert open_badge is not None
+                assert bool(host.property("sharedHeaderTitleEditable"))
+
+                embedded_rects = variant_list(header.property("embeddedInteractiveRects"))
+                assert len(embedded_rects) == 1
+                badge_rect = embedded_rects[0]
+                badge_local_point = open_badge.mapToItem(
+                    host,
+                    QPointF(float(open_badge.width()) * 0.5, float(open_badge.height()) * 0.5),
+                )
+                badge_local_x = float(badge_local_point.x())
+                badge_local_y = float(badge_local_point.y())
+                assert rect_field(badge_rect, "x") <= badge_local_x <= (
+                    rect_field(badge_rect, "x") + rect_field(badge_rect, "width")
+                )
+                assert rect_field(badge_rect, "y") <= badge_local_y <= (
+                    rect_field(badge_rect, "y") + rect_field(badge_rect, "height")
+                )
+
+                committed = []
+                events = host_pointer_events(host)
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+                mouse_double_click(window, item_scene_point(title_item))
+                settle_events(5)
+
+                assert bool(editor.property("visible"))
+                assert events["opened"] == []
+
+                editor.setProperty("text", " Scoped Logger ")
+                app.processEvents()
+                events["clicked"].clear()
+                events["opened"].clear()
+                events["contexts"].clear()
+
+                mouse_click(window, item_scene_point(open_badge))
+                settle_events(5)
+
+                assert committed == [("node_surface_host_test", "title", "Scoped Logger")]
+                assert events["clicked"] == []
+                assert events["opened"] == ["node_surface_host_test"]
+                assert events["contexts"] == []
+                assert not bool(editor.property("visible"))
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_collapsed_nodes_use_shared_header_editor_for_title_commits(self) -> None:
+        self._run_qml_probe(
+            "shared-header-title-rollout-collapsed-host",
+            """
+            payload = node_payload()
+            payload["collapsed"] = True
 
             host = create_component(graph_node_host_qml_path, {"nodeData": payload})
             window = attach_host_to_window(host, width=640, height=480)
@@ -704,14 +770,33 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 editor = host.findChild(QObject, "graphNodeTitleEditor")
                 assert title_item is not None
                 assert editor is not None
-                assert not bool(host.property("sharedHeaderTitleEditable"))
+                assert bool(host.property("sharedHeaderTitleEditable"))
 
+                committed = []
                 events = host_pointer_events(host)
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
                 mouse_double_click(window, item_scene_point(title_item))
                 settle_events(5)
+                assert bool(editor.property("visible"))
+                assert events["opened"] == []
 
+                editor.setProperty("text", " Collapsed Logger ")
+                app.processEvents()
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+
+                assert committed == [("node_surface_host_test", "title", "Collapsed Logger")]
                 assert not bool(editor.property("visible"))
-                assert events["opened"] == ["node_surface_host_test"]
             finally:
                 dispose_host_window(host, window)
             """,
