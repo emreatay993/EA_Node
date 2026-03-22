@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
 from ea_node_editor.nodes.decorators import node_type, prop_enum, prop_str
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 
@@ -22,7 +23,7 @@ class _PassivePlanningNodePlugin:
     category=PASSIVE_PLANNING_CATEGORY,
     icon="task_alt",
     description="Planning task card with owner, due date, and status fields.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Task", "Title"),
         prop_str("body", "", "Body", inspector_editor="textarea"),
@@ -50,7 +51,7 @@ class PassivePlanningTaskCardNodePlugin(_PassivePlanningNodePlugin):
     category=PASSIVE_PLANNING_CATEGORY,
     icon="flag",
     description="Planning milestone card with target date and delivery status.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Milestone", "Title"),
         prop_str("body", "", "Body", inspector_editor="textarea"),
@@ -77,7 +78,7 @@ class PassivePlanningMilestoneCardNodePlugin(_PassivePlanningNodePlugin):
     category=PASSIVE_PLANNING_CATEGORY,
     icon="warning",
     description="Planning risk card with severity and mitigation notes.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Risk", "Title"),
         prop_str("body", "", "Body", inspector_editor="textarea"),
@@ -104,7 +105,7 @@ class PassivePlanningRiskCardNodePlugin(_PassivePlanningNodePlugin):
     category=PASSIVE_PLANNING_CATEGORY,
     icon="gavel",
     description="Planning decision card with state tracking and outcome notes.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Decision", "Title"),
         prop_str("body", "", "Body", inspector_editor="textarea"),

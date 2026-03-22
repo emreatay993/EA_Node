@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
 from ea_node_editor.nodes.decorators import node_type, prop_enum
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PropertySpec
 
@@ -19,7 +20,7 @@ class _PassiveMediaNodePlugin:
     category=PASSIVE_MEDIA_CATEGORY,
     icon="image",
     description="Passive local-image panel with caption and fit controls.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         PropertySpec("source_path", "path", "", "Image Source", inline_editor="path"),
         PropertySpec(
@@ -61,7 +62,7 @@ class PassiveMediaImagePanelNodePlugin(_PassiveMediaNodePlugin):
     category=PASSIVE_MEDIA_CATEGORY,
     icon="file",
     description="Passive local-PDF panel with single-page preview and caption.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         PropertySpec("source_path", "path", "", "PDF Source", inline_editor="path"),
         PropertySpec("page_number", "int", 1, "Page Number"),

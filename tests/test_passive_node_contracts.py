@@ -35,6 +35,8 @@ from ea_node_editor.nodes.builtins.passive_planning import (
 )
 from ea_node_editor.nodes.types import ExecutionContext
 
+_EXPECTED_CARDINAL_PASSIVE_PORTS = ("top", "right", "bottom", "left")
+
 
 def _context() -> ExecutionContext:
     return ExecutionContext(
@@ -111,9 +113,9 @@ class PassiveNodeContractsTests(unittest.TestCase):
         decision_spec = registry.get_spec(PASSIVE_FLOWCHART_DECISION_TYPE_ID)
         self.assertEqual([port.key for port in decision_spec.ports], ["top", "right", "bottom", "left"])
 
-    def test_non_flow_passive_nodes_do_not_expose_ports(self) -> None:
+    def test_non_flow_passive_nodes_publish_cardinal_neutral_flow_ports(self) -> None:
         registry = build_default_registry()
-        portless_type_ids = (
+        passive_type_ids = (
             PASSIVE_PLANNING_TASK_CARD_TYPE_ID,
             PASSIVE_PLANNING_MILESTONE_CARD_TYPE_ID,
             PASSIVE_PLANNING_RISK_CARD_TYPE_ID,
@@ -125,9 +127,13 @@ class PassiveNodeContractsTests(unittest.TestCase):
             PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
         )
 
-        for type_id in portless_type_ids:
+        for type_id in passive_type_ids:
             spec = registry.get_spec(type_id)
-            self.assertEqual(spec.ports, ())
+            self.assertEqual([port.key for port in spec.ports], list(_EXPECTED_CARDINAL_PASSIVE_PORTS))
+            self.assertTrue(all(port.direction == "neutral" for port in spec.ports))
+            self.assertTrue(all(port.kind == "flow" and port.data_type == "flow" for port in spec.ports))
+            self.assertTrue(all(port.side == port.key for port in spec.ports))
+            self.assertTrue(all(port.allow_multiple_connections for port in spec.ports))
 
     def test_registry_default_properties_cover_media_and_planning_defaults(self) -> None:
         registry = build_default_registry()

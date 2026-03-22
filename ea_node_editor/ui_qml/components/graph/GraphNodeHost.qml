@@ -61,6 +61,8 @@ Item {
         "proxy_surface_requested": card.proxySurfaceRequested
     })
     readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
+    readonly property bool usesCardinalNeutralFlowHandles: !!nodeData
+        && GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(nodeData)
     readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
     readonly property var passiveStyle: isPassiveNode && nodeData && nodeData.visual_style ? nodeData.visual_style : ({})
     readonly property string _passiveFillOverride: card._styleString(passiveStyle.fill_color)
@@ -127,18 +129,18 @@ Item {
     readonly property color inlineInputBorderColor: isPassiveNode ? Qt.alpha(outlineColor, 0.9) : themeInlineInputBorderColor
     readonly property color inlineDrivenTextColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.72) : themeInlineDrivenTextColor
     readonly property color portLabelColor: isPassiveNode
-        ? Qt.alpha(headerTextColor, isFlowchartSurface ? 0.74 : 0.84)
+        ? Qt.alpha(headerTextColor, usesCardinalNeutralFlowHandles ? 0.74 : 0.84)
         : themePortLabelColor
-    readonly property color portInteractiveFillColor: isFlowchartSurface
+    readonly property color portInteractiveFillColor: usesCardinalNeutralFlowHandles
         ? Qt.alpha(selectedOutlineColor, 0.18)
         : (nodePalette.port_interactive_fill || "#FFDA6B")
-    readonly property color portInteractiveBorderColor: isFlowchartSurface
+    readonly property color portInteractiveBorderColor: usesCardinalNeutralFlowHandles
         ? selectedOutlineColor
         : (nodePalette.port_interactive_border || "#FFE48B")
-    readonly property color portInteractiveRingFillColor: isFlowchartSurface
+    readonly property color portInteractiveRingFillColor: usesCardinalNeutralFlowHandles
         ? Qt.alpha(selectedOutlineColor, 0.1)
         : (nodePalette.port_interactive_ring_fill || "#44FFC857")
-    readonly property color portInteractiveRingBorderColor: isFlowchartSurface
+    readonly property color portInteractiveRingBorderColor: usesCardinalNeutralFlowHandles
         ? Qt.alpha(selectedOutlineColor, 0.38)
         : (nodePalette.port_interactive_ring_border || "#66FFE29A")
     readonly property color flowchartConnectedPortFillColor: Qt.alpha(outlineColor, 0.18)
@@ -239,7 +241,7 @@ Item {
     readonly property bool _titleCentered: !card.isCollapsed && Boolean(surfaceMetrics.title_centered)
     readonly property real _portLabelGap: 6.0
     readonly property real _portLabelMaxWidth: Math.max(40.0, card.width * 0.46)
-    readonly property bool _portLabelsVisible: !card.isFlowchartSurface
+    readonly property bool _portLabelsVisible: !card.usesCardinalNeutralFlowHandles
     readonly property bool _suppressShadow: card.isFlowchartSurface && !card.isCollapsed
     readonly property bool _shadowVisible: card.showShadow
         && !card._suppressShadow
@@ -320,7 +322,9 @@ Item {
     function basePortColor(portKind) {
         var palette = card.portKindPalette || {};
         if (portKind === "flow")
-            return card.isFlowchartSurface ? Qt.alpha(card.outlineColor, 0.72) : (card.isPassiveNode ? card.scopeBadgeColor : "#60CDFF");
+            return card.usesCardinalNeutralFlowHandles
+                ? Qt.alpha(card.outlineColor, 0.72)
+                : (card.isPassiveNode ? card.scopeBadgeColor : "#60CDFF");
         if (portKind === "exec")
             return palette.exec || "#67D487";
         if (portKind === "completed")

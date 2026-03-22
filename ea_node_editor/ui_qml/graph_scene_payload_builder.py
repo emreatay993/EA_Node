@@ -251,6 +251,7 @@ class GraphScenePayloadBuilder:
                     "direction": port.direction,
                     "kind": port.kind,
                     "data_type": port.data_type,
+                    "side": port.side,
                     "exposed": bool(port.exposed),
                     "allow_multiple_connections": bool(port.allow_multiple_connections),
                     "connection_count": int(connection_count),

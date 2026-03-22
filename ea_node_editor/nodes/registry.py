@@ -286,9 +286,9 @@ class NodeRegistry:
                 f"Node {type_id} port {port.key} allow_multiple_connections must be bool"
             )
         if port.direction == "neutral":
-            if spec.surface_family != "flowchart":
+            if spec.runtime_behavior != "passive":
                 raise ValueError(
-                    f"Node {type_id} port {port.key} neutral direction is only supported on flowchart surfaces"
+                    f"Node {type_id} port {port.key} neutral direction is only supported on passive nodes"
                 )
             if port.kind != "flow" or port.data_type != "flow":
                 raise ValueError(
@@ -302,11 +302,11 @@ class NodeRegistry:
                 )
             if not port.allow_multiple_connections:
                 raise ValueError(
-                    f"Node {type_id} port {port.key} neutral flowchart ports must allow multiple connections"
+                    f"Node {type_id} port {port.key} neutral passive flow ports must allow multiple connections"
                 )
         elif port.side:
             raise ValueError(
-                f"Node {type_id} port {port.key} side metadata is only supported on neutral flowchart ports"
+                f"Node {type_id} port {port.key} side metadata is only supported on neutral passive flow ports"
             )
 
     def _validate_property(self, type_id: str, prop: PropertySpec) -> None:

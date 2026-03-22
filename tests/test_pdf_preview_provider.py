@@ -60,7 +60,15 @@ class PassivePdfNodeCatalogTests(unittest.TestCase):
         self.assertEqual(spec.surface_family, "media")
         self.assertEqual(spec.surface_variant, "pdf_panel")
         self.assertFalse(spec.collapsible)
-        self.assertEqual(spec.ports, ())
+        self.assertEqual(
+            tuple((port.key, port.direction, port.allow_multiple_connections, port.side) for port in spec.ports),
+            (
+                ("top", "neutral", True, "top"),
+                ("right", "neutral", True, "right"),
+                ("bottom", "neutral", True, "bottom"),
+                ("left", "neutral", True, "left"),
+            ),
+        )
         self.assertEqual(spec.render_quality.weight_class, "heavy")
         self.assertEqual(spec.render_quality.max_performance_strategy, "proxy_surface")
         self.assertEqual(spec.render_quality.supported_quality_tiers, ("full", "proxy"))
@@ -319,6 +327,20 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
                 app.processEvents()
                 return obj
 
+            def named_child_items(root, object_name):
+                matches = []
+
+                def visit(item):
+                    if not hasattr(item, "childItems"):
+                        return
+                    if item.objectName() == object_name:
+                        matches.append(item)
+                    for child in item.childItems():
+                        visit(child)
+
+                visit(root)
+                return matches
+
             def wait_for_preview(surface, attempts=50):
                 for _index in range(attempts):
                     app.processEvents()
@@ -342,7 +364,48 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
                     "surface_variant": "pdf_panel",
                     "visual_style": {},
                     "can_enter_scope": False,
-                    "ports": [],
+                    "ports": [
+                        {
+                            "key": "top",
+                            "label": "top",
+                            "direction": "neutral",
+                            "kind": "flow",
+                            "data_type": "flow",
+                            "side": "top",
+                            "exposed": True,
+                            "connected": False,
+                        },
+                        {
+                            "key": "right",
+                            "label": "right",
+                            "direction": "neutral",
+                            "kind": "flow",
+                            "data_type": "flow",
+                            "side": "right",
+                            "exposed": True,
+                            "connected": False,
+                        },
+                        {
+                            "key": "bottom",
+                            "label": "bottom",
+                            "direction": "neutral",
+                            "kind": "flow",
+                            "data_type": "flow",
+                            "side": "bottom",
+                            "exposed": True,
+                            "connected": False,
+                        },
+                        {
+                            "key": "left",
+                            "label": "left",
+                            "direction": "neutral",
+                            "kind": "flow",
+                            "data_type": "flow",
+                            "side": "left",
+                            "exposed": True,
+                            "connected": False,
+                        },
+                    ],
                     "inline_properties": [],
                     "properties": properties,
                 }
@@ -394,6 +457,10 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
             placeholder_surface = placeholder_host.findChild(QObject, "graphNodeMediaSurface")
             assert placeholder_surface is not None
             assert placeholder_surface.property("previewState") == "placeholder"
+            assert len(named_child_items(placeholder_host, "graphNodeInputPortMouseArea")) == 2
+            assert len(named_child_items(placeholder_host, "graphNodeOutputPortMouseArea")) == 2
+            assert not any(item.isVisible() for item in named_child_items(placeholder_host, "graphNodeInputPortLabel"))
+            assert not any(item.isVisible() for item in named_child_items(placeholder_host, "graphNodeOutputPortLabel"))
 
             with tempfile.TemporaryDirectory() as temp_dir:
                 pdf_path = Path(temp_dir) / "ready.pdf"

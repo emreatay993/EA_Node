@@ -23,11 +23,12 @@ Rectangle {
     readonly property var previewMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(previewPayload)
     readonly property real previewZoom: root.viewBridge ? root.viewBridge.zoom_value : 1.0
     readonly property bool previewIsFlowchart: String(previewPayload ? previewPayload.surface_family || "standard" : "standard") === "flowchart"
+    readonly property bool previewUsesCardinalNeutralFlowHandles: GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(previewPayload)
     readonly property bool previewUsesHostChrome: !previewIsFlowchart || Boolean(previewMetrics.use_host_chrome)
     readonly property color effectivePreviewFillColor: previewIsFlowchart ? flowchartPreviewFillColor : previewChromeColor
     readonly property color effectivePreviewBorderColor: previewIsFlowchart ? flowchartPreviewBorderColor : previewBorderColor
     readonly property color effectivePreviewTitleColor: previewIsFlowchart ? flowchartPreviewTitleColor : previewTitleColor
-    readonly property bool previewPortLabelsEnabled: !previewIsFlowchart
+    readonly property bool previewPortLabelsEnabled: !previewUsesCardinalNeutralFlowHandles
         && (root.canvasItem ? root.canvasItem.previewPortLabelsVisible() : false)
     readonly property int previewTextRenderType: Text.CurveRendering
 
@@ -110,7 +111,7 @@ Rectangle {
         model: root.canvasItem ? root.canvasItem.previewInputPorts() : []
         delegate: Item {
             readonly property var portPoint: root._portPoint("in", index)
-            readonly property real dotSize: root.previewIsFlowchart
+            readonly property real dotSize: root.previewUsesCardinalNeutralFlowHandles
                 ? Math.max(4, Math.min(8, 6 * root.previewZoom))
                 : Math.max(5, Math.min(10, 8 * root.previewZoom))
             x: 0
@@ -126,9 +127,9 @@ Rectangle {
                 width: parent.dotSize
                 height: parent.dotSize
                 radius: width * 0.5
-                color: root.previewIsFlowchart ? root.flowchartPreviewPortFillColor : "transparent"
+                color: root.previewUsesCardinalNeutralFlowHandles ? root.flowchartPreviewPortFillColor : "transparent"
                 border.width: 1
-                border.color: root.previewIsFlowchart
+                border.color: root.previewUsesCardinalNeutralFlowHandles
                     ? root.flowchartPreviewPortColor
                     : (root.canvasItem ? root.canvasItem.previewPortColor(modelData.kind) : root.previewLabelColor)
             }
@@ -152,7 +153,7 @@ Rectangle {
         model: root.canvasItem ? root.canvasItem.previewOutputPorts() : []
         delegate: Item {
             readonly property var portPoint: root._portPoint("out", index)
-            readonly property real dotSize: root.previewIsFlowchart
+            readonly property real dotSize: root.previewUsesCardinalNeutralFlowHandles
                 ? Math.max(4, Math.min(8, 6 * root.previewZoom))
                 : Math.max(5, Math.min(10, 8 * root.previewZoom))
             x: 0
@@ -168,9 +169,9 @@ Rectangle {
                 width: parent.dotSize
                 height: parent.dotSize
                 radius: width * 0.5
-                color: root.previewIsFlowchart ? root.flowchartPreviewPortFillColor : "transparent"
+                color: root.previewUsesCardinalNeutralFlowHandles ? root.flowchartPreviewPortFillColor : "transparent"
                 border.width: 1
-                border.color: root.previewIsFlowchart
+                border.color: root.previewUsesCardinalNeutralFlowHandles
                     ? root.flowchartPreviewPortColor
                     : (root.canvasItem ? root.canvasItem.previewPortColor(modelData.kind) : root.previewLabelColor)
             }

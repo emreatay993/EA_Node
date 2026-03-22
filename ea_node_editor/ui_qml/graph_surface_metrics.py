@@ -566,6 +566,25 @@ def flowchart_port_side(
     return normalized_key if normalized_key in _CARDINAL_SIDES else ""
 
 
+def _rect_anchor_local_point(width: float, height: float, side: str) -> tuple[float, float]:
+    safe_width = max(1.0, float(width))
+    safe_height = max(1.0, float(height))
+    left = 0.5
+    top = 0.5
+    right = max(left + 1.0, safe_width - 0.5)
+    bottom = max(top + 1.0, safe_height - 0.5)
+    center_x = (left + right) * 0.5
+    center_y = (top + bottom) * 0.5
+    normalized_side = str(side or "").strip().lower()
+    if normalized_side == "top":
+        return center_x, top
+    if normalized_side == "right":
+        return right, center_y
+    if normalized_side == "bottom":
+        return center_x, bottom
+    return left, center_y
+
+
 def _safe_number(value: Any, fallback: float) -> float:
     try:
         number = float(value)
@@ -954,15 +973,17 @@ def surface_port_local_point(
             break
     local_y = metrics.port_top + metrics.port_center_offset + metrics.port_height * row_index
     family = str(spec.surface_family or "standard").strip() or "standard"
-    if family == "flowchart":
-        side = flowchart_port_side(node, spec, port_key, scoped_nodes)
-        if side:
+    side = flowchart_port_side(node, spec, port_key, scoped_nodes)
+    if side:
+        if family == "flowchart":
             return flowchart_anchor_local_point(
                 spec.surface_variant,
                 width_value,
                 height_value,
                 side,
             )
+        return _rect_anchor_local_point(width_value, height_value, side)
+    if family == "flowchart":
         left, right = _flowchart_horizontal_bounds(
             normalize_flowchart_variant(spec.surface_variant),
             width_value,

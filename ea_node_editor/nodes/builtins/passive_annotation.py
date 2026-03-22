@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
 from ea_node_editor.nodes.decorators import node_type, prop_str
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 
@@ -21,7 +22,7 @@ class _PassiveAnnotationNodePlugin:
     category=PASSIVE_ANNOTATION_CATEGORY,
     icon="sticky_note_2",
     description="Annotation sticky note for contextual comments.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Sticky Note", "Title"),
         prop_str("body", "", "Body", inspector_editor="textarea"),
@@ -41,7 +42,7 @@ class PassiveAnnotationStickyNoteNodePlugin(_PassiveAnnotationNodePlugin):
     category=PASSIVE_ANNOTATION_CATEGORY,
     icon="campaign",
     description="Annotation callout for emphasized contextual notes.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Callout", "Title"),
         prop_str("body", "", "Body", inspector_editor="textarea"),
@@ -61,7 +62,7 @@ class PassiveAnnotationCalloutNodePlugin(_PassiveAnnotationNodePlugin):
     category=PASSIVE_ANNOTATION_CATEGORY,
     icon="title",
     description="Annotation section header with optional subtitle copy.",
-    ports=(),
+    ports=CARDINAL_PASSIVE_FLOW_PORTS,
     properties=(
         prop_str("title", "Section Header", "Title"),
         prop_str("subtitle", "", "Subtitle"),

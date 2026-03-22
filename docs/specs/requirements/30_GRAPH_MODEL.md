@@ -18,8 +18,8 @@
 - `REQ-GRAPH-008`: Collapsed nodes shall reduce visual footprint and use side connection anchors.
 - `REQ-GRAPH-009`: Graph canvas and item rendering shall support Stitch-aligned visual chrome with zoom-aware level-of-detail simplification.
 - `REQ-GRAPH-013`: `flow` edges shall support labels and flow-only visual style overrides while allowing multi-incoming targets where the declared target port permits them.
-- `REQ-GRAPH-014`: passive flowchart edges shall persist the stored cardinal flowchart port keys `top`, `right`, `bottom`, and `left`; edge labels and edge styling, not decision-specific port keys, shall carry branch meaning.
-- `REQ-GRAPH-015`: flowchart edge routing and handle placement shall resolve anchors from the exact silhouette perimeter at the referenced cardinal side rather than row-band approximations.
+- `REQ-GRAPH-014`: passive logical-flow edges shall persist the stored cardinal port keys `top`, `right`, `bottom`, and `left`; edge labels and edge styling, not decision-specific port keys, shall carry branch meaning.
+- `REQ-GRAPH-015`: passive logical-flow routing and handle placement shall resolve anchors from the authored cardinal side, using exact flowchart silhouette anchors for flowchart nodes and exact rectangular side anchors for the other passive families.
 
 ## Acceptance
 - `AC-REQ-GRAPH-004-01`: Node drag updates persisted model position.

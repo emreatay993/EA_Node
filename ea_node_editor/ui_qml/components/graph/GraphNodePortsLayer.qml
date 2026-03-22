@@ -81,19 +81,19 @@ Item {
                 property bool hoveredState: root.host ? root.host.isHoveredPort(parent.interactionDirection, modelData.key) : false
                 property bool pendingState: root.host ? root.host.isPendingPort(parent.interactionDirection, modelData.key) : false
                 property bool dragSourceState: root.host ? root.host.isDragSourcePort(parent.interactionDirection, modelData.key) : false
-                property bool selectedState: root.host ? (root.host.isFlowchartSurface && root.host.isSelected) : false
+                property bool selectedState: root.host ? (root.host.usesCardinalNeutralFlowHandles && root.host.isSelected) : false
                 property bool attentionState: hoveredState || pendingState || dragSourceState
                 property bool interactiveState: attentionState || selectedState
                 property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
-                property real restDiameter: root.host && root.host.isFlowchartSurface
+                property real restDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (connectedState ? root.host.flowchartConnectedPortDiameter : root.host.flowchartRestPortDiameter)
                     : 8
-                property real activeDiameter: root.host && root.host.isFlowchartSurface
+                property real activeDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState ? root.host.flowchartInteractivePortDiameter : root.host.flowchartSelectedPortDiameter)
                     : 14
-                property real ringDiameter: root.host && root.host.isFlowchartSurface
+                property real ringDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? root.host.flowchartInteractiveRingDiameter
                     : (attentionState ? 18 : 12)
                 x: parent.portPoint.x - width * 0.5
@@ -102,24 +102,24 @@ Item {
                 height: width
                 radius: width * 0.5
                 opacity: revealState ? 1.0 : 0.0
-                color: root.host && root.host.isFlowchartSurface
+                color: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState
                         ? root.host.portInteractiveFillColor
                         : ((selectedState || connectedState) ? root.host.flowchartConnectedPortFillColor : "transparent"))
                     : (interactiveState
                         ? (root.host ? root.host.portInteractiveFillColor : "#FFDA6B")
                         : (connectedState ? portColor : "transparent"))
-                border.width: root.host && root.host.isFlowchartSurface ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
+                border.width: root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
                 border.color: attentionState
                     ? (root.host ? root.host.portInteractiveBorderColor : portColor)
-                    : (root.host && root.host.isFlowchartSurface && selectedState
+                    : (root.host && root.host.usesCardinalNeutralFlowHandles && selectedState
                         ? root.host.selectedOutlineColor
                         : portColor)
 
                 Rectangle {
                     objectName: "graphNodeInputPortRing"
                     anchors.centerIn: parent
-                    visible: !root.host || !root.host.isFlowchartSurface || inputDot.attentionState
+                    visible: !root.host || !root.host.usesCardinalNeutralFlowHandles || inputDot.attentionState
                     width: inputDot.ringDiameter
                     height: inputDot.ringDiameter
                     radius: width * 0.5
@@ -364,19 +364,19 @@ Item {
                 property bool hoveredState: root.host ? root.host.isHoveredPort(parent.interactionDirection, modelData.key) : false
                 property bool pendingState: root.host ? root.host.isPendingPort(parent.interactionDirection, modelData.key) : false
                 property bool dragSourceState: root.host ? root.host.isDragSourcePort(parent.interactionDirection, modelData.key) : false
-                property bool selectedState: root.host ? (root.host.isFlowchartSurface && root.host.isSelected) : false
+                property bool selectedState: root.host ? (root.host.usesCardinalNeutralFlowHandles && root.host.isSelected) : false
                 property bool attentionState: hoveredState || pendingState || dragSourceState
                 property bool interactiveState: attentionState || selectedState
                 property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
-                property real restDiameter: root.host && root.host.isFlowchartSurface
+                property real restDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (connectedState ? root.host.flowchartConnectedPortDiameter : root.host.flowchartRestPortDiameter)
                     : 8
-                property real activeDiameter: root.host && root.host.isFlowchartSurface
+                property real activeDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState ? root.host.flowchartInteractivePortDiameter : root.host.flowchartSelectedPortDiameter)
                     : 14
-                property real ringDiameter: root.host && root.host.isFlowchartSurface
+                property real ringDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? root.host.flowchartInteractiveRingDiameter
                     : (attentionState ? 18 : 12)
                 x: parent.portPoint.x - width * 0.5
@@ -385,24 +385,24 @@ Item {
                 height: width
                 radius: width * 0.5
                 opacity: revealState ? 1.0 : 0.0
-                color: root.host && root.host.isFlowchartSurface
+                color: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState
                         ? root.host.portInteractiveFillColor
                         : ((selectedState || connectedState) ? root.host.flowchartConnectedPortFillColor : "transparent"))
                     : (interactiveState
                         ? (root.host ? root.host.portInteractiveFillColor : "#FFDA6B")
                         : (connectedState ? portColor : "transparent"))
-                border.width: root.host && root.host.isFlowchartSurface ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
+                border.width: root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
                 border.color: attentionState
                     ? (root.host ? root.host.portInteractiveBorderColor : portColor)
-                    : (root.host && root.host.isFlowchartSurface && selectedState
+                    : (root.host && root.host.usesCardinalNeutralFlowHandles && selectedState
                         ? root.host.selectedOutlineColor
                         : portColor)
 
                 Rectangle {
                     objectName: "graphNodeOutputPortRing"
                     anchors.centerIn: parent
-                    visible: !root.host || !root.host.isFlowchartSurface || outputDot.attentionState
+                    visible: !root.host || !root.host.usesCardinalNeutralFlowHandles || outputDot.attentionState
                     width: outputDot.ringDiameter
                     height: outputDot.ringDiameter
                     radius: width * 0.5

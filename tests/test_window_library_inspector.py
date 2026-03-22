@@ -67,6 +67,7 @@ class WindowLibraryInspectorQuickInsertTests(unittest.TestCase):
             source_direction="neutral",
             source_kind="flow",
             source_data_type="flow",
+            limit=100,
         )
 
         self.assertTrue(results)
@@ -75,9 +76,16 @@ class WindowLibraryInspectorQuickInsertTests(unittest.TestCase):
             for item in results
         }
         self.assertIn("passive.flowchart.process", results_by_type)
+        self.assertIn("passive.planning.task_card", results_by_type)
+        self.assertIn("passive.annotation.sticky_note", results_by_type)
+        self.assertIn("passive.media.image_panel", results_by_type)
         self.assertNotIn("core.start", results_by_type)
         self.assertEqual(
             results_by_type["passive.flowchart.process"]["compatible_port_labels"],
+            ["top", "right", "bottom", "left"],
+        )
+        self.assertEqual(
+            results_by_type["passive.planning.task_card"]["compatible_port_labels"],
             ["top", "right", "bottom", "left"],
         )
         self.assertEqual(

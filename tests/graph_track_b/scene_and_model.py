@@ -607,6 +607,41 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(vertical_edge.target_node_id, vertical_target_id)
         self.assertEqual(vertical_edge.target_port_key, "top")
 
+    def test_connect_nodes_selects_facing_cardinal_ports_for_non_flowchart_passive_nodes(self) -> None:
+        planning_source_id = self.scene.add_node_from_type("passive.planning.task_card", 20.0, 30.0)
+        planning_target_id = self.scene.add_node_from_type("passive.planning.task_card", 360.0, 90.0)
+        note_source_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 720.0, 40.0)
+        note_target_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 720.0, 320.0)
+
+        planning_edge_id = self.scene.connect_nodes(planning_source_id, planning_target_id)
+        note_edge_id = self.scene.connect_nodes(note_source_id, note_target_id)
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        planning_edge = workspace.edges[planning_edge_id]
+        note_edge = workspace.edges[note_edge_id]
+
+        self.assertEqual(planning_edge.source_node_id, planning_source_id)
+        self.assertEqual(planning_edge.source_port_key, "right")
+        self.assertEqual(planning_edge.target_node_id, planning_target_id)
+        self.assertEqual(planning_edge.target_port_key, "left")
+        self.assertEqual(note_edge.source_node_id, note_source_id)
+        self.assertEqual(note_edge.source_port_key, "bottom")
+        self.assertEqual(note_edge.target_node_id, note_target_id)
+        self.assertEqual(note_edge.target_port_key, "top")
+
+    def test_non_flowchart_passive_edge_payloads_publish_cardinal_side_metadata(self) -> None:
+        source_id = self.scene.add_node_from_type("passive.planning.task_card", 20.0, 30.0)
+        target_id = self.scene.add_node_from_type("passive.media.image_panel", 360.0, 90.0)
+        edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
+
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+        edge_payload = {item["edge_id"]: item for item in self.scene.edges_model}[edge_id]
+
+        self.assertEqual(node_payload[source_id]["surface_family"], "planning")
+        self.assertEqual(node_payload[target_id]["surface_family"], "media")
+        self.assertEqual(edge_payload["source_port_side"], "right")
+        self.assertEqual(edge_payload["target_port_side"], "left")
+
     def test_connect_ports_reverses_stored_flowchart_arrow_when_neutral_click_order_reverses(self) -> None:
         forward_source_id = self.scene.add_node_from_type("passive.flowchart.process", 20.0, 30.0)
         forward_target_id = self.scene.add_node_from_type("passive.flowchart.process", 360.0, 90.0)

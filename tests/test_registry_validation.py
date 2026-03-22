@@ -220,6 +220,7 @@ class RegistryValidationTests(unittest.TestCase):
                 ),
             ),
             properties=(),
+            runtime_behavior="passive",
             surface_family="flowchart",
             surface_variant="process",
         )
@@ -230,11 +231,39 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(tuple(port.direction for port in registered.ports), ("neutral", "neutral"))
         self.assertEqual(tuple(port.side for port in registered.ports), ("top", "right"))
 
-    def test_register_rejects_neutral_ports_outside_flowchart_surface(self) -> None:
+    def test_register_accepts_neutral_ports_on_passive_non_flowchart_nodes(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(
-            type_id="tests.bad_neutral_standard",
-            display_name="Bad Neutral Standard",
+            type_id="tests.passive_neutral_annotation",
+            display_name="Passive Neutral Annotation",
+            category="Tests",
+            icon="",
+            ports=(
+                PortSpec(
+                    "top",
+                    "neutral",
+                    "flow",
+                    "flow",
+                    side="top",
+                    allow_multiple_connections=True,
+                ),
+            ),
+            properties=(),
+            runtime_behavior="passive",
+            surface_family="annotation",
+        )
+
+        registry.register(_factory(spec))
+
+        registered = registry.get_spec(spec.type_id)
+        self.assertEqual(tuple(port.direction for port in registered.ports), ("neutral",))
+        self.assertEqual(tuple(port.side for port in registered.ports), ("top",))
+
+    def test_register_rejects_neutral_ports_on_active_nodes(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.bad_neutral_active",
+            display_name="Bad Neutral Active",
             category="Tests",
             icon="",
             ports=(

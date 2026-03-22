@@ -35,6 +35,7 @@ def build_registry_library_items(*, registry_specs: Iterable[Any]) -> list[dict[
                     "direction": port.direction,
                     "kind": port.kind,
                     "data_type": port.data_type,
+                    "side": port.side,
                     "exposed": bool(port.exposed),
                 }
                 for port in spec.ports
@@ -306,6 +307,7 @@ def build_selected_node_port_items(
             "direction": port.direction,
             "kind": port.kind,
             "data_type": port.data_type,
+            "side": port.side,
             "required": bool(port.required),
             "exposed": bool(port.exposed),
         }

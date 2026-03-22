@@ -7,7 +7,10 @@ import sys
 import textwrap
 import unittest
 
+from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.edge_routing import port_scene_pos
+from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,6 +59,13 @@ _EXPECTED_ANNOTATION_SPECS = {
     },
 }
 
+_EXPECTED_CARDINAL_PORTS = (
+    ("top", "neutral", True, "top"),
+    ("right", "neutral", True, "right"),
+    ("bottom", "neutral", True, "bottom"),
+    ("left", "neutral", True, "left"),
+)
+
 
 class PlanningAnnotationCatalogTests(unittest.TestCase):
     def test_default_registry_registers_locked_planning_catalog_specs(self) -> None:
@@ -70,11 +80,48 @@ class PlanningAnnotationCatalogTests(unittest.TestCase):
             self.assertEqual(spec.surface_family, "planning")
             self.assertEqual(spec.surface_variant, expected["surface_variant"])
             self.assertFalse(spec.collapsible)
-            self.assertEqual(spec.ports, ())
+            self.assertEqual(
+                tuple((port.key, port.direction, port.allow_multiple_connections, port.side) for port in spec.ports),
+                _EXPECTED_CARDINAL_PORTS,
+            )
             self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
             enum_key, enum_values = expected["enum_property"]
             enum_spec = next(prop for prop in spec.properties if prop.key == enum_key)
             self.assertEqual(enum_spec.enum_values, enum_values)
+
+    def test_planning_annotation_and_media_use_rectangular_cardinal_anchor_points(self) -> None:
+        registry = build_default_registry()
+
+        for type_id in (
+            "passive.planning.task_card",
+            "passive.annotation.sticky_note",
+            "passive.media.image_panel",
+        ):
+            spec = registry.get_spec(type_id)
+            node = NodeInstance(
+                node_id=f"node_{type_id.rsplit('.', 1)[-1]}",
+                type_id=type_id,
+                title=spec.display_name,
+                x=40.0,
+                y=30.0,
+            )
+            metrics = node_surface_metrics(node, spec, {node.node_id: node})
+            width = metrics.default_width
+            height = metrics.default_height
+
+            top = port_scene_pos(node, spec, "top", {node.node_id: node})
+            right = port_scene_pos(node, spec, "right", {node.node_id: node})
+            bottom = port_scene_pos(node, spec, "bottom", {node.node_id: node})
+            left = port_scene_pos(node, spec, "left", {node.node_id: node})
+
+            self.assertAlmostEqual(top.x() - node.x, width * 0.5, places=4)
+            self.assertAlmostEqual(top.y() - node.y, 0.5, places=4)
+            self.assertAlmostEqual(right.x() - node.x, width - 0.5, places=4)
+            self.assertAlmostEqual(right.y() - node.y, height * 0.5, places=4)
+            self.assertAlmostEqual(bottom.x() - node.x, width * 0.5, places=4)
+            self.assertAlmostEqual(bottom.y() - node.y, height - 0.5, places=4)
+            self.assertAlmostEqual(left.x() - node.x, 0.5, places=4)
+            self.assertAlmostEqual(left.y() - node.y, height * 0.5, places=4)
 
     def test_default_registry_registers_locked_annotation_catalog_specs(self) -> None:
         registry = build_default_registry()
@@ -88,7 +135,10 @@ class PlanningAnnotationCatalogTests(unittest.TestCase):
             self.assertEqual(spec.surface_family, "annotation")
             self.assertEqual(spec.surface_variant, expected["surface_variant"])
             self.assertFalse(spec.collapsible)
-            self.assertEqual(spec.ports, ())
+            self.assertEqual(
+                tuple((port.key, port.direction, port.allow_multiple_connections, port.side) for port in spec.ports),
+                _EXPECTED_CARDINAL_PORTS,
+            )
             self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
 
 
@@ -130,6 +180,64 @@ class PlanningAnnotationSurfaceQmlTests(unittest.TestCase):
                 app.processEvents()
                 return obj
 
+            def named_child_items(root, object_name):
+                matches = []
+
+                def visit(item):
+                    if not hasattr(item, "childItems"):
+                        return
+                    if item.objectName() == object_name:
+                        matches.append(item)
+                    for child in item.childItems():
+                        visit(child)
+
+                visit(root)
+                return matches
+
+            def cardinal_ports():
+                return [
+                    {
+                        "key": "top",
+                        "label": "top",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "side": "top",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                    {
+                        "key": "right",
+                        "label": "right",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "side": "right",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                    {
+                        "key": "bottom",
+                        "label": "bottom",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "side": "bottom",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                    {
+                        "key": "left",
+                        "label": "left",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "side": "left",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                ]
+
             def node_payload(surface_family, surface_variant, title, properties, width, height):
                 return {
                     "node_id": "node_planning_annotation_surface_test",
@@ -148,7 +256,7 @@ class PlanningAnnotationSurfaceQmlTests(unittest.TestCase):
                     "surface_variant": surface_variant,
                     "visual_style": {},
                     "can_enter_scope": False,
-                    "ports": [],
+                    "ports": cardinal_ports(),
                     "inline_properties": [],
                 }
             """
@@ -196,6 +304,10 @@ class PlanningAnnotationSurfaceQmlTests(unittest.TestCase):
             assert loader.property("loadedSurfaceKey") == "planning"
             assert host.findChild(QObject, "graphNodePlanningSurface") is not None
             assert float(loader.property("contentHeight")) > 0.0
+            assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2
+            assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
+            assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
+            assert not any(item.isVisible() for item in named_child_items(host, "graphNodeOutputPortLabel"))
             """,
         )
 
@@ -224,6 +336,10 @@ class PlanningAnnotationSurfaceQmlTests(unittest.TestCase):
             assert loader.property("loadedSurfaceKey") == "annotation"
             assert host.findChild(QObject, "graphNodeAnnotationSurface") is not None
             assert float(loader.property("contentHeight")) > 0.0
+            assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2
+            assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
+            assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
+            assert not any(item.isVisible() for item in named_child_items(host, "graphNodeOutputPortLabel"))
             """,
         )
 

@@ -469,6 +469,41 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
             [(target.node_id, "right", new_node.node_id, "left")],
         )
 
+    def test_auto_connect_dropped_passive_node_to_neutral_port_keeps_existing_port_as_source(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+        target = model.add_node(workspace_id, "passive.planning.task_card", "Existing", 120.0, 120.0)
+        new_node = model.add_node(workspace_id, "passive.media.image_panel", "Inserted", 420.0, 120.0)
+
+        scene = _DropConnectSceneStub(model, workspace_id)
+        host = SimpleNamespace(registry=registry, scene=scene)
+        controller = _SelectingDropConnectControllerStub(workspace)
+        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+
+        connected = ops.auto_connect_dropped_node_to_port(new_node.node_id, target.node_id, "right")
+
+        self.assertTrue(connected)
+        self.assertEqual(controller.prompt_calls, 1)
+        self.assertEqual(
+            controller.last_candidates,
+            [
+                {
+                    "source_node_id": target.node_id,
+                    "source_port_key": "right",
+                    "target_node_id": new_node.node_id,
+                    "target_port_key": "left",
+                    "label": "Task Card.right -> Image Panel.left",
+                }
+            ],
+        )
+        edge = next(iter(workspace.edges.values()))
+        self.assertEqual(edge.source_node_id, target.node_id)
+        self.assertEqual(edge.source_port_key, "right")
+        self.assertEqual(edge.target_node_id, new_node.node_id)
+        self.assertEqual(edge.target_port_key, "left")
+
     def test_auto_connect_dropped_flowchart_node_to_neutral_edge_uses_distinct_facing_sides(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
@@ -509,6 +544,36 @@ class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):
                 (source.node_id, "right", new_node.node_id, "left"),
                 (new_node.node_id, "right", target.node_id, "left"),
             },
+        )
+
+    def test_auto_connect_dropped_passive_node_to_neutral_edge_uses_distinct_facing_sides(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+        source = model.add_node(workspace_id, "passive.annotation.sticky_note", "Source", 40.0, 100.0)
+        target = model.add_node(workspace_id, "passive.media.pdf_panel", "Target", 640.0, 100.0)
+        new_node = model.add_node(workspace_id, "passive.planning.task_card", "Inserted", 340.0, 100.0)
+        original_edge = model.add_edge(workspace_id, source.node_id, "right", target.node_id, "left")
+
+        scene = _DropConnectSceneStub(model, workspace_id)
+        host = SimpleNamespace(registry=registry, scene=scene)
+        controller = _SelectingDropConnectControllerStub(workspace)
+        ops = WorkspaceDropConnectOps(host, controller)  # type: ignore[arg-type]
+
+        connected = ops.auto_connect_dropped_node_to_edge(new_node.node_id, original_edge.edge_id)
+
+        self.assertTrue(connected)
+        self.assertEqual(controller.prompt_calls, 1)
+        self.assertEqual(
+            controller.last_candidates,
+            [
+                {
+                    "new_input_port": "left",
+                    "new_output_port": "right",
+                    "label": "Sticky Note.right -> Task Card.left, Task Card.right -> PDF Panel.left",
+                }
+            ],
         )
 
 

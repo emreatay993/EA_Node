@@ -511,6 +511,18 @@ function _flowchartBounds(width, height) {
     };
 }
 
+function _rectAnchorPoint(width, height, side) {
+    var normalizedSide = String(side || "").trim().toLowerCase();
+    var bounds = _flowchartBounds(width, height);
+    if (normalizedSide === "top")
+        return {"x": bounds.centerX, "y": bounds.top};
+    if (normalizedSide === "right")
+        return {"x": bounds.right, "y": bounds.centerY};
+    if (normalizedSide === "bottom")
+        return {"x": bounds.centerX, "y": bounds.bottom};
+    return {"x": bounds.left, "y": bounds.centerY};
+}
+
 function _cubicBezierCoordinate(p0, p1, p2, p3, t) {
     var omt = 1.0 - t;
     return omt * omt * omt * p0
@@ -675,6 +687,24 @@ function portLayoutDirection(port) {
     return rawDirection;
 }
 
+function nodeUsesCardinalNeutralFlowHandles(node) {
+    var ports = node && node.ports ? node.ports : [];
+    for (var i = 0; i < ports.length; i++) {
+        var port = ports[i];
+        if (!port || port.exposed === false)
+            continue;
+        if (String(port.direction || "").trim().toLowerCase() !== "neutral")
+            continue;
+        if (String(port.kind || "").trim().toLowerCase() !== "flow")
+            continue;
+        if (String(port.data_type || "").trim().toLowerCase() !== "flow")
+            continue;
+        if (portCardinalSide(port))
+            return true;
+    }
+    return false;
+}
+
 function visiblePortsForDirection(node, direction) {
     var ports = node && node.ports ? node.ports : [];
     var normalizedDirection = String(direction || "").trim().toLowerCase();
@@ -758,10 +788,11 @@ function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, h
         };
     }
 
-    if (String(node.surface_family || "standard") === "flowchart") {
-        var side = portCardinalSide(port);
-        if (side)
+    var side = portCardinalSide(port);
+    if (side) {
+        if (String(node.surface_family || "standard") === "flowchart")
             return flowchartAnchorPoint(node.surface_variant, widthValue, heightValue, side);
+        return _rectAnchorPoint(widthValue, heightValue, side);
     }
 
     var rowIndex = direction === "in" ? Number(inputRow) : Number(outputRow);
@@ -791,13 +822,14 @@ function localPortPointForPort(node, port, inputRow, outputRow, widthOverride, h
 function localPortPoint(node, direction, rowIndex, widthOverride, heightOverride) {
     if (!node)
         return {"x": 0.0, "y": 0.0};
-    if (String(node.surface_family || "standard") === "flowchart") {
-        var flowchartPorts = visiblePortsForDirection(node, direction);
-        var resolvedRow = Number(rowIndex);
-        if (!isFinite(resolvedRow))
-            resolvedRow = 0;
-        if (resolvedRow >= 0 && resolvedRow < flowchartPorts.length)
-            return localPortPointForPort(node, flowchartPorts[resolvedRow], resolvedRow, resolvedRow, widthOverride, heightOverride);
+    var visiblePorts = visiblePortsForDirection(node, direction);
+    var resolvedRow = Number(rowIndex);
+    if (!isFinite(resolvedRow))
+        resolvedRow = 0;
+    if (resolvedRow >= 0 && resolvedRow < visiblePorts.length) {
+        var rowPort = visiblePorts[resolvedRow];
+        if (portCardinalSide(rowPort))
+            return localPortPointForPort(node, rowPort, resolvedRow, resolvedRow, widthOverride, heightOverride);
     }
     var metrics = surfaceMetrics(node);
     var widthValue = _resolvedDimension(widthOverride !== undefined ? widthOverride : node.width, metrics.default_width);

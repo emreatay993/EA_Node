@@ -284,6 +284,7 @@ package contents are `node_package.json` plus top-level `.py` modules only.
 ## Passive Visual Authoring
 
 - Passive flowchart, planning, annotation, image, and PDF nodes stay in the normal workspace graph and save into the same `.sfe` document as executable nodes.
+- Passive visual nodes now share the same four logical-flow handles (`top`, `right`, `bottom`, `left`) for presentation-only `flow` authoring across flowchart, planning, annotation, and media families.
 - `flow` edges are presentation-only graph connections. They support labels, branch styling, and multi-incoming targets where the target port spec allows it, but they do not reach the compiler or worker runtime graph.
 - Passive nodes render through the graph host/factory path, which keeps standard `NodeCard` contracts stable while loading specialized flowchart, planning, annotation, and media surfaces.
 - Right-click a passive node or `flow` edge to edit style overrides, copy/paste them, reset to defaults, or save them as project-local presets stored under `metadata.ui.passive_style_presets`.
