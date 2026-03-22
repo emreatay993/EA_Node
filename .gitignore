@@ -64,6 +64,8 @@ docs/specs/work_packets/*
 !docs/specs/work_packets/arch_sixth_pass/*
 !docs/specs/work_packets/flowchart_cardinal_ports/
 !docs/specs/work_packets/flowchart_cardinal_ports/*
+!docs/specs/work_packets/node_inline_titles/
+!docs/specs/work_packets/node_inline_titles/*
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md

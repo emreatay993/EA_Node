@@ -1,0 +1,12 @@
+# NODE_INLINE_TITLES Status Ledger
+
+- Updated: `2026-03-22`
+- Environment note: packet set bootstrapped; implementation progress tracked per packet.
+
+| Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
+|---|---|---|---|---|---|---|---|
+| P00 Bootstrap | `codex/node-inline-titles/p00-bootstrap` | PASS | `n/a` | create `docs/specs/work_packets/node_inline_titles/*`; add manifest, status ledger, packet specs, and prompt files for `P00` through `P04`; add the narrow `.gitignore` exception for `docs/specs/work_packets/node_inline_titles/`; update `docs/specs/INDEX.md`; run `NODE_INLINE_TITLES_P00_FILE_GATE_PASS` verification command from `NODE_INLINE_TITLES_P00_bootstrap.md` | PASS (`1/1`): file/index gate returned `NODE_INLINE_TITLES_P00_FILE_GATE_PASS` | `.gitignore`, `docs/specs/INDEX.md`, `docs/specs/work_packets/node_inline_titles/*` | Inline title editing is still flowchart-only at bootstrap time; standard/media/subnode title routing, scoped-node `OPEN` badge interaction, and docs/traceability updates remain unimplemented |
+| P01 Title Mutation Authority | `codex/node-inline-titles/p01-title-mutation-authority` | PENDING | `n/a` | not run yet | not run yet | `docs/specs/work_packets/node_inline_titles/P01_title_mutation_authority_WRAPUP.md` | Standard/media/subnode inline title commits still lack a unified mutation path until this packet lands |
+| P02 Shared Header Title Rollout | `codex/node-inline-titles/p02-shared-header-title-rollout` | PENDING | `n/a` | not run yet | not run yet | `docs/specs/work_packets/node_inline_titles/P02_shared_header_title_rollout_WRAPUP.md` | Shared header title editing still stops at flowchart nodes until this packet lands |
+| P03 Scoped Title Edit Integration | `codex/node-inline-titles/p03-scoped-title-edit-integration` | PENDING | `n/a` | not run yet | not run yet | `docs/specs/work_packets/node_inline_titles/P03_scoped_title_edit_integration_WRAPUP.md` | Scope-capable/collapsed nodes still rely on the old open gesture and the `OPEN` badge is not interactive until this packet lands |
+| P04 Docs And Traceability Closeout | `codex/node-inline-titles/p04-docs-traceability-closeout` | PENDING | `n/a` | not run yet | not run yet | `docs/specs/work_packets/node_inline_titles/P04_docs_traceability_closeout_WRAPUP.md` | Architecture/requirements/traceability docs still describe only the earlier flowchart-specific title-edit scope until this packet lands |
