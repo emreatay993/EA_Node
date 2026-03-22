@@ -1028,6 +1028,10 @@ class ShellWindow(QMainWindow):
         return bool(self._duplicate_selected_nodes())
 
     @pyqtSlot(result=bool)
+    def request_wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return bool(self._wrap_selected_nodes_in_comment_backdrop())
+
+    @pyqtSlot(result=bool)
     def request_group_selected_nodes(self) -> bool:
         return bool(self._group_selected_nodes())
 
@@ -1332,6 +1336,9 @@ class ShellWindow(QMainWindow):
 
     def _duplicate_selected_nodes(self):
         return self.workspace_library_controller.duplicate_selected_nodes()
+
+    def _wrap_selected_nodes_in_comment_backdrop(self):
+        return self.workspace_graph_edit_controller.wrap_selected_nodes_in_comment_backdrop()
 
     def _group_selected_nodes(self):
         return self.workspace_library_controller.group_selected_nodes()

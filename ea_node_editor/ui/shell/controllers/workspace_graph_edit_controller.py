@@ -207,6 +207,9 @@ class WorkspaceGraphEditController:
     def duplicate_selected_nodes(self) -> bool:
         return self._edit_ops.duplicate_selected_nodes()
 
+    def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return self._edit_ops.wrap_selected_nodes_in_comment_backdrop()
+
     def group_selected_nodes(self) -> bool:
         return self._edit_ops.group_selected_nodes()
 

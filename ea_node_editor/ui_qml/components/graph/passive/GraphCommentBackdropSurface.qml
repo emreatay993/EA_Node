@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import "../surface_controls" as SurfaceControls
 
 Item {
     id: surface
@@ -7,7 +8,15 @@ Item {
     readonly property var nodeProperties: host && host.nodeData && host.nodeData.properties
         ? host.nodeData.properties
         : ({})
+    readonly property bool inputOverlayMode: host
+        ? String(host.surfaceVariant || "") === "comment_backdrop_input_overlay"
+        : false
+    readonly property bool editingShellVisible: surface.inputOverlayMode
+        && (host ? (host.canvasItem ? host.isSelected : true) : false)
     readonly property string bodyValue: _value("body")
+    readonly property var embeddedInteractiveRects: surface.editingShellVisible
+        ? bodyEditor.embeddedInteractiveRects
+        : []
     readonly property color backdropFillColor: _backdropFillColor()
     readonly property color backdropBorderColor: host && host.isSelected
         ? host.selectedOutlineColor
@@ -38,7 +47,18 @@ Item {
         return Qt.alpha(Qt.lighter(base, 1.1), 0.22);
     }
 
+    function _beginInteraction() {
+        if (host && host.nodeData)
+            host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
+    }
+
+    function _commitBody(value) {
+        if (host && host.nodeData)
+            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), "body", value);
+    }
+
     Rectangle {
+        visible: !surface.inputOverlayMode
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
         color: surface.backdropFillColor
@@ -47,6 +67,7 @@ Item {
     }
 
     Rectangle {
+        visible: !surface.inputOverlayMode
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -71,6 +92,7 @@ Item {
             spacing: 10
 
             Row {
+                visible: !surface.editingShellVisible
                 spacing: 8
 
                 Rectangle {
@@ -92,8 +114,8 @@ Item {
             }
 
             Text {
+                visible: !surface.editingShellVisible && surface.bodyValue.length > 0
                 objectName: "graphNodeCommentBackdropBodyText"
-                visible: surface.bodyValue.length > 0
                 width: parent.width
                 text: surface.bodyValue
                 color: surface.bodyTextColor
@@ -105,7 +127,7 @@ Item {
             }
 
             Text {
-                visible: surface.bodyValue.length === 0
+                visible: !surface.editingShellVisible && surface.bodyValue.length === 0
                 width: parent.width
                 text: "Backdrop notes stay on the standard graph document path in P01."
                 color: surface.mutedTextColor
@@ -114,6 +136,23 @@ Item {
                 maximumLineCount: 4
                 elide: Text.ElideRight
                 renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+            }
+
+            SurfaceControls.GraphSurfaceTextareaEditor {
+                id: bodyEditor
+                objectName: "graphCommentBackdropBodyEditor"
+                visible: surface.editingShellVisible
+                width: parent.width
+                host: surface.host
+                propertyKey: "body"
+                committedText: surface.bodyValue
+                fieldObjectName: "graphCommentBackdropBodyEditorField"
+                applyButtonObjectName: "graphCommentBackdropBodyApplyButton"
+                resetButtonObjectName: "graphCommentBackdropBodyResetButton"
+                onControlStarted: surface._beginInteraction()
+                onCommitRequested: function(value) {
+                    surface._commitBody(value);
+                }
             }
         }
     }

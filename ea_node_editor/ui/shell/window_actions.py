@@ -66,6 +66,12 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_duplicate_selection.setShortcut(QKeySequence("Ctrl+D"))
     window.action_duplicate_selection.triggered.connect(window._duplicate_selected_nodes)
 
+    window.action_wrap_selection_in_comment_backdrop = QAction("Wrap Selection in Comment Backdrop", window)
+    window.action_wrap_selection_in_comment_backdrop.setShortcut(QKeySequence("C"))
+    window.action_wrap_selection_in_comment_backdrop.triggered.connect(
+        window._wrap_selected_nodes_in_comment_backdrop
+    )
+
     window.action_group_selection = QAction("Group Selection", window)
     window.action_group_selection.setShortcut(QKeySequence("Ctrl+G"))
     window.action_group_selection.triggered.connect(window._group_selected_nodes)
@@ -201,6 +207,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_paste_selection,
         window.action_connect_selected,
         window.action_duplicate_selection,
+        window.action_wrap_selection_in_comment_backdrop,
         window.action_group_selection,
         window.action_ungroup_selection,
         window.action_align_left,
@@ -260,6 +267,7 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     edit_menu.addSeparator()
     edit_menu.addAction(window.action_connect_selected)
     edit_menu.addAction(window.action_duplicate_selection)
+    edit_menu.addAction(window.action_wrap_selection_in_comment_backdrop)
     edit_menu.addAction(window.action_group_selection)
     edit_menu.addAction(window.action_ungroup_selection)
     layout_menu = edit_menu.addMenu("Layout")

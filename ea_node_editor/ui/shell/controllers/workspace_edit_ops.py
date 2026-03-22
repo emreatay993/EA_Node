@@ -298,6 +298,14 @@ class WorkspaceEditOps:
         self._controller.refresh_workspace_tabs()
         return True
 
+    def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        wrapped = bool(self._host.scene.wrap_selected_nodes_in_comment_backdrop())
+        if not wrapped:
+            return False
+        self._host.selected_node_changed.emit()
+        self._controller.refresh_workspace_tabs()
+        return True
+
     def group_selected_nodes(self) -> bool:
         grouped = bool(self._host.scene.group_selected_nodes())
         if not grouped:
