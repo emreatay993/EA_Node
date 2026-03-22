@@ -7,7 +7,7 @@ Item {
     objectName: "graphNodeHeaderLayer"
     property Item host: null
     property bool isEditing: false
-    readonly property bool flowchartTitleEditable: host ? host.flowchartTitleEditable : false
+    readonly property bool sharedHeaderTitleEditable: host ? host.sharedHeaderTitleEditable : false
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || "")
         : ""
@@ -15,7 +15,7 @@ Item {
     z: 3
 
     function _beginTitleEdit() {
-        if (!root.flowchartTitleEditable || root.isEditing || !root.host || !root.host.nodeData)
+        if (!root.sharedHeaderTitleEditable || root.isEditing || !root.host || !root.host.nodeData)
             return false;
         root.isEditing = true;
         root.host.surfaceControlInteractionStarted(String(root.host.nodeData.node_id || ""));
@@ -23,7 +23,7 @@ Item {
     }
 
     function requestTitleEditAt(localX, localY) {
-        if (!root.flowchartTitleEditable || root.isEditing)
+        if (!root.sharedHeaderTitleEditable || root.isEditing)
             return false;
         if (!GraphNodeHostHitTesting.pointInRect(localX, localY, titleHitRegion.interactiveRect))
             return false;
@@ -66,8 +66,8 @@ Item {
             titleEditor.text = root.currentTitle;
     }
 
-    onFlowchartTitleEditableChanged: {
-        if (!root.flowchartTitleEditable && root.isEditing)
+    onSharedHeaderTitleEditableChanged: {
+        if (!root.sharedHeaderTitleEditable && root.isEditing)
             root.cancelTitleEdit();
     }
 
@@ -117,7 +117,7 @@ Item {
         id: titleHitRegion
         host: root.host
         targetItem: titleText
-        enabled: root.flowchartTitleEditable && titleText.visible
+        enabled: root.sharedHeaderTitleEditable && titleText.visible
     }
 
     SurfaceControls.GraphSurfaceTextField {
@@ -172,7 +172,7 @@ Item {
         id: titleEditorInteractionRegion
         host: root.host
         targetItem: titleEditor
-        enabled: root.flowchartTitleEditable && titleEditor.visible
+        enabled: root.sharedHeaderTitleEditable && titleEditor.visible
     }
 
     Rectangle {

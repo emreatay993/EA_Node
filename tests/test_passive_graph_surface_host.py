@@ -569,6 +569,154 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_non_scoped_standard_and_passive_titles_use_shared_header_editor_without_pointer_leaks(self) -> None:
+        self._run_qml_probe(
+            "shared-header-title-rollout-host",
+            """
+            def passive_standard_payload():
+                payload = node_payload()
+                payload["runtime_behavior"] = "passive"
+                payload["type_id"] = "passive.standard.note"
+                payload["title"] = "Passive Note"
+                payload["properties"] = {"title": "Passive Note"}
+                payload["visual_style"] = {
+                    "fill_color": "#f3f8fd",
+                    "border_color": "#6f88a3",
+                    "text_color": "#173247",
+                    "header_color": "#deebf7",
+                }
+                return payload
+
+            scenarios = [
+                ("standard", node_payload(), "Approved"),
+                ("passive", passive_standard_payload(), "Reviewed"),
+            ]
+
+            for label, payload, committed_title in scenarios:
+                host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+                window = attach_host_to_window(host, width=640, height=480)
+                try:
+                    title_item = host.findChild(QObject, "graphNodeTitle")
+                    editor = host.findChild(QObject, "graphNodeTitleEditor")
+                    assert title_item is not None, label
+                    assert editor is not None, label
+                    assert bool(host.property("sharedHeaderTitleEditable")), label
+
+                    events = host_pointer_events(host)
+                    interactions = []
+                    committed = []
+                    host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+                    host.inlinePropertyCommitted.connect(
+                        lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                    )
+
+                    title_point = item_scene_point(title_item)
+                    body_point = host_scene_point(
+                        host,
+                        float(host.property("width")) * 0.5,
+                        float(host.property("height")) * 0.78,
+                    )
+
+                    mouse_click(window, title_point)
+                    assert events["clicked"] == [(payload["node_id"], False)], label
+                    assert events["opened"] == [], label
+                    assert not bool(editor.property("visible")), label
+
+                    events["clicked"].clear()
+                    events["opened"].clear()
+                    events["contexts"].clear()
+
+                    mouse_double_click(window, title_point)
+                    settle_events(5)
+                    assert bool(editor.property("visible")), label
+                    assert interactions == [payload["node_id"]], label
+                    assert events["opened"] == [], label
+
+                    editor.setProperty("text", f" {committed_title} ")
+                    app.processEvents()
+                    app.sendEvent(
+                        editor,
+                        QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                    )
+                    app.sendEvent(
+                        editor,
+                        QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                    )
+                    settle_events(5)
+                    assert committed == [(payload["node_id"], "title", committed_title)], label
+                    assert not bool(editor.property("visible")), label
+
+                    committed.clear()
+                    events["clicked"].clear()
+                    events["opened"].clear()
+                    events["contexts"].clear()
+
+                    mouse_double_click(window, title_point)
+                    settle_events(5)
+                    assert bool(editor.property("visible")), label
+
+                    events["clicked"].clear()
+                    events["opened"].clear()
+                    events["contexts"].clear()
+                    editor_point = item_scene_point(editor)
+                    mouse_click(window, editor_point)
+                    mouse_double_click(window, editor_point)
+                    mouse_click(window, editor_point, Qt.MouseButton.RightButton)
+                    settle_events(5)
+                    assert events["clicked"] == [], label
+                    assert events["opened"] == [], label
+                    assert events["contexts"] == [], label
+
+                    app.sendEvent(
+                        editor,
+                        QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                    )
+                    app.sendEvent(
+                        editor,
+                        QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                    )
+                    settle_events(5)
+                    assert committed == [], label
+                    assert not bool(editor.property("visible")), label
+
+                    events["clicked"].clear()
+                    events["opened"].clear()
+                    events["contexts"].clear()
+                    mouse_double_click(window, body_point)
+                    settle_events(5)
+                    assert events["opened"] == [payload["node_id"]], label
+                finally:
+                    dispose_host_window(host, window)
+            """,
+        )
+
+    def test_scope_capable_title_double_click_remains_on_open_path_until_p03(self) -> None:
+        self._run_qml_probe(
+            "shared-header-title-rollout-scope-exclusion",
+            """
+            payload = node_payload()
+            payload["can_enter_scope"] = True
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                title_item = host.findChild(QObject, "graphNodeTitle")
+                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                assert title_item is not None
+                assert editor is not None
+                assert not bool(host.property("sharedHeaderTitleEditable"))
+
+                events = host_pointer_events(host)
+                mouse_double_click(window, item_scene_point(title_item))
+                settle_events(5)
+
+                assert not bool(editor.property("visible"))
+                assert events["opened"] == ["node_surface_host_test"]
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
     def test_media_host_proxy_surface_activates_when_ready_image_enters_proxy_quality_tier(self) -> None:
         self._run_qml_probe(
             "media-render-quality-proxy-surface",

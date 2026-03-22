@@ -620,6 +620,158 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_canvas_routes_non_scoped_shared_header_title_edits_without_body_pointer_regressions(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-shared-header-title-editor",
+            """
+            from PyQt6.QtCore import QObject, QPointF, pyqtProperty, pyqtSignal, pyqtSlot
+
+            class SceneBridgeStub(QObject):
+                nodes_changed = pyqtSignal()
+                edges_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self.select_calls = []
+                    self.set_node_property_calls = []
+                    self._nodes_model = [node_payload()]
+                    self._selected_node_lookup = {}
+
+                @pyqtProperty("QVariantList", notify=nodes_changed)
+                def nodes_model(self):
+                    return self._nodes_model
+
+                @pyqtProperty("QVariantList", notify=edges_changed)
+                def edges_model(self):
+                    return []
+
+                @pyqtProperty("QVariantMap", notify=nodes_changed)
+                def selected_node_lookup(self):
+                    return self._selected_node_lookup
+
+                @pyqtSlot(str)
+                @pyqtSlot(str, bool)
+                def select_node(self, node_id, additive=False):
+                    normalized_node_id = str(node_id or "")
+                    self.select_calls.append((normalized_node_id, bool(additive)))
+                    self._selected_node_lookup = {normalized_node_id: True} if normalized_node_id else {}
+                    self.nodes_changed.emit()
+
+                @pyqtSlot(str, str, "QVariant")
+                def set_node_property(self, node_id, key, value):
+                    self.set_node_property_calls.append((str(node_id or ""), str(key or ""), variant_value(value)))
+
+                @pyqtSlot(str, str, str)
+                def set_node_port_label(self, node_id, port_key, label):
+                    pass
+
+                @pyqtSlot(str, str, result=bool)
+                def are_port_kinds_compatible(self, _source_kind, _target_kind):
+                    return True
+
+                @pyqtSlot(str, str, result=bool)
+                def are_data_types_compatible(self, _source_type, _target_type):
+                    return True
+
+            class MainWindowBridgeStub(QObject):
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+            scene_bridge = SceneBridgeStub()
+            window_bridge = MainWindowBridgeStub()
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "sceneBridge": scene_bridge,
+                    "mainWindowBridge": window_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            try:
+                node_card = next((item for item in walk_items(canvas) if item.objectName() == "graphNodeCard"), None)
+                assert node_card is not None
+                title_item = node_card.findChild(QObject, "graphNodeTitle")
+                editor = node_card.findChild(QObject, "graphNodeTitleEditor")
+                assert title_item is not None
+                assert editor is not None
+                assert bool(node_card.property("sharedHeaderTitleEditable"))
+
+                open_requests = []
+                node_card.nodeOpenRequested.connect(lambda node_id: open_requests.append(node_id))
+
+                title_point = title_item.mapToItem(
+                    node_card,
+                    QPointF(float(title_item.width()) * 0.5, float(title_item.height()) * 0.5),
+                )
+                body_local_x = float(node_card.property("width")) * 0.5
+                body_local_y = float(node_card.property("height")) * 0.78
+
+                assert not node_card.requestInlineTitleEditAt(body_local_x, body_local_y)
+                assert not bool(editor.property("visible"))
+                assert node_card.requestInlineTitleEditAt(title_point.x(), title_point.y())
+                settle_events(5)
+                assert bool(editor.property("visible"))
+                assert open_requests == []
+                assert scene_bridge.select_calls == [("node_surface_contract_test", False)]
+
+                assert not node_card.commitInlineTitleEditAt(title_point.x(), title_point.y())
+                assert bool(editor.property("visible"))
+
+                scene_bridge.select_calls.clear()
+                scene_bridge.set_node_property_calls.clear()
+                editor.setProperty("text", " Updated Logger ")
+                app.processEvents()
+                assert node_card.commitInlineTitleEditAt(body_local_x, body_local_y)
+                settle_events(5)
+
+                assert scene_bridge.set_node_property_calls == [
+                    ("node_surface_contract_test", "title", "Updated Logger")
+                ]
+                assert scene_bridge.select_calls == [("node_surface_contract_test", False)]
+                assert not bool(editor.property("visible"))
+                assert open_requests == []
+            finally:
+                canvas.deleteLater()
+                app.processEvents()
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_graph_canvas_deactivates_far_offscreen_node_surfaces_but_keeps_force_active_exceptions(self) -> None:
         self._run_qml_probe(
             "graph-canvas-offscreen-render-activation",

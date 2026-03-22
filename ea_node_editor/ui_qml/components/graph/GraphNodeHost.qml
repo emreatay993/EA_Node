@@ -61,7 +61,6 @@ Item {
         "proxy_surface_requested": card.proxySurfaceRequested
     })
     readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
-    readonly property bool flowchartTitleEditable: card.isFlowchartSurface && !card.isCollapsed && !!card.nodeData
     readonly property bool usesCardinalNeutralFlowHandles: !!nodeData
         && GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(nodeData)
     readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
@@ -230,6 +229,8 @@ Item {
     readonly property real inlineBodyHeight: Number(surfaceMetrics.body_height)
     readonly property real _portDragThreshold: 2
     readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
+    readonly property bool sharedHeaderTitleEditable: !!card.nodeData && !card.isCollapsed && !card.canEnterScope
+    readonly property bool flowchartTitleEditable: card.isFlowchartSurface && card.sharedHeaderTitleEditable
     readonly property bool _useHostChrome: card.isCollapsed || Boolean(surfaceMetrics.use_host_chrome)
     readonly property bool _showAccentBar: card.isCollapsed || Boolean(surfaceMetrics.show_accent_bar)
     readonly property bool _showHeaderBackground: card.isCollapsed
