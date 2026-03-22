@@ -3,6 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 
+from ea_node_editor.graph.comment_backdrop_geometry import (
+    COMMENT_BACKDROP_WRAP_MIN_HEIGHT,
+    COMMENT_BACKDROP_WRAP_MIN_WIDTH,
+    COMMENT_BACKDROP_WRAP_PADDING,
+    CommentBackdropCandidate,
+    CommentBackdropWrapResult,
+    build_comment_backdrop_wrap_bounds,
+)
+from ea_node_editor.graph.hierarchy import normalize_scope_path, node_scope_path, scope_parent_id
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
 from ea_node_editor.graph.transforms import (
     GroupSubnodeResult,
@@ -11,7 +20,9 @@ from ea_node_editor.graph.transforms import (
     _insert_graph_fragment_transaction,
     _ungroup_subnode_transaction,
 )
+from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID
 from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
+from ea_node_editor.ui_qml.edge_routing import node_size
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.normalization import ValidatedGraphMutation
@@ -326,6 +337,85 @@ class WorkspaceMutationService:
             mutations=self,
             workspace=self.workspace,
             shell_node_id=shell_node_id,
+        )
+
+    def wrap_selection_in_comment_backdrop(
+        self,
+        *,
+        selected_node_ids: Sequence[object],
+        scope_path: Sequence[object] | None,
+    ) -> CommentBackdropWrapResult | None:
+        if self.registry is None:
+            raise RuntimeError("Node registry is required for comment backdrop wrapping transactions.")
+
+        workspace = self.workspace
+        normalized_scope = normalize_scope_path(workspace, scope_path)
+        selected_candidates: list[CommentBackdropCandidate] = []
+        wrapped_node_ids: list[str] = []
+        seen_node_ids: set[str] = set()
+
+        for value in selected_node_ids:
+            node_id = str(value).strip()
+            if not node_id or node_id in seen_node_ids:
+                continue
+            node = workspace.nodes.get(node_id)
+            if node is None:
+                return None
+            if node_scope_path(workspace, node_id) != normalized_scope:
+                return None
+            spec = self.registry.get_spec(node.type_id)
+            width, height = node_size(node, spec, workspace.nodes)
+            selected_candidates.append(
+                CommentBackdropCandidate(
+                    node_id=node_id,
+                    scope_path=normalized_scope,
+                    is_backdrop=(str(spec.surface_family or "").strip() == "comment_backdrop"),
+                    x=float(node.x),
+                    y=float(node.y),
+                    width=float(width),
+                    height=float(height),
+                )
+            )
+            wrapped_node_ids.append(node_id)
+            seen_node_ids.add(node_id)
+
+        if not selected_candidates:
+            return None
+
+        bounds = build_comment_backdrop_wrap_bounds(
+            selected_candidates,
+            padding=COMMENT_BACKDROP_WRAP_PADDING,
+            min_width=COMMENT_BACKDROP_WRAP_MIN_WIDTH,
+            min_height=COMMENT_BACKDROP_WRAP_MIN_HEIGHT,
+        )
+        if bounds is None:
+            return None
+
+        backdrop_spec = self.registry.get_spec(PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID)
+        backdrop = self.add_node(
+            type_id=PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID,
+            title=backdrop_spec.display_name,
+            x=float(bounds.x),
+            y=float(bounds.y),
+            properties=self.registry.default_properties(PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID),
+            exposed_ports={port.key: port.exposed for port in backdrop_spec.ports},
+            parent_node_id=scope_parent_id(normalized_scope),
+        )
+        self.set_node_geometry(
+            backdrop.node_id,
+            float(bounds.x),
+            float(bounds.y),
+            float(bounds.width),
+            float(bounds.height),
+        )
+        return CommentBackdropWrapResult(
+            backdrop_node_id=backdrop.node_id,
+            wrapped_node_ids=tuple(wrapped_node_ids),
+            scope_path=normalized_scope,
+            x=float(bounds.x),
+            y=float(bounds.y),
+            width=float(bounds.width),
+            height=float(bounds.height),
         )
 
     def normalize_pdf_panel_pages(self) -> bool:

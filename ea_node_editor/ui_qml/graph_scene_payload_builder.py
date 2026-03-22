@@ -3,9 +3,14 @@ from __future__ import annotations
 import copy
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.graph.comment_backdrop_geometry import (
+    CommentBackdropCandidate,
+    CommentBackdropMembership,
+    compute_comment_backdrop_membership,
+)
 from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.effective_ports import effective_ports, ordered_ports_for_display
-from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_edges, scope_node_ids
+from ea_node_editor.graph.hierarchy import is_node_in_scope, node_scope_path, scope_edges, scope_node_ids
 from ea_node_editor.graph.model import GraphModel, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -127,6 +132,9 @@ class GraphScenePayloadBuilder:
         backdrop_nodes_payload: list[dict[str, Any]] = []
         minimap_nodes_payload: list[dict[str, Any]] = []
         node_specs: dict[str, NodeTypeSpec] = {}
+        node_payload_by_id: dict[str, dict[str, Any]] = {}
+        comment_backdrop_ids: set[str] = set()
+        membership_candidates: list[CommentBackdropCandidate] = []
 
         for node_id in visible_node_ids:
             node = workspace.nodes[node_id]
@@ -141,10 +149,21 @@ class GraphScenePayloadBuilder:
                 graph_theme=graph_theme,
                 show_port_labels=show_port_labels,
             )
-            if self._is_comment_backdrop_spec(spec):
-                backdrop_nodes_payload.append(node_payload)
-            else:
-                nodes_payload.append(node_payload)
+            node_payload_by_id[node_id] = node_payload
+            is_comment_backdrop = self._is_comment_backdrop_spec(spec)
+            if is_comment_backdrop:
+                comment_backdrop_ids.add(node_id)
+            membership_candidates.append(
+                CommentBackdropCandidate(
+                    node_id=node_id,
+                    scope_path=node_scope_path(workspace, node_id),
+                    is_backdrop=is_comment_backdrop,
+                    x=float(node_payload["x"]),
+                    y=float(node_payload["y"]),
+                    width=float(node_payload["width"]),
+                    height=float(node_payload["height"]),
+                )
+            )
             minimap_nodes_payload.append(
                 self._build_minimap_node_payload(
                     node=payload_node,
@@ -153,6 +172,20 @@ class GraphScenePayloadBuilder:
                     show_port_labels=show_port_labels,
                 )
             )
+
+        membership_by_node_id = compute_comment_backdrop_membership(membership_candidates)
+        for node_id in visible_node_ids:
+            node_payload = node_payload_by_id[node_id]
+            is_comment_backdrop = node_id in comment_backdrop_ids
+            self._apply_comment_backdrop_membership_payload(
+                node_payload,
+                membership_by_node_id.get(node_id),
+                is_comment_backdrop=is_comment_backdrop,
+            )
+            if is_comment_backdrop:
+                backdrop_nodes_payload.append(node_payload)
+            else:
+                nodes_payload.append(node_payload)
 
         edges_payload = build_edge_payload(
             graph_theme=graph_theme,
@@ -166,6 +199,26 @@ class GraphScenePayloadBuilder:
     @staticmethod
     def _is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
         return str(spec.surface_family or "").strip() == "comment_backdrop"
+
+    @staticmethod
+    def _apply_comment_backdrop_membership_payload(
+        node_payload: dict[str, Any],
+        membership: CommentBackdropMembership | None,
+        *,
+        is_comment_backdrop: bool,
+    ) -> None:
+        node_payload["owner_backdrop_id"] = str(membership.owner_backdrop_id or "") if membership is not None else ""
+        node_payload["backdrop_depth"] = int(membership.backdrop_depth) if membership is not None else 0
+        if membership is None or not is_comment_backdrop:
+            node_payload["member_node_ids"] = []
+            node_payload["member_backdrop_ids"] = []
+            node_payload["contained_node_ids"] = []
+            node_payload["contained_backdrop_ids"] = []
+            return
+        node_payload["member_node_ids"] = list(membership.member_node_ids)
+        node_payload["member_backdrop_ids"] = list(membership.member_backdrop_ids)
+        node_payload["contained_node_ids"] = list(membership.contained_node_ids)
+        node_payload["contained_backdrop_ids"] = list(membership.contained_backdrop_ids)
 
     @staticmethod
     def _port_connection_counts(workspace_edges: list[Any]) -> dict[tuple[str, str], int]:

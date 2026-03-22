@@ -694,6 +694,14 @@ class GraphSceneBridge(QObject):
             grid_size=grid_size,
         )
 
+    @pyqtSlot("QVariantList", result=str)
+    def wrap_node_ids_in_comment_backdrop(self, node_ids: list[Any]) -> str:
+        return self._mutation_history.wrap_nodes_in_comment_backdrop(node_ids)
+
+    @pyqtSlot(result=bool)
+    def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return self._mutation_history.wrap_selected_nodes_in_comment_backdrop()
+
     @pyqtSlot(result=bool)
     def group_selected_nodes(self) -> bool:
         return self._mutation_history.group_selected_nodes()
