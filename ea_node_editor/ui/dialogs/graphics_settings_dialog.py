@@ -139,9 +139,12 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         overlay_card, overlay_lay = self._make_section_card(page)
         self.show_grid_check = QCheckBox("Show grid overlay", overlay_card)
         self.show_minimap_check = QCheckBox("Show minimap", overlay_card)
+        self.show_port_labels_check = QCheckBox("Show port labels", overlay_card)
+        self.show_port_labels_check.setObjectName("graphicsSettingsShowPortLabelsCheck")
         self.minimap_expanded_check = QCheckBox("Expand minimap by default", overlay_card)
         overlay_lay.addWidget(self.show_grid_check)
         overlay_lay.addWidget(self.show_minimap_check)
+        overlay_lay.addWidget(self.show_port_labels_check)
         self.minimap_expanded_check.setContentsMargins(20, 0, 0, 0)
         overlay_lay.addWidget(self.minimap_expanded_check)
         outer.addWidget(overlay_card)
@@ -406,6 +409,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         settings = self._normalize(initial_settings)
         self.show_grid_check.setChecked(settings["canvas"]["show_grid"])
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
+        self.show_port_labels_check.setChecked(settings["canvas"]["show_port_labels"])
         self.minimap_expanded_check.setChecked(settings["canvas"]["minimap_expanded"])
         self.node_shadow_check.setChecked(settings["canvas"]["node_shadow"])
         self.shadow_strength_slider.setValue(settings["canvas"]["shadow_strength"])
@@ -429,6 +433,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 "canvas": {
                     "show_grid": self.show_grid_check.isChecked(),
                     "show_minimap": self.show_minimap_check.isChecked(),
+                    "show_port_labels": self.show_port_labels_check.isChecked(),
                     "minimap_expanded": self.minimap_expanded_check.isChecked(),
                     "node_shadow": self.node_shadow_check.isChecked(),
                     "shadow_strength": self.shadow_strength_slider.value(),

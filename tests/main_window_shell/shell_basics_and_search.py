@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 from unittest.mock import patch
 
@@ -57,6 +58,33 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         ]
         self.assertEqual(settings_entries, ["Workflow Settings", "Graphics Settings"])
 
+    def test_view_menu_exposes_port_labels_toggle(self) -> None:
+        menu_actions = {
+            action.text(): action.menu()
+            for action in self.window.menuBar().actions()
+            if action.menu() is not None
+        }
+
+        view_entries = [
+            action.text()
+            for action in menu_actions["&View"].actions()
+            if not action.isSeparator()
+        ]
+        self.assertEqual(
+            view_entries,
+            [
+                "Script Editor",
+                "Port Labels",
+                "Frame All",
+                "Frame Selection",
+                "Center Selection",
+                "Scope Parent",
+                "Scope Root",
+            ],
+        )
+        self.assertTrue(self.window.action_show_port_labels.isCheckable())
+        self.assertTrue(self.window.action_show_port_labels.isChecked())
+
     def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
         meta = self.window.metaObject()
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_grid"), 0)
@@ -73,6 +101,109 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.graphics_tab_strip_density, "compact")
         self.assertEqual(self.window.active_theme_id, "stitch_dark")
         self.assertFalse(self.window.snap_to_grid_enabled)
+
+    def test_graphics_settings_dialog_and_view_toggle_share_port_label_preference(self) -> None:
+        self.assertTrue(self.window.graphics_show_port_labels)
+        self.assertTrue(self.window.action_show_port_labels.isChecked())
+
+        self.window.action_show_port_labels.trigger()
+        self.app.processEvents()
+
+        self.assertFalse(self.window.graphics_show_port_labels)
+        self.assertFalse(self.window.action_show_port_labels.isChecked())
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertFalse(persisted["graphics"]["canvas"]["show_port_labels"])
+
+        captured_initial_settings: list[dict[str, object]] = []
+
+        class RejectingDialog:
+            class DialogCode:
+                Rejected = 0
+                Accepted = 1
+
+            def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+                captured_initial_settings.append(copy.deepcopy(kwargs["initial_settings"]))
+
+            def exec(self) -> int:
+                return self.DialogCode.Rejected
+
+        with patch(
+            "ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog",
+            RejectingDialog,
+        ):
+            self.window.show_graphics_settings_dialog()
+
+        self.assertEqual(len(captured_initial_settings), 1)
+        self.assertFalse(captured_initial_settings[0]["canvas"]["show_port_labels"])
+        self.assertFalse(self.window.action_show_port_labels.isChecked())
+
+        accepted_values = self.window.app_preferences_controller.graphics_settings()
+        accepted_values["canvas"]["show_port_labels"] = True
+
+        class AcceptingDialog(RejectingDialog):
+            def exec(self) -> int:
+                return self.DialogCode.Accepted
+
+            def values(self) -> dict[str, object]:
+                return copy.deepcopy(accepted_values)
+
+        with patch(
+            "ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog",
+            AcceptingDialog,
+        ):
+            self.window.show_graphics_settings_dialog()
+            self.app.processEvents()
+
+        self.assertTrue(self.window.graphics_show_port_labels)
+        self.assertTrue(self.window.action_show_port_labels.isChecked())
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertTrue(persisted["graphics"]["canvas"]["show_port_labels"])
+
+    def test_port_labels_setting_persists_across_window_restart(self) -> None:
+        self.assertTrue(self.window.graphics_show_port_labels)
+        self.assertTrue(self.window.action_show_port_labels.isChecked())
+
+        self.window.action_show_port_labels.trigger()
+        self.app.processEvents()
+
+        self.assertFalse(self.window.graphics_show_port_labels)
+        self.assertFalse(self.window.action_show_port_labels.isChecked())
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertFalse(persisted["graphics"]["canvas"]["show_port_labels"])
+
+        self._reopen_window()
+
+        self.assertFalse(self.window.graphics_show_port_labels)
+        self.assertFalse(self.window.action_show_port_labels.isChecked())
+
+    def test_port_label_preference_change_rebuilds_active_scene_payload(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+
+        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
+            self.window.action_show_port_labels.trigger()
+            self.app.processEvents()
+        refresh_workspace.assert_called_once_with(workspace_id)
+
+        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
+            self.window.app_preferences_controller.set_graphics_settings(
+                {
+                    "canvas": {
+                        "show_grid": True,
+                        "show_minimap": True,
+                        "show_port_labels": True,
+                        "minimap_expanded": True,
+                    },
+                    "interaction": {
+                        "snap_to_grid": False,
+                    },
+                    "theme": {
+                        "theme_id": "stitch_dark",
+                    },
+                },
+                host=self.window,
+            )
+            self.app.processEvents()
+        refresh_workspace.assert_called_once_with(workspace_id)
 
     def test_qml_shell_and_bridges_are_present(self) -> None:
         self.assertIsNotNone(self.window.quick_widget)

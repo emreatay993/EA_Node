@@ -688,6 +688,24 @@ class ShellWindow(QMainWindow):
             host=self,
         )
 
+    def _sync_graphics_show_port_labels_action(self, show_port_labels: bool) -> None:
+        action = getattr(self, "action_show_port_labels", None)
+        if action is None or action.isChecked() == show_port_labels:
+            return
+        blocked = action.blockSignals(True)
+        action.setChecked(show_port_labels)
+        action.blockSignals(blocked)
+
+    def _refresh_active_workspace_scene_payload(self) -> None:
+        workspace_manager = getattr(self, "workspace_manager", None)
+        scene = getattr(self, "scene", None)
+        if workspace_manager is None or scene is None:
+            return
+        workspace_id = str(workspace_manager.active_workspace_id() or "").strip()
+        if not workspace_id:
+            return
+        scene.refresh_workspace_from_model(workspace_id)
+
     @pyqtSlot(str)
     def set_graphics_performance_mode(self, mode: str) -> None:
         self.app_preferences_controller.update_graphics_settings(
@@ -726,7 +744,16 @@ class ShellWindow(QMainWindow):
         return self.shell_host_presenter.preview_graph_theme_settings(graph_theme_settings)
 
     def apply_graphics_preferences(self, graphics: Any) -> dict[str, Any]:
-        return self.shell_workspace_presenter.apply_graphics_preferences(graphics)
+        previous_show_port_labels = bool(
+            getattr(getattr(self, "workspace_ui_state", None), "show_port_labels", True)
+        )
+        resolved = self.shell_workspace_presenter.apply_graphics_preferences(graphics)
+        canvas = resolved.get("canvas", {}) if isinstance(resolved, dict) else {}
+        current_show_port_labels = bool(canvas.get("show_port_labels", previous_show_port_labels))
+        self._sync_graphics_show_port_labels_action(current_show_port_labels)
+        if previous_show_port_labels != current_show_port_labels:
+            self._refresh_active_workspace_scene_payload()
+        return resolved
 
     @pyqtSlot()
     def request_open_graph_search(self) -> None:

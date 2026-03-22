@@ -97,6 +97,11 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_snap_to_grid.setChecked(False)
     window.action_snap_to_grid.toggled.connect(window.set_snap_to_grid_enabled)
 
+    window.action_show_port_labels = QAction("Port Labels", window)
+    window.action_show_port_labels.setCheckable(True)
+    window.action_show_port_labels.setChecked(True)
+    window.action_show_port_labels.toggled.connect(window.set_graphics_show_port_labels)
+
     window.action_undo = QAction("Undo", window)
     window.action_undo.setShortcut(QKeySequence("Ctrl+Z"))
     window.action_undo.triggered.connect(window._undo)
@@ -205,6 +210,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_distribute_horizontally,
         window.action_distribute_vertically,
         window.action_snap_to_grid,
+        window.action_show_port_labels,
         window.action_frame_all,
         window.action_frame_selection,
         window.action_center_selection,
@@ -270,6 +276,7 @@ def build_window_menu_bar(window: ShellWindow) -> None:
 
     view_menu = menu_bar.addMenu("&View")
     view_menu.addAction(window.action_toggle_script_editor)
+    view_menu.addAction(window.action_show_port_labels)
     view_menu.addSeparator()
     view_menu.addAction(window.action_frame_all)
     view_menu.addAction(window.action_frame_selection)

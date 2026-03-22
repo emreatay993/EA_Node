@@ -21,6 +21,8 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         try:
             self.assertIsInstance(dialog, SectionedSettingsDialog)
             self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
+            self.assertEqual(dialog.show_port_labels_check.objectName(), "graphicsSettingsShowPortLabelsCheck")
+            self.assertTrue(dialog.show_port_labels_check.isChecked())
             self.assertTrue(dialog.full_fidelity_mode_button.isChecked())
             self.assertFalse(dialog.max_performance_mode_button.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
@@ -28,6 +30,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
 
             dialog.show_grid_check.setChecked(False)
             dialog.show_minimap_check.setChecked(False)
+            dialog.show_port_labels_check.setChecked(False)
             dialog.minimap_expanded_check.setChecked(False)
             dialog.snap_to_grid_check.setChecked(True)
             dialog.max_performance_mode_button.setChecked(True)
@@ -39,6 +42,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
             expected["canvas"]["show_minimap"] = False
+            expected["canvas"]["show_port_labels"] = False
             expected["canvas"]["minimap_expanded"] = False
             expected["interaction"]["snap_to_grid"] = True
             expected["performance"]["mode"] = "max_performance"
@@ -87,6 +91,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 "canvas": {
                     "show_grid": False,
                     "show_minimap": "no",
+                    "show_port_labels": False,
                     "minimap_expanded": False,
                 },
                 "interaction": {
@@ -115,8 +120,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertFalse(dialog.max_performance_mode_button.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
+            self.assertFalse(dialog.show_port_labels_check.isChecked())
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
+            expected["canvas"]["show_port_labels"] = False
             expected["canvas"]["minimap_expanded"] = False
             expected["interaction"]["snap_to_grid"] = True
             self.assertEqual(
