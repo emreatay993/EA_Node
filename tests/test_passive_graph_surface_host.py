@@ -629,6 +629,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     mouse_double_click(window, title_point)
                     settle_events(5)
                     assert bool(editor.property("visible")), label
+                    assert str(editor.property("selectedText") or "") == "", label
+                    assert int(editor.property("cursorPosition")) == len(str(payload["title"])), label
                     assert interactions == [payload["node_id"]], label
                     assert events["opened"] == [], label
 

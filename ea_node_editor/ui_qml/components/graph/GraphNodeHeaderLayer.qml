@@ -169,7 +169,8 @@ Item {
             if (visible) {
                 text = root.currentTitle;
                 forceActiveFocus();
-                selectAll();
+                cursorPosition = text.length;
+                deselect();
             }
         }
 
