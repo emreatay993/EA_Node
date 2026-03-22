@@ -54,6 +54,7 @@ from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 if TYPE_CHECKING:
     from ea_node_editor.graph.mutation_service import WorkspaceMutationService
     from ea_node_editor.graph.normalization import ValidatedGraphMutation
+    from ea_node_editor.nodes.types import NodeTypeSpec
     from ea_node_editor.ui.shell.runtime_history import WorkspaceSnapshot
     from ea_node_editor.ui_qml.graph_scene_bridge import _GraphSceneContext
     from ea_node_editor.ui_qml.graph_scene_scope_selection import GraphSceneScopeSelection
@@ -360,6 +361,29 @@ class GraphSceneMutationHistory:
         if normalized_node_id and normalized_node_id in self._scene_context.selected_node_lookup:
             self._scene_context.emit_node_selected(normalized_node_id)
 
+    @staticmethod
+    def _normalize_title_value(title: Any) -> str:
+        return str(title).strip()
+
+    def _normalized_title_update(self, node: NodeInstance, title: Any) -> str | None:
+        normalized = self._normalize_title_value(title)
+        if not normalized:
+            return None
+        if node.title == normalized:
+            return None
+        return normalized
+
+    def _apply_title_update(
+        self,
+        node_id: str,
+        node: NodeInstance,
+        spec: NodeTypeSpec,
+        normalized_title: str,
+    ) -> None:
+        self._mutation_boundary().set_node_title(node_id, normalized_title)
+        if self._scene_context.surface_title_sync_enabled(spec):
+            node.properties["title"] = normalized_title
+
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
         model = self._scene_context.model
         registry = self._scene_context.registry
@@ -368,14 +392,22 @@ class GraphSceneMutationHistory:
         workspace = model.project.workspaces[self._scene_context.workspace_id]
         node = workspace.nodes[node_id]
         spec = registry.get_spec(node.type_id)
+        if key == "title":
+            normalized_title = self._normalized_title_update(node, value)
+            if normalized_title is None:
+                return
+            history_before = self._capture_history_snapshot()
+            self._apply_title_update(node_id, node, spec, normalized_title)
+            self._scene_context.rebuild_models()
+            self.notify_selected_node_context_updated(node_id)
+            self._record_history(ACTION_RENAME_NODE, history_before)
+            return
         normalized = registry.normalize_property_value(node.type_id, key, value)
         current_value = node.properties.get(key, _MISSING)
         if current_value is not _MISSING and current_value == normalized:
             return
         history_before = self._capture_history_snapshot()
         self._mutation_boundary().set_node_property(node_id, key, normalized)
-        if key == "title":
-            self._scene_context.sync_surface_title(node, spec)
         self._scene_context.rebuild_models()
         self.notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
@@ -393,9 +425,13 @@ class GraphSceneMutationHistory:
             return False
         spec = registry.get_spec(node.type_id)
         normalized_updates: dict[str, Any] = {}
+        normalized_title = None
         for raw_key, raw_value in dict(values or {}).items():
             key = str(raw_key or "")
             if not key:
+                continue
+            if key == "title":
+                normalized_title = self._normalized_title_update(node, raw_value)
                 continue
             try:
                 normalized = registry.normalize_property_value(node.type_id, key, raw_value)
@@ -405,13 +441,19 @@ class GraphSceneMutationHistory:
             if current_value is not _MISSING and current_value == normalized:
                 continue
             normalized_updates[key] = normalized
-        if not normalized_updates:
+        if not normalized_updates and normalized_title is None:
             return False
 
         history_before = self._capture_history_snapshot()
+        if normalized_title is not None and not normalized_updates:
+            self._apply_title_update(node_id, node, spec, normalized_title)
+            self._scene_context.rebuild_models()
+            self.notify_selected_node_context_updated(node_id)
+            self._record_history(ACTION_RENAME_NODE, history_before)
+            return True
         self._mutation_boundary().set_node_properties(node_id, normalized_updates)
-        if "title" in normalized_updates:
-            self._scene_context.sync_surface_title(node, spec)
+        if normalized_title is not None:
+            self._apply_title_update(node_id, node, spec, normalized_title)
         self._scene_context.rebuild_models()
         self.notify_selected_node_context_updated(node_id)
         self._record_history(ACTION_EDIT_PROPERTY, history_before)
@@ -451,15 +493,11 @@ class GraphSceneMutationHistory:
         if node is None:
             return
         spec = registry.get_spec(node.type_id)
-        normalized = str(title).strip()
-        if not normalized:
-            return
-        if node.title == normalized:
+        normalized = self._normalized_title_update(node, title)
+        if normalized is None:
             return
         history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_node_title(node_id, normalized)
-        if self._scene_context.surface_title_sync_enabled(spec):
-            node.properties["title"] = normalized
+        self._apply_title_update(node_id, node, spec, normalized)
         self._scene_context.rebuild_models()
         self._record_history(ACTION_RENAME_NODE, history_before)
 

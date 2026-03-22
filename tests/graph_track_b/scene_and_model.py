@@ -17,7 +17,12 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec
 from ea_node_editor.ui.graph_interactions import GraphInteractions
-from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, RuntimeGraphHistory
+from ea_node_editor.ui.shell.runtime_history import (
+    ACTION_ADD_NODE,
+    ACTION_EDIT_PROPERTY,
+    ACTION_RENAME_NODE,
+    RuntimeGraphHistory,
+)
 from ea_node_editor.ui.graph_theme import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_STITCH_DARK_EDGE_TOKENS_V1,
@@ -709,6 +714,86 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(note_payload["title"], "Release note")
         self.assertEqual(note_payload["properties"]["body"], "Track follow-up messaging for the rollout.")
         self.assertGreaterEqual(note_payload["surface_metrics"]["min_width"], 176.0)
+
+    def test_batch_title_updates_keep_titles_synced_for_passive_nodes_and_canonical_for_standard_and_subnode_nodes(self) -> None:
+        task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)
+        logger_id = self.scene.add_node_from_type("core.logger", 340.0, 80.0)
+        shell_id = self.scene.add_node_from_type("core.subnode", 640.0, 100.0)
+
+        self.assertFalse(self.scene.set_node_properties(shell_id, {"title": "   "}))
+        self.assertTrue(
+            self.scene.set_node_properties(
+                task_id,
+                {
+                    "title": "Ship parser",
+                    "owner": "Platform",
+                },
+            )
+        )
+        self.assertTrue(
+            self.scene.set_node_properties(
+                logger_id,
+                {
+                    "title": "Primary Logger",
+                    "message": "Updated from batch",
+                },
+            )
+        )
+        self.assertTrue(self.scene.set_node_properties(shell_id, {"title": "Nested Workflow"}))
+
+        workspace = self.model.project.workspaces[self.workspace_id]
+        node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+
+        task_node = workspace.nodes[task_id]
+        logger_node = workspace.nodes[logger_id]
+        shell_node = workspace.nodes[shell_id]
+
+        self.assertEqual(task_node.title, "Ship parser")
+        self.assertEqual(task_node.properties["title"], "Ship parser")
+        self.assertEqual(task_node.properties["owner"], "Platform")
+        self.assertEqual(logger_node.title, "Primary Logger")
+        self.assertEqual(logger_node.properties["message"], "Updated from batch")
+        self.assertNotIn("title", logger_node.properties)
+        self.assertEqual(shell_node.title, "Nested Workflow")
+        self.assertNotIn("title", shell_node.properties)
+
+        self.assertEqual(node_payload[task_id]["title"], "Ship parser")
+        self.assertEqual(node_payload[task_id]["properties"]["title"], "Ship parser")
+        self.assertEqual(node_payload[logger_id]["title"], "Primary Logger")
+        self.assertNotIn("title", node_payload[logger_id]["properties"])
+        self.assertEqual(node_payload[shell_id]["title"], "Nested Workflow")
+        self.assertNotIn("title", node_payload[shell_id]["properties"])
+
+    def test_title_property_mutations_use_rename_history_for_single_title_and_property_history_for_batches(self) -> None:
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        node_id = self.scene.add_node_from_type("core.logger", 40.0, 60.0)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_property(node_id, "title", "Logger Alpha")
+
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_RENAME_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(self.scene.set_node_properties(node_id, {"title": "Logger Beta"}))
+
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_RENAME_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(
+            self.scene.set_node_properties(
+                node_id,
+                {
+                    "title": "Logger Gamma",
+                    "message": "Updated from batch",
+                },
+            )
+        )
+
+        self.assertEqual(history.undo_depth(self.workspace_id), 1)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_PROPERTY)
 
     def test_hiding_connected_port_removes_edges_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)

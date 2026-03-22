@@ -87,6 +87,37 @@ class InspectorReflectionTests(unittest.TestCase):
         self.assertEqual(node.title, "Validate Input")
         self.assertEqual(node.properties["title"], "Validate Input")
 
+    def test_standard_node_title_property_update_via_scene_bridge_trims_and_keeps_node_title_canonical(self) -> None:
+        node_id = self.scene.add_node_from_type("core.logger", 0.0, 0.0)
+
+        self.scene.set_node_property(node_id, "title", "   ")
+
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        self.assertEqual(node.title, "Logger")
+        self.assertNotIn("title", node.properties)
+
+        self.scene.set_node_property(node_id, "title", "  Approval Logger  ")
+
+        self.assertEqual(node.title, "Approval Logger")
+        self.assertNotIn("title", node.properties)
+
+    def test_standard_node_batch_title_update_via_scene_bridge_updates_title_without_declared_title_property(self) -> None:
+        node_id = self.scene.add_node_from_type("core.logger", 0.0, 0.0)
+
+        changed = self.scene.set_node_properties(
+            node_id,
+            {
+                "title": "  Batch Logger  ",
+                "message": "updated from batch",
+            },
+        )
+
+        self.assertTrue(changed)
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        self.assertEqual(node.title, "Batch Logger")
+        self.assertEqual(node.properties["message"], "updated from batch")
+        self.assertNotIn("title", node.properties)
+
 
 if __name__ == "__main__":
     unittest.main()
