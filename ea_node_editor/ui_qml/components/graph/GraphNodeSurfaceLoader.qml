@@ -52,6 +52,8 @@ Item {
             return "planning";
         if (normalizedFamily === "annotation")
             return "annotation";
+        if (normalizedFamily === "comment_backdrop")
+            return "comment_backdrop";
         if (normalizedFamily === "media")
             return "media";
         return "standard";
@@ -73,6 +75,8 @@ Item {
                 return planningSurfaceComponent;
             if (root.loadedSurfaceKey === "annotation")
                 return annotationSurfaceComponent;
+            if (root.loadedSurfaceKey === "comment_backdrop")
+                return commentBackdropSurfaceComponent;
             if (root.loadedSurfaceKey === "media")
                 return mediaSurfaceComponent;
             return standardSurfaceComponent;
@@ -115,6 +119,14 @@ Item {
         id: mediaSurfaceComponent
 
         GraphPassiveComponents.GraphMediaPanelSurface {
+            host: root.host
+        }
+    }
+
+    Component {
+        id: commentBackdropSurfaceComponent
+
+        GraphPassiveComponents.GraphCommentBackdropSurface {
             host: root.host
         }
     }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
 from ea_node_editor.nodes.decorators import node_type, prop_str
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 
 PASSIVE_ANNOTATION_CATEGORY = "Annotation"
@@ -9,6 +10,17 @@ PASSIVE_ANNOTATION_CATEGORY = "Annotation"
 PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID = "passive.annotation.sticky_note"
 PASSIVE_ANNOTATION_CALLOUT_TYPE_ID = "passive.annotation.callout"
 PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID = "passive.annotation.section_header"
+PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID = "passive.annotation.comment_backdrop"
+PASSIVE_ANNOTATION_COMMENT_BACKDROP_SURFACE_FAMILY = "comment_backdrop"
+
+
+def _enable_comment_backdrop_surface_family() -> None:
+    supported_families = set(getattr(NodeRegistry, "_SUPPORTED_SURFACE_FAMILIES", ()))
+    supported_families.add(PASSIVE_ANNOTATION_COMMENT_BACKDROP_SURFACE_FAMILY)
+    NodeRegistry._SUPPORTED_SURFACE_FAMILIES = supported_families
+
+
+_enable_comment_backdrop_surface_family()
 
 
 class _PassiveAnnotationNodePlugin:
@@ -76,20 +88,44 @@ class PassiveAnnotationSectionHeaderNodePlugin(_PassiveAnnotationNodePlugin):
     pass
 
 
+@node_type(
+    type_id=PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID,
+    display_name="Comment Backdrop",
+    category=PASSIVE_ANNOTATION_CATEGORY,
+    icon="comment",
+    description="Backdrop annotation for grouping related nodes without flow ports.",
+    ports=(),
+    properties=(
+        prop_str("title", "Comment Backdrop", "Title"),
+        prop_str("body", "", "Body", inspector_editor="textarea"),
+    ),
+    collapsible=True,
+    runtime_behavior="passive",
+    surface_family=PASSIVE_ANNOTATION_COMMENT_BACKDROP_SURFACE_FAMILY,
+    surface_variant="comment_backdrop",
+)
+class PassiveAnnotationCommentBackdropNodePlugin(_PassiveAnnotationNodePlugin):
+    pass
+
+
 PASSIVE_ANNOTATION_NODE_PLUGINS = (
     PassiveAnnotationStickyNoteNodePlugin,
     PassiveAnnotationCalloutNodePlugin,
     PassiveAnnotationSectionHeaderNodePlugin,
+    PassiveAnnotationCommentBackdropNodePlugin,
 )
 
 
 __all__ = [
     "PASSIVE_ANNOTATION_CALLOUT_TYPE_ID",
     "PASSIVE_ANNOTATION_CATEGORY",
+    "PASSIVE_ANNOTATION_COMMENT_BACKDROP_SURFACE_FAMILY",
+    "PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID",
     "PASSIVE_ANNOTATION_NODE_PLUGINS",
     "PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID",
     "PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID",
     "PassiveAnnotationCalloutNodePlugin",
+    "PassiveAnnotationCommentBackdropNodePlugin",
     "PassiveAnnotationSectionHeaderNodePlugin",
     "PassiveAnnotationStickyNoteNodePlugin",
 ]

@@ -53,6 +53,7 @@ class RegistryFilterTests(unittest.TestCase):
                 "passive.annotation.sticky_note",
                 "passive.annotation.callout",
                 "passive.annotation.section_header",
+                "passive.annotation.comment_backdrop",
             },
         )
         self.assertTrue(results)

@@ -121,6 +121,9 @@ class _PassivePanelLayout:
     body_right_margin: float
     body_bottom_margin: float
     title_centered: bool = False
+    show_header_background: bool = False
+    show_accent_bar: bool = False
+    use_host_chrome: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -249,6 +252,9 @@ def _build_passive_panel_layouts(
             body_right_margin=_contract_number(payload, "body_right_margin"),
             body_bottom_margin=_contract_number(payload, "body_bottom_margin"),
             title_centered=_contract_bool(payload, "title_centered"),
+            show_header_background=_contract_bool(payload, "show_header_background"),
+            show_accent_bar=_contract_bool(payload, "show_accent_bar"),
+            use_host_chrome=_contract_bool(payload, "use_host_chrome", True),
         )
     return layouts
 
@@ -286,6 +292,7 @@ _PASSIVE_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "passive")
 _FLOWCHART_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "flowchart")
 _PLANNING_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "planning")
 _ANNOTATION_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "annotation")
+_COMMENT_BACKDROP_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "comment_backdrop")
 _MEDIA_CONTRACT = _contract_mapping(SURFACE_METRIC_CONTRACT, "media")
 
 STANDARD_DEFAULT_WIDTH = _contract_number(_STANDARD_CONTRACT, "default_width")
@@ -350,6 +357,9 @@ _PLANNING_VARIANT_LAYOUTS = _build_passive_panel_layouts(
 )
 _ANNOTATION_VARIANT_LAYOUTS = _build_passive_panel_layouts(
     _contract_mapping(_ANNOTATION_CONTRACT, "variants")
+)
+_COMMENT_BACKDROP_VARIANT_LAYOUTS = _build_passive_panel_layouts(
+    _contract_mapping(_COMMENT_BACKDROP_CONTRACT, "variants")
 )
 _MEDIA_VARIANT_LAYOUTS = _build_media_panel_layouts(
     _contract_mapping(_MEDIA_CONTRACT, "variants")
@@ -489,6 +499,11 @@ def normalize_planning_variant(variant: str) -> str:
 def normalize_annotation_variant(variant: str) -> str:
     normalized = str(variant or "").strip().lower()
     return normalized if normalized in _ANNOTATION_VARIANT_LAYOUTS else "sticky_note"
+
+
+def normalize_comment_backdrop_variant(variant: str) -> str:
+    normalized = str(variant or "").strip().lower()
+    return normalized if normalized in _COMMENT_BACKDROP_VARIANT_LAYOUTS else "comment_backdrop"
 
 
 def normalize_media_variant(variant: str) -> str:
@@ -981,9 +996,9 @@ def _passive_panel_surface_metrics(
         body_left_margin=layout.body_left_margin,
         body_right_margin=layout.body_right_margin,
         body_bottom_margin=layout.body_bottom_margin,
-        show_header_background=False,
-        show_accent_bar=False,
-        use_host_chrome=True,
+        show_header_background=layout.show_header_background,
+        show_accent_bar=layout.show_accent_bar,
+        use_host_chrome=layout.use_host_chrome,
     )
 
 
@@ -995,6 +1010,45 @@ def _planning_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNo
 def _annotation_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
     layout = _ANNOTATION_VARIANT_LAYOUTS[normalize_annotation_variant(spec.surface_variant)]
     return _passive_panel_surface_metrics(node, layout)
+
+
+def _comment_backdrop_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
+    layout = _COMMENT_BACKDROP_VARIANT_LAYOUTS[normalize_comment_backdrop_variant(spec.surface_variant)]
+    _active_width, active_height = _resolved_dimensions(
+        node,
+        default_width=layout.default_width,
+        default_height=layout.default_height,
+    )
+    body_height = max(0.0, active_height - layout.body_top - layout.body_bottom_margin)
+    return GraphNodeSurfaceMetrics(
+        default_width=layout.default_width,
+        default_height=layout.default_height,
+        min_width=layout.min_width,
+        min_height=layout.min_height,
+        collapsed_width=STANDARD_COLLAPSED_WIDTH,
+        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
+        header_height=0.0,
+        header_top_margin=0.0,
+        body_top=layout.body_top,
+        body_height=body_height,
+        port_top=active_height - layout.body_bottom_margin,
+        port_height=0.0,
+        port_center_offset=0.0,
+        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
+        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
+        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
+        title_top=layout.title_top,
+        title_height=layout.title_height,
+        title_left_margin=layout.title_left_margin,
+        title_right_margin=layout.title_right_margin,
+        title_centered=layout.title_centered,
+        body_left_margin=layout.body_left_margin,
+        body_right_margin=layout.body_right_margin,
+        body_bottom_margin=layout.body_bottom_margin,
+        show_header_background=layout.show_header_background,
+        show_accent_bar=layout.show_accent_bar,
+        use_host_chrome=layout.use_host_chrome,
+    )
 
 
 def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeSurfaceMetrics:
@@ -1052,6 +1106,8 @@ def node_surface_metrics(
         return _planning_surface_metrics(node, spec)
     if family == "annotation":
         return _annotation_surface_metrics(node, spec)
+    if family == "comment_backdrop":
+        return _comment_backdrop_surface_metrics(node, spec)
     if family == "media":
         return _media_surface_metrics(node, spec)
     return _standard_surface_metrics(

@@ -283,6 +283,29 @@ var SURFACE_METRIC_CONTRACT = {
       }
     }
   },
+  "comment_backdrop": {
+    "variants": {
+      "comment_backdrop": {
+        "default_width": 420.0,
+        "default_height": 260.0,
+        "min_width": 260.0,
+        "min_height": 180.0,
+        "title_top": 14.0,
+        "title_height": 24.0,
+        "title_left_margin": 18.0,
+        "title_right_margin": 18.0,
+        "body_top": 52.0,
+        "body_height": 190.0,
+        "body_left_margin": 18.0,
+        "body_right_margin": 18.0,
+        "body_bottom_margin": 18.0,
+        "title_centered": false,
+        "show_header_background": false,
+        "show_accent_bar": false,
+        "use_host_chrome": false
+      }
+    }
+  },
   "media": {
     "caption_spacing": 10.0,
     "caption_max_lines": 4,

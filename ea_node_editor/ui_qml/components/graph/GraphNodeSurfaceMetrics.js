@@ -52,6 +52,10 @@ function _annotationContract() {
     return _contractSection("annotation");
 }
 
+function _commentBackdropContract() {
+    return _contractSection("comment_backdrop");
+}
+
 function _mediaContract() {
     return _contractSection("media");
 }
@@ -126,6 +130,14 @@ function _annotationVariantLayout(variant) {
     var contract = _annotationContract();
     var layouts = _variantLayouts(contract);
     var normalized = _normalizedVariant(variant, layouts, "sticky_note");
+    var layout = layouts[normalized];
+    return layout && typeof layout === "object" ? layout : {};
+}
+
+function _commentBackdropVariantLayout(variant) {
+    var contract = _commentBackdropContract();
+    var layouts = _variantLayouts(contract);
+    var normalized = _normalizedVariant(variant, layouts, "comment_backdrop");
     var layout = layouts[normalized];
     return layout && typeof layout === "object" ? layout : {};
 }
@@ -419,9 +431,99 @@ function _passivePanelSurfaceMetrics(node, source, layout) {
             _contractNumber(layout, "body_right_margin")
         ),
         "body_bottom_margin": bodyBottomMargin,
-        "show_header_background": _metricBool(source, "show_header_background", false),
-        "show_accent_bar": _metricBool(source, "show_accent_bar", false),
-        "use_host_chrome": _metricBool(source, "use_host_chrome", true)
+        "show_header_background": _metricBool(
+            source,
+            "show_header_background",
+            layout && layout.show_header_background !== undefined ? Boolean(layout.show_header_background) : false
+        ),
+        "show_accent_bar": _metricBool(
+            source,
+            "show_accent_bar",
+            layout && layout.show_accent_bar !== undefined ? Boolean(layout.show_accent_bar) : false
+        ),
+        "use_host_chrome": _metricBool(
+            source,
+            "use_host_chrome",
+            layout && layout.use_host_chrome !== undefined ? Boolean(layout.use_host_chrome) : true
+        )
+    };
+}
+
+function _commentBackdropSurfaceMetrics(node, source) {
+    var layout = _commentBackdropVariantLayout(node && node.surface_variant);
+    var passive = _passiveContract();
+    var activeHeight = _resolvedDimension(node && node.height, _contractNumber(layout, "default_height"));
+    var bodyTop = _metricNumber(source, "body_top", _contractNumber(layout, "body_top"));
+    var bodyBottomMargin = _metricNumber(source, "body_bottom_margin", _contractNumber(layout, "body_bottom_margin"));
+    var bodyHeight = _metricNumber(
+        source,
+        "body_height",
+        Math.max(0.0, activeHeight - bodyTop - bodyBottomMargin)
+    );
+    return {
+        "default_width": _metricNumber(source, "default_width", _contractNumber(layout, "default_width")),
+        "default_height": _metricNumber(source, "default_height", _contractNumber(layout, "default_height")),
+        "min_width": _metricNumber(source, "min_width", _contractNumber(layout, "min_width")),
+        "min_height": _metricNumber(source, "min_height", _contractNumber(layout, "min_height")),
+        "collapsed_width": _metricNumber(source, "collapsed_width", _contractNumber(_standardContract(), "collapsed_width")),
+        "collapsed_height": _metricNumber(
+            source,
+            "collapsed_height",
+            _contractNumber(_standardContract(), "collapsed_height")
+        ),
+        "header_height": _metricNumber(source, "header_height", 0.0),
+        "header_top_margin": _metricNumber(source, "header_top_margin", 0.0),
+        "body_top": bodyTop,
+        "body_height": bodyHeight,
+        "port_top": _metricNumber(source, "port_top", activeHeight - bodyBottomMargin),
+        "port_height": _metricNumber(source, "port_height", 0.0),
+        "port_center_offset": _metricNumber(source, "port_center_offset", 0.0),
+        "port_side_margin": _metricNumber(source, "port_side_margin", _contractNumber(passive, "port_side_margin")),
+        "port_dot_radius": _metricNumber(source, "port_dot_radius", _contractNumber(passive, "port_dot_radius")),
+        "resize_handle_size": _metricNumber(
+            source,
+            "resize_handle_size",
+            _contractNumber(passive, "resize_handle_size")
+        ),
+        "title_top": _metricNumber(source, "title_top", _contractNumber(layout, "title_top")),
+        "title_height": _metricNumber(source, "title_height", _contractNumber(layout, "title_height")),
+        "title_left_margin": _metricNumber(
+            source,
+            "title_left_margin",
+            _contractNumber(layout, "title_left_margin")
+        ),
+        "title_right_margin": _metricNumber(
+            source,
+            "title_right_margin",
+            _contractNumber(layout, "title_right_margin")
+        ),
+        "title_centered": _metricBool(source, "title_centered", Boolean(layout.title_centered)),
+        "body_left_margin": _metricNumber(
+            source,
+            "body_left_margin",
+            _contractNumber(layout, "body_left_margin")
+        ),
+        "body_right_margin": _metricNumber(
+            source,
+            "body_right_margin",
+            _contractNumber(layout, "body_right_margin")
+        ),
+        "body_bottom_margin": bodyBottomMargin,
+        "show_header_background": _metricBool(
+            source,
+            "show_header_background",
+            layout && layout.show_header_background !== undefined ? Boolean(layout.show_header_background) : false
+        ),
+        "show_accent_bar": _metricBool(
+            source,
+            "show_accent_bar",
+            layout && layout.show_accent_bar !== undefined ? Boolean(layout.show_accent_bar) : false
+        ),
+        "use_host_chrome": _metricBool(
+            source,
+            "use_host_chrome",
+            layout && layout.use_host_chrome !== undefined ? Boolean(layout.use_host_chrome) : true
+        )
     };
 }
 
@@ -500,6 +602,8 @@ function surfaceMetrics(node) {
         return _passivePanelSurfaceMetrics(node, source, _planningVariantLayout(node && node.surface_variant));
     if (family === "annotation")
         return _passivePanelSurfaceMetrics(node, source, _annotationVariantLayout(node && node.surface_variant));
+    if (family === "comment_backdrop")
+        return _commentBackdropSurfaceMetrics(node, source);
     if (family === "media")
         return _mediaSurfaceMetrics(node, source);
     return _standardSurfaceMetrics(node, source);
