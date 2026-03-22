@@ -4,7 +4,7 @@ import copy
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.hierarchy import ScopePath
-from ea_node_editor.graph.effective_ports import effective_ports
+from ea_node_editor.graph.effective_ports import effective_ports, ordered_ports_for_display
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_edges, scope_node_ids
 from ea_node_editor.graph.model import GraphModel, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
@@ -236,13 +236,16 @@ class GraphScenePayloadBuilder:
         port_connection_counts: dict[tuple[str, str], int],
     ) -> list[dict[str, Any]]:
         ports_payload: list[dict[str, Any]] = []
-        for port in effective_ports(
-            node=node,
-            spec=spec,
-            workspace_nodes=workspace.nodes,
-        ):
-            if not port.exposed:
-                continue
+        visible_ports = [
+            port
+            for port in effective_ports(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace.nodes,
+            )
+            if port.exposed
+        ]
+        for port in ordered_ports_for_display(visible_ports):
             connection_count = port_connection_counts.get((node.node_id, port.key), 0)
             ports_payload.append(
                 {

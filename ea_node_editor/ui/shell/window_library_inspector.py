@@ -8,6 +8,7 @@ from ea_node_editor.graph.effective_ports import (
     are_data_types_compatible,
     are_port_kinds_compatible,
     effective_ports,
+    ordered_ports_for_display,
 )
 from ea_node_editor.ui.support.node_presentation import (
     build_inline_property_items,
@@ -38,7 +39,7 @@ def build_registry_library_items(*, registry_specs: Iterable[Any]) -> list[dict[
                     "side": port.side,
                     "exposed": bool(port.exposed),
                 }
-                for port in spec.ports
+                for port in ordered_ports_for_display(spec.ports)
             ],
         }
         for spec in registry_specs
@@ -311,7 +312,9 @@ def build_selected_node_port_items(
             "required": bool(port.required),
             "exposed": bool(port.exposed),
         }
-        for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes)
+        for port in ordered_ports_for_display(
+            effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes)
+        )
     ]
 
 

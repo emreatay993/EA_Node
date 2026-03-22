@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Mapping
+from typing import Iterable, Mapping, TypeVar
 
 from ea_node_editor.graph.model import EdgeInstance, NodeInstance
 from ea_node_editor.graph.subnode_contract import (
@@ -29,6 +29,9 @@ class EffectivePort:
     required: bool = False
     exposed: bool = True
     allow_multiple_connections: bool = False
+
+
+PortLike = TypeVar("PortLike", EffectivePort, PortSpec)
 
 
 def port_side(port: EffectivePort | PortSpec) -> str:
@@ -120,6 +123,22 @@ def effective_ports(
         )
         for port in spec.ports
     )
+
+
+def ordered_ports_for_display(ports: Iterable[PortLike]) -> tuple[PortLike, ...]:
+    indexed_ports = list(enumerate(ports))
+    indexed_ports.sort(key=lambda item: (_display_port_priority(item[1]), item[0]))
+    return tuple(port for _, port in indexed_ports)
+
+
+def _display_port_priority(port: EffectivePort | PortSpec) -> int:
+    direction = port_layout_direction(port)
+    key = str(getattr(port, "key", "") or "").strip().lower()
+    if direction == "in" and key == "exec_in":
+        return 0
+    if direction == "out" and key == "exec_out":
+        return 0
+    return 1
 
 
 def find_port(
@@ -244,7 +263,9 @@ def visible_ports(
 ) -> tuple[list[EffectivePort], list[EffectivePort]]:
     in_ports: list[EffectivePort] = []
     out_ports: list[EffectivePort] = []
-    for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes):
+    for port in ordered_ports_for_display(
+        effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes)
+    ):
         if not port.exposed:
             continue
         if port_layout_direction(port) == "in":
@@ -413,6 +434,7 @@ __all__ = [
     "port_supports_incoming_edge",
     "port_supports_outgoing_edge",
     "preferred_connection_port",
+    "ordered_ports_for_display",
     "ports_compatible",
     "target_port_has_capacity",
     "visible_ports",

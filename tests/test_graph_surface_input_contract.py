@@ -257,6 +257,58 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             },
         )
 
+    def test_graph_scene_payload_builder_orders_exec_ports_first_within_each_side(self) -> None:
+        registry: NodeRegistry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(
+            workspace_id,
+            "io.excel_read",
+            "Excel Read",
+            80.0,
+            120.0,
+        )
+        model.add_node(
+            workspace_id,
+            "io.excel_write",
+            "Excel Write",
+            280.0,
+            120.0,
+        )
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=None,
+        )
+
+        payloads_by_type = {str(item["type_id"]): item for item in nodes_payload}
+
+        excel_read_ports = payloads_by_type["io.excel_read"]["ports"]
+        excel_read_output_keys = [
+            str(port["key"])
+            for port in excel_read_ports
+            if str(port["direction"]) == "out"
+        ]
+        self.assertEqual(excel_read_output_keys, ["exec_out", "rows"])
+
+        excel_write_ports = payloads_by_type["io.excel_write"]["ports"]
+        excel_write_input_keys = [
+            str(port["key"])
+            for port in excel_write_ports
+            if str(port["direction"]) == "in"
+        ]
+        excel_write_output_keys = [
+            str(port["key"])
+            for port in excel_write_ports
+            if str(port["direction"]) == "out"
+        ]
+        self.assertEqual(excel_write_input_keys, ["exec_in", "rows", "path"])
+        self.assertEqual(excel_write_output_keys, ["exec_out", "written_path"])
+
     def test_graph_node_host_render_quality_contract_exposes_reduced_quality_tier(self) -> None:
         self._run_qml_probe(
             "host-render-quality-contract",

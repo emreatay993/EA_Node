@@ -93,6 +93,21 @@ class WindowLibraryInspectorQuickInsertTests(unittest.TestCase):
             "neutral",
         )
 
+    def test_registry_library_items_promote_exec_ports_to_top_of_each_side(self) -> None:
+        excel_write_item = next(
+            item for item in self.combined_items if str(item.get("type_id", "")) == "io.excel_write"
+        )
+
+        input_keys = [str(port.get("key", "")) for port in excel_write_item["ports"] if port.get("direction") == "in"]
+        output_keys = [
+            str(port.get("key", ""))
+            for port in excel_write_item["ports"]
+            if port.get("direction") == "out"
+        ]
+
+        self.assertEqual(input_keys, ["exec_in", "rows", "path"])
+        self.assertEqual(output_keys, ["exec_out", "written_path"])
+
 
 if __name__ == "__main__":
     unittest.main()
