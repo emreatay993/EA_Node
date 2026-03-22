@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -334,6 +335,7 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_minimap_expanded = True
         self.graphics_show_grid = True
         self.graphics_show_minimap = True
+        self.graphics_show_port_labels = True
         self.graphics_node_shadow = True
         self.graphics_shadow_strength = 70
         self.graphics_shadow_softness = 50
@@ -373,6 +375,10 @@ class _GraphCanvasShellHostStub(QObject):
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self.graphics_minimap_expanded = bool(expanded)
         self._record("set_graphics_minimap_expanded", bool(expanded))
+
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
+        self.graphics_show_port_labels = bool(show_port_labels)
+        self._record("set_graphics_show_port_labels", bool(show_port_labels))
 
     def set_graphics_performance_mode(self, mode: str) -> None:
         self.graphics_performance_mode = str(mode)
@@ -892,6 +898,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertTrue(bridge.graphics_minimap_expanded)
         self.assertTrue(bridge.graphics_show_grid)
         self.assertTrue(bridge.graphics_show_minimap)
+        self.assertTrue(bridge.graphics_show_port_labels)
         self.assertTrue(bridge.graphics_node_shadow)
         self.assertEqual(bridge.graphics_shadow_strength, 70)
         self.assertEqual(bridge.graphics_shadow_softness, 50)
@@ -1126,6 +1133,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertTrue(bridge.graphics_minimap_expanded)
         self.assertTrue(bridge.graphics_show_grid)
         self.assertTrue(bridge.graphics_show_minimap)
+        self.assertTrue(bridge.graphics_show_port_labels)
         self.assertTrue(bridge.graphics_node_shadow)
         self.assertEqual(bridge.graphics_shadow_strength, 70)
         self.assertEqual(bridge.graphics_shadow_softness, 50)
@@ -1141,6 +1149,8 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.selected_node_lookup, scene.selected_node_lookup)
 
         bridge.set_graphics_minimap_expanded(False)
+        bridge.set_graphics_show_port_labels(False)
+        self.assertFalse(bridge.graphics_show_port_labels)
         bridge.set_graphics_performance_mode("max_performance")
         bridge.adjust_zoom(1.15)
         bridge.pan_by(-12.0, 8.0)
@@ -1185,6 +1195,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host.calls,
             [
                 ("set_graphics_minimap_expanded", (False,)),
+                ("set_graphics_show_port_labels", (False,)),
                 ("set_graphics_performance_mode", ("max_performance",)),
                 ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
@@ -1226,6 +1237,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         presenter = _GraphCanvasShellHostStub()
         presenter.graphics_show_grid = False
         presenter.graphics_show_minimap = False
+        presenter.graphics_show_port_labels = False
         presenter.graphics_performance_mode = "max_performance"
         presenter.snap_to_grid_enabled = False
         host.graph_canvas_presenter = presenter
@@ -1250,15 +1262,18 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
         self.assertFalse(bridge.graphics_show_grid)
         self.assertFalse(bridge.graphics_show_minimap)
+        self.assertFalse(bridge.graphics_show_port_labels)
         self.assertEqual(bridge.graphics_performance_mode, "max_performance")
         self.assertFalse(bridge.snap_to_grid_enabled)
 
         bridge.set_graphics_minimap_expanded(False)
+        bridge.set_graphics_show_port_labels(True)
         bridge.set_graphics_performance_mode("full_fidelity")
         self.assertEqual(
             presenter.calls,
             [
                 ("set_graphics_minimap_expanded", (False,)),
+                ("set_graphics_show_port_labels", (True,)),
                 ("set_graphics_performance_mode", ("full_fidelity",)),
             ],
         )
@@ -1464,6 +1479,32 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
         self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
+
+    def test_shell_window_and_graph_canvas_bridge_share_persisted_port_label_preference_path(self) -> None:
+        graph_canvas_state_bridge = self.window.graph_canvas_state_bridge
+        graph_canvas_bridge = self.window.graph_canvas_bridge
+
+        self.assertTrue(self.window.graphics_show_port_labels)
+        self.assertTrue(graph_canvas_state_bridge.graphics_show_port_labels)
+        self.assertTrue(graph_canvas_bridge.graphics_show_port_labels)
+
+        self.window.set_graphics_show_port_labels(False)
+        self.app.processEvents()
+
+        self.assertFalse(self.window.graphics_show_port_labels)
+        self.assertFalse(graph_canvas_state_bridge.graphics_show_port_labels)
+        self.assertFalse(graph_canvas_bridge.graphics_show_port_labels)
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertFalse(persisted["graphics"]["canvas"]["show_port_labels"])
+
+        graph_canvas_bridge.set_graphics_show_port_labels(True)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.graphics_show_port_labels)
+        self.assertTrue(graph_canvas_state_bridge.graphics_show_port_labels)
+        self.assertTrue(graph_canvas_bridge.graphics_show_port_labels)
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertTrue(persisted["graphics"]["canvas"]["show_port_labels"])
 
 
 class SharedUiSupportBoundaryTests(unittest.TestCase):

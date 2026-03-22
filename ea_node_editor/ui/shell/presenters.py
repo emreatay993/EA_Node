@@ -46,6 +46,7 @@ _UNSET = object()
 class ShellWorkspaceUiState:
     show_grid: bool
     show_minimap: bool
+    show_port_labels: bool
     node_shadow: bool
     shadow_strength: int
     shadow_softness: int
@@ -65,6 +66,9 @@ def build_default_shell_workspace_ui_state(
     return ShellWorkspaceUiState(
         show_grid=bool(canvas.get("show_grid", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])),
         show_minimap=bool(canvas.get("show_minimap", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])),
+        show_port_labels=bool(
+            canvas.get("show_port_labels", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_port_labels"])
+        ),
         node_shadow=bool(canvas.get("node_shadow", DEFAULT_GRAPHICS_SETTINGS["canvas"]["node_shadow"])),
         shadow_strength=int(canvas.get("shadow_strength", DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])),
         shadow_softness=int(canvas.get("shadow_softness", DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_softness"])),
@@ -742,6 +746,7 @@ class ShellWorkspacePresenter(QObject):
         changed = False
         show_grid = bool(canvas.get("show_grid", self._ui_state.show_grid))
         show_minimap = bool(canvas.get("show_minimap", self._ui_state.show_minimap))
+        show_port_labels = bool(canvas.get("show_port_labels", self._ui_state.show_port_labels))
         minimap_expanded = bool(
             canvas.get("minimap_expanded", self._host.search_scope_state.graphics_minimap_expanded)
         )
@@ -785,6 +790,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.show_minimap != show_minimap:
             self._ui_state.show_minimap = show_minimap
             changed = True
+        if self._ui_state.show_port_labels != show_port_labels:
+            self._ui_state.show_port_labels = show_port_labels
+            changed = True
         if self._host.search_scope_state.graphics_minimap_expanded != minimap_expanded:
             self._host.search_scope_state.graphics_minimap_expanded = minimap_expanded
             changed = True
@@ -823,6 +831,7 @@ class ShellWorkspacePresenter(QObject):
             "canvas": {
                 "show_grid": bool(self._ui_state.show_grid),
                 "show_minimap": bool(self._ui_state.show_minimap),
+                "show_port_labels": bool(self._ui_state.show_port_labels),
                 "minimap_expanded": bool(self._host.search_scope_state.graphics_minimap_expanded),
                 "node_shadow": bool(self._ui_state.node_shadow),
                 "shadow_strength": int(self._ui_state.shadow_strength),
@@ -1089,6 +1098,10 @@ class GraphCanvasPresenter(QObject):
         return bool(self._host.workspace_ui_state.show_minimap)
 
     @property
+    def graphics_show_port_labels(self) -> bool:
+        return bool(self._host.workspace_ui_state.show_port_labels)
+
+    @property
     def graphics_node_shadow(self) -> bool:
         return bool(self._host.workspace_ui_state.node_shadow)
 
@@ -1121,6 +1134,9 @@ class GraphCanvasPresenter(QObject):
 
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self._host.search_scope_controller.set_graphics_minimap_expanded(expanded)
+
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
+        self._host.set_graphics_show_port_labels(show_port_labels)
 
     def set_graphics_performance_mode(self, mode: str) -> None:
         self._host.set_graphics_performance_mode(mode)

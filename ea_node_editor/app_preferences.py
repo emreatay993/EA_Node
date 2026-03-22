@@ -78,6 +78,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             canvas_payload.get("show_minimap"),
             defaults["canvas"]["show_minimap"],
         )
+        normalized["canvas"]["show_port_labels"] = _normalize_bool(
+            canvas_payload.get("show_port_labels"),
+            defaults["canvas"]["show_port_labels"],
+        )
         normalized["canvas"]["minimap_expanded"] = _normalize_bool(
             canvas_payload.get("minimap_expanded"),
             defaults["canvas"]["minimap_expanded"],

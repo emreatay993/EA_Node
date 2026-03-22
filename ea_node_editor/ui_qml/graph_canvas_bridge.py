@@ -128,6 +128,10 @@ class GraphCanvasBridge(QObject):
         return self._state_bridge.graphics_show_minimap
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_port_labels(self) -> bool:
+        return self._state_bridge.graphics_show_port_labels
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_shadow(self) -> bool:
         return self._state_bridge.graphics_node_shadow
 
@@ -198,6 +202,17 @@ class GraphCanvasBridge(QObject):
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self._command_bridge.set_graphics_minimap_expanded(expanded)
+
+    @pyqtSlot(bool)
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
+        _invoke_chain(
+            (
+                getattr(self.shell_window, "graph_canvas_presenter", None),
+                self.shell_window,
+            ),
+            "set_graphics_show_port_labels",
+            show_port_labels,
+        )
 
     @pyqtSlot(str)
     def set_graphics_performance_mode(self, mode: str) -> None:

@@ -468,6 +468,10 @@ class ShellWindow(QMainWindow):
         return self.graph_canvas_presenter.graphics_show_minimap
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_port_labels(self) -> bool:
+        return self.graph_canvas_presenter.graphics_show_port_labels
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_minimap_expanded(self) -> bool:
         return self.graph_canvas_presenter.graphics_minimap_expanded
 
@@ -672,6 +676,17 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         self.graph_canvas_presenter.set_graphics_minimap_expanded(expanded)
+
+    @pyqtSlot(bool)
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
+        self.app_preferences_controller.update_graphics_settings(
+            {
+                "canvas": {
+                    "show_port_labels": show_port_labels,
+                }
+            },
+            host=self,
+        )
 
     @pyqtSlot(str)
     def set_graphics_performance_mode(self, mode: str) -> None:

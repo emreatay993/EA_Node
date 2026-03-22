@@ -66,6 +66,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
     "canvas": {
         "show_grid": True,
         "show_minimap": True,
+        "show_port_labels": True,
         "minimap_expanded": True,
         "node_shadow": True,
         "shadow_strength": 70,

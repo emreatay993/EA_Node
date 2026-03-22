@@ -99,6 +99,10 @@ class GraphCanvasStateBridge(QObject):
         return bool(_source_attr(self._canvas_source, "graphics_show_minimap", True))
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_port_labels(self) -> bool:
+        return bool(_source_attr(self._canvas_source, "graphics_show_port_labels", True))
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_node_shadow(self) -> bool:
         return bool(_source_attr(self._canvas_source, "graphics_node_shadow", True))
 

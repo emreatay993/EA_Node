@@ -74,6 +74,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                         "canvas": {
                             "show_grid": "yes",
                             "show_minimap": False,
+                            "show_port_labels": "no",
                             "minimap_expanded": None,
                             "node_shadow": "no",
                             "shadow_strength": 101,
@@ -107,6 +108,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         self.assertEqual(graphics["canvas"]["show_grid"], True)
         self.assertEqual(graphics["canvas"]["show_minimap"], False)
+        self.assertEqual(graphics["canvas"]["show_port_labels"], True)
         self.assertEqual(graphics["canvas"]["minimap_expanded"], True)
         self.assertEqual(graphics["canvas"]["node_shadow"], True)
         self.assertEqual(graphics["canvas"]["shadow_strength"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_strength"])
@@ -131,6 +133,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 "canvas": {
                     "show_grid": False,
                     "show_minimap": False,
+                    "show_port_labels": False,
                     "minimap_expanded": False,
                     "node_shadow": False,
                     "shadow_strength": 15,
@@ -159,6 +162,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         )
 
         self.assertEqual(host.applied_graphics, [graphics])
+        self.assertFalse(graphics["canvas"]["show_port_labels"])
         self.assertEqual(graphics["performance"]["mode"], "max_performance")
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["kind"], APP_PREFERENCES_KIND)
