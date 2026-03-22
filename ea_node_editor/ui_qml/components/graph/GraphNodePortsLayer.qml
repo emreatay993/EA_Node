@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQuick.Controls 2.15
 import "surface_controls" as SurfaceControls
 
 Item {
@@ -31,6 +32,10 @@ Item {
         if (direction === "in" || direction === "out" || direction === "neutral")
             return direction;
         return String(fallbackDirection || "").trim().toLowerCase();
+    }
+
+    function _portLabelText(portData) {
+        return String(portData && (portData.label || portData.key) || "");
     }
 
     function beginPortLabelEdit(portKey, direction) {
@@ -144,6 +149,15 @@ Item {
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: Qt.PointingHandCursor
+                    property bool tooltipOnlyPortLabelActive: root.host ? root.host._tooltipOnlyPortLabelsActive : false
+                    property string portLabelTooltipText: root._portLabelText(modelData)
+                    property bool tooltipVisible: tooltipOnlyPortLabelActive
+                        && containsMouse
+                        && portLabelTooltipText.length > 0
+
+                    ToolTip.visible: tooltipVisible
+                    ToolTip.text: portLabelTooltipText
+                    ToolTip.delay: 400
 
                     onPressed: function(mouse) {
                         if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
@@ -254,8 +268,21 @@ Item {
                 id: inputLabelContainer
                 readonly property bool isEditing: root.editingPortKey === modelData.key && root.editingPortDirection === "in"
                 readonly property bool isEditable: root._isEditablePort(modelData) && (root.host ? root.host._portLabelsVisible : true)
+                readonly property bool standardColumnsActive: root.host ? root.host._usesStandardPortLabelColumns : false
                 readonly property real labelX: Math.max(0, inputDot.x + inputDot.width + (root.host ? root.host._portLabelGap : 6))
-                readonly property real availableWidth: Math.max(0, (root.host ? root.host.width : 0) - labelX - 4)
+                readonly property real rawAvailableWidth: Math.max(0, (root.host ? root.host.width : 0) - labelX - 4)
+                readonly property real standardAvailableWidth: standardColumnsActive && root.host
+                    ? Math.max(
+                        0,
+                        Math.min(
+                            root.host._standardLeftLabelWidth,
+                            (root.host.width - root.host._standardPortGutter - root.host._standardCenterGap)
+                                - labelX
+                                - root.host._standardRightLabelWidth
+                        )
+                    )
+                    : 0.0
+                readonly property real availableWidth: standardColumnsActive ? standardAvailableWidth : rawAvailableWidth
                 visible: root.host ? root.host._portLabelsVisible : true
                 anchors.verticalCenter: parent.verticalCenter
                 x: labelX
@@ -428,6 +455,15 @@ Item {
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: Qt.PointingHandCursor
+                    property bool tooltipOnlyPortLabelActive: root.host ? root.host._tooltipOnlyPortLabelsActive : false
+                    property string portLabelTooltipText: root._portLabelText(modelData)
+                    property bool tooltipVisible: tooltipOnlyPortLabelActive
+                        && hoverActive
+                        && portLabelTooltipText.length > 0
+
+                    ToolTip.visible: tooltipVisible
+                    ToolTip.text: portLabelTooltipText
+                    ToolTip.delay: 400
 
                     function updateHoverState(localX, localY) {
                         var nextHover = !(root.host && root.host._isResizeHandlePoint(localX, localY));
@@ -559,12 +595,30 @@ Item {
                 id: outputLabelContainer
                 readonly property bool isEditing: root.editingPortKey === modelData.key && root.editingPortDirection === "out"
                 readonly property bool isEditable: root._isEditablePort(modelData) && (root.host ? root.host._portLabelsVisible : true)
-                readonly property real availableWidth: Math.max(0, outputDot.x - (root.host ? root.host._portLabelGap : 6) - 4)
+                readonly property bool standardColumnsActive: root.host ? root.host._usesStandardPortLabelColumns : false
+                readonly property real rawAvailableWidth: Math.max(0, outputDot.x - (root.host ? root.host._portLabelGap : 6) - 4)
+                readonly property real standardAvailableWidth: standardColumnsActive && root.host
+                    ? Math.max(
+                        0,
+                        Math.min(
+                            root.host._standardRightLabelWidth,
+                            (outputDot.x - (root.host ? root.host._portLabelGap : 6))
+                                - (
+                                    root.host._standardPortGutter
+                                    + root.host._standardLeftLabelWidth
+                                    + root.host._standardCenterGap
+                                )
+                        )
+                    )
+                    : 0.0
+                readonly property real availableWidth: standardColumnsActive ? standardAvailableWidth : rawAvailableWidth
                 visible: root.host ? root.host._portLabelsVisible : true
                 anchors.verticalCenter: parent.verticalCenter
                 width: availableWidth
                 height: Math.max(outputLabelText.implicitHeight, 18)
-                x: 4
+                x: standardColumnsActive && root.host
+                    ? Math.max(0, outputDot.x - (root.host ? root.host._portLabelGap : 6) - availableWidth)
+                    : 4
 
                 Text {
                     id: outputLabelText

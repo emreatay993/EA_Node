@@ -155,15 +155,170 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertTrue(bool(self.canvas.property("showGrid")))
         self.assertTrue(bool(self.canvas.property("minimapVisible")))
         self.assertTrue(bool(self.canvas.property("minimapExpanded")))
+        self.assertTrue(bool(self.canvas.property("showPortLabels")))
 
         self.bridge.set_graphics_show_grid_value(False)
         self.bridge.set_graphics_show_minimap_value(False)
         self.bridge.set_graphics_minimap_expanded_value(False)
+        self.bridge.set_graphics_show_port_labels_value(False)
         self.app.processEvents()
 
         self.assertFalse(bool(self.canvas.property("showGrid")))
         self.assertFalse(bool(self.canvas.property("minimapVisible")))
         self.assertFalse(bool(self.canvas.property("minimapExpanded")))
+        self.assertFalse(bool(self.canvas.property("showPortLabels")))
+
+    def test_graph_canvas_passes_port_label_preference_into_graph_node_hosts(self) -> None:
+        from PyQt6.QtCore import pyqtProperty, pyqtSignal
+
+        node_payload = {
+            "node_id": "node_port_label_preference_test",
+            "type_id": "core.logger",
+            "title": "Logger",
+            "x": 120.0,
+            "y": 140.0,
+            "width": 210.0,
+            "height": 88.0,
+            "accent": "#2F89FF",
+            "collapsed": False,
+            "selected": False,
+            "can_enter_scope": False,
+            "surface_family": "standard",
+            "surface_variant": "",
+            "ports": [
+                {
+                    "key": "exec_in",
+                    "label": "Exec In",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "exec_out",
+                    "label": "Exec Out",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+            ],
+            "inline_properties": [],
+            "surface_metrics": {
+                "default_width": 210.0,
+                "default_height": 88.0,
+                "min_width": 120.0,
+                "min_height": 50.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_top": 30.0,
+                "body_height": 30.0,
+                "port_top": 60.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+            },
+        }
+
+        class CanvasStateBridgeStub(QObject):
+            graphics_preferences_changed = pyqtSignal()
+            scene_nodes_changed = pyqtSignal()
+
+            def __init__(self, preference_bridge: _GraphCanvasPreferenceBridge) -> None:
+                super().__init__()
+                self._preference_bridge = preference_bridge
+                self._nodes_model = [dict(node_payload)]
+                self._preference_bridge.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_minimap_expanded(self) -> bool:
+                return bool(self._preference_bridge.graphics_minimap_expanded)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_grid(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_grid)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_minimap(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_minimap)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_port_labels(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_port_labels)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_node_shadow(self) -> bool:
+                return True
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_strength(self) -> int:
+                return 70
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_softness(self) -> int:
+                return 50
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_offset(self) -> int:
+                return 4
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_performance_mode(self) -> str:
+                return "full_fidelity"
+
+            @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+            def nodes_model(self) -> list[dict[str, object]]:
+                return list(self._nodes_model)
+
+        self.canvas.deleteLater()
+        self.app.processEvents()
+
+        canvas_state_bridge = CanvasStateBridgeStub(self.bridge)
+        initial_properties = {
+            "canvasStateBridge": canvas_state_bridge,
+            "viewBridge": self.view,
+            "width": 1280.0,
+            "height": 720.0,
+        }
+        if hasattr(self.component, "createWithInitialProperties"):
+            self.canvas = self.component.createWithInitialProperties(initial_properties)
+        else:
+            self.canvas = self.component.create()
+            for key, value in initial_properties.items():
+                self.canvas.setProperty(key, value)
+        if self.canvas is None:
+            errors = "\n".join(str(error) for error in self.component.errors())
+            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: len(_named_child_items(self.canvas, "graphNodeCard")) == 1,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas node host to appear.",
+        )
+        node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
+
+        self.assertTrue(bool(self.canvas.property("showPortLabels")))
+        self.assertTrue(bool(node_card.property("showPortLabelsPreference")))
+        self.assertFalse(bool(node_card.property("_tooltipOnlyPortLabelsActive")))
+
+        self.bridge.set_graphics_show_port_labels_value(False)
+        wait_for_condition_or_raise(
+            lambda: (
+                not bool(self.canvas.property("showPortLabels"))
+                and not bool(node_card.property("showPortLabelsPreference"))
+            ),
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas port-label preference propagation.",
+        )
+
+        self.assertTrue(bool(node_card.property("_tooltipOnlyPortLabelsActive")))
 
     def test_toggle_minimap_expanded_routes_through_bridge_slot(self) -> None:
         self.assertEqual(self.bridge.minimap_update_history, [])

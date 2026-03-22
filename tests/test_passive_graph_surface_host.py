@@ -917,6 +917,116 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_standard_host_consumes_metric_backed_label_columns_without_overlap(self) -> None:
+        self._run_qml_probe(
+            "port-label-width-contract-host",
+            """
+            payload = node_payload()
+            payload["ports"][0]["label"] = "Primary Input Payload"
+            payload["ports"][1]["label"] = "Dispatch Result Token"
+            payload["width"] = 360.0
+            payload["surface_metrics"]["default_width"] = 360.0
+
+            measurement_host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            measurement_input = named_child_items(measurement_host, "graphNodeInputPortLabel")[0]
+            measurement_output = named_child_items(measurement_host, "graphNodeOutputPortLabel")[0]
+            left_width = float(measurement_input.property("implicitWidth"))
+            right_width = float(measurement_output.property("implicitWidth"))
+            measurement_host.deleteLater()
+            app.processEvents()
+
+            port_gutter = 21.5
+            center_gap = 24.0
+            min_width = left_width + right_width + (port_gutter * 2.0) + center_gap
+            payload["width"] = min_width
+            payload["surface_metrics"]["default_width"] = min_width
+            payload["surface_metrics"]["min_width"] = min_width
+            payload["surface_metrics"]["standard_left_label_width"] = left_width
+            payload["surface_metrics"]["standard_right_label_width"] = right_width
+            payload["surface_metrics"]["standard_port_gutter"] = port_gutter
+            payload["surface_metrics"]["standard_center_gap"] = center_gap
+            payload["surface_metrics"]["standard_port_label_min_width"] = min_width
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            input_dot = named_child_items(host, "graphNodeInputPortDot")[0]
+            output_dot = named_child_items(host, "graphNodeOutputPortDot")[0]
+            input_label = named_child_items(host, "graphNodeInputPortLabel")[0]
+            output_label = named_child_items(host, "graphNodeOutputPortLabel")[0]
+
+            assert bool(host.property("_usesStandardPortLabelColumns"))
+            assert abs(float(input_label.width()) - left_width) < 0.75
+            assert abs(float(output_label.width()) - right_width) < 0.75
+
+            gap = float(host.property("_portLabelGap"))
+            input_left = input_label.mapToItem(host, QPointF(0.0, 0.0)).x()
+            input_right = input_label.mapToItem(host, QPointF(float(input_label.width()), 0.0)).x()
+            output_left = output_label.mapToItem(host, QPointF(0.0, 0.0)).x()
+            output_right = output_label.mapToItem(host, QPointF(float(output_label.width()), 0.0)).x()
+
+            assert abs(input_left - (input_dot.x() + input_dot.width() + gap)) < 0.5
+            assert abs(output_right - (output_dot.x() - gap)) < 0.5
+            assert output_left - input_right >= center_gap - 0.5
+            """,
+        )
+
+    def test_standard_host_uses_tooltip_only_port_labels_when_preference_disabled(self) -> None:
+        self._run_qml_probe(
+            "tooltip-only-port-labels-host",
+            """
+            payload = node_payload()
+            payload["ports"][0]["label"] = "Primary Input Payload"
+            payload["ports"][1]["label"] = "Dispatch Result Token"
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "showPortLabelsPreference": False,
+                },
+            )
+            input_label = named_child_items(host, "graphNodeInputPortLabel")[0]
+            output_label = named_child_items(host, "graphNodeOutputPortLabel")[0]
+            input_mouse = named_child_items(host, "graphNodeInputPortMouseArea")[0]
+            output_mouse = named_child_items(host, "graphNodeOutputPortMouseArea")[0]
+
+            assert bool(host.property("_tooltipOnlyPortLabelsActive"))
+            assert not bool(host.property("_portLabelsVisible"))
+            assert not bool(input_label.property("visible"))
+            assert not bool(output_label.property("visible"))
+            assert bool(input_mouse.property("tooltipOnlyPortLabelActive"))
+            assert bool(output_mouse.property("tooltipOnlyPortLabelActive"))
+            assert input_mouse.property("portLabelTooltipText") == "Primary Input Payload"
+            assert output_mouse.property("portLabelTooltipText") == "Dispatch Result Token"
+
+            window = attach_host_to_window(host)
+            try:
+                QTest.mouseMove(window, item_scene_point(input_mouse))
+                settle_events(5)
+                assert bool(input_mouse.property("containsMouse"))
+                assert bool(input_mouse.property("tooltipVisible"))
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_flowchart_host_does_not_replace_surface_suppressed_labels_with_tooltips(self) -> None:
+        self._run_qml_probe(
+            "flowchart-no-tooltip-port-labels-host",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": flowchart_payload("decision"),
+                    "showPortLabelsPreference": False,
+                },
+            )
+
+            assert not bool(host.property("_portLabelsVisible"))
+            assert not bool(host.property("_tooltipOnlyPortLabelsActive"))
+            assert not bool(host.property("_usesStandardPortLabelColumns"))
+            """,
+        )
+
     def test_flow_edge_ports_reveal_on_hover_and_pending_connection_only(self) -> None:
         self._run_qml_probe(
             "flow-edge-port-reveal-host",

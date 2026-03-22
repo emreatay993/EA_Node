@@ -24,6 +24,7 @@ Item {
     property bool snapshotReuseActive: false
     property bool shadowSimplificationActive: false
     property bool fullFidelityMode: true
+    property bool showPortLabelsPreference: true
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
@@ -241,9 +242,53 @@ Item {
     readonly property real _titleLeftMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_left_margin)
     readonly property real _titleRightMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_right_margin)
     readonly property bool _titleCentered: !card.isCollapsed && Boolean(surfaceMetrics.title_centered)
-    readonly property real _portLabelGap: 6.0
-    readonly property real _portLabelMaxWidth: Math.max(40.0, card.width * 0.46)
-    readonly property bool _portLabelsVisible: !card.usesCardinalNeutralFlowHandles
+    readonly property bool _portLabelsSuppressedBySurfaceRule: card.usesCardinalNeutralFlowHandles
+    readonly property bool _standardExpandedNonPassiveNode: !card.isCollapsed
+        && card.surfaceFamily === "standard"
+        && !card.isPassiveNode
+    // Consume the scene-owned width contract for visible standard-node labels.
+    readonly property real _standardLeftLabelMetricWidth: Math.max(0.0, Number(surfaceMetrics.standard_left_label_width))
+    readonly property real _standardRightLabelMetricWidth: Math.max(0.0, Number(surfaceMetrics.standard_right_label_width))
+    readonly property real _standardPortGutterMetric: Math.max(0.0, Number(surfaceMetrics.standard_port_gutter))
+    readonly property real _standardCenterGapMetric: Math.max(0.0, Number(surfaceMetrics.standard_center_gap))
+    readonly property real _standardPortLabelMinMetricWidth: Math.max(
+        0.0,
+        Number(surfaceMetrics.standard_port_label_min_width)
+    )
+    readonly property bool _standardPortLabelMetricsReady: card._standardLeftLabelMetricWidth > 0.0
+        || card._standardRightLabelMetricWidth > 0.0
+        || card._standardPortLabelMinMetricWidth > 0.0
+    readonly property bool _usesStandardPortLabelColumns: card._standardExpandedNonPassiveNode
+        && card.showPortLabelsPreference
+        && !card._portLabelsSuppressedBySurfaceRule
+        && card._standardPortLabelMetricsReady
+    readonly property real _standardLeftLabelWidth: card._usesStandardPortLabelColumns
+        ? card._standardLeftLabelMetricWidth
+        : 0.0
+    readonly property real _standardRightLabelWidth: card._usesStandardPortLabelColumns
+        ? card._standardRightLabelMetricWidth
+        : 0.0
+    readonly property real _standardPortGutter: card._usesStandardPortLabelColumns
+        ? card._standardPortGutterMetric
+        : 0.0
+    readonly property real _standardCenterGap: card._usesStandardPortLabelColumns
+        ? card._standardCenterGapMetric
+        : 0.0
+    readonly property real _portLabelGap: {
+        if (!card._usesStandardPortLabelColumns)
+            return 6.0;
+        var portSideMargin = Math.max(0.0, Number(surfaceMetrics.port_side_margin));
+        var portDotRadius = Math.max(0.0, Number(surfaceMetrics.port_dot_radius));
+        return Math.max(0.0, card._standardPortGutter - (portSideMargin + (portDotRadius * 2.0)));
+    }
+    readonly property real _portLabelMaxWidth: card._usesStandardPortLabelColumns
+        ? Math.max(40.0, card._standardLeftLabelWidth, card._standardRightLabelWidth)
+        : Math.max(40.0, card.width * 0.46)
+    readonly property bool _tooltipOnlyPortLabelsActive: card._standardExpandedNonPassiveNode
+        && !card.showPortLabelsPreference
+        && !card._portLabelsSuppressedBySurfaceRule
+    readonly property bool _portLabelsVisible: !card._portLabelsSuppressedBySurfaceRule
+        && !card._tooltipOnlyPortLabelsActive
     readonly property bool _surfaceOwnsShadow: card.isFlowchartSurface && !card._useHostChrome
     readonly property bool _backgroundShadowVisible: card.showShadow
         && !card.shadowSimplificationActive

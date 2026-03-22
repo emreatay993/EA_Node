@@ -76,6 +76,9 @@ Item {
     property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
     readonly property bool minimapVisible: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_minimap) : true
+    readonly property bool showPortLabels: root._canvasStateBridgeRef
+        ? Boolean(root._canvasStateBridgeRef.graphics_show_port_labels)
+        : true
     readonly property bool nodeShadowEnabled: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_node_shadow) : true
     readonly property int shadowStrength: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_strength : 70
     readonly property int shadowSoftness: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_softness : 50
@@ -1059,6 +1062,7 @@ Item {
                 fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
                 renderActivationSceneRectPayload: root.nodeRenderActivationSceneRectPayload
                 contextTargetNodeId: root.nodeContextNodeId
+                showPortLabelsPreference: root.showPortLabels
 
                 onNodeClicked: function(nodeId, additive) {
                     var bridge = root._canvasSceneCommandBridgeRef;
