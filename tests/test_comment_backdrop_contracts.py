@@ -89,7 +89,9 @@ class CommentBackdropCatalogTests(unittest.TestCase):
         node_id = scene.add_node_from_type(COMMENT_BACKDROP_TYPE_ID, 40.0, 60.0)
         scene.set_node_property(node_id, "body", "Cluster related nodes here.")
 
-        payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+        self.assertNotIn(node_id, {item["node_id"] for item in scene.nodes_model})
+
+        payload = next(item for item in scene.backdrop_nodes_model if item["node_id"] == node_id)
         self.assertEqual(payload["runtime_behavior"], "passive")
         self.assertEqual(payload["surface_family"], "comment_backdrop")
         self.assertEqual(payload["surface_variant"], "comment_backdrop")
