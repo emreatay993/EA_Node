@@ -695,20 +695,71 @@ Item {
         return selected;
     }
 
+    function _appendUniqueDragNodeId(nodeIds, seenNodeIds, nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized || Boolean(seenNodeIds[normalized]))
+            return;
+        seenNodeIds[normalized] = true;
+        nodeIds.push(normalized);
+    }
+
+    function _payloadNodeIdList(payload, key) {
+        if (!payload || payload[key] === undefined || payload[key] === null)
+            return [];
+        if (payload[key].length === undefined)
+            return [payload[key]];
+        return payload[key];
+    }
+
+    function _isCommentBackdropPayload(payload) {
+        return !!payload && String(payload.surface_family || "").trim() === "comment_backdrop";
+    }
+
+    function _appendBackdropDragDescendants(nodeIds, seenNodeIds, backdropNodeId) {
+        var payload = root._sceneNodePayload(backdropNodeId);
+        if (!root._isCommentBackdropPayload(payload))
+            return;
+
+        var memberNodeIds = root._payloadNodeIdList(payload, "member_node_ids");
+        for (var i = 0; i < memberNodeIds.length; i++)
+            root._appendUniqueDragNodeId(nodeIds, seenNodeIds, memberNodeIds[i]);
+
+        var memberBackdropIds = root._payloadNodeIdList(payload, "member_backdrop_ids");
+        for (var j = 0; j < memberBackdropIds.length; j++)
+            root._appendUniqueDragNodeId(nodeIds, seenNodeIds, memberBackdropIds[j]);
+        for (var k = 0; k < memberBackdropIds.length; k++)
+            root._appendBackdropDragDescendants(nodeIds, seenNodeIds, memberBackdropIds[k]);
+    }
+
+    function _appendBackdropAwareDragNodeIds(nodeIds, seenNodeIds, nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized)
+            return;
+        root._appendUniqueDragNodeId(nodeIds, seenNodeIds, normalized);
+        root._appendBackdropDragDescendants(nodeIds, seenNodeIds, normalized);
+    }
+
     function dragNodeIdsForAnchor(nodeId) {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return [];
         var selected = root.selectedNodeIds();
+        var baseNodeIds = [];
         if (selected.length > 1 && selected.indexOf(normalized) >= 0) {
-            var ordered = [normalized];
+            baseNodeIds.push(normalized);
             for (var i = 0; i < selected.length; i++) {
                 if (selected[i] !== normalized)
-                    ordered.push(selected[i]);
+                    baseNodeIds.push(selected[i]);
             }
-            return ordered;
+        } else {
+            baseNodeIds.push(normalized);
         }
-        return [normalized];
+
+        var ordered = [];
+        var seenNodeIds = {};
+        for (var index = 0; index < baseNodeIds.length; index++)
+            root._appendBackdropAwareDragNodeIds(ordered, seenNodeIds, baseNodeIds[index]);
+        return ordered;
     }
 
     function setLiveDragOffsets(nodeIds, dx, dy) {
