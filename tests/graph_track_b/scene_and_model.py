@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PyQt6.QtCore import QObject, QRectF, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QFont, QFontMetricsF
 from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtWidgets import QApplication
 
@@ -572,6 +572,33 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             ),
             places=6,
         )
+
+    def test_standard_node_min_width_contract_matches_qt_label_widths(self) -> None:
+        node_id = self.scene.add_node_from_type("core.logger", 40.0, 60.0)
+        self.scene.set_node_port_label(node_id, "message", "message")
+        self.scene.set_node_port_label(node_id, "exec_out", "exec_out")
+
+        self.preference_bridge.set_graphics_show_port_labels_value(True)
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        metrics = payload_by_id[node_id]["surface_metrics"]
+
+        font = QFont(self.app.font())
+        font.setPixelSize(10)
+        font_metrics = QFontMetricsF(font)
+        expected_left_width = float(font_metrics.horizontalAdvance("message") + 2.0)
+        expected_right_width = float(font_metrics.horizontalAdvance("exec_out") + 2.0)
+        expected_port_label_min_width = (
+            expected_left_width
+            + expected_right_width
+            + (float(metrics["standard_port_gutter"]) * 2.0)
+            + float(metrics["standard_center_gap"])
+        )
+
+        self.assertGreaterEqual(float(metrics["standard_left_label_width"]), expected_left_width - 0.5)
+        self.assertGreaterEqual(float(metrics["standard_right_label_width"]), expected_right_width - 0.5)
+        self.assertGreaterEqual(float(metrics["standard_port_label_min_width"]), expected_port_label_min_width - 1.0)
+        self.assertGreaterEqual(float(metrics["min_width"]), expected_port_label_min_width - 1.0)
 
     def test_standard_node_rendered_width_and_resize_clamp_share_preference_aware_min_width(self) -> None:
         node_id = self.scene.add_node_from_type("core.logger", 40.0, 60.0)

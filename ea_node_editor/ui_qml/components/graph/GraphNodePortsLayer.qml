@@ -20,6 +20,8 @@ Item {
     }
 
     function _flowEdgePortRevealActive(portData, attentionState, selectedState) {
+        if (!(root.host && root.host.usesCardinalNeutralFlowHandles))
+            return true;
         if (!root._isFlowEdgePort(portData))
             return true;
         return Boolean(attentionState)

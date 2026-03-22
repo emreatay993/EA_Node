@@ -262,11 +262,21 @@ Item {
         && card.showPortLabelsPreference
         && !card._portLabelsSuppressedBySurfaceRule
         && card._standardPortLabelMetricsReady
+    readonly property int _standardVisibleLabelColumnCount: (card._standardLeftLabelMetricWidth > 0.0 ? 1 : 0)
+        + (card._standardRightLabelMetricWidth > 0.0 ? 1 : 0)
+    // Let manual/default width beyond the P03 minimum widen both label columns
+    // while preserving the shared center-gutter contract.
+    readonly property real _standardExtraLabelWidthPerColumn: card._usesStandardPortLabelColumns
+        && card._standardVisibleLabelColumnCount > 0
+        ? Math.max(0.0, card.width - card._standardPortLabelMinMetricWidth) / card._standardVisibleLabelColumnCount
+        : 0.0
     readonly property real _standardLeftLabelWidth: card._usesStandardPortLabelColumns
-        ? card._standardLeftLabelMetricWidth
+        && card._standardLeftLabelMetricWidth > 0.0
+        ? card._standardLeftLabelMetricWidth + card._standardExtraLabelWidthPerColumn
         : 0.0
     readonly property real _standardRightLabelWidth: card._usesStandardPortLabelColumns
-        ? card._standardRightLabelMetricWidth
+        && card._standardRightLabelMetricWidth > 0.0
+        ? card._standardRightLabelMetricWidth + card._standardExtraLabelWidthPerColumn
         : 0.0
     readonly property real _standardPortGutter: card._usesStandardPortLabelColumns
         ? card._standardPortGutterMetric

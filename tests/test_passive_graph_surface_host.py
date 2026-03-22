@@ -969,6 +969,50 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_standard_host_uses_extra_width_to_expand_metric_backed_label_columns(self) -> None:
+        self._run_qml_probe(
+            "port-label-extra-width-host",
+            """
+            payload = node_payload()
+            payload["ports"][0]["label"] = "Primary Input Payload"
+            payload["ports"][1]["label"] = "Dispatch Result Token"
+            payload["width"] = 360.0
+            payload["surface_metrics"]["default_width"] = 360.0
+
+            measurement_host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            measurement_input = named_child_items(measurement_host, "graphNodeInputPortLabel")[0]
+            measurement_output = named_child_items(measurement_host, "graphNodeOutputPortLabel")[0]
+            left_width = float(measurement_input.property("implicitWidth"))
+            right_width = float(measurement_output.property("implicitWidth"))
+            measurement_host.deleteLater()
+            app.processEvents()
+
+            metric_left_width = max(20.0, left_width - 12.0)
+            metric_right_width = max(20.0, right_width - 12.0)
+            port_gutter = 21.5
+            center_gap = 24.0
+            min_width = metric_left_width + metric_right_width + (port_gutter * 2.0) + center_gap
+            payload["width"] = min_width + 24.0
+            payload["surface_metrics"]["default_width"] = payload["width"]
+            payload["surface_metrics"]["min_width"] = min_width
+            payload["surface_metrics"]["standard_left_label_width"] = metric_left_width
+            payload["surface_metrics"]["standard_right_label_width"] = metric_right_width
+            payload["surface_metrics"]["standard_port_gutter"] = port_gutter
+            payload["surface_metrics"]["standard_center_gap"] = center_gap
+            payload["surface_metrics"]["standard_port_label_min_width"] = min_width
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            input_label = named_child_items(host, "graphNodeInputPortLabel")[0]
+            output_label = named_child_items(host, "graphNodeOutputPortLabel")[0]
+
+            assert bool(host.property("_usesStandardPortLabelColumns"))
+            assert float(input_label.width()) > metric_left_width + 10.0
+            assert float(output_label.width()) > metric_right_width + 10.0
+            assert abs(float(input_label.width()) - left_width) < 0.75
+            assert abs(float(output_label.width()) - right_width) < 0.75
+            """,
+        )
+
     def test_standard_host_uses_tooltip_only_port_labels_when_preference_disabled(self) -> None:
         self._run_qml_probe(
             "tooltip-only-port-labels-host",
@@ -1027,11 +1071,27 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_standard_exec_ports_remain_visible_without_hover(self) -> None:
+        self._run_qml_probe(
+            "standard-exec-port-visible-host",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            input_dot = named_child_items(host, "graphNodeInputPortDot")[0]
+            output_dot = named_child_items(host, "graphNodeOutputPortDot")[0]
+
+            assert float(input_dot.property("opacity")) > 0.99
+            assert float(output_dot.property("opacity")) > 0.99
+            """,
+        )
+
     def test_flow_edge_ports_reveal_on_hover_and_pending_connection_only(self) -> None:
         self._run_qml_probe(
             "flow-edge-port-reveal-host",
             """
-            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            host = create_component(
+                graph_node_host_qml_path,
+                {"nodeData": flowchart_payload("decision")},
+            )
             input_dot = named_child_items(host, "graphNodeInputPortDot")[0]
             output_dot = named_child_items(host, "graphNodeOutputPortDot")[0]
 
@@ -1040,8 +1100,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
             host.setProperty("pendingPort", {
                 "node_id": "node_surface_host_test",
-                "port_key": "exec_in",
-                "direction": "in",
+                "port_key": "top",
+                "direction": "neutral",
             })
             app.processEvents()
 

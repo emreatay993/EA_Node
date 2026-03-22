@@ -5,6 +5,7 @@ import math
 import textwrap
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -390,10 +391,34 @@ def _estimated_standard_text_unit_width(character: str) -> float:
     return 0.44
 
 
+@lru_cache(maxsize=1024)
+def _qt_standard_text_width(content: str, pixel_size: int, font_description: str) -> float:
+    from PyQt6.QtGui import QFont, QFontMetricsF
+
+    font = QFont()
+    if font_description:
+        font.fromString(font_description)
+    font.setPixelSize(max(1, int(pixel_size)))
+    metrics = QFontMetricsF(font)
+    return round(max(0.0, metrics.horizontalAdvance(content) + _STANDARD_TEXT_WIDTH_PADDING), 3)
+
+
 def _estimate_standard_text_width(text: Any, *, pixel_size: float) -> float:
     content = str(text or "")
     if not content:
         return 0.0
+    try:
+        from PyQt6.QtWidgets import QApplication
+    except Exception:
+        QApplication = None
+    if QApplication is not None:
+        app = QApplication.instance()
+        if app is not None:
+            return _qt_standard_text_width(
+                content,
+                int(round(float(pixel_size))),
+                app.font().toString(),
+            )
     width = sum(_estimated_standard_text_unit_width(character) for character in content) * float(pixel_size)
     return round(max(0.0, width + _STANDARD_TEXT_WIDTH_PADDING), 3)
 
