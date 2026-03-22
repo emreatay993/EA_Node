@@ -242,11 +242,14 @@ Item {
     readonly property real _portLabelGap: 6.0
     readonly property real _portLabelMaxWidth: Math.max(40.0, card.width * 0.46)
     readonly property bool _portLabelsVisible: !card.usesCardinalNeutralFlowHandles
-    readonly property bool _suppressShadow: card.isFlowchartSurface && !card.isCollapsed
-    readonly property bool _shadowVisible: card.showShadow
-        && !card._suppressShadow
-        && card._useHostChrome
+    readonly property bool _surfaceOwnsShadow: card.isFlowchartSurface && !card._useHostChrome
+    readonly property bool _backgroundShadowVisible: card.showShadow
         && !card.shadowSimplificationActive
+        && !card._surfaceOwnsShadow
+    readonly property bool _surfaceShadowVisible: card.showShadow
+        && !card.shadowSimplificationActive
+        && card._surfaceOwnsShadow
+    readonly property bool _shadowVisible: card._backgroundShadowVisible || card._surfaceShadowVisible
     // Full-fidelity viewport motion must keep live shadows, so avoid the host
     // texture layer there; it clips shadow pixels outside the node bounds.
     readonly property bool effectiveTextureCacheActive: card.snapshotReuseActive
@@ -265,12 +268,32 @@ Item {
     readonly property real resolvedCornerRadius: card.isPassiveNode ? card.passiveCornerRadius : 6.0
     // The chrome/shadow background owns its own cache so viewport and policy
     // churn do not invalidate it unless the local chrome/shadow pixels change.
-    readonly property bool chromeShadowCacheActive: card._useHostChrome
+    readonly property bool chromeCacheActive: card._useHostChrome
+    readonly property bool shadowCacheActive: card.showShadow && !card._surfaceOwnsShadow
+    readonly property bool surfaceShadowCacheActive: card.showShadow && card._surfaceOwnsShadow
+    readonly property bool chromeShadowCacheActive: card.chromeCacheActive || card.shadowCacheActive
     readonly property string chromeShadowCacheKey: [
-        card.chromeShadowCacheActive ? "host-chrome" : "surface-chrome",
+        card.chromeCacheActive ? "chrome-active" : "chrome-inactive",
+        card.shadowCacheActive ? "shadow-active" : "shadow-inactive",
         Number(card.width).toFixed(3),
         Number(card.height).toFixed(3),
         Number(card.resolvedCornerRadius).toFixed(3),
+        Number(card.resolvedBorderWidth).toFixed(3),
+        card.isSelected ? "selected" : "idle",
+        String(card.surfaceColor),
+        String(card.outlineColor),
+        String(card.selectedOutlineColor),
+        card.showShadow ? "shadow-enabled" : "shadow-disabled",
+        String(Number(card.shadowStrength)),
+        String(Number(card.shadowSoftness)),
+        String(Number(card.shadowOffset))
+    ].join("|")
+    readonly property string surfaceShadowCacheKey: [
+        "surface-shadow",
+        String(card.surfaceFamily),
+        String(card.surfaceVariant),
+        Number(card.width).toFixed(3),
+        Number(card.height).toFixed(3),
         Number(card.resolvedBorderWidth).toFixed(3),
         card.isSelected ? "selected" : "idle",
         String(card.surfaceColor),

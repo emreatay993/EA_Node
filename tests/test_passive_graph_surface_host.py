@@ -295,6 +295,54 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                         }
                     ],
                 }
+
+            def flowchart_payload(variant):
+                payload = node_payload(surface_family="flowchart", surface_variant=variant)
+                payload["runtime_behavior"] = "passive"
+                payload["type_id"] = f"passive.flowchart.{variant}"
+                payload["title"] = "Decision"
+                payload["width"] = 236.0
+                payload["height"] = 128.0
+                payload["ports"] = [
+                    {
+                        "key": "top",
+                        "label": "top",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                    {
+                        "key": "right",
+                        "label": "right",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                    {
+                        "key": "bottom",
+                        "label": "bottom",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                    {
+                        "key": "left",
+                        "label": "left",
+                        "direction": "neutral",
+                        "kind": "flow",
+                        "data_type": "flow",
+                        "exposed": True,
+                        "connected": False,
+                    },
+                ]
+                payload["inline_properties"] = []
+                return payload
             """,
             QML_POINTER_REGRESSION_HELPERS,
             body,
@@ -609,6 +657,115 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             shadow_preference_key = str(background_layer.property("cacheKey") or "")
             assert shadow_preference_key != baseline_key
             assert shadow_preference_key != geometry_key
+            """,
+        )
+
+    def test_flowchart_host_shadow_visibility_follows_global_shadow_preference(self) -> None:
+        self._run_qml_probe(
+            "flowchart-host-shadow-visibility",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": flowchart_payload("decision"),
+                    "showShadow": True,
+                },
+            )
+            background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            shadow_item = host.findChild(QObject, "graphNodeShadow")
+            flowchart_shadow = host.findChild(QObject, "graphNodeFlowchartShadow")
+            chrome_item = host.findChild(QObject, "graphNodeChrome")
+            flowchart_surface = host.findChild(QObject, "graphNodeFlowchartSurface")
+
+            assert bool(host.property("isFlowchartSurface"))
+            assert not bool(host.property("_useHostChrome"))
+            assert background_layer is not None
+            assert shadow_item is not None
+            assert flowchart_shadow is not None
+            assert chrome_item is not None
+            assert flowchart_surface is not None
+            assert not bool(background_layer.property("cacheActive"))
+            assert not bool(background_layer.property("chromeCacheActive"))
+            assert not bool(background_layer.property("shadowCacheActive"))
+            assert not bool(chrome_item.property("visible"))
+            assert not bool(shadow_item.property("visible"))
+            assert bool(flowchart_surface.property("shapeShadowVisible"))
+            assert bool(flowchart_surface.property("shapeShadowCacheActive"))
+            assert bool(flowchart_shadow.property("visible"))
+            assert bool(flowchart_shadow.property("cacheActive"))
+
+            host.setProperty("showShadow", False)
+            app.processEvents()
+
+            assert not bool(background_layer.property("cacheActive"))
+            assert not bool(background_layer.property("shadowCacheActive"))
+            assert not bool(shadow_item.property("visible"))
+            assert not bool(flowchart_surface.property("shapeShadowVisible"))
+            assert not bool(flowchart_surface.property("shapeShadowCacheActive"))
+            assert not bool(flowchart_shadow.property("visible"))
+            """,
+        )
+
+    def test_flowchart_host_shadow_cache_key_tracks_shadow_preferences_without_host_chrome(self) -> None:
+        self._run_qml_probe(
+            "flowchart-host-shadow-cache-key",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": flowchart_payload("decision"),
+                    "showShadow": True,
+                },
+            )
+            background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            shadow_item = host.findChild(QObject, "graphNodeShadow")
+            flowchart_shadow = host.findChild(QObject, "graphNodeFlowchartShadow")
+            chrome_item = host.findChild(QObject, "graphNodeChrome")
+            flowchart_surface = host.findChild(QObject, "graphNodeFlowchartSurface")
+
+            assert background_layer is not None
+            assert shadow_item is not None
+            assert flowchart_shadow is not None
+            assert chrome_item is not None
+            assert flowchart_surface is not None
+            assert not bool(background_layer.property("cacheActive"))
+            assert not bool(background_layer.property("chromeCacheActive"))
+            assert not bool(background_layer.property("shadowCacheActive"))
+            assert not bool(chrome_item.property("visible"))
+            assert not bool(shadow_item.property("visible"))
+            assert bool(flowchart_shadow.property("cacheActive"))
+
+            baseline_key = str(flowchart_shadow.property("cacheKey") or "")
+            assert baseline_key
+
+            host.setProperty("viewportInteractionCacheActive", True)
+            app.processEvents()
+            assert str(flowchart_shadow.property("cacheKey") or "") == baseline_key
+
+            host.setProperty("snapshotReuseActive", True)
+            app.processEvents()
+            assert str(flowchart_shadow.property("cacheKey") or "") == baseline_key
+
+            host.setProperty("_liveWidth", 248.0)
+            host.setProperty("_liveHeight", 132.0)
+            host.setProperty("_liveGeometryActive", True)
+            app.processEvents()
+            geometry_key = str(flowchart_shadow.property("cacheKey") or "")
+            assert geometry_key != baseline_key
+
+            host.setProperty("_liveGeometryActive", False)
+            host.setProperty("shadowSoftness", 41)
+            app.processEvents()
+            shadow_preference_key = str(flowchart_shadow.property("cacheKey") or "")
+            assert shadow_preference_key != baseline_key
+            assert shadow_preference_key != geometry_key
+
+            host.setProperty("showShadow", False)
+            app.processEvents()
+            disabled_shadow_key = str(flowchart_shadow.property("cacheKey") or "")
+            assert disabled_shadow_key != shadow_preference_key
+            assert not bool(background_layer.property("cacheActive"))
+            assert not bool(flowchart_shadow.property("cacheActive"))
             """,
         )
 

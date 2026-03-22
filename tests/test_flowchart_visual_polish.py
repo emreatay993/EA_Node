@@ -306,7 +306,6 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             )
             assert bool(host.property("isFlowchartSurface"))
             assert not bool(host.property("_useHostChrome"))
-            assert bool(host.property("_suppressShadow"))
             assert len(named_child_items(host, "graphNodeInputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeOutputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2

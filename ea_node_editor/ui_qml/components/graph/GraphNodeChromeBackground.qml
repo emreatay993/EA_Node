@@ -7,15 +7,15 @@ Item {
     property Item host: null
     readonly property bool cacheActive: !!root.host && root.host.chromeShadowCacheActive
     readonly property string cacheKey: root.host ? root.host.chromeShadowCacheKey : ""
-    readonly property bool chromeCacheActive: root.cacheActive
-    readonly property bool shadowCacheActive: root.cacheActive
+    readonly property bool chromeCacheActive: root.host ? root.host.chromeCacheActive : false
+    readonly property bool shadowCacheActive: root.host ? root.host.shadowCacheActive : false
     z: 0
 
     RectangularShadow {
         id: cardShadow
         objectName: "graphNodeShadow"
-        visible: root.host ? root.host._shadowVisible : false
-        anchors.fill: cardChrome
+        visible: root.host ? root.host._backgroundShadowVisible : false
+        anchors.fill: parent
         z: 0
         offset.x: 0
         offset.y: root.host ? root.host.shadowOffset : 4
