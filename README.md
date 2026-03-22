@@ -13,6 +13,7 @@ Recent UI/UX architecture highlights:
 - Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, and live apply for the active explicit custom theme
 - Graphics preferences now persist in `app_preferences.json` separately from project `.sfe` files and `last_session.json`
 - Passive visual node families now ship in the main graph model for flowcharting, planning, annotation, and local image/PDF presentation
+- Dedicated `Comment Backdrop` passive grouping nodes render on an under-edge layer, wrap the current selection with shortcut `C`, derive nested membership from geometry, and keep collapse/clipboard behavior distinct from note-style annotation cards
 - Passive `flow` edges support labels and per-edge style overrides while remaining excluded from runtime compilation and worker execution
 - Passive node and flow-edge style overrides can be edited from context menus and saved as project-local presets in `.sfe` metadata
 - Graph-surface input routing now keeps host body gestures under loaded surfaces, uses `embeddedInteractiveRects` for local control ownership, and reserves `blocksHostInteraction` for whole-surface modal tools such as crop mode

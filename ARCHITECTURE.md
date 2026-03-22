@@ -35,6 +35,7 @@ Design intent:
 - QML renders and captures interaction.
 - `GraphCanvas.qml` composes focused canvas modules (`GraphCanvasBackground`, `GraphCanvasDropPreview`, `GraphCanvasMinimapOverlay`, `GraphCanvasInputLayers`, `GraphCanvasContextMenus`) plus `GraphCanvasLogic.js`.
 - `GraphCanvas.qml` routes node rendering through `GraphNodeHost.qml` + `GraphNodeSurfaceLoader.qml`, so `NodeCard.qml` remains the stable standard-node contract while passive `flowchart`, `planning`, `annotation`, and `media` families load specialized surfaces without reopening the canvas orchestrator.
+- `GraphScenePayloadBuilder` separates `comment_backdrop` payloads into `backdrop_nodes_model`, and `GraphCanvas.qml` renders that model on a dedicated layer below `graphCanvasEdgeLayer` and the regular node repeater so grouping surfaces stay visually behind ordinary nodes and note-style annotations.
 - `GraphNodeHost.qml` keeps node-body drag/select/open/context behavior below the loaded surface content, and graph surfaces publish local ownership through `embeddedInteractiveRects` instead of relying on click-swallowing top overlays.
 - `GraphNodeHeaderLayer.qml` owns the single shared inline title editor for standard cards, passive surfaces, collapsed nodes, and scope-capable shells; `GraphCanvas.qml` routes header title commits back onto the existing rename/mutation-history authority instead of introducing a surface-local title workflow.
 - shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
@@ -68,9 +69,15 @@ Design intent:
 
 - Passive nodes use the same registry and serializer path as executable nodes, but `NodeTypeSpec.runtime_behavior` marks them as `passive` so they never compile into the worker graph.
 - `PortKind.flow` is the authoring-only connection kind for passive diagrams. `flow` edges remain visible, labeled, and styleable in the scene, but they do not affect Run.
-- Surface routing is declarative through `surface_family` / `surface_variant`, which keeps public QML discoverability stable while letting the graph host swap between standard cards, flowchart silhouettes, planning cards, annotation notes, and media panels.
+- Surface routing is declarative through `surface_family` / `surface_variant`, which keeps public QML discoverability stable while letting the graph host swap between standard cards, flowchart silhouettes, planning cards, annotation notes, comment backdrops, and media panels.
 - Passive style editing is project-local. Node and flow-edge presets are stored under `metadata.ui.passive_style_presets` inside the `.sfe` document rather than in app-wide preferences.
 - Media panels resolve local filesystem sources only. Image panels display local image files, and PDF panels render a single-page QtPdf preview through the Python-side preview provider.
+
+## Comment backdrop grouping path
+
+- Comment backdrops are a dedicated passive surface family and zero-port node type that stays distinct from the existing connectable annotation cards. The shell can place them from the library or wrap the current selection via shortcut `C`, while `Ctrl+G` and `Ctrl+Shift+G` remain reserved for structural subnode grouping.
+- Membership is derived from geometry rather than persisted member lists: the smallest fully containing backdrop in the same scope and parent chain owns a node or nested backdrop, which drives nesting, descendant drag/resize propagation, collapse-driven descendant hiding, boundary-edge rerouting, and the expanded-versus-collapsed clipboard/delete rules.
+- Serializer and clipboard fragment paths persist only authored backdrop state such as title, body, collapsed flag, and geometry. Derived containment metadata is stripped and recomputed on paste and load.
 
 ## Passive flowchart neutral-port contract
 
