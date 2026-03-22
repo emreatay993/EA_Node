@@ -69,6 +69,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 61. [NODE_INLINE_TITLES Status Ledger](work_packets/node_inline_titles/NODE_INLINE_TITLES_STATUS.md)
 62. [PORT_LABEL_VISIBILITY Work Packet Manifest](work_packets/port_label_visibility/PORT_LABEL_VISIBILITY_MANIFEST.md)
 63. [PORT_LABEL_VISIBILITY Status Ledger](work_packets/port_label_visibility/PORT_LABEL_VISIBILITY_STATUS.md)
+64. [COMMENT_BACKDROP Work Packet Manifest](work_packets/comment_backdrop/COMMENT_BACKDROP_MANIFEST.md)
+65. [COMMENT_BACKDROP Status Ledger](work_packets/comment_backdrop/COMMENT_BACKDROP_STATUS.md)
 
 ## ADRs
 
