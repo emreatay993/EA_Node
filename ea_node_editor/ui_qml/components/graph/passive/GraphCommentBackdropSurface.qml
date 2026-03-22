@@ -18,14 +18,30 @@ Item {
         ? bodyEditor.embeddedInteractiveRects
         : []
     readonly property color backdropFillColor: _backdropFillColor()
+    readonly property color backdropGlassTopColor: host
+        ? Qt.alpha(Qt.lighter(host.surfaceColor, host.hasPassiveFillOverride ? 1.12 : 1.22), host.hasPassiveFillOverride ? 0.26 : 0.2)
+        : Qt.rgba(0.21, 0.24, 0.29, 0.2)
+    readonly property color backdropGlassBottomColor: host
+        ? Qt.alpha(Qt.darker(host.surfaceColor, host.hasPassiveFillOverride ? 1.04 : 1.08), host.hasPassiveFillOverride ? 0.34 : 0.26)
+        : Qt.rgba(0.12, 0.14, 0.18, 0.26)
     readonly property color backdropBorderColor: host && host.isSelected
         ? host.selectedOutlineColor
         : (host
             ? Qt.alpha(host.outlineColor, host.hasPassiveBorderOverride ? 0.96 : 0.8)
             : "#4a4f5a")
+    readonly property color backdropInnerBorderColor: host
+        ? Qt.rgba(1.0, 1.0, 1.0, host.isSelected ? 0.18 : 0.11)
+        : Qt.rgba(1.0, 1.0, 1.0, 0.11)
     readonly property color accentColor: host
-        ? Qt.alpha(host.scopeBadgeColor, host.isSelected ? 0.48 : 0.3)
+        ? Qt.alpha(host.scopeBadgeColor, host.isSelected ? 0.28 : 0.18)
         : "#4d9fff"
+    readonly property color sheenTopColor: host
+        ? Qt.rgba(1.0, 1.0, 1.0, host.isSelected ? 0.18 : 0.12)
+        : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+    readonly property color sheenBottomColor: Qt.rgba(1.0, 1.0, 1.0, 0.0)
+    readonly property color lowerTintColor: host
+        ? Qt.alpha(host.scopeBadgeColor, host.isSelected ? 0.14 : 0.08)
+        : Qt.rgba(0.3, 0.62, 1.0, 0.08)
     readonly property color bodyTextColor: host ? Qt.alpha(host.inlineInputTextColor, 0.9) : "#f0f2f5"
     readonly property color mutedTextColor: host ? Qt.alpha(host.inlineDrivenTextColor, 0.82) : "#bdc5d3"
     readonly property color labelTextColor: host ? Qt.alpha(host.inlineLabelColor, 0.9) : "#d0d5de"
@@ -61,9 +77,49 @@ Item {
         visible: !surface.inputOverlayMode
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
-        color: surface.backdropFillColor
+        color: "transparent"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: surface.backdropGlassTopColor }
+            GradientStop { position: 0.32; color: surface.backdropFillColor }
+            GradientStop { position: 1.0; color: surface.backdropGlassBottomColor }
+        }
         border.width: host ? Number(host.resolvedBorderWidth || 1) : 1
         border.color: surface.backdropBorderColor
+    }
+
+    Rectangle {
+        visible: !surface.inputOverlayMode
+        anchors.fill: parent
+        anchors.margins: 1
+        radius: host ? Math.max(7, Number(host.resolvedCornerRadius || 10) + 1) : 9
+        color: "transparent"
+        border.width: 1
+        border.color: surface.backdropInnerBorderColor
+    }
+
+    Rectangle {
+        visible: !surface.inputOverlayMode
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: Math.max(56, parent.height * 0.46)
+        radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
+        color: "transparent"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: surface.sheenTopColor }
+            GradientStop { position: 1.0; color: surface.sheenBottomColor }
+        }
+    }
+
+    Rectangle {
+        visible: !surface.inputOverlayMode
+        anchors.fill: parent
+        radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
+        color: "transparent"
+        gradient: Gradient {
+            GradientStop { position: 0.0; color: Qt.rgba(0.0, 0.0, 0.0, 0.0) }
+            GradientStop { position: 1.0; color: surface.lowerTintColor }
+        }
     }
 
     Rectangle {
@@ -73,7 +129,7 @@ Item {
         anchors.top: parent.top
         height: Math.max(32, host ? Number(host.surfaceMetrics.body_top || 52) - 12 : 40)
         color: surface.accentColor
-        opacity: 0.42
+        opacity: 0.7
     }
 
     Item {
@@ -90,28 +146,6 @@ Item {
         Column {
             anchors.fill: parent
             spacing: 10
-
-            Row {
-                visible: !surface.editingShellVisible
-                spacing: 8
-
-                Rectangle {
-                    width: 10
-                    height: 10
-                    radius: 5
-                    color: host ? host.scopeBadgeColor : "#4d9fff"
-                    opacity: 0.86
-                }
-
-                Text {
-                    text: "BACKDROP"
-                    color: surface.labelTextColor
-                    font.pixelSize: surface.labelFontSize
-                    font.bold: true
-                    font.letterSpacing: 0.8
-                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                }
-            }
 
             Text {
                 visible: !surface.editingShellVisible && surface.bodyValue.length > 0

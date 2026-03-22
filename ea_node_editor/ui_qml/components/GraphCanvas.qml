@@ -1077,12 +1077,16 @@ Item {
             dragSourcePort: root.wireDragSourcePort()
             liveDragDx: root.liveDragDxForNode(modelData.node_id)
             liveDragDy: root.liveDragDyForNode(modelData.node_id)
-            showShadow: (nodeCard._backdropInputOverlay || nodeCard._commentBackdropNode)
-                ? false
-                : root.nodeShadowEnabled
-            shadowStrength: root.shadowStrength
-            shadowSoftness: root.shadowSoftness
-            shadowOffset: root.shadowOffset
+            showShadow: nodeCard._backdropInputOverlay ? false : root.nodeShadowEnabled
+            shadowStrength: nodeCard._commentBackdropNode
+                ? Math.max(10, Math.round(Number(root.shadowStrength) * 0.26))
+                : root.shadowStrength
+            shadowSoftness: nodeCard._commentBackdropNode
+                ? Math.max(78, Math.round(Number(root.shadowSoftness) * 1.45))
+                : root.shadowSoftness
+            shadowOffset: nodeCard._commentBackdropNode
+                ? Math.max(1, Math.round(Number(root.shadowOffset) * 0.5))
+                : root.shadowOffset
             viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
             snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
             shadowSimplificationActive: root.shadowSimplificationActive

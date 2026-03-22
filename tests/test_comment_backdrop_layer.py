@@ -204,8 +204,12 @@ class CommentBackdropLayerTests(unittest.TestCase):
 
         self.assertIs(backdrop_host.parentItem(), backdrop_layer)
         self.assertIs(logger_host.parentItem(), world)
-        self.assertFalse(bool(backdrop_host.property("showShadow")))
+        self.assertTrue(bool(backdrop_host.property("showShadow")))
+        self.assertFalse(bool(backdrop_input_host.property("showShadow")))
         self.assertTrue(bool(logger_host.property("showShadow")))
+        self.assertLess(int(backdrop_host.property("shadowStrength")), int(logger_host.property("shadowStrength")))
+        self.assertGreater(int(backdrop_host.property("shadowSoftness")), int(logger_host.property("shadowSoftness")))
+        self.assertLessEqual(int(backdrop_host.property("shadowOffset")), int(logger_host.property("shadowOffset")))
         self.assertEqual(compat_bridge.backdrop_nodes_model, self.scene.backdrop_nodes_model)
         self.assertIsNotNone(backdrop_host.findChild(QObject, "graphNodeHeaderLayer"))
         self.assertIsNotNone(backdrop_host.findChild(QObject, "graphNodeResizeHandle"))

@@ -9,9 +9,18 @@ Item {
     property Item host: null
     property bool isEditing: false
     readonly property bool sharedHeaderTitleEditable: host ? host.sharedHeaderTitleEditable : false
+    readonly property bool isCommentBackdropNode: host
+        ? String(host.surfaceFamily || "") === "comment_backdrop"
+        : false
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || "")
         : ""
+    readonly property string displayTitle: {
+        var title = String(root.currentTitle || "");
+        if (root.isCommentBackdropNode && title.trim() === "Comment Backdrop")
+            return "Comment";
+        return title;
+    }
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [titleEditorInteractionRegion.embeddedInteractiveRects, openBadgeInteractionRegion.embeddedInteractiveRects]
     )
@@ -123,7 +132,7 @@ Item {
         anchors.rightMargin: root.host ? root.host._titleRightMargin + (root.host.canEnterScope ? 56 : 0) : 0
         y: root.host ? root.host._titleTop : 0
         height: root.host ? root.host._titleHeight : 0
-        text: root.currentTitle
+        text: root.displayTitle
         color: root.host ? root.host.headerTextColor : "#f0f4fb"
         font.pixelSize: root.host && root.host.isPassiveNode ? root.host.passiveFontPixelSize : 12
         font.bold: root.host ? (root.host.isPassiveNode ? root.host.passiveFontBold : true) : true

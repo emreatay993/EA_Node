@@ -228,13 +228,18 @@ class CommentBackdropSurfaceQmlTests(unittest.TestCase):
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             surface = host.findChild(QObject, "graphNodeCommentBackdropSurface")
             body_text = host.findChild(QObject, "graphNodeCommentBackdropBodyText")
+            badge_dot = host.findChild(QObject, "graphNodeCommentBackdropBadgeDot")
+            title_text = host.findChild(QObject, "graphNodeTitle")
             assert loader is not None
             assert surface is not None
             assert body_text is not None
+            assert badge_dot is None
+            assert title_text is not None
             assert loader.property("loadedSurfaceKey") == "comment_backdrop"
             assert float(loader.property("contentHeight")) > 0.0
             assert not bool(host.property("_useHostChrome"))
             assert bool(body_text.property("visible"))
+            assert title_text.property("text") == "Comment"
             assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 0
             assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 0
             """,
