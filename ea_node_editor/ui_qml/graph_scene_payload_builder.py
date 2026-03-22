@@ -133,6 +133,7 @@ class GraphScenePayloadBuilder:
         minimap_nodes_payload: list[dict[str, Any]] = []
         node_specs: dict[str, NodeTypeSpec] = {}
         node_payload_by_id: dict[str, dict[str, Any]] = {}
+        minimap_payload_by_id: dict[str, dict[str, float | str]] = {}
         comment_backdrop_ids: set[str] = set()
         membership_candidates: list[CommentBackdropCandidate] = []
 
@@ -153,6 +154,13 @@ class GraphScenePayloadBuilder:
             is_comment_backdrop = self._is_comment_backdrop_spec(spec)
             if is_comment_backdrop:
                 comment_backdrop_ids.add(node_id)
+            membership_width, membership_height = self._membership_candidate_size(
+                node=payload_node,
+                spec=spec,
+                workspace=workspace,
+                is_comment_backdrop=is_comment_backdrop,
+                show_port_labels=show_port_labels,
+            )
             membership_candidates.append(
                 CommentBackdropCandidate(
                     node_id=node_id,
@@ -160,11 +168,11 @@ class GraphScenePayloadBuilder:
                     is_backdrop=is_comment_backdrop,
                     x=float(node_payload["x"]),
                     y=float(node_payload["y"]),
-                    width=float(node_payload["width"]),
-                    height=float(node_payload["height"]),
+                    width=float(membership_width),
+                    height=float(membership_height),
                 )
             )
-            minimap_nodes_payload.append(
+            minimap_payload_by_id[node_id] = (
                 self._build_minimap_node_payload(
                     node=payload_node,
                     spec=spec,
@@ -174,7 +182,15 @@ class GraphScenePayloadBuilder:
             )
 
         membership_by_node_id = compute_comment_backdrop_membership(membership_candidates)
+        collapsed_proxy_backdrop_by_node_id = self._collapsed_proxy_backdrop_by_node_id(
+            visible_node_ids=visible_node_ids,
+            membership_by_node_id=membership_by_node_id,
+            workspace=workspace,
+            comment_backdrop_ids=comment_backdrop_ids,
+        )
         for node_id in visible_node_ids:
+            if collapsed_proxy_backdrop_by_node_id.get(node_id):
+                continue
             node_payload = node_payload_by_id[node_id]
             is_comment_backdrop = node_id in comment_backdrop_ids
             self._apply_comment_backdrop_membership_payload(
@@ -186,12 +202,14 @@ class GraphScenePayloadBuilder:
                 backdrop_nodes_payload.append(node_payload)
             else:
                 nodes_payload.append(node_payload)
+            minimap_nodes_payload.append(minimap_payload_by_id[node_id])
 
         edges_payload = build_edge_payload(
             graph_theme=graph_theme,
             workspace_edges=workspace_edges,
             workspace_nodes=workspace.nodes,
             node_specs=node_specs,
+            collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
             show_port_labels=show_port_labels,
         )
         return nodes_payload, backdrop_nodes_payload, minimap_nodes_payload, edges_payload
@@ -199,6 +217,60 @@ class GraphScenePayloadBuilder:
     @staticmethod
     def _is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
         return str(spec.surface_family or "").strip() == "comment_backdrop"
+
+    @staticmethod
+    def _membership_candidate_size(
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace: WorkspaceData,
+        is_comment_backdrop: bool,
+        show_port_labels: bool = True,
+    ) -> tuple[float, float]:
+        if not is_comment_backdrop:
+            return node_size(
+                node,
+                spec,
+                workspace.nodes,
+                show_port_labels=show_port_labels,
+            )
+        surface_metrics = node_surface_metrics(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
+        width = node.custom_width if node.custom_width is not None else surface_metrics.default_width
+        height = node.custom_height if node.custom_height is not None else surface_metrics.default_height
+        return max(float(surface_metrics.min_width), float(width)), float(height)
+
+    @staticmethod
+    def _collapsed_proxy_backdrop_by_node_id(
+        *,
+        visible_node_ids: list[str],
+        membership_by_node_id: dict[str, CommentBackdropMembership],
+        workspace: WorkspaceData,
+        comment_backdrop_ids: set[str],
+    ) -> dict[str, str]:
+        collapsed_backdrop_ids = {
+            node_id
+            for node_id in comment_backdrop_ids
+            if bool(workspace.nodes.get(node_id) is not None and workspace.nodes[node_id].collapsed)
+        }
+        owner_backdrop_by_node_id = {
+            node_id: str(membership.owner_backdrop_id or "")
+            for node_id, membership in membership_by_node_id.items()
+        }
+        proxy_backdrop_by_node_id: dict[str, str] = {}
+        for node_id in visible_node_ids:
+            proxy_backdrop_id = ""
+            owner_backdrop_id = owner_backdrop_by_node_id.get(node_id, "")
+            while owner_backdrop_id:
+                if owner_backdrop_id in collapsed_backdrop_ids:
+                    proxy_backdrop_id = owner_backdrop_id
+                owner_backdrop_id = owner_backdrop_by_node_id.get(owner_backdrop_id, "")
+            proxy_backdrop_by_node_id[node_id] = proxy_backdrop_id
+        return proxy_backdrop_by_node_id
 
     @staticmethod
     def _apply_comment_backdrop_membership_payload(

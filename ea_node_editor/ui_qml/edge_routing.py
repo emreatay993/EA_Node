@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import math
+from dataclasses import dataclass
 from collections.abc import Mapping
 from typing import Any
 
@@ -32,9 +33,20 @@ EDGE_PIPE_STUB = 44.0
 EDGE_PIPE_STUB_MIN = 32.0
 EDGE_PIPE_STUB_MAX = 72.0
 EDGE_PIPE_MIDDLE_MARGIN = 10.0
+EDGE_PROXY_PERIMETER_INSET = 12.0
 _FLOW_EDGE_STROKE_PATTERNS = {"solid", "dashed", "dotted"}
 _FLOW_EDGE_ARROW_HEADS = {"filled", "open", "none"}
 _CARDINAL_SIDES = frozenset({"top", "right", "bottom", "left"})
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedEdgeEndpoint:
+    anchor_node_id: str
+    anchor_kind: str
+    hidden_by_backdrop_id: str
+    side: str
+    point: QPointF
+    bounds: QRectF
 
 
 def node_size(
@@ -183,6 +195,125 @@ def _flowchart_decision_source_fan_bias(spec: NodeTypeSpec, source_port_key: str
 
 def _rect_center_x(bounds: QRectF) -> float:
     return float(bounds.left() + bounds.width() * 0.5)
+
+
+def _rect_center(bounds: QRectF) -> QPointF:
+    return QPointF(float(bounds.left() + bounds.width() * 0.5), float(bounds.top() + bounds.height() * 0.5))
+
+
+def _node_bounds(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    show_port_labels: bool = True,
+) -> QRectF:
+    width, height = node_size(
+        node,
+        spec,
+        workspace_nodes,
+        show_port_labels=show_port_labels,
+    )
+    return QRectF(float(node.x), float(node.y), float(width), float(height))
+
+
+def _clamp(value: float, low: float, high: float) -> float:
+    if low > high:
+        return (low + high) * 0.5
+    return min(high, max(low, value))
+
+
+def _proxy_perimeter_side(bounds: QRectF, *, toward: QPointF | None) -> str:
+    center = _rect_center(bounds)
+    target = toward if toward is not None else center
+    dx = float(target.x() - center.x())
+    dy = float(target.y() - center.y())
+    if abs(dx) >= abs(dy):
+        return "right" if dx >= 0.0 else "left"
+    return "bottom" if dy >= 0.0 else "top"
+
+
+def _proxy_anchor_point(bounds: QRectF, side: str, *, toward: QPointF | None) -> QPointF:
+    normalized_side = _normalized_cardinal_side(side, fallback="right")
+    target = toward if toward is not None else _rect_center(bounds)
+    inset_x = min(EDGE_PROXY_PERIMETER_INSET, max(0.0, float(bounds.width()) * 0.5))
+    inset_y = min(EDGE_PROXY_PERIMETER_INSET, max(0.0, float(bounds.height()) * 0.5))
+    min_x = float(bounds.left()) + inset_x
+    max_x = float(bounds.right()) - inset_x
+    min_y = float(bounds.top()) + inset_y
+    max_y = float(bounds.bottom()) - inset_y
+    if normalized_side == "left":
+        return QPointF(float(bounds.left()), _clamp(float(target.y()), min_y, max_y))
+    if normalized_side == "right":
+        return QPointF(float(bounds.right()), _clamp(float(target.y()), min_y, max_y))
+    if normalized_side == "top":
+        return QPointF(_clamp(float(target.x()), min_x, max_x), float(bounds.top()))
+    return QPointF(_clamp(float(target.x()), min_x, max_x), float(bounds.bottom()))
+
+
+def _rect_payload(bounds: QRectF) -> dict[str, float]:
+    return {
+        "x": float(bounds.left()),
+        "y": float(bounds.top()),
+        "width": float(bounds.width()),
+        "height": float(bounds.height()),
+    }
+
+
+def _resolve_edge_endpoint(
+    *,
+    node_id: str,
+    port_key: str,
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance],
+    node_specs: Mapping[str, NodeTypeSpec],
+    hidden_by_backdrop_id: str = "",
+    opposite_point: QPointF | None = None,
+    show_port_labels: bool = True,
+) -> _ResolvedEdgeEndpoint:
+    normalized_hidden_by_backdrop_id = str(hidden_by_backdrop_id or "").strip()
+    if normalized_hidden_by_backdrop_id:
+        backdrop_node = workspace_nodes.get(normalized_hidden_by_backdrop_id)
+        backdrop_spec = node_specs.get(normalized_hidden_by_backdrop_id)
+        if backdrop_node is not None and backdrop_spec is not None:
+            backdrop_bounds = _node_bounds(
+                backdrop_node,
+                backdrop_spec,
+                workspace_nodes,
+                show_port_labels=show_port_labels,
+            )
+            anchor_side = _proxy_perimeter_side(backdrop_bounds, toward=opposite_point)
+            anchor_point = _proxy_anchor_point(backdrop_bounds, anchor_side, toward=opposite_point)
+            return _ResolvedEdgeEndpoint(
+                anchor_node_id=normalized_hidden_by_backdrop_id,
+                anchor_kind="collapsed_backdrop",
+                hidden_by_backdrop_id=normalized_hidden_by_backdrop_id,
+                side=anchor_side,
+                point=anchor_point,
+                bounds=backdrop_bounds,
+            )
+
+    anchor_side = flowchart_port_side(node, spec, port_key, workspace_nodes)
+    return _ResolvedEdgeEndpoint(
+        anchor_node_id=node_id,
+        anchor_kind="node",
+        hidden_by_backdrop_id="",
+        side=anchor_side,
+        point=port_scene_pos(
+            node,
+            spec,
+            port_key,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+        ),
+        bounds=_node_bounds(
+            node,
+            spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+        ),
+    )
 
 
 def _normalized_cardinal_side(side: str, *, fallback: str = "") -> str:
@@ -776,8 +907,10 @@ def build_edge_payload(
     workspace_edges: list[EdgeInstance],
     workspace_nodes: dict[str, NodeInstance],
     node_specs: dict[str, NodeTypeSpec],
+    collapsed_proxy_backdrop_by_node_id: Mapping[str, str] | None = None,
     show_port_labels: bool = True,
 ) -> list[dict[str, Any]]:
+    collapsed_proxy_backdrop_by_node_id = collapsed_proxy_backdrop_by_node_id or {}
     pair_lane_offsets = edge_lane_offsets(
         workspace_edges,
         grouping_key=lambda edge: (edge.source_node_id, edge.target_node_id),
@@ -802,34 +935,83 @@ def build_edge_payload(
         target_spec = node_specs.get(edge.target_node_id)
         if source_node is None or target_node is None or source_spec is None or target_spec is None:
             continue
-        source = port_scene_pos(
-            source_node,
-            source_spec,
-            edge.source_port_key,
-            workspace_nodes,
+        source_proxy_backdrop_id = str(collapsed_proxy_backdrop_by_node_id.get(edge.source_node_id, "") or "")
+        target_proxy_backdrop_id = str(collapsed_proxy_backdrop_by_node_id.get(edge.target_node_id, "") or "")
+        if source_proxy_backdrop_id and source_proxy_backdrop_id == target_proxy_backdrop_id:
+            continue
+
+        source_port_side = flowchart_port_side(source_node, source_spec, edge.source_port_key, workspace_nodes)
+        target_port_side = flowchart_port_side(target_node, target_spec, edge.target_port_key, workspace_nodes)
+
+        source_endpoint = _resolve_edge_endpoint(
+            node_id=edge.source_node_id,
+            port_key=edge.source_port_key,
+            node=source_node,
+            spec=source_spec,
+            workspace_nodes=workspace_nodes,
+            node_specs=node_specs,
+            hidden_by_backdrop_id=source_proxy_backdrop_id,
+            opposite_point=port_scene_pos(
+                target_node,
+                target_spec,
+                edge.target_port_key,
+                workspace_nodes,
+                show_port_labels=show_port_labels,
+            ),
             show_port_labels=show_port_labels,
         )
-        target = port_scene_pos(
-            target_node,
-            target_spec,
-            edge.target_port_key,
-            workspace_nodes,
+        target_endpoint = _resolve_edge_endpoint(
+            node_id=edge.target_node_id,
+            port_key=edge.target_port_key,
+            node=target_node,
+            spec=target_spec,
+            workspace_nodes=workspace_nodes,
+            node_specs=node_specs,
+            hidden_by_backdrop_id=target_proxy_backdrop_id,
+            opposite_point=source_endpoint.point,
             show_port_labels=show_port_labels,
         )
-        source_width, source_height = node_size(
-            source_node,
-            source_spec,
-            workspace_nodes,
-            show_port_labels=show_port_labels,
-        )
-        target_width, target_height = node_size(
-            target_node,
-            target_spec,
-            workspace_nodes,
-            show_port_labels=show_port_labels,
-        )
-        source_bounds = QRectF(source_node.x, source_node.y, source_width, source_height)
-        target_bounds = QRectF(target_node.x, target_node.y, target_width, target_height)
+        if source_proxy_backdrop_id:
+            source_endpoint = _resolve_edge_endpoint(
+                node_id=edge.source_node_id,
+                port_key=edge.source_port_key,
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace_nodes,
+                node_specs=node_specs,
+                hidden_by_backdrop_id=source_proxy_backdrop_id,
+                opposite_point=target_endpoint.point,
+                show_port_labels=show_port_labels,
+            )
+        if target_proxy_backdrop_id:
+            target_endpoint = _resolve_edge_endpoint(
+                node_id=edge.target_node_id,
+                port_key=edge.target_port_key,
+                node=target_node,
+                spec=target_spec,
+                workspace_nodes=workspace_nodes,
+                node_specs=node_specs,
+                hidden_by_backdrop_id=target_proxy_backdrop_id,
+                opposite_point=source_endpoint.point,
+                show_port_labels=show_port_labels,
+            )
+        if source_proxy_backdrop_id:
+            source_endpoint = _resolve_edge_endpoint(
+                node_id=edge.source_node_id,
+                port_key=edge.source_port_key,
+                node=source_node,
+                spec=source_spec,
+                workspace_nodes=workspace_nodes,
+                node_specs=node_specs,
+                hidden_by_backdrop_id=source_proxy_backdrop_id,
+                opposite_point=target_endpoint.point,
+                show_port_labels=show_port_labels,
+            )
+
+        source = source_endpoint.point
+        target = target_endpoint.point
+        source_bounds = source_endpoint.bounds
+        target_bounds = target_endpoint.bounds
         pair_lane = pair_lane_offsets.get(edge.edge_id, 0.0)
         source_fan = source_fan_offsets.get(edge.edge_id, 0.0)
         target_fan = target_fan_offsets.get(edge.edge_id, 0.0)
@@ -851,8 +1033,8 @@ def build_edge_payload(
             and _is_flowchart_surface(source_spec)
             and _is_flowchart_surface(target_spec)
         )
-        source_side = flowchart_port_side(source_node, source_spec, edge.source_port_key, workspace_nodes)
-        target_side = flowchart_port_side(target_node, target_spec, edge.target_port_key, workspace_nodes)
+        source_side = source_endpoint.side
+        target_side = target_endpoint.side
         source_normal_x, source_normal_y = flowchart_anchor_normal(source_side)
         target_normal_x, target_normal_y = flowchart_anchor_normal(target_side)
         source_tangent_x, source_tangent_y = flowchart_anchor_tangent(source_side)
@@ -910,8 +1092,8 @@ def build_edge_payload(
                 pair_lane=pair_lane,
                 source_fan=source_fan,
                 target_fan=target_fan,
-                source_side=route_source_side if edge_family == "flow" else "",
-                target_side=route_target_side if edge_family == "flow" else "",
+                source_side=route_source_side if edge_family == "flow" or source_proxy_backdrop_id or target_proxy_backdrop_id else "",
+                target_side=route_target_side if edge_family == "flow" or source_proxy_backdrop_id or target_proxy_backdrop_id else "",
             )
         src_dt = port_data_type(
             node=source_node,
@@ -945,8 +1127,18 @@ def build_edge_payload(
                 "label": str(edge.label),
                 "visual_style": copy.deepcopy(edge.visual_style),
                 "flow_style": flow_style,
-                "source_port_side": source_side,
-                "target_port_side": target_side,
+                "source_port_side": source_port_side,
+                "target_port_side": target_port_side,
+                "source_anchor_side": source_side,
+                "target_anchor_side": target_side,
+                "source_anchor_kind": source_endpoint.anchor_kind,
+                "target_anchor_kind": target_endpoint.anchor_kind,
+                "source_anchor_node_id": source_endpoint.anchor_node_id,
+                "target_anchor_node_id": target_endpoint.anchor_node_id,
+                "source_hidden_by_backdrop_id": source_endpoint.hidden_by_backdrop_id,
+                "target_hidden_by_backdrop_id": target_endpoint.hidden_by_backdrop_id,
+                "source_anchor_bounds": _rect_payload(source_bounds),
+                "target_anchor_bounds": _rect_payload(target_bounds),
                 "source_normal_x": float(source_normal_x),
                 "source_normal_y": float(source_normal_y),
                 "target_normal_x": float(target_normal_x),
@@ -963,9 +1155,9 @@ def build_edge_payload(
                 "tx": float(target.x()),
                 "ty": float(target.y()),
                 "c1x": float(c1x),
-                "c1y": c1y,
+                "c1y": float(c1y),
                 "c2x": float(c2x),
-                "c2y": c2y,
+                "c2y": float(c2y),
                 "color": color,
                 "data_type_warning": dt_warning,
             }

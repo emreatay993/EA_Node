@@ -285,7 +285,188 @@ Item {
             "left": node.x + ox,
             "top": node.y + oy,
             "right": node.x + node.width + ox,
-            "bottom": node.y + node.height + oy
+            "bottom": node.y + node.height + oy,
+            "x": node.x + ox,
+            "y": node.y + oy,
+            "width": node.width,
+            "height": node.height
+        };
+    }
+
+    function _normalizedCardinalSide(side, fallback) {
+        var normalized = String(side || "").trim().toLowerCase();
+        if (normalized === "top" || normalized === "right" || normalized === "bottom" || normalized === "left")
+            return normalized;
+        return String(fallback || "").trim().toLowerCase();
+    }
+
+    function _coerceBounds(boundsPayload) {
+        if (!boundsPayload)
+            return null;
+        var x = Number(boundsPayload.x);
+        var y = Number(boundsPayload.y);
+        var width = Number(boundsPayload.width);
+        var height = Number(boundsPayload.height);
+        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height) || width <= 0.0 || height <= 0.0)
+            return null;
+        return {
+            "left": x,
+            "top": y,
+            "right": x + width,
+            "bottom": y + height,
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height
+        };
+    }
+
+    function _offsetBounds(bounds, dx, dy) {
+        if (!bounds)
+            return null;
+        var offsetX = Number(dx);
+        var offsetY = Number(dy);
+        if (!isFinite(offsetX))
+            offsetX = 0.0;
+        if (!isFinite(offsetY))
+            offsetY = 0.0;
+        return {
+            "left": bounds.left + offsetX,
+            "top": bounds.top + offsetY,
+            "right": bounds.right + offsetX,
+            "bottom": bounds.bottom + offsetY,
+            "x": bounds.x + offsetX,
+            "y": bounds.y + offsetY,
+            "width": bounds.width,
+            "height": bounds.height
+        };
+    }
+
+    function _overlayBounds(bounds, overlay) {
+        if (!bounds)
+            return null;
+        if (!overlay)
+            return bounds;
+        var x = Number(overlay.x);
+        var y = Number(overlay.y);
+        var width = Number(overlay.width);
+        var height = Number(overlay.height);
+        var nextX = isFinite(x) ? x : bounds.x;
+        var nextY = isFinite(y) ? y : bounds.y;
+        var nextWidth = isFinite(width) && width > 0.0 ? width : bounds.width;
+        var nextHeight = isFinite(height) && height > 0.0 ? height : bounds.height;
+        return {
+            "left": nextX,
+            "top": nextY,
+            "right": nextX + nextWidth,
+            "bottom": nextY + nextHeight,
+            "x": nextX,
+            "y": nextY,
+            "width": nextWidth,
+            "height": nextHeight
+        };
+    }
+
+    function _edgeAnchorBounds(edge, prefix, nodeById) {
+        var anchorNodeId = String(edge && edge[prefix + "_anchor_node_id"] || "");
+        var nodeOffset = root.dragOffsets ? root.dragOffsets[anchorNodeId] : null;
+        var nodeBounds = anchorNodeId ? root._nodeBounds(anchorNodeId, nodeOffset, nodeById) : null;
+        if (nodeBounds)
+            return nodeBounds;
+
+        var bounds = root._coerceBounds(edge ? edge[prefix + "_anchor_bounds"] : null);
+        if (!bounds)
+            return null;
+        var overlay = root.liveNodeGeometry ? root.liveNodeGeometry[anchorNodeId] : null;
+        bounds = root._overlayBounds(bounds, overlay);
+        if (nodeOffset)
+            bounds = root._offsetBounds(bounds, nodeOffset.dx, nodeOffset.dy);
+        return bounds;
+    }
+
+    function _clampToRange(value, low, high) {
+        var numeric = Number(value);
+        var minimum = Number(low);
+        var maximum = Number(high);
+        if (!isFinite(numeric))
+            numeric = (minimum + maximum) * 0.5;
+        if (!isFinite(minimum) || !isFinite(maximum))
+            return numeric;
+        if (minimum > maximum)
+            return (minimum + maximum) * 0.5;
+        return Math.min(maximum, Math.max(minimum, numeric));
+    }
+
+    function _perimeterPoint(bounds, side, towardPoint) {
+        if (!bounds)
+            return null;
+        var normalizedSide = root._normalizedCardinalSide(side, "right");
+        var towardX = towardPoint ? Number(towardPoint.x) : (bounds.left + bounds.right) * 0.5;
+        var towardY = towardPoint ? Number(towardPoint.y) : (bounds.top + bounds.bottom) * 0.5;
+        if (!isFinite(towardX))
+            towardX = (bounds.left + bounds.right) * 0.5;
+        if (!isFinite(towardY))
+            towardY = (bounds.top + bounds.bottom) * 0.5;
+        var insetX = Math.min(12.0, bounds.width * 0.5);
+        var insetY = Math.min(12.0, bounds.height * 0.5);
+        if (normalizedSide === "left") {
+            return {
+                "x": bounds.left,
+                "y": root._clampToRange(towardY, bounds.top + insetY, bounds.bottom - insetY)
+            };
+        }
+        if (normalizedSide === "right") {
+            return {
+                "x": bounds.right,
+                "y": root._clampToRange(towardY, bounds.top + insetY, bounds.bottom - insetY)
+            };
+        }
+        if (normalizedSide === "top") {
+            return {
+                "x": root._clampToRange(towardX, bounds.left + insetX, bounds.right - insetX),
+                "y": bounds.top
+            };
+        }
+        return {
+            "x": root._clampToRange(towardX, bounds.left + insetX, bounds.right - insetX),
+            "y": bounds.bottom
+        };
+    }
+
+    function _edgeEndpointState(edge, prefix, nodeById, oppositePoint) {
+        var pointX = Number(edge && edge[prefix === "source" ? "sx" : "tx"] || 0.0);
+        var pointY = Number(edge && edge[prefix === "source" ? "sy" : "ty"] || 0.0);
+        var anchorNodeId = String(edge && edge[prefix + "_anchor_node_id"] || edge && edge[prefix + "_node_id"] || "");
+        var portKey = String(edge && edge[prefix + "_port_key"] || "");
+        var fallbackSide = prefix === "source" ? "right" : "left";
+        var side = root._normalizedCardinalSide(
+            edge && edge[prefix + "_anchor_side"],
+            root._normalizedCardinalSide(edge && edge[prefix + "_port_side"], fallbackSide)
+        );
+        var anchorKind = String(edge && edge[prefix + "_anchor_kind"] || "node");
+        var bounds = root._edgeAnchorBounds(edge, prefix, nodeById);
+        if (anchorKind === "node") {
+            var anchorNode = nodeById[anchorNodeId];
+            var portPoint = root._portScenePoint(anchorNode, portKey);
+            if (portPoint) {
+                return {
+                    "point": {"x": portPoint.x, "y": portPoint.y},
+                    "bounds": bounds,
+                    "side": side
+                };
+            }
+        }
+        if (bounds) {
+            return {
+                "point": root._perimeterPoint(bounds, side, oppositePoint),
+                "bounds": bounds,
+                "side": side
+            };
+        }
+        return {
+            "point": {"x": pointX, "y": pointY},
+            "bounds": bounds,
+            "side": side
         };
     }
 
@@ -297,9 +478,11 @@ Item {
             + Math.abs(targetX - targetStubX);
     }
 
-    function _buildLegacyPipePoints(edge, sourceOffset, targetOffset, sourceX, sourceY, targetX, targetY, nodeById) {
-        var sourceBounds = _nodeBounds(edge.source_node_id, sourceOffset, nodeById);
-        var targetBounds = _nodeBounds(edge.target_node_id, targetOffset, nodeById);
+    function _buildLegacyPipePoints(edge, sourceBounds, targetBounds, sourceX, sourceY, targetX, targetY, nodeById) {
+        if (!sourceBounds && edge && edge.source_node_id)
+            sourceBounds = _nodeBounds(edge.source_node_id, null, nodeById);
+        if (!targetBounds && edge && edge.target_node_id)
+            targetBounds = _nodeBounds(edge.target_node_id, null, nodeById);
         var laneBias = edge.lane_bias || 0.0;
         var stub = Math.min(72.0, Math.max(32.0, Math.max(44.0, Math.abs(targetX - sourceX) * 0.2)));
         var sourceStubX;
@@ -384,13 +567,13 @@ Item {
         ];
     }
 
-    function _buildFlowPipePoints(sourceX, sourceY, targetX, targetY, edge, sourceBounds, targetBounds) {
+    function _buildFlowPipePoints(sourceX, sourceY, targetX, targetY, edge, sourceBounds, targetBounds, sourceSide, targetSide) {
         return EdgeMath.flowPipeRoute(
             {"x": sourceX, "y": sourceY},
             {"x": targetX, "y": targetY},
             {
-                "sourceSide": String(edge && edge.source_port_side || ""),
-                "targetSide": String(edge && edge.target_port_side || ""),
+                "sourceSide": String(sourceSide || edge && edge.source_anchor_side || edge && edge.source_port_side || ""),
+                "targetSide": String(targetSide || edge && edge.target_anchor_side || edge && edge.target_port_side || ""),
                 "sourceBounds": sourceBounds,
                 "targetBounds": targetBounds,
                 "laneBias": Number(edge && edge.lane_bias || 0.0)
@@ -426,49 +609,54 @@ Item {
         var c1yWorld = edge.c1y;
         var c2xWorld = edge.c2x;
         var c2yWorld = edge.c2y;
-        var sourceNode = nodeById[edge.source_node_id];
-        var targetNode = nodeById[edge.target_node_id];
-        var sourcePoint = _portScenePoint(sourceNode, edge.source_port_key);
-        var targetPoint = _portScenePoint(targetNode, edge.target_port_key);
-
-        if (sourcePoint) {
-            c1xWorld += sourcePoint.x - sxWorld;
-            c1yWorld += sourcePoint.y - syWorld;
-            sxWorld = sourcePoint.x;
-            syWorld = sourcePoint.y;
+        var sourceState = root._edgeEndpointState(edge, "source", nodeById, {"x": txWorld, "y": tyWorld});
+        var targetState = root._edgeEndpointState(
+            edge,
+            "target",
+            nodeById,
+            sourceState && sourceState.point ? sourceState.point : {"x": sxWorld, "y": syWorld}
+        );
+        sourceState = root._edgeEndpointState(
+            edge,
+            "source",
+            nodeById,
+            targetState && targetState.point ? targetState.point : {"x": txWorld, "y": tyWorld}
+        );
+        if (sourceState && sourceState.point) {
+            c1xWorld += sourceState.point.x - sxWorld;
+            c1yWorld += sourceState.point.y - syWorld;
+            sxWorld = sourceState.point.x;
+            syWorld = sourceState.point.y;
         }
-        if (targetPoint) {
-            c2xWorld += targetPoint.x - txWorld;
-            c2yWorld += targetPoint.y - tyWorld;
-            txWorld = targetPoint.x;
-            tyWorld = targetPoint.y;
-        }
-
-        var sourceOffset = root.dragOffsets ? root.dragOffsets[edge.source_node_id] : null;
-        if (sourceOffset) {
-            sxWorld += sourceOffset.dx;
-            syWorld += sourceOffset.dy;
-            c1xWorld += sourceOffset.dx;
-            c1yWorld += sourceOffset.dy;
-        }
-        var targetOffset = root.dragOffsets ? root.dragOffsets[edge.target_node_id] : null;
-        if (targetOffset) {
-            txWorld += targetOffset.dx;
-            tyWorld += targetOffset.dy;
-            c2xWorld += targetOffset.dx;
-            c2yWorld += targetOffset.dy;
+        if (targetState && targetState.point) {
+            c2xWorld += targetState.point.x - txWorld;
+            c2yWorld += targetState.point.y - tyWorld;
+            txWorld = targetState.point.x;
+            tyWorld = targetState.point.y;
         }
 
         var pipePoints = edge.pipe_points || [];
         if (edge.route === "pipe") {
-            var sourceBounds = _nodeBounds(edge.source_node_id, sourceOffset, nodeById);
-            var targetBounds = _nodeBounds(edge.target_node_id, targetOffset, nodeById);
+            var sourceBounds = sourceState ? sourceState.bounds : null;
+            var targetBounds = targetState ? targetState.bounds : null;
+            var sourceSide = sourceState ? sourceState.side : root._normalizedCardinalSide(edge.source_anchor_side, edge.source_port_side);
+            var targetSide = targetState ? targetState.side : root._normalizedCardinalSide(edge.target_anchor_side, edge.target_port_side);
             pipePoints = root._edgeIsFlow(edge)
-                ? _buildFlowPipePoints(sxWorld, syWorld, txWorld, tyWorld, edge, sourceBounds, targetBounds)
+                ? _buildFlowPipePoints(
+                    sxWorld,
+                    syWorld,
+                    txWorld,
+                    tyWorld,
+                    edge,
+                    sourceBounds,
+                    targetBounds,
+                    sourceSide,
+                    targetSide
+                )
                 : _buildLegacyPipePoints(
                     edge,
-                    sourceOffset,
-                    targetOffset,
+                    sourceBounds,
+                    targetBounds,
                     sxWorld,
                     syWorld,
                     txWorld,
