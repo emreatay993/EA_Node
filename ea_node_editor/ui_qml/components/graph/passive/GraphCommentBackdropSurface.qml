@@ -46,6 +46,7 @@ Item {
     readonly property color mutedTextColor: host ? Qt.alpha(host.inlineDrivenTextColor, 0.82) : "#bdc5d3"
     readonly property color labelTextColor: host ? Qt.alpha(host.inlineLabelColor, 0.9) : "#d0d5de"
     readonly property real bodyFontSize: host ? Number(host.passiveFontPixelSize || 12) : 12
+    readonly property bool bodyFontBold: false
     readonly property real labelFontSize: Math.max(9, bodyFontSize - 2)
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
@@ -154,6 +155,7 @@ Item {
                 text: surface.bodyValue
                 color: surface.bodyTextColor
                 font.pixelSize: surface.bodyFontSize
+                font.bold: surface.bodyFontBold
                 wrapMode: Text.WordWrap
                 maximumLineCount: 8
                 elide: Text.ElideRight
@@ -166,6 +168,7 @@ Item {
                 text: "Backdrop notes stay on the standard graph document path in P01."
                 color: surface.mutedTextColor
                 font.pixelSize: surface.bodyFontSize
+                font.bold: surface.bodyFontBold
                 wrapMode: Text.WordWrap
                 maximumLineCount: 4
                 elide: Text.ElideRight
@@ -180,6 +183,9 @@ Item {
                 host: surface.host
                 propertyKey: "body"
                 committedText: surface.bodyValue
+                showActionButtons: false
+                fieldFont.pixelSize: surface.bodyFontSize
+                fieldFont.bold: surface.bodyFontBold
                 fieldObjectName: "graphCommentBackdropBodyEditorField"
                 applyButtonObjectName: "graphCommentBackdropBodyApplyButton"
                 resetButtonObjectName: "graphCommentBackdropBodyResetButton"

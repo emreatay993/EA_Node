@@ -561,12 +561,16 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert loader is not None
             assert editor is not None
 
+            textarea_font = textarea.property("font")
+            assert textarea_font.pixelSize() == int(round(float(host.property("passiveFontPixelSize"))))
+            assert not textarea_font.bold()
+            assert not bool(editor.property("showActionButtons"))
+            assert not bool(apply_button.property("visible"))
+            assert not bool(reset_button.property("visible"))
+
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(embedded_rects) == 3, embedded_rects
+            assert len(embedded_rects) == 1, embedded_rects
             assert rect_field(embedded_rects[0], "width") > 180.0, embedded_rects
-            assert rect_field(embedded_rects[1], "width") < 90.0, embedded_rects
-            assert rect_field(embedded_rects[2], "width") < 90.0, embedded_rects
-            assert rect_field(embedded_rects[1], "y") > rect_field(embedded_rects[0], "y"), embedded_rects
 
             commits = []
             host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
@@ -578,8 +582,8 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             textarea.setProperty("text", "Grouped note draft")
             app.processEvents()
 
-            assert bool(apply_button.property("enabled"))
-            assert bool(reset_button.property("enabled"))
+            assert not bool(apply_button.property("enabled"))
+            assert not bool(reset_button.property("enabled"))
 
             app.sendEvent(
                 textarea,
@@ -624,7 +628,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert loader is not None
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(embedded_rects) == 3, embedded_rects
+            assert len(embedded_rects) == 1, embedded_rects
             field_rect = embedded_rects[0]
 
             window = attach_host_to_window(host, 560, 440)

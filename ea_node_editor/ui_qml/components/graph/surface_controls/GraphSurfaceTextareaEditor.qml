@@ -6,6 +6,8 @@ import "SurfaceControlGeometry.js" as SurfaceControlGeometry
 Item {
     id: root
     property Item host: null
+    property alias fieldFont: textareaField.font
+    property bool showActionButtons: true
     property bool enabled: true
     property string propertyKey: ""
     property string committedText: ""
@@ -17,8 +19,8 @@ Item {
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [
             textareaField.embeddedInteractiveRects,
-            applyButton.embeddedInteractiveRects,
-            resetButton.embeddedInteractiveRects
+            root.showActionButtons ? applyButton.embeddedInteractiveRects : [],
+            root.showActionButtons ? resetButton.embeddedInteractiveRects : []
         ]
     )
     implicitWidth: editorColumn.implicitWidth
@@ -81,8 +83,8 @@ Item {
                 id: applyButton
                 objectName: root.applyButtonObjectName
                 property string propertyKey: root.propertyKey
-                visible: root.visible
-                enabled: root.enabled && root.dirty
+                visible: root.visible && root.showActionButtons
+                enabled: root.showActionButtons && root.enabled && root.dirty
                 host: root.host
                 text: "Apply"
                 onControlStarted: root.controlStarted()
@@ -93,8 +95,8 @@ Item {
                 id: resetButton
                 objectName: root.resetButtonObjectName
                 property string propertyKey: root.propertyKey
-                visible: root.visible
-                enabled: root.enabled && root.dirty
+                visible: root.visible && root.showActionButtons
+                enabled: root.showActionButtons && root.enabled && root.dirty
                 host: root.host
                 text: "Reset"
                 onControlStarted: root.controlStarted()
