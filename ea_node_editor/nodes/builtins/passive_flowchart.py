@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
-from ea_node_editor.nodes.decorators import node_type
+from ea_node_editor.nodes.decorators import node_type, prop_str
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 
 PASSIVE_FLOWCHART_CATEGORY = "Flowchart"
@@ -22,6 +22,10 @@ class _PassiveFlowchartNodePlugin:
         return NodeResult(outputs={})
 
 
+def _flowchart_title_property(default_title: str):
+    return (prop_str("title", default_title, "Title"),)
+
+
 @node_type(
     type_id=PASSIVE_FLOWCHART_START_TYPE_ID,
     display_name="Start",
@@ -29,7 +33,7 @@ class _PassiveFlowchartNodePlugin:
     icon="play_circle",
     description="Flowchart start terminator.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Start"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -46,7 +50,7 @@ class PassiveFlowchartStartNodePlugin(_PassiveFlowchartNodePlugin):
     icon="stop_circle",
     description="Flowchart end terminator.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("End"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -63,7 +67,7 @@ class PassiveFlowchartEndNodePlugin(_PassiveFlowchartNodePlugin):
     icon="crop_din",
     description="Flowchart process step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Process"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -80,7 +84,7 @@ class PassiveFlowchartProcessNodePlugin(_PassiveFlowchartNodePlugin):
     icon="diamond",
     description="Flowchart decision branch.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Decision"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -97,7 +101,7 @@ class PassiveFlowchartDecisionNodePlugin(_PassiveFlowchartNodePlugin):
     icon="description",
     description="Flowchart document step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Document"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -114,7 +118,7 @@ class PassiveFlowchartDocumentNodePlugin(_PassiveFlowchartNodePlugin):
     icon="radio_button_checked",
     description="Flowchart connector marker.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Connector"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -131,7 +135,7 @@ class PassiveFlowchartConnectorNodePlugin(_PassiveFlowchartNodePlugin):
     icon="input",
     description="Flowchart input or output step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Input / Output"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -148,7 +152,7 @@ class PassiveFlowchartInputOutputNodePlugin(_PassiveFlowchartNodePlugin):
     icon="view_column",
     description="Flowchart predefined process step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Predefined Process"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",
@@ -165,7 +169,7 @@ class PassiveFlowchartPredefinedProcessNodePlugin(_PassiveFlowchartNodePlugin):
     icon="storage",
     description="Flowchart database store.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
-    properties=(),
+    properties=_flowchart_title_property("Database"),
     collapsible=False,
     runtime_behavior="passive",
     surface_family="flowchart",

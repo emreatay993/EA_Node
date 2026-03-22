@@ -30,7 +30,9 @@ _SNAP_GRID_SIZE = 20.0
 
 def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
     family = str(spec.surface_family or "").strip()
-    return family in {"planning", "annotation"} and any(prop.key == "title" for prop in spec.properties)
+    return family in {"flowchart", "planning", "annotation"} and any(
+        prop.key == "title" for prop in spec.properties
+    )
 
 
 def _synced_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> str:

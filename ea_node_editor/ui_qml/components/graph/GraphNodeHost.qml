@@ -61,6 +61,7 @@ Item {
         "proxy_surface_requested": card.proxySurfaceRequested
     })
     readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
+    readonly property bool flowchartTitleEditable: card.isFlowchartSurface && !card.isCollapsed && !!card.nodeData
     readonly property bool usesCardinalNeutralFlowHandles: !!nodeData
         && GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(nodeData)
     readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
@@ -495,11 +496,23 @@ Item {
     }
 
     function _pointInEmbeddedInteractiveRect(localX, localY) {
-        return GraphNodeHostHitTesting.pointInAnyRect(localX, localY, surfaceLoader.embeddedInteractiveRects);
+        if (GraphNodeHostHitTesting.pointInAnyRect(localX, localY, surfaceLoader.embeddedInteractiveRects))
+            return true;
+        return GraphNodeHostHitTesting.pointInAnyRect(localX, localY, headerLayer.embeddedInteractiveRects);
     }
 
     function _surfaceClaimsBodyInteractionAt(localX, localY) {
-        return GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, surfaceLoader.embeddedInteractiveRects);
+        if (GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, surfaceLoader.embeddedInteractiveRects))
+            return true;
+        return GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, headerLayer.embeddedInteractiveRects);
+    }
+
+    function requestInlineTitleEditAt(localX, localY) {
+        return headerLayer.requestTitleEditAt(localX, localY);
+    }
+
+    function commitInlineTitleEditAt(localX, localY) {
+        return headerLayer.commitTitleEditFromExternalInteraction(localX, localY);
     }
 
     function currentViewportZoom() {
@@ -671,6 +684,7 @@ Item {
     }
 
     GraphNodeHeaderLayer {
+        id: headerLayer
         anchors.fill: parent
         host: card
     }

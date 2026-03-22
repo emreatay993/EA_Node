@@ -26,6 +26,8 @@ Item {
         onPressed: function(mouse) {
             if (!root.host || !root.host.nodeData)
                 return;
+            if (root.host.commitInlineTitleEditAt)
+                root.host.commitInlineTitleEditAt(mouse.x, mouse.y);
             if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
                 mouse.accepted = false;
                 return;
@@ -52,6 +54,10 @@ Item {
                 return;
             if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
                 return;
+            if (root.host.requestInlineTitleEditAt && root.host.requestInlineTitleEditAt(mouse.x, mouse.y)) {
+                mouse.accepted = true;
+                return;
+            }
             root.host.nodeOpenRequested(root.host.nodeData.node_id);
         }
 

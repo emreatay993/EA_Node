@@ -19,7 +19,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             import types
             from pathlib import Path
 
-            from PyQt6.QtCore import QObject, QMetaObject, QUrl, pyqtProperty, pyqtSlot
+            from PyQt6.QtCore import QEvent, QObject, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSlot
+            from PyQt6.QtGui import QKeyEvent
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
@@ -301,6 +302,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 payload["runtime_behavior"] = "passive"
                 payload["type_id"] = f"passive.flowchart.{variant}"
                 payload["title"] = "Decision"
+                payload["properties"] = {"title": "Decision"}
                 payload["width"] = 236.0
                 payload["height"] = 128.0
                 payload["ports"] = [
@@ -422,6 +424,151 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_flowchart_title_double_click_enters_inline_edit_while_single_click_still_selects(self) -> None:
+        self._run_qml_probe(
+            "flowchart-title-inline-edit-activate",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                title_item = host.findChild(QObject, "graphNodeTitle")
+                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                assert title_item is not None
+                assert editor is not None
+
+                events = host_pointer_events(host)
+                interactions = []
+                host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+
+                title_point = item_scene_point(title_item)
+
+                mouse_click(window, title_point)
+                assert events["clicked"] == [("node_surface_host_test", False)]
+                assert events["opened"] == []
+                assert not bool(editor.property("visible"))
+
+                events["clicked"].clear()
+                events["opened"].clear()
+                events["contexts"].clear()
+
+                mouse_double_click(window, title_point)
+                settle_events(5)
+
+                assert bool(editor.property("visible"))
+                assert interactions == ["node_surface_host_test"]
+                assert events["opened"] == []
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_flowchart_title_editor_commits_on_enter_and_focus_loss_and_cancels_on_escape(self) -> None:
+        self._run_qml_probe(
+            "flowchart-title-inline-edit-commit-cancel",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                title_item = host.findChild(QObject, "graphNodeTitle")
+                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                assert title_item is not None
+                assert editor is not None
+
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                title_point = item_scene_point(title_item)
+                body_point = host_scene_point(
+                    host,
+                    float(host.property("width")) * 0.5,
+                    float(host.property("height")) * 0.78,
+                )
+
+                mouse_double_click(window, title_point)
+                settle_events(5)
+                assert bool(editor.property("visible"))
+                editor.setProperty("text", " Approved ")
+                app.processEvents()
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+                assert committed == [("node_surface_host_test", "title", "Approved")]
+                assert not bool(editor.property("visible"))
+
+                committed.clear()
+                mouse_double_click(window, title_point)
+                settle_events(5)
+                assert bool(editor.property("visible"))
+                editor.setProperty("text", " Ready ")
+                app.processEvents()
+                mouse_click(window, body_point)
+                settle_events(5)
+                assert committed == [("node_surface_host_test", "title", "Ready")]
+                assert not bool(editor.property("visible"))
+
+                committed.clear()
+                mouse_double_click(window, title_point)
+                settle_events(5)
+                assert bool(editor.property("visible"))
+                editor.setProperty("text", "Ignore")
+                app.processEvents()
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+                assert committed == []
+                assert not bool(editor.property("visible"))
+                assert str(title_item.property("text") or "") == "Decision"
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_flowchart_title_editor_pointer_activity_does_not_leak_to_host_handlers(self) -> None:
+        self._run_qml_probe(
+            "flowchart-title-inline-edit-pointer-isolation",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                title_item = host.findChild(QObject, "graphNodeTitle")
+                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                assert title_item is not None
+                assert editor is not None
+
+                mouse_double_click(window, item_scene_point(title_item))
+                settle_events(5)
+                assert bool(editor.property("visible"))
+
+                events = host_pointer_events(host)
+                editor_point = item_scene_point(editor)
+
+                mouse_click(window, editor_point)
+                mouse_double_click(window, editor_point)
+                mouse_click(window, editor_point, Qt.MouseButton.RightButton)
+                settle_events(5)
+
+                assert events["clicked"] == []
+                assert events["opened"] == []
+                assert events["contexts"] == []
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
     def test_media_host_proxy_surface_activates_when_ready_image_enters_proxy_quality_tier(self) -> None:
         self._run_qml_probe(
             "media-render-quality-proxy-surface",
@@ -525,9 +672,11 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             gap = float(host.property("_portLabelGap"))
             max_width = float(host.property("_portLabelMaxWidth"))
             output_implicit_width = float(output_label.property("implicitWidth"))
+            input_label_left = input_label.mapToItem(host, QPointF(0.0, 0.0)).x()
+            output_label_right = output_label.mapToItem(host, QPointF(float(output_label.width()), 0.0)).x()
 
-            assert abs(input_label.x() - (input_dot.x() + input_dot.width() + gap)) < 0.5
-            assert abs((output_label.x() + output_label.width()) - (output_dot.x() - gap)) < 0.5
+            assert abs(input_label_left - (input_dot.x() + input_dot.width() + gap)) < 0.5
+            assert abs(output_label_right - (output_dot.x() - gap)) < 0.5
             assert output_label.width() < max_width
             assert abs(output_label.width() - output_implicit_width) < 0.5
             """,

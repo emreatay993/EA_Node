@@ -69,6 +69,24 @@ class InspectorReflectionTests(unittest.TestCase):
         node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
         self.assertEqual(node.properties["notes_blob"], updated_text)
 
+    def test_flowchart_title_property_update_via_scene_bridge_syncs_node_title(self) -> None:
+        node_id = self.scene.add_node_from_type("passive.flowchart.decision", 0.0, 0.0)
+
+        self.scene.set_node_property(node_id, "title", "Approved")
+
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        self.assertEqual(node.properties["title"], "Approved")
+        self.assertEqual(node.title, "Approved")
+
+    def test_flowchart_set_node_title_writes_back_title_property(self) -> None:
+        node_id = self.scene.add_node_from_type("passive.flowchart.process", 0.0, 0.0)
+
+        self.scene.set_node_title(node_id, "Validate Input")
+
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        self.assertEqual(node.title, "Validate Input")
+        self.assertEqual(node.properties["title"], "Validate Input")
+
 
 if __name__ == "__main__":
     unittest.main()

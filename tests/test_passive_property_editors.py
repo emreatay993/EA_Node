@@ -70,6 +70,15 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
         self.assertEqual(section_items["title"]["editor_mode"], "text")
         self.assertEqual(section_items["subtitle"]["editor_mode"], "text")
 
+    def test_flowchart_family_exposes_text_title_editor(self) -> None:
+        decision_items = self._property_items_for_type("passive.flowchart.decision")
+        database_items = self._property_items_for_type("passive.flowchart.database")
+
+        self.assertEqual(decision_items["title"]["editor_mode"], "text")
+        self.assertEqual(decision_items["title"]["value"], "Decision")
+        self.assertEqual(database_items["title"]["editor_mode"], "text")
+        self.assertEqual(database_items["title"]["value"], "Database")
+
 
 if __name__ == "__main__":
     unittest.main()
