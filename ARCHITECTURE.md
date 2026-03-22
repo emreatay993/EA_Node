@@ -36,6 +36,7 @@ Design intent:
 - `GraphCanvas.qml` composes focused canvas modules (`GraphCanvasBackground`, `GraphCanvasDropPreview`, `GraphCanvasMinimapOverlay`, `GraphCanvasInputLayers`, `GraphCanvasContextMenus`) plus `GraphCanvasLogic.js`.
 - `GraphCanvas.qml` routes node rendering through `GraphNodeHost.qml` + `GraphNodeSurfaceLoader.qml`, so `NodeCard.qml` remains the stable standard-node contract while passive `flowchart`, `planning`, `annotation`, and `media` families load specialized surfaces without reopening the canvas orchestrator.
 - `GraphNodeHost.qml` keeps node-body drag/select/open/context behavior below the loaded surface content, and graph surfaces publish local ownership through `embeddedInteractiveRects` instead of relying on click-swallowing top overlays.
+- `GraphNodeHeaderLayer.qml` owns the single shared inline title editor for standard cards, passive surfaces, collapsed nodes, and scope-capable shells; `GraphCanvas.qml` routes header title commits back onto the existing rename/mutation-history authority instead of introducing a surface-local title workflow.
 - shell overlays remain shell-owned in `MainShell.qml`; `GraphSearchOverlay` and `ConnectionQuickInsertOverlay` are siblings rather than canvas-local widgets.
 - `ShellWindow` is a thin facade that delegates to controllers and bridge helpers.
 - App-wide graphics settings live in `app_preferences.json` through `AppPreferencesController`, not in project `.sfe` metadata or `last_session.json`.
@@ -88,6 +89,12 @@ Design intent:
 - Reusable graph-surface controls live under `ea_node_editor/ui_qml/components/graph/surface_controls/`; new interactive surfaces should reuse that kit before introducing one-off button or field implementations.
 - Hover-only affordances use `HoverHandler` or `MouseArea { acceptedButtons: Qt.NoButton }`. Do not reintroduce invisible click-swallowing overlays or compatibility-only hover proxies.
 - Graph-surface editors commit and browse by explicit `nodeId` bridge calls so surface editing does not depend on selected-node timing in the inspector path.
+
+## Shared inline title workflow
+
+- `GraphNodeHeaderLayer.qml` owns the only approved inline title editor (`graphNodeTitleEditor`). Standard executable nodes, passive families, collapsed nodes, and scope-capable shells all reuse that header editor rather than adding per-surface title controls.
+- Inline header commits converge on the existing title-mutation authority. `GraphCanvas.qml` forwards the edit as a title change, and the mutation layer applies `set_node_title(...)` semantics so property-backed passive families keep `node.title` plus `properties["title"]` synchronized while standard/media/subnode nodes update only the canonical node title.
+- Scope-capable subnode shells keep a dedicated `OPEN` badge in the shared header. Title double-click is edit-only; badge activation commits any in-flight title edit and then reuses `GraphCanvas.requestOpenSubnodeScope(...)` for scope entry.
 
 ## ARCH_SIXTH_PASS closure snapshot
 

@@ -1,6 +1,6 @@
 # COREX Node Editor - Release Candidate Notes
 
-Date: `2026-03-16`
+Date: `2026-03-22`
 
 ## Shipped Capabilities
 
@@ -10,6 +10,7 @@ Date: `2026-03-16`
 - Custom graph-theme library/editor with built-in read-only themes, custom duplication/CRUD, inline token editing, and live apply when editing the active explicit custom theme.
 - Versioned `app_preferences.json` persistence for graphics, shell-theme, and graph-theme preferences, kept separate from project `.sfe` data and `last_session.json`.
 - Passive visual authoring families for flowchart, planning, annotation, and local media panels, all stored in the existing workspace graph model.
+- Shared header inline node-title editing across standard, passive, collapsed, and scope-capable node shells, using the same rename/history mutation path and preserving a dedicated `OPEN` badge for scope entry on subnode shells.
 - Passive `flow` edge routing, labels, and style overrides with runtime exclusion from compiler/worker execution.
 - Project-local passive node and flow-edge style presets persisted inside `.sfe` metadata.
 - Local image preview panels and single-page local PDF preview panels on the passive media surface path.

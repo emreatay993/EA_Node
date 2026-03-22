@@ -16,6 +16,7 @@ Recent UI/UX architecture highlights:
 - Passive `flow` edges support labels and per-edge style overrides while remaining excluded from runtime compilation and worker execution
 - Passive node and flow-edge style overrides can be edited from context menus and saved as project-local presets in `.sfe` metadata
 - Graph-surface input routing now keeps host body gestures under loaded surfaces, uses `embeddedInteractiveRects` for local control ownership, and reserves `blocksHostInteraction` for whole-surface modal tools such as crop mode
+- Shared header inline title editing now spans standard, passive, collapsed, and scope-capable node shells, reusing the existing rename/history path while keeping a dedicated `OPEN` badge for subnode scope entry
 - Connection-aware quick insert from a dangling wire drag
 - Shared graph-surface controls now cover inline `toggle`, `enum`, `text`, `number`, `textarea`, and `path` editors without depending on selected-node timing
 - Python-side compatibility filtering so quick insert follows the same effective-port rules as graph connections
