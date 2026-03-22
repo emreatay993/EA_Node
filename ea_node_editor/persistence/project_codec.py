@@ -22,6 +22,14 @@ from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
 
 _RUNTIME_PRESERVATION_KEY = "_runtime_unresolved_workspaces"
+_COMMENT_BACKDROP_RUNTIME_MEMBERSHIP_KEYS = (
+    "owner_backdrop_id",
+    "backdrop_depth",
+    "member_node_ids",
+    "member_backdrop_ids",
+    "contained_node_ids",
+    "contained_backdrop_ids",
+)
 
 
 class JsonProjectCodec:
@@ -31,6 +39,13 @@ class JsonProjectCodec:
     @staticmethod
     def _copy_mapping(mapping: Mapping[str, Any]) -> dict[str, Any]:
         return copy.deepcopy(dict(mapping))
+
+    @classmethod
+    def _copy_node_mapping(cls, mapping: Mapping[str, Any]) -> dict[str, Any]:
+        copied = cls._copy_mapping(mapping)
+        for key in _COMMENT_BACKDROP_RUNTIME_MEMBERSHIP_KEYS:
+            copied.pop(key, None)
+        return copied
 
     def to_document(self, project: ProjectData) -> dict[str, Any]:
         return self._to_document(project, include_unresolved=False)
@@ -157,10 +172,11 @@ class JsonProjectCodec:
                 type_id = str(node_doc.get("type_id", "")).strip()
                 if not node_id or not type_id:
                     continue
+                sanitized_node_doc = self._copy_node_mapping(node_doc)
                 if self._registry is not None and self._registry.spec_or_none(type_id) is None:
-                    persistence_state.unresolved_node_docs[node_id] = self._copy_mapping(node_doc)
+                    persistence_state.unresolved_node_docs[node_id] = sanitized_node_doc
                     continue
-                node = node_instance_from_mapping(node_doc)
+                node = node_instance_from_mapping(sanitized_node_doc)
                 if node is None:
                     continue
                 workspace.nodes[node.node_id] = node
@@ -169,6 +185,7 @@ class JsonProjectCodec:
                     continue
                 node_id = str(node_doc.get("node_id", "")).strip()
                 type_id = str(node_doc.get("type_id", "")).strip()
+                sanitized_node_doc = self._copy_node_mapping(node_doc)
                 if (
                     not node_id
                     or not type_id
@@ -176,7 +193,7 @@ class JsonProjectCodec:
                     or node_id in workspace.nodes
                 ):
                     continue
-                persistence_state.unresolved_node_docs[node_id] = self._copy_mapping(node_doc)
+                persistence_state.unresolved_node_docs[node_id] = sanitized_node_doc
             valid_node_ids = set(workspace.nodes) | set(persistence_state.unresolved_node_docs)
             for edge_doc in ws_doc.get("edges", []):
                 if not isinstance(edge_doc, Mapping):
@@ -250,7 +267,7 @@ class JsonProjectCodec:
                 node_doc = persistence_state.unresolved_node_docs[node_id]
                 if not isinstance(node_doc, Mapping):
                     continue
-                node_docs_by_id[node_id] = self._copy_mapping(node_doc)
+                node_docs_by_id[node_id] = self._copy_node_mapping(node_doc)
         return [node_docs_by_id[node_id] for node_id in sorted(node_docs_by_id)]
 
     def _workspace_edge_docs(
@@ -281,7 +298,7 @@ class JsonProjectCodec:
         authored_overrides = persistence_state.authored_node_overrides
         if unresolved_nodes:
             sidecar["nodes"] = [
-                self._copy_mapping(unresolved_nodes[node_id])
+                self._copy_node_mapping(unresolved_nodes[node_id])
                 for node_id in sorted(unresolved_nodes)
             ]
         if unresolved_edges:
@@ -333,4 +350,6 @@ class JsonProjectCodec:
         merged = copy.deepcopy(node_doc)
         if isinstance(override_doc, Mapping):
             merged.update(copy.deepcopy(dict(override_doc)))
+        for key in _COMMENT_BACKDROP_RUNTIME_MEMBERSHIP_KEYS:
+            merged.pop(key, None)
         return merged

@@ -321,6 +321,55 @@ def expand_subtree_fragment_node_ids(
     return expanded
 
 
+def expand_comment_backdrop_fragment_node_ids(
+    *,
+    workspace: WorkspaceData,
+    selected_node_ids: Sequence[object],
+    backdrop_payloads: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    normalized_selected: list[str] = []
+    selected_lookup: set[str] = set()
+    backdrop_payload_by_id: dict[str, Mapping[str, Any]] = {}
+
+    for payload in backdrop_payloads:
+        if not isinstance(payload, Mapping):
+            continue
+        node_id = str(payload.get("node_id", "")).strip()
+        if not node_id:
+            continue
+        backdrop_payload_by_id[node_id] = payload
+
+    for value in selected_node_ids:
+        node_id = str(value).strip()
+        if not node_id or node_id in selected_lookup or node_id not in workspace.nodes:
+            continue
+        selected_lookup.add(node_id)
+        normalized_selected.append(node_id)
+
+        payload = backdrop_payload_by_id.get(node_id)
+        if payload is None or not bool(payload.get("collapsed", False)):
+            continue
+        for key in ("contained_backdrop_ids", "contained_node_ids"):
+            raw_ids = payload.get(key)
+            if not isinstance(raw_ids, Sequence) or isinstance(raw_ids, (str, bytes)):
+                continue
+            for raw_id in raw_ids:
+                descendant_id = str(raw_id).strip()
+                if (
+                    not descendant_id
+                    or descendant_id in selected_lookup
+                    or descendant_id not in workspace.nodes
+                ):
+                    continue
+                selected_lookup.add(descendant_id)
+                normalized_selected.append(descendant_id)
+
+    return expand_subtree_fragment_node_ids(
+        workspace=workspace,
+        selected_node_ids=normalized_selected,
+    )
+
+
 def build_subtree_fragment_payload_data(
     *,
     workspace: WorkspaceData,
@@ -1202,6 +1251,7 @@ __all__ = [
     "build_subtree_fragment_payload_data",
     "collect_layout_node_bounds",
     "encode_fragment_external_parent_id",
+    "expand_comment_backdrop_fragment_node_ids",
     "expand_subtree_fragment_node_ids",
     "fragment_node_from_payload",
     "graph_fragment_bounds",

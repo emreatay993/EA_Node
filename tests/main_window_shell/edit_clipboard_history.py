@@ -4,9 +4,18 @@ from unittest.mock import patch
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
 
+COMMENT_BACKDROP_TYPE_ID = "passive.annotation.comment_backdrop"
+
 
 def _selected_node_ids(window: ShellWindow) -> set[str]:
     return set(window.scene.selected_node_lookup)
+
+
+def _scene_payload(window: ShellWindow, node_id: str) -> dict[str, object]:
+    for payload in [*window.scene.nodes_model, *window.scene.backdrop_nodes_model]:
+        if str(payload.get("node_id", "")) == str(node_id):
+            return payload
+    raise AssertionError(f"Node payload {node_id!r} was not found.")
 
 
 class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
@@ -397,6 +406,127 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         self.assertAlmostEqual(first_bounds.center().y(), original_center.y() + 40.0, places=5)
         self.assertAlmostEqual(second_bounds.center().x(), original_center.x() + 80.0, places=5)
         self.assertAlmostEqual(second_bounds.center().y(), original_center.y() + 80.0, places=5)
+
+    def test_comment_backdrop_copy_and_paste_for_expanded_backdrop_keeps_descendants_explicit_only(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        logger_id = self.window.scene.add_node_from_type("core.logger", x=110.0, y=110.0)
+        backdrop_id = self.window.scene.wrap_node_ids_in_comment_backdrop([logger_id])
+        self.assertTrue(backdrop_id)
+        self.window.scene.set_node_collapsed(backdrop_id, False)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_nodes = len(workspace.nodes)
+        before_backdrops = len(
+            [node for node in workspace.nodes.values() if node.type_id == COMMENT_BACKDROP_TYPE_ID]
+        )
+
+        self.window.scene.select_node(backdrop_id, False)
+        self.assertTrue(self.window.request_copy_selected_nodes())
+        self.assertTrue(self.window.request_paste_selected_nodes())
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.nodes), before_nodes + 1)
+        self.assertEqual(
+            len([node for node in workspace.nodes.values() if node.type_id == COMMENT_BACKDROP_TYPE_ID]),
+            before_backdrops + 1,
+        )
+        self.assertEqual(len([node for node in workspace.nodes.values() if node.type_id == "core.logger"]), 1)
+
+        selected_pasted_ids = _selected_node_ids(self.window)
+        self.assertEqual(len(selected_pasted_ids), 1)
+        pasted_backdrop_id = next(iter(selected_pasted_ids))
+        self.assertNotEqual(pasted_backdrop_id, backdrop_id)
+        self.assertEqual(workspace.nodes[pasted_backdrop_id].type_id, COMMENT_BACKDROP_TYPE_ID)
+        self.assertEqual(_scene_payload(self.window, pasted_backdrop_id)["member_node_ids"], [])
+
+    def test_comment_backdrop_copy_and_paste_for_collapsed_backdrop_includes_descendants_and_internal_edges(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        start_id = self.window.scene.add_node_from_type("core.start", x=220.0, y=160.0)
+        end_id = self.window.scene.add_node_from_type("core.end", x=220.0, y=360.0)
+        outside_script_id = self.window.scene.add_node_from_type("core.python_script", x=760.0, y=240.0)
+        self.window.scene.add_edge(start_id, "exec_out", end_id, "exec_in")
+        self.window.scene.add_edge(start_id, "trigger", outside_script_id, "payload")
+        backdrop_id = self.window.scene.wrap_node_ids_in_comment_backdrop([start_id, end_id])
+        self.assertTrue(backdrop_id)
+        self.window.scene.set_node_collapsed(backdrop_id, True)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        before_nodes = len(workspace.nodes)
+        before_edges = len(workspace.edges)
+
+        self.window.scene.select_node(backdrop_id, False)
+        self.assertTrue(self.window.request_copy_selected_nodes())
+        self.assertTrue(self.window.request_paste_selected_nodes())
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        self.assertEqual(len(workspace.nodes), before_nodes + 3)
+        self.assertEqual(len(workspace.edges), before_edges + 1)
+
+        selected_pasted_ids = _selected_node_ids(self.window)
+        self.assertEqual(len(selected_pasted_ids), 3)
+        pasted_backdrop_id = next(
+            node_id for node_id in selected_pasted_ids if workspace.nodes[node_id].type_id == COMMENT_BACKDROP_TYPE_ID
+        )
+        pasted_start_id = next(
+            node_id for node_id in selected_pasted_ids if workspace.nodes[node_id].type_id == "core.start"
+        )
+        pasted_end_id = next(
+            node_id for node_id in selected_pasted_ids if workspace.nodes[node_id].type_id == "core.end"
+        )
+        self.assertAlmostEqual(workspace.nodes[pasted_backdrop_id].x, workspace.nodes[backdrop_id].x + 40.0, places=6)
+        self.assertAlmostEqual(workspace.nodes[pasted_end_id].x, workspace.nodes[end_id].x + 40.0, places=6)
+        self.window.scene.set_node_collapsed(pasted_backdrop_id, False)
+        self.app.processEvents()
+        self.assertEqual(_scene_payload(self.window, pasted_end_id)["owner_backdrop_id"], pasted_backdrop_id)
+
+        duplicated_internal_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == pasted_start_id
+            and edge.source_port_key == "exec_out"
+            and edge.target_node_id == pasted_end_id
+            and edge.target_port_key == "exec_in"
+        ]
+        self.assertEqual(len(duplicated_internal_edges), 1)
+        duplicated_boundary_edges = [
+            edge
+            for edge in workspace.edges.values()
+            if edge.source_node_id == pasted_start_id and edge.source_port_key == "trigger"
+        ]
+        self.assertEqual(duplicated_boundary_edges, [])
+
+    def test_comment_backdrop_delete_respects_expanded_and_collapsed_semantics(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        expanded_logger_id = self.window.scene.add_node_from_type("core.logger", x=110.0, y=110.0)
+        expanded_backdrop_id = self.window.scene.wrap_node_ids_in_comment_backdrop([expanded_logger_id])
+        self.assertTrue(expanded_backdrop_id)
+        self.window.scene.set_node_collapsed(expanded_backdrop_id, False)
+
+        collapsed_start_id = self.window.scene.add_node_from_type("core.start", x=220.0, y=160.0)
+        collapsed_end_id = self.window.scene.add_node_from_type("core.end", x=220.0, y=360.0)
+        self.window.scene.add_edge(collapsed_start_id, "exec_out", collapsed_end_id, "exec_in")
+        collapsed_backdrop_id = self.window.scene.wrap_node_ids_in_comment_backdrop([collapsed_start_id, collapsed_end_id])
+        self.assertTrue(collapsed_backdrop_id)
+        self.window.scene.set_node_collapsed(collapsed_backdrop_id, True)
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+
+        self.window.scene.select_node(expanded_backdrop_id, False)
+        self.assertTrue(self.window.request_delete_selected_graph_items([]))
+        self.app.processEvents()
+        self.assertNotIn(expanded_backdrop_id, workspace.nodes)
+        self.assertIn(expanded_logger_id, workspace.nodes)
+
+        self.window.scene.select_node(collapsed_backdrop_id, False)
+        self.assertTrue(self.window.request_delete_selected_graph_items([]))
+        self.app.processEvents()
+        for removed_node_id in (collapsed_backdrop_id, collapsed_start_id, collapsed_end_id):
+            self.assertNotIn(removed_node_id, workspace.nodes)
 
     def test_qml_request_cut_selected_nodes_is_single_undoable_semantic_action(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

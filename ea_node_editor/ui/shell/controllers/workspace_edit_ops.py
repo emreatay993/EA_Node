@@ -552,8 +552,9 @@ class WorkspaceEditOps:
         return ControllerResult(result.ok, result.message, payload=result.ok)
 
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
-        result = self._graph_interactions.delete_selected_items(edge_ids)
-        if result.ok:
+        deleted = bool(self._host.scene.delete_selected_graph_items(edge_ids))
+        if deleted:
             self._host.selected_node_changed.emit()
             self._controller.refresh_workspace_tabs()
-        return ControllerResult(result.ok, result.message, payload=result.ok)
+            return ControllerResult(True, payload=True)
+        return ControllerResult(False, "No selected graph items to remove.", payload=False)
