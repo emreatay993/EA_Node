@@ -547,6 +547,7 @@ class _GraphCanvasSceneBridgeStub(QObject):
         super().__init__()
         self.calls: list[tuple[str, tuple[object, ...]]] = []
         self.nodes_model = [{"node_id": "node-1", "selected": True}]
+        self.backdrop_nodes_model = [{"node_id": "backdrop-1", "selected": False}]
         self.minimap_nodes_model = [{"node_id": "node-1", "x": 10.0, "y": 15.0}]
         self.workspace_scene_bounds_payload = {"x": 0.0, "y": 0.0, "width": 640.0, "height": 360.0}
         self.edges_model = [{"edge_id": "edge-1"}]
@@ -1426,6 +1427,18 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("center_on_scene_point", (96.0, 144.0)),
             ],
         )
+
+    def test_graphics_bridge_exposes_comment_backdrop_payload_model_from_scene_bridge(self) -> None:
+        scene = _GraphCanvasSceneBridgeStub()
+        bridge = GraphCanvasBridge(scene_bridge=scene, view_bridge=_GraphCanvasViewBridgeStub())
+
+        self.assertEqual(bridge.backdrop_nodes_model, scene.backdrop_nodes_model)
+
+        scene.backdrop_nodes_model = [
+            {"node_id": "backdrop-1", "selected": False},
+            {"node_id": "backdrop-2", "selected": True},
+        ]
+        self.assertEqual(bridge.backdrop_nodes_model, scene.backdrop_nodes_model)
 
     def test_graphics_bridge_keeps_safe_defaults_without_shell_host(self) -> None:
         scene = _GraphCanvasSceneBridgeStub()

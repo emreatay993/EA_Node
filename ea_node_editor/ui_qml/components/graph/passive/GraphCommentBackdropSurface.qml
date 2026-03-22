@@ -7,6 +7,9 @@ Item {
     readonly property var nodeProperties: host && host.nodeData && host.nodeData.properties
         ? host.nodeData.properties
         : ({})
+    readonly property bool interactionOverlayVariant: host
+        ? String(host.surfaceVariant || "") === "comment_backdrop_input_overlay"
+        : false
     readonly property string bodyValue: _value("body")
     readonly property color backdropFillColor: _backdropFillColor()
     readonly property color backdropBorderColor: host && host.isSelected
@@ -39,6 +42,7 @@ Item {
     }
 
     Rectangle {
+        visible: !surface.interactionOverlayVariant
         anchors.fill: parent
         radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 10) + 2) : 10
         color: surface.backdropFillColor
@@ -47,6 +51,7 @@ Item {
     }
 
     Rectangle {
+        visible: !surface.interactionOverlayVariant
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
@@ -56,6 +61,7 @@ Item {
     }
 
     Item {
+        visible: !surface.interactionOverlayVariant
         anchors.left: parent.left
         anchors.leftMargin: host ? Number(host.surfaceMetrics.body_left_margin || 18) : 18
         anchors.right: parent.right
@@ -107,7 +113,7 @@ Item {
             Text {
                 visible: surface.bodyValue.length === 0
                 width: parent.width
-                text: "Backdrop notes stay on the standard graph document path in P01."
+                text: "Backdrop notes render on the dedicated under-edge layer."
                 color: surface.mutedTextColor
                 font.pixelSize: surface.bodyFontSize
                 wrapMode: Text.WordWrap

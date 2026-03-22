@@ -184,6 +184,12 @@ class GraphCanvasBridge(QObject):
         return self._state_bridge.nodes_model
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+    def backdrop_nodes_model(self) -> list[dict]:
+        scene_bridge = self.scene_bridge
+        payload = getattr(scene_bridge, "backdrop_nodes_model", []) if scene_bridge is not None else []
+        return list(payload) if isinstance(payload, list) else []
+
+    @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def minimap_nodes_model(self) -> list[dict]:
         return self._state_bridge.minimap_nodes_model
 

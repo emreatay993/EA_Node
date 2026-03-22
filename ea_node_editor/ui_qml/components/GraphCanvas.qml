@@ -58,6 +58,9 @@ Item {
     readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
         ? root.canvasCommandBridgeRef
         : root._canvasRawViewBridgeRef
+    readonly property var _canvasCompatBridgeRef: typeof graphCanvasBridge !== "undefined"
+        ? graphCanvasBridge
+        : null
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
@@ -424,13 +427,31 @@ Item {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return null;
-        var nodes = root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : [];
+        var nodes = root._sceneAllNodesModel();
         for (var i = 0; i < nodes.length; i++) {
             var node = nodes[i];
             if (node && node.node_id === normalized)
                 return node;
         }
         return null;
+    }
+
+    function _sceneBackdropNodesModel() {
+        var compatBridge = root._canvasCompatBridgeRef;
+        if (compatBridge && compatBridge.backdrop_nodes_model !== undefined)
+            return compatBridge.backdrop_nodes_model || [];
+        var stateBridge = root._canvasSceneStateBridgeRef;
+        if (stateBridge && stateBridge.backdrop_nodes_model !== undefined)
+            return stateBridge.backdrop_nodes_model || [];
+        return [];
+    }
+
+    function _sceneAllNodesModel() {
+        var nodes = root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : [];
+        var backdrops = root._sceneBackdropNodesModel();
+        if (!backdrops.length)
+            return nodes;
+        return nodes.concat(backdrops);
     }
 
     function _sceneEdgePayload(edgeId) {
@@ -653,7 +674,7 @@ Item {
 
     function selectedNodeIds() {
         var bridge = root._canvasSceneStateBridgeRef;
-        var nodes = bridge ? bridge.nodes_model : [];
+        var nodes = root._sceneAllNodesModel();
         var selectedLookup = null;
         if (bridge && typeof bridge.selected_node_lookup !== "undefined")
             selectedLookup = bridge.selected_node_lookup || ({});
@@ -988,6 +1009,206 @@ Item {
         degradedWindowActive: root.gridSimplificationActive
     }
 
+    Component {
+        id: graphNodeHostDelegate
+
+        GraphComponents.GraphNodeHost {
+            id: nodeCard
+            readonly property bool _backdropInputOverlay: parent && parent.objectName === "graphCanvasBackdropInputLayer"
+            objectName: nodeCard._backdropInputOverlay ? "graphCommentBackdropInputCard" : "graphNodeCard"
+            nodeData: modelData
+            worldOffset: root.worldOffset
+            canvasItem: root
+            hoveredPort: root.hoveredPort
+            previewPort: root.dropPreviewPort
+            pendingPort: root.pendingConnectionPort
+            dragSourcePort: root.wireDragSourcePort()
+            liveDragDx: root.liveDragDxForNode(modelData.node_id)
+            liveDragDy: root.liveDragDyForNode(modelData.node_id)
+            showShadow: nodeCard._backdropInputOverlay ? false : root.nodeShadowEnabled
+            shadowStrength: root.shadowStrength
+            shadowSoftness: root.shadowSoftness
+            shadowOffset: root.shadowOffset
+            viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
+            snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
+            shadowSimplificationActive: root.shadowSimplificationActive
+            fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
+            renderActivationSceneRectPayload: root.nodeRenderActivationSceneRectPayload
+            contextTargetNodeId: root.nodeContextNodeId
+            showPortLabelsPreference: root.showPortLabels
+            surfaceVariantOverride: nodeCard._backdropInputOverlay ? "comment_backdrop_input_overlay" : ""
+            opacity: nodeCard._backdropInputOverlay
+                ? (nodeCard.renderActive ? 1.0 : 0.001)
+                : 1.0
+
+            onNodeClicked: function(nodeId, additive) {
+                var bridge = root._canvasSceneCommandBridgeRef;
+                root.forceActiveFocus();
+                root._closeContextMenus();
+                root.clearPendingConnection();
+                if (!bridge || !bridge.select_node)
+                    return;
+                if (!additive)
+                    root.clearEdgeSelection();
+                bridge.select_node(nodeId, additive);
+            }
+            onNodeContextRequested: function(nodeId, localX, localY) {
+                var point = nodeCard.mapToItem(root, localX, localY);
+                root._openNodeContext(nodeId, point.x, point.y);
+            }
+            onNodeOpenRequested: function(nodeId) {
+                root.requestOpenSubnodeScope(nodeId);
+            }
+            onDragOffsetChanged: function(nodeId, dx, dy) {
+                root.setLiveDragOffsets(
+                    root.dragNodeIdsForAnchor(nodeId),
+                    Number(dx),
+                    Number(dy)
+                );
+            }
+            onDragFinished: function(nodeId, finalX, finalY, _moved) {
+                var bridge = root._canvasSceneCommandBridgeRef;
+                var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
+                var anchorPayload = root._sceneNodePayload(nodeId);
+                var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
+                var anchorY = anchorPayload ? Number(anchorPayload.y) : Number(finalY);
+                if (!isFinite(anchorX))
+                    anchorX = Number(finalX);
+                if (!isFinite(anchorY))
+                    anchorY = Number(finalY);
+                var rawDeltaX = Number(finalX) - anchorX;
+                var rawDeltaY = Number(finalY) - anchorY;
+                var snappedDelta = root.snappedDragDelta(nodeId, rawDeltaX, rawDeltaY);
+                var deltaX = Number(snappedDelta.dx);
+                var deltaY = Number(snappedDelta.dy);
+                if (!isFinite(deltaX))
+                    deltaX = 0.0;
+                if (!isFinite(deltaY))
+                    deltaY = 0.0;
+                var finalSnappedX = anchorX + deltaX;
+                var finalSnappedY = anchorY + deltaY;
+                var movedByCommit = Math.abs(deltaX) >= 0.01 || Math.abs(deltaY) >= 0.01;
+
+                root.clearLiveDragOffsets();
+                if (!bridge)
+                    return;
+                if (dragNodeIds.length > 1) {
+                    movedByCommit = bridge.move_nodes_by_delta ? bridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY) : false;
+                    if (movedByCommit)
+                        root.clearEdgeSelection();
+                    return;
+                }
+
+                if (bridge.move_node)
+                    bridge.move_node(nodeId, finalSnappedX, finalSnappedY);
+                if (movedByCommit && bridge.select_node) {
+                    root.clearEdgeSelection();
+                    bridge.select_node(nodeId, false);
+                }
+            }
+            onDragCanceled: function(_nodeId) {
+                root.clearLiveDragOffsets();
+            }
+            onResizePreviewChanged: function(nodeId, newX, newY, newWidth, newHeight, active) {
+                root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, active);
+            }
+            onResizeFinished: function(nodeId, newX, newY, newWidth, newHeight) {
+                var bridge = root._canvasSceneCommandBridgeRef;
+                root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, false);
+                if (!bridge)
+                    return;
+                if (bridge.set_node_geometry) {
+                    bridge.set_node_geometry(nodeId, newX, newY, newWidth, newHeight);
+                    return;
+                }
+                if (bridge.move_node)
+                    bridge.move_node(nodeId, newX, newY);
+                if (bridge.resize_node)
+                    bridge.resize_node(nodeId, newWidth, newHeight);
+            }
+            onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
+                root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
+            }
+            onPortDragStarted: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) {
+                root.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);
+            }
+            onPortDragMoved: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive) {
+                root.updatePortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive);
+            }
+            onPortDragFinished: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive) {
+                root.finishPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive);
+            }
+            onPortDragCanceled: function(_nodeId, _portKey, _direction) {
+                root.cancelWireDrag();
+            }
+            onPortHoverChanged: function(nodeId, portKey, direction, sceneX, sceneY, hovered) {
+                if (root.wireDragState && root.wireDragState.active)
+                    return;
+                if (hovered) {
+                    var hoveredPortData = root._scenePortData(nodeId, portKey);
+                    var hoveredDirection = String(
+                        hoveredPortData && hoveredPortData.direction !== undefined
+                            ? hoveredPortData.direction
+                            : direction
+                    ).trim().toLowerCase();
+                    var hoveredSide = GraphCanvasLogic.normalizedPortSide(
+                        hoveredPortData && hoveredPortData.side !== undefined
+                            ? hoveredPortData.side
+                            : portKey
+                    );
+                    root.hoveredPort = {
+                        "node_id": nodeId,
+                        "port_key": portKey,
+                        "direction": hoveredDirection,
+                        "kind": hoveredPortData ? String(hoveredPortData.kind || "") : "",
+                        "data_type": hoveredPortData ? String(hoveredPortData.data_type || "") : "",
+                        "allow_multiple_connections": hoveredPortData ? Boolean(hoveredPortData.allow_multiple_connections) : false,
+                        "scene_x": sceneX,
+                        "scene_y": sceneY,
+                        "valid_drop": false
+                    };
+                    if (hoveredSide)
+                        root.hoveredPort.side = hoveredSide;
+                    edgeLayer.requestRedraw();
+                } else if (
+                    root.hoveredPort
+                    && root.hoveredPort.node_id === nodeId
+                    && root.hoveredPort.port_key === portKey
+                ) {
+                    root.hoveredPort = null;
+                    edgeLayer.requestRedraw();
+                }
+            }
+            onSurfaceControlInteractionStarted: function(nodeId) {
+                root.prepareNodeSurfaceControlInteraction(nodeId);
+            }
+            onInlinePropertyCommitted: function(nodeId, key, value) {
+                if (root.commitNodeSurfaceProperty(nodeId, key, value))
+                    root.forceActiveFocus();
+            }
+            onPortLabelCommitted: function(nodeId, portKey, label) {
+                if (root.commitNodePortLabel(nodeId, portKey, label))
+                    root.forceActiveFocus();
+            }
+        }
+    }
+
+    Item {
+        id: backdropWorld
+        objectName: "graphCanvasBackdropLayer"
+        width: root.worldSize
+        height: root.worldSize
+        transformOrigin: Item.TopLeft
+        scale: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
+        x: root.width * 0.5 - ((root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.center_x : 0) + root.worldOffset) * scale
+        y: root.height * 0.5 - ((root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.center_y : 0) + root.worldOffset) * scale
+
+        Repeater {
+            model: root._sceneBackdropNodesModel()
+            delegate: graphNodeHostDelegate
+        }
+    }
+
     GraphComponents.EdgeLayer {
         id: edgeLayer
         objectName: "graphCanvasEdgeLayer"
@@ -1022,6 +1243,22 @@ Item {
         }
     }
 
+    Item {
+        id: backdropInputWorld
+        objectName: "graphCanvasBackdropInputLayer"
+        width: root.worldSize
+        height: root.worldSize
+        transformOrigin: Item.TopLeft
+        scale: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0
+        x: root.width * 0.5 - ((root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.center_x : 0) + root.worldOffset) * scale
+        y: root.height * 0.5 - ((root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.center_y : 0) + root.worldOffset) * scale
+
+        Repeater {
+            model: root._sceneBackdropNodesModel()
+            delegate: graphNodeHostDelegate
+        }
+    }
+
     GraphCanvasComponents.GraphCanvasDropPreview {
         id: dragNodePreview
         objectName: "graphCanvasDropPreview"
@@ -1041,179 +1278,7 @@ Item {
 
         Repeater {
             model: root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : []
-            delegate: GraphComponents.GraphNodeHost {
-                id: nodeCard
-                nodeData: modelData
-                worldOffset: root.worldOffset
-                canvasItem: root
-                hoveredPort: root.hoveredPort
-                previewPort: root.dropPreviewPort
-                pendingPort: root.pendingConnectionPort
-                dragSourcePort: root.wireDragSourcePort()
-                liveDragDx: root.liveDragDxForNode(modelData.node_id)
-                liveDragDy: root.liveDragDyForNode(modelData.node_id)
-                showShadow: root.nodeShadowEnabled
-                shadowStrength: root.shadowStrength
-                shadowSoftness: root.shadowSoftness
-                shadowOffset: root.shadowOffset
-                viewportInteractionCacheActive: root.viewportInteractionWorldCacheActive
-                snapshotReuseActive: root.snapshotProxyReuseActive && !root.viewportInteractionWorldCacheActive
-                shadowSimplificationActive: root.shadowSimplificationActive
-                fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
-                renderActivationSceneRectPayload: root.nodeRenderActivationSceneRectPayload
-                contextTargetNodeId: root.nodeContextNodeId
-                showPortLabelsPreference: root.showPortLabels
-
-                onNodeClicked: function(nodeId, additive) {
-                    var bridge = root._canvasSceneCommandBridgeRef;
-                    root.forceActiveFocus();
-                    root._closeContextMenus();
-                    root.clearPendingConnection();
-                    if (!bridge || !bridge.select_node)
-                        return;
-                    if (!additive)
-                        root.clearEdgeSelection();
-                    bridge.select_node(nodeId, additive);
-                }
-                onNodeContextRequested: function(nodeId, localX, localY) {
-                    var point = nodeCard.mapToItem(root, localX, localY);
-                    root._openNodeContext(nodeId, point.x, point.y);
-                }
-                onNodeOpenRequested: function(nodeId) {
-                    root.requestOpenSubnodeScope(nodeId);
-                }
-                onDragOffsetChanged: function(nodeId, dx, dy) {
-                    root.setLiveDragOffsets(
-                        root.dragNodeIdsForAnchor(nodeId),
-                        Number(dx),
-                        Number(dy)
-                    );
-                }
-                onDragFinished: function(nodeId, finalX, finalY, _moved) {
-                    var bridge = root._canvasSceneCommandBridgeRef;
-                    var dragNodeIds = root.dragNodeIdsForAnchor(nodeId);
-                    var anchorPayload = root._sceneNodePayload(nodeId);
-                    var anchorX = anchorPayload ? Number(anchorPayload.x) : Number(finalX);
-                    var anchorY = anchorPayload ? Number(anchorPayload.y) : Number(finalY);
-                    if (!isFinite(anchorX))
-                        anchorX = Number(finalX);
-                    if (!isFinite(anchorY))
-                        anchorY = Number(finalY);
-                    var rawDeltaX = Number(finalX) - anchorX;
-                    var rawDeltaY = Number(finalY) - anchorY;
-                    var snappedDelta = root.snappedDragDelta(nodeId, rawDeltaX, rawDeltaY);
-                    var deltaX = Number(snappedDelta.dx);
-                    var deltaY = Number(snappedDelta.dy);
-                    if (!isFinite(deltaX))
-                        deltaX = 0.0;
-                    if (!isFinite(deltaY))
-                        deltaY = 0.0;
-                    var finalSnappedX = anchorX + deltaX;
-                    var finalSnappedY = anchorY + deltaY;
-                    var movedByCommit = Math.abs(deltaX) >= 0.01 || Math.abs(deltaY) >= 0.01;
-
-                    root.clearLiveDragOffsets();
-                    if (!bridge)
-                        return;
-                    if (dragNodeIds.length > 1) {
-                        movedByCommit = bridge.move_nodes_by_delta ? bridge.move_nodes_by_delta(dragNodeIds, deltaX, deltaY) : false;
-                        if (movedByCommit)
-                            root.clearEdgeSelection();
-                        return;
-                    }
-
-                    if (bridge.move_node)
-                        bridge.move_node(nodeId, finalSnappedX, finalSnappedY);
-                    if (movedByCommit && bridge.select_node) {
-                        root.clearEdgeSelection();
-                        bridge.select_node(nodeId, false);
-                    }
-                }
-                onDragCanceled: function(_nodeId) {
-                    root.clearLiveDragOffsets();
-                }
-                onResizePreviewChanged: function(nodeId, newX, newY, newWidth, newHeight, active) {
-                    root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, active);
-                }
-                onResizeFinished: function(nodeId, newX, newY, newWidth, newHeight) {
-                    var bridge = root._canvasSceneCommandBridgeRef;
-                    root.setLiveNodeGeometry(nodeId, newX, newY, newWidth, newHeight, false);
-                    if (!bridge)
-                        return;
-                    if (bridge.set_node_geometry) {
-                        bridge.set_node_geometry(nodeId, newX, newY, newWidth, newHeight);
-                        return;
-                    }
-                    if (bridge.move_node)
-                        bridge.move_node(nodeId, newX, newY);
-                    if (bridge.resize_node)
-                        bridge.resize_node(nodeId, newWidth, newHeight);
-                }
-                onPortClicked: function(nodeId, portKey, direction, sceneX, sceneY) {
-                    root.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
-                }
-                onPortDragStarted: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) {
-                    root.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);
-                }
-                onPortDragMoved: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive) {
-                    root.updatePortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive);
-                }
-                onPortDragFinished: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive) {
-                    root.finishPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY, dragActive);
-                }
-                onPortDragCanceled: function(_nodeId, _portKey, _direction) {
-                    root.cancelWireDrag();
-                }
-                onPortHoverChanged: function(nodeId, portKey, direction, sceneX, sceneY, hovered) {
-                    if (root.wireDragState && root.wireDragState.active)
-                        return;
-                    if (hovered) {
-                        var hoveredPortData = root._scenePortData(nodeId, portKey);
-                        var hoveredDirection = String(
-                            hoveredPortData && hoveredPortData.direction !== undefined
-                                ? hoveredPortData.direction
-                                : direction
-                        ).trim().toLowerCase();
-                        var hoveredSide = GraphCanvasLogic.normalizedPortSide(
-                            hoveredPortData && hoveredPortData.side !== undefined
-                                ? hoveredPortData.side
-                                : portKey
-                        );
-                        root.hoveredPort = {
-                            "node_id": nodeId,
-                            "port_key": portKey,
-                            "direction": hoveredDirection,
-                            "kind": hoveredPortData ? String(hoveredPortData.kind || "") : "",
-                            "data_type": hoveredPortData ? String(hoveredPortData.data_type || "") : "",
-                            "allow_multiple_connections": hoveredPortData ? Boolean(hoveredPortData.allow_multiple_connections) : false,
-                            "scene_x": sceneX,
-                            "scene_y": sceneY,
-                            "valid_drop": false
-                        };
-                        if (hoveredSide)
-                            root.hoveredPort.side = hoveredSide;
-                        edgeLayer.requestRedraw();
-                    } else if (
-                        root.hoveredPort
-                        && root.hoveredPort.node_id === nodeId
-                        && root.hoveredPort.port_key === portKey
-                    ) {
-                        root.hoveredPort = null;
-                        edgeLayer.requestRedraw();
-                    }
-                }
-                onSurfaceControlInteractionStarted: function(nodeId) {
-                    root.prepareNodeSurfaceControlInteraction(nodeId);
-                }
-                onInlinePropertyCommitted: function(nodeId, key, value) {
-                    if (root.commitNodeSurfaceProperty(nodeId, key, value))
-                        root.forceActiveFocus();
-                }
-                onPortLabelCommitted: function(nodeId, portKey, label) {
-                    if (root.commitNodePortLabel(nodeId, portKey, label))
-                        root.forceActiveFocus();
-                }
-            }
+            delegate: graphNodeHostDelegate
         }
     }
 

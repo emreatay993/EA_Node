@@ -60,8 +60,28 @@ class GraphScenePayloadBuilder:
         graph_theme_bridge: GraphThemeBridge | None,
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        nodes_payload, _backdrop_nodes_payload, minimap_nodes_payload, edges_payload = self.rebuild_partitioned_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=scope_path,
+            graph_theme_bridge=graph_theme_bridge,
+            show_port_labels=show_port_labels,
+        )
+        return nodes_payload, minimap_nodes_payload, edges_payload
+
+    def rebuild_partitioned_models(
+        self,
+        *,
+        model: GraphModel | None,
+        registry: NodeRegistry | None,
+        workspace_id: str,
+        scope_path: ScopePath,
+        graph_theme_bridge: GraphThemeBridge | None,
+        show_port_labels: bool = True,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         if model is None or registry is None or not workspace_id:
-            return [], [], []
+            return [], [], [], []
 
         workspace = model.project.workspaces[workspace_id]
         return self._build_payload_models(
@@ -98,12 +118,13 @@ class GraphScenePayloadBuilder:
         scope_path: ScopePath,
         graph_theme: GraphThemeDefinition,
         show_port_labels: bool = True,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         visible_node_ids = scope_node_ids(workspace, scope_path)
         workspace_edges = scope_edges(workspace, scope_path)
         port_connection_counts = self._port_connection_counts(workspace_edges)
 
         nodes_payload: list[dict[str, Any]] = []
+        backdrop_nodes_payload: list[dict[str, Any]] = []
         minimap_nodes_payload: list[dict[str, Any]] = []
         node_specs: dict[str, NodeTypeSpec] = {}
 
@@ -112,16 +133,18 @@ class GraphScenePayloadBuilder:
             spec = registry.get_spec(node.type_id)
             node_specs[node_id] = spec
             payload_node = self._payload_node(node, spec)
-            nodes_payload.append(
-                self._build_node_payload(
-                    node=payload_node,
-                    spec=spec,
-                    workspace=workspace,
-                    port_connection_counts=port_connection_counts,
-                    graph_theme=graph_theme,
-                    show_port_labels=show_port_labels,
-                )
+            node_payload = self._build_node_payload(
+                node=payload_node,
+                spec=spec,
+                workspace=workspace,
+                port_connection_counts=port_connection_counts,
+                graph_theme=graph_theme,
+                show_port_labels=show_port_labels,
             )
+            if self._is_comment_backdrop_spec(spec):
+                backdrop_nodes_payload.append(node_payload)
+            else:
+                nodes_payload.append(node_payload)
             minimap_nodes_payload.append(
                 self._build_minimap_node_payload(
                     node=payload_node,
@@ -138,7 +161,11 @@ class GraphScenePayloadBuilder:
             node_specs=node_specs,
             show_port_labels=show_port_labels,
         )
-        return nodes_payload, minimap_nodes_payload, edges_payload
+        return nodes_payload, backdrop_nodes_payload, minimap_nodes_payload, edges_payload
+
+    @staticmethod
+    def _is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
+        return str(spec.surface_family or "").strip() == "comment_backdrop"
 
     @staticmethod
     def _port_connection_counts(workspace_edges: list[Any]) -> dict[tuple[str, str], int]:

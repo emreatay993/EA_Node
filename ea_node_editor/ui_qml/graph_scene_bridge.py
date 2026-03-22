@@ -135,7 +135,12 @@ class _GraphSceneContext:
         )
 
     def rebuild_models(self) -> None:
-        nodes_payload, minimap_nodes_payload, edges_payload = self._payload_builder.rebuild_models(
+        (
+            nodes_payload,
+            backdrop_nodes_payload,
+            minimap_nodes_payload,
+            edges_payload,
+        ) = self._payload_builder.rebuild_partitioned_models(
             model=self.model,
             registry=self.registry,
             workspace_id=self.workspace_id,
@@ -144,6 +149,7 @@ class _GraphSceneContext:
             show_port_labels=self.graphics_show_port_labels,
         )
         self._bridge._nodes_payload = nodes_payload
+        self._bridge._backdrop_nodes_payload = backdrop_nodes_payload
         self._bridge._minimap_nodes_payload = minimap_nodes_payload
         self._bridge._edges_payload = edges_payload
         self._bridge.nodes_changed.emit()
@@ -236,6 +242,7 @@ class GraphSceneBridge(QObject):
         self._selected_node_ids: list[str] = []
         self._selected_node_lookup: dict[str, bool] = {}
         self._nodes_payload: list[dict[str, Any]] = []
+        self._backdrop_nodes_payload: list[dict[str, Any]] = []
         self._minimap_nodes_payload: list[dict[str, Any]] = []
         self._edges_payload: list[dict[str, Any]] = []
         self._graph_theme_bridge: GraphThemeBridge | None = None
@@ -296,6 +303,10 @@ class GraphSceneBridge(QObject):
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def nodes_model(self) -> list[dict[str, Any]]:
         return self._nodes_payload
+
+    @pyqtProperty("QVariantList", notify=nodes_changed)
+    def backdrop_nodes_model(self) -> list[dict[str, Any]]:
+        return self._backdrop_nodes_payload
 
     @pyqtProperty("QVariantList", notify=edges_changed)
     def edges_model(self) -> list[dict[str, Any]]:
