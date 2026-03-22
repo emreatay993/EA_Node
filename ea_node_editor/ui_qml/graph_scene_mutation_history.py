@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF, QRectF
@@ -668,10 +669,15 @@ class GraphSceneMutationHistory:
         if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
             return
         spec = registry.get_spec(node.type_id) if registry is not None else None
-        min_width = 120.0
-        min_height = 50.0
+        min_width = 0.0
+        min_height = 0.0
         if spec is not None:
-            metrics = node_surface_metrics(node, spec, workspace.nodes)
+            metrics = node_surface_metrics(
+                node,
+                spec,
+                workspace.nodes,
+                show_port_labels=self._scene_context.graphics_show_port_labels,
+            )
             min_width = float(metrics.min_width)
             min_height = float(metrics.min_height)
         final_x = float(x)
@@ -962,7 +968,7 @@ class GraphSceneMutationHistory:
             workspace=workspace,
             node_ids=selected_node_ids,
             spec_lookup=registry.get_spec,
-            size_resolver=node_size,
+            size_resolver=partial(node_size, show_port_labels=self._scene_context.graphics_show_port_labels),
         )
 
     @staticmethod
@@ -1027,7 +1033,7 @@ class GraphSceneMutationHistory:
         bounds = graph_fragment_bounds(
             nodes_payload=nodes_payload,
             registry=registry,
-            size_resolver=node_size,
+            size_resolver=partial(node_size, show_port_labels=self._scene_context.graphics_show_port_labels),
         )
         if bounds is None:
             return None

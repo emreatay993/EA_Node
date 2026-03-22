@@ -111,6 +111,7 @@ class _GraphCanvasPreferenceBridge(QObject):
         self._graphics_show_grid = True
         self._graphics_show_minimap = True
         self._graphics_minimap_expanded = True
+        self._graphics_show_port_labels = True
         self._snap_to_grid_enabled = False
         self.minimap_update_history: list[bool] = []
 
@@ -129,6 +130,10 @@ class _GraphCanvasPreferenceBridge(QObject):
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
         return bool(self._snap_to_grid_enabled)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_port_labels(self) -> bool:
+        return bool(self._graphics_show_port_labels)
 
     @pyqtProperty(float, constant=True)
     def snap_grid_size(self) -> float:
@@ -153,6 +158,13 @@ class _GraphCanvasPreferenceBridge(QObject):
         if self._graphics_minimap_expanded == normalized:
             return
         self._graphics_minimap_expanded = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_show_port_labels_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_show_port_labels == normalized:
+            return
+        self._graphics_show_port_labels = normalized
         self.graphics_preferences_changed.emit()
 
     def set_snap_to_grid_enabled_value(self, value: bool) -> None:
@@ -348,7 +360,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.registry = build_default_registry()
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id
-        self.scene = GraphSceneBridge()
+        self.preference_bridge = _GraphCanvasPreferenceBridge()
+        self.scene = GraphSceneBridge(self.preference_bridge)
         self.scene.set_workspace(self.model, self.registry, self.workspace_id)
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
@@ -504,9 +517,21 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.assertEqual(node_payload[source_id]["runtime_behavior"], "active")
         self.assertEqual(node_payload[source_id]["surface_family"], "standard")
         self.assertEqual(node_payload[source_id]["surface_variant"], "")
-        self.assertEqual(node_payload[source_id]["surface_metrics"]["default_width"], 210.0)
-        self.assertEqual(node_payload[source_id]["surface_metrics"]["min_width"], 120.0)
-        self.assertEqual(node_payload[source_id]["surface_metrics"]["min_height"], 50.0)
+        surface_metrics = node_payload[source_id]["surface_metrics"]
+        self.assertEqual(surface_metrics["default_width"], 210.0)
+        self.assertAlmostEqual(
+            surface_metrics["min_width"],
+            max(
+                surface_metrics["standard_title_full_width"],
+                surface_metrics["standard_port_label_min_width"],
+            ),
+            places=6,
+        )
+        self.assertEqual(surface_metrics["min_height"], 50.0)
+        self.assertEqual(surface_metrics["standard_left_label_width"], 0.0)
+        self.assertGreater(surface_metrics["standard_right_label_width"], 0.0)
+        self.assertEqual(surface_metrics["standard_port_gutter"], 21.5)
+        self.assertEqual(surface_metrics["standard_center_gap"], 24.0)
         self.assertEqual(
             node_payload[source_id]["visual_style"],
             {"fill": "#102030", "badge": {"shape": "pill"}},
@@ -518,6 +543,78 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
         self.assertEqual(edge_payload[edge_id]["source_port_kind"], "exec")
         self.assertEqual(edge_payload[edge_id]["target_port_kind"], "exec")
+
+    def test_standard_node_min_width_tracks_port_label_visibility_preference(self) -> None:
+        node_id = self.scene.add_node_from_type("core.logger", 40.0, 60.0)
+        self.scene.set_node_port_label(node_id, "message", "Primary Input Payload")
+        self.scene.set_node_port_label(node_id, "exec_out", "Dispatch Result Token")
+
+        self.preference_bridge.set_graphics_show_port_labels_value(False)
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        off_metrics = payload_by_id[node_id]["surface_metrics"]
+
+        self.preference_bridge.set_graphics_show_port_labels_value(True)
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        on_metrics = payload_by_id[node_id]["surface_metrics"]
+
+        self.assertAlmostEqual(off_metrics["min_width"], off_metrics["standard_title_full_width"], places=6)
+        self.assertGreater(on_metrics["min_width"], off_metrics["min_width"])
+        self.assertGreater(on_metrics["standard_left_label_width"], 0.0)
+        self.assertGreater(on_metrics["standard_right_label_width"], 0.0)
+        self.assertGreater(on_metrics["standard_port_label_min_width"], on_metrics["standard_title_full_width"])
+        self.assertAlmostEqual(
+            on_metrics["min_width"],
+            max(
+                on_metrics["standard_title_full_width"],
+                on_metrics["standard_port_label_min_width"],
+            ),
+            places=6,
+        )
+
+    def test_standard_node_rendered_width_and_resize_clamp_share_preference_aware_min_width(self) -> None:
+        node_id = self.scene.add_node_from_type("core.logger", 40.0, 60.0)
+        self.scene.set_node_port_label(node_id, "message", "Primary Input Payload")
+        self.scene.set_node_port_label(node_id, "exec_out", "Dispatch Result Token")
+        workspace = self.model.project.workspaces[self.workspace_id]
+        node = workspace.nodes[node_id]
+
+        self.preference_bridge.set_graphics_show_port_labels_value(False)
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        off_payload = payload_by_id[node_id]
+        off_width = float(off_payload["surface_metrics"]["min_width"]) + 18.0
+
+        self.scene.set_node_geometry(
+            node_id,
+            float(node.x),
+            float(node.y),
+            off_width,
+            float(off_payload["height"]),
+        )
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        off_payload = payload_by_id[node_id]
+        self.assertAlmostEqual(off_payload["width"], off_width, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[node_id].custom_width or 0.0), off_width, places=6)
+
+        self.preference_bridge.set_graphics_show_port_labels_value(True)
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        on_payload = payload_by_id[node_id]
+        on_min_width = float(on_payload["surface_metrics"]["min_width"])
+
+        self.assertGreater(on_min_width, off_width)
+        self.assertAlmostEqual(on_payload["width"], on_min_width, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[node_id].custom_width or 0.0), off_width, places=6)
+
+        self.scene.resize_node(node_id, off_width - 40.0, float(on_payload["height"]))
+        payload_by_id = {item["node_id"]: item for item in self.scene.nodes_model}
+        resized_payload = payload_by_id[node_id]
+
+        self.assertAlmostEqual(resized_payload["surface_metrics"]["min_width"], on_min_width, places=6)
+        self.assertAlmostEqual(resized_payload["width"], on_min_width, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[node_id].custom_width or 0.0), on_min_width, places=6)
 
     def test_style_mutations_update_payload_and_record_history(self) -> None:
         history = RuntimeGraphHistory()

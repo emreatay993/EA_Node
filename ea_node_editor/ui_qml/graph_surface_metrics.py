@@ -10,6 +10,7 @@ from typing import Any
 
 from ea_node_editor.graph.effective_ports import find_port, port_direction, port_side, visible_ports
 from ea_node_editor.graph.model import NodeInstance
+from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
 from ea_node_editor.ui.media_preview_provider import local_image_dimensions
 from ea_node_editor.ui.pdf_preview_provider import local_pdf_page_dimensions
@@ -44,6 +45,12 @@ class GraphNodeSurfaceMetrics:
     show_header_background: bool
     show_accent_bar: bool
     use_host_chrome: bool
+    standard_title_full_width: float = 0.0
+    standard_left_label_width: float = 0.0
+    standard_right_label_width: float = 0.0
+    standard_port_gutter: float = 0.0
+    standard_center_gap: float = 0.0
+    standard_port_label_min_width: float = 0.0
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -74,6 +81,12 @@ class GraphNodeSurfaceMetrics:
             "show_header_background": bool(self.show_header_background),
             "show_accent_bar": bool(self.show_accent_bar),
             "use_host_chrome": bool(self.use_host_chrome),
+            "standard_title_full_width": float(self.standard_title_full_width),
+            "standard_left_label_width": float(self.standard_left_label_width),
+            "standard_right_label_width": float(self.standard_right_label_width),
+            "standard_port_gutter": float(self.standard_port_gutter),
+            "standard_center_gap": float(self.standard_center_gap),
+            "standard_port_label_min_width": float(self.standard_port_label_min_width),
         }
 
 
@@ -125,6 +138,24 @@ class _MediaPanelLayout:
     body_right_margin: float
     body_bottom_margin: float
     title_centered: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _StandardWidthContract:
+    title_full_width: float
+    left_label_width: float
+    right_label_width: float
+    port_gutter: float
+    center_gap: float
+    port_label_min_width: float
+
+    @property
+    def min_width_with_labels(self) -> float:
+        return max(self.title_full_width, self.port_label_min_width)
+
+    @property
+    def min_width_without_labels(self) -> float:
+        return self.title_full_width
 
 
 _SURFACE_METRIC_CONTRACT_PATH = (
@@ -281,6 +312,8 @@ STANDARD_BODY_RIGHT_MARGIN = _contract_number(_STANDARD_CONTRACT, "body_right_ma
 STANDARD_SHOW_HEADER_BACKGROUND = _contract_bool(_STANDARD_CONTRACT, "show_header_background", True)
 STANDARD_SHOW_ACCENT_BAR = _contract_bool(_STANDARD_CONTRACT, "show_accent_bar", True)
 STANDARD_USE_HOST_CHROME = _contract_bool(_STANDARD_CONTRACT, "use_host_chrome", True)
+STANDARD_PORT_GUTTER = _contract_number(_STANDARD_CONTRACT, "standard_port_gutter")
+STANDARD_CENTER_GAP = _contract_number(_STANDARD_CONTRACT, "standard_center_gap")
 
 FLOWCHART_COLLAPSED_WIDTH = _contract_number(_FLOWCHART_CONTRACT, "collapsed_width")
 FLOWCHART_COLLAPSED_HEIGHT = _contract_number(_FLOWCHART_CONTRACT, "collapsed_height")
@@ -299,6 +332,14 @@ MEDIA_CAPTION_SPACING = _contract_number(_MEDIA_CONTRACT, "caption_spacing")
 MEDIA_CAPTION_MAX_LINES = int(_contract_number(_MEDIA_CONTRACT, "caption_max_lines"))
 MEDIA_CAPTION_LINE_HEIGHT_FACTOR = _contract_number(_MEDIA_CONTRACT, "caption_line_height_factor")
 MEDIA_CAPTION_CHAR_WIDTH_FACTOR = _contract_number(_MEDIA_CONTRACT, "caption_char_width_factor")
+
+_STANDARD_NARROW_TEXT_CHARS = frozenset(" !\"'`.,:;|ijlItfr")
+_STANDARD_WIDE_TEXT_CHARS = frozenset("MWQG@#%&wm")
+_STANDARD_PUNCTUATION_TEXT_CHARS = frozenset("_-/\\+=*~^()[]{}")
+_STANDARD_TITLE_FONT_PIXEL_SIZE = 12.0
+_STANDARD_PORT_LABEL_FONT_PIXEL_SIZE = 10.0
+_STANDARD_TEXT_WIDTH_PADDING = 2.0
+_STANDARD_SUBNODE_SCOPE_BADGE_RESERVE = 56.0
 
 _FLOWCHART_VARIANT_LAYOUTS = _build_flowchart_variant_layouts(
     _contract_mapping(_FLOWCHART_CONTRACT, "variants")
@@ -330,6 +371,83 @@ def standard_inline_body_height(spec: NodeTypeSpec) -> float:
         STANDARD_INLINE_SECTION_PADDING
         + row_height
         + max(0, len(inline_specs) - 1) * STANDARD_INLINE_ROW_SPACING
+    )
+
+
+def _estimated_standard_text_unit_width(character: str) -> float:
+    if not character:
+        return 0.0
+    if character.isspace():
+        return 0.24
+    if character in _STANDARD_NARROW_TEXT_CHARS:
+        return 0.24
+    if character in _STANDARD_WIDE_TEXT_CHARS:
+        return 0.62
+    if character in _STANDARD_PUNCTUATION_TEXT_CHARS:
+        return 0.34
+    if character.isupper() or character.isdigit():
+        return 0.48
+    return 0.44
+
+
+def _estimate_standard_text_width(text: Any, *, pixel_size: float) -> float:
+    content = str(text or "")
+    if not content:
+        return 0.0
+    width = sum(_estimated_standard_text_unit_width(character) for character in content) * float(pixel_size)
+    return round(max(0.0, width + _STANDARD_TEXT_WIDTH_PADDING), 3)
+
+
+def _standard_title_full_width(node: NodeInstance) -> float:
+    title_width = _estimate_standard_text_width(node.title, pixel_size=_STANDARD_TITLE_FONT_PIXEL_SIZE)
+    scope_badge_reserve = _STANDARD_SUBNODE_SCOPE_BADGE_RESERVE if is_subnode_shell_type(node.type_id) else 0.0
+    return round(title_width + STANDARD_TITLE_LEFT_MARGIN + STANDARD_TITLE_RIGHT_MARGIN + scope_badge_reserve, 3)
+
+
+def _standard_visible_label_widths(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+) -> tuple[float, float]:
+    scoped_nodes = workspace_nodes or {node.node_id: node}
+    in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
+    left_label_width = max(
+        (
+            _estimate_standard_text_width(port.label or port.key, pixel_size=_STANDARD_PORT_LABEL_FONT_PIXEL_SIZE)
+            for port in in_ports
+        ),
+        default=0.0,
+    )
+    right_label_width = max(
+        (
+            _estimate_standard_text_width(port.label or port.key, pixel_size=_STANDARD_PORT_LABEL_FONT_PIXEL_SIZE)
+            for port in out_ports
+        ),
+        default=0.0,
+    )
+    return round(left_label_width, 3), round(right_label_width, 3)
+
+
+def _standard_port_label_min_width(left_label_width: float, right_label_width: float) -> float:
+    return round(
+        float(left_label_width) + float(right_label_width) + (STANDARD_PORT_GUTTER * 2.0) + STANDARD_CENTER_GAP,
+        3,
+    )
+
+
+def _standard_surface_min_width_contract(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+) -> _StandardWidthContract:
+    left_label_width, right_label_width = _standard_visible_label_widths(node, spec, workspace_nodes)
+    return _StandardWidthContract(
+        title_full_width=_standard_title_full_width(node),
+        left_label_width=left_label_width,
+        right_label_width=right_label_width,
+        port_gutter=STANDARD_PORT_GUTTER,
+        center_gap=STANDARD_CENTER_GAP,
+        port_label_min_width=_standard_port_label_min_width(left_label_width, right_label_width),
     )
 
 
@@ -685,14 +803,18 @@ def _standard_surface_metrics(
     node: NodeInstance,
     spec: NodeTypeSpec,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    show_port_labels: bool = True,
 ) -> GraphNodeSurfaceMetrics:
     port_count = _visible_port_count(node, spec, workspace_nodes)
     body_height = standard_inline_body_height(spec)
     default_height = STANDARD_HEADER_HEIGHT + body_height + port_count * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
+    width_contract = _standard_surface_min_width_contract(node, spec, workspace_nodes)
+    min_width = width_contract.min_width_with_labels if show_port_labels else width_contract.min_width_without_labels
     return GraphNodeSurfaceMetrics(
         default_width=STANDARD_DEFAULT_WIDTH,
         default_height=default_height,
-        min_width=STANDARD_MIN_WIDTH,
+        min_width=min_width,
         min_height=STANDARD_MIN_HEIGHT,
         collapsed_width=STANDARD_COLLAPSED_WIDTH,
         collapsed_height=STANDARD_COLLAPSED_HEIGHT,
@@ -717,6 +839,12 @@ def _standard_surface_metrics(
         show_header_background=STANDARD_SHOW_HEADER_BACKGROUND,
         show_accent_bar=STANDARD_SHOW_ACCENT_BAR,
         use_host_chrome=STANDARD_USE_HOST_CHROME,
+        standard_title_full_width=width_contract.title_full_width,
+        standard_left_label_width=width_contract.left_label_width,
+        standard_right_label_width=width_contract.right_label_width,
+        standard_port_gutter=width_contract.port_gutter,
+        standard_center_gap=width_contract.center_gap,
+        standard_port_label_min_width=width_contract.port_label_min_width,
     )
 
 
@@ -889,6 +1017,8 @@ def node_surface_metrics(
     node: NodeInstance,
     spec: NodeTypeSpec,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    show_port_labels: bool = True,
 ) -> GraphNodeSurfaceMetrics:
     family = str(spec.surface_family or "standard").strip() or "standard"
     if family == "flowchart":
@@ -899,7 +1029,12 @@ def node_surface_metrics(
         return _annotation_surface_metrics(node, spec)
     if family == "media":
         return _media_surface_metrics(node, spec)
-    return _standard_surface_metrics(node, spec, workspace_nodes)
+    return _standard_surface_metrics(
+        node,
+        spec,
+        workspace_nodes,
+        show_port_labels=show_port_labels,
+    )
 
 
 def _flowchart_horizontal_bounds(
@@ -946,9 +1081,15 @@ def surface_port_local_point(
     *,
     width: float | None = None,
     height: float | None = None,
+    show_port_labels: bool = True,
 ) -> tuple[float, float]:
     scoped_nodes = workspace_nodes or {node.node_id: node}
-    metrics = node_surface_metrics(node, spec, scoped_nodes)
+    metrics = node_surface_metrics(
+        node,
+        spec,
+        scoped_nodes,
+        show_port_labels=show_port_labels,
+    )
     resolved_width, resolved_height = _resolved_dimensions(
         node,
         default_width=metrics.default_width,

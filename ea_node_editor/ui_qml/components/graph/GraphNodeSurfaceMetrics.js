@@ -210,6 +210,36 @@ function _standardSurfaceMetrics(node, source) {
             _contractNumber(standard, "body_right_margin")
         ),
         "body_bottom_margin": _metricNumber(source, "body_bottom_margin", bottomPadding),
+        "standard_title_full_width": _metricNumber(
+            source,
+            "standard_title_full_width",
+            _contractNumber(standard, "standard_title_full_width")
+        ),
+        "standard_left_label_width": _metricNumber(
+            source,
+            "standard_left_label_width",
+            _contractNumber(standard, "standard_left_label_width")
+        ),
+        "standard_right_label_width": _metricNumber(
+            source,
+            "standard_right_label_width",
+            _contractNumber(standard, "standard_right_label_width")
+        ),
+        "standard_port_gutter": _metricNumber(
+            source,
+            "standard_port_gutter",
+            _contractNumber(standard, "standard_port_gutter")
+        ),
+        "standard_center_gap": _metricNumber(
+            source,
+            "standard_center_gap",
+            _contractNumber(standard, "standard_center_gap")
+        ),
+        "standard_port_label_min_width": _metricNumber(
+            source,
+            "standard_port_label_min_width",
+            _contractNumber(standard, "standard_port_label_min_width")
+        ),
         "show_header_background": _metricBool(
             source,
             "show_header_background",

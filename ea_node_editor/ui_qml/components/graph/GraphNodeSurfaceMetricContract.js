@@ -29,7 +29,13 @@ var SURFACE_METRIC_CONTRACT = {
     "body_right_margin": 8.0,
     "show_header_background": true,
     "show_accent_bar": true,
-    "use_host_chrome": true
+    "use_host_chrome": true,
+    "standard_title_full_width": 0.0,
+    "standard_left_label_width": 0.0,
+    "standard_right_label_width": 0.0,
+    "standard_port_gutter": 21.5,
+    "standard_center_gap": 24.0,
+    "standard_port_label_min_width": 0.0
   },
   "passive": {
     "resize_handle_size": 16.0,

@@ -58,6 +58,7 @@ class GraphScenePayloadBuilder:
         workspace_id: str,
         scope_path: ScopePath,
         graph_theme_bridge: GraphThemeBridge | None,
+        show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         if model is None or registry is None or not workspace_id:
             return [], [], []
@@ -68,6 +69,7 @@ class GraphScenePayloadBuilder:
             registry=registry,
             scope_path=scope_path,
             graph_theme=self.active_graph_theme(graph_theme_bridge),
+            show_port_labels=show_port_labels,
         )
 
     def normalize_pdf_panel_pages(
@@ -95,6 +97,7 @@ class GraphScenePayloadBuilder:
         registry: NodeRegistry,
         scope_path: ScopePath,
         graph_theme: GraphThemeDefinition,
+        show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         visible_node_ids = scope_node_ids(workspace, scope_path)
         workspace_edges = scope_edges(workspace, scope_path)
@@ -116,6 +119,7 @@ class GraphScenePayloadBuilder:
                     workspace=workspace,
                     port_connection_counts=port_connection_counts,
                     graph_theme=graph_theme,
+                    show_port_labels=show_port_labels,
                 )
             )
             minimap_nodes_payload.append(
@@ -123,6 +127,7 @@ class GraphScenePayloadBuilder:
                     node=payload_node,
                     spec=spec,
                     workspace=workspace,
+                    show_port_labels=show_port_labels,
                 )
             )
 
@@ -131,6 +136,7 @@ class GraphScenePayloadBuilder:
             workspace_edges=workspace_edges,
             workspace_nodes=workspace.nodes,
             node_specs=node_specs,
+            show_port_labels=show_port_labels,
         )
         return nodes_payload, minimap_nodes_payload, edges_payload
 
@@ -152,9 +158,20 @@ class GraphScenePayloadBuilder:
         workspace: WorkspaceData,
         port_connection_counts: dict[tuple[str, str], int],
         graph_theme: GraphThemeDefinition,
+        show_port_labels: bool = True,
     ) -> dict[str, Any]:
-        surface_metrics = node_surface_metrics(node, spec, workspace.nodes)
-        width, height = node_size(node, spec, workspace.nodes)
+        surface_metrics = node_surface_metrics(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
+        width, height = node_size(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
         inline_properties_payload = build_inline_property_items(
             node=node,
             spec=spec,
@@ -217,8 +234,14 @@ class GraphScenePayloadBuilder:
         node,
         spec: NodeTypeSpec,
         workspace: WorkspaceData,
+        show_port_labels: bool = True,
     ) -> dict[str, float | str]:
-        width, height = node_size(node, spec, workspace.nodes)
+        width, height = node_size(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
         return {
             "node_id": node.node_id,
             "x": float(node.x),

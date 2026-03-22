@@ -73,6 +73,10 @@ class _GraphSceneContext:
     def graph_theme_bridge(self) -> GraphThemeBridge | None:
         return self._bridge._graph_theme_bridge
 
+    @property
+    def graphics_show_port_labels(self) -> bool:
+        return self._bridge.graphics_show_port_labels
+
     def require_bound(self) -> tuple[GraphModel, NodeRegistry]:
         if self.model is None or self.registry is None:
             raise RuntimeError("Scene is not bound")
@@ -137,6 +141,7 @@ class _GraphSceneContext:
             workspace_id=self.workspace_id,
             scope_path=self.scope_path,
             graph_theme_bridge=self.graph_theme_bridge,
+            show_port_labels=self.graphics_show_port_labels,
         )
         self._bridge._nodes_payload = nodes_payload
         self._bridge._minimap_nodes_payload = minimap_nodes_payload
@@ -235,6 +240,20 @@ class GraphSceneBridge(QObject):
         self._edges_payload: list[dict[str, Any]] = []
         self._graph_theme_bridge: GraphThemeBridge | None = None
         self._pending_surface_action_node_id: str = ""
+
+    def _graphics_preference_source(self) -> object | None:
+        host = self.parent()
+        if host is None:
+            return None
+        presenter = getattr(host, "graph_canvas_presenter", None)
+        return presenter if presenter is not None else host
+
+    @property
+    def graphics_show_port_labels(self) -> bool:
+        source = self._graphics_preference_source()
+        if source is None:
+            return True
+        return bool(getattr(source, "graphics_show_port_labels", True))
 
     @property
     def _workspace_id(self) -> str:

@@ -41,14 +41,21 @@ def node_size(
     node: NodeInstance,
     spec: NodeTypeSpec,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    show_port_labels: bool = True,
 ) -> tuple[float, float]:
     scoped_nodes = workspace_nodes or {node.node_id: node}
-    metrics = node_surface_metrics(node, spec, scoped_nodes)
+    metrics = node_surface_metrics(
+        node,
+        spec,
+        scoped_nodes,
+        show_port_labels=show_port_labels,
+    )
     if node.collapsed:
         return metrics.collapsed_width, metrics.collapsed_height
     width = node.custom_width if node.custom_width is not None else metrics.default_width
     height = node.custom_height if node.custom_height is not None else metrics.default_height
-    return width, height
+    return max(float(metrics.min_width), float(width)), float(height)
 
 
 def port_scene_pos(
@@ -56,10 +63,22 @@ def port_scene_pos(
     spec: NodeTypeSpec,
     port_key: str,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    show_port_labels: bool = True,
 ) -> QPointF:
     scoped_nodes = workspace_nodes or {node.node_id: node}
-    metrics = node_surface_metrics(node, spec, scoped_nodes)
-    width, _height = node_size(node, spec, scoped_nodes)
+    metrics = node_surface_metrics(
+        node,
+        spec,
+        scoped_nodes,
+        show_port_labels=show_port_labels,
+    )
+    width, _height = node_size(
+        node,
+        spec,
+        scoped_nodes,
+        show_port_labels=show_port_labels,
+    )
 
     if node.collapsed:
         direction = port_direction(node=node, spec=spec, workspace_nodes=scoped_nodes, port_key=port_key)
@@ -74,6 +93,7 @@ def port_scene_pos(
         scoped_nodes,
         width=width,
         height=_height,
+        show_port_labels=show_port_labels,
     )
     return QPointF(node.x + local_x, node.y + local_y)
 
@@ -756,6 +776,7 @@ def build_edge_payload(
     workspace_edges: list[EdgeInstance],
     workspace_nodes: dict[str, NodeInstance],
     node_specs: dict[str, NodeTypeSpec],
+    show_port_labels: bool = True,
 ) -> list[dict[str, Any]]:
     pair_lane_offsets = edge_lane_offsets(
         workspace_edges,
@@ -786,15 +807,27 @@ def build_edge_payload(
             source_spec,
             edge.source_port_key,
             workspace_nodes,
+            show_port_labels=show_port_labels,
         )
         target = port_scene_pos(
             target_node,
             target_spec,
             edge.target_port_key,
             workspace_nodes,
+            show_port_labels=show_port_labels,
         )
-        source_width, source_height = node_size(source_node, source_spec, workspace_nodes)
-        target_width, target_height = node_size(target_node, target_spec, workspace_nodes)
+        source_width, source_height = node_size(
+            source_node,
+            source_spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+        )
+        target_width, target_height = node_size(
+            target_node,
+            target_spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+        )
         source_bounds = QRectF(source_node.x, source_node.y, source_width, source_height)
         target_bounds = QRectF(target_node.x, target_node.y, target_width, target_height)
         pair_lane = pair_lane_offsets.get(edge.edge_id, 0.0)
