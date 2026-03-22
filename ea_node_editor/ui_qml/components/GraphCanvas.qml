@@ -1066,6 +1066,7 @@ Item {
         GraphComponents.GraphNodeHost {
             id: nodeCard
             readonly property bool _backdropInputOverlay: parent && parent.objectName === "graphCanvasBackdropInputLayer"
+            readonly property bool _commentBackdropNode: root._isCommentBackdropPayload(modelData)
             objectName: nodeCard._backdropInputOverlay ? "graphCommentBackdropInputCard" : "graphNodeCard"
             nodeData: modelData
             worldOffset: root.worldOffset
@@ -1076,7 +1077,9 @@ Item {
             dragSourcePort: root.wireDragSourcePort()
             liveDragDx: root.liveDragDxForNode(modelData.node_id)
             liveDragDy: root.liveDragDyForNode(modelData.node_id)
-            showShadow: nodeCard._backdropInputOverlay ? false : root.nodeShadowEnabled
+            showShadow: (nodeCard._backdropInputOverlay || nodeCard._commentBackdropNode)
+                ? false
+                : root.nodeShadowEnabled
             shadowStrength: root.shadowStrength
             shadowSoftness: root.shadowSoftness
             shadowOffset: root.shadowOffset
