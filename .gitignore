@@ -66,6 +66,8 @@ docs/specs/work_packets/*
 !docs/specs/work_packets/flowchart_cardinal_ports/*
 !docs/specs/work_packets/node_inline_titles/
 !docs/specs/work_packets/node_inline_titles/*
+!docs/specs/work_packets/port_label_visibility/
+!docs/specs/work_packets/port_label_visibility/*
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md

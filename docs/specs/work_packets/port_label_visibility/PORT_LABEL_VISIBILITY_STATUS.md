@@ -1,0 +1,12 @@
+# PORT_LABEL_VISIBILITY Status Ledger
+
+- Updated: `2026-03-22`
+- Environment note: packet set bootstrapped; implementation progress tracked per packet.
+
+| Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
+|---|---|---|---|---|---|---|---|
+| P00 Bootstrap | `codex/port-label-visibility/p00-bootstrap` | PASS | `n/a` | create `docs/specs/work_packets/port_label_visibility/*`; add manifest, status ledger, packet specs, and prompt files for `P00` through `P04`; add the narrow `.gitignore` exception for `docs/specs/work_packets/port_label_visibility/`; update `docs/specs/INDEX.md`; run `PORT_LABEL_VISIBILITY_P00_FILE_GATE_PASS` verification command from `PORT_LABEL_VISIBILITY_P00_bootstrap.md` | PASS (`1/1`): file/index gate returned `PORT_LABEL_VISIBILITY_P00_FILE_GATE_PASS` | `.gitignore`, `docs/specs/INDEX.md`, `docs/specs/work_packets/port_label_visibility/*` | The new persisted preference, shell/menu/dialog wiring, preference-aware standard-node width policy, and QML tooltip-only label behavior are still unimplemented at bootstrap time |
+| P01 Preferences + Bridge Contract | `codex/port-label-visibility/p01-preferences-bridge-contract` | PENDING | `n/a` | `pending` | `pending` | `docs/specs/work_packets/port_label_visibility/P01_preferences_bridge_contract_WRAPUP.md` | Additive preference schema, runtime getter/setter, and shell/canvas bridge exposure are not landed yet |
+| P02 Shell UI Toggle Sync | `codex/port-label-visibility/p02-shell-ui-toggle-sync` | PENDING | `n/a` | `pending` | `pending` | `docs/specs/work_packets/port_label_visibility/P02_shell_ui_toggle_sync_WRAPUP.md` | The View-menu toggle, Graphics Settings control, checked-state sync, and scene-rebuild-on-change behavior are not landed yet |
+| P03 Standard Node Width Policy | `codex/port-label-visibility/p03-standard-node-width-policy` | PENDING | `n/a` | `pending` | `pending` | `docs/specs/work_packets/port_label_visibility/P03_standard_node_width_policy_WRAPUP.md` | Standard-node `min_width` is still the static contract floor, and effective width does not yet expand when labels are re-enabled |
+| P04 QML Label Presentation Rollout | `codex/port-label-visibility/p04-qml-label-presentation-rollout` | PENDING | `n/a` | `pending` | `pending` | `docs/specs/work_packets/port_label_visibility/P04_qml_label_presentation_rollout_WRAPUP.md` | Expanded standard nodes still always show inline labels when not using the flowchart neutral-handle rule, and there is no tooltip-only label mode yet |

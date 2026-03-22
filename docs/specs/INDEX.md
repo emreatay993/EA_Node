@@ -67,6 +67,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 59. [FLOWCHART_CARDINAL_PORTS Status Ledger](work_packets/flowchart_cardinal_ports/FLOWCHART_CARDINAL_PORTS_STATUS.md)
 60. [NODE_INLINE_TITLES Work Packet Manifest](work_packets/node_inline_titles/NODE_INLINE_TITLES_MANIFEST.md)
 61. [NODE_INLINE_TITLES Status Ledger](work_packets/node_inline_titles/NODE_INLINE_TITLES_STATUS.md)
+62. [PORT_LABEL_VISIBILITY Work Packet Manifest](work_packets/port_label_visibility/PORT_LABEL_VISIBILITY_MANIFEST.md)
+63. [PORT_LABEL_VISIBILITY Status Ledger](work_packets/port_label_visibility/PORT_LABEL_VISIBILITY_STATUS.md)
 
 ## ADRs
 
