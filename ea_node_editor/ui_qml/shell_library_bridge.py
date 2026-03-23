@@ -23,6 +23,7 @@ class _ShellLibrarySource(Protocol):
     graph_search_query: str
     graph_search_results: list[dict[str, Any]]
     graph_search_highlight_index: int
+    graph_search_active_filters: list[str]
     connection_quick_insert_open: bool
     connection_quick_insert_overlay_x: float
     connection_quick_insert_overlay_y: float
@@ -63,6 +64,8 @@ class _ShellLibrarySource(Protocol):
     def request_graph_search_highlight(self, index: int) -> None: ...
 
     def request_graph_search_jump(self, index: int) -> bool: ...
+
+    def toggle_graph_search_filter(self, field: str) -> None: ...
 
     def set_connection_quick_insert_query(self, query: str) -> None: ...
 
