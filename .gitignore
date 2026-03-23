@@ -35,6 +35,9 @@ docs/specs/
 !docs/specs/
 docs/specs/*
 docs/specs/work_packets/
+!docs/specs/work_packets/
+!docs/specs/work_packets/project_managed_files/
+!docs/specs/work_packets/project_managed_files/**
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md
@@ -49,6 +52,7 @@ docs/specs/requirements/*
 docs/specs/perf/*
 !docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md
 !docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
+!docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md
 !docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md
 !tests/fixtures/passive_nodes/reference_flowchart.sfe
 

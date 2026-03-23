@@ -18,7 +18,12 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 10. [QA + Acceptance](requirements/90_QA_ACCEPTANCE.md)
 11. [Traceability Matrix](requirements/TRACEABILITY_MATRIX.md)
 
-Work-packet manifests and wrap-ups under `docs/specs/work_packets/` are kept local and are not published in Git.
+Selected work-packet manifests and status ledgers under `docs/specs/work_packets/` are checked in for planning and fresh-thread execution.
+
+## Tracked Work Packet Sets
+
+- [PROJECT_MANAGED_FILES Work Packet Manifest](work_packets/project_managed_files/PROJECT_MANAGED_FILES_MANIFEST.md)
+- [PROJECT_MANAGED_FILES Status Ledger](work_packets/project_managed_files/PROJECT_MANAGED_FILES_STATUS.md)
 
 ## ADRs
 
