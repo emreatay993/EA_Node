@@ -130,18 +130,76 @@ class WorkspaceViewNavOps:
         title: str,
         display_name: str,
         type_id: str,
-    ) -> int | None:
+        active_filters: list[str] | None = None,
+        port_labels: list[str] | None = None,
+        description: str = "",
+        category: str = "",
+        property_values: list[str] | None = None,
+    ) -> tuple[int, str] | None:
         if not query:
             return None
-        if title.startswith(query) or display_name.startswith(query):
-            return 0
-        if query in title or query in display_name:
-            return 1
-        if query in type_id:
-            return 2
+
+        search_all = not active_filters
+        _port_labels = port_labels or []
+        _property_values = property_values or []
+
+        if search_all or "title" in active_filters:
+            if title.startswith(query) or display_name.startswith(query):
+                return 0, "title"
+            if query in title or query in display_name:
+                return 1, "title"
+
+        if search_all or "node_type" in active_filters:
+            if query in type_id:
+                return 2, "node_type"
+
+        if search_all or "port_label" in active_filters:
+            for pl in _port_labels:
+                if query in pl:
+                    return 3, "port_label"
+
+        if search_all or "description" in active_filters:
+            if description and query in description:
+                return 4, "description"
+
+        if search_all or "category" in active_filters:
+            if category and query in category:
+                return 5, "category"
+
+        if search_all or "properties" in active_filters:
+            for pv in _property_values:
+                if query in pv:
+                    return 6, "properties"
+
         return None
 
-    def search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]:
+    @staticmethod
+    def _collect_port_labels(spec: Any, node: Any) -> list[str]:
+        labels: list[str] = []
+        for port in getattr(spec, "ports", ()):
+            label = str(getattr(port, "label", "") or getattr(port, "key", "")).lower()
+            if label:
+                labels.append(label)
+        for _key, custom_label in getattr(node, "port_labels", {}).items():
+            lowered = str(custom_label).lower()
+            if lowered:
+                labels.append(lowered)
+        return labels
+
+    @staticmethod
+    def _collect_property_values(node: Any) -> list[str]:
+        values: list[str] = []
+        for v in getattr(node, "properties", {}).values():
+            if isinstance(v, str) and v.strip():
+                values.append(v.strip().lower())
+        return values
+
+    def search_graph_nodes(
+        self,
+        query: str,
+        limit: int,
+        active_filters: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         normalized_query = str(query).strip().lower()
         if not normalized_query:
             return []
@@ -166,14 +224,26 @@ class WorkspaceViewNavOps:
                     node=node,
                     workflow_nodes=workspace.nodes,
                 )
-                rank = self.graph_search_rank(
+
+                port_labels = self._collect_port_labels(spec, node)
+                description_lower = str(getattr(spec, "description", "") or "").lower()
+                category_lower = str(getattr(spec, "category", "") or "").lower()
+                property_values = self._collect_property_values(node)
+
+                rank_result = self.graph_search_rank(
                     normalized_query,
                     title=node_title_lower,
                     display_name=display_name_lower,
                     type_id=type_id_lower,
+                    active_filters=active_filters,
+                    port_labels=port_labels,
+                    description=description_lower,
+                    category=category_lower,
+                    property_values=property_values,
                 )
-                if rank is None:
+                if rank_result is None:
                     continue
+                rank, match_field = rank_result
                 ranked.append(
                     (
                         rank,
@@ -188,6 +258,7 @@ class WorkspaceViewNavOps:
                             "instance_number": int(instance_number),
                             "instance_label": f"ID {instance_number}",
                             "type_id": type_id,
+                            "match_field": match_field,
                         },
                     )
                 )

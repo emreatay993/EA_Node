@@ -137,6 +137,10 @@ class ShellLibraryBridge(QObject):
     def graph_search_highlight_index(self) -> int:
         return int(self._library_source.graph_search_highlight_index)
 
+    @pyqtProperty("QVariantList", notify=graph_search_changed)
+    def graph_search_active_filters(self) -> list[str]:
+        return list(self._library_source.graph_search_active_filters)
+
     @pyqtProperty(bool, notify=connection_quick_insert_changed)
     def connection_quick_insert_open(self) -> bool:
         return bool(self._library_source.connection_quick_insert_open)
@@ -232,6 +236,10 @@ class ShellLibraryBridge(QObject):
     @pyqtSlot(int, result=bool)
     def request_graph_search_jump(self, index: int) -> bool:
         return bool(self._library_source.request_graph_search_jump(index))
+
+    @pyqtSlot(str)
+    def toggle_graph_search_filter(self, field: str) -> None:
+        self._library_source.toggle_graph_search_filter(field)
 
     @pyqtSlot(str)
     def set_connection_quick_insert_query(self, query: str) -> None:

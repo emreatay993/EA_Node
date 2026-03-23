@@ -32,12 +32,23 @@ class ShellRunState:
     engine_state_value: Literal["ready", "running", "paused", "error"] = "ready"
 
 
+GRAPH_SEARCH_FILTER_FIELDS: tuple[str, ...] = (
+    "title",
+    "node_type",
+    "port_label",
+    "description",
+    "category",
+    "properties",
+)
+
+
 @dataclass(slots=True)
 class GraphSearchState:
     open: bool = False
     query: str = ""
     results: list[dict[str, Any]] = field(default_factory=list)
     highlight_index: int = -1
+    active_filters: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

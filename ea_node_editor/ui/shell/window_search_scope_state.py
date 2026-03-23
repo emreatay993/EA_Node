@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Protocol
 
 from ea_node_editor.ui.shell.state import (
+    GRAPH_SEARCH_FILTER_FIELDS,
     ScopeCameraKey,
     ShellWindowSearchScopeState,
 )
@@ -40,7 +41,9 @@ class _SearchScopeHostProtocol(Protocol):
     workspace_manager: Any
     _GRAPH_SEARCH_LIMIT: int
 
-    def _search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]: ...
+    def _search_graph_nodes(
+        self, query: str, limit: int, active_filters: list[str] | None = None
+    ) -> list[dict[str, Any]]: ...
 
     def _jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool: ...
 
@@ -65,6 +68,7 @@ class WindowSearchScopeController:
         query: str | None = None,
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
+        active_filters: list[str] | None = None,
     ) -> None:
         graph_search = self._state.graph_search
         changed = False
@@ -88,6 +92,11 @@ class WindowSearchScopeController:
             if normalized_index != graph_search.highlight_index:
                 graph_search.highlight_index = normalized_index
                 changed = True
+        if active_filters is not None:
+            normalized_filters = [f for f in active_filters if f in GRAPH_SEARCH_FILTER_FIELDS]
+            if normalized_filters != graph_search.active_filters:
+                graph_search.active_filters = normalized_filters
+                changed = True
         if changed:
             self._host.graph_search_changed.emit()
 
@@ -96,9 +105,28 @@ class WindowSearchScopeController:
         if not normalized_query:
             self.set_graph_search_state(query="", results=[], highlight_index=-1)
             return
-        ranked = self._host._search_graph_nodes(normalized_query, limit=self._host._GRAPH_SEARCH_LIMIT)
+        filters = self._state.graph_search.active_filters or None
+        ranked = self._host._search_graph_nodes(
+            normalized_query,
+            limit=self._host._GRAPH_SEARCH_LIMIT,
+            active_filters=filters,
+        )
         highlight = 0 if ranked else -1
         self.set_graph_search_state(query=normalized_query, results=ranked, highlight_index=highlight)
+
+    def toggle_graph_search_filter(self, field: str) -> None:
+        normalized = str(field).strip()
+        if normalized not in GRAPH_SEARCH_FILTER_FIELDS:
+            return
+        current = list(self._state.graph_search.active_filters)
+        if normalized in current:
+            current.remove(normalized)
+        else:
+            current.append(normalized)
+        self.set_graph_search_state(active_filters=current)
+        query = self._state.graph_search.query.strip()
+        if query:
+            self.refresh_graph_search_results(query)
 
     def request_graph_search_move(self, delta: int) -> None:
         graph_search = self._state.graph_search

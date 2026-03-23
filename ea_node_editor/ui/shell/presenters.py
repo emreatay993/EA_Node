@@ -174,6 +174,10 @@ class ShellLibraryPresenter(QObject):
         return int(self._host.search_scope_state.graph_search.highlight_index)
 
     @property
+    def graph_search_active_filters(self) -> list[str]:
+        return list(self._host.search_scope_state.graph_search.active_filters)
+
+    @property
     def connection_quick_insert_open(self) -> bool:
         return bool(self._host.search_scope_state.connection_quick_insert.open)
 
@@ -266,12 +270,14 @@ class ShellLibraryPresenter(QObject):
         query: str | None = None,
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
+        active_filters: list[str] | None = None,
     ) -> None:
         self._host.search_scope_controller.set_graph_search_state(
             open_=open_,
             query=query,
             results=results,
             highlight_index=highlight_index,
+            active_filters=active_filters,
         )
 
     def _refresh_graph_search_results(self, query: str) -> None:
@@ -401,10 +407,14 @@ class ShellLibraryPresenter(QObject):
             highlight_index=-1,
             context=None,
         )
-        self._set_graph_search_state(open_=True, query="", results=[], highlight_index=-1)
+        self._set_graph_search_state(
+            open_=True, query="", results=[], highlight_index=-1, active_filters=[],
+        )
 
     def request_close_graph_search(self) -> None:
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self._set_graph_search_state(
+            open_=False, query="", results=[], highlight_index=-1, active_filters=[],
+        )
 
     def set_graph_search_query(self, query: str) -> None:
         if not self.graph_search_open:
@@ -422,6 +432,9 @@ class ShellLibraryPresenter(QObject):
 
     def request_graph_search_jump(self, index: int) -> bool:
         return bool(self._host.search_scope_controller.request_graph_search_jump(index))
+
+    def toggle_graph_search_filter(self, field: str) -> None:
+        self._host.search_scope_controller.toggle_graph_search_filter(field)
 
     def request_open_connection_quick_insert(
         self,

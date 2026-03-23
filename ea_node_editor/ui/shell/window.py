@@ -419,6 +419,10 @@ class ShellWindow(QMainWindow):
     def graph_search_highlight_index(self) -> int:
         return self.shell_library_presenter.graph_search_highlight_index
 
+    @pyqtProperty("QVariantList", notify=graph_search_changed)
+    def graph_search_active_filters(self) -> list[str]:
+        return self.shell_library_presenter.graph_search_active_filters
+
     @pyqtProperty(bool, notify=connection_quick_insert_changed)
     def connection_quick_insert_open(self) -> bool:
         return self.shell_library_presenter.connection_quick_insert_open
@@ -598,12 +602,14 @@ class ShellWindow(QMainWindow):
         query: str | None = None,
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
+        active_filters: list[str] | None = None,
     ) -> None:
         self.shell_library_presenter._set_graph_search_state(
             open_=open_,
             query=query,
             results=results,
             highlight_index=highlight_index,
+            active_filters=active_filters,
         )
 
     def _refresh_graph_search_results(self, query: str) -> None:
@@ -842,6 +848,10 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(int, result=bool)
     def request_graph_search_jump(self, index: int) -> bool:
         return bool(self.shell_library_presenter.request_graph_search_jump(index))
+
+    @pyqtSlot(str)
+    def toggle_graph_search_filter(self, field: str) -> None:
+        self.shell_library_presenter.toggle_graph_search_filter(field)
 
     @pyqtSlot(str)
     def request_add_node_from_library(self, type_id: str) -> None:
@@ -1256,8 +1266,10 @@ class ShellWindow(QMainWindow):
     def _center_on_selection(self):
         return self.workspace_library_controller.center_on_selection()
 
-    def _search_graph_nodes(self, query, limit=_GRAPH_SEARCH_LIMIT):
-        return self.workspace_library_controller.search_graph_nodes(query, limit)
+    def _search_graph_nodes(self, query, limit=_GRAPH_SEARCH_LIMIT, active_filters=None):
+        return self.workspace_library_controller.search_graph_nodes(
+            query, limit, active_filters=active_filters,
+        )
 
     def _jump_to_graph_node(self, workspace_id, node_id):
         return self.workspace_library_controller.jump_to_graph_node(workspace_id, node_id)

@@ -298,8 +298,11 @@ class WorkspaceLibraryController:
         self,
         query: str,
         limit: int = _GRAPH_SEARCH_LIMIT,
+        active_filters: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        return self.workspace_navigation_controller.search_graph_nodes(query, limit)
+        return self.workspace_navigation_controller.search_graph_nodes(
+            query, limit, active_filters=active_filters,
+        )
 
     def jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool:
         return self.workspace_navigation_controller.jump_to_graph_node(workspace_id, node_id)

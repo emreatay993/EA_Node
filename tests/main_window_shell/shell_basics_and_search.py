@@ -898,3 +898,92 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.graph_search_query, "")
         self.assertEqual(self.window.graph_search_results, [])
         self.assertEqual(self.window.graph_search_highlight_index, -1)
+
+    def test_graph_search_results_include_match_field_key(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=50.0)
+        self.window.scene.set_node_title(node_id, "MatchFieldTest")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("matchfieldtest")
+        self.app.processEvents()
+
+        results = self.window.graph_search_results
+        self.assertGreaterEqual(len(results), 1)
+        self.assertIn("match_field", results[0])
+        self.assertEqual(results[0]["match_field"], "title")
+
+    def test_graph_search_filter_toggle_updates_state_and_refilters_results(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=50.0)
+        self.window.scene.set_node_title(node_id, "FilterToggleTestNode")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.assertEqual(self.window.graph_search_active_filters, [])
+
+        self.window.toggle_graph_search_filter("title")
+        self.assertEqual(self.window.graph_search_active_filters, ["title"])
+
+        self.window.toggle_graph_search_filter("port_label")
+        self.assertEqual(self.window.graph_search_active_filters, ["title", "port_label"])
+
+        self.window.toggle_graph_search_filter("title")
+        self.assertEqual(self.window.graph_search_active_filters, ["port_label"])
+
+        self.window.set_graph_search_query("filtertoggletestnode")
+        self.app.processEvents()
+        self.assertEqual(self.window.graph_search_results, [])
+
+        self.window.toggle_graph_search_filter("port_label")
+        self.assertEqual(self.window.graph_search_active_filters, [])
+
+        self.window.set_graph_search_query("filtertoggletestnode")
+        self.app.processEvents()
+        self.assertGreaterEqual(len(self.window.graph_search_results), 1)
+
+    def test_graph_search_filter_resets_on_open_and_close(self) -> None:
+        self.window.action_graph_search.trigger()
+        self.window.toggle_graph_search_filter("category")
+        self.assertEqual(self.window.graph_search_active_filters, ["category"])
+
+        self.window.request_close_graph_search()
+        self.assertEqual(self.window.graph_search_active_filters, [])
+
+        self.window.action_graph_search.trigger()
+        self.assertEqual(self.window.graph_search_active_filters, [])
+
+    def test_graph_search_filter_by_description_finds_matching_nodes(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.logger", x=50.0, y=50.0)
+        self.window.scene.set_node_title(node_id, "MyLogger")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.toggle_graph_search_filter("description")
+
+        spec = self.window.registry.get_spec("core.logger")
+        desc = str(getattr(spec, "description", "")).lower()
+        if desc:
+            search_word = desc.split()[0] if desc.split() else ""
+            if search_word:
+                self.window.set_graph_search_query(search_word)
+                self.app.processEvents()
+                node_ids = [r["node_id"] for r in self.window.graph_search_results]
+                self.assertIn(node_id, node_ids)
+
+    def test_graph_search_filter_by_category_finds_matching_nodes(self) -> None:
+        node_id = self.window.scene.add_node_from_type("core.start", x=50.0, y=50.0)
+        self.window.scene.set_node_title(node_id, "CategoryTestNode")
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.toggle_graph_search_filter("category")
+        self.window.set_graph_search_query("core")
+        self.app.processEvents()
+
+        node_ids = [r["node_id"] for r in self.window.graph_search_results]
+        self.assertIn(node_id, node_ids)
+
+    def test_graph_search_invalid_filter_is_ignored(self) -> None:
+        self.window.action_graph_search.trigger()
+        self.window.toggle_graph_search_filter("nonexistent_field")
+        self.assertEqual(self.window.graph_search_active_filters, [])

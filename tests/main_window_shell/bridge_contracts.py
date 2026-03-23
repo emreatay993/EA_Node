@@ -62,6 +62,7 @@ class _ShellLibraryHostStub(QObject):
         self.graph_search_query = "graph search"
         self.graph_search_results = [{"node_id": "node-1"}]
         self.graph_search_highlight_index = 2
+        self.graph_search_active_filters: list[str] = ["title", "node_type"]
         self.connection_quick_insert_open = True
         self.connection_quick_insert_overlay_x = 125.5
         self.connection_quick_insert_overlay_y = 240.25
@@ -118,6 +119,9 @@ class _ShellLibraryHostStub(QObject):
 
     def request_graph_search_jump(self, index: int) -> bool:
         return bool(self._record("request_graph_search_jump", index))
+
+    def toggle_graph_search_filter(self, field: str) -> None:
+        self._record("toggle_graph_search_filter", field)
 
     def set_connection_quick_insert_query(self, query: str) -> None:
         self._record("set_connection_quick_insert_query", query)
@@ -644,6 +648,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.graph_search_query, "graph search")
         self.assertEqual(bridge.graph_search_results, host.graph_search_results)
         self.assertEqual(bridge.graph_search_highlight_index, 2)
+        self.assertEqual(bridge.graph_search_active_filters, ["title", "node_type"])
         self.assertTrue(bridge.connection_quick_insert_open)
         self.assertEqual(bridge.connection_quick_insert_overlay_x, 125.5)
         self.assertEqual(bridge.connection_quick_insert_overlay_y, 240.25)
@@ -666,6 +671,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         bridge.request_close_graph_search()
         bridge.request_graph_search_highlight(3)
         self.assertTrue(bridge.request_graph_search_jump(4))
+        bridge.toggle_graph_search_filter("port_label")
         bridge.set_connection_quick_insert_query("start")
         bridge.request_connection_quick_insert_move(1)
         self.assertTrue(bridge.request_connection_quick_insert_accept())
@@ -687,6 +693,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
                 ("request_close_graph_search", ()),
                 ("request_graph_search_highlight", (3,)),
                 ("request_graph_search_jump", (4,)),
+                ("toggle_graph_search_filter", ("port_label",)),
                 ("set_connection_quick_insert_query", ("start",)),
                 ("request_connection_quick_insert_move", (1,)),
                 ("request_connection_quick_insert_accept", ()),
