@@ -576,6 +576,324 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_expanded_flowchart_body_editor_cancels_and_closes_on_escape(self) -> None:
+        self._run_qml_probe(
+            "flowchart-body-escape-cancel-host",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+                body_editor = host.findChild(QObject, "graphNodeFlowchartBodyEditor")
+                body_field = host.findChild(QObject, "graphNodeFlowchartBodyEditorField")
+                assert body_text is not None
+                assert body_editor is not None
+                assert body_field is not None
+
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                mouse_double_click(window, item_scene_point(body_text))
+                settle_events(5)
+                assert bool(body_editor.property("visible"))
+
+                body_field.setProperty("text", "Discard this draft")
+                app.processEvents()
+                app.sendEvent(
+                    body_field,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    body_field,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+
+                assert committed == []
+                assert bool(body_text.property("visible"))
+                assert not bool(body_editor.property("visible"))
+                assert str(body_field.property("text") or "") == "Review the decision criteria and route accordingly."
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_passive_planning_body_text_double_click_commits_and_cancels_inline_edits(self) -> None:
+        self._run_qml_probe(
+            "planning-inline-body-edit-host",
+            """
+            payload = node_payload(surface_family="planning", surface_variant="decision_card")
+            payload["runtime_behavior"] = "passive"
+            payload["type_id"] = "passive.planning.decision_card"
+            payload["properties"] = {
+                "body": "Review the decision criteria and route accordingly.",
+                "state": "open",
+                "status": "open",
+                "outcome": "",
+            }
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                body_text = host.findChild(QObject, "graphNodePlanningBodyText")
+                body_editor = host.findChild(QObject, "graphNodePlanningBodyEditor")
+                body_field = host.findChild(QObject, "graphNodePlanningBodyEditorField")
+                assert body_text is not None
+                assert body_editor is not None
+                assert body_field is not None
+
+                events = host_pointer_events(host)
+                interactions = []
+                committed = []
+                host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                body_point = item_scene_point(body_text)
+                mouse_double_click(window, body_point)
+                settle_events(5)
+
+                assert bool(body_editor.property("visible"))
+                assert bool(body_field.property("activeFocus"))
+                assert str(body_field.property("text") or "") == "Review the decision criteria and route accordingly."
+                assert len(interactions) >= 1
+                assert all(node_id == "node_surface_host_test" for node_id in interactions)
+                assert events["opened"] == []
+
+                body_field.setProperty("text", "Approve path A\\nNotify the team")
+                app.processEvents()
+                events["clicked"].clear()
+                events["opened"].clear()
+                events["contexts"].clear()
+
+                mouse_click(window, host_scene_point(host, 24.0, 8.0))
+                settle_events(5)
+
+                assert committed == [("node_surface_host_test", "body", "Approve path A\\nNotify the team")]
+                assert events["opened"] == []
+                assert not bool(body_editor.property("visible"))
+                assert bool(body_text.property("visible"))
+
+                committed.clear()
+                events["clicked"].clear()
+                events["opened"].clear()
+                events["contexts"].clear()
+
+                mouse_double_click(window, body_point)
+                settle_events(5)
+                assert bool(body_editor.property("visible"))
+
+                body_field.setProperty("text", "Discard this draft")
+                app.processEvents()
+                app.sendEvent(
+                    body_field,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    body_field,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+
+                assert committed == []
+                assert not bool(body_editor.property("visible"))
+                assert bool(body_text.property("visible"))
+                assert events["opened"] == []
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_passive_annotation_body_text_double_click_edits_body_and_subtitle_inline(self) -> None:
+        self._run_qml_probe(
+            "annotation-inline-edit-host",
+            """
+            def run_annotation_case(
+                label,
+                payload,
+                text_object_name,
+                editor_object_name,
+                field_object_name,
+                key,
+                *,
+                commit_via_keyboard=False,
+            ):
+                host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+                window = attach_host_to_window(host, width=640, height=480)
+                try:
+                    text_item = host.findChild(QObject, text_object_name)
+                    editor = host.findChild(QObject, editor_object_name)
+                    field = host.findChild(QObject, field_object_name)
+                    assert text_item is not None, label
+                    assert editor is not None, label
+                    assert field is not None, label
+
+                    events = host_pointer_events(host)
+                    interactions = []
+                    committed = []
+                    host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+                    host.inlinePropertyCommitted.connect(
+                        lambda node_id, committed_key, value: committed.append((node_id, committed_key, variant_value(value)))
+                    )
+
+                    text_point = item_scene_point(text_item)
+                    mouse_double_click(window, text_point)
+                    settle_events(10 if commit_via_keyboard else 5)
+
+                    assert bool(editor.property("visible")), label
+                    assert bool(field.property("activeFocus")), label
+                    assert len(interactions) >= 1, label
+                    assert all(node_id == "node_surface_host_test" for node_id in interactions), label
+                    assert events["opened"] == [], label
+
+                    field.setProperty("text", f"Edited {label}")
+                    app.processEvents()
+                    events["clicked"].clear()
+                    events["opened"].clear()
+                    events["contexts"].clear()
+
+                    if commit_via_keyboard:
+                        app.sendEvent(
+                            field,
+                            QKeyEvent(
+                                QEvent.Type.KeyPress,
+                                Qt.Key.Key_Enter,
+                                Qt.KeyboardModifier.ControlModifier,
+                            ),
+                        )
+                        app.sendEvent(
+                            field,
+                            QKeyEvent(
+                                QEvent.Type.KeyRelease,
+                                Qt.Key.Key_Enter,
+                                Qt.KeyboardModifier.ControlModifier,
+                            ),
+                        )
+                    else:
+                        mouse_click(window, host_scene_point(host, 24.0, 8.0))
+                    settle_events(10 if commit_via_keyboard else 5)
+
+                    assert committed == [("node_surface_host_test", key, f"Edited {label}")], label
+                    assert not bool(editor.property("visible")), label
+                    assert events["opened"] == [], label
+                finally:
+                    dispose_host_window(host, window)
+
+            sticky_payload = node_payload(surface_family="annotation", surface_variant="sticky_note")
+            sticky_payload["runtime_behavior"] = "passive"
+            sticky_payload["type_id"] = "passive.annotation.sticky_note"
+            sticky_payload["properties"] = {"body": "Sticky note body"}
+            run_annotation_case(
+                "sticky-note-body",
+                sticky_payload,
+                "graphNodeAnnotationBodyText",
+                "graphNodeAnnotationBodyEditor",
+                "graphNodeAnnotationBodyEditorField",
+                "body",
+            )
+
+            section_payload = node_payload(surface_family="annotation", surface_variant="section_header")
+            section_payload["runtime_behavior"] = "passive"
+            section_payload["type_id"] = "passive.annotation.section_header"
+            section_payload["properties"] = {"subtitle": "Section subtitle"}
+            run_annotation_case(
+                "section-header-subtitle",
+                section_payload,
+                "graphNodeAnnotationSubtitleText",
+                "graphNodeAnnotationBodyEditor",
+                "graphNodeAnnotationSubtitleEditorField",
+                "subtitle",
+                commit_via_keyboard=True,
+            )
+            """,
+        )
+
+    def test_passive_planning_empty_body_area_double_click_enters_edit_and_blur_closes_without_commit(self) -> None:
+        self._run_qml_probe(
+            "planning-empty-body-inline-edit-host",
+            """
+            payload = node_payload(surface_family="planning", surface_variant="decision_card")
+            payload["runtime_behavior"] = "passive"
+            payload["type_id"] = "passive.planning.decision_card"
+            payload["properties"] = {
+                "body": "",
+                "state": "open",
+                "status": "open",
+                "outcome": "",
+            }
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                body_editor = host.findChild(QObject, "graphNodePlanningBodyEditor")
+                body_field = host.findChild(QObject, "graphNodePlanningBodyEditorField")
+                assert body_editor is not None
+                assert body_field is not None
+
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                mouse_double_click(window, item_scene_point(body_editor))
+                settle_events(5)
+
+                assert bool(body_editor.property("visible"))
+                assert bool(body_field.property("activeFocus"))
+                assert str(body_field.property("text") or "") == ""
+
+                mouse_click(window, host_scene_point(host, 24.0, 8.0))
+                settle_events(5)
+
+                assert committed == []
+                assert not bool(body_editor.property("visible"))
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
+    def test_passive_annotation_empty_body_area_double_click_enters_edit_and_blur_closes_without_commit(self) -> None:
+        self._run_qml_probe(
+            "annotation-empty-body-inline-edit-host",
+            """
+            payload = node_payload(surface_family="annotation", surface_variant="sticky_note")
+            payload["runtime_behavior"] = "passive"
+            payload["type_id"] = "passive.annotation.sticky_note"
+            payload["properties"] = {"body": ""}
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                body_editor = host.findChild(QObject, "graphNodeAnnotationBodyEditor")
+                body_field = host.findChild(QObject, "graphNodeAnnotationBodyEditorField")
+                assert body_editor is not None
+                assert body_field is not None
+
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                mouse_double_click(window, item_scene_point(body_editor))
+                settle_events(5)
+
+                assert bool(body_editor.property("visible"))
+                assert bool(body_field.property("activeFocus"))
+                assert str(body_field.property("text") or "") == ""
+
+                mouse_click(window, host_scene_point(host, 24.0, 8.0))
+                settle_events(5)
+
+                assert committed == []
+                assert not bool(body_editor.property("visible"))
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
     def test_collapsed_flowchart_keeps_compact_header_title_behavior(self) -> None:
         self._run_qml_probe(
             "flowchart-collapsed-title-host",

@@ -1,4 +1,6 @@
 import QtQuick 2.15
+import "../surface_controls" as SurfaceControls
+import "../GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 
 Item {
     id: surface
@@ -21,6 +23,22 @@ Item {
     readonly property string subtitleValue: _value("subtitle")
     readonly property real bodyFontSize: host ? Number(host.passiveFontPixelSize || 12) : 12
     readonly property real labelFontSize: Math.max(9, bodyFontSize - 2)
+    readonly property string editableBodyKey: annotationVariant === "section_header" ? "subtitle" : "body"
+    readonly property string editableBodyValue: annotationVariant === "section_header" ? subtitleValue : bodyValue
+    readonly property int bodyEditorLineCount: annotationVariant === "section_header"
+        ? 2
+        : (annotationVariant === "sticky_note" ? 5 : 4)
+    readonly property real bodyEditorHeight: Math.max(
+        bodyFontSize * bodyEditorLineCount * 1.45,
+        bodyFontSize + 12
+    )
+    readonly property var embeddedInteractiveRects: bodyEditor.visible
+        ? bodyEditor.embeddedInteractiveRects
+        : (annotationVariant === "section_header"
+            ? sectionSubtitleDoubleClickTarget.embeddedInteractiveRects
+            : [])
+    property bool editingBody: false
+    property bool bodyEditGestureArmed: false
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     function _value(key) {
@@ -38,6 +56,78 @@ Item {
         if (annotationVariant === "callout")
             return Qt.darker(host ? host.inlineRowColor : "#24262c", 1.04);
         return Qt.lighter(host ? host.inlineRowColor : "#24262c", 1.08);
+    }
+
+    function _beginInteraction() {
+        if (host && host.nodeData)
+            host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
+    }
+
+    function _beginBodyEdit() {
+        if (surface.editingBody)
+            return true;
+        if (!host || !host.nodeData)
+            return false;
+        surface.editingBody = true;
+        surface.bodyEditGestureArmed = true;
+        surface._beginInteraction();
+        Qt.callLater(function() {
+            bodyEditor.syncDraftToCommitted();
+            bodyEditor.activateEditor();
+            Qt.callLater(function() {
+                surface.bodyEditGestureArmed = false;
+            });
+        });
+        return true;
+    }
+
+    function _commitBody(value) {
+        var nextValue = String(value === undefined || value === null ? "" : value);
+        if (surface.bodyEditGestureArmed && nextValue === surface._value(surface.editableBodyKey))
+            return;
+        if (nextValue === surface._value(surface.editableBodyKey)) {
+            surface.bodyEditGestureArmed = false;
+            surface.editingBody = false;
+            return;
+        }
+        if (host && host.nodeData)
+            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), surface.editableBodyKey, nextValue);
+        surface.bodyEditGestureArmed = false;
+        surface.editingBody = false;
+    }
+
+    function _cancelBodyEdit() {
+        bodyEditor.resetDraft();
+        surface.bodyEditGestureArmed = false;
+        surface.editingBody = false;
+    }
+
+    function requestInlineEditAt(localX, localY) {
+        if (surface.editingBody)
+            return GraphNodeHostHitTesting.pointInRect(localX, localY, bodyEditorInteractionRegion.interactiveRect);
+        if (annotationVariant === "section_header") {
+            if (GraphNodeHostHitTesting.pointInRect(localX, localY, bodyDisplayInteractionRegion.interactiveRect))
+                return surface._beginBodyEdit();
+            if (GraphNodeHostHitTesting.pointInRect(localX, localY, bodyBounds))
+                return surface._beginBodyEdit();
+            return false;
+        }
+        if (GraphNodeHostHitTesting.pointInRect(localX, localY, bodyDisplayInteractionRegion.interactiveRect))
+            return surface._beginBodyEdit();
+        if (GraphNodeHostHitTesting.pointInRect(localX, localY, emptyBodyInteractionRegion.interactiveRect))
+            return surface._beginBodyEdit();
+        return false;
+    }
+
+    function commitInlineEditFromExternalInteraction(localX, localY) {
+        if (!surface.editingBody)
+            return false;
+        if (surface.bodyEditGestureArmed)
+            return false;
+        if (GraphNodeHostHitTesting.pointInRect(localX, localY, bodyEditorInteractionRegion.interactiveRect))
+            return false;
+        surface._commitBody(bodyEditor.draftText);
+        return true;
     }
 
     Rectangle {
@@ -134,9 +224,11 @@ Item {
         }
 
             Text {
+                id: annotationBodyText
                 objectName: "graphNodeAnnotationBodyText"
                 property int effectiveRenderType: renderType
-                visible: annotationVariant !== "section_header" && surface.bodyValue.length > 0
+                enabled: false
+                visible: annotationVariant !== "section_header" && surface.bodyValue.length > 0 && !surface.editingBody
                 width: parent.width
                 text: surface.bodyValue
                 color: surface.primaryTextColor
@@ -149,7 +241,10 @@ Item {
             }
 
             Text {
-                visible: annotationVariant === "section_header" && surface.subtitleValue.length > 0
+                id: sectionSubtitleText
+                objectName: "graphNodeAnnotationSubtitleText"
+                enabled: false
+                visible: annotationVariant === "section_header" && surface.subtitleValue.length > 0 && !surface.editingBody
                 width: parent.width
                 text: surface.subtitleValue
                 color: surface.secondaryTextColor
@@ -159,6 +254,82 @@ Item {
                 elide: Text.ElideRight
                 renderType: host ? host.nodeTextRenderType : Text.CurveRendering
             }
+
+            SurfaceControls.GraphSurfaceInlineTextEditor {
+                id: bodyEditor
+                objectName: "graphNodeAnnotationBodyEditor"
+                visible: surface.editingBody
+                width: parent.width
+                height: Math.min(bodyBounds.height, surface.bodyEditorHeight)
+                host: surface.host
+                committedText: surface.editableBodyValue
+                fontPixelSize: surface.bodyFontSize
+                fontBold: host ? Boolean(host.passiveFontBold) : false
+                textColor: surface.annotationVariant === "section_header"
+                    ? surface.secondaryTextColor
+                    : surface.primaryTextColor
+                fieldObjectName: surface.annotationVariant === "section_header"
+                    ? "graphNodeAnnotationSubtitleEditorField"
+                    : "graphNodeAnnotationBodyEditorField"
+                centerTextVertically: surface.annotationVariant === "section_header"
+                commitOnFocusLoss: surface.annotationVariant !== "section_header"
+                onControlStarted: surface._beginInteraction()
+                onCommitRequested: function(value) {
+                    surface._commitBody(value);
+                }
+                onCancelRequested: {
+                    surface._cancelBodyEdit();
+                }
+            }
+        }
+
+        SurfaceControls.GraphSurfaceInteractiveRegion {
+            id: bodyDisplayInteractionRegion
+            host: surface.host
+            targetItem: surface.annotationVariant === "section_header" ? sectionSubtitleText : annotationBodyText
+            enabled: !surface.editingBody
+                && (surface.annotationVariant === "section_header"
+                    ? sectionSubtitleText.visible
+                    : annotationBodyText.visible)
+        }
+
+        SurfaceControls.GraphSurfaceInteractiveRegion {
+            id: emptyBodyInteractionRegion
+            host: surface.host
+            targetItem: bodyBounds
+            enabled: !surface.editingBody
+                && surface.annotationVariant !== "section_header"
+                && surface.bodyValue.length === 0
+        }
+
+        SurfaceControls.GraphSurfaceInteractiveRegion {
+            id: bodyEditorInteractionRegion
+            host: surface.host
+            targetItem: surface.annotationVariant === "section_header" ? bodyBounds : bodyEditor
+            enabled: surface.editingBody
         }
     }
+
+    SurfaceControls.GraphSurfaceDoubleClickTarget {
+        id: sectionSubtitleDoubleClickTarget
+        host: surface.host
+        targetItem: sectionSubtitleText
+        enabled: annotationVariant === "section_header"
+            && sectionSubtitleText.visible
+            && !surface.editingBody
+    }
+
+    Connections {
+        target: sectionSubtitleDoubleClickTarget
+
+        function onClicked() {
+            if (surface.host && surface.host.nodeData)
+                surface.host.nodeClicked(String(surface.host.nodeData.node_id || ""), false);
+        }
+
+        function onDoubleClicked() {
+            surface._beginBodyEdit();
+        }
+    }
+
 }

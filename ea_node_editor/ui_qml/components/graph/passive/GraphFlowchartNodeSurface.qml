@@ -63,8 +63,13 @@ Item {
     }
 
     function _commitBody(value) {
+        var nextValue = String(value === undefined || value === null ? "" : value);
+        if (nextValue === surface._propertyText("body")) {
+            surface.editingBody = false;
+            return;
+        }
         if (host && host.nodeData)
-            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), "body", value);
+            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), "body", nextValue);
         surface.editingBody = false;
     }
 
@@ -167,27 +172,25 @@ Item {
             enabled: flowchartBodyText.visible
         }
 
-        SurfaceControls.GraphSurfaceTextareaEditor {
+        SurfaceControls.GraphSurfaceInlineTextEditor {
             id: bodyEditor
             objectName: "graphNodeFlowchartBodyEditor"
+            anchors.fill: parent
             visible: surface.editingBody
-            width: parent.width
             host: surface.host
-            propertyKey: "body"
             committedText: surface._propertyText("body")
-            showActionButtons: false
-            fieldFont.pixelSize: surface.bodyFontSize
-            fieldFont.bold: surface.bodyFontBold
+            fontPixelSize: surface.bodyFontSize
+            fontBold: surface.bodyFontBold
+            textColor: surface.bodyTextColor
             fieldObjectName: "graphNodeFlowchartBodyEditorField"
-            applyButtonObjectName: "graphNodeFlowchartBodyApplyButton"
-            resetButtonObjectName: "graphNodeFlowchartBodyResetButton"
+            horizontalAlignment: TextInput.AlignHCenter
+            centerTextVertically: true
             onControlStarted: surface._beginInteraction()
             onCommitRequested: function(value) {
                 surface._commitBody(value);
             }
-            Keys.onEscapePressed: function(event) {
+            onCancelRequested: {
                 surface._cancelBodyEdit();
-                event.accepted = true;
             }
         }
 

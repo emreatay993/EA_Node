@@ -1,4 +1,6 @@
 import QtQuick 2.15
+import "../surface_controls" as SurfaceControls
+import "../GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 
 Item {
     id: surface
@@ -32,6 +34,14 @@ Item {
     readonly property real bodyFontSize: host ? Number(host.passiveFontPixelSize || 12) : 12
     readonly property real metaFontSize: Math.max(9, bodyFontSize - 2)
     readonly property real chipFontSize: Math.max(9, bodyFontSize - 3)
+    readonly property real bodyEditorHeight: Math.max(
+        bodyFontSize * (planningVariant === "milestone_card" ? 4.5 : 5.5),
+        bodyFontSize + 12
+    )
+    readonly property var embeddedInteractiveRects: bodyEditor.visible
+        ? bodyEditor.embeddedInteractiveRects
+        : []
+    property bool editingBody: false
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     function _value(key) {
@@ -146,6 +156,60 @@ Item {
         }
     }
 
+    function _beginInteraction() {
+        if (host && host.nodeData)
+            host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
+    }
+
+    function _beginBodyEdit() {
+        if (surface.editingBody)
+            return true;
+        if (!host || !host.nodeData)
+            return false;
+        surface.editingBody = true;
+        surface._beginInteraction();
+        Qt.callLater(function() {
+            bodyEditor.syncDraftToCommitted();
+            bodyEditor.activateEditor();
+        });
+        return true;
+    }
+
+    function _commitBody(value) {
+        var nextValue = String(value === undefined || value === null ? "" : value);
+        if (nextValue === surface.bodyValue) {
+            surface.editingBody = false;
+            return;
+        }
+        if (host && host.nodeData)
+            host.inlinePropertyCommitted(String(host.nodeData.node_id || ""), "body", nextValue);
+        surface.editingBody = false;
+    }
+
+    function _cancelBodyEdit() {
+        bodyEditor.resetDraft();
+        surface.editingBody = false;
+    }
+
+    function requestInlineEditAt(localX, localY) {
+        if (surface.editingBody)
+            return GraphNodeHostHitTesting.pointInRect(localX, localY, bodyEditorInteractionRegion.interactiveRect);
+        if (GraphNodeHostHitTesting.pointInRect(localX, localY, bodyDisplayInteractionRegion.interactiveRect))
+            return surface._beginBodyEdit();
+        if (GraphNodeHostHitTesting.pointInRect(localX, localY, emptyBodyInteractionRegion.interactiveRect))
+            return surface._beginBodyEdit();
+        return false;
+    }
+
+    function commitInlineEditFromExternalInteraction(localX, localY) {
+        if (!surface.editingBody)
+            return false;
+        if (GraphNodeHostHitTesting.pointInRect(localX, localY, bodyEditorInteractionRegion.interactiveRect))
+            return false;
+        surface._commitBody(bodyEditor.draftText);
+        return true;
+    }
+
     Rectangle {
         anchors.fill: parent
         radius: host ? Number(host.resolvedCornerRadius || 6) : 6
@@ -171,6 +235,7 @@ Item {
             spacing: 8
 
             Row {
+                id: headerRow
                 width: parent.width
                 spacing: 8
 
@@ -212,9 +277,10 @@ Item {
             }
 
             Text {
+                id: planningBodyText
                 objectName: "graphNodePlanningBodyText"
                 property int effectiveRenderType: renderType
-                visible: surface.bodyValue.length > 0
+                visible: surface.bodyValue.length > 0 && !surface.editingBody
                 width: parent.width
                 text: surface.bodyValue
                 color: surface.bodyTextColor
@@ -224,6 +290,27 @@ Item {
                 maximumLineCount: surface.planningVariant === "milestone_card" ? 4 : 5
                 elide: Text.ElideRight
                 renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+            }
+
+            SurfaceControls.GraphSurfaceInlineTextEditor {
+                id: bodyEditor
+                objectName: "graphNodePlanningBodyEditor"
+                visible: surface.editingBody
+                width: parent.width
+                height: Math.min(bodyBounds.height, surface.bodyEditorHeight)
+                host: surface.host
+                committedText: surface.bodyValue
+                fontPixelSize: surface.bodyFontSize
+                fontBold: host ? Boolean(host.passiveFontBold) : false
+                textColor: surface.bodyTextColor
+                fieldObjectName: "graphNodePlanningBodyEditorField"
+                onControlStarted: surface._beginInteraction()
+                onCommitRequested: function(value) {
+                    surface._commitBody(value);
+                }
+                onCancelRequested: {
+                    surface._cancelBodyEdit();
+                }
             }
 
             Row {
@@ -306,6 +393,37 @@ Item {
                     renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                 }
             }
+        }
+
+        SurfaceControls.GraphSurfaceInteractiveRegion {
+            id: bodyDisplayInteractionRegion
+            host: surface.host
+            targetItem: planningBodyText
+            enabled: !surface.editingBody && planningBodyText.visible
+        }
+
+        Item {
+            id: emptyBodyInteractionTarget
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: headerRow.bottom
+            anchors.topMargin: 8
+            height: Math.max(surface.bodyFontSize + 12, surface.bodyFontSize * 2.5)
+            visible: !surface.editingBody && surface.bodyValue.length === 0
+        }
+
+        SurfaceControls.GraphSurfaceInteractiveRegion {
+            id: emptyBodyInteractionRegion
+            host: surface.host
+            targetItem: emptyBodyInteractionTarget
+            enabled: emptyBodyInteractionTarget.visible
+        }
+
+        SurfaceControls.GraphSurfaceInteractiveRegion {
+            id: bodyEditorInteractionRegion
+            host: surface.host
+            targetItem: bodyEditor
+            enabled: bodyEditor.visible
         }
     }
 }
