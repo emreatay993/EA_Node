@@ -318,7 +318,8 @@ When you change verification docs or packet-owned proof links, audit them with:
 ```
 
 - The current architecture/docs closeout evidence is summarized in
-  `docs/specs/work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md`.
+  `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
+  `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - `fast` targets `pytest -m "not gui and not slow"` and, when
   `pytest-xdist` is available in the project venv, resolves an explicit worker
   count as `psutil.cpu_count(logical=True)`, else `os.cpu_count()`, else `1`,
@@ -390,7 +391,7 @@ Regenerate the committed app icon asset set with:
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
-- [ARCH_SIXTH_PASS QA Matrix](docs/specs/work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md) -- accepted sixth-pass packet outcomes, closeout verification anchors, refreshed traceability evidence, and carried residual risks
+- Work-packet docs under `docs/specs/work_packets/` are local-only and are not published in Git
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 

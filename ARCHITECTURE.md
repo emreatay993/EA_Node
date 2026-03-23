@@ -126,7 +126,7 @@ Design intent:
 
 ## Verification and traceability closure
 
-- `docs/specs/work_packets/arch_sixth_pass/ARCH_SIXTH_PASS_QA_MATRIX.md` records the accepted packet outcomes, approved verification anchors, traceability evidence, and carried-forward residual risks for `ARCH_SIXTH_PASS`.
+- The public closeout snapshot lives in `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, packet-owned doc anchors, and the declarative fact sets consumed by both `scripts/run_verification.py` and `scripts/check_traceability.py`.
 - The P12 closeout sweep reruns `./venv/Scripts/python.exe scripts/check_traceability.py` and `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` in the project venv so the published architecture/docs state stays aligned with the landed code.
 

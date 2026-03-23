@@ -89,8 +89,9 @@
   packet-owned proof layer in `README.md`, `docs/GETTING_STARTED.md`,
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`, and the packet-owned docs
   under `docs/specs/perf/`.
-- The current closeout evidence for those proof layers is summarized in
-  `docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md`.
+- The current public closeout evidence for those proof layers is summarized in
+  `README.md`, `docs/GETTING_STARTED.md`, and
+  `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - Run the checker after editing verification docs, archived QA evidence
   summaries, or packet-owned traceability references.
 
@@ -100,10 +101,10 @@
   passed on `2026-03-18`, so the earlier passive image-panel serializer caveat
   is retired.
 - No known out-of-scope verification baseline failures remain in this matrix.
-  `docs/specs/work_packets/arch_fifth_pass/ARCH_FIFTH_PASS_QA_MATRIX.md`
-  records the current closeout evidence and carried-forward residual risks. If
-  a new environment-specific failure appears, record it here before claiming
-  the aggregate workflow is fully green.
+  This document plus `docs/specs/requirements/TRACEABILITY_MATRIX.md` carry
+  the current public closeout evidence and residual-risk summary. If a new
+  environment-specific failure appears, record it here before claiming the
+  aggregate workflow is fully green.
 
 ## 2026-03-18 Verification Results
 

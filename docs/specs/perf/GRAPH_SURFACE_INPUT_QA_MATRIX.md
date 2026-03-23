@@ -44,7 +44,7 @@
 
 ## Result Recording
 
-- Record the exact pass counts and fallback usage in `docs/specs/work_packets/graph_surface_input/GRAPH_SURFACE_INPUT_STATUS.md`.
+- Record the exact pass counts and fallback usage in this matrix and any local work-packet notes you keep outside Git.
 - `scripts/check_traceability.py` validates that this matrix remains linked from
   the packet-owned onboarding and traceability docs.
 - If a future environment reintroduces wrapper instability, rerun the three
