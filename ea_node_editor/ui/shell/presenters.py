@@ -13,6 +13,7 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_TYPE_ID,
 )
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.ui.shell.state import GRAPH_SEARCH_SCOPE_IDS
 from ea_node_editor.ui.graph_theme import (
     resolve_graph_theme_id,
     serialize_custom_graph_themes,
@@ -166,6 +167,10 @@ class ShellLibraryPresenter(QObject):
         return self._host.search_scope_state.graph_search.query
 
     @property
+    def graph_search_enabled_scopes(self) -> list[str]:
+        return list(self._host.search_scope_state.graph_search.enabled_scopes)
+
+    @property
     def graph_search_results(self) -> list[dict[str, Any]]:
         return list(self._host.search_scope_state.graph_search.results)
 
@@ -264,12 +269,14 @@ class ShellLibraryPresenter(QObject):
         *,
         open_: bool | None = None,
         query: str | None = None,
+        enabled_scopes: list[str] | None = None,
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
     ) -> None:
         self._host.search_scope_controller.set_graph_search_state(
             open_=open_,
             query=query,
+            enabled_scopes=enabled_scopes,
             results=results,
             highlight_index=highlight_index,
         )
@@ -401,15 +408,32 @@ class ShellLibraryPresenter(QObject):
             highlight_index=-1,
             context=None,
         )
-        self._set_graph_search_state(open_=True, query="", results=[], highlight_index=-1)
+        self._set_graph_search_state(
+            open_=True,
+            query="",
+            enabled_scopes=list(GRAPH_SEARCH_SCOPE_IDS),
+            results=[],
+            highlight_index=-1,
+        )
 
     def request_close_graph_search(self) -> None:
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self._set_graph_search_state(
+            open_=False,
+            query="",
+            enabled_scopes=list(GRAPH_SEARCH_SCOPE_IDS),
+            results=[],
+            highlight_index=-1,
+        )
 
     def set_graph_search_query(self, query: str) -> None:
         if not self.graph_search_open:
             return
         self._refresh_graph_search_results(query)
+
+    def set_graph_search_scope_enabled(self, scope_id: str, enabled: bool) -> None:
+        if not self.graph_search_open:
+            return
+        self._host.search_scope_controller.set_graph_search_scope_enabled(scope_id, enabled)
 
     def request_graph_search_move(self, delta: int) -> None:
         self._host.search_scope_controller.request_graph_search_move(delta)
@@ -439,7 +463,13 @@ class ShellLibraryPresenter(QObject):
         context["scene_y"] = float(scene_y)
         context["overlay_x"] = float(overlay_x)
         context["overlay_y"] = float(overlay_y)
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self._set_graph_search_state(
+            open_=False,
+            query="",
+            enabled_scopes=list(GRAPH_SEARCH_SCOPE_IDS),
+            results=[],
+            highlight_index=-1,
+        )
         self._set_connection_quick_insert_state(
             open_=True,
             query="",
@@ -474,7 +504,13 @@ class ShellLibraryPresenter(QObject):
             "overlay_x": float(overlay_x),
             "overlay_y": float(overlay_y),
         }
-        self._set_graph_search_state(open_=False, query="", results=[], highlight_index=-1)
+        self._set_graph_search_state(
+            open_=False,
+            query="",
+            enabled_scopes=list(GRAPH_SEARCH_SCOPE_IDS),
+            results=[],
+            highlight_index=-1,
+        )
         self._set_connection_quick_insert_state(
             open_=True,
             query="",

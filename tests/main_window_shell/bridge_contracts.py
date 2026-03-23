@@ -60,6 +60,7 @@ class _ShellLibraryHostStub(QObject):
         ]
         self.graph_search_open = True
         self.graph_search_query = "graph search"
+        self.graph_search_enabled_scopes = ["title", "type", "content", "port"]
         self.graph_search_results = [{"node_id": "node-1"}]
         self.graph_search_highlight_index = 2
         self.connection_quick_insert_open = True
@@ -103,6 +104,9 @@ class _ShellLibraryHostStub(QObject):
 
     def set_graph_search_query(self, query: str) -> None:
         self._record("set_graph_search_query", query)
+
+    def set_graph_search_scope_enabled(self, scope_id: str, enabled: bool) -> None:
+        self._record("set_graph_search_scope_enabled", scope_id, enabled)
 
     def request_graph_search_move(self, delta: int) -> None:
         self._record("request_graph_search_move", delta)
@@ -643,6 +647,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.grouped_node_library_items, host.grouped_node_library_items)
         self.assertTrue(bridge.graph_search_open)
         self.assertEqual(bridge.graph_search_query, "graph search")
+        self.assertEqual(bridge.graph_search_enabled_scopes, host.graph_search_enabled_scopes)
         self.assertEqual(bridge.graph_search_results, host.graph_search_results)
         self.assertEqual(bridge.graph_search_highlight_index, 2)
         self.assertTrue(bridge.connection_quick_insert_open)
@@ -662,6 +667,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         self.assertTrue(bridge.request_set_custom_workflow_scope("wf-scope", "local"))
         self.assertTrue(bridge.request_delete_custom_workflow_from_library("wf-delete", "global"))
         bridge.set_graph_search_query("duplicate")
+        bridge.set_graph_search_scope_enabled("content", False)
         bridge.request_graph_search_move(-1)
         self.assertTrue(bridge.request_graph_search_accept())
         bridge.request_close_graph_search()
@@ -683,6 +689,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
                 ("request_set_custom_workflow_scope", ("wf-scope", "local")),
                 ("request_delete_custom_workflow_from_library", ("wf-delete", "global")),
                 ("set_graph_search_query", ("duplicate",)),
+                ("set_graph_search_scope_enabled", ("content", False)),
                 ("request_graph_search_move", (-1,)),
                 ("request_graph_search_accept", ()),
                 ("request_close_graph_search", ()),

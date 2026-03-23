@@ -147,7 +147,7 @@ flowchart LR
     MS --> GC[GraphCanvas.qml orchestrator]
     MS --> SW[ShellWindow facade]
     MS --> GSD[GraphicsSettingsDialog]
-    MS --> GSO[GraphSearchOverlay title/type search]
+    MS --> GSO[GraphSearchOverlay scoped graph search]
     MS --> CQI[ConnectionQuickInsertOverlay]
     MS --> INS[InspectorPane user-facing IDs]
 
@@ -249,7 +249,7 @@ flowchart TD
     I --> J[Switch workspace and restore view and scope camera]
     J --> K[QML renders nodes_model, edges_model, minimap payloads, scope breadcrumbs, user-facing node labels, ThemeBridge chrome palettes, and graphThemeBridge node/edge palettes]
 
-    K --> L[User edits graph, searches by title or type, navigates scope, or opens Graphics Settings]
+    K --> L[User edits graph, runs scoped graph search, navigates scope, or opens Graphics Settings]
     L --> M[GraphCanvas input/context layers dispatch request_* calls to ShellWindow]
     M --> N[ShellWindow delegates to WorkspaceLibraryController and scope/search helpers]
     M --> NQ[Optional dangling wire release opens quick insert]

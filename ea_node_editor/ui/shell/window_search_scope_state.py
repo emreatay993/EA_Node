@@ -6,6 +6,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 from ea_node_editor.ui.shell.state import (
     ScopeCameraKey,
     ShellWindowSearchScopeState,
+    normalize_graph_search_scope_id,
+    normalize_graph_search_scopes,
 )
 
 if TYPE_CHECKING:
@@ -40,7 +42,12 @@ class _SearchScopeHostProtocol(Protocol):
     workspace_manager: Any
     _GRAPH_SEARCH_LIMIT: int
 
-    def _search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]: ...
+    def _search_graph_nodes(
+        self,
+        query: str,
+        limit: int,
+        enabled_scopes: list[str] | None = None,
+    ) -> list[dict[str, Any]]: ...
 
     def _jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool: ...
 
@@ -63,6 +70,7 @@ class WindowSearchScopeController:
         *,
         open_: bool | None = None,
         query: str | None = None,
+        enabled_scopes: list[str] | None = None,
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
     ) -> None:
@@ -78,6 +86,11 @@ class WindowSearchScopeController:
             if normalized_query != graph_search.query:
                 graph_search.query = normalized_query
                 changed = True
+        if enabled_scopes is not None:
+            normalized_scopes = normalize_graph_search_scopes(enabled_scopes)
+            if normalized_scopes != graph_search.enabled_scopes:
+                graph_search.enabled_scopes = normalized_scopes
+                changed = True
         if results is not None:
             normalized_results = list(results)
             if normalized_results != graph_search.results:
@@ -92,11 +105,16 @@ class WindowSearchScopeController:
             self._host.graph_search_changed.emit()
 
     def refresh_graph_search_results(self, query: str) -> None:
+        graph_search = self._state.graph_search
         normalized_query = str(query).strip()
         if not normalized_query:
             self.set_graph_search_state(query="", results=[], highlight_index=-1)
             return
-        ranked = self._host._search_graph_nodes(normalized_query, limit=self._host._GRAPH_SEARCH_LIMIT)
+        ranked = self._host._search_graph_nodes(
+            normalized_query,
+            limit=self._host._GRAPH_SEARCH_LIMIT,
+            enabled_scopes=graph_search.enabled_scopes,
+        )
         highlight = 0 if ranked else -1
         self.set_graph_search_state(query=normalized_query, results=ranked, highlight_index=highlight)
 
@@ -148,6 +166,24 @@ class WindowSearchScopeController:
             return False
         self.set_graph_search_state(highlight_index=normalized)
         return bool(self.request_graph_search_accept())
+
+    def set_graph_search_scope_enabled(self, scope_id: str, enabled: bool) -> None:
+        graph_search = self._state.graph_search
+        normalized_scope_id = normalize_graph_search_scope_id(scope_id)
+        if normalized_scope_id is None:
+            return
+        enabled_scopes = list(graph_search.enabled_scopes)
+        if enabled:
+            if normalized_scope_id in enabled_scopes:
+                return
+            enabled_scopes.append(normalized_scope_id)
+            self.set_graph_search_state(enabled_scopes=enabled_scopes)
+        else:
+            if normalized_scope_id not in enabled_scopes or len(enabled_scopes) <= 1:
+                return
+            enabled_scopes = [scope for scope in enabled_scopes if scope != normalized_scope_id]
+            self.set_graph_search_state(enabled_scopes=enabled_scopes)
+        self.refresh_graph_search_results(graph_search.query)
 
     def active_scope_camera_key(
         self,

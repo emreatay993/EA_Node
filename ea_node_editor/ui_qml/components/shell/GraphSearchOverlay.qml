@@ -4,8 +4,47 @@ import QtQuick.Layouts 1.15
 
 Rectangle {
     id: root
+    objectName: "graphSearchOverlay"
     readonly property var shellLibraryBridgeRef: shellLibraryBridge
     readonly property var themePalette: themeBridge.palette
+    readonly property var graphSearchScopeOptions: [
+        { "scopeId": "title", "label": "Title" },
+        { "scopeId": "type", "label": "Node Type" },
+        { "scopeId": "content", "label": "Content" },
+        { "scopeId": "port", "label": "Port Label" }
+    ]
+    readonly property bool hasSubsetFilter: root.shellLibraryBridgeRef.graph_search_enabled_scopes.length
+        < root.graphSearchScopeOptions.length
+
+    function graphSearchScopeEnabled(scopeId) {
+        return root.shellLibraryBridgeRef.graph_search_enabled_scopes.indexOf(scopeId) >= 0
+    }
+
+    function graphSearchFilterTooltip() {
+        if (root.shellLibraryBridgeRef.graph_search_enabled_scopes.length === root.graphSearchScopeOptions.length)
+            return "Search fields: All"
+        var activeLabels = []
+        for (var index = 0; index < root.graphSearchScopeOptions.length; ++index) {
+            var option = root.graphSearchScopeOptions[index]
+            if (root.graphSearchScopeEnabled(option.scopeId))
+                activeLabels.push(option.label)
+        }
+        return "Search fields: " + activeLabels.join(", ")
+    }
+
+    function graphSearchMatchSummary(modelData) {
+        var summary = String(modelData.workspace_name || "")
+            + "  |  "
+            + String(modelData.display_name || "")
+            + "  |  "
+            + String(modelData.instance_label || "")
+            + "  |  Match: "
+            + String(modelData.match_label || "")
+        var matchScope = String(modelData.match_scope || "")
+        if ((matchScope === "content" || matchScope === "port") && String(modelData.match_preview || "").length > 0)
+            summary += "  |  " + String(modelData.match_preview || "")
+        return summary
+    }
 
     visible: root.shellLibraryBridgeRef.graph_search_open
     anchors.horizontalCenter: parent.horizontalCenter
@@ -21,8 +60,10 @@ Rectangle {
     activeFocusOnTab: visible
 
     onVisibleChanged: {
-        if (!visible)
+        if (!visible) {
+            graphSearchFilterPopup.close()
             return
+        }
         Qt.callLater(function() {
             graphSearchField.forceActiveFocus()
             graphSearchField.selectAll()
@@ -66,40 +107,156 @@ Rectangle {
             }
         }
 
-        TextField {
-            id: graphSearchField
+        Row {
+            id: graphSearchFieldRow
             width: parent.width
-            placeholderText: "Search title or node type"
-            text: root.shellLibraryBridgeRef.graph_search_query
-            selectByMouse: true
-            color: root.themePalette.input_fg
-            placeholderTextColor: root.themePalette.muted_fg
-            Keys.priority: Keys.BeforeItem
-            background: Rectangle {
-                color: root.themePalette.input_bg
-                border.color: root.themePalette.input_border
-                radius: 4
+            spacing: 6
+
+            TextField {
+                id: graphSearchField
+                objectName: "graphSearchField"
+                width: parent.width - graphSearchFilterButton.width - graphSearchFieldRow.spacing
+                placeholderText: "Search graph titles, types, content, or ports"
+                text: root.shellLibraryBridgeRef.graph_search_query
+                selectByMouse: true
+                color: root.themePalette.input_fg
+                placeholderTextColor: root.themePalette.muted_fg
+                Keys.priority: Keys.BeforeItem
+                background: Rectangle {
+                    color: root.themePalette.input_bg
+                    border.color: root.themePalette.input_border
+                    radius: 4
+                }
+                onTextChanged: root.shellLibraryBridgeRef.set_graph_search_query(text)
+                Keys.onPressed: function(event) {
+                    if (event.key === Qt.Key_Up) {
+                        root.shellLibraryBridgeRef.request_graph_search_move(-1)
+                        event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_Down) {
+                        root.shellLibraryBridgeRef.request_graph_search_move(1)
+                        event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
+                        root.shellLibraryBridgeRef.request_graph_search_accept()
+                        event.accepted = true
+                        return
+                    }
+                    if (event.key === Qt.Key_Escape) {
+                        root.shellLibraryBridgeRef.request_close_graph_search()
+                        event.accepted = true
+                    }
+                }
             }
-            onTextChanged: root.shellLibraryBridgeRef.set_graph_search_query(text)
-            Keys.onPressed: function(event) {
-                if (event.key === Qt.Key_Up) {
-                    root.shellLibraryBridgeRef.request_graph_search_move(-1)
-                    event.accepted = true
-                    return
+
+            ShellButton {
+                id: graphSearchFilterButton
+                objectName: "graphSearchFilterButton"
+                anchors.verticalCenter: graphSearchField.verticalCenter
+                iconName: "filter"
+                selectedStyle: root.hasSubsetFilter
+                tooltipText: root.graphSearchFilterTooltip()
+                onClicked: {
+                    if (graphSearchFilterPopup.visible)
+                        graphSearchFilterPopup.close()
+                    else
+                        graphSearchFilterPopup.open()
                 }
-                if (event.key === Qt.Key_Down) {
-                    root.shellLibraryBridgeRef.request_graph_search_move(1)
-                    event.accepted = true
-                    return
-                }
-                if (event.key === Qt.Key_Enter || event.key === Qt.Key_Return) {
-                    root.shellLibraryBridgeRef.request_graph_search_accept()
-                    event.accepted = true
-                    return
-                }
-                if (event.key === Qt.Key_Escape) {
-                    root.shellLibraryBridgeRef.request_close_graph_search()
-                    event.accepted = true
+            }
+        }
+
+        Popup {
+            id: graphSearchFilterPopup
+            objectName: "graphSearchFilterPopup"
+            parent: root
+            x: graphSearchFieldRow.x + graphSearchFieldRow.width - width
+            y: graphSearchFieldRow.y + graphSearchFieldRow.height + 4
+            width: 172
+            padding: 6
+            modal: false
+            focus: visible
+            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+
+            background: Rectangle {
+                radius: 6
+                color: root.themePalette.panel_bg
+                border.color: root.themePalette.input_border
+                border.width: 1
+            }
+
+            contentItem: Column {
+                spacing: 4
+
+                Repeater {
+                    model: root.graphSearchScopeOptions
+
+                    delegate: Rectangle {
+                        id: scopeOptionRow
+                        objectName: "graphSearchScopeToggle_" + String(modelData.scopeId || "")
+                        readonly property string scopeId: String(modelData.scopeId || "")
+                        readonly property string scopeLabel: String(modelData.label || "")
+                        readonly property bool scopeEnabled: root.graphSearchScopeEnabled(scopeId)
+                        width: graphSearchFilterPopup.width - graphSearchFilterPopup.padding * 2
+                        height: 30
+                        radius: 4
+                        color: scopeToggleMouse.containsMouse ? root.themePalette.hover : "transparent"
+
+                        Row {
+                            anchors.verticalCenter: parent.verticalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: 6
+                            spacing: 8
+
+                            Rectangle {
+                                width: 16
+                                height: 16
+                                radius: 4
+                                color: scopeOptionRow.scopeEnabled
+                                    ? root.themePalette.accent
+                                    : root.themePalette.input_bg
+                                border.color: scopeOptionRow.scopeEnabled
+                                    ? root.themePalette.accent
+                                    : root.themePalette.input_border
+                                border.width: 1
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: scopeOptionRow.scopeEnabled ? "✓" : ""
+                                    color: scopeOptionRow.scopeEnabled
+                                        ? root.themePalette.panel_bg
+                                        : "transparent"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                }
+                            }
+
+                            Text {
+                                text: scopeOptionRow.scopeLabel
+                                color: root.themePalette.input_fg
+                                font.pixelSize: 11
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                        }
+
+                        MouseArea {
+                            id: scopeToggleMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            acceptedButtons: Qt.LeftButton
+                            onClicked: {
+                                root.shellLibraryBridgeRef.set_graph_search_scope_enabled(
+                                    parent.scopeId,
+                                    !parent.scopeEnabled
+                                )
+                                Qt.callLater(function() {
+                                    if (root.visible)
+                                        graphSearchField.forceActiveFocus()
+                                })
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -149,11 +306,7 @@ Rectangle {
 
                     Text {
                         width: parent.width
-                        text: String(modelData.workspace_name || "")
-                            + "  |  "
-                            + String(modelData.display_name || "")
-                            + "  |  "
-                            + String(modelData.instance_label || "")
+                        text: root.graphSearchMatchSummary(modelData)
                         color: index === root.shellLibraryBridgeRef.graph_search_highlight_index
                             ? root.themePalette.tab_selected_fg
                             : root.themePalette.muted_fg

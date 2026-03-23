@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QRectF
 
+from ea_node_editor.graph.effective_ports import effective_ports
+from ea_node_editor.ui.shell.state import normalize_graph_search_scopes
 from ea_node_editor.ui.support.node_presentation import build_user_facing_node_instance_number
 from ea_node_editor.ui.shell.workspace_flow import build_workspace_tab_items, next_workspace_tab_index
 from ea_node_editor.ui_qml.viewport_bridge import FRAME_PADDING_PX
@@ -29,6 +31,31 @@ class _WorkspaceViewNavControllerProtocol(Protocol):
 
 
 class WorkspaceViewNavOps:
+    _GRAPH_SEARCH_LABEL_SCOPE_RANKS = {
+        "title_prefix": 0,
+        "title_substring": 1,
+        "type_prefix": 2,
+        "type_substring": 3,
+        "content_prefix": 4,
+        "content_substring": 5,
+        "port_prefix": 6,
+        "port_substring": 7,
+    }
+    _GRAPH_SEARCH_CONTENT_NAMES = frozenset(
+        {
+            "body",
+            "caption",
+            "subtitle",
+            "message",
+            "mitigation",
+            "outcome",
+            "summary",
+            "notes",
+            "note",
+            "text",
+        }
+    )
+
     def __init__(
         self,
         host: ShellWindow,
@@ -124,28 +151,216 @@ class WorkspaceViewNavOps:
         return self._host.view.frame_scene_rect(bounds, padding_px=FRAME_PADDING_PX)
 
     @staticmethod
+    def _match_rank(
+        query: str,
+        *,
+        candidate_text: str,
+        prefix_rank: int,
+        substring_rank: int,
+    ) -> int | None:
+        if not query:
+            return None
+        normalized_text = str(candidate_text or "").strip().lower()
+        if not normalized_text:
+            return None
+        if normalized_text.startswith(query):
+            return prefix_rank
+        if query in normalized_text:
+            return substring_rank
+        return None
+
+    @classmethod
     def graph_search_rank(
+        cls,
         query: str,
         *,
         title: str,
         display_name: str,
         type_id: str,
     ) -> int | None:
-        if not query:
-            return None
-        if title.startswith(query) or display_name.startswith(query):
-            return 0
-        if query in title or query in display_name:
-            return 1
-        if query in type_id:
-            return 2
+        title_match = cls._title_match(query, title)
+        if title_match is not None:
+            return int(title_match["rank"])
+        type_match = cls._type_match(query, display_name=display_name, type_id=type_id)
+        if type_match is not None:
+            return int(type_match["rank"])
         return None
 
-    def search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]:
+    @classmethod
+    def _title_match(cls, query: str, node_title: str) -> dict[str, Any] | None:
+        rank = cls._match_rank(
+            query,
+            candidate_text=node_title,
+            prefix_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["title_prefix"],
+            substring_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["title_substring"],
+        )
+        if rank is None:
+            return None
+        return {
+            "rank": rank,
+            "match_scope": "title",
+            "match_label": "Title",
+            "match_preview": node_title,
+        }
+
+    @classmethod
+    def _type_match(
+        cls,
+        query: str,
+        *,
+        display_name: str,
+        type_id: str,
+    ) -> dict[str, Any] | None:
+        best_match: dict[str, Any] | None = None
+        for preview in (display_name, type_id):
+            rank = cls._match_rank(
+                query,
+                candidate_text=preview,
+                prefix_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["type_prefix"],
+                substring_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["type_substring"],
+            )
+            if rank is None:
+                continue
+            candidate = {
+                "rank": rank,
+                "match_scope": "type",
+                "match_label": "Node Type",
+                "match_preview": preview,
+            }
+            if best_match is None or int(candidate["rank"]) < int(best_match["rank"]):
+                best_match = candidate
+        return best_match
+
+    @classmethod
+    def _property_is_content_searchable(cls, property_spec: Any) -> bool:
+        if str(getattr(property_spec, "type", "")).strip().lower() != "str":
+            return False
+        if not bool(getattr(property_spec, "inspector_visible", True)):
+            return False
+        normalized_key = str(getattr(property_spec, "key", "")).strip().lower()
+        if normalized_key == "title":
+            return False
+        normalized_label = str(getattr(property_spec, "label", "")).strip().lower()
+        inline_editor = str(getattr(property_spec, "inline_editor", "")).strip().lower()
+        inspector_editor = str(getattr(property_spec, "inspector_editor", "")).strip().lower()
+        if inline_editor == "textarea" or inspector_editor == "textarea":
+            return True
+        return normalized_key in cls._GRAPH_SEARCH_CONTENT_NAMES or normalized_label in cls._GRAPH_SEARCH_CONTENT_NAMES
+
+    @staticmethod
+    def _compact_search_preview(value: object, *, max_length: int = 72) -> str:
+        preview = " ".join(str(value or "").split())
+        if len(preview) <= max_length:
+            return preview
+        if max_length <= 3:
+            return preview[:max_length]
+        return preview[: max_length - 3].rstrip() + "..."
+
+    @classmethod
+    def _content_match(cls, query: str, *, node: Any, spec: Any) -> dict[str, Any] | None:
+        best_match: dict[str, Any] | None = None
+        for property_spec in getattr(spec, "properties", ()):
+            if not cls._property_is_content_searchable(property_spec):
+                continue
+            property_key = str(getattr(property_spec, "key", "")).strip()
+            if property_key not in getattr(node, "properties", {}):
+                continue
+            property_value = node.properties.get(property_key)
+            preview = str(property_value or "").strip()
+            if not preview:
+                continue
+            rank = cls._match_rank(
+                query,
+                candidate_text=preview,
+                prefix_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["content_prefix"],
+                substring_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["content_substring"],
+            )
+            if rank is None:
+                continue
+            candidate = {
+                "rank": rank,
+                "match_scope": "content",
+                "match_label": str(getattr(property_spec, "label", "")).strip() or property_key,
+                "match_preview": cls._compact_search_preview(preview),
+            }
+            if best_match is None or int(candidate["rank"]) < int(best_match["rank"]):
+                best_match = candidate
+        return best_match
+
+    @classmethod
+    def _port_match(
+        cls,
+        query: str,
+        *,
+        node: Any,
+        spec: Any,
+        workspace_nodes: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        best_match: dict[str, Any] | None = None
+        for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace_nodes):
+            if not bool(port.exposed):
+                continue
+            preview = str(port.label or port.key).strip()
+            if not preview:
+                continue
+            rank = cls._match_rank(
+                query,
+                candidate_text=preview,
+                prefix_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["port_prefix"],
+                substring_rank=cls._GRAPH_SEARCH_LABEL_SCOPE_RANKS["port_substring"],
+            )
+            if rank is None:
+                continue
+            candidate = {
+                "rank": rank,
+                "match_scope": "port",
+                "match_label": "Port Label",
+                "match_preview": cls._compact_search_preview(preview),
+            }
+            if best_match is None or int(candidate["rank"]) < int(best_match["rank"]):
+                best_match = candidate
+        return best_match
+
+    @classmethod
+    def _graph_search_match(
+        cls,
+        query: str,
+        *,
+        enabled_scopes: list[str],
+        node: Any,
+        spec: Any,
+        workspace_nodes: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        node_title = str(getattr(node, "title", ""))
+        display_name = str(getattr(spec, "display_name", ""))
+        type_id = str(getattr(node, "type_id", ""))
+        for scope_id in enabled_scopes:
+            if scope_id == "title":
+                match = cls._title_match(query, node_title)
+            elif scope_id == "type":
+                match = cls._type_match(query, display_name=display_name, type_id=type_id)
+            elif scope_id == "content":
+                match = cls._content_match(query, node=node, spec=spec)
+            elif scope_id == "port":
+                match = cls._port_match(query, node=node, spec=spec, workspace_nodes=workspace_nodes)
+            else:
+                match = None
+            if match is not None:
+                return match
+        return None
+
+    def search_graph_nodes(
+        self,
+        query: str,
+        limit: int,
+        *,
+        enabled_scopes: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
         normalized_query = str(query).strip().lower()
         if not normalized_query:
             return []
 
+        normalized_scopes = normalize_graph_search_scopes(enabled_scopes)
         max_results = max(0, int(limit))
         ranked: list[tuple[int, str, str, dict[str, Any]]] = []
         for workspace_ref in self._host.workspace_manager.list_workspaces():
@@ -158,25 +373,24 @@ class WorkspaceViewNavOps:
                 node_title = str(node.title)
                 node_title_lower = node_title.lower()
                 display_name = str(spec.display_name)
-                display_name_lower = display_name.lower()
                 type_id = str(node.type_id)
-                type_id_lower = type_id.lower()
                 node_id = str(node.node_id)
                 instance_number = build_user_facing_node_instance_number(
                     node=node,
                     workflow_nodes=workspace.nodes,
                 )
-                rank = self.graph_search_rank(
+                match = self._graph_search_match(
                     normalized_query,
-                    title=node_title_lower,
-                    display_name=display_name_lower,
-                    type_id=type_id_lower,
+                    enabled_scopes=normalized_scopes,
+                    node=node,
+                    spec=spec,
+                    workspace_nodes=workspace.nodes,
                 )
-                if rank is None:
+                if match is None:
                     continue
                 ranked.append(
                     (
-                        rank,
+                        int(match["rank"]),
                         workspace_name_lower,
                         node_title_lower,
                         {
@@ -188,6 +402,9 @@ class WorkspaceViewNavOps:
                             "instance_number": int(instance_number),
                             "instance_label": f"ID {instance_number}",
                             "type_id": type_id,
+                            "match_scope": str(match["match_scope"]),
+                            "match_label": str(match["match_label"]),
+                            "match_preview": str(match["match_preview"]),
                         },
                     )
                 )

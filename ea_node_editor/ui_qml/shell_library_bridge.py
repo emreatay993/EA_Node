@@ -21,6 +21,7 @@ class _ShellLibrarySource(Protocol):
     grouped_node_library_items: list[dict[str, Any]]
     graph_search_open: bool
     graph_search_query: str
+    graph_search_enabled_scopes: list[str]
     graph_search_results: list[dict[str, Any]]
     graph_search_highlight_index: int
     connection_quick_insert_open: bool
@@ -53,6 +54,8 @@ class _ShellLibrarySource(Protocol):
     ) -> bool: ...
 
     def set_graph_search_query(self, query: str) -> None: ...
+
+    def set_graph_search_scope_enabled(self, scope_id: str, enabled: bool) -> None: ...
 
     def request_graph_search_move(self, delta: int) -> None: ...
 
@@ -128,6 +131,10 @@ class ShellLibraryBridge(QObject):
     @pyqtProperty(str, notify=graph_search_changed)
     def graph_search_query(self) -> str:
         return str(self._library_source.graph_search_query)
+
+    @pyqtProperty("QVariantList", notify=graph_search_changed)
+    def graph_search_enabled_scopes(self) -> list[str]:
+        return _copy_list(self._library_source.graph_search_enabled_scopes)
 
     @pyqtProperty("QVariantList", notify=graph_search_changed)
     def graph_search_results(self) -> list[dict[str, Any]]:
@@ -212,6 +219,10 @@ class ShellLibraryBridge(QObject):
     @pyqtSlot(str)
     def set_graph_search_query(self, query: str) -> None:
         self._library_source.set_graph_search_query(query)
+
+    @pyqtSlot(str, bool)
+    def set_graph_search_scope_enabled(self, scope_id: str, enabled: bool) -> None:
+        self._library_source.set_graph_search_scope_enabled(scope_id, enabled)
 
     @pyqtSlot(int)
     def request_graph_search_move(self, delta: int) -> None:

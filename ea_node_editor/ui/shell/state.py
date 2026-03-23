@@ -1,11 +1,35 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal, TypeAlias
 
 
 ScopeCameraKey: TypeAlias = tuple[str, str, tuple[str, ...]]
 ScopeCameraState: TypeAlias = tuple[float, float, float]
+GraphSearchScopeId: TypeAlias = Literal["title", "type", "content", "port"]
+
+GRAPH_SEARCH_SCOPE_IDS: tuple[GraphSearchScopeId, ...] = ("title", "type", "content", "port")
+
+
+def normalize_graph_search_scope_id(value: object) -> GraphSearchScopeId | None:
+    normalized = str(value or "").strip().lower()
+    if normalized in GRAPH_SEARCH_SCOPE_IDS:
+        return normalized  # type: ignore[return-value]
+    return None
+
+
+def normalize_graph_search_scopes(values: Iterable[object] | None) -> list[GraphSearchScopeId]:
+    if values is None:
+        return list(GRAPH_SEARCH_SCOPE_IDS)
+    seen: set[GraphSearchScopeId] = set()
+    for candidate in values:
+        scope_id = normalize_graph_search_scope_id(candidate)
+        if scope_id is not None:
+            seen.add(scope_id)
+    if not seen:
+        return list(GRAPH_SEARCH_SCOPE_IDS)
+    return [scope_id for scope_id in GRAPH_SEARCH_SCOPE_IDS if scope_id in seen]
 
 
 @dataclass(slots=True)
@@ -36,6 +60,7 @@ class ShellRunState:
 class GraphSearchState:
     open: bool = False
     query: str = ""
+    enabled_scopes: list[GraphSearchScopeId] = field(default_factory=lambda: list(GRAPH_SEARCH_SCOPE_IDS))
     results: list[dict[str, Any]] = field(default_factory=list)
     highlight_index: int = -1
 

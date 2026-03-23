@@ -26,6 +26,7 @@ class IconSpec:
 _ICON_ROOT = Path(__file__).resolve().parents[1] / "ui_qml" / "components" / "shell" / "icons"
 _ICON_SPECS: dict[str, IconSpec] = {
     "crop": IconSpec(name="crop", label="Crop", relative_path="crop.svg"),
+    "filter": IconSpec(name="filter", label="Filter", relative_path="filter.svg"),
     "run": IconSpec(name="run", label="Run", relative_path="player-play.svg"),
     "pause": IconSpec(name="pause", label="Pause", relative_path="player-pause.svg"),
     "resume": IconSpec(name="resume", label="Resume", relative_path="player-play.svg"),

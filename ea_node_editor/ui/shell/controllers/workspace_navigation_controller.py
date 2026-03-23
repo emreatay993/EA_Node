@@ -110,8 +110,14 @@ class WorkspaceNavigationController:
             type_id=type_id,
         )
 
-    def search_graph_nodes(self, query: str, limit: int) -> list[dict[str, Any]]:
-        return self._ops.search_graph_nodes(query, limit)
+    def search_graph_nodes(
+        self,
+        query: str,
+        limit: int,
+        *,
+        enabled_scopes: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        return self._ops.search_graph_nodes(query, limit, enabled_scopes=enabled_scopes)
 
     def jump_to_graph_node(self, workspace_id: str, node_id: str) -> bool:
         return self._ops.jump_to_graph_node(workspace_id, node_id)

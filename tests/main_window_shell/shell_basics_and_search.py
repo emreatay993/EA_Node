@@ -41,6 +41,17 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def _reopen_window(self) -> None:
         self._reopen_shared_window()
 
+    def _set_graph_search_scopes(self, enabled_scopes: set[str]) -> None:
+        ordered_scopes = [scope_id for scope_id in ("title", "type", "content", "port") if scope_id in enabled_scopes]
+        for scope_id in ("title", "type", "content", "port"):
+            if scope_id in enabled_scopes:
+                self.window.set_graph_search_scope_enabled(scope_id, True)
+        for scope_id in ("title", "type", "content", "port"):
+            if scope_id not in enabled_scopes:
+                self.window.set_graph_search_scope_enabled(scope_id, False)
+        self.app.processEvents()
+        self.assertEqual(self.window.graph_search_enabled_scopes, ordered_scopes)
+
     def test_menu_bar_exposes_settings_menu_for_workflow_preferences(self) -> None:
         menu_actions = {
             action.text(): action.menu()
@@ -746,6 +757,98 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertEqual(self.window.workspace_manager.active_workspace_id(), before_workspace_id)
         self.assertEqual(self.window.scene.selected_node_id(), before_selected_id)
 
+    def test_graph_search_scopes_filter_matches_and_report_metadata(self) -> None:
+        title_node_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
+        self.window.scene.set_node_title(title_node_id, "Python Title Result")
+
+        type_node_id = self.window.scene.add_node_from_type("core.python_script", x=240.0, y=40.0)
+        self.window.scene.set_node_title(type_node_id, "Zulu Type Result")
+
+        content_node_id = self.window.scene.add_node_from_type("core.logger", x=440.0, y=40.0)
+        self.window.scene.set_node_title(content_node_id, "Zulu Content Result")
+        active_workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[active_workspace_id]
+        workspace.nodes[content_node_id].properties["message"] = "Python content note"
+
+        port_node_id = self.window.scene.add_node_from_type("core.logger", x=640.0, y=40.0)
+        self.window.scene.set_node_title(port_node_id, "Zulu Port Result")
+        workspace.nodes[port_node_id].port_labels["message"] = "Python Port Label"
+        self.window.scene.refresh_workspace_from_model(active_workspace_id)
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query("python")
+        self.app.processEvents()
+
+        all_results = self.window.graph_search_results
+        self.assertEqual(
+            [item["node_id"] for item in all_results[:4]],
+            [title_node_id, type_node_id, content_node_id, port_node_id],
+        )
+        self.assertEqual([item["match_scope"] for item in all_results[:4]], ["title", "type", "content", "port"])
+        self.assertEqual(all_results[0]["match_label"], "Title")
+        self.assertEqual(all_results[1]["match_label"], "Node Type")
+        self.assertEqual(all_results[1]["match_preview"], "Python Script")
+        self.assertEqual(all_results[2]["match_label"], "Message")
+        self.assertEqual(all_results[2]["match_preview"], "Python content note")
+        self.assertEqual(all_results[3]["match_label"], "Port Label")
+        self.assertEqual(all_results[3]["match_preview"], "Python Port Label")
+
+        self._set_graph_search_scopes({"title"})
+        title_results = self.window.graph_search_results
+        self.assertEqual([item["node_id"] for item in title_results], [title_node_id])
+        self.assertEqual(title_results[0]["match_scope"], "title")
+
+        self._set_graph_search_scopes({"type"})
+        type_results = self.window.graph_search_results
+        self.assertEqual([item["node_id"] for item in type_results], [type_node_id])
+        self.assertEqual(type_results[0]["match_scope"], "type")
+        self.assertEqual(type_results[0]["match_preview"], "Python Script")
+
+        self._set_graph_search_scopes({"content"})
+        content_results = self.window.graph_search_results
+        self.assertEqual([item["node_id"] for item in content_results], [content_node_id])
+        self.assertEqual(content_results[0]["match_scope"], "content")
+        self.assertEqual(content_results[0]["match_label"], "Message")
+
+        self._set_graph_search_scopes({"port"})
+        port_results = self.window.graph_search_results
+        self.assertEqual([item["node_id"] for item in port_results], [port_node_id])
+        self.assertEqual(port_results[0]["match_scope"], "port")
+        self.assertEqual(port_results[0]["match_preview"], "Python Port Label")
+
+    def test_graph_search_content_scope_skips_sensitive_and_structural_string_fields(self) -> None:
+        allowed_node_id = self.window.scene.add_node_from_type("core.logger", x=40.0, y=40.0)
+        self.window.scene.set_node_title(allowed_node_id, "Allowed Content Result")
+        script_node_id = self.window.scene.add_node_from_type("core.python_script", x=240.0, y=40.0)
+        self.window.scene.set_node_title(script_node_id, "Script Content Result")
+        path_node_id = self.window.scene.add_node_from_type("io.file_read", x=440.0, y=40.0)
+        self.window.scene.set_node_title(path_node_id, "Path Content Result")
+        command_node_id = self.window.scene.add_node_from_type("io.process_run", x=640.0, y=40.0)
+        self.window.scene.set_node_title(command_node_id, "Command Content Result")
+        password_node_id = self.window.scene.add_node_from_type("io.email_send", x=840.0, y=40.0)
+        self.window.scene.set_node_title(password_node_id, "Password Content Result")
+
+        query = "sensitive scope marker"
+        active_workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[active_workspace_id]
+        workspace.nodes[allowed_node_id].properties["message"] = query
+        workspace.nodes[script_node_id].properties["script"] = query
+        workspace.nodes[path_node_id].properties["path"] = query
+        workspace.nodes[command_node_id].properties["command"] = query
+        workspace.nodes[password_node_id].properties["password"] = query
+        self.app.processEvents()
+
+        self.window.action_graph_search.trigger()
+        self.window.set_graph_search_query(query)
+        self._set_graph_search_scopes({"content"})
+
+        results = self.window.graph_search_results
+        self.assertEqual([item["node_id"] for item in results], [allowed_node_id])
+        self.assertEqual(results[0]["match_scope"], "content")
+        self.assertEqual(results[0]["match_label"], "Message")
+        self.assertEqual(results[0]["match_preview"], query)
+
     def test_graph_search_jump_switches_workspace_reveals_parent_chain_and_centers_selection(self) -> None:
         source_workspace_id = self.window.workspace_manager.active_workspace_id()
         target_workspace_id = self.window.workspace_manager.create_workspace("Target Space")
@@ -896,5 +999,37 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.window.request_close_graph_search()
         self.assertFalse(self.window.graph_search_open)
         self.assertEqual(self.window.graph_search_query, "")
+        self.assertEqual(self.window.graph_search_enabled_scopes, ["title", "type", "content", "port"])
         self.assertEqual(self.window.graph_search_results, [])
         self.assertEqual(self.window.graph_search_highlight_index, -1)
+
+    def test_graph_search_filter_ui_resets_on_reopen_and_keeps_one_scope_enabled(self) -> None:
+        self.window.action_graph_search.trigger()
+        self.assertEqual(self.window.graph_search_enabled_scopes, ["title", "type", "content", "port"])
+
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        filter_button = root_object.findChild(QObject, "graphSearchFilterButton")
+        self.assertIsNotNone(filter_button)
+        self.assertFalse(bool(filter_button.property("selectedStyle")))
+
+        self.window.set_graph_search_scope_enabled("title", False)
+        self.window.set_graph_search_scope_enabled("type", False)
+        self.window.set_graph_search_scope_enabled("content", False)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.graph_search_enabled_scopes, ["port"])
+        self.assertTrue(bool(filter_button.property("selectedStyle")))
+
+        self.window.set_graph_search_scope_enabled("port", False)
+        self.app.processEvents()
+        self.assertEqual(self.window.graph_search_enabled_scopes, ["port"])
+
+        self.window.request_close_graph_search()
+        self.assertFalse(self.window.graph_search_open)
+        self.assertEqual(self.window.graph_search_enabled_scopes, ["title", "type", "content", "port"])
+
+        self.window.action_graph_search.trigger()
+        self.app.processEvents()
+        self.assertEqual(self.window.graph_search_enabled_scopes, ["title", "type", "content", "port"])
+        self.assertFalse(bool(filter_button.property("selectedStyle")))

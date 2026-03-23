@@ -222,6 +222,7 @@ class MainWindowShellHostProtocolStateTests(SharedMainWindowShellTestBase):
         graph_search_state = self.window.search_scope_state.graph_search
         self.assertTrue(graph_search_state.open)
         self.assertEqual(graph_search_state.query, "core.start")
+        self.assertEqual(graph_search_state.enabled_scopes, ["title", "type", "content", "port"])
         self.assertEqual(graph_search_state.results, self.window.graph_search_results)
 
         self.window.request_open_canvas_quick_insert(40.0, 55.0, 120.0, 180.0)

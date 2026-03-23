@@ -412,6 +412,10 @@ class ShellWindow(QMainWindow):
         return self.shell_library_presenter.graph_search_query
 
     @pyqtProperty("QVariantList", notify=graph_search_changed)
+    def graph_search_enabled_scopes(self) -> list[str]:
+        return self.shell_library_presenter.graph_search_enabled_scopes
+
+    @pyqtProperty("QVariantList", notify=graph_search_changed)
     def graph_search_results(self) -> list[dict[str, Any]]:
         return self.shell_library_presenter.graph_search_results
 
@@ -596,12 +600,14 @@ class ShellWindow(QMainWindow):
         *,
         open_: bool | None = None,
         query: str | None = None,
+        enabled_scopes: list[str] | None = None,
         results: list[dict[str, Any]] | None = None,
         highlight_index: int | None = None,
     ) -> None:
         self.shell_library_presenter._set_graph_search_state(
             open_=open_,
             query=query,
+            enabled_scopes=enabled_scopes,
             results=results,
             highlight_index=highlight_index,
         )
@@ -826,6 +832,10 @@ class ShellWindow(QMainWindow):
     @pyqtSlot(str)
     def set_graph_search_query(self, query: str) -> None:
         self.shell_library_presenter.set_graph_search_query(query)
+
+    @pyqtSlot(str, bool)
+    def set_graph_search_scope_enabled(self, scope_id: str, enabled: bool) -> None:
+        self.shell_library_presenter.set_graph_search_scope_enabled(scope_id, enabled)
 
     @pyqtSlot(int)
     def request_graph_search_move(self, delta: int) -> None:
@@ -1260,8 +1270,12 @@ class ShellWindow(QMainWindow):
     def _center_on_selection(self):
         return self.workspace_library_controller.center_on_selection()
 
-    def _search_graph_nodes(self, query, limit=_GRAPH_SEARCH_LIMIT):
-        return self.workspace_library_controller.search_graph_nodes(query, limit)
+    def _search_graph_nodes(self, query, limit=_GRAPH_SEARCH_LIMIT, enabled_scopes=None):
+        return self.workspace_library_controller.search_graph_nodes(
+            query,
+            limit,
+            enabled_scopes=enabled_scopes,
+        )
 
     def _jump_to_graph_node(self, workspace_id, node_id):
         return self.workspace_library_controller.jump_to_graph_node(workspace_id, node_id)

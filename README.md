@@ -364,7 +364,7 @@ QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest \
 - Drag from a port to empty canvas space to open the connection-aware quick insert overlay.
 - Quick insert only shows node types that can auto-connect to the dragged source port using the same compatibility rules as normal graph connections.
 - Some node types expose inline property controls directly in the node card for faster editing, while the inspector remains the full editing surface.
-- Graph Search is intentionally user-facing: it matches node titles and node types, not internal runtime IDs.
+- Graph Search is intentionally user-facing: it matches node titles, node types, safe note-like content, and exposed port labels, not internal runtime IDs.
 - Inspector header metadata uses sequential per-type IDs for orientation, while internal node IDs stay implementation-only.
 - The passive-node reference workspace used for manual visual checks lives at `tests/fixtures/passive_nodes/reference_flowchart.sfe`.
 
