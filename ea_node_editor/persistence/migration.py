@@ -14,6 +14,7 @@ from ea_node_editor.graph.normalization import (
 )
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.passive_style_normalization import normalize_passive_style_presets
+from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
 from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
 from ea_node_editor.settings import (
     DEFAULT_UI_STATE,
@@ -121,6 +122,7 @@ class JsonProjectMigration:
             DEFAULT_WORKFLOW_SETTINGS,
         )
         metadata["custom_workflows"] = normalize_custom_workflow_metadata(metadata.get("custom_workflows"))
+        metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         return metadata
 
     def _normalize_document(self, doc: dict[str, Any]) -> dict[str, Any]:

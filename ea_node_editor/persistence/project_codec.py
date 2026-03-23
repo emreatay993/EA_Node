@@ -17,6 +17,7 @@ from ea_node_editor.graph.model import (
     sanitize_workspace_parent_links,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
 from ea_node_editor.persistence.migration import JsonProjectMigration
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership, sync_project_workspace_ownership
@@ -61,6 +62,7 @@ class JsonProjectCodec:
             active_workspace_id=project.active_workspace_id,
         )
         metadata = JsonProjectMigration.normalize_metadata(metadata, ownership.workspace_order)
+        metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         metadata.pop(_RUNTIME_PRESERVATION_KEY, None)
 
         workspaces: list[dict[str, Any]] = []
@@ -244,6 +246,7 @@ class JsonProjectCodec:
             order_sources=(payload.get("workspace_order"),),
         )
         project.metadata = JsonProjectMigration.normalize_metadata(project.metadata, ownership.workspace_order)
+        project.metadata["artifact_store"] = normalize_artifact_store_metadata(project.metadata.get("artifact_store"))
         return project
 
     def _workspace_node_docs(

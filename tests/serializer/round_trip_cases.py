@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import tempfile
+import unittest
 from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -72,6 +74,10 @@ class SerializerRoundTripMixin:
         self.assertEqual(
             doc["metadata"]["ui"]["passive_style_presets"],
             {"node_presets": [], "edge_presets": []},
+        )
+        self.assertEqual(
+            doc["metadata"]["artifact_store"],
+            {"artifacts": {}, "staged": {}},
         )
         self.assertEqual(node_doc["visual_style"], {"fill": "#102030", "badge": {"shape": "pill"}})
         self.assertEqual(edge_doc["label"], "Primary path")
@@ -353,3 +359,64 @@ class SerializerRoundTripMixin:
         self.assertEqual(loaded.workspaces[second].views[second_v2.view_id].zoom, 2.2)
         self.assertEqual(loaded.workspaces[second].views[second_v2.view_id].pan_x, 300.0)
         self.assertEqual(loaded.workspaces[second].views[second_v2.view_id].pan_y, 99.0)
+
+
+class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
+    def test_round_trip_preserves_project_artifact_store_metadata_and_string_refs(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        artifact_id = "image_panel_source"
+        managed_ref = format_managed_artifact_ref(artifact_id)
+        node = model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Image Panel",
+            25.0,
+            45.0,
+            properties={
+                "source_path": managed_ref,
+                "caption": "Managed image",
+                "fit_mode": "contain",
+            },
+        )
+        model.project.metadata["artifact_store"] = {
+            "artifacts": {
+                artifact_id: {
+                    "path": r"assets\passive_media\node_image_panel\source.png",
+                }
+            }
+        }
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        document = serializer.to_persistent_document(model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
+
+        self.assertEqual(document["schema_version"], SCHEMA_VERSION)
+        self.assertEqual(node_doc["properties"]["source_path"], managed_ref)
+        self.assertEqual(
+            document["metadata"]["artifact_store"],
+            {
+                "artifacts": {
+                    artifact_id: {
+                        "relative_path": "assets/passive_media/node_image_panel/source.png",
+                    }
+                },
+                "staged": {},
+            },
+        )
+
+        loaded = serializer.from_document(document)
+        loaded_node = loaded.workspaces[workspace.workspace_id].nodes[node.node_id]
+        self.assertEqual(loaded_node.properties["source_path"], managed_ref)
+        self.assertEqual(
+            loaded.metadata["artifact_store"],
+            {
+                "artifacts": {
+                    artifact_id: {
+                        "relative_path": "assets/passive_media/node_image_panel/source.png",
+                    }
+                },
+                "staged": {},
+            },
+        )
