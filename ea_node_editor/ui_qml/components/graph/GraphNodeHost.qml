@@ -564,7 +564,9 @@ Item {
     }
 
     function requestInlineTitleEditAt(localX, localY) {
-        return headerLayer.requestTitleEditAt(localX, localY);
+        if (headerLayer.requestTitleEditAt(localX, localY))
+            return true;
+        return surfaceLoader.requestInlineEditAt(localX, localY);
     }
 
     function requestScopeOpenAt(localX, localY) {
@@ -572,7 +574,9 @@ Item {
     }
 
     function commitInlineTitleEditAt(localX, localY) {
-        return headerLayer.commitTitleEditFromExternalInteraction(localX, localY);
+        if (headerLayer.commitTitleEditFromExternalInteraction(localX, localY))
+            return true;
+        return surfaceLoader.commitInlineEditFromExternalInteraction(localX, localY);
     }
 
     function currentViewportZoom() {

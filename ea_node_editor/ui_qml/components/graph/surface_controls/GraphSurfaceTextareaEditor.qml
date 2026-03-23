@@ -42,6 +42,12 @@ Item {
         commitRequested(textareaField.text);
     }
 
+    function activateEditor() {
+        textareaField.forceActiveFocus();
+        textareaField.cursorPosition = textareaField.length;
+        textareaField.deselect();
+    }
+
     onCommittedTextChanged: {
         if (!textareaField.activeFocus || !dirty)
             syncDraftToCommitted();

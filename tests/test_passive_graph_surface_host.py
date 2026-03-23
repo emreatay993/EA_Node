@@ -442,7 +442,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_expanded_flowchart_body_text_replaces_visible_header_title_and_selection_stays_on_host(self) -> None:
+    def test_expanded_flowchart_body_text_replaces_visible_header_title_and_double_click_enters_inline_edit(self) -> None:
         self._run_qml_probe(
             "flowchart-body-text-host",
             """
@@ -450,23 +450,31 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             window = attach_host_to_window(host, width=640, height=480)
             try:
                 title_item = host.findChild(QObject, "graphNodeTitle")
-                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                title_editor = host.findChild(QObject, "graphNodeTitleEditor")
                 body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+                body_editor = host.findChild(QObject, "graphNodeFlowchartBodyEditor")
+                body_field = host.findChild(QObject, "graphNodeFlowchartBodyEditorField")
                 assert title_item is not None
-                assert editor is not None
+                assert title_editor is not None
                 assert body_text is not None
+                assert body_editor is not None
+                assert body_field is not None
 
                 events = host_pointer_events(host)
+                interactions = []
+                host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
                 body_point = item_scene_point(body_text)
 
                 assert not bool(title_item.property("visible"))
-                assert not bool(editor.property("visible"))
+                assert not bool(title_editor.property("visible"))
                 assert str(body_text.property("text") or "") == "Review the decision criteria and route accordingly."
+                assert bool(body_text.property("visible"))
+                assert not bool(body_editor.property("visible"))
 
                 mouse_click(window, body_point)
                 assert events["clicked"] == [("node_surface_host_test", False)]
                 assert events["opened"] == []
-                assert not bool(editor.property("visible"))
+                assert not bool(body_editor.property("visible"))
 
                 events["clicked"].clear()
                 events["opened"].clear()
@@ -475,7 +483,15 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 mouse_double_click(window, body_point)
                 settle_events(5)
 
-                assert not bool(editor.property("visible"))
+                assert not bool(title_editor.property("visible"))
+                assert not bool(body_text.property("visible"))
+                assert bool(body_editor.property("visible"))
+                assert bool(body_field.property("activeFocus"))
+                assert str(body_field.property("text") or "") == "Review the decision criteria and route accordingly."
+                assert int(body_field.property("cursorPosition")) == len(str(body_field.property("text") or ""))
+                assert len(interactions) >= 1
+                assert all(node_id == "node_surface_host_test" for node_id in interactions)
+                assert events["opened"] == []
             finally:
                 dispose_host_window(host, window)
             """,
@@ -505,11 +521,58 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             assert title_item is not None
             assert body_text is not None
             assert not bool(title_item.property("visible"))
+            assert bool(body_text.property("visible"))
             assert str(body_text.property("text") or "") == "Archive"
             body_font = body_text.property("font")
             assert body_font.pixelSize() == 17
             assert body_font.bold()
             assert body_text.property("color").name().lower() == "#204060"
+            """,
+        )
+
+    def test_expanded_flowchart_body_editor_commits_from_external_click_path(self) -> None:
+        self._run_qml_probe(
+            "flowchart-body-external-click-commit-host",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+                body_editor = host.findChild(QObject, "graphNodeFlowchartBodyEditor")
+                body_field = host.findChild(QObject, "graphNodeFlowchartBodyEditorField")
+                assert body_text is not None
+                assert body_editor is not None
+                assert body_field is not None
+
+                events = host_pointer_events(host)
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                mouse_double_click(window, item_scene_point(body_text))
+                settle_events(5)
+                assert bool(body_editor.property("visible"))
+                assert bool(body_field.property("activeFocus"))
+
+                body_field.setProperty("text", "Approve request\\nNotify requester")
+                app.processEvents()
+
+                events["clicked"].clear()
+                events["opened"].clear()
+                events["contexts"].clear()
+
+                mouse_click(window, host_scene_point(host, 24.0, 6.0))
+                settle_events(5)
+
+                assert committed == [("node_surface_host_test", "body", "Approve request\\nNotify requester")]
+                assert events["clicked"] == [("node_surface_host_test", False)]
+                assert events["opened"] == []
+                assert events["contexts"] == []
+                assert bool(body_text.property("visible"))
+                assert not bool(body_editor.property("visible"))
+            finally:
+                dispose_host_window(host, window)
             """,
         )
 
@@ -521,12 +584,15 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 graph_node_host_qml_path,
                 {"nodeData": flowchart_payload("decision", title="Archive", collapsed=True)},
             )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             title_item = host.findChild(QObject, "graphNodeTitle")
             editor = host.findChild(QObject, "graphNodeTitleEditor")
             body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+            assert loader is not None
             assert title_item is not None
             assert editor is not None
             assert body_text is None
+            assert not bool(loader.property("surfaceLoaded"))
             assert bool(title_item.property("visible"))
             assert str(title_item.property("text") or "") == "Archive"
             assert not bool(editor.property("visible"))

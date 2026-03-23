@@ -64,6 +64,18 @@ Item {
             loader.item.triggerHoverAction();
     }
 
+    function requestInlineEditAt(localX, localY) {
+        if (loader.item && loader.item.requestInlineEditAt)
+            return Boolean(loader.item.requestInlineEditAt(localX, localY));
+        return false;
+    }
+
+    function commitInlineEditFromExternalInteraction(localX, localY) {
+        if (loader.item && loader.item.commitInlineEditFromExternalInteraction)
+            return Boolean(loader.item.commitInlineEditFromExternalInteraction(localX, localY));
+        return false;
+    }
+
     Loader {
         id: loader
         anchors.fill: parent
