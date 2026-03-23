@@ -71,6 +71,8 @@ This is the canonical requirements/specification set for the Windows-first PyQt6
 63. [PORT_LABEL_VISIBILITY Status Ledger](work_packets/port_label_visibility/PORT_LABEL_VISIBILITY_STATUS.md)
 64. [COMMENT_BACKDROP Work Packet Manifest](work_packets/comment_backdrop/COMMENT_BACKDROP_MANIFEST.md)
 65. [COMMENT_BACKDROP Status Ledger](work_packets/comment_backdrop/COMMENT_BACKDROP_STATUS.md)
+66. [CTRL_CANVAS_INSERT_MENU Work Packet Manifest](work_packets/ctrl_canvas_insert_menu/CTRL_CANVAS_INSERT_MENU_MANIFEST.md)
+67. [CTRL_CANVAS_INSERT_MENU Status Ledger](work_packets/ctrl_canvas_insert_menu/CTRL_CANVAS_INSERT_MENU_STATUS.md)
 
 ## ADRs
 
