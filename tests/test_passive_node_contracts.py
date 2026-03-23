@@ -61,7 +61,10 @@ class PassiveNodeContractsTests(unittest.TestCase):
             spec = plugin.spec()
 
             self.assertEqual(spec.runtime_behavior, "passive")
-            self.assertFalse(spec.collapsible)
+            if str(spec.surface_family) == "comment_backdrop":
+                self.assertTrue(spec.collapsible)
+            else:
+                self.assertFalse(spec.collapsible)
             self.assertTrue(spec.surface_family)
             self.assertEqual(plugin.execute(_context()).outputs, {})
 
@@ -97,9 +100,12 @@ class PassiveNodeContractsTests(unittest.TestCase):
             spec = registry.get_spec(type_id)
             self.assertEqual(spec.surface_family, "flowchart")
             self.assertTrue(spec.ports)
-            self.assertEqual([prop.key for prop in spec.properties], ["title"])
+            self.assertEqual([prop.key for prop in spec.properties], ["title", "body"])
             self.assertEqual(spec.properties[0].type, "str")
             self.assertEqual(spec.properties[0].label, "Title")
+            self.assertEqual(spec.properties[1].type, "str")
+            self.assertEqual(spec.properties[1].label, "Body")
+            self.assertEqual(spec.properties[1].inspector_editor, "textarea")
             self.assertTrue(all(port.kind == "flow" and port.data_type == "flow" for port in spec.ports))
             self.assertEqual([port.key for port in spec.ports], ["top", "right", "bottom", "left"])
             self.assertTrue(all(port.direction == "neutral" for port in spec.ports))
@@ -151,6 +157,7 @@ class PassiveNodeContractsTests(unittest.TestCase):
         self.assertEqual(task_defaults["status"], "todo")
         self.assertEqual(risk_defaults["severity"], "medium")
         self.assertEqual(decision_defaults["title"], "Decision")
+        self.assertEqual(decision_defaults["body"], "Decision")
         self.assertEqual(image_defaults["fit_mode"], "contain")
         self.assertEqual(image_defaults["crop_w"], 1.0)
         self.assertEqual(pdf_defaults["page_number"], 1)

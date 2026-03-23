@@ -123,7 +123,13 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                 visit(root)
                 return matches
 
-            def flowchart_payload(variant):
+            def flowchart_payload(variant, *, collapsed=False, properties=None):
+                resolved_properties = {
+                    "title": "Flowchart",
+                    "body": "Review request routing and approval outcomes.",
+                }
+                if properties:
+                    resolved_properties.update(properties)
                 return {
                     "node_id": "node_flowchart_surface_test",
                     "type_id": "tests.flowchart_surface",
@@ -134,7 +140,7 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                     "width": 236.0,
                     "height": 128.0,
                     "accent": "#2F89FF",
-                    "collapsed": False,
+                    "collapsed": collapsed,
                     "selected": False,
                     "runtime_behavior": "passive",
                     "surface_family": "flowchart",
@@ -180,6 +186,7 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                         },
                     ],
                     "inline_properties": [],
+                    "properties": resolved_properties,
                 }
             """
         ) + "\n" + textwrap.dedent(body)
@@ -207,15 +214,42 @@ class FlowchartSurfaceQmlTests(unittest.TestCase):
                 {"nodeData": flowchart_payload("decision")},
             )
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
             assert loader is not None
+            assert title_item is not None
+            assert body_text is not None
             assert loader.property("loadedSurfaceKey") == "flowchart"
             assert not bool(host.property("_useHostChrome"))
             assert host.findChild(QObject, "graphNodeFlowchartSurface") is not None
+            assert not bool(title_item.property("visible"))
+            assert bool(body_text.property("visible"))
+            assert str(body_text.property("text") or "") == "Review request routing and approval outcomes."
             assert len(named_child_items(host, "graphFlowchartSilhouette")) >= 1
             assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2
             assert len(named_child_items(host, "graphNodeOutputPortMouseArea")) == 2
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeOutputPortLabel"))
+            """,
+        )
+
+    def test_collapsed_flowchart_keeps_compact_header_title_and_hides_body_surface(self) -> None:
+        self._run_qml_probe(
+            "flowchart-collapsed-header",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {"nodeData": flowchart_payload("decision", collapsed=True)},
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+            assert loader is not None
+            assert title_item is not None
+            assert body_text is None
+            assert not bool(loader.property("surfaceLoaded"))
+            assert bool(title_item.property("visible"))
+            assert str(title_item.property("text") or "") == "Flowchart"
             """,
         )
 

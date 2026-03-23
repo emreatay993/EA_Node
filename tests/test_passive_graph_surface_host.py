@@ -297,12 +297,30 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     ],
                 }
 
-            def flowchart_payload(variant):
+            def flowchart_payload(
+                variant,
+                *,
+                title="Decision",
+                display_name="Decision",
+                collapsed=False,
+                properties=None,
+                visual_style=None,
+            ):
                 payload = node_payload(surface_family="flowchart", surface_variant=variant)
                 payload["runtime_behavior"] = "passive"
                 payload["type_id"] = f"passive.flowchart.{variant}"
-                payload["title"] = "Decision"
-                payload["properties"] = {"title": "Decision"}
+                payload["title"] = title
+                payload["display_name"] = display_name
+                payload["collapsed"] = collapsed
+                payload["properties"] = {
+                    "title": title,
+                    "body": "Review the decision criteria and route accordingly.",
+                }
+                if properties:
+                    payload["properties"].update(properties)
+                payload["visual_style"] = {}
+                if visual_style:
+                    payload["visual_style"].update(visual_style)
                 payload["width"] = 236.0
                 payload["height"] = 128.0
                 payload["ports"] = [
@@ -424,25 +442,28 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_flowchart_title_double_click_enters_inline_edit_while_single_click_still_selects(self) -> None:
+    def test_expanded_flowchart_body_text_replaces_visible_header_title_and_selection_stays_on_host(self) -> None:
         self._run_qml_probe(
-            "flowchart-title-inline-edit-activate",
+            "flowchart-body-text-host",
             """
             host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
             window = attach_host_to_window(host, width=640, height=480)
             try:
                 title_item = host.findChild(QObject, "graphNodeTitle")
                 editor = host.findChild(QObject, "graphNodeTitleEditor")
+                body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
                 assert title_item is not None
                 assert editor is not None
+                assert body_text is not None
 
                 events = host_pointer_events(host)
-                interactions = []
-                host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+                body_point = item_scene_point(body_text)
 
-                title_point = item_scene_point(title_item)
+                assert not bool(title_item.property("visible"))
+                assert not bool(editor.property("visible"))
+                assert str(body_text.property("text") or "") == "Review the decision criteria and route accordingly."
 
-                mouse_click(window, title_point)
+                mouse_click(window, body_point)
                 assert events["clicked"] == [("node_surface_host_test", False)]
                 assert events["opened"] == []
                 assert not bool(editor.property("visible"))
@@ -451,121 +472,64 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 events["opened"].clear()
                 events["contexts"].clear()
 
-                mouse_double_click(window, title_point)
+                mouse_double_click(window, body_point)
                 settle_events(5)
 
-                assert bool(editor.property("visible"))
-                assert interactions == ["node_surface_host_test"]
-                assert events["opened"] == []
+                assert not bool(editor.property("visible"))
             finally:
                 dispose_host_window(host, window)
             """,
         )
 
-    def test_flowchart_title_editor_commits_on_enter_and_focus_loss_and_cancels_on_escape(self) -> None:
+    def test_expanded_flowchart_body_text_uses_fallback_chain_and_passive_style_hooks(self) -> None:
         self._run_qml_probe(
-            "flowchart-title-inline-edit-commit-cancel",
+            "flowchart-body-fallback-style-host",
             """
-            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
-            window = attach_host_to_window(host, width=640, height=480)
-            try:
-                title_item = host.findChild(QObject, "graphNodeTitle")
-                editor = host.findChild(QObject, "graphNodeTitleEditor")
-                assert title_item is not None
-                assert editor is not None
-
-                committed = []
-                host.inlinePropertyCommitted.connect(
-                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
-                )
-
-                title_point = item_scene_point(title_item)
-                body_point = host_scene_point(
-                    host,
-                    float(host.property("width")) * 0.5,
-                    float(host.property("height")) * 0.78,
-                )
-
-                mouse_double_click(window, title_point)
-                settle_events(5)
-                assert bool(editor.property("visible"))
-                editor.setProperty("text", " Approved ")
-                app.processEvents()
-                app.sendEvent(
-                    editor,
-                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
-                )
-                app.sendEvent(
-                    editor,
-                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
-                )
-                settle_events(5)
-                assert committed == [("node_surface_host_test", "title", "Approved")]
-                assert not bool(editor.property("visible"))
-
-                committed.clear()
-                mouse_double_click(window, title_point)
-                settle_events(5)
-                assert bool(editor.property("visible"))
-                editor.setProperty("text", " Ready ")
-                app.processEvents()
-                mouse_click(window, body_point)
-                settle_events(5)
-                assert committed == [("node_surface_host_test", "title", "Ready")]
-                assert not bool(editor.property("visible"))
-
-                committed.clear()
-                mouse_double_click(window, title_point)
-                settle_events(5)
-                assert bool(editor.property("visible"))
-                editor.setProperty("text", "Ignore")
-                app.processEvents()
-                app.sendEvent(
-                    editor,
-                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
-                )
-                app.sendEvent(
-                    editor,
-                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
-                )
-                settle_events(5)
-                assert committed == []
-                assert not bool(editor.property("visible"))
-                assert str(title_item.property("text") or "") == "Decision"
-            finally:
-                dispose_host_window(host, window)
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": flowchart_payload(
+                        "decision",
+                        title="Archive",
+                        properties={"title": "Archive", "body": "   "},
+                        visual_style={
+                            "text_color": "#204060",
+                            "font_size": 17,
+                            "font_weight": "bold",
+                        },
+                    ),
+                },
+            )
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+            assert title_item is not None
+            assert body_text is not None
+            assert not bool(title_item.property("visible"))
+            assert str(body_text.property("text") or "") == "Archive"
+            body_font = body_text.property("font")
+            assert body_font.pixelSize() == 17
+            assert body_font.bold()
+            assert body_text.property("color").name().lower() == "#204060"
             """,
         )
 
-    def test_flowchart_title_editor_pointer_activity_does_not_leak_to_host_handlers(self) -> None:
+    def test_collapsed_flowchart_keeps_compact_header_title_behavior(self) -> None:
         self._run_qml_probe(
-            "flowchart-title-inline-edit-pointer-isolation",
+            "flowchart-collapsed-title-host",
             """
-            host = create_component(graph_node_host_qml_path, {"nodeData": flowchart_payload("decision")})
-            window = attach_host_to_window(host, width=640, height=480)
-            try:
-                title_item = host.findChild(QObject, "graphNodeTitle")
-                editor = host.findChild(QObject, "graphNodeTitleEditor")
-                assert title_item is not None
-                assert editor is not None
-
-                mouse_double_click(window, item_scene_point(title_item))
-                settle_events(5)
-                assert bool(editor.property("visible"))
-
-                events = host_pointer_events(host)
-                editor_point = item_scene_point(editor)
-
-                mouse_click(window, editor_point)
-                mouse_double_click(window, editor_point)
-                mouse_click(window, editor_point, Qt.MouseButton.RightButton)
-                settle_events(5)
-
-                assert events["clicked"] == []
-                assert events["opened"] == []
-                assert events["contexts"] == []
-            finally:
-                dispose_host_window(host, window)
+            host = create_component(
+                graph_node_host_qml_path,
+                {"nodeData": flowchart_payload("decision", title="Archive", collapsed=True)},
+            )
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            editor = host.findChild(QObject, "graphNodeTitleEditor")
+            body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+            assert title_item is not None
+            assert editor is not None
+            assert body_text is None
+            assert bool(title_item.property("visible"))
+            assert str(title_item.property("text") or "") == "Archive"
+            assert not bool(editor.property("visible"))
             """,
         )
 

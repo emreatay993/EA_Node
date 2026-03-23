@@ -9,6 +9,9 @@ Item {
     property Item host: null
     property bool isEditing: false
     readonly property bool sharedHeaderTitleEditable: host ? host.sharedHeaderTitleEditable : false
+    readonly property bool headerTitleVisible: host
+        ? (!host.isFlowchartSurface || host.isCollapsed)
+        : true
     readonly property bool isCommentBackdropNode: host
         ? String(host.surfaceFamily || "") === "comment_backdrop"
         : false
@@ -44,7 +47,7 @@ Item {
     }
 
     function requestTitleEditAt(localX, localY) {
-        if (!root.sharedHeaderTitleEditable || root.isEditing)
+        if (!root.sharedHeaderTitleEditable || !root.headerTitleVisible || root.isEditing)
             return false;
         if (!GraphNodeHostHitTesting.pointInRect(localX, localY, titleHitRegion.interactiveRect))
             return false;
@@ -100,6 +103,11 @@ Item {
             root.cancelTitleEdit();
     }
 
+    onHeaderTitleVisibleChanged: {
+        if (!root.headerTitleVisible && root.isEditing)
+            root.cancelTitleEdit();
+    }
+
     Rectangle {
         visible: root.host ? root.host._showAccentBar : false
         anchors.left: parent.left
@@ -125,7 +133,7 @@ Item {
         id: titleText
         objectName: "graphNodeTitle"
         property int effectiveRenderType: renderType
-        visible: !root.isEditing
+        visible: root.headerTitleVisible && !root.isEditing
         anchors.left: parent.left
         anchors.leftMargin: root.host ? root.host._titleLeftMargin : 0
         anchors.right: parent.right
@@ -152,7 +160,7 @@ Item {
     SurfaceControls.GraphSurfaceTextField {
         id: titleEditor
         objectName: "graphNodeTitleEditor"
-        visible: root.isEditing
+        visible: root.headerTitleVisible && root.isEditing
         host: root.host
         x: titleText.x
         y: titleText.y

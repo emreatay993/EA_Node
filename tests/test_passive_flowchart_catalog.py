@@ -18,46 +18,55 @@ _EXPECTED_FLOWCHART_SPECS = {
         "display_name": "Start",
         "surface_variant": "start",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.end": {
         "display_name": "End",
         "surface_variant": "end",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.process": {
         "display_name": "Process",
         "surface_variant": "process",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.decision": {
         "display_name": "Decision",
         "surface_variant": "decision",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.document": {
         "display_name": "Document",
         "surface_variant": "document",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.connector": {
         "display_name": "Connector",
         "surface_variant": "connector",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.input_output": {
         "display_name": "Input / Output",
         "surface_variant": "input_output",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.predefined_process": {
         "display_name": "Predefined Process",
         "surface_variant": "predefined_process",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
     "passive.flowchart.database": {
         "display_name": "Database",
         "surface_variant": "database",
         "ports": _EXPECTED_CARDINAL_PORTS,
+        "properties": ("title", "body"),
     },
 }
 
@@ -102,6 +111,10 @@ class PassiveFlowchartCatalogTests(unittest.TestCase):
                 ),
                 expected["ports"],
             )
+            self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
+            self.assertEqual(spec.properties[0].default, expected["display_name"])
+            self.assertEqual(spec.properties[1].default, expected["display_name"])
+            self.assertEqual(spec.properties[1].inspector_editor, "textarea")
             self.assertTrue(all(port.kind == "flow" for port in spec.ports))
             self.assertTrue(all(port.data_type == "flow" for port in spec.ports))
 

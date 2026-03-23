@@ -334,6 +334,7 @@ class GraphScenePayloadBuilder:
             "node_id": node.node_id,
             "type_id": node.type_id,
             "title": node.title,
+            "display_name": spec.display_name,
             "properties": copy.deepcopy(node.properties),
             "x": float(node.x),
             "y": float(node.y),

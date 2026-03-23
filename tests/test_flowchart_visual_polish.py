@@ -221,12 +221,21 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                 visit(root)
                 return matches
 
-            def flowchart_payload(variant):
+            def flowchart_payload(variant, *, title="Decision", display_name="Decision", properties=None, visual_style=None):
+                resolved_properties = {
+                    "title": title,
+                    "body": "Review the incoming data and choose the next branch.",
+                }
+                if properties:
+                    resolved_properties.update(properties)
+                resolved_visual_style = {}
+                if visual_style:
+                    resolved_visual_style.update(visual_style)
                 return {
                     "node_id": "node_flowchart_visual_polish",
                     "type_id": "tests.flowchart_visual_polish",
-                    "title": "Decision",
-                    "display_name": "Decision",
+                    "title": title,
+                    "display_name": display_name,
                     "x": 120.0,
                     "y": 120.0,
                     "width": 236.0,
@@ -237,7 +246,7 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                     "runtime_behavior": "passive",
                     "surface_family": "flowchart",
                     "surface_variant": variant,
-                    "visual_style": {},
+                    "visual_style": resolved_visual_style,
                     "can_enter_scope": False,
                     "ports": [
                         {
@@ -278,6 +287,7 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                         },
                     ],
                     "inline_properties": [],
+                    "properties": resolved_properties,
                 }
             """
         ) + "\n" + textwrap.dedent(body)
@@ -304,8 +314,14 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                 graph_node_host_qml_path,
                 {"nodeData": flowchart_payload("decision")},
             )
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
             assert bool(host.property("isFlowchartSurface"))
             assert not bool(host.property("_useHostChrome"))
+            assert title_item is not None
+            assert body_text is not None
+            assert not bool(title_item.property("visible"))
+            assert str(body_text.property("text") or "") == "Review the incoming data and choose the next branch."
             assert len(named_child_items(host, "graphNodeInputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeOutputPortDot")) == 2
             assert len(named_child_items(host, "graphNodeInputPortMouseArea")) == 2
@@ -313,6 +329,38 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             assert host.findChild(QObject, "graphFlowchartVectorShape") is not None
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeInputPortLabel"))
             assert not any(item.isVisible() for item in named_child_items(host, "graphNodeOutputPortLabel"))
+            """,
+        )
+
+    def test_flowchart_body_text_uses_fallback_chain_and_passive_style_hooks(self) -> None:
+        self._run_qml_probe(
+            "flowchart-body-style-hooks",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": flowchart_payload(
+                        "database",
+                        title="Archive",
+                        properties={"title": "Archive", "body": "   "},
+                        visual_style={
+                            "text_color": "#204060",
+                            "font_size": 17,
+                            "font_weight": "bold",
+                        },
+                    ),
+                },
+            )
+            body_text = host.findChild(QObject, "graphNodeFlowchartBodyText")
+            title_item = host.findChild(QObject, "graphNodeTitle")
+            assert body_text is not None
+            assert title_item is not None
+            assert str(body_text.property("text") or "") == "Archive"
+            assert not bool(title_item.property("visible"))
+            body_font = body_text.property("font")
+            assert body_font.pixelSize() == 17
+            assert body_font.bold()
+            assert body_text.property("color").name().lower() == "#204060"
             """,
         )
 

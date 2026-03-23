@@ -87,6 +87,17 @@ class InspectorReflectionTests(unittest.TestCase):
         self.assertEqual(node.title, "Validate Input")
         self.assertEqual(node.properties["title"], "Validate Input")
 
+    def test_flowchart_body_property_update_preserves_canonical_title_metadata(self) -> None:
+        node_id = self.scene.add_node_from_type("passive.flowchart.process", 0.0, 0.0)
+
+        self.scene.set_node_title(node_id, "Validate Input")
+        self.scene.set_node_property(node_id, "body", "Check the payload and sanitize user input.")
+
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        self.assertEqual(node.title, "Validate Input")
+        self.assertEqual(node.properties["title"], "Validate Input")
+        self.assertEqual(node.properties["body"], "Check the payload and sanitize user input.")
+
     def test_standard_node_title_property_update_via_scene_bridge_trims_and_keeps_node_title_canonical(self) -> None:
         node_id = self.scene.add_node_from_type("core.logger", 0.0, 0.0)
 

@@ -23,7 +23,10 @@ class _PassiveFlowchartNodePlugin:
 
 
 def _flowchart_title_property(default_title: str):
-    return (prop_str("title", default_title, "Title"),)
+    return (
+        prop_str("title", default_title, "Title"),
+        prop_str("body", default_title, "Body", inspector_editor="textarea"),
+    )
 
 
 @node_type(
