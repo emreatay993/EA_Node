@@ -38,7 +38,8 @@ from ea_node_editor.execution.runtime_snapshot import (
     build_runtime_snapshot,
     coerce_runtime_snapshot_payload,
 )
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.types import ExecutionContext, deserialize_runtime_value
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 _CONTROL_PORT_KINDS = frozenset({"exec", "completed", "failed"})
@@ -455,6 +456,31 @@ class _ExecutionPlan:
         return sorted(self.dependency_nodes)
 
 
+class _RuntimeArtifactService:
+    def __init__(
+        self,
+        *,
+        project_path: str,
+        runtime_snapshot: RuntimeSnapshot,
+    ) -> None:
+        self._project_path = str(project_path).strip()
+        self._resolver = ProjectArtifactResolver(
+            project_path=self._project_path or None,
+            project_metadata=runtime_snapshot.metadata,
+        )
+
+    @property
+    def project_path(self) -> str:
+        return self._project_path
+
+    def normalize_outputs(self, payload: dict[str, Any]) -> dict[str, Any]:
+        normalized = deserialize_runtime_value(payload)
+        return dict(normalized) if isinstance(normalized, dict) else {}
+
+    def resolve_path(self, value: Any) -> Any:
+        return self._resolver.resolve_to_path(value)
+
+
 class _NodeExecutor:
     def __init__(
         self,
@@ -463,12 +489,18 @@ class _NodeExecutor:
         control: _RunControl,
         publisher: _RunEventPublisher,
         *,
+        artifact_service: _RuntimeArtifactService,
+        project_path: str,
+        runtime_snapshot: RuntimeSnapshot,
         trigger: dict[str, Any],
     ) -> None:
         self._plan = execution_plan
         self._registry = registry
         self._control = control
         self._publisher = publisher
+        self._artifact_service = artifact_service
+        self._project_path = str(project_path).strip()
+        self._runtime_snapshot = runtime_snapshot
         self._trigger = trigger
         self.node_outputs: dict[str, dict[str, Any]] = {}
         self.executed: set[str] = set()
@@ -531,6 +563,9 @@ class _NodeExecutor:
             trigger=self._trigger,
             should_stop=self._control.should_stop,
             register_cancel=self._control.register_cancel_callback,
+            project_path=self._project_path,
+            runtime_snapshot=self._runtime_snapshot,
+            path_resolver=self._artifact_service.resolve_path,
         )
 
         try:
@@ -542,7 +577,7 @@ class _NodeExecutor:
             if self._control.should_stop():
                 return "stopped"
 
-            outputs = dict(result.outputs)
+            outputs = self._artifact_service.normalize_outputs(dict(result.outputs))
             self.node_outputs[node_id] = outputs
             self._publisher.emit_node_completed(node_id, outputs)
             self.executed.add(node_id)
@@ -589,10 +624,14 @@ def _coerce_start_run_command(command: StartRunCommand | dict[str, Any]) -> Star
         run_id=str(command.get("run_id", "")),
         project_path=str(command.get("project_path", "")),
         workspace_id=str(command.get("workspace_id", "")),
-        trigger=dict(command.get("trigger", {})) if isinstance(command.get("trigger"), dict) else {},
+        trigger=(
+            dict(trigger_payload)
+            if isinstance((trigger_payload := deserialize_runtime_value(command.get("trigger"))), dict)
+            else {}
+        ),
         runtime_snapshot=coerce_runtime_snapshot_payload(
-            command.get("runtime_snapshot"),
-            legacy_project_doc=command.get("project_doc"),
+            deserialize_runtime_value(command.get("runtime_snapshot")),
+            legacy_project_doc=deserialize_runtime_value(command.get("project_doc")),
         ),
     )
 
@@ -643,11 +682,18 @@ class _WorkflowRunner:
         self._runtime_snapshot = prepared.runtime_snapshot
         self._workspace = prepared.workspace
         self._plan = prepared.plan
+        self._artifact_service = _RuntimeArtifactService(
+            project_path=command.project_path,
+            runtime_snapshot=self._runtime_snapshot,
+        )
         self._executor = _NodeExecutor(
             self._plan,
             self._registry,
             self._control,
             self._publisher,
+            artifact_service=self._artifact_service,
+            project_path=command.project_path,
+            runtime_snapshot=self._runtime_snapshot,
             trigger=build_execution_trigger(command.trigger, self._runtime_snapshot),
         )
 

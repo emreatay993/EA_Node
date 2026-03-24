@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any, Literal, TypeAlias
 
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     coerce_runtime_snapshot_payload,
 )
+from ea_node_editor.nodes.types import deserialize_runtime_value, serialize_runtime_value
 
 EngineState = Literal["ready", "running", "paused", "error"]
 RunTransition = Literal["start", "pause", "resume", "stop", "complete", "fail"]
@@ -164,24 +165,33 @@ WorkerEvent: TypeAlias = (
 
 
 def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
-    return asdict(command)
+    return {
+        field_info.name: serialize_runtime_value(getattr(command, field_info.name))
+        for field_info in fields(command)
+    }
 
 
 def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
-    return asdict(event)
+    return {
+        field_info.name: serialize_runtime_value(getattr(event, field_info.name))
+        for field_info in fields(event)
+    }
 
 
 def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
     command_type = str(payload.get("type", ""))
     if command_type == "start_run":
+        trigger_payload = deserialize_runtime_value(payload.get("trigger"))
+        runtime_snapshot_payload = deserialize_runtime_value(payload.get("runtime_snapshot"))
+        legacy_project_doc = deserialize_runtime_value(payload.get("project_doc"))
         return StartRunCommand(
             run_id=str(payload.get("run_id", "")),
             project_path=str(payload.get("project_path", "")),
             workspace_id=str(payload.get("workspace_id", "")),
-            trigger=dict(payload.get("trigger", {})) if isinstance(payload.get("trigger"), dict) else {},
+            trigger=dict(trigger_payload) if isinstance(trigger_payload, dict) else {},
             runtime_snapshot=coerce_runtime_snapshot_payload(
-                payload.get("runtime_snapshot"),
-                legacy_project_doc=payload.get("project_doc"),
+                runtime_snapshot_payload,
+                legacy_project_doc=legacy_project_doc if isinstance(legacy_project_doc, dict) else None,
             ),
         )
     if command_type == "stop_run":
@@ -240,11 +250,12 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             node_id=str(payload.get("node_id", "")),
         )
     if event_type == "node_completed":
+        outputs_payload = deserialize_runtime_value(payload.get("outputs"))
         return NodeCompletedEvent(
             run_id=str(payload.get("run_id", "")),
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
-            outputs=dict(payload.get("outputs", {})) if isinstance(payload.get("outputs"), dict) else {},
+            outputs=dict(outputs_payload) if isinstance(outputs_payload, dict) else {},
         )
     if event_type == "log":
         return LogEvent(

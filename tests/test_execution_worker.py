@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import queue
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
@@ -11,7 +13,7 @@ from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec, RuntimeArtifactRef
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
@@ -28,6 +30,59 @@ from ea_node_editor.persistence.serializer import JsonProjectSerializer
 class _PassiveNotePlugin:
     def execute(self, _ctx: ExecutionContext) -> NodeResult:
         return NodeResult(outputs={})
+
+
+@node_type(
+    type_id="tests.artifact_source",
+    display_name="Artifact Source",
+    category="Tests",
+    icon="upload",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("artifact", "out", "data", "path", exposed=True),
+        PortSpec("summary", "out", "data", "str", exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _ArtifactSourcePlugin:
+    def execute(self, _ctx: ExecutionContext) -> NodeResult:
+        return NodeResult(
+            outputs={
+                "artifact": RuntimeArtifactRef.staged("stored_stdout"),
+                "summary": "stored output staged",
+                "exec_out": True,
+            }
+        )
+
+
+@node_type(
+    type_id="tests.artifact_sink",
+    display_name="Artifact Sink",
+    category="Tests",
+    icon="download",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("artifact", "in", "data", "path", required=True),
+        PortSpec("resolved_path", "out", "data", "path", exposed=True),
+        PortSpec("artifact_size", "out", "data", "int", exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _ArtifactSinkPlugin:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        path = ctx.resolve_input_path("artifact")
+        if path is None:
+            raise FileNotFoundError("Artifact Sink could not resolve the runtime artifact input.")
+        contents = path.read_text(encoding="utf-8")
+        return NodeResult(
+            outputs={
+                "resolved_path": str(path),
+                "artifact_size": len(contents),
+                "exec_out": True,
+            }
+        )
 
 
 class ExecutionWorkerTests(unittest.TestCase):
@@ -197,6 +252,76 @@ class ExecutionWorkerTests(unittest.TestCase):
             and str(event.get("node_id", "")) == constant.node_id
         )
         self.assertEqual(completed["outputs"]["value"], 42)
+
+    def test_run_workflow_emits_runtime_artifact_ref_payloads_and_resolves_downstream_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            artifact_path = Path(temp_dir) / "stored_stdout.txt"
+            large_payload = ("stored artifact payload\n" * 4096).strip()
+            artifact_path.write_text(large_payload, encoding="utf-8")
+
+            model = GraphModel()
+            ws = model.active_workspace
+            start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+            source = model.add_node(ws.workspace_id, "tests.artifact_source", "Source", 120, 0)
+            sink = model.add_node(ws.workspace_id, "tests.artifact_sink", "Sink", 260, 0)
+            end = model.add_node(ws.workspace_id, "core.end", "End", 400, 0)
+            model.add_edge(ws.workspace_id, start.node_id, "exec_out", source.node_id, "exec_in")
+            model.add_edge(ws.workspace_id, source.node_id, "exec_out", sink.node_id, "exec_in")
+            model.add_edge(ws.workspace_id, source.node_id, "artifact", sink.node_id, "artifact")
+            model.add_edge(ws.workspace_id, sink.node_id, "exec_out", end.node_id, "exec_in")
+            model.project.metadata["artifact_store"] = {
+                "artifacts": {},
+                "staged": {
+                    "stored_stdout": {
+                        "absolute_path": str(artifact_path),
+                    }
+                },
+            }
+
+            registry = build_default_registry()
+            registry.register(_ArtifactSourcePlugin)
+            registry.register(_ArtifactSinkPlugin)
+            runtime_snapshot = self._runtime_snapshot(model, registry=registry)
+            event_queue: queue.Queue = queue.Queue()
+
+            with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=registry):
+                run_workflow(
+                    {
+                        "run_id": "run_artifact_refs",
+                        "workspace_id": ws.workspace_id,
+                        "runtime_snapshot": runtime_snapshot,
+                        "trigger": {},
+                    },
+                    event_queue,
+                )
+
+            events = self._drain_events(event_queue)
+            source_completed = next(
+                event
+                for event in events
+                if str(event.get("type", "")) == "node_completed"
+                and str(event.get("node_id", "")) == source.node_id
+            )
+            self.assertEqual(source_completed["outputs"]["summary"], "stored output staged")
+            self.assertEqual(
+                source_completed["outputs"]["artifact"],
+                {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact-stage://stored_stdout",
+                    "artifact_id": "stored_stdout",
+                    "scope": "staged",
+                },
+            )
+            self.assertNotIn(large_payload[:128], json.dumps(source_completed))
+
+            sink_completed = next(
+                event
+                for event in events
+                if str(event.get("type", "")) == "node_completed"
+                and str(event.get("node_id", "")) == sink.node_id
+            )
+            self.assertEqual(sink_completed["outputs"]["resolved_path"], str(artifact_path))
+            self.assertEqual(sink_completed["outputs"]["artifact_size"], len(large_payload))
 
     def test_run_workflow_skips_action_nodes_without_exec_trigger(self) -> None:
         model = GraphModel()

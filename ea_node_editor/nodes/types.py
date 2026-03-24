@@ -1,10 +1,22 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
-from typing import Any, Callable, Literal, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol
+
+from ea_node_editor.persistence.artifact_refs import (
+    ManagedArtifactRef,
+    StagedArtifactRef,
+    format_managed_artifact_ref,
+    format_staged_artifact_ref,
+    parse_artifact_ref,
+)
+
+if TYPE_CHECKING:
+    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
 
 PortDirection = Literal["in", "out", "neutral"]
 PortSide = Literal["", "top", "right", "bottom", "left"]
@@ -18,10 +30,13 @@ PluginProvenanceKind = Literal["runtime", "file", "package", "entry_point"]
 RenderWeightClass = Literal["standard", "heavy"]
 MaxPerformanceStrategy = Literal["generic_fallback", "proxy_surface"]
 RenderQualityTier = Literal["full", "reduced", "proxy"]
+RuntimeArtifactScope = Literal["managed", "staged"]
 
 _SUPPORTED_RENDER_WEIGHT_CLASSES = {"standard", "heavy"}
 _SUPPORTED_MAX_PERFORMANCE_STRATEGIES = {"generic_fallback", "proxy_surface"}
 _SUPPORTED_RENDER_QUALITY_TIERS = {"full", "reduced", "proxy"}
+_RUNTIME_ARTIFACT_MARKER_KEY = "__ea_runtime_value__"
+_RUNTIME_ARTIFACT_MARKER_VALUE = "artifact_ref"
 
 
 def _normalize_render_quality_token(
@@ -64,6 +79,189 @@ def _normalize_render_quality_tiers(value: object) -> tuple[RenderQualityTier, .
     if not normalized:
         raise ValueError("render_quality.supported_quality_tiers must contain at least one tier")
     return tuple(normalized)
+
+
+def _copy_metadata_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    return {
+        str(key): copy.deepcopy(item)
+        for key, item in value.items()
+    }
+
+
+@dataclass(slots=True, frozen=True)
+class RuntimeArtifactRef:
+    ref: str
+    artifact_id: str
+    scope: RuntimeArtifactScope
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        parsed = parse_artifact_ref(self.ref)
+        if self.scope == "managed":
+            if not isinstance(parsed, ManagedArtifactRef):
+                raise ValueError(f"Runtime artifact ref is not managed: {self.ref!r}")
+            normalized_ref = parsed.as_string()
+        elif self.scope == "staged":
+            if not isinstance(parsed, StagedArtifactRef):
+                raise ValueError(f"Runtime artifact ref is not staged: {self.ref!r}")
+            normalized_ref = parsed.as_string()
+        else:
+            raise ValueError(f"Unsupported runtime artifact scope: {self.scope!r}")
+
+        if self.artifact_id != parsed.artifact_id:
+            raise ValueError(
+                "Runtime artifact ref artifact_id does not match the ref payload: "
+                f"{self.artifact_id!r} != {parsed.artifact_id!r}"
+            )
+
+        object.__setattr__(self, "ref", normalized_ref)
+        object.__setattr__(self, "metadata", _copy_metadata_mapping(self.metadata))
+
+    @classmethod
+    def managed(
+        cls,
+        artifact_id: str,
+        *,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeArtifactRef:
+        return cls(
+            ref=format_managed_artifact_ref(artifact_id),
+            artifact_id=str(artifact_id).strip(),
+            scope="managed",
+            metadata=_copy_metadata_mapping(metadata),
+        )
+
+    @classmethod
+    def staged(
+        cls,
+        artifact_id: str,
+        *,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeArtifactRef:
+        return cls(
+            ref=format_staged_artifact_ref(artifact_id),
+            artifact_id=str(artifact_id).strip(),
+            scope="staged",
+            metadata=_copy_metadata_mapping(metadata),
+        )
+
+    @classmethod
+    def from_artifact_ref(
+        cls,
+        value: object,
+        *,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeArtifactRef:
+        parsed = parse_artifact_ref(value)
+        if isinstance(parsed, ManagedArtifactRef):
+            return cls.managed(parsed.artifact_id, metadata=metadata)
+        if isinstance(parsed, StagedArtifactRef):
+            return cls.staged(parsed.artifact_id, metadata=metadata)
+        raise ValueError(f"Unsupported runtime artifact ref value: {value!r}")
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> RuntimeArtifactRef | None:
+        if str(payload.get(_RUNTIME_ARTIFACT_MARKER_KEY, "")).strip() != _RUNTIME_ARTIFACT_MARKER_VALUE:
+            return None
+        metadata = payload.get("metadata")
+        ref_value = str(payload.get("ref", "")).strip()
+        if not ref_value:
+            return None
+        runtime_ref = cls.from_artifact_ref(
+            ref_value,
+            metadata=metadata if isinstance(metadata, Mapping) else None,
+        )
+        payload_scope = str(payload.get("scope", "")).strip()
+        payload_artifact_id = str(payload.get("artifact_id", "")).strip()
+        if payload_scope and payload_scope != runtime_ref.scope:
+            raise ValueError(
+                "Runtime artifact ref payload scope does not match the ref value: "
+                f"{payload_scope!r} != {runtime_ref.scope!r}"
+            )
+        if payload_artifact_id and payload_artifact_id != runtime_ref.artifact_id:
+            raise ValueError(
+                "Runtime artifact ref payload artifact_id does not match the ref value: "
+                f"{payload_artifact_id!r} != {runtime_ref.artifact_id!r}"
+            )
+        return runtime_ref
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            _RUNTIME_ARTIFACT_MARKER_KEY: _RUNTIME_ARTIFACT_MARKER_VALUE,
+            "ref": self.ref,
+            "artifact_id": self.artifact_id,
+            "scope": self.scope,
+        }
+        if self.metadata:
+            payload["metadata"] = _copy_metadata_mapping(self.metadata)
+        return payload
+
+    def __str__(self) -> str:
+        return self.ref
+
+
+def coerce_runtime_artifact_ref(value: object) -> RuntimeArtifactRef | None:
+    if isinstance(value, RuntimeArtifactRef):
+        return value
+    if isinstance(value, Mapping):
+        payload_ref = RuntimeArtifactRef.from_payload(value)
+        if payload_ref is not None:
+            return payload_ref
+    parsed = parse_artifact_ref(value)
+    if isinstance(parsed, ManagedArtifactRef):
+        return RuntimeArtifactRef.managed(parsed.artifact_id)
+    if isinstance(parsed, StagedArtifactRef):
+        return RuntimeArtifactRef.staged(parsed.artifact_id)
+    return None
+
+
+def serialize_runtime_value(value: Any) -> Any:
+    if isinstance(value, RuntimeArtifactRef):
+        return value.to_payload()
+    if is_dataclass(value) and not isinstance(value, type):
+        return {
+            field_info.name: serialize_runtime_value(getattr(value, field_info.name))
+            for field_info in fields(value)
+        }
+    if isinstance(value, Mapping):
+        payload_ref = RuntimeArtifactRef.from_payload(value)
+        if payload_ref is not None:
+            return payload_ref.to_payload()
+        return {
+            str(key): serialize_runtime_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [serialize_runtime_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(serialize_runtime_value(item) for item in value)
+    if isinstance(value, set):
+        return {serialize_runtime_value(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(serialize_runtime_value(item) for item in value)
+    return copy.deepcopy(value)
+
+
+def deserialize_runtime_value(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        payload_ref = RuntimeArtifactRef.from_payload(value)
+        if payload_ref is not None:
+            return payload_ref
+        return {
+            str(key): deserialize_runtime_value(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [deserialize_runtime_value(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(deserialize_runtime_value(item) for item in value)
+    if isinstance(value, set):
+        return {deserialize_runtime_value(item) for item in value}
+    if isinstance(value, frozenset):
+        return frozenset(deserialize_runtime_value(item) for item in value)
+    return copy.deepcopy(value)
 
 
 @dataclass(slots=True, frozen=True)
@@ -181,6 +379,9 @@ class ExecutionContext:
     trigger: dict[str, Any] = field(default_factory=dict)
     should_stop: Callable[[], bool] = field(default=lambda: False)
     register_cancel: Callable[[Callable[[], None]], None] = field(default=lambda _callback: None)
+    project_path: str = ""
+    runtime_snapshot: RuntimeSnapshot | None = None
+    path_resolver: Callable[[Any], Path | None] = field(default=lambda _value: None)
 
     def log_info(self, message: str) -> None:
         self.emit_log("info", message)
@@ -190,6 +391,24 @@ class ExecutionContext:
 
     def log_error(self, message: str) -> None:
         self.emit_log("error", message)
+
+    def runtime_artifact_ref(self, value: Any) -> RuntimeArtifactRef | None:
+        return coerce_runtime_artifact_ref(value)
+
+    def resolve_path_value(self, value: Any) -> Path | None:
+        runtime_ref = self.runtime_artifact_ref(value)
+        candidate = runtime_ref.ref if runtime_ref is not None else value
+        return self.path_resolver(candidate)
+
+    def resolve_input_path(self, input_key: str, *, property_key: str = "") -> Path | None:
+        candidates = [self.inputs.get(input_key)]
+        if property_key:
+            candidates.append(self.properties.get(property_key))
+        for candidate in candidates:
+            path = self.resolve_path_value(candidate)
+            if path is not None:
+                return path
+        return None
 
 
 @dataclass(slots=True)

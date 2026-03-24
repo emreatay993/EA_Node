@@ -7,9 +7,11 @@ import time
 import unittest
 
 from ea_node_editor.execution.client import ProcessExecutionClient
+from ea_node_editor.execution.protocol import NodeCompletedEvent, event_to_dict
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.types import RuntimeArtifactRef
 
 
 class ProcessExecutionClientTests(unittest.TestCase):
@@ -81,6 +83,41 @@ class ProcessExecutionClientTests(unittest.TestCase):
         )
 
         self.assertIsNotNone(event)
+
+    def test_client_listener_preserves_structured_artifact_ref_event_payloads(self) -> None:
+        self.client._event_queue.put(
+            event_to_dict(
+                NodeCompletedEvent(
+                    run_id="run_artifact",
+                    workspace_id="ws_main",
+                    node_id="node_process",
+                    outputs={
+                        "stdout": RuntimeArtifactRef.staged("stored_stdout"),
+                        "preview": "ok",
+                    },
+                )
+            )
+        )  # noqa: SLF001
+
+        event = self._wait_for_event(
+            lambda payload: payload.get("type") == "node_completed"
+            and payload.get("run_id") == "run_artifact",
+            timeout=3.0,
+        )
+
+        self.assertIsNotNone(event)
+        if event is None:
+            self.fail("node_completed event was not received")
+        self.assertEqual(
+            event["outputs"]["stdout"],
+            {
+                "__ea_runtime_value__": "artifact_ref",
+                "ref": "artifact-stage://stored_stdout",
+                "artifact_id": "stored_stdout",
+                "scope": "staged",
+            },
+        )
+        self.assertEqual(event["outputs"]["preview"], "ok")
 
     def test_worker_death_emits_failure_and_next_run_recovers(self) -> None:
         workspace_id, long_runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=True)

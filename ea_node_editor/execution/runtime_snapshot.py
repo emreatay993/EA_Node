@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
+from ea_node_editor.nodes.types import deserialize_runtime_value, serialize_runtime_value
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.model import ProjectData
@@ -24,12 +25,15 @@ class RuntimeSnapshot:
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> RuntimeSnapshot:
+        normalized_payload = deserialize_runtime_value(dict(payload))
+        if not isinstance(normalized_payload, Mapping):
+            normalized_payload = {}
         workspaces = tuple(
             RuntimeWorkspace.from_mapping(workspace_doc)
-            for workspace_doc in payload.get("workspaces", [])
+            for workspace_doc in normalized_payload.get("workspaces", [])
             if isinstance(workspace_doc, Mapping)
         )
-        raw_workspace_order = payload.get("workspace_order")
+        raw_workspace_order = normalized_payload.get("workspace_order")
         workspace_order = tuple(
             str(item).strip()
             for item in raw_workspace_order
@@ -40,12 +44,16 @@ class RuntimeSnapshot:
             if workspace.workspace_id
         )
         return cls(
-            schema_version=int(payload.get("schema_version", 0)),
-            project_id=str(payload.get("project_id", "")).strip(),
-            name=str(payload.get("name", "")),
-            active_workspace_id=str(payload.get("active_workspace_id", "")).strip(),
+            schema_version=int(normalized_payload.get("schema_version", 0)),
+            project_id=str(normalized_payload.get("project_id", "")).strip(),
+            name=str(normalized_payload.get("name", "")),
+            active_workspace_id=str(normalized_payload.get("active_workspace_id", "")).strip(),
             workspace_order=workspace_order,
-            metadata=copy.deepcopy(payload.get("metadata")) if isinstance(payload.get("metadata"), Mapping) else {},
+            metadata=(
+                copy.deepcopy(normalized_payload.get("metadata"))
+                if isinstance(normalized_payload.get("metadata"), Mapping)
+                else {}
+            ),
             workspaces=workspaces,
         )
 
@@ -72,7 +80,7 @@ class RuntimeSnapshot:
             for workspace in self.workspaces
             if workspace.workspace_id and workspace.workspace_id not in ordered_workspace_ids
         )
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "project_id": self.project_id,
             "name": self.name,
@@ -81,6 +89,8 @@ class RuntimeSnapshot:
             "workspaces": [copy.deepcopy(workspaces_by_id[workspace_id]) for workspace_id in ordered_workspace_ids],
             "metadata": copy.deepcopy(self.metadata),
         }
+        serialized = serialize_runtime_value(payload)
+        return dict(serialized) if isinstance(serialized, Mapping) else payload
 
 
 def coerce_runtime_snapshot(value: RuntimeSnapshot | Mapping[str, Any] | None) -> RuntimeSnapshot | None:
