@@ -1274,6 +1274,9 @@ class ShellWindow(QMainWindow):
     def _save_project_as(self):
         return self.project_session_controller.save_project_as()
 
+    def _show_project_files(self):
+        return self.project_session_controller.show_project_files_dialog()
+
     def _new_project(self):
         return self.project_session_controller.new_project()
 
@@ -1593,8 +1596,8 @@ class ShellWindow(QMainWindow):
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
         self.shell_workspace_presenter.set_script_editor_panel_visible(checked)
 
-    def _prompt_recover_autosave(self):
-        return self.project_session_controller.prompt_recover_autosave()
+    def _prompt_recover_autosave(self, recovered_project=None):
+        return self.project_session_controller.prompt_recover_autosave(recovered_project)
 
     @pyqtSlot()
     def _record_render_frame(self) -> None:

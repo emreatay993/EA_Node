@@ -12,6 +12,7 @@ from unittest.mock import patch
 from PyQt6.QtCore import QEvent, QUrl
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.persistence.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
@@ -410,7 +411,11 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             },
         }
 
-        with patch(
+        with patch.object(
+            self.window.project_session_controller,
+            "_prompt_project_files_action",
+            return_value=True,
+        ), patch(
             "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
             return_value=(str(save_target), "EA Project (*.sfe)"),
         ):
@@ -490,7 +495,11 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         stale_staging_path.parent.mkdir(parents=True, exist_ok=True)
         stale_staging_path.write_text("stale staging", encoding="utf-8")
 
-        with patch(
+        with patch.object(
+            self.window.project_session_controller,
+            "_prompt_project_files_action",
+            return_value=True,
+        ), patch(
             "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
             return_value=(str(save_target), "EA Project (*.sfe)"),
         ), patch.object(
@@ -551,6 +560,143 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.assertEqual(normalized, [str(base_path.with_name("alpha.sfe")), str(base_path.with_name("beta.sfe"))])
         self.assertEqual(self.window.project_session_state.recent_project_paths, normalized)
         self.assertEqual(self.window.recent_project_paths, normalized)
+
+    def test_project_files_menu_action_triggers_dialog(self) -> None:
+        with patch.object(self.window.project_session_controller, "show_project_files_dialog") as show_dialog:
+            self.window.action_project_files.trigger()
+            self.app.processEvents()
+
+        self.assertEqual(self.window.action_project_files.text(), "Project Files...")
+        self.assertEqual(show_dialog.call_count, 1)
+
+    def test_save_prompt_receives_project_file_summary_before_saving(self) -> None:
+        self._attach_unsaved_staged_output()
+        missing_path = str(Path(self._temp_dir.name) / "missing-image.png")
+        broken_node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=220.0, y=160.0)
+        self.window.scene.set_node_property(broken_node_id, "source_path", missing_path)
+        save_target = Path(self._temp_dir.name) / "projects" / "prompted_save"
+
+        with patch.object(
+            self.window.project_session_controller,
+            "_prompt_project_files_action",
+            return_value=True,
+        ) as prompt, patch(
+            "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+            return_value=(str(save_target), "EA Project (*.sfe)"),
+        ):
+            self.window._save_project()
+        self.app.processEvents()
+
+        self.assertEqual(prompt.call_count, 1)
+        snapshot = prompt.call_args.kwargs["snapshot"]
+        self.assertEqual(snapshot.staged_count, 1)
+        self.assertEqual(snapshot.broken_count, 1)
+
+    def test_open_project_path_can_abort_when_project_files_summary_has_staged_and_broken_entries(self) -> None:
+        baseline_node_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        self.app.processEvents()
+
+        project_path = Path(self._temp_dir.name) / "projects" / "open_with_summary.sfe"
+        staged_path = project_path.with_name("open_with_summary.data") / ".staging" / "outputs" / "run.txt"
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_path.write_text("staged output", encoding="utf-8")
+
+        model = GraphModel()
+        workspace = model.active_workspace
+        model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Staged",
+            80.0,
+            60.0,
+            properties={"source_path": format_staged_artifact_ref("pending_output")},
+        )
+        model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Broken",
+            220.0,
+            60.0,
+            properties={"source_path": str(Path(self._temp_dir.name) / "missing-open-image.png")},
+        )
+        model.project.metadata = {
+            "artifact_store": {
+                "staged": {
+                    "pending_output": {
+                        "relative_path": ".staging/outputs/run.txt",
+                        "slot": "process_run.stdout",
+                    }
+                }
+            }
+        }
+        self.window.serializer.save_document(str(project_path), self.window.serializer.to_document(model.project))
+
+        with patch.object(
+            self.window.project_session_controller,
+            "_prompt_project_files_action",
+            return_value=False,
+        ) as prompt:
+            result = self.window._open_project_path(str(project_path))
+        self.app.processEvents()
+
+        self.assertFalse(result)
+        self.assertEqual(prompt.call_count, 1)
+        snapshot = prompt.call_args.kwargs["snapshot"]
+        self.assertEqual(snapshot.staged_count, 1)
+        self.assertEqual(snapshot.broken_count, 1)
+        workspace = self.window.model.project.workspaces[self.window.workspace_manager.active_workspace_id()]
+        self.assertIn(baseline_node_id, workspace.nodes)
+
+    def test_recovery_prompt_receives_project_file_summary_for_recovered_project(self) -> None:
+        recovered_project_path = Path(self._temp_dir.name) / "projects" / "recovered_project.sfe"
+        recovered_staging_path = (
+            recovered_project_path.with_name("recovered_project.data") / ".staging" / "outputs" / "run.txt"
+        )
+        recovered_staging_path.parent.mkdir(parents=True, exist_ok=True)
+        recovered_staging_path.write_text("staged output", encoding="utf-8")
+        self.window.project_path = str(recovered_project_path)
+
+        recovered_model = GraphModel()
+        workspace = recovered_model.active_workspace
+        recovered_model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Recovered Staged",
+            80.0,
+            60.0,
+            properties={"source_path": format_staged_artifact_ref("pending_output")},
+        )
+        recovered_model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Recovered Broken",
+            220.0,
+            60.0,
+            properties={"source_path": str(Path(self._temp_dir.name) / "missing-recovered-image.png")},
+        )
+        recovered_model.project.metadata = {
+            "artifact_store": {
+                "staged": {
+                    "pending_output": {
+                        "relative_path": ".staging/outputs/run.txt",
+                        "slot": "process_run.stdout",
+                    }
+                }
+            }
+        }
+
+        with patch.object(
+            self.window.project_session_controller,
+            "_prompt_project_files_action",
+            return_value=True,
+        ) as prompt:
+            choice = self.window.project_session_controller.prompt_recover_autosave(recovered_model.project)
+
+        self.assertEqual(choice, QMessageBox.StandardButton.Yes)
+        self.assertEqual(prompt.call_count, 1)
+        snapshot = prompt.call_args.kwargs["snapshot"]
+        self.assertEqual(snapshot.staged_count, 1)
+        self.assertEqual(snapshot.broken_count, 1)
 
 
 class ShellProjectSessionControllerTests(unittest.TestCase):
@@ -616,6 +762,18 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         self._run_scenario("test_recent_project_paths_are_owned_by_explicit_session_state")
+
+    def test_project_files_menu_action_triggers_dialog(self) -> None:
+        self._run_scenario("test_project_files_menu_action_triggers_dialog")
+
+    def test_save_prompt_receives_project_file_summary_before_saving(self) -> None:
+        self._run_scenario("test_save_prompt_receives_project_file_summary_before_saving")
+
+    def test_open_project_path_can_abort_when_project_files_summary_has_staged_and_broken_entries(self) -> None:
+        self._run_scenario("test_open_project_path_can_abort_when_project_files_summary_has_staged_and_broken_entries")
+
+    def test_recovery_prompt_receives_project_file_summary_for_recovered_project(self) -> None:
+        self._run_scenario("test_recovery_prompt_receives_project_file_summary_for_recovered_project")
 
 
 def load_tests(loader, _tests, _pattern):  # noqa: ANN001

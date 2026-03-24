@@ -10,6 +10,7 @@ from unittest.mock import patch
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.artifact_refs import (
     format_managed_artifact_ref,
     format_staged_artifact_ref,
@@ -87,9 +88,25 @@ class _SceneStub:
 class _ProjectHostStub:
     def __init__(self, *, project_path: str, persistent_document: dict) -> None:
         self.project_session_state = ShellProjectSessionState()
+        self.registry = build_default_registry()
         self.model = GraphModel()
         self.model.project.project_id = str(persistent_document.get("project_id", "proj_save_as"))
         self.model.project.name = str(persistent_document.get("name", "Save As Demo"))
+        workspace = self.model.active_workspace
+        workspace_docs = persistent_document.get("workspaces", [])
+        if workspace_docs:
+            workspace_doc = workspace_docs[0]
+            workspace.name = str(workspace_doc.get("name", workspace.name))
+            for node_doc in workspace_doc.get("nodes", []):
+                self.model.add_node(
+                    workspace.workspace_id,
+                    str(node_doc.get("type_id", "")),
+                    str(node_doc.get("title", "")),
+                    float(node_doc.get("x", 0.0)),
+                    float(node_doc.get("y", 0.0)),
+                    properties=copy.deepcopy(node_doc.get("properties", {})),
+                    exposed_ports=copy.deepcopy(node_doc.get("exposed_ports", {})),
+                )
         self.model.project.metadata = copy.deepcopy(persistent_document.get("metadata", {}))
         for workspace in self.model.project.workspaces.values():
             workspace.dirty = True
@@ -246,7 +263,11 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
-            with patch(
+            with patch.object(
+                ProjectSessionController,
+                "_prompt_project_files_action",
+                return_value=True,
+            ), patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
                 return_value=(str(target_project), "EA Project (*.sfe)"),
             ), patch(
@@ -294,6 +315,71 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             )
             self.assertEqual(saved_nodes["node_external"]["properties"]["source_path"], external_path)
 
+    def test_save_as_prompts_with_staged_and_broken_summary_before_file_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_project = root / "source" / "source_project.sfe"
+            managed_path = source_project.with_name("source_project.data") / "assets" / "media" / "diagram.png"
+            managed_path.parent.mkdir(parents=True, exist_ok=True)
+            managed_path.write_text("managed payload", encoding="utf-8")
+            staged_path = source_project.with_name("source_project.data") / ".staging" / "outputs" / "run.txt"
+            staged_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_path.write_text("staged payload", encoding="utf-8")
+            missing_external_path = str((root / "external" / "missing.png").resolve())
+            persistent_document = self._build_persistent_document(external_path=missing_external_path)
+
+            host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
+            controller = ProjectSessionController(host)  # type: ignore[arg-type]
+            target_project = root / "copies" / "clone_project.sfe"
+
+            with patch.object(
+                ProjectSessionController,
+                "_prompt_project_files_action",
+                return_value=True,
+            ) as prompt, patch(
+                "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+                return_value=(str(target_project), "EA Project (*.sfe)"),
+            ), patch(
+                "ea_node_editor.ui.dialogs.project_save_as_dialog.ProjectSaveAsDialog",
+                _AcceptingSelfContainedSaveAsDialog,
+            ):
+                controller.save_project_as()
+
+        self.assertEqual(prompt.call_count, 1)
+        snapshot = prompt.call_args.kwargs["snapshot"]
+        self.assertEqual(snapshot.managed_count, 1)
+        self.assertEqual(snapshot.staged_count, 1)
+        self.assertEqual(snapshot.broken_count, 1)
+
+    def test_save_as_cancelled_from_project_file_prompt_skips_file_selection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_project = root / "source" / "source_project.sfe"
+            managed_path = source_project.with_name("source_project.data") / "assets" / "media" / "diagram.png"
+            managed_path.parent.mkdir(parents=True, exist_ok=True)
+            managed_path.write_text("managed payload", encoding="utf-8")
+            missing_external_path = str((root / "external" / "missing.png").resolve())
+            persistent_document = self._build_persistent_document(external_path=missing_external_path)
+
+            host = _ProjectHostStub(project_path=str(source_project), persistent_document=persistent_document)
+            controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+            with patch.object(
+                ProjectSessionController,
+                "_prompt_project_files_action",
+                return_value=False,
+            ) as prompt, patch(
+                "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+            ) as file_dialog, patch(
+                "ea_node_editor.ui.dialogs.project_save_as_dialog.ProjectSaveAsDialog",
+                _AcceptingSelfContainedSaveAsDialog,
+            ):
+                controller.save_project_as()
+
+        self.assertEqual(prompt.call_count, 1)
+        self.assertEqual(file_dialog.call_count, 0)
+        self.assertEqual(host.serializer.saved_documents, [])
+
     def test_save_as_plain_project_without_managed_data_still_switches_to_new_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -329,7 +415,11 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             host = _ProjectHostStub(project_path="", persistent_document=persistent_document)
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
-            with patch(
+            with patch.object(
+                ProjectSessionController,
+                "_prompt_project_files_action",
+                return_value=True,
+            ), patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
                 return_value=(str(target_project), "EA Project (*.sfe)"),
             ), patch(

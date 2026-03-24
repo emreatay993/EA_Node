@@ -28,6 +28,9 @@ def create_window_actions(window: ShellWindow) -> None:
     window.action_save_project_as.setShortcut(QKeySequence.StandardKey.SaveAs)
     window.action_save_project_as.triggered.connect(window._save_project_as)
 
+    window.action_project_files = QAction("Project Files...", window)
+    window.action_project_files.triggered.connect(window._show_project_files)
+
     window.action_open_project = QAction("Open Project", window)
     window.action_open_project.setShortcut(QKeySequence.StandardKey.Open)
     window.action_open_project.triggered.connect(window._open_project)
@@ -197,6 +200,7 @@ def create_window_actions(window: ShellWindow) -> None:
         window.action_new_workspace,
         window.action_save_project,
         window.action_save_project_as,
+        window.action_project_files,
         window.action_open_project,
         window.action_clear_recent_projects,
         window.action_workflow_settings,
@@ -256,6 +260,7 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     window._refresh_recent_projects_menu()
     file_menu.addAction(window.action_save_project)
     file_menu.addAction(window.action_save_project_as)
+    file_menu.addAction(window.action_project_files)
     file_menu.addSeparator()
     file_menu.addAction(window.action_import_custom_workflow)
     file_menu.addAction(window.action_export_custom_workflow)
