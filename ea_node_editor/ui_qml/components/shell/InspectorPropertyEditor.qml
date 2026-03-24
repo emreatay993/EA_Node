@@ -212,45 +212,95 @@ Column {
         }
     }
 
-    RowLayout {
+    Column {
         width: parent.width
         visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "path"
         spacing: 6
 
-        InspectorTextField {
-            id: pathEditor
-            pane: propertyEditor.pane
-            objectName: "inspectorPathEditor"
-            property string propertyKey: propertyEditor.propertyKey
-            Layout.fillWidth: true
-            text: MainShellUtils.toEditorText(propertyEditor.propertyItem)
-            onAccepted: {
-                if (propertyEditor.pane.inspectorBridgeRef)
-                    propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
+        RowLayout {
+            width: parent.width
+            spacing: 6
+
+            InspectorTextField {
+                id: pathEditor
+                pane: propertyEditor.pane
+                objectName: "inspectorPathEditor"
+                property string propertyKey: propertyEditor.propertyKey
+                Layout.fillWidth: true
+                text: MainShellUtils.toEditorText(propertyEditor.propertyItem)
+                onAccepted: {
+                    if (propertyEditor.pane.inspectorBridgeRef)
+                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
+                }
+                onEditingFinished: {
+                    if (propertyEditor.pane.inspectorBridgeRef)
+                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
+                }
             }
-            onEditingFinished: {
-                if (propertyEditor.pane.inspectorBridgeRef)
-                    propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, text)
+
+            InspectorButton {
+                pane: propertyEditor.pane
+                objectName: "inspectorPathBrowseButton"
+                property string propertyKey: propertyEditor.propertyKey
+                compact: true
+                text: "Browse"
+                onClicked: {
+                    if (!propertyEditor.pane.inspectorBridgeRef)
+                        return
+                    var selectedPath = propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path(
+                        propertyEditor.propertyKey,
+                        pathEditor.text
+                    )
+                    if (!String(selectedPath || "").length)
+                        return
+                    pathEditor.text = String(selectedPath)
+                    propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, pathEditor.text)
+                }
             }
         }
 
-        InspectorButton {
-            pane: propertyEditor.pane
-            objectName: "inspectorPathBrowseButton"
-            property string propertyKey: propertyEditor.propertyKey
-            compact: true
-            text: "Browse"
-            onClicked: {
-                if (!propertyEditor.pane.inspectorBridgeRef)
-                    return
-                var selectedPath = propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path(
-                    propertyEditor.propertyKey,
-                    pathEditor.text
-                )
-                if (!String(selectedPath || "").length)
-                    return
-                pathEditor.text = String(selectedPath)
-                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, pathEditor.text)
+        Rectangle {
+            width: parent.width
+            visible: !!(propertyEditor.propertyItem && propertyEditor.propertyItem.file_issue_active)
+            radius: 8
+            color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.12)
+            border.width: 1
+            border.color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.48)
+            implicitHeight: issueColumn.implicitHeight + 12
+
+            Column {
+                id: issueColumn
+                anchors.fill: parent
+                anchors.margins: 6
+                spacing: 6
+
+                Text {
+                    width: parent.width
+                    text: String(propertyEditor.propertyItem && propertyEditor.propertyItem.file_issue_message || "")
+                    color: propertyEditor.pane.themePalette.input_fg
+                    font.pixelSize: 10
+                    wrapMode: Text.Wrap
+                }
+
+                InspectorButton {
+                    pane: propertyEditor.pane
+                    objectName: "inspectorPathRepairButton"
+                    property string propertyKey: propertyEditor.propertyKey
+                    compact: true
+                    text: "Repair file..."
+                    onClicked: {
+                        if (!propertyEditor.pane.inspectorBridgeRef)
+                            return
+                        var repairedPath = propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path(
+                            propertyEditor.propertyKey,
+                            String(propertyEditor.propertyItem && propertyEditor.propertyItem.file_issue_request || "")
+                        )
+                        if (!String(repairedPath || "").length)
+                            return
+                        pathEditor.text = String(repairedPath)
+                        propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, pathEditor.text)
+                    }
+                }
             }
         }
     }

@@ -6,7 +6,7 @@ Item {
     id: root
     property var surface: null
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
-        [cropButton.embeddedInteractiveRects]
+        [cropButton.embeddedInteractiveRects, repairButton.embeddedInteractiveRects]
     )
 
     GraphSurfaceControls.GraphSurfaceButton {
@@ -35,6 +35,59 @@ Item {
         text: ""
         onControlStarted: root.surface._beginInlineInteraction()
         onClicked: root.surface.triggerHoverAction()
+    }
+
+    GraphSurfaceControls.GraphSurfaceButton {
+        id: repairButton
+        objectName: "graphNodeMediaRepairButton"
+        z: 6
+        host: root.surface ? root.surface.host : null
+        visible: root.surface ? root.surface.fileIssueActive : false
+        enabled: visible
+        text: "Repair file..."
+        accentColor: "#D98B4B"
+        foregroundColor: root.surface ? root.surface.cropButtonIconColor : "#f0f2f5"
+        baseFillColor: Qt.alpha(root.surface ? root.surface.panelFillColor : "#1b1d22", 0.88)
+        baseBorderColor: Qt.alpha("#D98B4B", 0.78)
+        anchors.right: parent.right
+        anchors.rightMargin: 10
+        y: root.surface && root.surface.host
+            ? Number(root.surface.host.surfaceMetrics.title_top || 0)
+                + Math.max(0, (Number(root.surface.host.surfaceMetrics.title_height || 24) - height) * 0.5)
+            : 6
+        onControlStarted: root.surface._beginInlineInteraction()
+        onClicked: root.surface.repairFile()
+    }
+
+    Rectangle {
+        id: issueBadge
+        objectName: "graphNodeMediaIssueBadge"
+        z: 5
+        visible: !!root.surface && root.surface.fileIssueActive
+        anchors.right: repairButton.visible ? repairButton.left : parent.right
+        anchors.rightMargin: repairButton.visible ? 8 : 10
+        y: root.surface && root.surface.host
+            ? Number(root.surface.host.surfaceMetrics.title_top || 0)
+                + Math.max(0, (Number(root.surface.host.surfaceMetrics.title_height || 24) - height) * 0.5)
+            : 6
+        radius: 10
+        color: Qt.alpha("#D98B4B", 0.22)
+        border.width: 1
+        border.color: Qt.alpha("#D98B4B", 0.72)
+        height: issueBadgeLabel.implicitHeight + 10
+        width: issueBadgeLabel.implicitWidth + 16
+
+        Text {
+            id: issueBadgeLabel
+            anchors.centerIn: parent
+            text: "Missing file"
+            color: root.surface ? root.surface.cropButtonIconColor : "#F4F8FC"
+            font.pixelSize: 10
+            font.bold: true
+            renderType: root.surface && root.surface.host
+                ? root.surface.host.nodeTextRenderType
+                : Text.CurveRendering
+        }
     }
 
     Rectangle {

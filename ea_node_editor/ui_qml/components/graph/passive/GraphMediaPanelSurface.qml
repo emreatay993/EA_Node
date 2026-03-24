@@ -50,6 +50,18 @@ Item {
     readonly property int pdfResolvedPageNumber: isPdfPanel ? Number(pdfPreviewInfo.resolved_page_number || 1) : 1
     readonly property string pdfPreviewMessage: isPdfPanel ? String(pdfPreviewInfo.message || "") : ""
     readonly property bool sourceRejected: sourcePath.trim().length > 0 && resolvedSourceUrl.length === 0
+    readonly property bool fileIssueActive: sourcePath.trim().length > 0 && previewState === "error"
+    readonly property string fileIssueMessage: {
+        if (!fileIssueActive)
+            return "";
+        if (isPdfPanel)
+            return pdfPreviewMessage.length > 0
+                ? pdfPreviewMessage
+                : "The PDF source is missing or can no longer be loaded.";
+        return sourceRejected
+            ? "The image source is missing or can no longer be loaded."
+            : "The image preview could not be loaded from the current source.";
+    }
     readonly property string previewState: {
         if (isPdfPanel) {
             var state = String(pdfPreviewInfo.state || "placeholder");
@@ -111,11 +123,13 @@ Item {
     readonly property string previewHintText: {
         if (isPdfPanel) {
             if (previewState === "error")
-                return pdfPreviewMessage.length > 0 ? pdfPreviewMessage : "Unable to load a local PDF preview.";
+                return pdfPreviewMessage.length > 0
+                    ? pdfPreviewMessage
+                    : "Unable to load the current PDF preview. Use Repair file... to relink it.";
             return "Choose a local PDF file to preview it here.";
         }
         return previewState === "error"
-            ? "Unable to load a local image preview."
+            ? "Unable to load the current image preview. Use Repair file... to relink it."
             : "Choose a local image file to preview it here.";
     }
     readonly property color panelFillColor: host && host.hasPassiveFillOverride
@@ -240,6 +254,17 @@ Item {
         if (!host || !host.browseNodePropertyPath)
             return "";
         return String(host.browseNodePropertyPath(key, currentPath) || "");
+    }
+
+    function _repairRequestValue(currentPath) {
+        return "ea-file-repair:" + encodeURIComponent(String(currentPath || ""));
+    }
+
+    function repairFile() {
+        var repairedPath = _browseInlinePropertyPath("source_path", _repairRequestValue(sourcePath));
+        if (!repairedPath.length)
+            return;
+        _commitInlineProperty("source_path", repairedPath);
     }
 
     function _numberValue(key, fallback) {

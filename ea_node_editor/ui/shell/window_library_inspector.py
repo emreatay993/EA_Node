@@ -10,6 +10,7 @@ from ea_node_editor.graph.effective_ports import (
     effective_ports,
     ordered_ports_for_display,
 )
+from ea_node_editor.graph.file_issue_state import build_file_issue_payload
 from ea_node_editor.ui.support.node_presentation import (
     build_inline_property_items,
     build_user_facing_node_instance_number,
@@ -272,6 +273,7 @@ def build_selected_node_property_items(
     node: Any,
     spec: Any,
     subnode_pin_type_ids: set[str],
+    file_issues_by_key: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     if node.type_id in subnode_pin_type_ids:
         ordered_keys = ("label", "kind", "data_type")
@@ -283,8 +285,10 @@ def build_selected_node_property_items(
         ]
     else:
         ordered_properties = [prop for prop in spec.properties if property_visible_in_inspector(prop)]
-    return [
-        {
+    issue_lookup = dict(file_issues_by_key or {})
+    items: list[dict[str, Any]] = []
+    for prop in ordered_properties:
+        item = {
             "key": prop.key,
             "label": prop.label,
             "type": prop.type,
@@ -293,8 +297,9 @@ def build_selected_node_property_items(
             "inline_editor": prop.inline_editor,
             "editor_mode": property_inspector_editor(prop),
         }
-        for prop in ordered_properties
-    ]
+        item.update(build_file_issue_payload(issue_lookup.get(prop.key)))
+        items.append(item)
+    return items
 def build_selected_node_port_items(
     *,
     node: Any,

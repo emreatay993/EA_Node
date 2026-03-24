@@ -9,6 +9,7 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.graph.file_issue_state import encode_file_repair_request
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
@@ -1747,6 +1748,38 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                         "relative_path": ".staging/assets/media/managed_image.png",
                     }
                 },
+            )
+        finally:
+            window.close()
+            window.deleteLater()
+            app.processEvents()
+            test_env.stop()
+
+    def test_shell_window_selected_node_property_items_publish_file_issue_payload(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        from ea_node_editor.ui.shell.window import ShellWindow
+
+        app = QApplication.instance() or QApplication([])
+        test_env = ShellTestEnvironment()
+        temp_root = test_env.start()
+        window = ShellWindow()
+        try:
+            missing_path = str(temp_root / "missing-input.txt")
+            node_id = window.scene.add_node_from_type("io.file_read", x=120.0, y=80.0)
+            self.assertTrue(node_id)
+            window.scene.set_node_property(node_id, "path", missing_path)
+            window.scene.select_node(node_id, False)
+            app.processEvents()
+
+            path_item = next(item for item in window.selected_node_property_items if item["key"] == "path")
+            self.assertTrue(path_item["file_issue_active"])
+            self.assertEqual(path_item["file_issue_kind"], "external_missing")
+            self.assertTrue(path_item["file_issue_supports_external_repair"])
+            self.assertFalse(path_item["file_issue_supports_managed_repair"])
+            self.assertEqual(
+                path_item["file_issue_request"],
+                encode_file_repair_request(missing_path),
             )
         finally:
             window.close()

@@ -14,6 +14,12 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMainWindow
 
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.graph.effective_ports import find_port, port_kind
+from ea_node_editor.graph.file_issue_state import (
+    EXTERNAL_LINK_MODE,
+    MANAGED_COPY_MODE,
+    preferred_repair_mode_for_value,
+    repair_modes_for_node_property,
+)
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.subnode import (
@@ -341,6 +347,7 @@ class ShellWindow(QMainWindow):
         self.scene.scope_changed.connect(self._on_scene_scope_changed)
         self.script_editor.script_apply_requested.connect(self._on_node_property_changed)
         self.workspace_tabs.current_index_changed.connect(self._on_workspace_tab_changed)
+        self.project_meta_changed.connect(self._on_project_meta_changed)
 
     def _create_session_store(self, serializer: Any) -> SessionAutosaveStore:
         return SessionAutosaveStore(
@@ -658,6 +665,10 @@ class ShellWindow(QMainWindow):
         self.request_close_connection_quick_insert()
         self.workspace_state_changed.emit()
         self.selected_node_changed.emit()
+
+    def _on_project_meta_changed(self) -> None:
+        self.selected_node_changed.emit()
+        self._refresh_active_workspace_scene_payload()
 
     @pyqtSlot(str)
     def set_library_query(self, query: str) -> None:
@@ -1175,6 +1186,67 @@ class ShellWindow(QMainWindow):
 
     def _browse_property_path_dialog(self, property_label: str, current_path: str) -> str:
         return self.shell_host_presenter.browse_property_path_dialog(property_label, current_path)
+
+    def _repair_property_path_dialog(
+        self,
+        *,
+        node_type_id: str,
+        property_key: str,
+        property_label: str,
+        current_path: str,
+    ) -> str:
+        repair_modes = repair_modes_for_node_property(node_type_id, property_key)
+        normalized_label = str(property_label or "").strip() or "File"
+        normalized_current_path = str(current_path or "").strip()
+        if not repair_modes:
+            return self.shell_host_presenter.browse_property_path_dialog(normalized_label, normalized_current_path)
+
+        selected_mode = repair_modes[0]
+        if len(repair_modes) > 1:
+            metadata = self.model.project.metadata
+            default_mode = preferred_repair_mode_for_value(
+                normalized_current_path,
+                project_path=str(self.project_path or "").strip() or None,
+                project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
+                fallback_mode=self.app_preferences_controller.source_import_mode(),
+                allowed_modes=repair_modes,
+            )
+            options = ["Managed Copy", "External Link"]
+            default_index = 0 if default_mode == MANAGED_COPY_MODE else 1
+            selection, accepted = QInputDialog.getItem(
+                self,
+                "Repair file...",
+                f"Store repaired {normalized_label.lower()} as:",
+                options,
+                default_index,
+                False,
+            )
+            if not accepted:
+                return ""
+            selected_mode = MANAGED_COPY_MODE if str(selection or "").strip() == options[0] else EXTERNAL_LINK_MODE
+
+        selected_path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            f"Repair {normalized_label}",
+            self.shell_host_presenter._path_dialog_start_path(normalized_current_path),
+        )
+        normalized_selected_path = str(selected_path or "").strip()
+        if not normalized_selected_path:
+            return ""
+        if selected_mode == EXTERNAL_LINK_MODE:
+            return normalized_selected_path
+
+        import_current_path = (
+            ""
+            if normalized_current_path.startswith("artifact-stage://")
+            else normalized_current_path
+        )
+        managed_ref = self.shell_host_presenter._import_source_as_managed_copy(
+            property_label=normalized_label,
+            current_path=import_current_path,
+            selected_path=normalized_selected_path,
+        )
+        return managed_ref or normalized_selected_path
 
     @pyqtSlot(str, bool)
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:

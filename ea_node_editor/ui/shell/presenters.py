@@ -8,6 +8,10 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from ea_node_editor.app_preferences import normalize_graphics_performance_mode
 from ea_node_editor.graph.effective_ports import find_port
+from ea_node_editor.graph.file_issue_state import (
+    collect_node_file_issues,
+    decode_file_repair_request,
+)
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_TYPE_ID,
@@ -1001,10 +1005,17 @@ class ShellInspectorPresenter(QObject):
         if selected is None:
             return []
         node, spec = selected
+        metadata = self._host.model.project.metadata
         return build_selected_node_property_items(
             node=node,
             spec=spec,
             subnode_pin_type_ids=self._host._SUBNODE_PIN_TYPE_IDS,
+            file_issues_by_key=collect_node_file_issues(
+                node=node,
+                spec=spec,
+                project_path=str(self._host.project_path or "").strip() or None,
+                project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
+            ),
         )
 
     @property
@@ -1031,10 +1042,9 @@ class ShellInspectorPresenter(QObject):
             subnode_pin_data_type_property=SUBNODE_PIN_DATA_TYPE_PROPERTY,
         )
 
-    def _node_property_spec(self, node_id: str, key: str):
+    def _node_context_by_id(self, node_id: str):
         normalized_node_id = str(node_id or "").strip()
-        normalized_key = str(key).strip()
-        if not normalized_node_id or not normalized_key:
+        if not normalized_node_id:
             return None
         workspace = self._host.model.project.workspaces.get(self._host.workspace_manager.active_workspace_id())
         if workspace is None:
@@ -1042,7 +1052,16 @@ class ShellInspectorPresenter(QObject):
         node = workspace.nodes.get(normalized_node_id)
         if node is None:
             return None
-        spec = self._host.registry.get_spec(node.type_id)
+        return node, self._host.registry.get_spec(node.type_id)
+
+    def _node_property_spec(self, node_id: str, key: str):
+        normalized_key = str(key).strip()
+        if not normalized_key:
+            return None
+        node_context = self._node_context_by_id(node_id)
+        if node_context is None:
+            return None
+        _node, spec = node_context
         return next((prop for prop in spec.properties if prop.key == normalized_key), None)
 
     def _selected_node_property_spec(self, key: str):
@@ -1073,15 +1092,39 @@ class ShellInspectorPresenter(QObject):
         self._host.workspace_library_controller.set_selected_node_property(key, value)
 
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
+        selected = self._selected_node_context()
+        if selected is None:
+            return ""
+        node, _spec = selected
         property_spec = self._selected_node_property_spec(key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
+        repair_request = decode_file_repair_request(current_path)
+        if repair_request is not None:
+            return self._host._repair_property_path_dialog(
+                node_type_id=node.type_id,
+                property_key=property_spec.key,
+                property_label=property_spec.label,
+                current_path=repair_request.current_value,
+            )
         return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
+        node_context = self._node_context_by_id(node_id)
+        if node_context is None:
+            return ""
+        node, _spec = node_context
         property_spec = self._node_property_spec(node_id, key)
         if property_spec is None or str(property_spec.type) != "path":
             return ""
+        repair_request = decode_file_repair_request(current_path)
+        if repair_request is not None:
+            return self._host._repair_property_path_dialog(
+                node_type_id=node.type_id,
+                property_key=property_spec.key,
+                property_label=property_spec.label,
+                current_path=repair_request.current_value,
+            )
         return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:

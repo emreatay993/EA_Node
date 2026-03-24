@@ -3131,6 +3131,80 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_media_surface_repair_button_relinks_missing_source_through_canvas_contract(self) -> None:
+        self._run_qml_probe(
+            "media-repair-contract",
+            """
+            import tempfile
+
+            from PyQt6.QtGui import QColor, QImage
+            from PyQt6.QtQuick import QQuickItem
+
+            class RepairCanvasItem(QQuickItem):
+                def __init__(self, repaired_path):
+                    super().__init__()
+                    self.repaired_path = str(repaired_path)
+                    self.last_browse_args = None
+
+                @pyqtSlot(str, str, str, result=str)
+                def browseNodePropertyPath(self, node_id, key, current_path):
+                    self.last_browse_args = (
+                        str(node_id),
+                        str(key),
+                        str(current_path),
+                    )
+                    return self.repaired_path
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                missing_path = Path(temp_dir) / "missing.png"
+                repaired_path = Path(temp_dir) / "repaired.png"
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(repaired_path))
+
+                media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+                media_payload["runtime_behavior"] = "passive"
+                media_payload["surface_metrics"] = {}
+                media_payload["properties"] = {
+                    "source_path": str(missing_path),
+                    "caption": "",
+                    "fit_mode": "contain",
+                }
+                canvas_item = RepairCanvasItem(repaired_path)
+                host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "nodeData": media_payload,
+                        "canvasItem": canvas_item,
+                    },
+                )
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                repair_button = host.findChild(QObject, "graphNodeMediaRepairButton")
+                issue_badge = host.findChild(QObject, "graphNodeMediaIssueBadge")
+                assert surface is not None
+                assert repair_button is not None
+                assert issue_badge is not None
+
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                assert str(surface.property("previewState")) == "error"
+                assert bool(repair_button.property("visible"))
+                assert bool(issue_badge.property("visible"))
+
+                QMetaObject.invokeMethod(repair_button, "click")
+                app.processEvents()
+
+                assert canvas_item.last_browse_args is not None
+                assert canvas_item.last_browse_args[0] == "node_surface_host_test"
+                assert canvas_item.last_browse_args[1] == "source_path"
+                assert canvas_item.last_browse_args[2].startswith("ea-file-repair:")
+                assert committed == [("node_surface_host_test", "source_path", str(repaired_path))]
+            """,
+        )
+
     def test_media_surface_accepts_managed_source_refs_in_qml_preview_binding(self) -> None:
         self._run_qml_probe(
             "media-managed-source",
