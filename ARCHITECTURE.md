@@ -10,7 +10,7 @@ COREX Node Editor is a desktop visual workflow editor that:
 - supports passive visual authoring families for flowcharts, planning boards, annotations, and local media panels on the same canvas,
 - supports nested subnode scopes (graph hierarchy),
 - executes workflows in a separate worker process,
-- persists projects as versioned `.sfe` JSON,
+- persists projects as versioned `.sfe` JSON with optional sibling `.data` managed-file sidecars,
 - persists app-wide graphics, shell-theme, and graph-theme preferences as versioned `app_preferences.json`,
 - supports plugin-based custom node types,
 - publishes/imports reusable custom workflow snapshots,
@@ -124,11 +124,20 @@ Design intent:
 - Preserved unresolved payloads remain intentionally opaque in the live model, so there is still no packet-owned inspection or repair UI for missing-plugin content.
 - Shell-backed regression suites still require fresh-process execution because repeated Windows Qt/QML `ShellWindow()` construction is not yet reliable in one interpreter process.
 
+## Project-managed files and stored outputs
+
+- `.sfe` remains the canonical project document. Saved projects can add a sibling `<project-stem>.data/` sidecar that holds managed `assets/`, generated `artifacts/`, and hidden `.staging/` scratch plus `.staging/recovery`.
+- `metadata.artifact_store` is additive only. Existing project/node fields stay ordinary JSON values, but file-bearing properties may store `artifact://<artifact_id>` or `artifact-stage://<artifact_id>` strings instead of raw absolute paths when the value points at project-managed data.
+- `ProjectArtifactStore` owns sidecar layout, temp staging roots, save-time promotion/prune, Save As managed-copy filtering, and clean-close scratch discard. `ProjectArtifactResolver` is the shared resolution seam for media preview, browse defaults, file-issue detection, and execution-time path access.
+- Managed imports and stored outputs stage first. Explicit Save commits only still-referenced staged items into the sibling `.data` folder, rewrites staged refs to managed refs, and replaces the current managed file in place instead of keeping artifact history.
+- UX stays intentionally lightweight: app-level source-import defaults, node-level missing-file warnings and repair actions, save/open/recovery prompts, and the compact `Project Files...` dialog are the only shipped managed-file surfaces. This branch does not add a standalone artifact-manager pane or automatic size-based storage policy.
+- Execution can carry `RuntimeArtifactRef` values through runtime snapshots and queue payloads so downstream nodes resolve stored outputs without inlining large blobs. Blank `File Write` / `Excel Write` outputs and `Process Run` stored mode are the shipped adopters; `Process Run` keeps the only quick-toggle UI and limits it to `memory` versus `stored`.
+
 ## Verification and traceability closure
 
-- The public closeout snapshot lives in `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
+- The public closeout snapshot lives in `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, `docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md`, and `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, packet-owned doc anchors, and the declarative fact sets consumed by both `scripts/run_verification.py` and `scripts/check_traceability.py`.
-- The P12 closeout sweep reruns `./venv/Scripts/python.exe scripts/check_traceability.py` and `./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run` in the project venv so the published architecture/docs state stays aligned with the landed code.
+- The P12 closeout sweep also publishes the packet-scoped managed-files regression matrix and reruns `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_project_artifact_store.py tests/test_project_artifact_resolution.py tests/test_pdf_preview_provider.py tests/test_project_save_as_flow.py tests/test_app_preferences_import_defaults.py tests/test_project_file_issues.py tests/test_project_files_dialog.py tests/test_execution_artifact_refs.py tests/test_integrations_track_f.py tests/test_process_run_node.py tests/test_graph_output_mode_ui.py tests/test_shell_project_session_controller.py --ignore=venv -q` plus `./venv/Scripts/python.exe scripts/check_traceability.py` in the project venv so the published managed-file docs stay aligned with the shipped code.
 
 ## Visual architecture maps
 If your Markdown viewer supports Mermaid, these diagrams render inline.

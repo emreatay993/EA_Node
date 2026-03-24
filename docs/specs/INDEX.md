@@ -24,6 +24,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 
 - [PROJECT_MANAGED_FILES Work Packet Manifest](work_packets/project_managed_files/PROJECT_MANAGED_FILES_MANIFEST.md)
 - [PROJECT_MANAGED_FILES Status Ledger](work_packets/project_managed_files/PROJECT_MANAGED_FILES_STATUS.md)
+- [PROJECT_MANAGED_FILES QA Matrix](perf/PROJECT_MANAGED_FILES_QA_MATRIX.md)
 
 ## ADRs
 

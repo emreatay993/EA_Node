@@ -17,6 +17,7 @@
 - `REQ-NODE-017`: node authoring contracts shall support `flow` port kinds and declarative editor hints such as multiline text and filesystem path pickers for passive-node properties.
 - `REQ-NODE-020`: passive flowchart SDK contracts shall publish exactly four stored ports keyed `top`, `right`, `bottom`, and `left`; those ports shall use `direction="neutral"`, `kind="flow"`, `data_type="flow"`, `allow_multiple_connections=True`, and a `side` value that matches the stored key, while non-flowchart specs keep the existing fixed-direction port contract.
 - `REQ-NODE-021`: node SDK and built-in catalog shall define `passive.annotation.comment_backdrop` as a zero-port, collapsible, passive annotation node with `surface_family="comment_backdrop"` and `surface_variant="comment_backdrop"`, while sticky note, callout, and section header remain connectable note-style annotations instead of grouping items.
+- `REQ-NODE-022`: execution-facing SDK contracts shall support `RuntimeArtifactRef` values plus `ExecutionContext.resolve_path_value()` and `ExecutionContext.runtime_artifact_ref()` helpers so node authors can emit or consume project-managed file refs without reimplementing queue serialization or path resolution.
 
 Example:
 
@@ -45,3 +46,4 @@ class ScaleNode:
 - `AC-REQ-NODE-017-01`: passive property-editor and media-node regressions confirm `flow` ports plus `textarea` / `path` editor hints round-trip and render without custom plugin code outside the SDK contract.
 - `AC-REQ-NODE-020-01`: registry validation, passive node contract, and flowchart catalog regressions confirm the locked four-port neutral flowchart contract and reject neutral-port declarations outside the flowchart surface contract.
 - `AC-REQ-NODE-021-01`: registry and graph-surface contract regressions confirm the locked comment-backdrop type id, zero-port catalog contract, dedicated surface family/variant, and backdrop-specific surface metrics and host loading.
+- `AC-REQ-NODE-022-01`: runtime-artifact protocol and integration regressions confirm nodes can emit `RuntimeArtifactRef` outputs, downstream path-taking nodes resolve them in-run, and legacy inline path/string behavior still works when no managed ref is involved.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import shutil
 import sys
 import tempfile
@@ -11,6 +12,80 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_traceability.py"
 VERIFICATION_MANIFEST_PATH = REPO_ROOT / "scripts" / "verification_manifest.py"
+PROJECT_MANAGED_FILES_QA_MATRIX = REPO_ROOT / "docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md"
+PROJECT_MANAGED_FILES_FINAL_REGRESSION_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_project_artifact_store.py tests/test_project_artifact_resolution.py "
+    "tests/test_pdf_preview_provider.py tests/test_project_save_as_flow.py "
+    "tests/test_app_preferences_import_defaults.py tests/test_project_file_issues.py "
+    "tests/test_project_files_dialog.py tests/test_execution_artifact_refs.py "
+    "tests/test_integrations_track_f.py tests/test_process_run_node.py "
+    "tests/test_graph_output_mode_ui.py tests/test_shell_project_session_controller.py "
+    "--ignore=venv -q"
+)
+PROJECT_MANAGED_FILES_TRACEABILITY_COMMAND = "./venv/Scripts/python.exe scripts/check_traceability.py"
+
+PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/10_ARCHITECTURE.md": {
+        "REQ-ARCH-014": (".sfe", "<project-stem>.data/", "assets/", "artifacts/", ".staging"),
+        "REQ-ARCH-015": ("metadata.artifact_store", "artifact://<artifact_id>", "artifact-stage://<artifact_id>"),
+    },
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-028": ("Project Files...", "staged", "broken"),
+        "REQ-UI-029": ("Save As", "self-contained copy", "staged scratch"),
+        "REQ-UI-030": ("managed_copy", "external_link", "File Read", "Excel Read"),
+        "REQ-UI-031": ("Process Run", "memory", "stored", "status chip"),
+    },
+    "docs/specs/requirements/40_NODE_SDK.md": {
+        "REQ-NODE-022": ("RuntimeArtifactRef", "ExecutionContext.resolve_path_value()", "runtime_artifact_ref()"),
+    },
+    "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md": {
+        "REQ-NODE-023": ("RuntimeArtifactRef", "same run", "runtime-snapshot"),
+        "REQ-NODE-024": ("io.process_run", "memory", "stored", "automatic size-based switching"),
+    },
+    "docs/specs/requirements/50_EXECUTION_ENGINE.md": {
+        "REQ-EXEC-010": ("RuntimeArtifactRef", "artifact_ref", "artifact://...", "artifact-stage://..."),
+        "REQ-EXEC-011": ("runtime-snapshot", "project artifact metadata", "same run"),
+        "REQ-EXEC-012": ("Process Run", "staged refs", "non-zero failure or cancellation"),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-015": (".sfe", "<project-stem>.data/", "assets/", "artifacts/", ".staging"),
+        "REQ-PERSIST-016": ("metadata.artifact_store", "artifact://<artifact_id>", "artifact-stage://<artifact_id>"),
+        "REQ-PERSIST-017": ("stage first", "Save", "prune orphaned permanent managed files"),
+        "REQ-PERSIST-018": ("Save As", "self-contained copy", "excluding staged scratch data"),
+        "REQ-PERSIST-019": ("crash-only", "clean close", "autosave snapshot"),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-021": ("PROJECT_MANAGED_FILES", "runtime artifact refs", "Process Run", "full artifact manager"),
+        "REQ-QA-022": ("PROJECT_MANAGED_FILES_QA_MATRIX.md", "final aggregate regression command", "traceability gate"),
+        "AC-REQ-QA-021-01": (PROJECT_MANAGED_FILES_FINAL_REGRESSION_COMMAND,),
+        "AC-REQ-QA-022-01": (PROJECT_MANAGED_FILES_TRACEABILITY_COMMAND, "PROJECT_MANAGED_FILES_QA_MATRIX.md"),
+    },
+}
+
+PROJECT_MANAGED_FILES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-ARCH-014": ("artifact_store.py", "test_project_artifact_store.py", "round_trip_cases.py"),
+    "REQ-UI-028": ("project_files_dialog.py", "test_project_files_dialog.py", "test_shell_project_session_controller.py"),
+    "REQ-NODE-022": ("Runtime artifact-ref SDK helpers", "test_execution_artifact_refs.py"),
+    "REQ-NODE-023": ("Stored-output runtime artifact refs", "test_integrations_track_f.py"),
+    "REQ-EXEC-010": ("protocol.py", "test_execution_artifact_refs.py", "test_execution_client.py"),
+    "REQ-PERSIST-015": ("Canonical `.sfe` plus sibling `.data` layout", "test_project_artifact_store.py"),
+    "REQ-QA-021": ("PROJECT_MANAGED_FILES_QA_MATRIX.md", "test_graph_output_mode_ui.py", "test_shell_project_session_controller.py"),
+    "AC-REQ-QA-021-01": (PROJECT_MANAGED_FILES_FINAL_REGRESSION_COMMAND, "PROJECT_MANAGED_FILES_QA_MATRIX.md"),
+    "AC-REQ-QA-022-01": (PROJECT_MANAGED_FILES_TRACEABILITY_COMMAND, "tests/test_traceability_checker.py"),
+}
+
+PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS = (
+    "Project Managed Files QA Matrix",
+    "## Locked Scope",
+    "artifact://<artifact_id>",
+    "artifact-stage://<artifact_id>",
+    PROJECT_MANAGED_FILES_FINAL_REGRESSION_COMMAND,
+    PROJECT_MANAGED_FILES_TRACEABILITY_COMMAND,
+    "## Future-Scope Deferrals",
+    "no full artifact-manager pane",
+    "Process Run",
+)
 
 
 def load_module(module_name: str, module_path: Path):
@@ -63,6 +138,30 @@ def remove_token_from_requirement_line(path: Path, requirement_id: str, token: s
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return
     raise AssertionError(f"Requirement line not found: {requirement_id}")
+
+
+def parse_requirement_lines(text: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for line in text.splitlines():
+        match = re.match(r"^- `([^`]+)`: (.+)$", line.strip())
+        if match is not None:
+            parsed[match.group(1)] = match.group(2)
+    return parsed
+
+
+def requirement_line(path: Path, requirement_id: str) -> str:
+    requirements = parse_requirement_lines(path.read_text(encoding="utf-8-sig"))
+    body = requirements.get(requirement_id)
+    if body is None:
+        raise AssertionError(f"Requirement line not found: {requirement_id}")
+    return body
+
+
+def traceability_row(path: Path, row_id: str) -> str:
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        if line.startswith(f"| {row_id} |"):
+            return line
+    raise AssertionError(f"Traceability row not found: {row_id}")
 
 
 class TraceabilityCheckerTests(unittest.TestCase):
@@ -344,6 +443,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
             f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-015 missing required text: {self.manifest.SHELL_ISOLATION_SPEC.test_path}",
             issues,
         )
+
+    def test_project_managed_files_docs_record_final_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_project_managed_files_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in PROJECT_MANAGED_FILES_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_project_managed_files_qa_matrix_records_final_commands_and_deferrals(self) -> None:
+        text = PROJECT_MANAGED_FILES_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
 
 
 if __name__ == "__main__":

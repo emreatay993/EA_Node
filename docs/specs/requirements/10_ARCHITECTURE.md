@@ -20,6 +20,8 @@
 - `REQ-ARCH-009`: `ShellWindow` shall expose orchestration UI APIs `show_workflow_settings_dialog()` and `set_script_editor_panel_visible()`.
 - `REQ-ARCH-012`: app-wide graphics preferences shall be exposed through a dedicated preferences controller/store and consumed by both QWidget and QML shell surfaces without breaking existing shell/graph canvas integration contracts.
 - `REQ-ARCH-013`: graph node/edge theming shall use a dedicated graph-theme pipeline (`ea_node_editor/ui/graph_theme/*` + `graphThemeBridge`) that remains separate from shell/canvas chrome theming in `ea_node_editor/ui/theme/*` + `ThemeBridge`.
+- `REQ-ARCH-014`: project persistence architecture shall keep `.sfe` as the canonical project document while project-managed files live in a sibling `<project-stem>.data/` sidecar with `assets/`, `artifacts/`, and `.staging/` scratch storage rather than a second project document format.
+- `REQ-ARCH-015`: managed-file state shall remain additive under `metadata.artifact_store`, using `artifact://<artifact_id>` and `artifact-stage://<artifact_id>` strings plus a shared resolver/store seam that serves persistence, preview, and execution flows without introducing a full artifact-manager subsystem.
 
 ## Acceptance
 - `AC-REQ-ARCH-001-01`: Application launches on Windows with PyQt6 and displays the main shell.
@@ -29,3 +31,5 @@
 - `AC-REQ-ARCH-011-01`: Library drop, minimap toggle, and canvas hit-testing continue to invoke the `GraphCanvas` integration contract methods without runtime errors.
 - `AC-REQ-ARCH-012-01`: graphics preference updates reapply shell/chrome theme state and runtime graphics flags without breaking `GraphCanvas` integration contracts.
 - `AC-REQ-ARCH-013-01`: `NodeCard` and `EdgeLayer` consume `graphThemeBridge` tokens independently from shell/canvas chrome surfaces that stay on `ThemeBridge`.
+- `AC-REQ-ARCH-014-01`: managed-file save/open/recovery regressions preserve the `.sfe` plus sibling `.data` split and keep project-managed files out of a schema-version bump.
+- `AC-REQ-ARCH-015-01`: managed preview, runtime artifact-ref, and stored-output regressions resolve `artifact://...` and `artifact-stage://...` values through the shared resolver/store seam, and `docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md` remains the published proof audit.

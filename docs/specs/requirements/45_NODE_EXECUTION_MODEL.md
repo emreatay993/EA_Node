@@ -23,6 +23,8 @@
 - `REQ-NODE-015`: Execution preparation shall compile nested subnode shells/pins into a flat runtime graph while preserving node IDs used for diagnostics and UI focus.
 - `REQ-NODE-018`: execution preparation shall exclude passive nodes (`runtime_behavior="passive"`) and passive `flow` edges from compiled/runtime graphs while leaving them intact in the authored workspace document.
 - `REQ-NODE-019`: graph validation and connection authoring shall use registry-aware multiplicity rules so passive `flow` inputs, including neutral cardinal flowchart ports, can opt into multiple incoming edges without weakening executable-port validation.
+- `REQ-NODE-023`: execution data flow shall allow stored-output adopters to replace oversized inline payloads with `RuntimeArtifactRef` values while downstream nodes resolve the referenced local file within the same run from runtime-snapshot and project artifact metadata.
+- `REQ-NODE-024`: the first shipped heavy-output adopter shall remain explicit and user-controlled: `io.process_run` switches only between `memory` and `stored`, and `stored` mode stages stdout/stderr transcripts instead of adding automatic size-based switching.
 
 ## Authoring Guidance
 - Use data-only ports when evaluation is deterministic and externally invisible.
@@ -40,3 +42,5 @@
 - `AC-REQ-NODE-015-01`: Nested subnode workflows execute through the existing worker engine, and runtime failures map back to authored node IDs for scope-aware focus.
 - `AC-REQ-NODE-018-01`: passive runtime-wiring and worker regressions verify passive nodes and `flow` edges never reach compiled/runtime execution graphs.
 - `AC-REQ-NODE-019-01`: graph-scene and runtime-wiring regressions verify registry-declared multi-connection `flow` inputs, including neutral cardinal flowchart ports, are accepted without regressing exec/data edge validation.
+- `AC-REQ-NODE-023-01`: execution worker, client, and integration regressions confirm runtime artifact refs cross the queue boundary and downstream file-backed nodes resolve them successfully within the same run.
+- `AC-REQ-NODE-024-01`: `Process Run` regressions confirm `memory` keeps inline strings, `stored` emits staged transcript refs, and stored-mode failures clean up staged transcript artifacts instead of leaving broken refs behind.
