@@ -5,17 +5,19 @@
 - Packet: `P07`
 - Branch Label: `codex/project-managed-files/p07-file-issue-node-repair`
 - Commit Owner: `worker`
-- Commit SHA: `8355cce5c9b2ed0e8c0bc5592a1ad1ef53285668`
+- Commit SHA: `33d8dfee33e3f0f36034c44123c67f38b82f0861`
 - Changed Files: `ea_node_editor/graph/file_issue_state.py`, `ea_node_editor/ui/shell/presenters.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui/shell/window_library_inspector.py`, `ea_node_editor/ui_qml/components/shell/InspectorPropertyEditor.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSurface.qml`, `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelHeaderControls.qml`, `tests/test_project_file_issues.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_passive_graph_surface_host.py`, `docs/specs/work_packets/project_managed_files/P07_file_issue_node_repair_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/project_managed_files/P07_file_issue_node_repair_WRAPUP.md`, `ea_node_editor/graph/file_issue_state.py`, `tests/test_project_file_issues.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_passive_graph_surface_host.py`
 - Warning-State Source of Truth: `ea_node_editor/graph/file_issue_state.py` now owns tracked missing-file detection, repair-request encoding, repair-mode policy, and node/property issue payloads for passive media plus File Read / Excel Read source paths.
 - Repair Entry Points: inspector path issue banners call `browse_selected_node_property_path(...)` with encoded repair requests; passive media header repair buttons call `GraphMediaPanelSurface.repairFile()` and route through `host.browseNodePropertyPath(...)`; both paths converge in `ShellWindow._repair_property_path_dialog(...)` via `ShellInspectorPresenter`.
-- Repair Flow Summary: passive media sources can relink as either managed copies or external links from one `Repair file...` action, while File Read and Excel Read repairs intentionally relink as external files only until later runtime artifact-ref adoption lands.
+- Repair Flow Summary: passive media sources can relink as either managed copies or external links from one `Repair file...` action, including missing `artifact-stage://...` media sources now reusing the existing artifact id when repaired in managed-copy mode; File Read and Excel Read repairs intentionally remain external-only until later runtime artifact-ref adoption lands.
 
 ## Verification
 
 - PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_project_file_issues.py tests/test_graph_surface_input_contract.py tests/test_passive_graph_surface_host.py --ignore=venv -q`
 - PASS: `./venv/Scripts/python.exe -m pytest tests/test_project_file_issues.py --ignore=venv -q`
+- PASS: remediation verification `./venv/Scripts/python.exe -m pytest tests/test_project_file_issues.py --ignore=venv -q`
+- PASS: remediation review gate `./venv/Scripts/python.exe -m pytest tests/test_project_file_issues.py --ignore=venv -q`
 - Final Verification Verdict: `PASS`
 
 ## Manual Test Directives
@@ -31,7 +33,7 @@ Ready for manual testing.
 
 - Tracked file issues are intentionally limited to this packet’s source/consumer scope: passive media `source_path` plus File Read / Excel Read `path`. Other path-like properties remain outside the issue model until later packets define broader semantics.
 - File Read and Excel Read repairs intentionally stay on external relinks. Managed refs for those runtime consumers still need later execution-layer adoption before managed-copy repair would be safe end to end.
-- Repairing a missing staged media ref may keep or replace staging metadata without immediate orphan cleanup; later save/prune packets remain the authority for final artifact cleanup.
+- Repairing a missing staged media ref now preserves the existing staged artifact id, but cleanup of superseded staged payloads still remains under the later save/prune lifecycle.
 
 ## Ready for Integration
 
