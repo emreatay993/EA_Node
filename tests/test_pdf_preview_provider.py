@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import gc
 import os
 from pathlib import Path
@@ -10,17 +11,19 @@ import textwrap
 import unittest
 from urllib.parse import quote
 
-from PyQt6.QtCore import QMarginsF, QRectF, QSize
+from PyQt6.QtCore import QMarginsF, QRectF, QSize, QUrl
 from PyQt6.QtGui import QImage, QPainter, QPageLayout, QPageSize, QPdfWriter
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.model import GraphModel, NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.ui.pdf_preview_provider import (
     LOCAL_PDF_PREVIEW_PROVIDER_ID,
     LocalPdfPreviewImageProvider,
     clamp_pdf_page_number,
     describe_pdf_preview,
+    set_pdf_preview_project_context_provider,
 )
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
@@ -44,6 +47,19 @@ def _write_pdf(path: Path, *, page_count: int = 1, landscape: bool = False) -> N
     del painter
     del writer
     gc.collect()
+
+
+@contextmanager
+def _pdf_preview_project_context(
+    *,
+    project_path: Path | None,
+    project_metadata: dict[str, object] | None,
+):
+    set_pdf_preview_project_context_provider(lambda: (project_path, project_metadata))
+    try:
+        yield
+    finally:
+        set_pdf_preview_project_context_provider(None)
 
 
 class PassivePdfNodeCatalogTests(unittest.TestCase):
@@ -144,6 +160,42 @@ class PassivePdfNodeCatalogTests(unittest.TestCase):
             self.assertAlmostEqual(portrait_metrics.default_height, 395.6302521008403, places=5)
             self.assertAlmostEqual(landscape_metrics.default_height, 320.0, places=6)
 
+    def test_media_surface_metrics_auto_size_default_height_from_managed_pdf_ref(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("passive.media.pdf_panel")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "artifact_demo.sfe"
+            managed_pdf_path = project_path.with_name("artifact_demo.data") / "assets" / "media" / "portrait.pdf"
+            managed_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_pdf(managed_pdf_path, landscape=False)
+
+            managed_node = NodeInstance(
+                node_id="node_pdf_panel_managed_portrait",
+                type_id=spec.type_id,
+                title="PDF Panel",
+                x=20.0,
+                y=30.0,
+                properties={
+                    "source_path": format_managed_artifact_ref("portrait_pdf"),
+                    "page_number": 1,
+                    "caption": "",
+                },
+            )
+
+            with _pdf_preview_project_context(
+                project_path=project_path,
+                project_metadata={
+                    "artifact_store": {
+                        "artifacts": {
+                            "portrait_pdf": {"relative_path": "assets/media/portrait.pdf"},
+                        }
+                    }
+                },
+            ):
+                managed_metrics = node_surface_metrics(managed_node, spec, {managed_node.node_id: managed_node})
+
+            self.assertAlmostEqual(managed_metrics.default_height, 395.6302521008403, places=5)
+
     def test_media_surface_metrics_reserves_caption_space_in_derived_pdf_height(self) -> None:
         registry = build_default_registry()
         spec = registry.get_spec("passive.media.pdf_panel")
@@ -198,6 +250,39 @@ class PassivePdfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(node.properties["page_number"], 2)
             self.assertEqual(payload["properties"]["page_number"], 2)
 
+    def test_scene_bridge_silently_clamps_out_of_range_managed_pdf_pages(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "artifact_demo.sfe"
+            managed_pdf_path = project_path.with_name("artifact_demo.data") / "assets" / "media" / "clamped.pdf"
+            managed_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_pdf(managed_pdf_path, page_count=2)
+
+            with _pdf_preview_project_context(
+                project_path=project_path,
+                project_metadata={
+                    "artifact_store": {
+                        "artifacts": {
+                            "managed_pdf": {"relative_path": "assets/media/clamped.pdf"},
+                        }
+                    }
+                },
+            ):
+                node_id = scene.add_node_from_type("passive.media.pdf_panel", 40.0, 60.0)
+                scene.set_node_property(node_id, "source_path", format_managed_artifact_ref("managed_pdf"))
+                scene.set_node_property(node_id, "page_number", 99)
+
+            node = model.project.workspaces[workspace_id].nodes[node_id]
+            payload = next(item for item in scene.nodes_model if item["node_id"] == node_id)
+
+            self.assertEqual(node.properties["page_number"], 2)
+            self.assertEqual(payload["properties"]["page_number"], 2)
+
 
 class PdfPreviewProviderTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -221,6 +306,45 @@ class PdfPreviewProviderTests(unittest.TestCase):
                 f"preview?source={quote(str(pdf_path), safe='')}&page=9",
                 QSize(220, 220),
             )
+
+        self.assertFalse(image.isNull())
+        self.assertGreater(size.width(), 0)
+        self.assertGreater(size.height(), 0)
+        self.assertLessEqual(size.width(), 220)
+        self.assertLessEqual(size.height(), 220)
+
+    def test_describe_preview_and_provider_render_managed_pdf_ref(self) -> None:
+        provider = LocalPdfPreviewImageProvider()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "artifact_demo.sfe"
+            managed_pdf_path = project_path.with_name("artifact_demo.data") / "assets" / "media" / "preview.pdf"
+            managed_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_pdf(managed_pdf_path, page_count=2)
+            managed_ref = format_managed_artifact_ref("preview_pdf")
+
+            with _pdf_preview_project_context(
+                project_path=project_path,
+                project_metadata={
+                    "artifact_store": {
+                        "artifacts": {
+                            "preview_pdf": {"relative_path": "assets/media/preview.pdf"},
+                        }
+                    }
+                },
+            ):
+                info = describe_pdf_preview(managed_ref, 9)
+                self.assertEqual(info["state"], "ready")
+                self.assertEqual(info["page_count"], 2)
+                self.assertEqual(info["requested_page_number"], 9)
+                self.assertEqual(info["resolved_page_number"], 2)
+                self.assertEqual(Path(QUrl(info["resolved_source_url"]).toLocalFile()), managed_pdf_path)
+                self.assertTrue(str(info["preview_url"]).startswith(f"image://{LOCAL_PDF_PREVIEW_PROVIDER_ID}/"))
+                self.assertEqual(clamp_pdf_page_number(managed_ref, 9), 2)
+
+                image, size = provider.requestImage(
+                    f"preview?source={quote(managed_ref, safe='')}&page=9",
+                    QSize(220, 220),
+                )
 
         self.assertFalse(image.isNull())
         self.assertGreater(size.width(), 0)
@@ -287,10 +411,12 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
             from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
 
+            from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
             from ea_node_editor.ui.pdf_preview_provider import (
                 LOCAL_PDF_PREVIEW_PROVIDER_ID,
                 LocalPdfPreviewImageProvider,
                 describe_pdf_preview,
+                set_pdf_preview_project_context_provider,
             )
             from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
             from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -490,6 +616,46 @@ class PassivePdfNodeSurfaceQmlTests(unittest.TestCase):
                 assert ready_surface.property("pdfResolvedPageNumber") == 2
                 assert badge is not None and bool(badge.property("visible"))
                 assert hint is not None and not bool(hint.property("visible"))
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                project_path = Path(temp_dir) / "artifact_demo.sfe"
+                managed_pdf_path = project_path.with_name("artifact_demo.data") / "assets" / "media" / "managed.pdf"
+                managed_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+                make_pdf(managed_pdf_path, page_count=2)
+                set_pdf_preview_project_context_provider(
+                    lambda: (
+                        project_path,
+                        {
+                            "artifact_store": {
+                                "artifacts": {
+                                    "managed_pdf": {"relative_path": "assets/media/managed.pdf"},
+                                }
+                            }
+                        },
+                    )
+                )
+                managed_canvas = PdfCanvasItem()
+
+                managed_host = create_component(
+                    graph_node_host_qml_path,
+                    {
+                        "canvasItem": managed_canvas,
+                        "nodeData": pdf_panel_payload(
+                            {
+                                "source_path": format_managed_artifact_ref("managed_pdf"),
+                                "page_number": 9,
+                                "caption": "Managed preview caption",
+                            }
+                        ),
+                    },
+                )
+                managed_surface = managed_host.findChild(QObject, "graphNodeMediaSurface")
+                wait_for_preview(managed_surface)
+                assert managed_surface.property("previewState") == "ready"
+                assert managed_surface.property("resolvedSourceUrl").startswith("file:///")
+                assert managed_surface.property("pdfPageCount") == 2
+                assert managed_surface.property("pdfResolvedPageNumber") == 2
+                set_pdf_preview_project_context_provider(None)
 
             error_canvas = PdfCanvasItem()
             error_host = create_component(

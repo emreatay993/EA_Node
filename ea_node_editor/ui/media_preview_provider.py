@@ -2,29 +2,48 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Any, Callable
 from urllib.parse import parse_qs, unquote
 
-from PyQt6.QtCore import QSize, QUrl
+from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QImage, QImageReader
 from PyQt6.QtQuick import QQuickImageProvider
 
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+
 LOCAL_MEDIA_PREVIEW_PROVIDER_ID = "local-media-preview"
+_PreviewProjectContext = tuple[str | Path | None, dict[str, Any] | None]
+_PreviewProjectContextProvider = Callable[[], _PreviewProjectContext | None]
+_project_context_provider: _PreviewProjectContextProvider | None = None
+
+
+def set_media_preview_project_context_provider(
+    provider: _PreviewProjectContextProvider | None,
+) -> None:
+    global _project_context_provider
+    _project_context_provider = provider
+
+
+def _preview_resolver() -> ProjectArtifactResolver:
+    context = _project_context_provider() if callable(_project_context_provider) else None
+    project_path: str | Path | None = None
+    project_metadata: dict[str, Any] | None = None
+    if isinstance(context, tuple) and len(context) >= 2:
+        project_path = context[0]
+        metadata = context[1]
+        if isinstance(metadata, dict):
+            project_metadata = metadata
+    return ProjectArtifactResolver(
+        project_path=project_path,
+        project_metadata=project_metadata,
+    )
 
 
 def _local_path_from_source(source: str) -> Path | None:
     normalized = str(source or "").strip()
     if not normalized:
         return None
-
-    url = QUrl(normalized)
-    if url.isValid() and url.scheme().lower() == "file" and url.isLocalFile():
-        candidate = Path(url.toLocalFile())
-    else:
-        candidate = Path(normalized)
-
-    if not candidate.is_absolute():
-        return None
-    return candidate
+    return _preview_resolver().resolve_to_path(normalized)
 
 
 def _requested_source(image_id: str) -> str:
@@ -85,3 +104,11 @@ class LocalMediaPreviewImageProvider(QQuickImageProvider):
             return QImage(), QSize()
 
         return image, image.size()
+
+
+__all__ = [
+    "LOCAL_MEDIA_PREVIEW_PROVIDER_ID",
+    "LocalMediaPreviewImageProvider",
+    "local_image_dimensions",
+    "set_media_preview_project_context_provider",
+]

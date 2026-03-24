@@ -70,6 +70,27 @@ class ProjectArtifactResolutionTests(unittest.TestCase):
             project_path.with_name("artifact_demo.data") / ".staging" / "outputs" / "stdout.txt",
         )
 
+    def test_resolve_to_path_supports_managed_preview_consumers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "artifact_demo.sfe"
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                project_metadata={
+                    "artifact_store": {
+                        "artifacts": {
+                            "preview_asset": {"relative_path": "assets/media/preview.png"},
+                        }
+                    }
+                },
+            )
+
+            resolved_path = resolver.resolve_to_path(format_managed_artifact_ref("preview_asset"))
+
+        self.assertEqual(
+            resolved_path,
+            project_path.with_name("artifact_demo.data") / "assets" / "media" / "preview.png",
+        )
+
     def test_unknown_managed_and_staged_refs_report_missing(self) -> None:
         resolver = ProjectArtifactResolver(
             project_path=Path("/tmp/demo.sfe"),

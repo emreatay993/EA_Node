@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import parse_qs, quote, unquote
 
 from PyQt6.QtCore import QRectF, QSize, Qt, QUrl
@@ -10,10 +10,37 @@ from PyQt6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen
 from PyQt6.QtPdf import QPdfDocument
 from PyQt6.QtQuick import QQuickImageProvider
 
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+
 LOCAL_PDF_PREVIEW_PROVIDER_ID = "local-pdf-preview"
 _DEFAULT_PREVIEW_WIDTH = 268
 _DEFAULT_PREVIEW_HEIGHT = 396
 _DEFAULT_PAGE_NUMBER = 1
+_PreviewProjectContext = tuple[str | Path | None, dict[str, Any] | None]
+_PreviewProjectContextProvider = Callable[[], _PreviewProjectContext | None]
+_project_context_provider: _PreviewProjectContextProvider | None = None
+
+
+def set_pdf_preview_project_context_provider(
+    provider: _PreviewProjectContextProvider | None,
+) -> None:
+    global _project_context_provider
+    _project_context_provider = provider
+
+
+def _preview_resolver() -> ProjectArtifactResolver:
+    context = _project_context_provider() if callable(_project_context_provider) else None
+    project_path: str | Path | None = None
+    project_metadata: dict[str, Any] | None = None
+    if isinstance(context, tuple) and len(context) >= 2:
+        project_path = context[0]
+        metadata = context[1]
+        if isinstance(metadata, dict):
+            project_metadata = metadata
+    return ProjectArtifactResolver(
+        project_path=project_path,
+        project_metadata=project_metadata,
+    )
 
 
 def _query_value(image_id: str, key: str) -> str:
@@ -40,16 +67,7 @@ def _local_path_from_source(source: str) -> Path | None:
     normalized = str(source or "").strip()
     if not normalized:
         return None
-
-    url = QUrl(normalized)
-    if url.isValid() and url.scheme().lower() == "file" and url.isLocalFile():
-        candidate = Path(url.toLocalFile())
-    else:
-        candidate = Path(normalized)
-
-    if not candidate.is_absolute():
-        return None
-    return candidate
+    return _preview_resolver().resolve_to_path(normalized)
 
 
 def _preview_url(source: str, page_number: int, file_stamp_token: str) -> str:
@@ -398,4 +416,5 @@ __all__ = [
     "clamp_pdf_page_number",
     "describe_pdf_preview",
     "local_pdf_page_dimensions",
+    "set_pdf_preview_project_context_provider",
 ]

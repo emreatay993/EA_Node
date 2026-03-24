@@ -12,6 +12,10 @@ function isUncPath(value) {
     return /^[/\\]{2}[^/\\]/.test(value);
 }
 
+function isProjectArtifactRef(value) {
+    return /^artifact(?:-stage)?:\/\/[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
+}
+
 function normalizedFileUrlFromRemainder(remainder) {
     var normalized = String(remainder || "").replace(/\\/g, "/");
     if (!normalized.length)
@@ -33,6 +37,8 @@ function resolvedLocalSourceUrl(rawValue) {
     var trimmed = String(rawValue || "").trim();
     if (!trimmed.length)
         return "";
+    if (isProjectArtifactRef(trimmed))
+        return trimmed;
     var normalized = trimmed.replace(/\\/g, "/");
     var lower = normalized.toLowerCase();
     if (lower.indexOf("file:") === 0)

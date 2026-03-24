@@ -4,6 +4,7 @@ import copy
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
+import weakref
 
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtGui import QCursor
@@ -11,12 +12,15 @@ from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
+from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
 from ea_node_editor.ui.dialogs.passive_style_controls import (
     normalize_flow_edge_style_payload,
     normalize_passive_node_style_payload,
 )
+from ea_node_editor.ui.pdf_preview_provider import set_pdf_preview_project_context_provider
 from ea_node_editor.ui.graph_theme import resolve_graph_theme_id, serialize_custom_graph_themes
 from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
@@ -46,11 +50,35 @@ class ShellHostPresenter(QObject):
     def __init__(self, host: "ShellWindow") -> None:
         super().__init__(host)
         self._host = host
+        host_ref = weakref.ref(host)
+
+        def _preview_context():
+            current_host = host_ref()
+            if current_host is None:
+                return None
+            metadata = current_host.model.project.metadata
+            return (
+                str(current_host.project_path or "").strip() or None,
+                dict(metadata) if isinstance(metadata, dict) else None,
+            )
+
+        self._preview_context_provider = _preview_context
+        set_media_preview_project_context_provider(self._preview_context_provider)
+        set_pdf_preview_project_context_provider(self._preview_context_provider)
+
+    def _project_artifact_resolver(self) -> ProjectArtifactResolver:
+        metadata = self._host.model.project.metadata
+        return ProjectArtifactResolver(
+            project_path=str(self._host.project_path or "").strip() or None,
+            project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
+        )
 
     def _path_dialog_start_path(self, current_path: str) -> str:
         normalized_current = str(current_path or "").strip()
         if normalized_current:
-            candidate = Path(normalized_current).expanduser()
+            candidate = self._project_artifact_resolver().resolve_to_path(normalized_current)
+            if candidate is None:
+                candidate = Path(normalized_current).expanduser()
             if candidate.exists():
                 return str(candidate)
             parent = candidate.parent

@@ -3130,3 +3130,61 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 assert not bool(surface.property("cropModeActive"))
             """,
         )
+
+    def test_media_surface_accepts_managed_source_refs_in_qml_preview_binding(self) -> None:
+        self._run_qml_probe(
+            "media-managed-source",
+            """
+            import tempfile
+
+            from PyQt6.QtGui import QColor, QImage
+
+            from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+            from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                project_path = Path(temp_dir) / "artifact_demo.sfe"
+                managed_image_path = project_path.with_name("artifact_demo.data") / "assets" / "media" / "managed.png"
+                managed_image_path.parent.mkdir(parents=True, exist_ok=True)
+                image = QImage(24, 18, QImage.Format.Format_ARGB32)
+                image.fill(QColor("#2c85bf"))
+                assert image.save(str(managed_image_path))
+
+                set_media_preview_project_context_provider(
+                    lambda: (
+                        project_path,
+                        {
+                            "artifact_store": {
+                                "artifacts": {
+                                    "managed_image": {"relative_path": "assets/media/managed.png"},
+                                }
+                            }
+                        },
+                    )
+                )
+
+                media_payload = node_payload(surface_family="media", surface_variant="image_panel")
+                media_payload["runtime_behavior"] = "passive"
+                media_payload["surface_metrics"] = {}
+                media_payload["properties"] = {
+                    "source_path": format_managed_artifact_ref("managed_image"),
+                    "caption": "",
+                    "fit_mode": "contain",
+                }
+                host = create_component(graph_node_host_qml_path, {"nodeData": media_payload})
+                surface = host.findChild(QObject, "graphNodeMediaSurface")
+                assert surface is not None
+
+                for _index in range(40):
+                    app.processEvents()
+                    if str(surface.property("previewState")) == "ready":
+                        break
+
+                assert str(surface.property("previewState")) == "ready"
+                assert not bool(surface.property("sourceRejected"))
+                assert str(surface.property("previewSourceUrl")).startswith("image://local-media-preview/")
+                assert "artifact%3A%2F%2Fmanaged_image" in str(surface.property("previewSourceUrl"))
+                assert float(surface.property("sourcePixelWidth")) == 24.0
+                assert float(surface.property("sourcePixelHeight")) == 18.0
+            """,
+        )

@@ -9,6 +9,7 @@ from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
 from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from tests.graph_surface_pointer_regression import (
     QML_POINTER_REGRESSION_HELPERS,
@@ -1656,6 +1657,54 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 self.assertEqual(dialog_mock.call_count, 1)
 
             self.assertEqual(window.browse_node_property_path(logger_node_id, "message", ""), "")
+        finally:
+            window.close()
+            window.deleteLater()
+            app.processEvents()
+
+    def test_shell_window_browse_node_property_path_resolves_managed_ref_seed_path(self) -> None:
+        import tempfile
+
+        from PyQt6.QtWidgets import QApplication
+
+        from ea_node_editor.ui.shell.window import ShellWindow
+
+        app = QApplication.instance() or QApplication([])
+        window = ShellWindow()
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                fixture_path = _REPO_ROOT / "tests" / "fixtures" / "passive_nodes" / "reference_preview.png"
+                project_path = Path(temp_dir) / "managed-seed-demo.sfe"
+                managed_image_path = project_path.with_name("managed-seed-demo.data") / "assets" / "media" / "seed.png"
+                managed_image_path.parent.mkdir(parents=True, exist_ok=True)
+                managed_image_path.write_bytes(fixture_path.read_bytes())
+                managed_ref = format_managed_artifact_ref("managed_image")
+
+                window.project_path = str(project_path)
+                window.model.project.metadata = {
+                    "artifact_store": {
+                        "artifacts": {
+                            "managed_image": {"relative_path": "assets/media/seed.png"},
+                        }
+                    }
+                }
+
+                image_node_id = window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+                self.assertTrue(image_node_id)
+                window.scene.set_node_property(image_node_id, "source_path", managed_ref)
+                app.processEvents()
+
+                picked_path = str(fixture_path)
+                with patch(
+                    "ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName",
+                    return_value=(picked_path, ""),
+                ) as dialog_mock:
+                    self.assertEqual(
+                        window.browse_node_property_path(image_node_id, "source_path", managed_ref),
+                        picked_path,
+                    )
+                    self.assertEqual(dialog_mock.call_count, 1)
+                    self.assertEqual(dialog_mock.call_args.args[2], str(managed_image_path))
         finally:
             window.close()
             window.deleteLater()
