@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import copy
 import json
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
+from uuid import uuid4
 import weakref
 
 from PyQt6.QtCore import QObject, Qt
@@ -13,7 +15,12 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
-from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.settings import (
+    DEFAULT_GRAPHICS_SETTINGS,
+    DEFAULT_SOURCE_IMPORT_MODE,
+    PROJECT_ARTIFACT_STORE_METADATA_KEY,
+    PROJECT_MANAGED_ASSETS_DIRNAME,
+)
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
 from ea_node_editor.ui.dialogs.passive_style_controls import (
@@ -34,6 +41,11 @@ _UNSET = object()
 _PASSIVE_NODE_STYLE_CLIPBOARD_KIND = "passive-node-style"
 _FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
 _STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
+_SOURCE_IMPORT_TARGETS = {
+    "image source": ("media", "image_source"),
+    "pdf source": ("media", "pdf_source"),
+    "file path": ("files", "source_file"),
+}
 _RENDERER_LABELS = {
     QSGRendererInterface.GraphicsApi.Direct3D11Rhi: "Direct3D 11",
     QSGRendererInterface.GraphicsApi.Direct3D12: "Direct3D 12",
@@ -98,7 +110,77 @@ class ShellHostPresenter(QObject):
             f"Choose {property_label}",
             self._path_dialog_start_path(current_path),
         )
-        return str(selected_path or "")
+        normalized_path = str(selected_path or "").strip()
+        if not normalized_path:
+            return ""
+        if self._host.app_preferences_controller.source_import_mode() != DEFAULT_SOURCE_IMPORT_MODE:
+            return normalized_path
+        managed_ref = self._import_source_as_managed_copy(
+            property_label=property_label,
+            current_path=current_path,
+            selected_path=normalized_path,
+        )
+        return managed_ref or normalized_path
+
+    def _import_source_as_managed_copy(
+        self,
+        *,
+        property_label: str,
+        current_path: str,
+        selected_path: str,
+    ) -> str:
+        import_target = self._source_import_target(property_label)
+        if import_target is None:
+            return ""
+
+        source_path = Path(selected_path).expanduser()
+        if not source_path.exists() or not source_path.is_file():
+            return ""
+
+        subdirectory, artifact_prefix = import_target
+        artifact_id = self._current_source_artifact_id(current_path) or f"{artifact_prefix}_{uuid4().hex}"
+        relative_path = self._source_import_relative_path(
+            subdirectory=subdirectory,
+            artifact_id=artifact_id,
+            source_path=source_path,
+        )
+
+        staging_root = self._host.project_session_controller.ensure_project_staging_root()
+        destination_path = staging_root / Path(relative_path)
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_path, destination_path)
+
+        store = self._host.project_session_controller.project_artifact_store()
+        store.register_staged_entry(
+            artifact_id,
+            relative_path=relative_path,
+        )
+        self._persist_project_artifact_store(store)
+        return store.staged_ref(artifact_id)
+
+    @staticmethod
+    def _source_import_target(property_label: str) -> tuple[str, str] | None:
+        return _SOURCE_IMPORT_TARGETS.get(str(property_label or "").strip().lower())
+
+    def _current_source_artifact_id(self, current_path: str) -> str:
+        resolution = self._project_artifact_resolver().resolve(current_path)
+        return str(resolution.artifact_id or "").strip()
+
+    @staticmethod
+    def _source_import_relative_path(
+        *,
+        subdirectory: str,
+        artifact_id: str,
+        source_path: Path,
+    ) -> str:
+        return f"{PROJECT_MANAGED_ASSETS_DIRNAME}/{subdirectory}/{artifact_id}{source_path.suffix}"
+
+    def _persist_project_artifact_store(self, store) -> None:  # noqa: ANN001
+        metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
+        updated_metadata = dict(metadata)
+        updated_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
+        self._host.model.project.metadata = updated_metadata
+        self._host.project_meta_changed.emit()
 
     def apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
         if getattr(self._host, "quick_widget", None) is None:

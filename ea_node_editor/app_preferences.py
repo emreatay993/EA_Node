@@ -14,7 +14,10 @@ from ea_node_editor.settings import (
     DEFAULT_APP_PREFERENCES,
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     DEFAULT_GRAPHICS_SETTINGS,
+    DEFAULT_SOURCE_IMPORT_MODE,
+    DEFAULT_SOURCE_IMPORT_SETTINGS,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
+    SOURCE_IMPORT_MODE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
     app_preferences_path,
 )
@@ -29,6 +32,9 @@ from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id, resolve
 _APP_PREFERENCES_MIGRATION_VERSION = 1
 _GRAPHICS_PERFORMANCE_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in GRAPHICS_PERFORMANCE_MODE_CHOICES
+}
+_SOURCE_IMPORT_MODE_VALUES = {
+    str(choice[0]).strip().lower() for choice in SOURCE_IMPORT_MODE_CHOICES
 }
 _TAB_STRIP_DENSITY_VALUES = {str(choice[0]).strip().lower() for choice in TAB_STRIP_DENSITY_CHOICES}
 
@@ -132,6 +138,19 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
     return normalized
 
 
+def normalize_source_import_settings(payload: Any) -> dict[str, Any]:
+    defaults = DEFAULT_SOURCE_IMPORT_SETTINGS
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    normalized["default_mode"] = normalize_source_import_mode(
+        payload.get("default_mode"),
+        defaults["default_mode"],
+    )
+    return normalized
+
+
 def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
     normalized = default_app_preferences_document()
     if not isinstance(payload, Mapping):
@@ -149,6 +168,7 @@ def normalize_app_preferences_document(payload: Any) -> dict[str, Any]:
         return normalized
 
     normalized["graphics"] = normalize_graphics_settings(payload.get("graphics"))
+    normalized["source_import"] = normalize_source_import_settings(payload.get("source_import"))
     return normalized
 
 
@@ -244,6 +264,16 @@ def normalize_graphics_performance_mode(value: Any, default: str = DEFAULT_GRAPH
     return DEFAULT_GRAPHICS_PERFORMANCE_MODE
 
 
+def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPORT_MODE) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _SOURCE_IMPORT_MODE_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _SOURCE_IMPORT_MODE_VALUES:
+        return resolved_default
+    return DEFAULT_SOURCE_IMPORT_MODE
+
+
 __all__ = [
     "AppPreferencesStore",
     "default_app_preferences_document",
@@ -251,5 +281,7 @@ __all__ = [
     "normalize_graph_theme_settings",
     "normalize_graphics_performance_mode",
     "normalize_graphics_settings",
+    "normalize_source_import_mode",
+    "normalize_source_import_settings",
     "resolve_startup_theme_id",
 ]

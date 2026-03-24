@@ -66,8 +66,13 @@ GRAPHICS_PERFORMANCE_MODE_CHOICES = (
     ("full_fidelity", "Full Fidelity"),
     ("max_performance", "Max Performance"),
 )
+SOURCE_IMPORT_MODE_CHOICES = (
+    ("managed_copy", "Managed Copy"),
+    ("external_link", "External Link"),
+)
 
 DEFAULT_GRAPHICS_PERFORMANCE_MODE = GRAPHICS_PERFORMANCE_MODE_CHOICES[0][0]
+DEFAULT_SOURCE_IMPORT_MODE = SOURCE_IMPORT_MODE_CHOICES[0][0]
 
 DEFAULT_GRAPHICS_SETTINGS = {
     "canvas": {
@@ -99,10 +104,15 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
 }
 
+DEFAULT_SOURCE_IMPORT_SETTINGS = {
+    "default_mode": DEFAULT_SOURCE_IMPORT_MODE,
+}
+
 DEFAULT_APP_PREFERENCES = {
     "kind": APP_PREFERENCES_KIND,
     "version": APP_PREFERENCES_VERSION,
     "graphics": DEFAULT_GRAPHICS_SETTINGS,
+    "source_import": DEFAULT_SOURCE_IMPORT_SETTINGS,
 }
 
 

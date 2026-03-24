@@ -10,6 +10,8 @@ from ea_node_editor.app_preferences import (
     normalize_app_preferences_document,
     normalize_graph_theme_settings,
     normalize_graphics_settings,
+    normalize_source_import_mode,
+    normalize_source_import_settings,
 )
 from ea_node_editor.graph_theme_defaults import DEFAULT_GRAPH_THEME_ID
 from ea_node_editor.persistence.utils import merge_defaults
@@ -54,6 +56,13 @@ class AppPreferencesController:
     def graph_theme_settings(self) -> dict[str, Any]:
         return copy.deepcopy(self.graphics_settings()["graph_theme"])
 
+    def source_import_settings(self) -> dict[str, Any]:
+        return copy.deepcopy(self._ensure_document()["source_import"])
+
+    def source_import_mode(self) -> str:
+        settings = self.source_import_settings()
+        return normalize_source_import_mode(settings.get("default_mode"))
+
     def graph_theme_choices(self) -> tuple[tuple[str, str], ...]:
         settings = self.graph_theme_settings()
         return available_graph_theme_choices(settings.get("custom_themes"))
@@ -87,6 +96,12 @@ class AppPreferencesController:
         current = self.graphics_settings()
         merged = merge_defaults(updates, current)
         return self.set_graphics_settings(merged, host=host)
+
+    def set_source_import_mode(self, mode: Any) -> str:
+        document = self._ensure_document()
+        document["source_import"] = normalize_source_import_settings({"default_mode": mode})
+        self.persist()
+        return self.source_import_mode()
 
     def create_blank_custom_graph_theme(
         self,
@@ -257,4 +272,6 @@ __all__ = [
     "normalize_app_preferences_document",
     "normalize_graph_theme_settings",
     "normalize_graphics_settings",
+    "normalize_source_import_mode",
+    "normalize_source_import_settings",
 ]

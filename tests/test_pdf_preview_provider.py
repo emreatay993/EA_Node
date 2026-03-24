@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication
 from ea_node_editor.graph.model import GraphModel, NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.persistence.artifact_refs import format_staged_artifact_ref
 from ea_node_editor.ui.pdf_preview_provider import (
     LOCAL_PDF_PREVIEW_PROVIDER_ID,
     LocalPdfPreviewImageProvider,
@@ -343,6 +344,45 @@ class PdfPreviewProviderTests(unittest.TestCase):
 
                 image, size = provider.requestImage(
                     f"preview?source={quote(managed_ref, safe='')}&page=9",
+                    QSize(220, 220),
+                )
+
+        self.assertFalse(image.isNull())
+        self.assertGreater(size.width(), 0)
+        self.assertGreater(size.height(), 0)
+        self.assertLessEqual(size.width(), 220)
+        self.assertLessEqual(size.height(), 220)
+
+    def test_describe_preview_and_provider_render_staged_pdf_ref(self) -> None:
+        provider = LocalPdfPreviewImageProvider()
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "artifact_demo.sfe"
+            staged_pdf_path = project_path.with_name("artifact_demo.data") / ".staging" / "assets" / "media" / "preview.pdf"
+            staged_pdf_path.parent.mkdir(parents=True, exist_ok=True)
+            _write_pdf(staged_pdf_path, page_count=2)
+            staged_ref = format_staged_artifact_ref("preview_pdf")
+
+            with _pdf_preview_project_context(
+                project_path=project_path,
+                project_metadata={
+                    "artifact_store": {
+                        "staged": {
+                            "preview_pdf": {"relative_path": ".staging/assets/media/preview.pdf"},
+                        }
+                    }
+                },
+            ):
+                info = describe_pdf_preview(staged_ref, 9)
+                self.assertEqual(info["state"], "ready")
+                self.assertEqual(info["page_count"], 2)
+                self.assertEqual(info["requested_page_number"], 9)
+                self.assertEqual(info["resolved_page_number"], 2)
+                self.assertEqual(Path(QUrl(info["resolved_source_url"]).toLocalFile()), staged_pdf_path)
+                self.assertTrue(str(info["preview_url"]).startswith(f"image://{LOCAL_PDF_PREVIEW_PROVIDER_ID}/"))
+                self.assertEqual(clamp_pdf_page_number(staged_ref, 9), 2)
+
+                image, size = provider.requestImage(
+                    f"preview?source={quote(staged_ref, safe='')}&page=9",
                     QSize(220, 220),
                 )
 
