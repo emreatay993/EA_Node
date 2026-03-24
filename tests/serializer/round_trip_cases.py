@@ -6,7 +6,14 @@ from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
+from ea_node_editor.persistence.artifact_refs import (
+    format_managed_artifact_ref,
+    format_staged_artifact_ref,
+)
+from ea_node_editor.persistence.project_codec import (
+    collect_project_artifact_references,
+    rewrite_project_artifact_refs,
+)
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -52,6 +59,71 @@ class SerializerRoundTripMixin:
         loaded_workspace = loaded.workspaces[workspace.workspace_id]
         self.assertEqual(list(loaded_workspace.views), [third_view_id, first_view_id, second_view_id])
         self.assertEqual(loaded_workspace.active_view_id, third_view_id)
+
+    def test_round_trip_artifact_ref_helpers_collect_and_rewrite_persistent_document(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Image Panel",
+            25.0,
+            45.0,
+            properties={
+                "source_path": format_staged_artifact_ref("pending_output"),
+                "fallback": format_managed_artifact_ref("existing_asset"),
+                "gallery": [format_staged_artifact_ref("pending_gallery")],
+            },
+        )
+        state = workspace.capture_persistence_state()
+        state.unresolved_node_docs["node_missing"] = {
+            "node_id": "node_missing",
+            "type_id": "missing.node",
+            "title": "Missing",
+            "x": 5.0,
+            "y": 7.0,
+            "properties": {
+                "source_path": format_staged_artifact_ref("pending_hidden"),
+            },
+            "exposed_ports": {},
+            "visual_style": {},
+            "parent_node_id": None,
+        }
+        workspace.restore_persistence_state(state)
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        doc = serializer.to_persistent_document(model.project)
+        refs = collect_project_artifact_references(doc)
+
+        self.assertEqual(refs.managed_ids, frozenset({"existing_asset"}))
+        self.assertEqual(
+            refs.staged_ids,
+            frozenset({"pending_output", "pending_gallery", "pending_hidden"}),
+        )
+
+        rewritten = rewrite_project_artifact_refs(
+            doc,
+            {
+                format_staged_artifact_ref("pending_output"): format_managed_artifact_ref("pending_output"),
+                format_staged_artifact_ref("pending_hidden"): format_managed_artifact_ref("pending_hidden"),
+            },
+        )
+        workspace_doc = next(ws for ws in rewritten["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        resolved_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
+        missing_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_missing")
+
+        self.assertEqual(
+            resolved_node["properties"],
+            {
+                "source_path": format_managed_artifact_ref("pending_output"),
+                "fallback": format_managed_artifact_ref("existing_asset"),
+                "gallery": [format_staged_artifact_ref("pending_gallery")],
+            },
+        )
+        self.assertEqual(
+            missing_node["properties"]["source_path"],
+            format_managed_artifact_ref("pending_hidden"),
+        )
 
     def test_round_trip_preserves_node_and_edge_visual_metadata_contracts(self) -> None:
         model = GraphModel()
@@ -419,4 +491,69 @@ class SerializerArtifactRoundTripPacketTests(unittest.TestCase):
                 },
                 "staged": {},
             },
+        )
+
+    def test_collect_and_rewrite_artifact_refs_from_persistent_document(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "passive.media.image_panel",
+            "Image Panel",
+            25.0,
+            45.0,
+            properties={
+                "source_path": format_staged_artifact_ref("pending_output"),
+                "fallback": format_managed_artifact_ref("existing_asset"),
+                "gallery": [format_staged_artifact_ref("pending_gallery")],
+            },
+        )
+        state = workspace.capture_persistence_state()
+        state.unresolved_node_docs["node_missing"] = {
+            "node_id": "node_missing",
+            "type_id": "missing.node",
+            "title": "Missing",
+            "x": 5.0,
+            "y": 7.0,
+            "properties": {
+                "source_path": format_staged_artifact_ref("pending_hidden"),
+            },
+            "exposed_ports": {},
+            "visual_style": {},
+            "parent_node_id": None,
+        }
+        workspace.restore_persistence_state(state)
+
+        serializer = JsonProjectSerializer(build_default_registry())
+        document = serializer.to_persistent_document(model.project)
+        refs = collect_project_artifact_references(document)
+
+        self.assertEqual(refs.managed_ids, frozenset({"existing_asset"}))
+        self.assertEqual(
+            refs.staged_ids,
+            frozenset({"pending_output", "pending_gallery", "pending_hidden"}),
+        )
+
+        rewritten = rewrite_project_artifact_refs(
+            document,
+            {
+                format_staged_artifact_ref("pending_output"): format_managed_artifact_ref("pending_output"),
+                format_staged_artifact_ref("pending_hidden"): format_managed_artifact_ref("pending_hidden"),
+            },
+        )
+        workspace_doc = next(ws for ws in rewritten["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        resolved_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
+        missing_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_missing")
+
+        self.assertEqual(
+            resolved_node["properties"],
+            {
+                "source_path": format_managed_artifact_ref("pending_output"),
+                "fallback": format_managed_artifact_ref("existing_asset"),
+                "gallery": [format_staged_artifact_ref("pending_gallery")],
+            },
+        )
+        self.assertEqual(
+            missing_node["properties"]["source_path"],
+            format_managed_artifact_ref("pending_hidden"),
         )

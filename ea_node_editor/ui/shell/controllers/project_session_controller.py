@@ -7,6 +7,10 @@ from typing import Any, Iterable, Protocol
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.persistence.project_codec import (
+    collect_project_artifact_references,
+    rewrite_project_artifact_refs,
+)
 from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.persistence.utils import merge_defaults
 from ea_node_editor.settings import (
@@ -231,9 +235,32 @@ class ProjectSessionController:
             path, _ = QFileDialog.getSaveFileName(self._host, "Save Project", "", "EA Project (*.sfe)")
         if not path:
             return
-        self._host.workspace_library_controller.save_active_view_state()
-        self._host.serializer.save(path, self._host.model.project)
         saved_path = Path(path).with_suffix(".sfe")
+        self._host.workspace_library_controller.save_active_view_state()
+        persistent_document = self._host.serializer.to_persistent_document(self._host.model.project)
+        artifact_refs = collect_project_artifact_references(persistent_document)
+        store = ProjectArtifactStore.from_project_metadata(
+            project_path=saved_path,
+            project_metadata=self._host.model.project.metadata,
+        )
+        promotion = store.commit_referenced_artifacts(
+            referenced_managed_ids=artifact_refs.managed_ids,
+            referenced_staged_ids=artifact_refs.staged_ids,
+        )
+        updated_document = rewrite_project_artifact_refs(
+            persistent_document,
+            promotion.ref_replacements,
+        )
+        document_metadata = (
+            dict(updated_document.get("metadata", {}))
+            if isinstance(updated_document.get("metadata"), dict)
+            else {}
+        )
+        document_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
+        updated_document["metadata"] = document_metadata
+        self._host.serializer.save_document(str(saved_path), updated_document)
+        self._rewrite_live_project_artifact_refs(promotion.ref_replacements)
+        self._set_project_artifact_store(store)
         self._host.project_path = str(saved_path)
         try:
             self._session_state.last_manual_save_ts = saved_path.stat().st_mtime
@@ -249,6 +276,35 @@ class ProjectSessionController:
         self.add_recent_project_path(str(saved_path), persist=False)
         self.persist_session()
         self._host.project_meta_changed.emit()
+
+    def _rewrite_live_project_artifact_refs(self, replacements: dict[str, str]) -> None:
+        if not replacements:
+            return
+        project = self._host.model.project
+        project.metadata = rewrite_project_artifact_refs(project.metadata, replacements)
+        for workspace in project.workspaces.values():
+            for node in workspace.nodes.values():
+                node.properties = rewrite_project_artifact_refs(node.properties, replacements)
+            state = workspace.capture_persistence_state()
+            state.replace_unresolved_node_docs(
+                {
+                    node_id: rewrite_project_artifact_refs(node_doc, replacements)
+                    for node_id, node_doc in state.unresolved_node_docs.items()
+                }
+            )
+            state.replace_unresolved_edge_docs(
+                {
+                    edge_id: rewrite_project_artifact_refs(edge_doc, replacements)
+                    for edge_id, edge_doc in state.unresolved_edge_docs.items()
+                }
+            )
+            state.replace_authored_node_overrides(
+                {
+                    node_id: rewrite_project_artifact_refs(override_doc, replacements)
+                    for node_id, override_doc in state.authored_node_overrides.items()
+                }
+            )
+            workspace.restore_persistence_state(state)
 
     def new_project(self) -> None:
         project = ProjectData(project_id="proj_local", name="untitled")

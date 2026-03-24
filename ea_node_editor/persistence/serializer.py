@@ -41,12 +41,14 @@ class JsonProjectSerializer:
         return self.from_document(payload)
 
     def save(self, path: str, project: ProjectData) -> None:
+        self.save_document(path, self.to_persistent_document(project))
+
+    def save_document(self, path: str, document: Mapping[str, Any]) -> None:
         target = Path(path)
         if target.suffix.lower() != PROJECT_EXTENSION:
             target = target.with_suffix(PROJECT_EXTENSION)
-        doc = self.to_persistent_document(project)
         target.write_text(
-            json.dumps(doc, indent=2, sort_keys=True, ensure_ascii=True),
+            json.dumps(copy.deepcopy(dict(document)), indent=2, sort_keys=True, ensure_ascii=True),
             encoding="utf-8",
         )
 

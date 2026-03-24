@@ -12,7 +12,10 @@ from unittest.mock import patch
 from PyQt6.QtCore import QEvent, QUrl
 from PyQt6.QtWidgets import QMessageBox
 
-from ea_node_editor.persistence.artifact_refs import format_staged_artifact_ref
+from ea_node_editor.persistence.artifact_refs import (
+    format_managed_artifact_ref,
+    format_staged_artifact_ref,
+)
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.main_window_shell.base import MainWindowShellTestBase
@@ -385,6 +388,63 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             finally:
                 self._dispose_secondary_window(restored)
 
+    def test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id, _staged_ref, staged_path = self._attach_unsaved_staged_output()
+        save_target = Path(self._temp_dir.name) / "projects" / "saved_project"
+        save_target.parent.mkdir(parents=True, exist_ok=True)
+        saved_path = save_target.with_suffix(".sfe")
+        managed_path = saved_path.with_name("saved_project.data") / "artifacts" / "outputs" / "current.txt"
+        managed_path.parent.mkdir(parents=True, exist_ok=True)
+        managed_path.write_text("old output", encoding="utf-8")
+        orphan_path = saved_path.with_name("saved_project.data") / "assets" / "media" / "unused.png"
+        orphan_path.parent.mkdir(parents=True, exist_ok=True)
+        orphan_path.write_text("orphan", encoding="utf-8")
+        self.window.model.project.metadata["artifact_store"]["artifacts"] = {
+            "pending_output": {
+                "relative_path": "artifacts/outputs/current.txt",
+            },
+            "orphan_asset": {
+                "relative_path": "assets/media/unused.png",
+            },
+        }
+
+        with patch(
+            "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+            return_value=(str(save_target), "EA Project (*.sfe)"),
+        ):
+            self.window._save_project()
+        self.app.processEvents()
+
+        workspace = self.window.model.project.workspaces[workspace_id]
+        saved_doc = json.loads(saved_path.read_text(encoding="utf-8"))
+        workspace_doc = next(item for item in saved_doc["workspaces"] if item["workspace_id"] == workspace_id)
+        saved_node = next(item for item in workspace_doc["nodes"] if item["node_id"] == node_id)
+
+        self.assertEqual(self.window.project_path, str(saved_path))
+        self.assertEqual(
+            workspace.nodes[node_id].properties["source_path"],
+            format_managed_artifact_ref("pending_output"),
+        )
+        self.assertEqual(
+            saved_node["properties"]["source_path"],
+            format_managed_artifact_ref("pending_output"),
+        )
+        self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
+        self.assertFalse(staged_path.exists())
+        self.assertFalse(orphan_path.exists())
+        self.assertEqual(
+            saved_doc["metadata"]["artifact_store"],
+            {
+                "artifacts": {
+                    "pending_output": {
+                        "relative_path": "artifacts/outputs/current.txt",
+                    }
+                },
+                "staged": {},
+            },
+        )
+
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         base_path = self._session_path.with_name("packet_recent")
         paths = [
@@ -454,6 +514,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint(self) -> None:
         self._run_scenario("test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint")
+
+    def test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans(self) -> None:
+        self._run_scenario("test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans")
 
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         self._run_scenario("test_recent_project_paths_are_owned_by_explicit_session_state")

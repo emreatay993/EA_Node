@@ -188,6 +188,108 @@ class ProjectArtifactStoreTests(unittest.TestCase):
             self.assertNotIn("staging_root", store.metadata)
             self.assertIn("pending_output", store.metadata["staged"])
 
+    def test_commit_referenced_artifacts_promotes_unsaved_temp_entries_into_first_saved_sidecar(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            staging_root = Path(temp_dir) / "session_staging" / "project-123"
+            staged_path = staging_root / "outputs" / "run.txt"
+            staged_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_path.write_text("staged output", encoding="utf-8")
+            project_path = Path(temp_dir) / "projects" / "demo.sfe"
+            store = ProjectArtifactStore(
+                project_path=project_path,
+                metadata={
+                    "staging_root": {
+                        "kind": "session_temp",
+                        "absolute_path": str(staging_root),
+                    },
+                    "staged": {
+                        "pending_output": {
+                            "relative_path": "outputs/run.txt",
+                            "slot": "process_run.stdout",
+                        }
+                    },
+                },
+            )
+
+            result = store.commit_referenced_artifacts(referenced_staged_ids={"pending_output"})
+
+            managed_path = project_path.with_name("demo.data") / "artifacts" / "outputs" / "run.txt"
+            self.assertEqual(
+                result.ref_replacements,
+                {
+                    format_staged_artifact_ref("pending_output"): format_managed_artifact_ref("pending_output"),
+                },
+            )
+            self.assertEqual(result.promoted_artifact_ids, ("pending_output",))
+            self.assertEqual(result.pruned_artifact_ids, ())
+            self.assertEqual(result.discarded_staged_ids, ())
+            self.assertEqual(managed_path.read_text(encoding="utf-8"), "staged output")
+            self.assertFalse(staged_path.exists())
+            self.assertFalse(staging_root.exists())
+            self.assertEqual(
+                store.metadata,
+                {
+                    "artifacts": {
+                        "pending_output": {
+                            "relative_path": "artifacts/outputs/run.txt",
+                        }
+                    },
+                    "staged": {},
+                },
+            )
+
+    def test_commit_referenced_artifacts_replaces_existing_managed_copy_and_prunes_orphans(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "demo.sfe"
+            layout = ProjectArtifactLayout.from_project_path(project_path)
+            current_managed_path = layout.artifacts_root / "reports" / "result.txt"
+            current_managed_path.parent.mkdir(parents=True, exist_ok=True)
+            current_managed_path.write_text("old output", encoding="utf-8")
+            orphan_path = layout.assets_root / "media" / "unused.png"
+            orphan_path.parent.mkdir(parents=True, exist_ok=True)
+            orphan_path.write_text("orphan", encoding="utf-8")
+            staged_path = layout.staging_root / "reports" / "result.txt"
+            staged_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_path.write_text("new output", encoding="utf-8")
+            store = ProjectArtifactStore(
+                project_path=project_path,
+                metadata={
+                    "artifacts": {
+                        "current_output": {
+                            "relative_path": "artifacts/reports/result.txt",
+                        },
+                        "orphan_asset": {
+                            "relative_path": "assets/media/unused.png",
+                        },
+                    },
+                    "staged": {
+                        "current_output": {
+                            "relative_path": ".staging/reports/result.txt",
+                        }
+                    },
+                },
+            )
+
+            result = store.commit_referenced_artifacts(referenced_staged_ids={"current_output"})
+
+            self.assertEqual(result.promoted_artifact_ids, ("current_output",))
+            self.assertEqual(result.pruned_artifact_ids, ("orphan_asset",))
+            self.assertEqual(result.discarded_staged_ids, ())
+            self.assertEqual(current_managed_path.read_text(encoding="utf-8"), "new output")
+            self.assertFalse(staged_path.exists())
+            self.assertFalse(orphan_path.exists())
+            self.assertEqual(
+                store.metadata,
+                {
+                    "artifacts": {
+                        "current_output": {
+                            "relative_path": "artifacts/reports/result.txt",
+                        }
+                    },
+                    "staged": {},
+                },
+            )
+
     def test_project_metadata_helper_extracts_normalized_artifact_store_state(self) -> None:
         project_metadata = {
             "artifact_store": {

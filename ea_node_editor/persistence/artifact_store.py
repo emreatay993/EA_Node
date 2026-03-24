@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 import shutil
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
@@ -79,6 +79,26 @@ def _normalize_absolute_path(value: Any) -> str | None:
     if path.is_absolute() or PureWindowsPath(text).is_absolute():
         return text
     return None
+
+
+def _normalize_managed_root_name(value: Any) -> str:
+    text = _coerce_str(value).replace("\\", "/")
+    if text in _MANAGED_ROOT_NAMES:
+        return text
+    normalized = _normalize_relative_path(text, allowed_roots=_MANAGED_ROOT_NAMES)
+    return normalized if normalized in _MANAGED_ROOT_NAMES else ""
+
+
+def _strip_staging_prefix(relative_path: str | None) -> str:
+    normalized = _normalize_relative_path(relative_path)
+    if not normalized:
+        return ""
+    prefix = f"{PROJECT_ARTIFACT_STAGING_DIRNAME}/"
+    if normalized.startswith(prefix):
+        return normalized[len(prefix) :]
+    if normalized == PROJECT_ARTIFACT_STAGING_DIRNAME:
+        return ""
+    return normalized
 
 
 def _metadata_entry_relative_path(
@@ -329,6 +349,14 @@ class ArtifactStoreState:
         return payload
 
 
+@dataclass(frozen=True, slots=True)
+class SavePromotionResult:
+    ref_replacements: dict[str, str] = field(default_factory=dict)
+    promoted_artifact_ids: tuple[str, ...] = ()
+    pruned_artifact_ids: tuple[str, ...] = ()
+    discarded_staged_ids: tuple[str, ...] = ()
+
+
 def normalize_artifact_store_metadata(payload: Any) -> dict[str, Any]:
     return ArtifactStoreState.from_metadata(payload).to_metadata()
 
@@ -542,6 +570,102 @@ class ProjectArtifactStore:
             self._state = replace(self._state, staging_root=None)
         return removed_any
 
+    def commit_referenced_artifacts(
+        self,
+        *,
+        referenced_managed_ids: Iterable[object] = (),
+        referenced_staged_ids: Iterable[object] = (),
+    ) -> SavePromotionResult:
+        layout = self.layout
+        if layout is None:
+            raise ValueError("project_path is required to promote staged artifacts")
+
+        protected_managed_ids = {
+            artifact_id
+            for artifact_id in (coerce_managed_artifact_id(value) for value in referenced_managed_ids)
+            if artifact_id
+        }
+        referenced_stage_ids = {
+            artifact_id
+            for artifact_id in (coerce_staged_artifact_id(value) for value in referenced_staged_ids)
+            if artifact_id
+        }
+        protected_managed_ids.update(referenced_stage_ids)
+
+        promoted_ids: list[str] = []
+        pruned_ids: list[str] = []
+        discarded_ids: list[str] = []
+        ref_replacements: dict[str, str] = {}
+        stop_roots = self._cleanup_stop_roots()
+        staged = dict(self._state.staged)
+        artifacts = dict(self._state.artifacts)
+
+        for root in (layout.sidecar_root, layout.assets_root, layout.artifacts_root):
+            root.mkdir(parents=True, exist_ok=True)
+
+        for artifact_id, staged_entry in list(staged.items()):
+            source_path = staged_entry.absolute_path(layout, self._state.staging_root)
+            if artifact_id not in referenced_stage_ids:
+                if self._delete_staged_entry_payload(staged_entry, stop_roots=stop_roots):
+                    discarded_ids.append(artifact_id)
+                staged.pop(artifact_id, None)
+                continue
+            if source_path is None or not source_path.exists():
+                continue
+
+            relative_path = self._managed_relative_path_for_staged_entry(
+                artifact_id,
+                staged_entry,
+                source_path=source_path,
+            )
+            destination_path = layout.absolute_path_for_relative(relative_path)
+            existing_entry = artifacts.get(artifact_id)
+            existing_path = existing_entry.absolute_path(layout) if existing_entry is not None else None
+            destination_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if existing_path is not None and existing_path != destination_path and _delete_path(existing_path):
+                _prune_empty_ancestors(existing_path.parent, stop_roots=stop_roots)
+            if destination_path.exists() and destination_path != source_path:
+                _delete_path(destination_path)
+            if source_path != destination_path:
+                shutil.move(str(source_path), str(destination_path))
+                _prune_empty_ancestors(source_path.parent, stop_roots=stop_roots)
+
+            artifacts[artifact_id] = ManagedArtifactEntry(
+                artifact_id=artifact_id,
+                relative_path=relative_path,
+                extra=self._managed_extra_from_staged_entry(staged_entry),
+            )
+            staged.pop(artifact_id, None)
+            protected_managed_ids.add(artifact_id)
+            promoted_ids.append(artifact_id)
+            ref_replacements[self.staged_ref(artifact_id)] = self.managed_ref(artifact_id)
+
+        for artifact_id, managed_entry in list(artifacts.items()):
+            if artifact_id in protected_managed_ids:
+                continue
+            managed_path = managed_entry.absolute_path(layout)
+            if _delete_path(managed_path):
+                _prune_empty_ancestors(managed_path.parent, stop_roots=stop_roots)
+            artifacts.pop(artifact_id, None)
+            pruned_ids.append(artifact_id)
+
+        if not staged and self._state.staging_root is not None:
+            shutil.rmtree(self._state.staging_root.as_path(), ignore_errors=True)
+        staging_root = self._state.staging_root if staged else None
+        self._state = replace(
+            self._state,
+            artifacts=artifacts,
+            staged=staged,
+            staging_root=staging_root,
+        )
+        return SavePromotionResult(
+            ref_replacements=ref_replacements,
+            promoted_artifact_ids=tuple(sorted(promoted_ids)),
+            pruned_artifact_ids=tuple(sorted(pruned_ids)),
+            discarded_staged_ids=tuple(sorted(discarded_ids)),
+        )
+
     def _cleanup_stop_roots(self) -> tuple[Path, ...]:
         roots: list[Path] = []
         if self.layout is not None:
@@ -549,3 +673,57 @@ class ProjectArtifactStore:
         if self._state.staging_root is not None:
             roots.append(self._state.staging_root.as_path())
         return tuple(roots)
+
+    def _delete_staged_entry_payload(
+        self,
+        entry: StagedArtifactEntry,
+        *,
+        stop_roots: tuple[Path, ...],
+    ) -> bool:
+        staged_path = entry.absolute_path(self.layout, self._state.staging_root)
+        if staged_path is None:
+            return False
+        removed = _delete_path(staged_path)
+        if removed:
+            _prune_empty_ancestors(staged_path.parent, stop_roots=stop_roots)
+        return removed
+
+    def _managed_relative_path_for_staged_entry(
+        self,
+        artifact_id: str,
+        entry: StagedArtifactEntry,
+        *,
+        source_path: Path | None,
+    ) -> str:
+        existing_entry = self._state.artifacts.get(artifact_id)
+        if existing_entry is not None:
+            return existing_entry.relative_path
+
+        managed_relative_path = _normalize_relative_path(
+            entry.extra.get("managed_relative_path"),
+            allowed_roots=_MANAGED_ROOT_NAMES,
+        )
+        if managed_relative_path:
+            return managed_relative_path
+
+        source_relative_path = _strip_staging_prefix(entry.relative_path)
+        if source_relative_path:
+            source_root = PurePosixPath(source_relative_path).parts[0]
+            if source_root in _MANAGED_ROOT_NAMES:
+                return source_relative_path
+            managed_root = _normalize_managed_root_name(entry.extra.get("managed_root")) or PROJECT_MANAGED_ARTIFACTS_DIRNAME
+            return f"{managed_root}/{source_relative_path}"
+
+        source_suffix = ""
+        if source_path is not None:
+            source_suffix = source_path.suffix
+        elif entry.absolute_path_hint:
+            source_suffix = Path(entry.absolute_path_hint).suffix
+        return f"{PROJECT_MANAGED_ARTIFACTS_DIRNAME}/{artifact_id}{source_suffix}"
+
+    @staticmethod
+    def _managed_extra_from_staged_entry(entry: StagedArtifactEntry) -> dict[str, Any]:
+        payload = copy.deepcopy(entry.extra)
+        payload.pop("managed_relative_path", None)
+        payload.pop("managed_root", None)
+        return payload

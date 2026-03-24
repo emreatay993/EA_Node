@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from ea_node_editor.graph.hierarchy import normalize_scope_path
@@ -17,6 +18,11 @@ from ea_node_editor.graph.model import (
     sanitize_workspace_parent_links,
 )
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.persistence.artifact_refs import (
+    ManagedArtifactRef,
+    StagedArtifactRef,
+    parse_artifact_ref,
+)
 from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
 from ea_node_editor.persistence.migration import JsonProjectMigration
 from ea_node_editor.settings import SCHEMA_VERSION
@@ -31,6 +37,74 @@ _COMMENT_BACKDROP_RUNTIME_MEMBERSHIP_KEYS = (
     "contained_node_ids",
     "contained_backdrop_ids",
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectArtifactReferenceSet:
+    managed_ids: frozenset[str]
+    staged_ids: frozenset[str]
+
+
+def collect_project_artifact_references(payload: Any) -> ProjectArtifactReferenceSet:
+    managed_ids: set[str] = set()
+    staged_ids: set[str] = set()
+    _collect_project_artifact_references(payload, managed_ids=managed_ids, staged_ids=staged_ids)
+    return ProjectArtifactReferenceSet(
+        managed_ids=frozenset(managed_ids),
+        staged_ids=frozenset(staged_ids),
+    )
+
+
+def _collect_project_artifact_references(
+    payload: Any,
+    *,
+    managed_ids: set[str],
+    staged_ids: set[str],
+) -> None:
+    if isinstance(payload, str):
+        parsed = parse_artifact_ref(payload)
+        if isinstance(parsed, ManagedArtifactRef):
+            managed_ids.add(parsed.artifact_id)
+        elif isinstance(parsed, StagedArtifactRef):
+            staged_ids.add(parsed.artifact_id)
+        return
+    if isinstance(payload, Mapping):
+        for value in payload.values():
+            _collect_project_artifact_references(value, managed_ids=managed_ids, staged_ids=staged_ids)
+        return
+    if isinstance(payload, list | tuple | set | frozenset):
+        for value in payload:
+            _collect_project_artifact_references(value, managed_ids=managed_ids, staged_ids=staged_ids)
+
+
+def rewrite_project_artifact_refs(payload: Any, replacements: Mapping[str, str]) -> Any:
+    replacement_map = {
+        str(source): str(target)
+        for source, target in replacements.items()
+        if str(source).strip() and str(target).strip()
+    }
+    if not replacement_map:
+        return copy.deepcopy(payload)
+    return _rewrite_project_artifact_refs(payload, replacements=replacement_map)
+
+
+def _rewrite_project_artifact_refs(payload: Any, *, replacements: Mapping[str, str]) -> Any:
+    if isinstance(payload, str):
+        return replacements.get(payload, payload)
+    if isinstance(payload, Mapping):
+        return {
+            copy.deepcopy(key): _rewrite_project_artifact_refs(value, replacements=replacements)
+            for key, value in payload.items()
+        }
+    if isinstance(payload, list):
+        return [_rewrite_project_artifact_refs(value, replacements=replacements) for value in payload]
+    if isinstance(payload, tuple):
+        return tuple(_rewrite_project_artifact_refs(value, replacements=replacements) for value in payload)
+    if isinstance(payload, set):
+        return {_rewrite_project_artifact_refs(value, replacements=replacements) for value in payload}
+    if isinstance(payload, frozenset):
+        return frozenset(_rewrite_project_artifact_refs(value, replacements=replacements) for value in payload)
+    return copy.deepcopy(payload)
 
 
 class JsonProjectCodec:
