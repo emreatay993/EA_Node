@@ -11,10 +11,16 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
 
 PROCESS_STREAM_CAPTURE_CHAR_LIMIT = 262_144
 PROCESS_STREAM_QUEUE_SIZE = 256
+PROCESS_STDERR_ERROR_TAIL_CHAR_LIMIT = 4_096
+PROCESS_OUTPUT_MODE_MEMORY = "memory"
+PROCESS_OUTPUT_MODE_STORED = "stored"
+PROCESS_TRANSCRIPT_SUFFIX = ".log"
+PROCESS_TRANSCRIPT_SUBDIRECTORY = "generated/process_run"
 
 
 def normalize_args(value: Any) -> list[str]:
@@ -47,6 +53,16 @@ def normalize_env(value: Any) -> dict[str, str]:
     return {}
 
 
+def normalize_output_mode(value: Any) -> str:
+    normalized = str(value or PROCESS_OUTPUT_MODE_MEMORY).strip().lower()
+    if normalized not in {PROCESS_OUTPUT_MODE_MEMORY, PROCESS_OUTPUT_MODE_STORED}:
+        raise ValueError(
+            "Process Run output_mode must be either "
+            f"{PROCESS_OUTPUT_MODE_MEMORY!r} or {PROCESS_OUTPUT_MODE_STORED!r}."
+        )
+    return normalized
+
+
 class ProcessRunNodePlugin:
     def spec(self) -> NodeTypeSpec:
         return NodeTypeSpec(
@@ -69,6 +85,14 @@ class ProcessRunNodePlugin:
             properties=(
                 PropertySpec("command", "str", "", "Command"),
                 PropertySpec("args", "str", "[]", "Args"),
+                PropertySpec(
+                    "output_mode",
+                    "enum",
+                    PROCESS_OUTPUT_MODE_MEMORY,
+                    "Output Mode",
+                    enum_values=(PROCESS_OUTPUT_MODE_MEMORY, PROCESS_OUTPUT_MODE_STORED),
+                    inline_editor="enum",
+                ),
                 PropertySpec("cwd", "path", "", "Working Directory"),
                 PropertySpec("env", "json", {}, "Environment"),
                 PropertySpec("timeout_sec", "float", 60.0, "Timeout (sec)"),
@@ -90,6 +114,7 @@ class ProcessRunNodePlugin:
         if cwd and not Path(cwd).exists():
             raise ValueError(f"Process Run working directory does not exist: {cwd}")
 
+        output_mode = normalize_output_mode(ctx.properties.get("output_mode", PROCESS_OUTPUT_MODE_MEMORY))
         timeout_sec = float(ctx.properties.get("timeout_sec", 60.0))
         if timeout_sec <= 0:
             raise ValueError("Process Run timeout_sec must be > 0.")
@@ -150,16 +175,43 @@ class ProcessRunNodePlugin:
             chunks: deque[str],
             total_chars: int,
             text: str,
+            *,
+            limit: int = PROCESS_STREAM_CAPTURE_CHAR_LIMIT,
         ) -> tuple[int, bool]:
             if not text:
                 return total_chars, False
             chunks.append(text)
             total_chars += len(text)
             truncated = False
-            while total_chars > PROCESS_STREAM_CAPTURE_CHAR_LIMIT and chunks:
+            while total_chars > limit and chunks:
                 total_chars -= len(chunks.popleft())
                 truncated = True
             return total_chars, truncated
+
+        def _create_stored_transcript(output_key: str):
+            return write_managed_output(
+                ctx,
+                output_key=output_key,
+                default_suffix=PROCESS_TRANSCRIPT_SUFFIX,
+                managed_subdirectory=PROCESS_TRANSCRIPT_SUBDIRECTORY,
+                write_payload=lambda output_path: output_path.write_text("", encoding=encoding),
+            )
+
+        stored_stdout = None
+        stored_stderr = None
+        stdout_stream = None
+        stderr_stream = None
+        stored_output_paths: list[Path] = []
+        keep_stored_outputs = False
+        stderr_error_tail: deque[str] = deque()
+        stderr_error_tail_chars = 0
+
+        if output_mode == PROCESS_OUTPUT_MODE_STORED:
+            stored_stdout = _create_stored_transcript("stdout")
+            stored_stderr = _create_stored_transcript("stderr")
+            stored_output_paths = [stored_stdout.path, stored_stderr.path]
+            stdout_stream = stored_stdout.path.open("a", encoding=encoding)
+            stderr_stream = stored_stderr.path.open("a", encoding=encoding)
 
         stream_queue: queue.Queue[tuple[str, str]] = queue.Queue(maxsize=PROCESS_STREAM_QUEUE_SIZE)
         dropped_chunks: dict[str, int] = {"stdout": 0, "stderr": 0}
@@ -205,25 +257,92 @@ class ProcessRunNodePlugin:
         stderr_chars = 0
         stdout_truncated = False
         stderr_truncated = False
-        while True:
-            if ctx.should_stop():
-                _cancel()
-                raise InterruptedError("run_stop_requested")
-            elapsed = time.monotonic() - started_at
-            if elapsed > timeout_sec:
-                _cancel()
-                raise TimeoutError(f"Process Run timed out after {timeout_sec:.2f} seconds.")
+        try:
+            while True:
+                if ctx.should_stop():
+                    _cancel()
+                    raise InterruptedError("run_stop_requested")
+                elapsed = time.monotonic() - started_at
+                if elapsed > timeout_sec:
+                    _cancel()
+                    raise TimeoutError(f"Process Run timed out after {timeout_sec:.2f} seconds.")
 
-            drained_any = False
+                drained_any = False
+                try:
+                    while True:
+                        stream_name, chunk = stream_queue.get_nowait()
+                        drained_any = True
+                        message = chunk.rstrip("\r\n")
+                        for line in message.splitlines():
+                            if line:
+                                ctx.emit_log("info", f"[{stream_name}] {line}")
+                        if (
+                            output_mode == PROCESS_OUTPUT_MODE_STORED
+                            and stream_name == "stdout"
+                            and stdout_stream is not None
+                        ):
+                            stdout_stream.write(chunk)
+                            stdout_stream.flush()
+                        elif (
+                            output_mode == PROCESS_OUTPUT_MODE_STORED
+                            and stream_name == "stderr"
+                            and stderr_stream is not None
+                        ):
+                            stderr_stream.write(chunk)
+                            stderr_stream.flush()
+                            stderr_error_tail_chars, _was_truncated = _append_bounded(
+                                stderr_error_tail,
+                                stderr_error_tail_chars,
+                                chunk,
+                                limit=PROCESS_STDERR_ERROR_TAIL_CHAR_LIMIT,
+                            )
+                        elif stream_name == "stdout":
+                            stdout_chars, was_truncated = _append_bounded(stdout_chunks, stdout_chars, chunk)
+                            stdout_truncated = stdout_truncated or was_truncated
+                        elif stream_name == "stderr":
+                            stderr_chars, was_truncated = _append_bounded(stderr_chunks, stderr_chars, chunk)
+                            stderr_truncated = stderr_truncated or was_truncated
+                except queue.Empty:
+                    pass
+
+                if process.poll() is not None and all(not thread.is_alive() for thread in reader_threads):
+                    if stream_queue.empty():
+                        break
+                    continue
+                if not drained_any:
+                    time.sleep(0.02)
+
+            for thread in reader_threads:
+                thread.join(timeout=0.1)
+
             try:
                 while True:
                     stream_name, chunk = stream_queue.get_nowait()
-                    drained_any = True
                     message = chunk.rstrip("\r\n")
                     for line in message.splitlines():
                         if line:
                             ctx.emit_log("info", f"[{stream_name}] {line}")
-                    if stream_name == "stdout":
+                    if (
+                        output_mode == PROCESS_OUTPUT_MODE_STORED
+                        and stream_name == "stdout"
+                        and stdout_stream is not None
+                    ):
+                        stdout_stream.write(chunk)
+                        stdout_stream.flush()
+                    elif (
+                        output_mode == PROCESS_OUTPUT_MODE_STORED
+                        and stream_name == "stderr"
+                        and stderr_stream is not None
+                    ):
+                        stderr_stream.write(chunk)
+                        stderr_stream.flush()
+                        stderr_error_tail_chars, _was_truncated = _append_bounded(
+                            stderr_error_tail,
+                            stderr_error_tail_chars,
+                            chunk,
+                            limit=PROCESS_STDERR_ERROR_TAIL_CHAR_LIMIT,
+                        )
+                    elif stream_name == "stdout":
                         stdout_chars, was_truncated = _append_bounded(stdout_chunks, stdout_chars, chunk)
                         stdout_truncated = stdout_truncated or was_truncated
                     elif stream_name == "stderr":
@@ -232,79 +351,87 @@ class ProcessRunNodePlugin:
             except queue.Empty:
                 pass
 
-            if process.poll() is not None and all(not thread.is_alive() for thread in reader_threads):
-                if stream_queue.empty():
-                    break
-                continue
-            if not drained_any:
-                time.sleep(0.02)
+            exit_code = int(process.returncode or 0)
+            stdout_text = "".join(stdout_chunks)
+            stderr_text = "".join(stderr_chunks)
 
-        for thread in reader_threads:
-            thread.join(timeout=0.1)
+            if stdout_truncated:
+                ctx.emit_log(
+                    "warning",
+                    (
+                        "Process Run stdout capture exceeded limit and was truncated to the most recent "
+                        f"{PROCESS_STREAM_CAPTURE_CHAR_LIMIT} characters."
+                    ),
+                )
+            if stderr_truncated:
+                ctx.emit_log(
+                    "warning",
+                    (
+                        "Process Run stderr capture exceeded limit and was truncated to the most recent "
+                        f"{PROCESS_STREAM_CAPTURE_CHAR_LIMIT} characters."
+                    ),
+                )
+            with dropped_lock:
+                dropped_stdout = int(dropped_chunks.get("stdout", 0))
+                dropped_stderr = int(dropped_chunks.get("stderr", 0))
+            if dropped_stdout > 0 or dropped_stderr > 0:
+                ctx.emit_log(
+                    "warning",
+                    (
+                        "Process Run dropped streamed chunks due to output backpressure "
+                        f"(stdout={dropped_stdout}, stderr={dropped_stderr})."
+                    ),
+                )
 
-        try:
-            while True:
-                stream_name, chunk = stream_queue.get_nowait()
-                message = chunk.rstrip("\r\n")
-                for line in message.splitlines():
-                    if line:
-                        ctx.emit_log("info", f"[{stream_name}] {line}")
-                if stream_name == "stdout":
-                    stdout_chars, was_truncated = _append_bounded(stdout_chunks, stdout_chars, chunk)
-                    stdout_truncated = stdout_truncated or was_truncated
-                elif stream_name == "stderr":
-                    stderr_chars, was_truncated = _append_bounded(stderr_chunks, stderr_chars, chunk)
-                    stderr_truncated = stderr_truncated or was_truncated
-        except queue.Empty:
-            pass
-
-        exit_code = int(process.returncode or 0)
-        stdout_text = "".join(stdout_chunks)
-        stderr_text = "".join(stderr_chunks)
-
-        if stdout_truncated:
-            ctx.emit_log(
-                "warning",
-                (
-                    "Process Run stdout capture exceeded limit and was truncated to the most recent "
-                    f"{PROCESS_STREAM_CAPTURE_CHAR_LIMIT} characters."
-                ),
+            if fail_on_nonzero and exit_code != 0:
+                if output_mode == PROCESS_OUTPUT_MODE_STORED:
+                    stderr_tail = "".join(stderr_error_tail).strip()
+                    transcript_hint = f" stderr_tail={stderr_tail!r}" if stderr_tail else ""
+                    raise RuntimeError(
+                        "Process Run returned non-zero exit code "
+                        f"{exit_code}. stored_transcripts_discarded=True.{transcript_hint}"
+                    )
+                raise RuntimeError(
+                    f"Process Run returned non-zero exit code {exit_code}. stderr={stderr_text.strip()}"
+                )
+            if output_mode == PROCESS_OUTPUT_MODE_STORED and stored_stdout is not None and stored_stderr is not None:
+                keep_stored_outputs = True
+                return NodeResult(
+                    outputs={
+                        "stdout": stored_stdout.artifact_ref,
+                        "stderr": stored_stderr.artifact_ref,
+                        "exit_code": exit_code,
+                        "exec_out": True,
+                    }
+                )
+            return NodeResult(
+                outputs={
+                    "stdout": stdout_text,
+                    "stderr": stderr_text,
+                    "exit_code": exit_code,
+                    "exec_out": True,
+                }
             )
-        if stderr_truncated:
-            ctx.emit_log(
-                "warning",
-                (
-                    "Process Run stderr capture exceeded limit and was truncated to the most recent "
-                    f"{PROCESS_STREAM_CAPTURE_CHAR_LIMIT} characters."
-                ),
-            )
-        with dropped_lock:
-            dropped_stdout = int(dropped_chunks.get("stdout", 0))
-            dropped_stderr = int(dropped_chunks.get("stderr", 0))
-        if dropped_stdout > 0 or dropped_stderr > 0:
-            ctx.emit_log(
-                "warning",
-                (
-                    "Process Run dropped streamed chunks due to output backpressure "
-                    f"(stdout={dropped_stdout}, stderr={dropped_stderr})."
-                ),
-            )
-
-        for stream in (process.stdin, process.stdout, process.stderr):
-            try:
-                if stream:
-                    stream.close()
-            except OSError:
-                continue
-        if fail_on_nonzero and exit_code != 0:
-            raise RuntimeError(
-                f"Process Run returned non-zero exit code {exit_code}. stderr={stderr_text.strip()}"
-            )
-        return NodeResult(
-            outputs={
-                "stdout": stdout_text,
-                "stderr": stderr_text,
-                "exit_code": exit_code,
-                "exec_out": True,
-            }
-        )
+        finally:
+            for thread in reader_threads:
+                if thread.is_alive():
+                    thread.join(timeout=0.1)
+            for stream in (process.stdin, process.stdout, process.stderr):
+                try:
+                    if stream:
+                        stream.close()
+                except OSError:
+                    continue
+            for transcript_stream in (stdout_stream, stderr_stream):
+                if transcript_stream is None:
+                    continue
+                try:
+                    transcript_stream.close()
+                except OSError:
+                    continue
+            if not keep_stored_outputs:
+                for output_path in stored_output_paths:
+                    try:
+                        output_path.unlink(missing_ok=True)
+                    except OSError:
+                        continue

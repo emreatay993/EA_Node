@@ -54,6 +54,37 @@ Item {
         return host ? host._inlineRowHeight : 26;
     }
 
+    function _statusChipVariant(modelData) {
+        return String(modelData && modelData.status_chip_variant || "").trim().toLowerCase();
+    }
+
+    function _statusChipFillColor(modelData) {
+        var variant = root._statusChipVariant(modelData);
+        if (variant === "stored")
+            return host ? Qt.alpha(host.scopeBadgeColor, 0.92) : "#1D8CE0";
+        if (variant === "memory")
+            return host ? Qt.alpha(host.inlineRowBorderColor, 0.72) : "#4a4f5a";
+        return host ? Qt.alpha(host.inlineRowBorderColor, 0.72) : "#4a4f5a";
+    }
+
+    function _statusChipBorderColor(modelData) {
+        var variant = root._statusChipVariant(modelData);
+        if (variant === "stored")
+            return host ? Qt.alpha(host.scopeBadgeBorderColor, 0.96) : "#60CDFF";
+        if (variant === "memory")
+            return host ? Qt.alpha(host.inlineLabelColor, 0.78) : "#bdc5d3";
+        return host ? Qt.alpha(host.inlineLabelColor, 0.78) : "#bdc5d3";
+    }
+
+    function _statusChipTextColor(modelData) {
+        var variant = root._statusChipVariant(modelData);
+        if (variant === "stored")
+            return host ? host.scopeBadgeTextColor : "#f2f4f8";
+        if (variant === "memory")
+            return host ? host.inlineLabelColor : "#d0d5de";
+        return host ? host.inlineLabelColor : "#d0d5de";
+    }
+
     function _embeddedInteractiveRects() {
         if (!host || inlinePropertyRepeater.count <= 0)
             return [];
@@ -152,6 +183,31 @@ Item {
                             if (currentIndex < 0 || currentIndex >= values.length)
                                 return;
                             root._commitInlineProperty(modelData.key, String(values[currentIndex]));
+                        }
+                    }
+
+                    Rectangle {
+                        id: statusChip
+                        objectName: "graphNodeInlineStatusChip"
+                        property string propertyKey: String(modelData.key || "")
+                        visible: String(modelData.status_chip_text || "").length > 0
+                        Layout.alignment: Qt.AlignVCenter
+                        radius: 9
+                        height: 18
+                        width: statusChipLabel.implicitWidth + 12
+                        color: root._statusChipFillColor(modelData)
+                        border.color: root._statusChipBorderColor(modelData)
+
+                        Text {
+                            id: statusChipLabel
+                            objectName: "graphNodeInlineStatusChipLabel"
+                            property string propertyKey: String(modelData.key || "")
+                            anchors.centerIn: parent
+                            text: String(modelData.status_chip_text || "")
+                            color: root._statusChipTextColor(modelData)
+                            font.pixelSize: 9
+                            font.bold: true
+                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                         }
                     }
 

@@ -3,20 +3,24 @@ from __future__ import annotations
 import json
 import queue
 import sys
+import tempfile
 import threading
 import time
 import unittest
+from pathlib import Path
 
-from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
+from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.integrations_process import (
+    PROCESS_OUTPUT_MODE_STORED,
     ProcessRunNodePlugin,
     normalize_args,
     normalize_env,
 )
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
+from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
 
 def _context(
@@ -26,6 +30,9 @@ def _context(
     emit_log=None,  # noqa: ANN001
     should_stop=None,  # noqa: ANN001
     register_cancel=None,  # noqa: ANN001
+    project_path: str = "",
+    runtime_snapshot: RuntimeSnapshot | None = None,
+    path_resolver=None,  # noqa: ANN001
 ) -> ExecutionContext:
     return ExecutionContext(
         run_id="run",
@@ -37,6 +44,9 @@ def _context(
         trigger={},
         should_stop=should_stop or (lambda: False),
         register_cancel=register_cancel or (lambda _callback: None),
+        project_path=project_path,
+        runtime_snapshot=runtime_snapshot,
+        path_resolver=path_resolver or (lambda _value: None),
     )
 
 
@@ -60,6 +70,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                 },
                 properties={
                     "args": "[]",
+                    "output_mode": "memory",
                     "timeout_sec": 5.0,
                     "shell": False,
                     "fail_on_nonzero": True,
@@ -72,6 +83,79 @@ class ProcessRunNodeTests(unittest.TestCase):
 
         self.assertEqual(result.outputs["exit_code"], 0)
         self.assertIn("hello", result.outputs["stdout"])
+        self.assertIsInstance(result.outputs["stdout"], str)
+        self.assertIsInstance(result.outputs["stderr"], str)
+
+    def test_process_run_node_stored_mode_emits_runtime_artifact_refs_and_stages_transcripts(self) -> None:
+        plugin = ProcessRunNodePlugin()
+        stdout_chars = 275_000
+        stderr_text = "warn-line-0\nwarn-line-1\n"
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "process_run_outputs.sfe"
+            runtime_snapshot = RuntimeSnapshot(
+                schema_version=1,
+                project_id="project_process_run",
+                metadata={},
+            )
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                project_metadata=runtime_snapshot.metadata,
+            )
+
+            result = plugin.execute(
+                _context(
+                    inputs={
+                        "command": sys.executable,
+                        "args": json.dumps(
+                            [
+                                "-c",
+                                (
+                                    f"import sys; sys.stdout.write('A' * {stdout_chars}); "
+                                    f"sys.stderr.write({stderr_text!r})"
+                                ),
+                            ]
+                        ),
+                    },
+                    properties={
+                        "args": "[]",
+                        "output_mode": PROCESS_OUTPUT_MODE_STORED,
+                        "timeout_sec": 5.0,
+                        "shell": False,
+                        "fail_on_nonzero": True,
+                        "env": {},
+                        "encoding": "utf-8",
+                        "cwd": "",
+                    },
+                    project_path=str(project_path),
+                    runtime_snapshot=runtime_snapshot,
+                    path_resolver=resolver.resolve_to_path,
+                )
+            )
+
+            stdout_output = result.outputs["stdout"]
+            stderr_output = result.outputs["stderr"]
+            self.assertIsInstance(stdout_output, RuntimeArtifactRef)
+            self.assertIsInstance(stderr_output, RuntimeArtifactRef)
+            if not isinstance(stdout_output, RuntimeArtifactRef) or not isinstance(stderr_output, RuntimeArtifactRef):
+                self.fail("Stored mode did not return runtime artifact refs")
+
+            stdout_path = resolver.resolve_to_path(stdout_output.ref)
+            stderr_path = resolver.resolve_to_path(stderr_output.ref)
+            self.assertIsNotNone(stdout_path)
+            self.assertIsNotNone(stderr_path)
+            if stdout_path is None or stderr_path is None:
+                self.fail("Stored transcript refs did not resolve to paths")
+
+            self.assertEqual(stdout_path.read_text(encoding="utf-8"), "A" * stdout_chars)
+            self.assertEqual(stderr_path.read_text(encoding="utf-8"), stderr_text)
+            self.assertEqual(stdout_output.scope, "staged")
+            self.assertEqual(stderr_output.scope, "staged")
+            self.assertIn("artifact_store", runtime_snapshot.metadata)
+            self.assertIn(stdout_output.artifact_id, runtime_snapshot.metadata["artifact_store"]["staged"])
+            self.assertIn(stderr_output.artifact_id, runtime_snapshot.metadata["artifact_store"]["staged"])
+            self.assertIn("artifacts/generated/process_run/", stdout_path.as_posix())
+            self.assertIn("artifacts/generated/process_run/", stderr_path.as_posix())
 
     def test_process_run_node_nonzero_timeout_and_invalid_cwd(self) -> None:
         plugin = ProcessRunNodePlugin()
@@ -166,6 +250,82 @@ class ProcessRunNodeTests(unittest.TestCase):
         self.assertTrue(any("[stdout] tick_0" in message for message in messages))
         self.assertTrue(any("[stdout] tick_1" in message for message in messages))
         self.assertTrue(any("[stderr] warn_0" in message for message in messages))
+
+    def test_run_workflow_process_run_stored_stdout_resolves_into_file_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "workflow_process_run_outputs.sfe"
+            model = GraphModel()
+            workspace = model.active_workspace
+            start = model.add_node(workspace.workspace_id, "core.start", "Start", 0.0, 0.0)
+            process_node = model.add_node(
+                workspace.workspace_id,
+                "io.process_run",
+                "Process",
+                120.0,
+                0.0,
+                properties={
+                    "command": sys.executable,
+                    "args": json.dumps(["-c", "print('stored_output_from_artifact')"]),
+                    "output_mode": PROCESS_OUTPUT_MODE_STORED,
+                    "timeout_sec": 5.0,
+                    "shell": False,
+                    "fail_on_nonzero": True,
+                    "env": {},
+                    "encoding": "utf-8",
+                    "cwd": "",
+                },
+            )
+            file_read_node = model.add_node(
+                workspace.workspace_id,
+                "io.file_read",
+                "Read Output",
+                260.0,
+                0.0,
+                properties={"path": ""},
+            )
+            end = model.add_node(workspace.workspace_id, "core.end", "End", 400.0, 0.0)
+            model.add_edge(workspace.workspace_id, start.node_id, "exec_out", process_node.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, process_node.node_id, "stdout", file_read_node.node_id, "path")
+            model.add_edge(workspace.workspace_id, process_node.node_id, "exec_out", file_read_node.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, file_read_node.node_id, "exec_out", end.node_id, "exec_in")
+
+            runtime_snapshot = build_runtime_snapshot(
+                model.project,
+                workspace_id=workspace.workspace_id,
+                registry=build_default_registry(),
+            )
+            event_queue: queue.Queue = queue.Queue()
+            run_workflow(
+                {
+                    "run_id": "run_process_stored_output",
+                    "project_path": str(project_path),
+                    "workspace_id": workspace.workspace_id,
+                    "runtime_snapshot": runtime_snapshot,
+                    "trigger": {},
+                },
+                event_queue,
+            )
+
+            events = []
+            while not event_queue.empty():
+                events.append(event_queue.get())
+
+            process_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_completed" and event.get("node_id") == process_node.node_id
+            )
+            stdout_payload = process_completed["outputs"]["stdout"]
+            self.assertEqual(stdout_payload["scope"], "staged")
+            self.assertTrue(str(stdout_payload["ref"]).startswith("artifact-stage://"))
+            self.assertNotIn("stored_output_from_artifact", json.dumps(process_completed))
+
+            file_read_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_completed" and event.get("node_id") == file_read_node.node_id
+            )
+            self.assertEqual(file_read_completed["outputs"]["text"], "stored_output_from_artifact\n")
 
     def test_stop_run_cancels_active_process_node(self) -> None:
         model = GraphModel()

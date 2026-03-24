@@ -7,6 +7,31 @@ from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.nodes.types import property_has_inline_editor
 
 
+def _inline_property_presentation(
+    *,
+    node: Any,
+    property_key: str,
+    property_value: Any,
+) -> dict[str, Any]:
+    if str(getattr(node, "type_id", "")).strip() != "io.process_run":
+        return {}
+    if str(property_key).strip() != "output_mode":
+        return {}
+
+    output_mode = str(property_value or "memory").strip().lower()
+    if output_mode == "stored":
+        return {
+            "status_chip_text": "Stored transcripts",
+            "status_chip_variant": "stored",
+            "status_chip_description": "stdout/stderr emit staged artifact refs",
+        }
+    return {
+        "status_chip_text": "Inline capture",
+        "status_chip_variant": "memory",
+        "status_chip_description": "stdout/stderr stay inline strings",
+    }
+
+
 def build_user_facing_node_instance_number(
     *,
     node: Any,
@@ -45,6 +70,7 @@ def build_inline_property_items(
     for prop in spec.properties:
         if not property_has_inline_editor(prop):
             continue
+        property_value = node.properties.get(prop.key, prop.default)
         matching_input_port = resolved_input_ports.get(prop.key)
         connection_count = counts.get((str(node.node_id), str(prop.key)), 0)
         items.append(
@@ -52,7 +78,7 @@ def build_inline_property_items(
                 "key": prop.key,
                 "label": prop.label,
                 "type": prop.type,
-                "value": node.properties.get(prop.key, prop.default),
+                "value": property_value,
                 "enum_values": list(prop.enum_values),
                 "inline_editor": prop.inline_editor,
                 "overridden_by_input": bool(matching_input_port is not None and connection_count > 0),
@@ -60,6 +86,11 @@ def build_inline_property_items(
                     str(matching_input_port.label or matching_input_port.key)
                     if matching_input_port is not None
                     else ""
+                ),
+                **_inline_property_presentation(
+                    node=node,
+                    property_key=prop.key,
+                    property_value=property_value,
                 ),
             }
         )

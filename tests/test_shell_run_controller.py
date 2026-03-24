@@ -94,6 +94,48 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window.run_state.active_run_id, "run_live")
         self.assertEqual(self.window.run_state.engine_state_value, "running")
 
+    def test_node_completed_artifact_ref_payload_keeps_run_ui_running(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        initial_output_text = self.window.console_panel.output_text
+        initial_error_count = self.window.console_panel.error_count
+
+        self.window.execution_event.emit(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_process",
+                "outputs": {
+                    "stdout": {
+                        "__ea_runtime_value__": "artifact_ref",
+                        "ref": "artifact-stage://stored_stdout",
+                        "artifact_id": "stored_stdout",
+                        "scope": "staged",
+                    },
+                    "stderr": {
+                        "__ea_runtime_value__": "artifact_ref",
+                        "ref": "artifact-stage://stored_stderr",
+                        "artifact_id": "stored_stderr",
+                        "scope": "staged",
+                    },
+                    "exit_code": 0,
+                },
+            }
+        )
+        self.app.processEvents()
+
+        self.assertEqual(self.window._active_run_id, "run_live")
+        self.assertEqual(self.window._engine_state_value, "running")
+        self.assertEqual(self.window.status_jobs.text(), "R:1 Q:0 D:0 F:0")
+        self.assertEqual(self.window.console_panel.output_text, initial_output_text)
+        self.assertEqual(self.window.console_panel.error_count, initial_error_count)
+        self.assertEqual(self.window.run_state.active_run_id, "run_live")
+        self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
+        self.assertEqual(self.window.run_state.engine_state_value, "running")
+
     def test_failure_focus_reveals_parent_chain_when_present(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]
