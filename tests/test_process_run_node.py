@@ -157,6 +157,86 @@ class ProcessRunNodeTests(unittest.TestCase):
             self.assertIn("artifacts/generated/process_run/", stdout_path.as_posix())
             self.assertIn("artifacts/generated/process_run/", stderr_path.as_posix())
 
+    def test_process_run_node_stored_mode_nonzero_discards_staged_artifact_state(self) -> None:
+        plugin = ProcessRunNodePlugin()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "process_run_failure.sfe"
+            runtime_snapshot = RuntimeSnapshot(
+                schema_version=1,
+                project_id="project_process_run_failure",
+                metadata={},
+            )
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                project_metadata=runtime_snapshot.metadata,
+            )
+
+            with self.assertRaises(RuntimeError) as error:
+                plugin.execute(
+                    _context(
+                        inputs={
+                            "command": sys.executable,
+                            "args": json.dumps(
+                                [
+                                    "-c",
+                                    (
+                                        "import sys; "
+                                        "sys.stdout.write('stored-failure-stdout\\n'); "
+                                        "sys.stderr.write('stored failure line\\n'); "
+                                        "sys.exit(7)"
+                                    ),
+                                ]
+                            ),
+                        },
+                        properties={
+                            "args": "[]",
+                            "output_mode": PROCESS_OUTPUT_MODE_STORED,
+                            "timeout_sec": 5.0,
+                            "shell": False,
+                            "fail_on_nonzero": True,
+                            "env": {},
+                            "encoding": "utf-8",
+                            "cwd": "",
+                        },
+                        project_path=str(project_path),
+                        runtime_snapshot=runtime_snapshot,
+                        path_resolver=resolver.resolve_to_path,
+                    )
+                )
+
+            self.assertIn("stored_transcripts_discarded=True", str(error.exception))
+            self.assertIn("stored failure line", str(error.exception))
+
+            artifact_store_metadata = runtime_snapshot.metadata.get("artifact_store", {})
+            staged_entries = artifact_store_metadata.get("staged", {})
+            self.assertNotIn("generated.ws.node.stdout", staged_entries)
+            self.assertNotIn("generated.ws.node.stderr", staged_entries)
+            self.assertIsNone(resolver.resolve_to_path("artifact-stage://generated.ws.node.stdout"))
+            self.assertIsNone(resolver.resolve_to_path("artifact-stage://generated.ws.node.stderr"))
+
+            sidecar_root = project_path.with_name("process_run_failure.data")
+            self.assertFalse(
+                (
+                    sidecar_root
+                    / ".staging"
+                    / "artifacts"
+                    / "generated"
+                    / "process_run"
+                    / "generated.ws.node.stdout.log"
+                ).exists()
+            )
+            self.assertFalse(
+                (
+                    sidecar_root
+                    / ".staging"
+                    / "artifacts"
+                    / "generated"
+                    / "process_run"
+                    / "generated.ws.node.stderr.log"
+                ).exists()
+            )
+
     def test_process_run_node_nonzero_timeout_and_invalid_cwd(self) -> None:
         plugin = ProcessRunNodePlugin()
 

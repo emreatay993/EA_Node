@@ -8,10 +8,15 @@ import subprocess
 import threading
 import time
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.nodes.output_artifacts import write_managed_output
+from ea_node_editor.nodes.output_artifacts import (
+    _artifact_store_for_context,
+    _persist_runtime_artifact_store,
+    write_managed_output,
+)
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
 
 PROCESS_STREAM_CAPTURE_CHAR_LIMIT = 262_144
@@ -61,6 +66,30 @@ def normalize_output_mode(value: Any) -> str:
             f"{PROCESS_OUTPUT_MODE_MEMORY!r} or {PROCESS_OUTPUT_MODE_STORED!r}."
         )
     return normalized
+
+
+def _discard_stored_transcript_entries(ctx, artifact_ids: tuple[str, ...]) -> None:  # noqa: ANN001
+    if not artifact_ids:
+        return
+    store = _artifact_store_for_context(ctx)
+    current_state = store.state
+    staged = dict(current_state.staged)
+    removed_any = False
+    stop_roots = store._cleanup_stop_roots()  # type: ignore[attr-defined]
+    for artifact_id in artifact_ids:
+        entry = staged.pop(str(artifact_id).strip(), None)
+        if entry is None:
+            continue
+        removed_any = True
+        store._delete_staged_entry_payload(entry, stop_roots=stop_roots)  # type: ignore[attr-defined]
+    if not removed_any:
+        return
+    store._state = replace(  # type: ignore[attr-defined]
+        current_state,
+        staged=staged,
+        staging_root=current_state.staging_root if staged else None,
+    )
+    _persist_runtime_artifact_store(ctx, store)
 
 
 class ProcessRunNodePlugin:
@@ -201,15 +230,18 @@ class ProcessRunNodePlugin:
         stored_stderr = None
         stdout_stream = None
         stderr_stream = None
-        stored_output_paths: list[Path] = []
         keep_stored_outputs = False
         stderr_error_tail: deque[str] = deque()
         stderr_error_tail_chars = 0
+        stored_artifact_ids: tuple[str, ...] = ()
 
         if output_mode == PROCESS_OUTPUT_MODE_STORED:
             stored_stdout = _create_stored_transcript("stdout")
             stored_stderr = _create_stored_transcript("stderr")
-            stored_output_paths = [stored_stdout.path, stored_stderr.path]
+            stored_artifact_ids = (
+                stored_stdout.artifact_ref.artifact_id,
+                stored_stderr.artifact_ref.artifact_id,
+            )
             stdout_stream = stored_stdout.path.open("a", encoding=encoding)
             stderr_stream = stored_stderr.path.open("a", encoding=encoding)
 
@@ -430,8 +462,4 @@ class ProcessRunNodePlugin:
                 except OSError:
                     continue
             if not keep_stored_outputs:
-                for output_path in stored_output_paths:
-                    try:
-                        output_path.unlink(missing_ok=True)
-                    except OSError:
-                        continue
+                _discard_stored_transcript_entries(ctx, stored_artifact_ids)
