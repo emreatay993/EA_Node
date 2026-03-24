@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import copy
+import shutil
 import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Iterable, Protocol
 
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
-from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.persistence.artifact_store import ProjectArtifactLayout, ProjectArtifactStore
 from ea_node_editor.persistence.project_codec import (
     collect_project_artifact_references,
     rewrite_project_artifact_refs,
@@ -227,6 +230,88 @@ class ProjectSessionController:
         self.persist_session()
         self._host.project_meta_changed.emit()
 
+    def _default_save_as_path(self) -> str:
+        current_project_path = self._normalize_project_path(self._host.project_path)
+        if current_project_path:
+            return current_project_path
+        project_name = str(getattr(self._host.model.project, "name", "")).strip() or "untitled"
+        return str(Path(project_name).with_suffix(".sfe"))
+
+    @staticmethod
+    def _delete_save_as_sidecar_path(path: Path) -> None:
+        if not path.exists():
+            return
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path, ignore_errors=True)
+            return
+        path.unlink(missing_ok=True)
+
+    @classmethod
+    def _copy_save_as_payload(cls, source_path: Path, destination_path: Path) -> None:
+        if source_path == destination_path:
+            return
+        destination_path.parent.mkdir(parents=True, exist_ok=True)
+        cls._delete_save_as_sidecar_path(destination_path)
+        if source_path.is_dir() and not source_path.is_symlink():
+            shutil.copytree(source_path, destination_path)
+            return
+        shutil.copy2(source_path, destination_path)
+
+    def _reset_save_as_destination_sidecar(self, saved_path: Path) -> None:
+        layout = ProjectArtifactLayout.from_project_path(saved_path)
+        for sidecar_path in (layout.assets_root, layout.artifacts_root, layout.staging_root):
+            self._delete_save_as_sidecar_path(sidecar_path)
+
+    def _build_save_as_artifact_store_metadata(
+        self,
+        *,
+        saved_path: Path,
+        source_document: Mapping[str, Any],
+        referenced_managed_ids: Iterable[object],
+        copy_managed_data: bool,
+    ) -> dict[str, Any]:
+        source_metadata = (
+            dict(source_document.get("metadata", {}))
+            if isinstance(source_document.get("metadata"), Mapping)
+            else {}
+        )
+        source_store = ProjectArtifactStore.from_project_metadata(
+            project_path=self._host.project_path,
+            project_metadata=source_metadata,
+        )
+        normalized_source_metadata = source_store.metadata
+        destination_layout = ProjectArtifactLayout.from_project_path(saved_path)
+        destination_metadata = {
+            str(key): copy.deepcopy(value)
+            for key, value in normalized_source_metadata.items()
+            if str(key) not in {PROJECT_ARTIFACT_STORE_METADATA_KEY, "artifacts", "staged", "staging_root"}
+        }
+        destination_metadata["artifacts"] = {}
+        destination_metadata["staged"] = {}
+
+        self._reset_save_as_destination_sidecar(saved_path)
+
+        normalized_managed_ids = sorted(
+            {
+                str(artifact_id).strip()
+                for artifact_id in referenced_managed_ids
+                if str(artifact_id).strip()
+            }
+        )
+        for artifact_id in normalized_managed_ids:
+            managed_entry = source_store.managed_entry(artifact_id)
+            if managed_entry is None:
+                continue
+            destination_metadata["artifacts"][artifact_id] = managed_entry.to_metadata_entry()
+            if not copy_managed_data:
+                continue
+            source_path = source_store.resolve_managed_path(artifact_id)
+            if source_path is None or not source_path.exists():
+                continue
+            destination_path = destination_layout.absolute_path_for_relative(managed_entry.relative_path)
+            self._copy_save_as_payload(source_path, destination_path)
+        return destination_metadata
+
     def save_project(self) -> None:
         from PyQt6.QtWidgets import QFileDialog
 
@@ -261,6 +346,73 @@ class ProjectSessionController:
         self._host.serializer.save_document(str(saved_path), updated_document)
         self._rewrite_live_project_artifact_refs(promotion.ref_replacements)
         self._set_project_artifact_store(store)
+        self._host.project_path = str(saved_path)
+        try:
+            self._session_state.last_manual_save_ts = saved_path.stat().st_mtime
+        except OSError:
+            self._session_state.last_manual_save_ts = time.time()
+        for workspace in self._host.model.project.workspaces.values():
+            workspace.dirty = False
+        self._host.workspace_library_controller.refresh_workspace_tabs()
+        self.discard_autosave_snapshot()
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
+            self._host.serializer.to_document(self._host.model.project)
+        )
+        self.add_recent_project_path(str(saved_path), persist=False)
+        self.persist_session()
+        self._host.project_meta_changed.emit()
+
+    def save_project_as(self) -> None:
+        from PyQt6.QtWidgets import QFileDialog
+
+        from ea_node_editor.ui.dialogs.project_save_as_dialog import ProjectSaveAsDialog
+
+        path, _ = QFileDialog.getSaveFileName(
+            self._host,
+            "Save Project As",
+            self._default_save_as_path(),
+            "EA Project (*.sfe)",
+        )
+        normalized_path = self._normalize_project_path(path)
+        if not normalized_path:
+            return
+
+        saved_path = Path(normalized_path)
+        persistent_document = self._host.serializer.to_persistent_document(self._host.model.project)
+        artifact_refs = collect_project_artifact_references(persistent_document)
+        dialog = ProjectSaveAsDialog(
+            referenced_managed_count=len(artifact_refs.managed_ids),
+            referenced_staged_count=len(artifact_refs.staged_ids),
+            parent=self._host,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+
+        current_project_path = self._normalize_project_path(self._host.project_path)
+        if current_project_path and saved_path == Path(current_project_path):
+            self.save_project()
+            return
+
+        copy_managed_data = dialog.selected_mode() == ProjectSaveAsDialog.SELF_CONTAINED_COPY
+
+        self._host.workspace_library_controller.save_active_view_state()
+        updated_document = copy.deepcopy(persistent_document)
+        document_metadata = (
+            dict(updated_document.get("metadata", {}))
+            if isinstance(updated_document.get("metadata"), Mapping)
+            else {}
+        )
+        document_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = self._build_save_as_artifact_store_metadata(
+            saved_path=saved_path,
+            source_document=updated_document,
+            referenced_managed_ids=artifact_refs.managed_ids,
+            copy_managed_data=copy_managed_data,
+        )
+        updated_document["metadata"] = document_metadata
+        saved_path.parent.mkdir(parents=True, exist_ok=True)
+        self._host.serializer.save_document(str(saved_path), updated_document)
+
+        self._host.model.project.metadata = copy.deepcopy(document_metadata)
         self._host.project_path = str(saved_path)
         try:
             self._session_state.last_manual_save_ts = saved_path.stat().st_mtime

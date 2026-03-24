@@ -17,6 +17,7 @@ from ea_node_editor.persistence.artifact_refs import (
     format_staged_artifact_ref,
 )
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.ui.dialogs.project_save_as_dialog import ProjectSaveAsDialog
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.main_window_shell.base import MainWindowShellTestBase
 
@@ -445,6 +446,98 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             },
         )
 
+    def test_save_as_default_copy_switches_project_path_and_excludes_staging(self) -> None:
+        managed_artifact_id = "managed_image"
+        managed_ref = format_managed_artifact_ref(managed_artifact_id)
+        source_project = Path(self._temp_dir.name) / "projects" / "source_project.sfe"
+        managed_path = source_project.with_name("source_project.data") / "assets" / "media" / "diagram.png"
+        managed_path.parent.mkdir(parents=True, exist_ok=True)
+        managed_path.write_text("managed image", encoding="utf-8")
+
+        staging_root = self._session_path.parent / "project_artifact_staging" / "save-as-project"
+        staged_path = staging_root / "outputs" / "run.txt"
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_path.write_text("staged output", encoding="utf-8")
+
+        self.window.project_path = str(source_project)
+        managed_node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=40.0, y=60.0)
+        self.window.scene.set_node_property(managed_node_id, "source_path", managed_ref)
+        staged_node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=220.0, y=60.0)
+        self.window.scene.set_node_property(staged_node_id, "source_path", format_staged_artifact_ref("pending_output"))
+        self.window.model.project.metadata["artifact_store"] = {
+            "artifacts": {
+                managed_artifact_id: {
+                    "relative_path": "assets/media/diagram.png",
+                }
+            },
+            "staging_root": {
+                "kind": "session_temp",
+                "absolute_path": str(staging_root),
+            },
+            "staged": {
+                "pending_output": {
+                    "relative_path": "outputs/run.txt",
+                    "slot": "process_run.stdout",
+                }
+            },
+        }
+
+        save_target = Path(self._temp_dir.name) / "copies" / "cloned_project"
+        stale_managed_path = save_target.with_suffix(".data") / "artifacts" / "stale.txt"
+        stale_managed_path.parent.mkdir(parents=True, exist_ok=True)
+        stale_managed_path.write_text("stale", encoding="utf-8")
+        stale_staging_path = save_target.with_suffix(".data") / ".staging" / "outputs" / "old.txt"
+        stale_staging_path.parent.mkdir(parents=True, exist_ok=True)
+        stale_staging_path.write_text("stale staging", encoding="utf-8")
+
+        with patch(
+            "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
+            return_value=(str(save_target), "EA Project (*.sfe)"),
+        ), patch.object(
+            ProjectSaveAsDialog,
+            "exec",
+            return_value=ProjectSaveAsDialog.DialogCode.Accepted,
+        ), patch.object(
+            ProjectSaveAsDialog,
+            "selected_mode",
+            return_value=ProjectSaveAsDialog.SELF_CONTAINED_COPY,
+        ):
+            self.window._save_project_as()
+        self.app.processEvents()
+
+        saved_path = save_target.with_suffix(".sfe")
+        saved_doc = json.loads(saved_path.read_text(encoding="utf-8"))
+        copied_managed_path = saved_path.with_name("cloned_project.data") / "assets" / "media" / "diagram.png"
+        copied_staging_path = saved_path.with_name("cloned_project.data") / ".staging" / "outputs" / "run.txt"
+
+        self.assertEqual(self.window.action_save_project_as.text(), "Save Project As...")
+        self.assertEqual(self.window.project_path, str(saved_path))
+        self.assertEqual(copied_managed_path.read_text(encoding="utf-8"), "managed image")
+        self.assertFalse(copied_staging_path.exists())
+        self.assertFalse(stale_managed_path.exists())
+        self.assertFalse(stale_staging_path.exists())
+        self.assertTrue(staged_path.exists())
+        self.assertEqual(
+            saved_doc["metadata"]["artifact_store"],
+            {
+                "artifacts": {
+                    managed_artifact_id: {
+                        "relative_path": "assets/media/diagram.png",
+                    }
+                },
+                "staged": {},
+            },
+        )
+        workspace_doc = next(
+            item for item in saved_doc["workspaces"] if item["workspace_id"] == self.window.workspace_manager.active_workspace_id()
+        )
+        saved_nodes = {node["node_id"]: node for node in workspace_doc["nodes"]}
+        self.assertEqual(saved_nodes[managed_node_id]["properties"]["source_path"], managed_ref)
+        self.assertEqual(
+            saved_nodes[staged_node_id]["properties"]["source_path"],
+            format_staged_artifact_ref("pending_output"),
+        )
+
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         base_path = self._session_path.with_name("packet_recent")
         paths = [
@@ -517,6 +610,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans(self) -> None:
         self._run_scenario("test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans")
+
+    def test_save_as_default_copy_switches_project_path_and_excludes_staging(self) -> None:
+        self._run_scenario("test_save_as_default_copy_switches_project_path_and_excludes_staging")
 
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         self._run_scenario("test_recent_project_paths_are_owned_by_explicit_session_state")

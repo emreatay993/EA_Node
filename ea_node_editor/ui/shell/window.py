@@ -961,6 +961,10 @@ class ShellWindow(QMainWindow):
         self._save_project()
 
     @pyqtSlot()
+    def request_save_project_as(self) -> None:
+        self._save_project_as()
+
+    @pyqtSlot()
     def request_open_project(self) -> None:
         self._open_project()
 
@@ -1199,6 +1203,9 @@ class ShellWindow(QMainWindow):
 
     def _save_project(self):
         return self.project_session_controller.save_project()
+
+    def _save_project_as(self):
+        return self.project_session_controller.save_project_as()
 
     def _new_project(self):
         return self.project_session_controller.new_project()

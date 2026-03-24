@@ -712,6 +712,9 @@ class ShellWorkspacePresenter(QObject):
     def request_run_workflow(self) -> None:
         self._host.run_controller.run_workflow()
 
+    def request_save_project_as(self) -> None:
+        self._host.project_session_controller.save_project_as()
+
     def request_toggle_run_pause(self) -> None:
         self._host.run_controller.toggle_pause_resume()
 
