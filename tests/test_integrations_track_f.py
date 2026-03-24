@@ -10,6 +10,7 @@ from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.execution.worker import run_workflow
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins import integrations_email, integrations_spreadsheet
@@ -233,6 +234,35 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             events.append(event_queue.get())
         return events
 
+    def _run_model_with_runtime_snapshot(
+        self,
+        model: GraphModel,
+        workspace_id: str,
+        *,
+        project_path: str = "",
+    ) -> list[dict]:
+        event_queue: queue.Queue = queue.Queue()
+        registry = build_default_registry()
+        runtime_snapshot = build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace_id,
+            registry=registry,
+        )
+        run_workflow(
+            {
+                "run_id": "run_smoke",
+                "workspace_id": workspace_id,
+                "project_path": project_path,
+                "runtime_snapshot": runtime_snapshot,
+                "trigger": {},
+            },
+            event_queue,
+        )
+        events: list[dict] = []
+        while not event_queue.empty():
+            events.append(event_queue.get())
+        return events
+
     def test_smoke_excel_input_python_transform_excel_output(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -346,6 +376,153 @@ class IntegrationFlowSmokeTests(unittest.TestCase):
             self.assertIn("run_completed", event_types)
             self.assertNotIn("run_failed", event_types)
             self.assertEqual(output_path.read_text(encoding="utf-8"), "HELLO WORKFLOW")
+
+    def test_smoke_file_write_blank_path_stages_managed_output_for_downstream_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "managed_file_output.sfe"
+
+            model = GraphModel()
+            workspace = model.active_workspace
+            start = model.add_node(workspace.workspace_id, "core.start", "Start", 0, 0)
+            script = model.add_node(
+                workspace.workspace_id,
+                "core.python_script",
+                "Python Script",
+                120,
+                0,
+                properties={"script": "output_data = 'managed output payload'"},
+            )
+            file_write = model.add_node(
+                workspace.workspace_id,
+                "io.file_write",
+                "File Write",
+                240,
+                0,
+                properties={"path": "", "as_json": False},
+            )
+            file_read = model.add_node(
+                workspace.workspace_id,
+                "io.file_read",
+                "File Read",
+                360,
+                0,
+            )
+            end = model.add_node(workspace.workspace_id, "core.end", "End", 480, 0)
+
+            model.add_edge(workspace.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, script.node_id, "result", file_write.node_id, "text")
+            model.add_edge(workspace.workspace_id, script.node_id, "exec_out", file_write.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, file_write.node_id, "written_path", file_read.node_id, "path")
+            model.add_edge(workspace.workspace_id, file_write.node_id, "exec_out", file_read.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, file_read.node_id, "exec_out", end.node_id, "exec_in")
+
+            events = self._run_model_with_runtime_snapshot(
+                model,
+                workspace.workspace_id,
+                project_path=str(project_path),
+            )
+
+            event_types = [event["type"] for event in events]
+            self.assertIn("run_completed", event_types)
+            self.assertNotIn("run_failed", event_types)
+
+            write_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_completed" and event.get("node_id") == file_write.node_id
+            )
+            self.assertEqual(write_completed["outputs"]["written_path"]["__ea_runtime_value__"], "artifact_ref")
+            self.assertEqual(write_completed["outputs"]["written_path"]["scope"], "staged")
+
+            read_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_completed" and event.get("node_id") == file_read.node_id
+            )
+            self.assertEqual(read_completed["outputs"]["text"], "managed output payload")
+
+            staged_files = list(project_path.with_name("managed_file_output.data").rglob("*.txt"))
+            self.assertTrue(staged_files)
+
+    def test_smoke_excel_write_blank_path_stages_managed_output_for_downstream_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "managed_excel_output.sfe"
+
+            model = GraphModel()
+            workspace = model.active_workspace
+            start = model.add_node(workspace.workspace_id, "core.start", "Start", 0, 0)
+            script = model.add_node(
+                workspace.workspace_id,
+                "core.python_script",
+                "Python Script",
+                120,
+                0,
+                properties={
+                    "script": (
+                        "output_data = [\n"
+                        "    {'name': 'alpha', 'count': 1},\n"
+                        "    {'name': 'beta', 'count': 2},\n"
+                        "]\n"
+                    )
+                },
+            )
+            excel_write = model.add_node(
+                workspace.workspace_id,
+                "io.excel_write",
+                "Excel Write",
+                240,
+                0,
+                properties={"path": ""},
+            )
+            excel_read = model.add_node(
+                workspace.workspace_id,
+                "io.excel_read",
+                "Excel Read",
+                360,
+                0,
+            )
+            end = model.add_node(workspace.workspace_id, "core.end", "End", 480, 0)
+
+            model.add_edge(workspace.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, script.node_id, "result", excel_write.node_id, "rows")
+            model.add_edge(workspace.workspace_id, script.node_id, "exec_out", excel_write.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, excel_write.node_id, "written_path", excel_read.node_id, "path")
+            model.add_edge(workspace.workspace_id, excel_write.node_id, "exec_out", excel_read.node_id, "exec_in")
+            model.add_edge(workspace.workspace_id, excel_read.node_id, "exec_out", end.node_id, "exec_in")
+
+            events = self._run_model_with_runtime_snapshot(
+                model,
+                workspace.workspace_id,
+                project_path=str(project_path),
+            )
+
+            event_types = [event["type"] for event in events]
+            self.assertIn("run_completed", event_types)
+            self.assertNotIn("run_failed", event_types)
+
+            write_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_completed" and event.get("node_id") == excel_write.node_id
+            )
+            self.assertEqual(write_completed["outputs"]["written_path"]["__ea_runtime_value__"], "artifact_ref")
+            self.assertEqual(write_completed["outputs"]["written_path"]["scope"], "staged")
+
+            read_completed = next(
+                event
+                for event in events
+                if event.get("type") == "node_completed" and event.get("node_id") == excel_read.node_id
+            )
+            self.assertEqual(
+                read_completed["outputs"]["rows"],
+                [
+                    {"count": "1", "name": "alpha"},
+                    {"count": "2", "name": "beta"},
+                ],
+            )
+
+            staged_files = list(project_path.with_name("managed_excel_output.data").rglob("*.csv"))
+            self.assertTrue(staged_files)
 
     def test_python_script_default_output_is_input_payload(self) -> None:
         result = PythonScriptNodePlugin().execute(

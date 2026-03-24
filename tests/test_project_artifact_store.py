@@ -290,6 +290,35 @@ class ProjectArtifactStoreTests(unittest.TestCase):
                 },
             )
 
+    def test_generated_output_style_staged_paths_promote_into_managed_artifacts_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "demo.sfe"
+            artifact_id = "generated.ws_main.node_writer.written_path"
+            relative_path = f"artifacts/generated/{artifact_id}.txt"
+            store = ProjectArtifactStore(project_path=project_path, metadata=None)
+            staging_root = store.ensure_staging_root()
+            staged_path = staging_root / "artifacts" / "generated" / f"{artifact_id}.txt"
+            staged_path.parent.mkdir(parents=True, exist_ok=True)
+            staged_path.write_text("generated output", encoding="utf-8")
+
+            store.register_staged_entry(
+                artifact_id,
+                relative_path=relative_path,
+                slot=f"ws_main:node_writer:{artifact_id}",
+            )
+
+            result = store.commit_referenced_artifacts(referenced_staged_ids={artifact_id})
+
+            managed_path = project_path.with_name("demo.data") / "artifacts" / "generated" / f"{artifact_id}.txt"
+            self.assertEqual(result.promoted_artifact_ids, (artifact_id,))
+            self.assertTrue(managed_path.exists())
+            self.assertEqual(managed_path.read_text(encoding="utf-8"), "generated output")
+            self.assertEqual(
+                store.metadata["artifacts"][artifact_id]["relative_path"],
+                relative_path,
+            )
+            self.assertEqual(store.metadata["staged"], {})
+
     def test_project_metadata_helper_extracts_normalized_artifact_store_state(self) -> None:
         project_metadata = {
             "artifact_store": {

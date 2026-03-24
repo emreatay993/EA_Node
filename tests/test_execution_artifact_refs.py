@@ -13,6 +13,7 @@ from ea_node_editor.execution.protocol import (
     event_to_dict,
 )
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+from ea_node_editor.nodes.builtins.integrations import FileReadNodePlugin, FileWriteNodePlugin
 from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
@@ -116,6 +117,64 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 ctx.resolve_path_value("artifact-stage://stored_stdout"),
                 artifact_path,
             )
+
+    def test_file_write_managed_output_updates_runtime_store_and_downstream_reads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "managed_output_demo.sfe"
+            runtime_snapshot = RuntimeSnapshot(
+                schema_version=1,
+                project_id="project_demo",
+                metadata={},
+            )
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                project_metadata=runtime_snapshot.metadata,
+            )
+
+            write_ctx = ExecutionContext(
+                run_id="run_demo",
+                node_id="node_writer",
+                workspace_id="ws_main",
+                inputs={"text": "managed output"},
+                properties={"path": "", "as_json": False},
+                emit_log=lambda _level, _message: None,
+                trigger={},
+                project_path=str(project_path),
+                runtime_snapshot=runtime_snapshot,
+                path_resolver=resolver.resolve_to_path,
+            )
+
+            write_result = FileWriteNodePlugin().execute(write_ctx)
+
+            written_ref = write_result.outputs["written_path"]
+            self.assertIsInstance(written_ref, RuntimeArtifactRef)
+            if not isinstance(written_ref, RuntimeArtifactRef):
+                self.fail("managed output did not return a runtime artifact ref")
+            self.assertEqual(written_ref.scope, "staged")
+
+            staged_path = resolver.resolve_to_path(written_ref.ref)
+            if staged_path is None:
+                self.fail("managed output artifact ref did not resolve to a staged file")
+            self.assertTrue(staged_path.exists())
+            self.assertEqual(staged_path.read_text(encoding="utf-8"), "managed output")
+            self.assertIn("artifact_store", runtime_snapshot.metadata)
+            self.assertIn(written_ref.artifact_id, runtime_snapshot.metadata["artifact_store"]["staged"])
+
+            read_ctx = ExecutionContext(
+                run_id="run_demo",
+                node_id="node_reader",
+                workspace_id="ws_main",
+                inputs={"path": written_ref},
+                properties={"path": ""},
+                emit_log=lambda _level, _message: None,
+                trigger={},
+                project_path=str(project_path),
+                runtime_snapshot=runtime_snapshot,
+                path_resolver=resolver.resolve_to_path,
+            )
+
+            read_result = FileReadNodePlugin().execute(read_ctx)
+            self.assertEqual(read_result.outputs["text"], "managed output")
 
 
 if __name__ == "__main__":

@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import csv
 import sys
+from pathlib import Path
 from typing import Any
 
-from ea_node_editor.nodes.builtins.integrations_common import pick_path, require_existing_file
+from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path, pick_path, require_existing_file
+from ea_node_editor.nodes.output_artifacts import write_managed_output
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
 
 try:
@@ -57,6 +59,29 @@ def stable_headers(rows: list[dict[str, Any]]) -> list[str]:
     if not headers:
         raise ValueError("Excel Write rows must contain at least one column key.")
     return headers
+
+
+def _write_rows_to_path(path: Path, *, rows: list[dict[str, Any]], headers: list[str]) -> None:
+    suffix = path.suffix.lower()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if suffix == ".csv":
+        with path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(handle, fieldnames=headers)
+            writer.writeheader()
+            for row in rows:
+                writer.writerow({header: row.get(header) for header in headers})
+        return
+
+    require_openpyxl(node_name="Excel Write")
+    workbook = openpyxl.Workbook()  # type: ignore[union-attr]
+    try:
+        sheet = workbook.active
+        sheet.append(headers)
+        for row in rows:
+            sheet.append([row.get(header) for header in headers])
+        workbook.save(path)
+    finally:
+        workbook.close()
 
 
 class ExcelReadNodePlugin:
@@ -157,7 +182,20 @@ class ExcelWriteNodePlugin:
     def execute(self, ctx) -> NodeResult:  # noqa: ANN001
         rows = normalize_rows_input(ctx.inputs.get("rows"))
         headers = stable_headers(rows)
-        path = pick_path(ctx, input_key="path", property_key="path", node_name="Excel Write")
+        path = pick_optional_path(ctx, input_key="path", property_key="path")
+        if path is None:
+            write_result = write_managed_output(
+                ctx,
+                output_key="written_path",
+                default_suffix=".csv",
+                write_payload=lambda output_path: _write_rows_to_path(
+                    output_path,
+                    rows=rows,
+                    headers=headers,
+                ),
+            )
+            return NodeResult(outputs={"written_path": write_result.artifact_ref, "exec_out": True})
+
         suffix = path.suffix.lower()
         if suffix not in {".csv", ".xlsx", ".xlsm"}:
             raise ValueError(
@@ -167,22 +205,5 @@ class ExcelWriteNodePlugin:
         if path.exists() and path.is_dir():
             raise ValueError(f"Excel Write path must be a file, not a directory: {path}")
 
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if suffix == ".csv":
-            with path.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=headers)
-                writer.writeheader()
-                for row in rows:
-                    writer.writerow({header: row.get(header) for header in headers})
-        else:
-            require_openpyxl(node_name="Excel Write")
-            workbook = openpyxl.Workbook()  # type: ignore[union-attr]
-            try:
-                sheet = workbook.active
-                sheet.append(headers)
-                for row in rows:
-                    sheet.append([row.get(header) for header in headers])
-                workbook.save(path)
-            finally:
-                workbook.close()
+        _write_rows_to_path(path, rows=rows, headers=headers)
         return NodeResult(outputs={"written_path": str(path), "exec_out": True})
