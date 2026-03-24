@@ -11,6 +11,7 @@ from ea_node_editor.graph.file_issue_state import (
 )
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.artifact_refs import format_managed_artifact_ref
 from tests.conftest import ShellTestEnvironment
 
@@ -191,6 +192,75 @@ class ProjectFileIssueTests(unittest.TestCase):
 
             path_item = _selected_property_item(window, "source_path")
             self.assertFalse(path_item["file_issue_active"])
+            self.assertEqual(
+                window.model.project.metadata["artifact_store"]["staged"]["managed_image"]["relative_path"],
+                ".staging/assets/media/managed_image.png",
+            )
+        finally:
+            window.close()
+            window.deleteLater()
+            app.processEvents()
+            test_env.stop()
+
+    def test_shell_window_repairs_missing_staged_media_source_reusing_existing_artifact_id(self) -> None:
+        from PyQt6.QtWidgets import QApplication
+
+        from ea_node_editor.ui.shell.window import ShellWindow
+
+        app = QApplication.instance() or QApplication([])
+        test_env = ShellTestEnvironment()
+        temp_root = test_env.start()
+        window = ShellWindow()
+        try:
+            source_fixture = _REPO_ROOT / "tests" / "fixtures" / "passive_nodes" / "reference_preview.png"
+            staged_ref = "artifact-stage://managed_image"
+
+            window.project_path = str(temp_root / "repair_demo.sfe")
+            window.model.project.metadata = {
+                "artifact_store": {
+                    "staged": {
+                        "managed_image": {
+                            "relative_path": ".staging/assets/media/managed_image.png",
+                        }
+                    }
+                }
+            }
+
+            node_id = window.scene.add_node_from_type("passive.media.image_panel", x=120.0, y=80.0)
+            self.assertTrue(node_id)
+            window.scene.set_node_property(node_id, "source_path", staged_ref)
+            window.scene.select_node(node_id, False)
+            app.processEvents()
+
+            path_item = _selected_property_item(window, "source_path")
+            self.assertTrue(path_item["file_issue_active"])
+
+            with patch(
+                "ea_node_editor.ui.shell.window.QInputDialog.getItem",
+                return_value=("Managed Copy", True),
+            ) as mode_mock, patch(
+                "ea_node_editor.ui.shell.window.QFileDialog.getOpenFileName",
+                return_value=(str(source_fixture), ""),
+            ) as dialog_mock:
+                repaired_ref = window.browse_node_property_path(
+                    node_id,
+                    "source_path",
+                    encode_file_repair_request(staged_ref),
+                )
+
+            self.assertEqual(repaired_ref, staged_ref)
+            self.assertEqual(mode_mock.call_count, 1)
+            self.assertEqual(dialog_mock.call_count, 1)
+
+            store = ProjectArtifactStore.from_project_metadata(
+                project_path=window.project_path,
+                project_metadata=window.model.project.metadata,
+            )
+            staged_path = store.resolve_staged_path(staged_ref)
+            self.assertIsNotNone(staged_path)
+            assert staged_path is not None
+            self.assertTrue(staged_path.exists())
+            self.assertEqual(staged_path.read_bytes(), source_fixture.read_bytes())
             self.assertEqual(
                 window.model.project.metadata["artifact_store"]["staged"]["managed_image"]["relative_path"],
                 ".staging/assets/media/managed_image.png",

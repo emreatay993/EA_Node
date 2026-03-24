@@ -1236,14 +1236,9 @@ class ShellWindow(QMainWindow):
         if selected_mode == EXTERNAL_LINK_MODE:
             return normalized_selected_path
 
-        import_current_path = (
-            ""
-            if normalized_current_path.startswith("artifact-stage://")
-            else normalized_current_path
-        )
         managed_ref = self.shell_host_presenter._import_source_as_managed_copy(
             property_label=normalized_label,
-            current_path=import_current_path,
+            current_path=normalized_current_path,
             selected_path=normalized_selected_path,
         )
         return managed_ref or normalized_selected_path
