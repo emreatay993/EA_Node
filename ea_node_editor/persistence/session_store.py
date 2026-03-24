@@ -7,7 +7,11 @@ from typing import Any, Callable, Protocol
 
 from ea_node_editor.graph.model import ProjectData
 from ea_node_editor.persistence.serializer import ProjectDocumentSnapshot
-from ea_node_editor.settings import autosave_project_path, recent_session_path
+from ea_node_editor.settings import (
+    PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME,
+    autosave_project_path,
+    recent_session_path,
+)
 from ea_node_editor.persistence.utils import (
     coerce_timestamp as coerce_timestamp_value,
     document_fingerprint as document_fingerprint_value,
@@ -30,10 +34,20 @@ class SessionAutosaveStore:
         serializer: _SerializerProtocol,
         session_path_provider: Callable[[], Path] = recent_session_path,
         autosave_path_provider: Callable[[], Path] = autosave_project_path,
+        staging_workspace_root_provider: Callable[[], Path] | None = None,
     ) -> None:
         self._serializer = serializer
         self._session_path_provider = session_path_provider
         self._autosave_path_provider = autosave_path_provider
+        self._staging_workspace_root_provider = staging_workspace_root_provider
+
+    def staging_workspace_root(self) -> Path:
+        if self._staging_workspace_root_provider is not None:
+            path = self._staging_workspace_root_provider()
+        else:
+            path = self._session_path_provider().parent / PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     def load_session_payload(self) -> dict[str, Any]:
         session_path = self._session_path_provider()

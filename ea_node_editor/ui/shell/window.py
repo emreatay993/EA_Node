@@ -1539,10 +1539,11 @@ class ShellWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
         self.autosave_timer.stop()
-        self._autosave_tick()
-        self._persist_session()
-        self.execution_client.shutdown()
-        super().closeEvent(event)
+        try:
+            self.project_session_controller.close_session()
+        finally:
+            self.execution_client.shutdown()
+            super().closeEvent(event)
 
     def update_engine_status(
         self,

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.graph.model import GraphModel
@@ -44,13 +47,52 @@ class _SceneStub:
         return self._selected_node_id
 
 
-class _ProjectHostStub:
+class _WorkspaceLibraryControllerStub:
     def __init__(self) -> None:
+        self.save_active_view_state_calls = 0
+
+    def save_active_view_state(self) -> None:
+        self.save_active_view_state_calls += 1
+
+
+class _SerializerStub:
+    def to_document(self, project) -> dict:  # noqa: ANN001
+        return {
+            "project_id": project.project_id,
+            "name": project.name,
+            "metadata": copy.deepcopy(project.metadata),
+        }
+
+
+class _SessionStoreStub:
+    def __init__(self, base_path: Path) -> None:
+        self._base_path = base_path
+        self.discard_calls = 0
+        self.persist_calls: list[dict] = []
+
+    def staging_workspace_root(self) -> Path:
+        root = self._base_path / "session_staging"
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+
+    def discard_autosave_snapshot(self) -> None:
+        self.discard_calls += 1
+
+    def persist_session(self, **kwargs) -> None:  # noqa: ANN003
+        self.persist_calls.append(copy.deepcopy(kwargs))
+
+
+class _ProjectHostStub:
+    def __init__(self, base_path: Path | None = None) -> None:
         self.project_session_state = ShellProjectSessionState()
         self.model = GraphModel()
         self.script_editor = _ScriptEditorStub()
         self.action_toggle_script_editor = _ActionToggleStub()
         self.scene = _SceneStub()
+        self.project_path = ""
+        self.session_store = _SessionStoreStub(base_path or Path.cwd())
+        self.serializer = _SerializerStub()
+        self.workspace_library_controller = _WorkspaceLibraryControllerStub()
         self.refresh_calls = 0
 
     def _refresh_recent_projects_menu(self) -> None:
@@ -134,6 +176,39 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         controller.restore_script_editor_state()
         self.assertTrue(host.script_editor.visible)
         self.assertTrue(host.action_toggle_script_editor.checked)
+
+    def test_close_session_discards_staged_scratch_and_persists_lightweight_metadata(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            host = _ProjectHostStub(Path(temp_dir))
+            staging_root = host.session_store.staging_workspace_root() / "project-123"
+            payload_path = staging_root / "outputs" / "run.txt"
+            payload_path.parent.mkdir(parents=True, exist_ok=True)
+            payload_path.write_text("payload", encoding="utf-8")
+            host.model.project.metadata = {
+                "artifact_store": {
+                    "staging_root": {
+                        "kind": "session_temp",
+                        "absolute_path": str(staging_root),
+                    },
+                    "staged": {
+                        "pending_output": {
+                            "relative_path": "outputs/run.txt",
+                            "slot": "process_run.stdout",
+                        }
+                    },
+                }
+            }
+            controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+            controller.close_session()
+
+            self.assertFalse(staging_root.exists())
+            self.assertEqual(host.session_store.discard_calls, 1)
+            self.assertEqual(len(host.session_store.persist_calls), 1)
+            persisted_doc = host.session_store.persist_calls[0]["project_doc"]
+            self.assertNotIn("staging_root", persisted_doc["metadata"]["artifact_store"])
+            self.assertIn("pending_output", persisted_doc["metadata"]["artifact_store"]["staged"])
+            self.assertEqual(host.workspace_library_controller.save_active_view_state_calls, 1)
 
 
 if __name__ == "__main__":

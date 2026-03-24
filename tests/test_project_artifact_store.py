@@ -98,6 +98,96 @@ class ProjectArtifactStoreTests(unittest.TestCase):
                 project_path.with_name("demo.data") / ".staging" / "outputs" / "run.txt",
             )
 
+    def test_unsaved_store_uses_temp_staging_root_hint_for_relative_staged_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = ProjectArtifactStore(project_path=None, metadata=None)
+            staging_root = store.ensure_staging_root(temporary_root_parent=Path(temp_dir) / "session_staging")
+            store.register_staged_entry(
+                "pending_output",
+                relative_path="outputs/run.txt",
+                slot="process_run.stdout",
+            )
+
+            self.assertTrue(staging_root.exists())
+            self.assertEqual(
+                store.metadata["staging_root"],
+                {
+                    "kind": "session_temp",
+                    "absolute_path": str(staging_root),
+                },
+            )
+            self.assertEqual(
+                store.resolve_staged_path(format_staged_artifact_ref("pending_output")),
+                staging_root / "outputs" / "run.txt",
+            )
+
+    def test_register_staged_entry_replaces_existing_slot_and_deletes_prior_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            staging_root = Path(temp_dir) / "session_staging" / "project-123"
+            old_path = staging_root / "outputs" / "old.txt"
+            old_path.parent.mkdir(parents=True, exist_ok=True)
+            old_path.write_text("old", encoding="utf-8")
+            store = ProjectArtifactStore(
+                project_path=None,
+                metadata={
+                    "staging_root": {
+                        "kind": "session_temp",
+                        "absolute_path": str(staging_root),
+                    },
+                    "staged": {
+                        "old_output": {
+                            "relative_path": "outputs/old.txt",
+                            "slot": "process_run.stdout",
+                        }
+                    },
+                },
+            )
+
+            store.register_staged_entry(
+                "new_output",
+                relative_path="outputs/new.txt",
+                slot="process_run.stdout",
+            )
+
+            self.assertNotIn("old_output", store.metadata["staged"])
+            self.assertEqual(
+                store.metadata["staged"]["new_output"],
+                {
+                    "relative_path": "outputs/new.txt",
+                    "slot": "process_run.stdout",
+                },
+            )
+            self.assertFalse(old_path.exists())
+
+    def test_discard_staged_payloads_removes_unsaved_temp_root_and_clears_root_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            staging_root = Path(temp_dir) / "session_staging" / "project-123"
+            payload_path = staging_root / "outputs" / "run.txt"
+            payload_path.parent.mkdir(parents=True, exist_ok=True)
+            payload_path.write_text("payload", encoding="utf-8")
+            store = ProjectArtifactStore(
+                project_path=None,
+                metadata={
+                    "staging_root": {
+                        "kind": "session_temp",
+                        "absolute_path": str(staging_root),
+                    },
+                    "staged": {
+                        "pending_output": {
+                            "relative_path": "outputs/run.txt",
+                            "slot": "process_run.stdout",
+                        }
+                    },
+                },
+            )
+
+            removed = store.discard_staged_payloads()
+
+            self.assertTrue(removed)
+            self.assertFalse(staging_root.exists())
+            self.assertNotIn("staging_root", store.metadata)
+            self.assertIn("pending_output", store.metadata["staged"])
+
     def test_project_metadata_helper_extracts_normalized_artifact_store_state(self) -> None:
         project_metadata = {
             "artifact_store": {

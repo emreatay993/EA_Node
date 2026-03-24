@@ -6,9 +6,14 @@ from typing import Any, Iterable, Protocol
 
 from ea_node_editor.graph.model import GraphModel, ProjectData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.session_store import SessionAutosaveStore
 from ea_node_editor.persistence.utils import merge_defaults
-from ea_node_editor.settings import DEFAULT_UI_STATE, DEFAULT_WORKFLOW_SETTINGS
+from ea_node_editor.settings import (
+    DEFAULT_UI_STATE,
+    DEFAULT_WORKFLOW_SETTINGS,
+    PROJECT_ARTIFACT_STORE_METADATA_KEY,
+)
 from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
 from ea_node_editor.ui.shell.state import ShellProjectSessionState
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -100,6 +105,32 @@ class ProjectSessionController:
 
     def clear_recent_projects(self) -> None:
         self.set_recent_project_paths([], persist=True)
+
+    def project_artifact_store(self) -> ProjectArtifactStore:
+        metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
+        return ProjectArtifactStore.from_project_metadata(
+            project_path=self._host.project_path,
+            project_metadata=metadata,
+        )
+
+    def _set_project_artifact_store(self, store: ProjectArtifactStore) -> None:
+        metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
+        updated_metadata = dict(metadata)
+        updated_metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
+        self._host.model.project.metadata = updated_metadata
+
+    def ensure_project_staging_root(self) -> Path:
+        store = self.project_artifact_store()
+        staging_root = store.ensure_staging_root(
+            temporary_root_parent=self._host.session_store.staging_workspace_root(),
+        )
+        self._set_project_artifact_store(store)
+        return staging_root
+
+    def discard_staged_scratch_data(self) -> None:
+        store = self.project_artifact_store()
+        store.discard_staged_payloads()
+        self._set_project_artifact_store(store)
 
     def ensure_project_metadata_defaults(self) -> None:
         metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
@@ -383,6 +414,11 @@ class ProjectSessionController:
             self.persist_session(project_doc=project_doc)
         except Exception:  # noqa: BLE001
             return
+
+    def close_session(self) -> None:
+        self.discard_staged_scratch_data()
+        self.discard_autosave_snapshot()
+        self.persist_session()
 
     def persist_session(self, project_doc: dict[str, Any] | None = None) -> None:
         self._host.workspace_library_controller.save_active_view_state()

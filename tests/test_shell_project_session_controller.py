@@ -12,6 +12,8 @@ from unittest.mock import patch
 from PyQt6.QtCore import QEvent, QUrl
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.persistence.artifact_refs import format_staged_artifact_ref
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.ui.shell.window import ShellWindow
 from tests.main_window_shell.base import MainWindowShellTestBase
 
@@ -60,6 +62,30 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.app.processEvents()
         self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         self.app.processEvents()
+
+    def _attach_unsaved_staged_output(self) -> tuple[str, str, Path]:
+        artifact_id = "pending_output"
+        staged_ref = format_staged_artifact_ref(artifact_id)
+        staging_root = self._session_path.parent / "project_artifact_staging" / "project-123"
+        staged_path = staging_root / "outputs" / "run.txt"
+        staged_path.parent.mkdir(parents=True, exist_ok=True)
+        staged_path.write_text("staged output", encoding="utf-8")
+        node_id = self.window.scene.add_node_from_type("passive.media.image_panel", x=40.0, y=60.0)
+        self.window.scene.set_node_property(node_id, "source_path", staged_ref)
+        self.window.model.project.metadata["artifact_store"] = {
+            "staging_root": {
+                "kind": "session_temp",
+                "absolute_path": str(staging_root),
+            },
+            "staged": {
+                artifact_id: {
+                    "relative_path": "outputs/run.txt",
+                    "slot": "process_run.stdout",
+                }
+            },
+        }
+        self.app.processEvents()
+        return node_id, staged_ref, staged_path
 
     def test_session_restore_recovers_workspace_order_active_workspace_and_view_camera(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -120,6 +146,26 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         saved_nodes = {node["node_id"] for node in workspace_docs[workspace_id].get("nodes", [])}
         self.assertIn(node_id, saved_nodes)
 
+    def test_session_restore_recovers_unsaved_temp_staged_refs_without_autosave(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id, staged_ref, staged_path = self._attach_unsaved_staged_output()
+        self.window._persist_session()
+
+        restored = ShellWindow()
+        restored.resize(1200, 800)
+        restored.show()
+        self.app.processEvents()
+        try:
+            restored_workspace = restored.model.project.workspaces[workspace_id]
+            self.assertEqual(restored_workspace.nodes[node_id].properties["source_path"], staged_ref)
+            store = ProjectArtifactStore.from_project_metadata(
+                project_path=restored.project_path,
+                project_metadata=restored.model.project.metadata,
+            )
+            self.assertEqual(store.resolve_staged_path(staged_ref), staged_path)
+        finally:
+            self._dispose_secondary_window(restored)
+
     def test_recovery_prompt_accept_loads_newer_autosave(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         baseline_doc = self.window.serializer.to_document(self.window.model.project)
@@ -151,6 +197,45 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             try:
                 restored_workspace = restored.model.project.workspaces[workspace_id]
                 self.assertIn(recovered_node_id, restored_workspace.nodes)
+                self.assertFalse(self._autosave_path.exists())
+            finally:
+                self._dispose_secondary_window(restored)
+
+    def test_recovery_prompt_accept_recovers_unsaved_temp_staged_refs(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        baseline_doc = self.window.serializer.to_document(self.window.model.project)
+        self._session_path.write_text(
+            json.dumps(
+                {
+                    "project_path": "",
+                    "last_manual_save_ts": 0.0,
+                    "project_doc": baseline_doc,
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        node_id, staged_ref, staged_path = self._attach_unsaved_staged_output()
+        autosave_doc = self.window.serializer.to_document(self.window.model.project)
+        self._autosave_path.write_text(
+            json.dumps(autosave_doc, indent=2, sort_keys=True, ensure_ascii=True),
+            encoding="utf-8",
+        )
+
+        with patch.object(ShellWindow, "_prompt_recover_autosave", return_value=QMessageBox.StandardButton.Yes):
+            restored = ShellWindow()
+            restored.resize(1200, 800)
+            restored.show()
+            self.app.processEvents()
+            try:
+                restored_workspace = restored.model.project.workspaces[workspace_id]
+                self.assertEqual(restored_workspace.nodes[node_id].properties["source_path"], staged_ref)
+                store = ProjectArtifactStore.from_project_metadata(
+                    project_path=restored.project_path,
+                    project_metadata=restored.model.project.metadata,
+                )
+                self.assertEqual(store.resolve_staged_path(staged_ref), staged_path)
                 self.assertFalse(self._autosave_path.exists())
             finally:
                 self._dispose_secondary_window(restored)
@@ -272,6 +357,34 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             finally:
                 self._dispose_secondary_window(restored)
 
+    def test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id, staged_ref, staged_path = self._attach_unsaved_staged_output()
+
+        self.window.close()
+        self.app.processEvents()
+
+        self.assertFalse(staged_path.exists())
+        self.assertFalse(self._autosave_path.exists())
+
+        with patch.object(ShellWindow, "_prompt_recover_autosave") as prompt:
+            restored = ShellWindow()
+            restored.resize(1200, 800)
+            restored.show()
+            self.app.processEvents()
+            try:
+                restored_workspace = restored.model.project.workspaces[workspace_id]
+                self.assertEqual(restored_workspace.nodes[node_id].properties["source_path"], staged_ref)
+                store = ProjectArtifactStore.from_project_metadata(
+                    project_path=restored.project_path,
+                    project_metadata=restored.model.project.metadata,
+                )
+                self.assertIsNone(store.resolve_staged_path(staged_ref))
+                self.assertNotIn("staging_root", restored.model.project.metadata.get("artifact_store", {}))
+                self.assertEqual(prompt.call_count, 0)
+            finally:
+                self._dispose_secondary_window(restored)
+
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         base_path = self._session_path.with_name("packet_recent")
         paths = [
@@ -318,8 +431,14 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
     def test_autosave_tick_writes_snapshot_and_keeps_valid_project_doc(self) -> None:
         self._run_scenario("test_autosave_tick_writes_snapshot_and_keeps_valid_project_doc")
 
+    def test_session_restore_recovers_unsaved_temp_staged_refs_without_autosave(self) -> None:
+        self._run_scenario("test_session_restore_recovers_unsaved_temp_staged_refs_without_autosave")
+
     def test_recovery_prompt_accept_loads_newer_autosave(self) -> None:
         self._run_scenario("test_recovery_prompt_accept_loads_newer_autosave")
+
+    def test_recovery_prompt_accept_recovers_unsaved_temp_staged_refs(self) -> None:
+        self._run_scenario("test_recovery_prompt_accept_recovers_unsaved_temp_staged_refs")
 
     def test_recovery_prompt_reject_keeps_session_state_and_discards_autosave(self) -> None:
         self._run_scenario("test_recovery_prompt_reject_keeps_session_state_and_discards_autosave")
@@ -332,6 +451,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_recovery_prompt_is_deferred_until_main_window_is_visible(self) -> None:
         self._run_scenario("test_recovery_prompt_is_deferred_until_main_window_is_visible")
+
+    def test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint(self) -> None:
+        self._run_scenario("test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint")
 
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         self._run_scenario("test_recent_project_paths_are_owned_by_explicit_session_state")
