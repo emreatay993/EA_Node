@@ -13,6 +13,7 @@
 ## Target Subsystems
 - `ea_node_editor/ui/media_preview_provider.py`
 - `ea_node_editor/ui/pdf_preview_provider.py`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSourceUtils.js`
 - `ea_node_editor/ui_qml/graph_surface_metrics.py`
 - `ea_node_editor/graph/mutation_service.py`
 - `ea_node_editor/ui/shell/host_presenter.py`
@@ -24,6 +25,7 @@
 ## Conservative Write Scope
 - `ea_node_editor/ui/media_preview_provider.py`
 - `ea_node_editor/ui/pdf_preview_provider.py`
+- `ea_node_editor/ui_qml/components/graph/passive/GraphMediaPanelSourceUtils.js`
 - `ea_node_editor/ui_qml/graph_surface_metrics.py`
 - `ea_node_editor/graph/mutation_service.py`
 - `ea_node_editor/ui/shell/host_presenter.py`
@@ -37,6 +39,7 @@
 - Adopt the `P01` resolver at every current media/path edge consumer that presently expects an absolute local path.
 - Keep the rest of the app receiving absolute local paths at the final boundary even when authored node properties contain project-managed refs.
 - Route image preview loading, PDF preview metadata, PDF page clamping, and media auto-sizing through the resolver.
+- Include the final passive image-panel QML source-normalization seam so managed refs resolve to local file URLs before preview binding.
 - Route browse-dialog seed path derivation through the resolver so managed refs reopen from a sensible project-local source root rather than from cwd.
 - Preserve existing behavior for raw absolute paths, local file URLs, and current external-file projects.
 - Add or update narrow regression tests that prove managed refs are accepted by the media/PDF surface path and do not break the existing external-path path.
