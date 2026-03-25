@@ -3,7 +3,7 @@
 ## Implementation Summary
 - Packet: `P01`
 - Branch Label: `codex/pydpf-viewer-v1/p01-runtime-handle-codec-foundation`
-- Commit Owner: `executor`
+- Commit Owner: `worker`
 - Commit SHA: `8a250e2400eb15b488437b14b2f504c3f3f33111`
 - Changed Files: `docs/specs/work_packets/pydpf_viewer_v1/P01_runtime_handle_codec_foundation_WRAPUP.md`, `ea_node_editor/execution/protocol.py`, `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/runtime_value_codec.py`, `ea_node_editor/nodes/types.py`, `tests/test_execution_artifact_refs.py`, `tests/test_execution_handle_refs.py`
 - Artifacts Produced: `docs/specs/work_packets/pydpf_viewer_v1/P01_runtime_handle_codec_foundation_WRAPUP.md`, `ea_node_editor/execution/protocol.py`, `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/runtime_value_codec.py`, `ea_node_editor/nodes/types.py`, `tests/test_execution_artifact_refs.py`, `tests/test_execution_handle_refs.py`
