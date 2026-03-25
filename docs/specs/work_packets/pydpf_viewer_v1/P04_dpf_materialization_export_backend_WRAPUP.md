@@ -13,9 +13,9 @@ P04 extends `DpfRuntimeService` with worker-local field extraction, location con
 Durable staged export layouts are explicit and packet-local: `artifacts/dpf/<artifact_key>/field.csv`, `artifacts/dpf/<artifact_key>/preview.png`, `artifacts/dpf/<artifact_key>/vtu/`, and `artifacts/dpf/<artifact_key>/vtm/`. The `vtm` layout uses `dataset.vtm` as the entry file alongside sibling exported `.vtu` blocks.
 
 ## Verification
-PASS: `./venv/Scripts/python.exe -m pytest tests/test_dpf_materialization.py tests/test_dpf_runtime_service.py --ignore=venv -q` -> `8 passed in 8.70s`
-PASS: `./venv/Scripts/python.exe -m pytest tests/test_dpf_materialization.py --ignore=venv -q` -> `2 passed in 7.77s`
-Final Verification Verdict: PASS
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_dpf_materialization.py tests/test_dpf_runtime_service.py --ignore=venv -q` -> `8 passed in 8.70s`
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_dpf_materialization.py --ignore=venv -q` -> `2 passed in 7.77s`
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 Too soon for manual testing.
