@@ -2,23 +2,15 @@
 
 ## Implementation Summary
 - Packet: `P13`
+- Branch Label: `codex/pydpf-viewer-v1/p13-dpf-viewer-live-policy`
 - Commit Owner: `worker`
-- Substantive Commit SHA: `dda4f4d2eef64ccb2727afccceb2d1510ba14b42`
-- Added the `dpf.viewer` built-in node (`type_id="dpf.viewer"`) as the canonical DPF viewer-family node with `surface_family="viewer"`, heavy/proxy render-quality defaults, deterministic `viewer_session_<sha1(workspace:node)>` session ids, `output_mode` defaulting to `both`, and `viewer_live_policy` constrained to `focus_only|keep_live`.
-- Moved the viewer-node runtime contract onto the worker session service so the node seeds cached DPF source refs plus proxy/live dataset state through the session cache instead of pushing viewer datasets through ordinary graph outputs.
-- Updated `ViewerSessionBridge` to keep playback/live policy session-owned, enforce the one-live default for `focus_only`, keep `keep_live` as explicit opt-in, preserve local reopen summaries such as camera/result state across proxy demotion, and rematerialize cached sessions through the worker service when a proxy is promoted back to live.
-- Tightened `EmbeddedViewerOverlayManager` so native overlays only attach to `live_ready` sessions in `live_mode="full"`; proxy sessions no longer keep the live widget open.
+- Commit SHA: `dda4f4d2eef64ccb2727afccceb2d1510ba14b42`
+- Changed Files: `docs/specs/work_packets/pydpf_viewer_v1/P13_dpf_viewer_live_policy_WRAPUP.md, ea_node_editor/nodes/builtins/ansys_dpf.py, ea_node_editor/nodes/builtins/ansys_dpf_common.py, ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py, ea_node_editor/ui_qml/viewer_session_bridge.py, tests/test_dpf_node_catalog.py, tests/test_dpf_viewer_node.py, tests/test_viewer_session_bridge.py, tests/test_viewer_surface_host.py`
+- Artifacts Produced: `docs/specs/work_packets/pydpf_viewer_v1/P13_dpf_viewer_live_policy_WRAPUP.md, ea_node_editor/nodes/builtins/ansys_dpf.py, ea_node_editor/nodes/builtins/ansys_dpf_common.py, ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py, ea_node_editor/ui_qml/viewer_session_bridge.py, tests/test_dpf_node_catalog.py, tests/test_dpf_viewer_node.py, tests/test_viewer_session_bridge.py, tests/test_viewer_surface_host.py`
 
-## Changed Files
-- `ea_node_editor/nodes/builtins/ansys_dpf_common.py`
-- `ea_node_editor/nodes/builtins/ansys_dpf.py`
-- `ea_node_editor/ui_qml/viewer_session_bridge.py`
-- `ea_node_editor/ui_qml/embedded_viewer_overlay_manager.py`
-- `tests/test_dpf_viewer_node.py`
-- `tests/test_dpf_node_catalog.py`
-- `tests/test_viewer_session_bridge.py`
-- `tests/test_viewer_surface_host.py`
-- `docs/specs/work_packets/pydpf_viewer_v1/P13_dpf_viewer_live_policy_WRAPUP.md`
+This packet added the canonical `dpf.viewer` built-in node as a viewer-family DPF surface with deterministic worker-backed session ids, `output_mode` defaulting to `both`, and `viewer_live_policy` constrained to `focus_only|keep_live`. The node now seeds cached DPF source refs through the worker viewer session service instead of pushing multi-set viewer payloads through the graph, and the packet-owned tests cover viewer-node execution plus catalog registration.
+
+`ViewerSessionBridge` and `EmbeddedViewerOverlayManager` now enforce the one-live default at the session boundary: `focus_only` demotes unfocused viewers to proxy, `keep_live` remains explicit opt-in, proxy demotion preserves reopen summaries such as result/camera state, and native overlays attach only to `live_ready` sessions in `live_mode="full"`.
 
 ## Verification
 - PASS: `./venv/Scripts/python.exe -m pytest tests/test_dpf_viewer_node.py tests/test_dpf_node_catalog.py tests/test_viewer_session_bridge.py tests/test_viewer_surface_host.py --ignore=venv -q` (`16 passed in 12.07s`)
