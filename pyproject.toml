@@ -15,18 +15,32 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+ansys = ["ansys-dpf-core>=0.15"]
 excel = ["openpyxl>=3.1"]
 hpc = ["paramiko>=3.3"]
+viewer = [
+    "pyvista>=0.47",
+    "pyvistaqt>=0.11",
+    "vtk>=9.6",
+]
 all = [
+    "ansys-dpf-core>=0.15",
     "openpyxl>=3.1",
     "paramiko>=3.3",
+    "pyvista>=0.47",
+    "pyvistaqt>=0.11",
+    "vtk>=9.6",
 ]
 dev = [
     "pytest>=7.4",
     "pytest-xdist>=3.5",
     "pyinstaller>=6.0",
+    "ansys-dpf-core>=0.15",
     "openpyxl>=3.1",
     "paramiko>=3.3",
+    "pyvista>=0.47",
+    "pyvistaqt>=0.11",
+    "vtk>=9.6",
 ]
 
 [project.scripts]

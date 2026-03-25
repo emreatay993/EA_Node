@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
-    [string]$DistPath = "artifacts\pyinstaller\dist\COREX_Node_Editor",
-    [string]$OutputRoot = "artifacts\releases\installer",
+    [ValidateSet("base", "viewer")]
+    [string]$PackageProfile = "base",
+    [string]$DistPath = "",
+    [string]$OutputRoot = "",
     [ValidateRange(2, 60)]
     [int]$SmokeSeconds = 5
 )
@@ -20,6 +22,13 @@ function Resolve-RepoPath {
         return $PathValue
     }
     return Join-Path $repoRoot $PathValue
+}
+
+if ([string]::IsNullOrWhiteSpace($DistPath)) {
+    $DistPath = "artifacts\pyinstaller\dist\$PackageProfile\COREX_Node_Editor"
+}
+if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
+    $OutputRoot = "artifacts\releases\installer\$PackageProfile"
 }
 
 $resolvedDistPath = Resolve-RepoPath -PathValue $DistPath
@@ -195,6 +204,7 @@ if ($zipCreated -and (Test-Path $bundleZip)) {
 
 $validationReport = [ordered]@{
     run_id = $runId
+    package_profile = $PackageProfile
     generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     source_dist_path = $resolvedDistPath
     source_exe = $sourceExe
@@ -210,6 +220,7 @@ $validationReport = [ordered]@{
         install_root = $validationInstallRoot
     }
     packaging = [ordered]@{
+        package_profile = $PackageProfile
         zip_created = $zipCreated
         zip_error = $zipError
         package_root = $bundleRoot
@@ -221,6 +232,7 @@ $validationReport | ConvertTo-Json -Depth 10 | Set-Content -Path $validationRepo
 
 $manifest = [ordered]@{
     run_id = $runId
+    package_profile = $PackageProfile
     generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
     artifacts = [ordered]@{
         bundle_root = $bundleRoot
@@ -234,6 +246,7 @@ $manifest = [ordered]@{
         installer_bundle_sha256 = $bundleHash
     }
     packaging = [ordered]@{
+        package_profile = $PackageProfile
         zip_created = $zipCreated
         zip_error = $zipError
     }
