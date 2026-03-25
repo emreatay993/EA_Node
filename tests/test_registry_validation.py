@@ -14,9 +14,13 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_NODE_CATEGORY
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
+    DPF_MODEL_DATA_TYPE,
+    DPF_RESULT_FILE_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
     NodeResult,
     NodeRenderQualitySpec,
     NodeTypeSpec,
@@ -528,6 +532,30 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(data_output.shell_port_direction, "out")
         self.assertEqual(data_output.kind, "data")
         self.assertEqual(data_output.data_type, "float")
+
+    def test_default_registry_accepts_foundational_dpf_port_types_in_filters(self) -> None:
+        registry = build_default_registry()
+
+        category_specs = registry.filter_nodes(category=DPF_NODE_CATEGORY)
+        result_file_specs = registry.filter_nodes(data_type=DPF_RESULT_FILE_DATA_TYPE, direction="out")
+        model_specs = registry.filter_nodes(data_type=DPF_MODEL_DATA_TYPE, direction="out")
+        scoping_specs = registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")
+
+        self.assertEqual(
+            {spec.type_id for spec in category_specs},
+            {
+                "dpf.result_file",
+                "dpf.model",
+                "dpf.scoping.mesh",
+                "dpf.scoping.time",
+            },
+        )
+        self.assertEqual([spec.type_id for spec in result_file_specs], ["dpf.result_file"])
+        self.assertEqual([spec.type_id for spec in model_specs], ["dpf.model"])
+        self.assertEqual(
+            {spec.type_id for spec in scoping_specs},
+            {"dpf.scoping.mesh", "dpf.scoping.time"},
+        )
 
 
 if __name__ == "__main__":

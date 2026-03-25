@@ -32,6 +32,20 @@ MaxPerformanceStrategy = Literal["generic_fallback", "proxy_surface"]
 RenderQualityTier = Literal["full", "reduced", "proxy"]
 RuntimeArtifactScope = Literal["managed", "staged"]
 
+DPF_RESULT_FILE_DATA_TYPE = "dpf_result_file"
+DPF_MODEL_DATA_TYPE = "dpf_model"
+DPF_MESH_DATA_TYPE = "dpf_mesh"
+DPF_FIELD_DATA_TYPE = "dpf_field"
+DPF_SCOPING_DATA_TYPE = "dpf_scoping"
+DPF_VIEW_SESSION_DATA_TYPE = "dpf_view_session"
+DPF_PUBLIC_DATA_TYPES = (
+    DPF_MODEL_DATA_TYPE,
+    DPF_MESH_DATA_TYPE,
+    DPF_FIELD_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
+    DPF_VIEW_SESSION_DATA_TYPE,
+)
+
 _SUPPORTED_RENDER_WEIGHT_CLASSES = {"standard", "heavy"}
 _SUPPORTED_MAX_PERFORMANCE_STRATEGIES = {"generic_fallback", "proxy_surface"}
 _SUPPORTED_RENDER_QUALITY_TIERS = {"full", "reduced", "proxy"}
