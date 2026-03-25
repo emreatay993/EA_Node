@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import importlib
 import json
 import math
 import re
@@ -10,6 +11,9 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.execution.dpf_runtime_service import (
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
+    DPF_FIELD_HANDLE_KIND,
+    DPF_MESH_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
     DPF_RESULT_FILE_HANDLE_KIND,
@@ -22,6 +26,10 @@ DPF_RESULT_FILE_NODE_TYPE_ID = "dpf.result_file"
 DPF_MODEL_NODE_TYPE_ID = "dpf.model"
 DPF_MESH_SCOPING_NODE_TYPE_ID = "dpf.scoping.mesh"
 DPF_TIME_SCOPING_NODE_TYPE_ID = "dpf.scoping.time"
+DPF_RESULT_FIELD_NODE_TYPE_ID = "dpf.result_field"
+DPF_FIELD_OPS_NODE_TYPE_ID = "dpf.field_ops"
+DPF_MESH_EXTRACT_NODE_TYPE_ID = "dpf.mesh_extract"
+DPF_EXPORT_NODE_TYPE_ID = "dpf.export"
 
 DPF_OUTPUT_MODE_MEMORY = "memory"
 DPF_OUTPUT_MODE_STORED = "stored"
@@ -49,17 +57,48 @@ DPF_LOCATION_VALUES = (
     "nodal",
     "elemental",
 )
+DPF_FIELD_LOCATION_ELEMENTAL_NODAL = "ElementalNodal"
+DPF_RESULT_FIELD_LOCATION_VALUES = (
+    DPF_LOCATION_AUTO,
+    "nodal",
+    "elemental",
+    "elemental_nodal",
+)
+DPF_TARGET_FIELD_LOCATION_VALUES = (
+    "nodal",
+    "elemental",
+    "elemental_nodal",
+)
+
+DPF_FIELD_OP_NORM = "norm"
+DPF_FIELD_OP_CONVERT_LOCATION = "convert_location"
+DPF_FIELD_OP_MIN_MAX = "min_max"
+DPF_FIELD_OPERATION_VALUES = (
+    DPF_FIELD_OP_NORM,
+    DPF_FIELD_OP_CONVERT_LOCATION,
+    DPF_FIELD_OP_MIN_MAX,
+)
+
+DPF_EXPORT_FORMAT_VALUES = ("csv", "png", "vtu", "vtm")
 
 DPF_SCOPING_KIND_MESH = "mesh"
 DPF_SCOPING_KIND_TIME = "time"
 
 _TOKEN_SPLIT_PATTERN = re.compile(r"[\s,;]+")
+_INVALID_ARTIFACT_TOKEN_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 @dataclass(slots=True, frozen=True)
 class ResolvedTimeSelection:
     set_ids: tuple[int, ...]
     time_values: tuple[float, ...]
+
+
+@dataclass(slots=True, frozen=True)
+class ResolvedActiveSet:
+    set_id: int
+    time_value: float | None
+    time_scoping_ref: RuntimeHandleRef | None = None
 
 
 def dpf_output_mode_property(*, default: str = DPF_OUTPUT_MODE_MEMORY) -> PropertySpec:
@@ -162,6 +201,55 @@ def normalize_location_choice(value: Any) -> str:
     if normalized == "elemental":
         return DPF_LOCATION_ELEMENTAL
     raise ValueError("location must be one of auto, nodal, or elemental")
+
+
+def normalize_result_field_location(value: Any) -> str:
+    normalized = str(value or DPF_LOCATION_AUTO).strip().lower()
+    if normalized == DPF_LOCATION_AUTO:
+        return DPF_LOCATION_AUTO
+    if normalized == "nodal":
+        return DPF_LOCATION_NODAL
+    if normalized == "elemental":
+        return DPF_LOCATION_ELEMENTAL
+    if normalized in {"elemental_nodal", "elementalnodal"}:
+        return DPF_FIELD_LOCATION_ELEMENTAL_NODAL
+    raise ValueError("location must be one of auto, nodal, elemental, or elemental_nodal")
+
+
+def normalize_target_field_location(value: Any) -> str:
+    normalized = normalize_result_field_location(value)
+    if normalized == DPF_LOCATION_AUTO:
+        raise ValueError("location must be one of nodal, elemental, or elemental_nodal")
+    return normalized
+
+
+def normalize_field_operation(value: Any) -> str:
+    normalized = str(value or DPF_FIELD_OP_NORM).strip().lower()
+    if normalized not in DPF_FIELD_OPERATION_VALUES:
+        raise ValueError(
+            "operation must be one of "
+            f"{', '.join(DPF_FIELD_OPERATION_VALUES)}."
+        )
+    return normalized
+
+
+def normalize_export_formats(value: Any) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for item in _iter_tokens(value):
+        token = str(item).strip().lower()
+        if not token:
+            continue
+        if token not in DPF_EXPORT_FORMAT_VALUES:
+            raise ValueError(
+                "export_formats must contain only "
+                f"{', '.join(DPF_EXPORT_FORMAT_VALUES)}."
+            )
+        if token in seen:
+            continue
+        normalized.append(token)
+        seen.add(token)
+    return tuple(normalized)
 
 
 def resolve_named_selection(model: Any, value: Any, *, node_name: str) -> tuple[str, Any]:
@@ -308,6 +396,213 @@ def clone_handle_with_metadata(
     return cloned_ref
 
 
+def resolve_field_handle_and_object(
+    ctx: ExecutionContext,
+    value: Any,
+    *,
+    node_name: str,
+) -> tuple[RuntimeHandleRef, Any]:
+    runtime_ref = _runtime_handle_ref(value)
+    if runtime_ref is None or runtime_ref.kind != DPF_FIELD_HANDLE_KIND:
+        raise TypeError(f"{node_name} requires a dpf.field handle input.")
+    field_value = ctx.resolve_handle(runtime_ref, expected_kind=DPF_FIELD_HANDLE_KIND)
+    return runtime_ref, field_value
+
+
+def resolve_single_active_set(
+    ctx: ExecutionContext,
+    *,
+    model: Any,
+    time_scoping_value: Any,
+    set_ids_value: Any,
+    time_values_value: Any,
+    node_name: str,
+) -> ResolvedActiveSet:
+    if time_scoping_value is not None:
+        runtime_ref = _runtime_handle_ref(time_scoping_value)
+        if runtime_ref is None or runtime_ref.kind != DPF_TIME_SCOPING_HANDLE_KIND:
+            raise TypeError(f"{node_name} requires a dpf.time_scoping handle when time_scoping is connected.")
+        scoping = ctx.resolve_handle(runtime_ref, expected_kind=DPF_TIME_SCOPING_HANDLE_KIND)
+        set_ids = _dedupe_ints(getattr(scoping, "ids", ()))
+        if len(set_ids) != 1:
+            raise ValueError(f"{node_name} supports exactly one active set per execution.")
+        set_id = set_ids[0]
+        return ResolvedActiveSet(
+            set_id=set_id,
+            time_value=_model_time_value_for_set_id(model, set_id),
+            time_scoping_ref=runtime_ref,
+        )
+
+    time_selection = resolve_time_selection(
+        model=model,
+        set_ids_value=set_ids_value,
+        time_values_value=time_values_value,
+        require_any=False,
+        node_name=node_name,
+    )
+    if not time_selection.set_ids:
+        n_sets = int(getattr(model.metadata.time_freq_support, "n_sets", 0))
+        if n_sets < 1:
+            raise ValueError(f"{node_name} could not resolve an active set from the selected model.")
+        return ResolvedActiveSet(set_id=1, time_value=_model_time_value_for_set_id(model, 1))
+    if len(time_selection.set_ids) != 1:
+        raise ValueError(f"{node_name} supports exactly one active set per execution.")
+    set_id = int(time_selection.set_ids[0])
+    return ResolvedActiveSet(
+        set_id=set_id,
+        time_value=_model_time_value_for_set_id(model, set_id),
+    )
+
+
+def wrap_field_handle_as_fields_container(
+    ctx: ExecutionContext,
+    value: Any,
+    *,
+    node_name: str,
+) -> RuntimeHandleRef:
+    field_ref, field_value = resolve_field_handle_and_object(ctx, value, node_name=node_name)
+    dpf = _dpf_module()
+    fields_container = dpf.FieldsContainer()
+    fields_container.set_labels(["time"])
+    fields_container.add_field({"time": _field_set_id(field_ref.metadata)}, field_value)
+    metadata = copy.deepcopy(dict(field_ref.metadata))
+    metadata.setdefault("set_ids", [_field_set_id(field_ref.metadata)])
+    metadata.setdefault("field_count", 1)
+    metadata.setdefault("result_name", str(field_ref.metadata.get("result_name", "")).strip())
+    return ctx.register_handle(
+        fields_container,
+        kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+        metadata=metadata,
+    )
+
+
+def unwrap_single_field_handle(
+    ctx: ExecutionContext,
+    value: Any,
+    *,
+    node_name: str,
+    operation: str = "",
+    requested_location: str = "",
+    release_original: bool = False,
+) -> RuntimeHandleRef:
+    runtime_ref = _runtime_handle_ref(value)
+    if runtime_ref is None or runtime_ref.kind != DPF_FIELDS_CONTAINER_HANDLE_KIND:
+        raise TypeError(f"{node_name} requires a dpf.fields_container handle.")
+    fields_container = ctx.resolve_handle(runtime_ref, expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND)
+    if len(fields_container) != 1:
+        raise ValueError(f"{node_name} requires a single active field.")
+
+    metadata = build_field_handle_metadata(
+        fields_container[0],
+        source_metadata=runtime_ref.metadata,
+        source_ref=runtime_ref,
+        set_id=_fields_container_set_id(fields_container, runtime_ref.metadata),
+        time_value=_field_time_value(runtime_ref.metadata),
+        operation=operation or str(runtime_ref.metadata.get("operation", "")).strip(),
+        requested_location=requested_location,
+    )
+    field_ref = ctx.register_handle(
+        fields_container[0],
+        kind=DPF_FIELD_HANDLE_KIND,
+        metadata=metadata,
+    )
+    if release_original and runtime_ref.owner_scope == f"run:{ctx.run_id}":
+        ctx.release_handle(runtime_ref)
+    return field_ref
+
+
+def clone_field_handle_with_metadata(
+    ctx: ExecutionContext,
+    value: Any,
+    *,
+    node_name: str,
+    source_metadata: dict[str, Any],
+    release_original: bool = False,
+) -> RuntimeHandleRef:
+    runtime_ref, field_value = resolve_field_handle_and_object(ctx, value, node_name=node_name)
+    cloned_ref = ctx.register_handle(
+        field_value,
+        kind=DPF_FIELD_HANDLE_KIND,
+        metadata=build_field_handle_metadata(
+            field_value,
+            source_metadata=source_metadata,
+            source_ref=runtime_ref,
+            set_id=_field_set_id(source_metadata),
+            time_value=_field_time_value(source_metadata),
+        ),
+    )
+    if release_original and runtime_ref.owner_scope == f"run:{ctx.run_id}":
+        ctx.release_handle(runtime_ref)
+    return cloned_ref
+
+
+def build_field_handle_metadata(
+    field_value: Any,
+    *,
+    source_metadata: dict[str, Any] | None = None,
+    source_ref: RuntimeHandleRef | None = None,
+    model_ref: RuntimeHandleRef | None = None,
+    mesh_scoping: Any = None,
+    time_scoping: Any = None,
+    result_name: str = "",
+    set_id: int | None = None,
+    time_value: float | None = None,
+    operation: str = "",
+    requested_location: str = "",
+) -> dict[str, Any]:
+    metadata = copy.deepcopy(dict(source_metadata or {}))
+    metadata.update(
+        {
+            "location": str(getattr(field_value, "location", "")),
+            "component_count": int(getattr(field_value, "component_count", 0)),
+            "entity_count": int(getattr(getattr(field_value, "scoping", None), "size", 0)),
+            "unit": str(getattr(field_value, "unit", "") or ""),
+            "field_count": 1,
+        }
+    )
+    resolved_result_name = result_name or str(metadata.get("result_name", "")).strip()
+    if resolved_result_name:
+        metadata["result_name"] = resolved_result_name
+    resolved_set_id = set_id if set_id is not None else _field_set_id(metadata)
+    if resolved_set_id:
+        metadata["set_id"] = int(resolved_set_id)
+        metadata["set_ids"] = [int(resolved_set_id)]
+    if time_value is None:
+        time_value = _field_time_value(metadata)
+    if time_value is not None:
+        metadata["time_value"] = float(time_value)
+        metadata["time_values"] = [float(time_value)]
+    if source_ref is not None:
+        metadata["source_handle_id"] = source_ref.handle_id
+    if model_ref is not None:
+        metadata["model_handle_id"] = model_ref.handle_id
+    else:
+        model_handle_id = str(metadata.get("model_handle_id", "")).strip()
+        if model_handle_id:
+            metadata["model_handle_id"] = model_handle_id
+    mesh_scoping_handle_id = _handle_id_or_empty(mesh_scoping)
+    if mesh_scoping_handle_id:
+        metadata["mesh_scoping_handle_id"] = mesh_scoping_handle_id
+    time_scoping_handle_id = _handle_id_or_empty(time_scoping)
+    if time_scoping_handle_id:
+        metadata["time_scoping_handle_id"] = time_scoping_handle_id
+    if operation:
+        metadata["operation"] = operation
+    if requested_location:
+        metadata["requested_location"] = requested_location
+    return metadata
+
+
+def normalize_export_artifact_key(value: Any, *, fallback: str) -> str:
+    normalized = _INVALID_ARTIFACT_TOKEN_CHARS.sub("_", str(value or "").strip()).strip("._-")
+    if normalized:
+        return normalized
+    fallback_key = _INVALID_ARTIFACT_TOKEN_CHARS.sub("_", str(fallback).strip()).strip("._-")
+    if fallback_key:
+        return fallback_key
+    raise ValueError("artifact_key must contain at least one valid token character")
+
+
 def is_result_file_handle(value: Any) -> bool:
     runtime_ref = _runtime_handle_ref(value)
     return runtime_ref is not None and runtime_ref.kind == DPF_RESULT_FILE_HANDLE_KIND
@@ -413,6 +708,14 @@ def _match_time_value_to_set_id(value: float, available_values: tuple[float, ...
     )
 
 
+def _model_time_value_for_set_id(model: Any, set_id: int) -> float | None:
+    time_values = _model_time_values(model)
+    index = int(set_id) - 1
+    if index < 0 or index >= len(time_values):
+        return None
+    return float(time_values[index])
+
+
 def _time_selection_mode(time_selection: ResolvedTimeSelection) -> str:
     modes: list[str] = []
     if time_selection.set_ids:
@@ -422,6 +725,78 @@ def _time_selection_mode(time_selection: ResolvedTimeSelection) -> str:
     return "+".join(modes) if modes else "set_ids"
 
 
+def _fields_container_set_id(fields_container: Any, metadata: dict[str, Any]) -> int:
+    set_id = _field_set_id(metadata)
+    if set_id:
+        return set_id
+    if len(fields_container) == 0:
+        return 1
+    try:
+        label_space = fields_container.get_label_space(0)
+    except Exception:
+        return 1
+    try:
+        return int(label_space.get("time", 1))
+    except (TypeError, ValueError, AttributeError):
+        return 1
+
+
+def _field_set_id(metadata: dict[str, Any]) -> int:
+    set_id = metadata.get("set_id")
+    if set_id is not None:
+        try:
+            return int(set_id)
+        except (TypeError, ValueError):
+            pass
+    set_ids = metadata.get("set_ids")
+    if isinstance(set_ids, Sequence) and not isinstance(set_ids, (str, bytes, bytearray)) and set_ids:
+        try:
+            return int(set_ids[0])
+        except (TypeError, ValueError):
+            pass
+    return 1
+
+
+def _field_time_value(metadata: dict[str, Any]) -> float | None:
+    time_value = metadata.get("time_value")
+    if time_value is not None:
+        try:
+            return float(time_value)
+        except (TypeError, ValueError):
+            pass
+    time_values = metadata.get("time_values")
+    if isinstance(time_values, Sequence) and not isinstance(time_values, (str, bytes, bytearray)) and time_values:
+        try:
+            return float(time_values[0])
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def _dedupe_ints(values: Iterable[Any]) -> tuple[int, ...]:
+    resolved: list[int] = []
+    seen: set[int] = set()
+    for raw_value in values:
+        value = int(raw_value)
+        if value in seen:
+            continue
+        resolved.append(value)
+        seen.add(value)
+    return tuple(resolved)
+
+
+def _handle_id_or_empty(value: Any) -> str:
+    runtime_ref = _runtime_handle_ref(value)
+    return runtime_ref.handle_id if runtime_ref is not None else ""
+
+
+def _dpf_module() -> Any:
+    try:
+        return importlib.import_module("ansys.dpf.core")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("ansys.dpf.core is required for DPF field operations.") from exc
+
+
 def _runtime_handle_ref(value: Any) -> RuntimeHandleRef | None:
     if isinstance(value, RuntimeHandleRef):
         return value
@@ -429,11 +804,20 @@ def _runtime_handle_ref(value: Any) -> RuntimeHandleRef | None:
 
 
 __all__ = [
+    "DPF_EXPORT_FORMAT_VALUES",
+    "DPF_EXPORT_NODE_TYPE_ID",
+    "DPF_FIELD_LOCATION_ELEMENTAL_NODAL",
+    "DPF_FIELD_OPERATION_VALUES",
+    "DPF_FIELD_OP_CONVERT_LOCATION",
+    "DPF_FIELD_OP_MIN_MAX",
+    "DPF_FIELD_OP_NORM",
+    "DPF_FIELD_OPS_NODE_TYPE_ID",
     "DPF_LOCATION_AUTO",
     "DPF_LOCATION_ELEMENTAL",
     "DPF_LOCATION_NODAL",
     "DPF_LOCATION_VALUES",
     "DPF_MESH_SCOPING_NODE_TYPE_ID",
+    "DPF_MESH_EXTRACT_NODE_TYPE_ID",
     "DPF_MESH_SELECTION_ELEMENT_IDS",
     "DPF_MESH_SELECTION_NAMED_SELECTION",
     "DPF_MESH_SELECTION_NODE_IDS",
@@ -444,13 +828,19 @@ __all__ = [
     "DPF_OUTPUT_MODE_MEMORY",
     "DPF_OUTPUT_MODE_STORED",
     "DPF_OUTPUT_MODE_VALUES",
+    "DPF_RESULT_FIELD_LOCATION_VALUES",
+    "DPF_RESULT_FIELD_NODE_TYPE_ID",
     "DPF_RESULT_FILE_NODE_TYPE_ID",
     "DPF_SCOPING_KIND_MESH",
     "DPF_SCOPING_KIND_TIME",
+    "DPF_TARGET_FIELD_LOCATION_VALUES",
     "DPF_TIME_SCOPING_NODE_TYPE_ID",
+    "ResolvedActiveSet",
     "ResolvedTimeSelection",
     "build_mesh_scoping_metadata",
+    "build_field_handle_metadata",
     "build_time_scoping_metadata",
+    "clone_field_handle_with_metadata",
     "clone_handle_with_metadata",
     "dpf_output_mode_property",
     "is_mesh_scoping_handle",
@@ -458,14 +848,23 @@ __all__ = [
     "is_result_file_handle",
     "is_time_scoping_handle",
     "normalize_dpf_output_mode",
+    "normalize_export_artifact_key",
+    "normalize_export_formats",
     "normalize_float_values",
+    "normalize_field_operation",
     "normalize_int_values",
     "normalize_location_choice",
     "normalize_mesh_selection_mode",
     "normalize_result_file_path",
+    "normalize_result_field_location",
+    "normalize_target_field_location",
     "require_dpf_runtime_service",
+    "resolve_field_handle_and_object",
     "resolve_mesh_location",
     "resolve_model_handle_and_object",
     "resolve_named_selection",
+    "resolve_single_active_set",
     "resolve_time_selection",
+    "unwrap_single_field_handle",
+    "wrap_field_handle_as_fields_container",
 ]

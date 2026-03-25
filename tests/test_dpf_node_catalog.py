@@ -22,20 +22,31 @@ from ea_node_editor.execution.dpf_runtime_service import (
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf import (
+    DpfExportNodePlugin,
+    DpfFieldOpsNodePlugin,
+    DpfMeshExtractNodePlugin,
     DpfMeshScopingNodePlugin,
     DpfModelNodePlugin,
+    DpfResultFieldNodePlugin,
     DpfResultFileNodePlugin,
     DpfTimeScopingNodePlugin,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_EXPORT_NODE_TYPE_ID,
+    DPF_FIELD_OPS_NODE_TYPE_ID,
+    DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_MODEL_NODE_TYPE_ID,
     DPF_NODE_CATEGORY,
     DPF_OUTPUT_MODE_MEMORY,
+    DPF_OUTPUT_MODE_STORED,
+    DPF_RESULT_FIELD_NODE_TYPE_ID,
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
 )
 from ea_node_editor.nodes.types import (
+    DPF_FIELD_DATA_TYPE,
+    DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_PUBLIC_DATA_TYPES,
     DPF_RESULT_FILE_DATA_TYPE,
@@ -54,12 +65,14 @@ _EXPECTED_DPF_SPECS = {
         "ports": ("exec_in", "path", "result_file", "normalized_path", "exec_out"),
         "properties": ("path", "output_mode"),
         "output_types": {"result_file": DPF_RESULT_FILE_DATA_TYPE, "normalized_path": "path"},
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
     },
     DPF_MODEL_NODE_TYPE_ID: {
         "display_name": "DPF Model",
         "ports": ("exec_in", "result_file", "path", "model", "exec_out"),
         "properties": ("path", "output_mode"),
         "output_types": {"model": DPF_MODEL_DATA_TYPE},
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
     },
     DPF_MESH_SCOPING_NODE_TYPE_ID: {
         "display_name": "DPF Mesh Scoping",
@@ -75,12 +88,53 @@ _EXPECTED_DPF_SPECS = {
             "output_mode",
         ),
         "output_types": {"scoping": DPF_SCOPING_DATA_TYPE},
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
     },
     DPF_TIME_SCOPING_NODE_TYPE_ID: {
         "display_name": "DPF Time Scoping",
         "ports": ("exec_in", "model", "scoping", "exec_out"),
         "properties": ("set_ids", "time_values", "output_mode"),
         "output_types": {"scoping": DPF_SCOPING_DATA_TYPE},
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
+    },
+    DPF_RESULT_FIELD_NODE_TYPE_ID: {
+        "display_name": "DPF Result Field",
+        "ports": ("exec_in", "model", "mesh_scoping", "time_scoping", "field", "exec_out"),
+        "properties": ("result_name", "location", "set_ids", "time_values", "output_mode"),
+        "output_types": {"field": DPF_FIELD_DATA_TYPE},
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
+    },
+    DPF_FIELD_OPS_NODE_TYPE_ID: {
+        "display_name": "DPF Field Ops",
+        "ports": ("exec_in", "field", "model", "field_out", "field_min", "field_max", "exec_out"),
+        "properties": ("operation", "location", "output_mode"),
+        "output_types": {
+            "field_out": DPF_FIELD_DATA_TYPE,
+            "field_min": DPF_FIELD_DATA_TYPE,
+            "field_max": DPF_FIELD_DATA_TYPE,
+        },
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
+    },
+    DPF_MESH_EXTRACT_NODE_TYPE_ID: {
+        "display_name": "DPF Mesh Extract",
+        "ports": ("exec_in", "model", "mesh_scoping", "mesh", "exec_out"),
+        "properties": ("nodes_only", "output_mode"),
+        "output_types": {"mesh": DPF_MESH_DATA_TYPE},
+        "output_mode_default": DPF_OUTPUT_MODE_MEMORY,
+    },
+    DPF_EXPORT_NODE_TYPE_ID: {
+        "display_name": "DPF Export",
+        "ports": ("exec_in", "field", "model", "mesh", "dataset", "exports", "csv", "png", "vtu", "vtm", "exec_out"),
+        "properties": ("artifact_key", "export_formats", "output_mode"),
+        "output_types": {
+            "dataset": "any",
+            "exports": "any",
+            "csv": "path",
+            "png": "path",
+            "vtu": "path",
+            "vtm": "path",
+        },
+        "output_mode_default": DPF_OUTPUT_MODE_STORED,
     },
 }
 
@@ -134,7 +188,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
 
             output_mode = next(prop for prop in spec.properties if prop.key == "output_mode")
-            self.assertEqual(output_mode.default, DPF_OUTPUT_MODE_MEMORY)
+            self.assertEqual(output_mode.default, expected["output_mode_default"])
             self.assertEqual(output_mode.enum_values, ("memory", "stored", "both"))
 
             ports_by_key = {port.key: port for port in spec.ports}

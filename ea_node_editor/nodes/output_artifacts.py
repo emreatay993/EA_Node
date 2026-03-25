@@ -150,4 +150,22 @@ def write_managed_output(
     )
 
 
-__all__ = ["ManagedOutputWriteResult", "write_managed_output"]
+def default_staging_workspace_root() -> Path:
+    return _default_staging_workspace_root()
+
+
+def artifact_store_for_context(ctx: ExecutionContext) -> ProjectArtifactStore:
+    return _artifact_store_for_context(ctx)
+
+
+def persist_artifact_store(ctx: ExecutionContext, store: ProjectArtifactStore) -> None:
+    _persist_runtime_artifact_store(ctx, store)
+
+
+__all__ = [
+    "ManagedOutputWriteResult",
+    "artifact_store_for_context",
+    "default_staging_workspace_root",
+    "persist_artifact_store",
+    "write_managed_output",
+]
