@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal, TypeAlias
 
@@ -26,7 +27,32 @@ EventType = Literal[
     "node_completed",
     "log",
     "protocol_error",
+    "viewer_session_opened",
+    "viewer_session_updated",
+    "viewer_session_closed",
+    "viewer_data_materialized",
+    "viewer_session_failed",
 ]
+
+VIEWER_COMMAND_TYPES = frozenset(
+    {
+        "open_viewer_session",
+        "update_viewer_session",
+        "close_viewer_session",
+        "materialize_viewer_data",
+    }
+)
+VIEWER_RESPONSE_EVENT_TYPES = frozenset(
+    {
+        "viewer_session_opened",
+        "viewer_session_updated",
+        "viewer_session_closed",
+        "viewer_data_materialized",
+        "viewer_session_failed",
+    }
+)
+_RUNTIME_VALUE_MARKER_KEY = "__ea_runtime_value__"
+_VIEWER_RUNTIME_MARKERS = frozenset({"artifact_ref", "handle_ref"})
 
 
 @dataclass(frozen=True)
@@ -63,12 +89,60 @@ class ShutdownCommand:
     type: Literal["shutdown"] = "shutdown"
 
 
+@dataclass(frozen=True)
+class OpenViewerSessionCommand:
+    type: Literal["open_viewer_session"] = "open_viewer_session"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    data_refs: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class UpdateViewerSessionCommand:
+    type: Literal["update_viewer_session"] = "update_viewer_session"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    data_refs: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CloseViewerSessionCommand:
+    type: Literal["close_viewer_session"] = "close_viewer_session"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class MaterializeViewerDataCommand:
+    type: Literal["materialize_viewer_data"] = "materialize_viewer_data"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    options: dict[str, Any] = field(default_factory=dict)
+
+
 WorkerCommand: TypeAlias = (
     StartRunCommand
     | StopRunCommand
     | PauseRunCommand
     | ResumeRunCommand
     | ShutdownCommand
+    | OpenViewerSessionCommand
+    | UpdateViewerSessionCommand
+    | CloseViewerSessionCommand
+    | MaterializeViewerDataCommand
 )
 
 
@@ -154,6 +228,64 @@ class ProtocolErrorEvent:
     error: str = ""
 
 
+@dataclass(frozen=True)
+class ViewerSessionOpenedEvent:
+    type: Literal["viewer_session_opened"] = "viewer_session_opened"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    data_refs: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ViewerSessionUpdatedEvent:
+    type: Literal["viewer_session_updated"] = "viewer_session_updated"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    data_refs: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ViewerSessionClosedEvent:
+    type: Literal["viewer_session_closed"] = "viewer_session_closed"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ViewerDataMaterializedEvent:
+    type: Literal["viewer_data_materialized"] = "viewer_data_materialized"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    data_refs: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
+    options: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ViewerSessionFailedEvent:
+    type: Literal["viewer_session_failed"] = "viewer_session_failed"
+    request_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    session_id: str = ""
+    command: str = ""
+    error: str = ""
+
+
 WorkerEvent: TypeAlias = (
     RunStartedEvent
     | RunStateEvent
@@ -164,21 +296,123 @@ WorkerEvent: TypeAlias = (
     | NodeCompletedEvent
     | LogEvent
     | ProtocolErrorEvent
+    | ViewerSessionOpenedEvent
+    | ViewerSessionUpdatedEvent
+    | ViewerSessionClosedEvent
+    | ViewerDataMaterializedEvent
+    | ViewerSessionFailedEvent
 )
 
 
-def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
+def _serialize_dataclass_payload(value: Any) -> dict[str, Any]:
     return {
-        field_info.name: serialize_runtime_value(getattr(command, field_info.name))
-        for field_info in fields(command)
+        field_info.name: serialize_runtime_value(getattr(value, field_info.name))
+        for field_info in fields(value)
     }
+
+
+def _serialize_viewer_value(value: Any, *, field_name: str) -> Any:
+    serialized = serialize_runtime_value(value)
+    if serialized is None or isinstance(serialized, (str, int, float, bool)):
+        return serialized
+    if isinstance(serialized, list):
+        return [_serialize_viewer_value(item, field_name=field_name) for item in serialized]
+    if isinstance(serialized, tuple):
+        return [_serialize_viewer_value(item, field_name=field_name) for item in serialized]
+    if isinstance(serialized, Mapping):
+        marker = serialized.get(_RUNTIME_VALUE_MARKER_KEY)
+        if marker in _VIEWER_RUNTIME_MARKERS:
+            return dict(serialized)
+        return {
+            str(key): _serialize_viewer_value(item, field_name=field_name)
+            for key, item in serialized.items()
+        }
+    raise TypeError(
+        f"{field_name} must be JSON-safe and may only contain scalar values, lists, "
+        "dictionaries, runtime handle refs, or runtime artifact refs."
+    )
+
+
+def _serialize_viewer_mapping(value: Any, *, field_name: str) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise TypeError(f"{field_name} must be a dictionary payload.")
+    return {
+        str(key): _serialize_viewer_value(item, field_name=field_name)
+        for key, item in value.items()
+    }
+
+
+def _deserialize_viewer_mapping(value: Any) -> dict[str, Any]:
+    payload = deserialize_runtime_value(value)
+    return dict(payload) if isinstance(payload, Mapping) else {}
+
+
+def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
+    if isinstance(command, (OpenViewerSessionCommand, UpdateViewerSessionCommand)):
+        return {
+            "type": command.type,
+            "request_id": command.request_id,
+            "workspace_id": command.workspace_id,
+            "node_id": command.node_id,
+            "session_id": command.session_id,
+            "data_refs": _serialize_viewer_mapping(command.data_refs, field_name="data_refs"),
+            "summary": _serialize_viewer_mapping(command.summary, field_name="summary"),
+            "options": _serialize_viewer_mapping(command.options, field_name="options"),
+        }
+    if isinstance(command, CloseViewerSessionCommand):
+        return {
+            "type": command.type,
+            "request_id": command.request_id,
+            "workspace_id": command.workspace_id,
+            "node_id": command.node_id,
+            "session_id": command.session_id,
+            "options": _serialize_viewer_mapping(command.options, field_name="options"),
+        }
+    if isinstance(command, MaterializeViewerDataCommand):
+        return {
+            "type": command.type,
+            "request_id": command.request_id,
+            "workspace_id": command.workspace_id,
+            "node_id": command.node_id,
+            "session_id": command.session_id,
+            "options": _serialize_viewer_mapping(command.options, field_name="options"),
+        }
+    return _serialize_dataclass_payload(command)
 
 
 def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
-    return {
-        field_info.name: serialize_runtime_value(getattr(event, field_info.name))
-        for field_info in fields(event)
-    }
+    if isinstance(event, (ViewerSessionOpenedEvent, ViewerSessionUpdatedEvent, ViewerDataMaterializedEvent)):
+        return {
+            "type": event.type,
+            "request_id": event.request_id,
+            "workspace_id": event.workspace_id,
+            "node_id": event.node_id,
+            "session_id": event.session_id,
+            "data_refs": _serialize_viewer_mapping(event.data_refs, field_name="data_refs"),
+            "summary": _serialize_viewer_mapping(event.summary, field_name="summary"),
+            "options": _serialize_viewer_mapping(event.options, field_name="options"),
+        }
+    if isinstance(event, ViewerSessionClosedEvent):
+        return {
+            "type": event.type,
+            "request_id": event.request_id,
+            "workspace_id": event.workspace_id,
+            "node_id": event.node_id,
+            "session_id": event.session_id,
+            "summary": _serialize_viewer_mapping(event.summary, field_name="summary"),
+            "options": _serialize_viewer_mapping(event.options, field_name="options"),
+        }
+    if isinstance(event, ViewerSessionFailedEvent):
+        return {
+            "type": event.type,
+            "request_id": event.request_id,
+            "workspace_id": event.workspace_id,
+            "node_id": event.node_id,
+            "session_id": event.session_id,
+            "command": event.command,
+            "error": event.error,
+        }
+    return _serialize_dataclass_payload(event)
 
 
 def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
@@ -208,6 +442,42 @@ def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
         return ResumeRunCommand(run_id=str(payload.get("run_id", "")))
     if command_type == "shutdown":
         return ShutdownCommand()
+    if command_type == "open_viewer_session":
+        return OpenViewerSessionCommand(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            summary=_deserialize_viewer_mapping(payload.get("summary")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if command_type == "update_viewer_session":
+        return UpdateViewerSessionCommand(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            summary=_deserialize_viewer_mapping(payload.get("summary")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if command_type == "close_viewer_session":
+        return CloseViewerSessionCommand(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if command_type == "materialize_viewer_data":
+        return MaterializeViewerDataCommand(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
     raise ValueError(f"Unknown command type: {command_type!r}")
 
 
@@ -272,6 +542,54 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
         return ProtocolErrorEvent(
             run_id=str(payload.get("run_id", "")),
             workspace_id=str(payload.get("workspace_id", "")),
+            command=str(payload.get("command", "")),
+            error=str(payload.get("error", "")),
+        )
+    if event_type == "viewer_session_opened":
+        return ViewerSessionOpenedEvent(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            summary=_deserialize_viewer_mapping(payload.get("summary")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if event_type == "viewer_session_updated":
+        return ViewerSessionUpdatedEvent(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            summary=_deserialize_viewer_mapping(payload.get("summary")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if event_type == "viewer_session_closed":
+        return ViewerSessionClosedEvent(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            summary=_deserialize_viewer_mapping(payload.get("summary")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if event_type == "viewer_data_materialized":
+        return ViewerDataMaterializedEvent(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
+            data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            summary=_deserialize_viewer_mapping(payload.get("summary")),
+            options=_deserialize_viewer_mapping(payload.get("options")),
+        )
+    if event_type == "viewer_session_failed":
+        return ViewerSessionFailedEvent(
+            request_id=str(payload.get("request_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            session_id=str(payload.get("session_id", "")),
             command=str(payload.get("command", "")),
             error=str(payload.get("error", "")),
         )
