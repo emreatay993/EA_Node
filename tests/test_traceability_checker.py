@@ -125,7 +125,15 @@ PYDPF_VIEWER_V1_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
         "REQ-PERSIST-020": ("tests/ansys_dpf_core/example_outputs/", ".rst", ".rth", "serialized project artifacts"),
     },
     "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-008": ("ansys-dpf-core", "pyvista", "pyvistaqt", "vtk", "dpf.viewer"),
+        "REQ-INT-008": (
+            "ansys-dpf-core",
+            "pyvista",
+            "pyvistaqt",
+            "vtk",
+            "dpf.result_file",
+            "dpf.mesh_extract",
+            "dpf.viewer",
+        ),
     },
     "docs/specs/requirements/80_PERFORMANCE.md": {
         "REQ-PERF-008": ("PYDPF_VIEWER_V1_QA_MATRIX.md", "large-model", "Windows packaged-build", ".rst"),
