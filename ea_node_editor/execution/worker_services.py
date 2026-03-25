@@ -3,18 +3,34 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
+from typing import TYPE_CHECKING
 
 from ea_node_editor.execution.handle_registry import HandleRegistry
 from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
+
+if TYPE_CHECKING:
+    from ea_node_editor.execution.dpf_runtime_service import DpfRuntimeService
 
 
 @dataclass(slots=True)
 class WorkerServices:
     handle_registry: HandleRegistry = field(default_factory=HandleRegistry)
+    _dpf_runtime_service: DpfRuntimeService | None = field(default=None, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_dpf_runtime_service", None)
 
     @property
     def worker_generation(self) -> int:
         return self.handle_registry.worker_generation
+
+    @property
+    def dpf_runtime_service(self) -> DpfRuntimeService:
+        if self._dpf_runtime_service is None:
+            from ea_node_editor.execution.dpf_runtime_service import DpfRuntimeService
+
+            self._dpf_runtime_service = DpfRuntimeService(self)
+        return self._dpf_runtime_service
 
     @staticmethod
     def run_owner_scope(run_id: str) -> str:
@@ -75,10 +91,17 @@ class WorkerServices:
         return self.handle_registry.promote(value, owner_scope=owner_scope, metadata=metadata)
 
     def cleanup_run(self, run_id: str) -> int:
-        return self.handle_registry.release_owner_scope(self.run_owner_scope(run_id))
+        owner_scope = self.run_owner_scope(run_id)
+        released_count = self.handle_registry.release_owner_scope(owner_scope)
+        if self._dpf_runtime_service is not None:
+            self._dpf_runtime_service.cleanup_owner_scope(owner_scope)
+        return released_count
 
     def reset(self) -> int:
-        return self.handle_registry.reset()
+        released_count = self.handle_registry.reset()
+        if self._dpf_runtime_service is not None:
+            self._dpf_runtime_service.reset()
+        return released_count
 
 
 __all__ = [
