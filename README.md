@@ -391,7 +391,7 @@ Regenerate the committed app icon asset set with:
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
-- Work-packet docs under `docs/specs/work_packets/` are local-only and are not published in Git
+- Only the retained `PROJECT_MANAGED_FILES` packet window (`P10` through `P12`) stays in Git; older work-packet docs are archived locally under `artifacts/work_packet_archive/`
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 
