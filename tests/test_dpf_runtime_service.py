@@ -15,6 +15,9 @@ dpf = pytest.importorskip("ansys.dpf.core")
 
 from ansys_dpf_core.fixture_paths import MODAL_ANALYSIS_RST, STATIC_ANALYSIS_RST, THERMAL_ANALYSIS_RTH
 from ea_node_editor.execution.dpf_runtime_service import (
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
+    DPF_FIELD_HANDLE_KIND,
+    DPF_MESH_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
     DPF_RESULT_FILE_HANDLE_KIND,
@@ -112,6 +115,92 @@ class DpfRuntimeServiceTests(unittest.TestCase):
         self.assertNotEqual(model_ref.handle_id, reloaded_ref.handle_id)
         reloaded_model = services.resolve_handle(reloaded_ref, expected_kind=DPF_MODEL_HANDLE_KIND)
         self.assertEqual(reloaded_model.metadata.time_freq_support.n_sets, 2)
+
+    def test_field_extraction_field_ops_and_mesh_extraction_use_worker_local_handles(self) -> None:
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+
+        model_ref = service.load_model(STATIC_ANALYSIS_RST)
+        model = services.resolve_handle(model_ref, expected_kind=DPF_MODEL_HANDLE_KIND)
+        element_ids = [int(value) for value in model.metadata.meshed_region.elements.scoping.ids[:2]]
+        mesh_scoping_ref = service.create_mesh_scoping(
+            element_ids,
+            location="elemental",
+            run_id="run_extract",
+        )
+
+        stress_ref = service.extract_result_fields(
+            model=model_ref,
+            result_name="stress",
+            set_ids=[1],
+            location="nodal",
+            run_id="run_extract",
+        )
+        stress_fields = services.resolve_handle(
+            stress_ref,
+            expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+        )
+        self.assertEqual(stress_ref.metadata["result_name"], "stress")
+        self.assertEqual(stress_ref.metadata["set_ids"], [1])
+        self.assertEqual(stress_fields[0].location, "Nodal")
+        self.assertEqual(stress_fields[0].component_count, 6)
+
+        norm_ref = service.compute_field_norm(stress_ref, run_id="run_extract")
+        norm_fields = services.resolve_handle(norm_ref, expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND)
+        self.assertEqual(norm_ref.metadata["operation"], "norm")
+        self.assertEqual(norm_fields[0].location, "Nodal")
+        self.assertEqual(norm_fields[0].component_count, 1)
+
+        field_range = service.reduce_fields_min_max(norm_ref, run_id="run_extract")
+        min_field = services.resolve_handle(field_range.minimum, expected_kind=DPF_FIELD_HANDLE_KIND)
+        max_field = services.resolve_handle(field_range.maximum, expected_kind=DPF_FIELD_HANDLE_KIND)
+        self.assertEqual(field_range.minimum.metadata["reduction"], "min")
+        self.assertEqual(field_range.maximum.metadata["reduction"], "max")
+        self.assertEqual(min_field.component_count, 1)
+        self.assertEqual(max_field.component_count, 1)
+        self.assertEqual(min_field.scoping.size, 1)
+        self.assertEqual(max_field.scoping.size, 1)
+
+        mesh_ref = service.extract_mesh(
+            model=model_ref,
+            mesh_scoping=mesh_scoping_ref,
+            run_id="run_extract",
+        )
+        mesh = services.resolve_handle(mesh_ref, expected_kind=DPF_MESH_HANDLE_KIND)
+        self.assertEqual(mesh_ref.metadata["element_count"], 2)
+        self.assertEqual(mesh.elements.n_elements, 2)
+        self.assertGreater(mesh.nodes.n_nodes, 0)
+
+        self.assertEqual(services.cleanup_run("run_extract"), 6)
+        with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
+            services.resolve_handle(mesh_scoping_ref, expected_kind=DPF_MESH_SCOPING_HANDLE_KIND)
+        with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
+            services.resolve_handle(stress_ref, expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND)
+        with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
+            services.resolve_handle(mesh_ref, expected_kind=DPF_MESH_HANDLE_KIND)
+
+    def test_temperature_extraction_supports_rth_models_and_time_scoping_handles(self) -> None:
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+
+        model_ref = service.load_model(THERMAL_ANALYSIS_RTH)
+        time_ref = service.create_time_scoping([1], model=model_ref, run_id="run_thermal_extract")
+        temperature_ref = service.extract_result_fields(
+            model=model_ref,
+            result_name="temperature",
+            time_scoping=time_ref,
+            run_id="run_thermal_extract",
+        )
+
+        temperature_fields = services.resolve_handle(
+            temperature_ref,
+            expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+        )
+        self.assertEqual(temperature_ref.metadata["result_name"], "temperature")
+        self.assertEqual(temperature_ref.metadata["set_ids"], [1])
+        self.assertEqual(temperature_fields[0].location, "Nodal")
+        self.assertEqual(temperature_fields[0].component_count, 1)
+        self.assertGreater(temperature_fields[0].scoping.size, 1000)
 
 
 if __name__ == "__main__":
