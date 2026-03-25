@@ -23,6 +23,7 @@
 - `REQ-PERSIST-017`: managed imports and stored outputs shall stage first; explicit Save shall promote only still-referenced staged items, rewrite promoted refs to managed refs, replace current managed copies in place, and prune orphaned permanent managed files.
 - `REQ-PERSIST-018`: Save As shall always write a new `.sfe` plus sibling `.data/` tree according to the user-selected copy mode, defaulting to a self-contained copy of currently referenced managed files while excluding staged scratch data.
 - `REQ-PERSIST-019`: autosave/session recovery may preserve staged metadata and offer crash-only scratch recovery, while clean close without save discards staged scratch data and its autosave snapshot.
+- `REQ-PERSIST-020`: PyDPF authored state shall persist only stable node properties and result/model path selections in `.sfe`; runtime handle IDs, worker viewer-session caches, and repo-local smoke fixtures under `tests/ansys_dpf_core/example_outputs/` (`.rst` / `.rth`) remain runtime or test inputs rather than serialized project artifacts.
 
 ## Module Decomposition
 - `REQ-PERSIST-008`: Persistence internals shall be split into project codec (`ProjectData` <-> JSON document), migration/normalization pipeline, and session/autosave storage service.
@@ -43,3 +44,4 @@
 - `AC-REQ-PERSIST-017-01`: save/promotion regressions confirm referenced staged items become managed entries, stale staged scratch is dropped, and orphan managed files are pruned.
 - `AC-REQ-PERSIST-018-01`: Save As regressions confirm the default self-contained copy preserves referenced managed files, strips staged scratch from the destination metadata/tree, and leaves unresolved staged refs unresolved rather than copying scratch payloads.
 - `AC-REQ-PERSIST-019-01`: autosave/session regressions confirm staged scratch can be recovered after crash-style flows but is discarded on clean close without save.
+- `AC-REQ-PERSIST-020-01`: DPF docs and catalog regressions confirm PyDPF nodes persist authored path/property state without serializing worker-local runtime handles or viewer caches, and the published QA matrix names the repo-local `.rst` / `.rth` smoke inputs explicitly.

@@ -17,6 +17,7 @@
 - `REQ-EXEC-010`: runtime snapshots and queue payloads shall serialize `RuntimeArtifactRef` values as structured `artifact_ref` payloads so stored outputs can cross the execution boundary as `artifact://...` or `artifact-stage://...` handles instead of inline blobs.
 - `REQ-EXEC-011`: execution contexts and downstream file-backed integrations shall resolve managed and staged artifact refs against runtime-snapshot and project artifact metadata during the same run.
 - `REQ-EXEC-012`: `Process Run` stored mode shall stage stdout/stderr transcript outputs under the managed-output lifecycle, emit staged refs on success, and remove staged transcript files plus metadata on non-zero failure or cancellation.
+- `REQ-EXEC-013`: the execution engine shall provide viewer-session transport and worker services that rehydrate DPF-backed viewer sessions from runtime handle refs, cached source selections, and worker-local materialization state while the UI boundary stays on typed viewer protocol payloads rather than raw PyVista or VTK objects.
 
 ## Acceptance
 - `AC-REQ-EXEC-002-01`: protocol regressions confirm typed command/event payloads round-trip through the queue boundary, including runtime snapshot data and runtime artifact refs.
@@ -25,3 +26,4 @@
 - `AC-REQ-EXEC-010-01`: execution client/worker regressions confirm runtime artifact refs round-trip as structured `artifact_ref` payloads rather than raw inline file blobs.
 - `AC-REQ-EXEC-011-01`: execution and integration regressions confirm downstream nodes can resolve stored outputs from runtime/project artifact metadata during the same run.
 - `AC-REQ-EXEC-012-01`: `Process Run` regressions confirm stored transcript success paths, stored-mode cleanup on failure, and the preserved `memory` versus `stored` contract.
+- `AC-REQ-EXEC-013-01`: viewer-service, protocol, and bridge regressions confirm viewer sessions can be fetched, updated, and rematerialized through worker-local services while the client boundary remains queue-safe and typed.

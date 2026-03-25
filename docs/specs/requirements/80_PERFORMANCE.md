@@ -12,8 +12,10 @@
 
 ## Concurrency
 - `REQ-PERF-007`: Heavy execution/analysis work shall run outside the UI thread.
+- `REQ-PERF-008`: the PyDPF viewer closeout shall keep large-model and packaged-viewer performance risk explicit in `docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md`, including repo-local `.rst` / `.rth` smoke fixtures, Windows packaged-build checks, and any manual large-model validation that remains outside the fast lane.
 
 ## Evidence Workflow
 - `AC-REQ-PERF-002-01`: `ea_node_editor.telemetry.performance_harness` plus `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md` shall publish pan/zoom p50/p95 metrics, Qt platform, viewport size, sample counts, selected `performance_mode`, resolved `resolved_graphics_performance_mode`, active `scenario`, `media_surface_count`, and whether the actual `GraphCanvas.qml` render path was exercised.
 - `AC-REQ-PERF-002-02`: `docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md` shall record the approved same-machine offscreen regression command with `--baseline-runs 3 --performance-mode max_performance --scenario heavy_media`, the canonical artifact path `artifacts/graphics_performance_modes_docs`, and the current desktop/manual exit-gate status for the packet-owned Windows `desktop_reference` evidence.
 - `AC-REQ-PERF-003-01`: `docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md` shall publish the current load-timing snapshot from the same 3-run mode-aware heavy-media benchmark workflow and point at the canonical artifact path `artifacts/graphics_performance_modes_docs` refreshed from the packet-local max-performance rerun used for the recorded evidence.
+- `AC-REQ-PERF-008-01`: `docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md` records the approved PyDPF viewer reruns, repo-local smoke fixtures, Windows packaged-build and manual checks, and remaining large-model/manual risks without claiming broader automated coverage than the packet set actually ships.

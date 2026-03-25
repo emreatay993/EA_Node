@@ -46,6 +46,7 @@
 - `REQ-UI-029`: Save As shall always prompt for managed-data copy behavior, default to a self-contained copy that carries over currently referenced managed files, and shall not copy staged scratch data into the destination project.
 - `REQ-UI-030`: source-import workflows shall honor an app preference for `managed_copy` versus `external_link`, defaulting to managed copy, and tracked missing-file surfaces shall stay limited to the packet-owned node-level repair affordances for passive media, File Read, and Excel Read.
 - `REQ-UI-031`: `Process Run` shall expose an inline `Output Mode` quick control limited to `memory` and `stored`, with a status chip that explains whether stdout/stderr stay inline or emit staged transcript refs.
+- `REQ-UI-032`: the PyDPF viewer UX shall ship `dpf.viewer` as a viewer-family surface that routes proxy/live state through `viewerSessionBridge`, preserves reopen summaries, and enforces one-live `focus_only` behavior by default with explicit `keep_live` opt-in.
 
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.
@@ -72,3 +73,4 @@
 - `AC-REQ-UI-029-01`: Save As regressions confirm the self-contained-copy default carries referenced managed files, excludes staged scratch data, and switches the live project path to the new `.sfe`.
 - `AC-REQ-UI-030-01`: source-import default and file-issue regressions confirm managed-copy is the default browse mode, tracked missing managed/staged/external paths surface node-level guidance, and supported node types keep the approved repair affordances.
 - `AC-REQ-UI-031-01`: `Process Run` regressions confirm the inline `memory` / `stored` toggle, chip wording, and stored transcript-ref behavior without widening quick-toggle UI to other heavy-output nodes.
+- `AC-REQ-UI-032-01`: `dpf.viewer`, bridge, and viewer-surface regressions confirm `focus_only` versus `keep_live` live-policy behavior, preserved proxy reopen summaries, and shell-managed live overlays without regressing the shared viewer surface contract.

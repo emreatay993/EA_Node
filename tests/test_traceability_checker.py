@@ -87,6 +87,89 @@ PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS = (
     "Process Run",
 )
 
+PYDPF_VIEWER_V1_QA_MATRIX = REPO_ROOT / "docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md"
+PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_dpf_viewer_node.py tests/test_dpf_node_catalog.py "
+    "tests/test_viewer_session_bridge.py tests/test_viewer_surface_host.py "
+    "tests/test_packaging_configuration.py tests/test_traceability_checker.py "
+    "--ignore=venv -q"
+)
+PYDPF_VIEWER_V1_TRACEABILITY_COMMAND = "./venv/Scripts/python.exe scripts/check_traceability.py"
+PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+)
+
+PYDPF_VIEWER_V1_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/10_ARCHITECTURE.md": {
+        "REQ-ARCH-016": (
+            "RuntimeHandleRef",
+            "DpfRuntimeService",
+            "ViewerSessionBridge",
+            "EmbeddedViewerOverlayManager",
+        ),
+    },
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-032": ("dpf.viewer", "viewerSessionBridge", "focus_only", "keep_live"),
+    },
+    "docs/specs/requirements/40_NODE_SDK.md": {
+        "REQ-NODE-025": ("dpf.viewer", 'surface_family="viewer"', "output_mode", "viewer_live_policy"),
+    },
+    "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md": {
+        "REQ-NODE-026": ("session-owned", "proxy", "live", "worker viewer session service"),
+    },
+    "docs/specs/requirements/50_EXECUTION_ENGINE.md": {
+        "REQ-EXEC-013": ("viewer-session", "runtime handle refs", "typed viewer protocol", "worker-local"),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-020": ("tests/ansys_dpf_core/example_outputs/", ".rst", ".rth", "serialized project artifacts"),
+    },
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-008": ("ansys-dpf-core", "pyvista", "pyvistaqt", "vtk", "dpf.viewer"),
+    },
+    "docs/specs/requirements/80_PERFORMANCE.md": {
+        "REQ-PERF-008": ("PYDPF_VIEWER_V1_QA_MATRIX.md", "large-model", "Windows packaged-build", ".rst"),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-023": ("PYDPF_VIEWER_V1", "dpf.viewer", "packaging configuration", "traceability"),
+        "REQ-QA-024": ("PYDPF_VIEWER_V1_QA_MATRIX.md", ".rst", ".rth", "traceability gate"),
+        "AC-REQ-QA-023-01": (PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND, "PYDPF_VIEWER_V1_QA_MATRIX.md"),
+        "AC-REQ-QA-024-01": (
+            PYDPF_VIEWER_V1_TRACEABILITY_COMMAND,
+            PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND,
+            "PYDPF_VIEWER_V1_QA_MATRIX.md",
+        ),
+    },
+}
+
+PYDPF_VIEWER_V1_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-ARCH-016": ("runtime_value_codec.py", "viewer_session_service.py", "viewer_session_bridge.py"),
+    "REQ-NODE-025": ("ansys_dpf.py", "ansys_dpf_common.py", "test_dpf_viewer_node.py"),
+    "REQ-INT-008": ("pyproject.toml", "ea_node_editor.spec", "test_packaging_configuration.py"),
+    "REQ-QA-024": ("PYDPF_VIEWER_V1_QA_MATRIX.md", "tests/test_traceability_checker.py", "scripts/check_traceability.py"),
+    "AC-REQ-QA-023-01": (PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND, "PYDPF_VIEWER_V1_QA_MATRIX.md"),
+    "AC-REQ-QA-024-01": (
+        PYDPF_VIEWER_V1_TRACEABILITY_COMMAND,
+        PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND,
+    ),
+}
+
+PYDPF_VIEWER_V1_QA_MATRIX_TOKENS = (
+    "PYDPF Viewer V1 QA Matrix",
+    "## Locked Scope",
+    "dpf.viewer",
+    "tests/ansys_dpf_core/fixture_paths.py",
+    "static_analysis_1_bolted_joint/file.rst",
+    "modal_analysis_1_bolted_joint/file.rst",
+    "steady_state_thermal_analysis_1_bolted_joint/file.rth",
+    PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND,
+    PYDPF_VIEWER_V1_TRACEABILITY_COMMAND,
+    PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND,
+    ".\\scripts\\build_windows_package.ps1 -PackageProfile viewer -Clean -SkipSmoke",
+    "## Remaining Manual Smoke Checks",
+    "## Future-Scope Deferrals",
+)
+
 
 def load_module(module_name: str, module_path: Path):
     spec = importlib.util.spec_from_file_location(module_name, module_path)
@@ -462,6 +545,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_project_managed_files_qa_matrix_records_final_commands_and_deferrals(self) -> None:
         text = PROJECT_MANAGED_FILES_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_pydpf_viewer_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in PYDPF_VIEWER_V1_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_pydpf_viewer_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in PYDPF_VIEWER_V1_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_pydpf_viewer_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = PYDPF_VIEWER_V1_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in PYDPF_VIEWER_V1_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
 
