@@ -9,9 +9,9 @@
 - Artifacts Produced: `ea_node_editor/execution/handle_registry.py`, `ea_node_editor/execution/worker_services.py`, `ea_node_editor/execution/worker.py`, `ea_node_editor/nodes/types.py`, `tests/test_execution_handle_registry.py`, `tests/test_execution_worker.py`, `docs/specs/work_packets/pydpf_viewer_v1/P02_handle_registry_worker_services_WRAPUP.md`
 
 ## Verification
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_handle_registry.py tests/test_execution_worker.py --ignore=venv -q` (`20 passed in 0.90s`)
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_handle_registry.py --ignore=venv -q` (`4 passed in 0.06s`)
 - Final Verification Verdict: PASS
-- Verification Command: `./venv/Scripts/python.exe -m pytest tests/test_execution_handle_registry.py tests/test_execution_worker.py --ignore=venv -q` -> `20 passed in 0.90s`
-- Review Gate: `./venv/Scripts/python.exe -m pytest tests/test_execution_handle_registry.py --ignore=venv -q` -> `4 passed in 0.06s`
 
 ## Manual Test Directives
 Too soon for manual testing
