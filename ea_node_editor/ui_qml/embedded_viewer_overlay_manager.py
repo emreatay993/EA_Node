@@ -103,10 +103,11 @@ class EmbeddedViewerOverlayManager(QObject):
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
         self._focus_only_active_key: _OverlayKey | None = None
         self._last_error = ""
+        self._sync_queued = False
 
         self._quick_widget.installEventFilter(self)
         self._connect_signals()
-        QTimer.singleShot(0, self.sync)
+        self._schedule_sync()
 
     @property
     def quick_widget(self) -> QQuickWidget:
@@ -119,7 +120,7 @@ class EmbeddedViewerOverlayManager(QObject):
     def set_interactor_factory(self, factory: InteractorFactory) -> None:
         self._interactor_factory = factory
         self._clear_records()
-        QTimer.singleShot(0, self.sync)
+        self._schedule_sync()
 
     def overlay_widget(self, node_id: str, *, workspace_id: str = "") -> QWidget | None:
         resolved_workspace_id = _string(workspace_id) or self._active_workspace_id()
@@ -143,9 +144,11 @@ class EmbeddedViewerOverlayManager(QObject):
                 QEvent.Type.Resize,
                 QEvent.Type.Move,
                 QEvent.Type.LayoutRequest,
+                QEvent.Type.UpdateRequest,
+                QEvent.Type.Paint,
                 QEvent.Type.WindowStateChange,
             }:
-                QTimer.singleShot(0, self.sync)
+                self._schedule_sync()
             elif event_type == QEvent.Type.Hide:
                 self._hide_all_records()
             elif event_type == QEvent.Type.Close:
@@ -154,12 +157,12 @@ class EmbeddedViewerOverlayManager(QObject):
 
     def _connect_signals(self) -> None:
         self._connect_signal(self._quick_widget, "statusChanged", self._on_quick_widget_status_changed)
-        self._connect_signal(self._viewer_session_bridge, "sessions_changed", self.sync)
-        self._connect_signal(self._viewer_session_bridge, "active_workspace_changed", self.sync)
-        self._connect_signal(self._scene_bridge, "nodes_changed", self.sync)
-        self._connect_signal(self._scene_bridge, "selection_changed", self.sync)
-        self._connect_signal(self._scene_bridge, "workspace_changed", self.sync)
-        self._connect_signal(self._view_bridge, "view_state_changed", self.sync)
+        self._connect_signal(self._viewer_session_bridge, "sessions_changed", self._schedule_sync)
+        self._connect_signal(self._viewer_session_bridge, "active_workspace_changed", self._schedule_sync)
+        self._connect_signal(self._scene_bridge, "nodes_changed", self._schedule_sync)
+        self._connect_signal(self._scene_bridge, "selection_changed", self._schedule_sync)
+        self._connect_signal(self._scene_bridge, "workspace_changed", self._schedule_sync)
+        self._connect_signal(self._view_bridge, "view_state_changed", self._schedule_sync)
 
     @staticmethod
     def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
@@ -168,7 +171,18 @@ class EmbeddedViewerOverlayManager(QObject):
             signal.connect(slot)
 
     def _on_quick_widget_status_changed(self, _status) -> None:  # noqa: ANN001
-        QTimer.singleShot(0, self.sync)
+        self._schedule_sync()
+
+    def _schedule_sync(self) -> None:
+        if self._sync_queued:
+            return
+        self._sync_queued = True
+        QTimer.singleShot(0, self._run_queued_sync)
+
+    @pyqtSlot()
+    def _run_queued_sync(self) -> None:
+        self._sync_queued = False
+        self.sync()
 
     def _active_workspace_id(self) -> str:
         if self._viewer_session_bridge is not None:

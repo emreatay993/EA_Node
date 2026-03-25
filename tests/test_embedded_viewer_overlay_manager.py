@@ -256,6 +256,11 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
 
         self.window.scene.select_node(second_node_id, False)
         self.app.processEvents()
+        self.assertIsNone(self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id))
+
+        # Under the P13 bridge contract, refocusing a proxy-demoted viewer requests
+        # rematerialization before the overlay becomes live again.
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=second_node_id)
         second_container = self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(second_container)
         self.assertFalse(first_container.isVisible())
@@ -269,6 +274,10 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         )
         self.app.processEvents()
 
+        first_container = self.manager.overlay_container(first_node_id, workspace_id=self.workspace_id)
+        second_container = self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(first_container)
+        self.assertIsNotNone(second_container)
         self.assertTrue(first_container.isVisible())
         self.assertTrue(second_container.isVisible())
 

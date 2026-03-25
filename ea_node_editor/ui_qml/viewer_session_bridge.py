@@ -100,6 +100,7 @@ class ViewerSessionBridge(QObject):
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
         self._sessions: dict[tuple[str, str], _ViewerSessionState] = {}
+        self._workspace_edge_topologies: dict[str, tuple[tuple[str, str, str, str], ...] | None] = {}
         self._last_error = ""
         self._policy_sync_in_progress = False
 
@@ -112,6 +113,9 @@ class ViewerSessionBridge(QObject):
             scene_bridge.selection_changed.connect(self._on_selection_changed)
             scene_bridge.nodes_changed.connect(self._on_nodes_changed)
             scene_bridge.edges_changed.connect(self._on_edges_changed)
+            workspace_id = self._current_workspace_id()
+            if workspace_id:
+                self._workspace_edge_topologies[workspace_id] = self._workspace_edge_topology(workspace_id)
 
     @property
     def shell_window(self) -> "ShellWindow | None":
@@ -576,9 +580,12 @@ class ViewerSessionBridge(QObject):
         self._sync_live_policy(workspace_id)
 
     def _on_workspace_changed(self, _workspace_id: str) -> None:
+        workspace_id = self._current_workspace_id()
+        if workspace_id:
+            self._workspace_edge_topologies[workspace_id] = self._workspace_edge_topology(workspace_id)
         self.active_workspace_changed.emit()
         self.sessions_changed.emit()
-        self._sync_live_policy(self._current_workspace_id())
+        self._sync_live_policy(workspace_id)
 
     def _on_selection_changed(self) -> None:
         self._sync_live_policy(self._current_workspace_id())
@@ -587,7 +594,16 @@ class ViewerSessionBridge(QObject):
         self._handle_graph_mutation(demote_existing=False)
 
     def _on_edges_changed(self) -> None:
-        self._handle_graph_mutation(demote_existing=True)
+        workspace_id = self._current_workspace_id()
+        if not workspace_id:
+            return
+        current_topology = self._workspace_edge_topology(workspace_id)
+        previous_topology = self._workspace_edge_topologies.get(workspace_id)
+        self._workspace_edge_topologies[workspace_id] = current_topology
+        if previous_topology is None:
+            self._sync_live_policy(workspace_id)
+            return
+        self._handle_graph_mutation(demote_existing=current_topology != previous_topology)
 
     def _handle_graph_mutation(self, *, demote_existing: bool) -> None:
         workspace_id = self._current_workspace_id()
@@ -626,6 +642,34 @@ class ViewerSessionBridge(QObject):
         if not isinstance(nodes, dict):
             return None
         return {str(node_id) for node_id in nodes}
+
+    def _workspace_edge_topology(self, workspace_id: str) -> tuple[tuple[str, str, str, str], ...] | None:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return None
+        model = getattr(shell_window, "model", None)
+        project = getattr(model, "project", None)
+        workspaces = getattr(project, "workspaces", None)
+        if not isinstance(workspaces, dict):
+            return None
+        workspace = workspaces.get(workspace_id)
+        if workspace is None:
+            return None
+        edges = getattr(workspace, "edges", None)
+        if not isinstance(edges, dict):
+            return None
+        return tuple(
+            sorted(
+                (
+                    str(edge.source_node_id),
+                    str(edge.source_port_key),
+                    str(edge.target_node_id),
+                    str(edge.target_port_key),
+                )
+                for edge in edges.values()
+                if edge is not None
+            )
+        )
 
     @staticmethod
     def _demote_state_to_proxy(state: _ViewerSessionState, *, reason: str) -> bool:
