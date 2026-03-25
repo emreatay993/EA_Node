@@ -469,6 +469,152 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_surface_control_rects_flow_through_host_contract(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-contract",
+            """
+            from PyQt6.QtCore import pyqtSignal
+
+            class ViewerSessionBridgeStub(QObject):
+                sessions_changed = pyqtSignal()
+
+                @pyqtProperty("QVariantList", notify=sessions_changed)
+                def sessions_model(self):
+                    return [
+                        {
+                            "workspace_id": "ws_main",
+                            "node_id": "node_surface_contract_test",
+                            "session_id": "session::viewer-surface-pointer",
+                            "phase": "open",
+                            "request_id": "req::viewer-pointer",
+                            "last_command": "open",
+                            "last_error": "",
+                            "playback_state": "paused",
+                            "step_index": 1,
+                            "live_policy": "focus_only",
+                            "keep_live": False,
+                            "cache_state": "proxy_ready",
+                            "invalidated_reason": "",
+                            "close_reason": "",
+                            "data_refs": {},
+                            "summary": {
+                                "result_name": "Displacement",
+                                "set_label": "Set 1",
+                                "cache_state": "proxy_ready",
+                            },
+                            "options": {
+                                "live_mode": "proxy",
+                                "playback_state": "paused",
+                                "step_index": 1,
+                                "live_policy": "focus_only",
+                                "keep_live": False,
+                            },
+                        }
+                    ]
+
+                @pyqtProperty(str, constant=True)
+                def last_error(self):
+                    return ""
+
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            payload = node_payload(surface_family="viewer")
+            payload["type_id"] = "tests.viewer_surface_contract"
+            payload["title"] = "Viewer Contract"
+            payload["width"] = 296.0
+            payload["height"] = 236.0
+            payload["ports"] = [
+                {
+                    "key": "fields",
+                    "label": "Fields",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "dpf_field",
+                    "connected": False,
+                },
+                {
+                    "key": "session",
+                    "label": "Session",
+                    "direction": "out",
+                    "kind": "data",
+                    "data_type": "dpf_view_session",
+                    "connected": False,
+                },
+            ]
+            payload["inline_properties"] = []
+            payload["render_quality"] = {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            }
+            payload["surface_metrics"] = {
+                "default_width": 296.0,
+                "default_height": 236.0,
+                "min_width": 220.0,
+                "min_height": 208.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_left_margin": 14.0,
+                "body_right_margin": 14.0,
+                "body_top": 30.0,
+                "body_height": 176.0,
+                "body_bottom_margin": 12.0,
+                "port_top": 206.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+                "title_top": 4.0,
+                "title_height": 24.0,
+                "title_left_margin": 10.0,
+                "title_right_margin": 42.0,
+                "title_centered": False,
+                "show_header_background": True,
+                "show_accent_bar": True,
+                "use_host_chrome": True,
+                "standard_title_full_width": 0.0,
+                "standard_left_label_width": 0.0,
+                "standard_right_label_width": 0.0,
+                "standard_port_gutter": 21.5,
+                "standard_center_gap": 24.0,
+                "standard_port_label_min_width": 0.0,
+            }
+            payload["viewer_surface"] = {
+                "body_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "proxy_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "live_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "overlay_target": "body",
+                "proxy_surface_supported": True,
+                "live_surface_supported": True,
+            }
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            assert loader is not None
+            assert surface is not None
+
+            bridge_binding = variant_value(host.property("viewerBridgeBinding"))
+            contract = variant_value(host.property("viewerSurfaceContract"))
+            control_rects = variant_list(host.property("viewerInteractiveRects"))
+            assert bridge_binding["phase"] == "open", bridge_binding
+            assert bridge_binding["live_mode"] == "proxy", bridge_binding
+            assert contract["bridge_binding"]["phase"] == "open", contract
+            assert len(control_rects) == 6, control_rects
+            assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 6, variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(contract["interactive_rects"]) == 6, contract
+            assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
+            assert contract["interactive_rects"][0]["height"] >= 24.0, contract["interactive_rects"]
+            assert rect_field(host.property("viewerBodyRect"), "x") == 14.0, variant_value(host.property("viewerBodyRect"))
+            assert rect_field(host.property("viewerLiveSurfaceRect"), "width") == 268.0, variant_value(host.property("viewerLiveSurfaceRect"))
+            assert rect_field(host.property("viewerLiveSurfaceRect"), "height") == 176.0, variant_value(host.property("viewerLiveSurfaceRect"))
+            """,
+        )
+
     def test_surface_loader_forwards_embedded_interactive_rects_for_inline_properties(self) -> None:
         self._run_qml_probe(
             "loader-embedded-rects",

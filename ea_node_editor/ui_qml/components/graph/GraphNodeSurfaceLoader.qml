@@ -46,6 +46,26 @@ Item {
         var contract = root.viewerSurfaceContract;
         return _rectValue(contract.live_rect !== undefined ? contract.live_rect : contract.body_rect);
     }
+    readonly property var viewerBridgeBinding: {
+        if (root.loadedSurfaceKey !== "viewer")
+            return ({});
+        if (loader.item && loader.item.viewerBridgeBinding !== undefined && loader.item.viewerBridgeBinding !== null)
+            return loader.item.viewerBridgeBinding;
+        var contract = root.viewerSurfaceContract;
+        if (contract && contract.bridge_binding !== undefined && contract.bridge_binding !== null)
+            return contract.bridge_binding;
+        return ({});
+    }
+    readonly property var viewerInteractiveRects: {
+        if (root.loadedSurfaceKey !== "viewer")
+            return [];
+        if (loader.item && loader.item.viewerInteractiveRects !== undefined && loader.item.viewerInteractiveRects !== null)
+            return loader.item.viewerInteractiveRects;
+        var contract = root.viewerSurfaceContract;
+        if (contract && contract.interactive_rects !== undefined && contract.interactive_rects !== null)
+            return contract.interactive_rects;
+        return [];
+    }
     readonly property var surfaceQualityContext: host ? host.surfaceQualityContext : ({
         "requested_quality_tier": root.requestedQualityTier,
         "resolved_quality_tier": root.resolvedQualityTier,

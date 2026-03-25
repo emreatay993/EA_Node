@@ -370,3 +370,84 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert rect_field(live_rect, "height") == 176.0
             """,
         )
+
+    def test_graph_viewer_surface_contract_includes_bridge_binding_and_control_rects(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-bridge-contract",
+            """
+            from PyQt6.QtCore import pyqtSignal
+
+            class ViewerSessionBridgeStub(QObject):
+                sessions_changed = pyqtSignal()
+
+                @pyqtProperty("QVariantList", notify=sessions_changed)
+                def sessions_model(self):
+                    return [
+                        {
+                            "workspace_id": "ws_main",
+                            "node_id": "node_viewer_surface_contract",
+                            "session_id": "session::viewer-contract",
+                            "phase": "open",
+                            "request_id": "req::open",
+                            "last_command": "open",
+                            "last_error": "",
+                            "playback_state": "paused",
+                            "step_index": 2,
+                            "live_policy": "focus_only",
+                            "keep_live": False,
+                            "cache_state": "proxy_ready",
+                            "invalidated_reason": "",
+                            "close_reason": "",
+                            "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+                            "summary": {
+                                "result_name": "Displacement",
+                                "set_label": "Set 2",
+                                "cache_state": "proxy_ready",
+                            },
+                            "options": {
+                                "live_mode": "proxy",
+                                "playback_state": "paused",
+                                "step_index": 2,
+                                "live_policy": "focus_only",
+                                "keep_live": False,
+                            },
+                        }
+                    ]
+
+                @pyqtProperty(str, constant=True)
+                def last_error(self):
+                    return ""
+
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            assert loader is not None
+            assert surface is not None
+
+            contract = variant_value(loader.property("viewerSurfaceContract"))
+            bridge_binding = variant_value(loader.property("viewerBridgeBinding"))
+            interactive_rects = variant_list(loader.property("viewerInteractiveRects"))
+
+            assert bool(surface.property("viewerBridgeAvailable")), bridge_binding
+            assert surface.property("viewerPhase") == "open", bridge_binding
+            assert bool(surface.property("proxySurfaceActive")), bridge_binding
+            assert not bool(surface.property("liveSurfaceActive")), bridge_binding
+            assert contract["bridge_binding"]["phase"] == bridge_binding["phase"], (contract, bridge_binding)
+            assert bridge_binding["node_id"] == "node_viewer_surface_contract", bridge_binding
+            assert bool(bridge_binding["bridge_available"]), bridge_binding
+            assert bridge_binding["session_id"] == "session::viewer-contract", bridge_binding
+            assert bridge_binding["playback_state"] == "paused", bridge_binding
+            assert bridge_binding["step_index"] == 2, bridge_binding
+            assert bridge_binding["live_policy"] == "focus_only", bridge_binding
+            assert not bool(bridge_binding["keep_live"]), bridge_binding
+            assert bridge_binding["cache_state"] == "proxy_ready", bridge_binding
+            assert bridge_binding["live_mode"] == "proxy", bridge_binding
+            assert bridge_binding["last_error"] == "", bridge_binding
+            assert len(contract["interactive_rects"]) == 6, contract
+            assert len(interactive_rects) == 6, interactive_rects
+            assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
+            assert interactive_rects[0]["height"] >= 24.0, interactive_rects
+            """,
+        )

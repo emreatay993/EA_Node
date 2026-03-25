@@ -156,6 +156,12 @@ Item {
     readonly property bool passiveFontBold: card._styleString(passiveStyle.font_weight).toLowerCase() === "bold"
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
     readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
+    readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
+    readonly property rect viewerBodyRect: surfaceLoader.viewerBodyRect
+    readonly property rect viewerProxySurfaceRect: surfaceLoader.viewerProxySurfaceRect
+    readonly property rect viewerLiveSurfaceRect: surfaceLoader.viewerLiveSurfaceRect
+    readonly property var viewerBridgeBinding: surfaceLoader.viewerBridgeBinding
+    readonly property var viewerInteractiveRects: surfaceLoader.viewerInteractiveRects
     readonly property bool isCollapsed: !!nodeData && !!nodeData.collapsed
     readonly property color color: card._useHostChrome ? card.surfaceColor : "transparent"
     readonly property real radius: card._useHostChrome ? card.resolvedCornerRadius : 0
