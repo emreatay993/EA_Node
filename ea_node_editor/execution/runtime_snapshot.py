@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Mapping
 
 from ea_node_editor.execution.runtime_dto import RuntimeWorkspace
-from ea_node_editor.nodes.types import deserialize_runtime_value, serialize_runtime_value
+from ea_node_editor.execution.runtime_value_codec import (
+    deserialize_runtime_value,
+    serialize_runtime_value,
+)
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.model import ProjectData

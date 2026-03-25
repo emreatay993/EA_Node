@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields, is_dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Literal, Protocol
 
@@ -35,8 +35,9 @@ RuntimeArtifactScope = Literal["managed", "staged"]
 _SUPPORTED_RENDER_WEIGHT_CLASSES = {"standard", "heavy"}
 _SUPPORTED_MAX_PERFORMANCE_STRATEGIES = {"generic_fallback", "proxy_surface"}
 _SUPPORTED_RENDER_QUALITY_TIERS = {"full", "reduced", "proxy"}
-_RUNTIME_ARTIFACT_MARKER_KEY = "__ea_runtime_value__"
+_RUNTIME_VALUE_MARKER_KEY = "__ea_runtime_value__"
 _RUNTIME_ARTIFACT_MARKER_VALUE = "artifact_ref"
+_RUNTIME_HANDLE_MARKER_VALUE = "handle_ref"
 
 
 def _normalize_render_quality_token(
@@ -88,6 +89,25 @@ def _copy_metadata_mapping(value: Mapping[str, Any] | None) -> dict[str, Any]:
         str(key): copy.deepcopy(item)
         for key, item in value.items()
     }
+
+
+def _normalize_required_runtime_string(field_name: str, value: object) -> str:
+    normalized = str(value).strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must be a non-empty string")
+    return normalized
+
+
+def _normalize_worker_generation(value: object) -> int:
+    if isinstance(value, bool):
+        raise TypeError("worker_generation must be an integer")
+    try:
+        generation = int(value)
+    except (TypeError, ValueError) as exc:
+        raise TypeError("worker_generation must be an integer") from exc
+    if generation < 0:
+        raise ValueError("worker_generation must be >= 0")
+    return generation
 
 
 @dataclass(slots=True, frozen=True)
@@ -163,7 +183,7 @@ class RuntimeArtifactRef:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> RuntimeArtifactRef | None:
-        if str(payload.get(_RUNTIME_ARTIFACT_MARKER_KEY, "")).strip() != _RUNTIME_ARTIFACT_MARKER_VALUE:
+        if str(payload.get(_RUNTIME_VALUE_MARKER_KEY, "")).strip() != _RUNTIME_ARTIFACT_MARKER_VALUE:
             return None
         metadata = payload.get("metadata")
         ref_value = str(payload.get("ref", "")).strip()
@@ -189,7 +209,7 @@ class RuntimeArtifactRef:
 
     def to_payload(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
-            _RUNTIME_ARTIFACT_MARKER_KEY: _RUNTIME_ARTIFACT_MARKER_VALUE,
+            _RUNTIME_VALUE_MARKER_KEY: _RUNTIME_ARTIFACT_MARKER_VALUE,
             "ref": self.ref,
             "artifact_id": self.artifact_id,
             "scope": self.scope,
@@ -200,6 +220,60 @@ class RuntimeArtifactRef:
 
     def __str__(self) -> str:
         return self.ref
+
+
+@dataclass(slots=True, frozen=True)
+class RuntimeHandleRef:
+    handle_id: str
+    kind: str
+    owner_scope: str
+    worker_generation: int
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "handle_id",
+            _normalize_required_runtime_string("handle_id", self.handle_id),
+        )
+        object.__setattr__(self, "kind", _normalize_required_runtime_string("kind", self.kind))
+        object.__setattr__(
+            self,
+            "owner_scope",
+            _normalize_required_runtime_string("owner_scope", self.owner_scope),
+        )
+        object.__setattr__(
+            self,
+            "worker_generation",
+            _normalize_worker_generation(self.worker_generation),
+        )
+        object.__setattr__(self, "metadata", _copy_metadata_mapping(self.metadata))
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> RuntimeHandleRef | None:
+        if str(payload.get(_RUNTIME_VALUE_MARKER_KEY, "")).strip() != _RUNTIME_HANDLE_MARKER_VALUE:
+            return None
+        if "worker_generation" not in payload:
+            raise ValueError("Runtime handle ref payload is missing worker_generation")
+        return cls(
+            handle_id=payload.get("handle_id", ""),
+            kind=payload.get("kind", ""),
+            owner_scope=payload.get("owner_scope", ""),
+            worker_generation=payload.get("worker_generation", 0),
+            metadata=payload.get("metadata") if isinstance(payload.get("metadata"), Mapping) else None,
+        )
+
+    def to_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            _RUNTIME_VALUE_MARKER_KEY: _RUNTIME_HANDLE_MARKER_VALUE,
+            "handle_id": self.handle_id,
+            "kind": self.kind,
+            "owner_scope": self.owner_scope,
+            "worker_generation": self.worker_generation,
+        }
+        if self.metadata:
+            payload["metadata"] = _copy_metadata_mapping(self.metadata)
+        return payload
 
 
 def coerce_runtime_artifact_ref(value: object) -> RuntimeArtifactRef | None:
@@ -217,51 +291,24 @@ def coerce_runtime_artifact_ref(value: object) -> RuntimeArtifactRef | None:
     return None
 
 
-def serialize_runtime_value(value: Any) -> Any:
-    if isinstance(value, RuntimeArtifactRef):
-        return value.to_payload()
-    if is_dataclass(value) and not isinstance(value, type):
-        return {
-            field_info.name: serialize_runtime_value(getattr(value, field_info.name))
-            for field_info in fields(value)
-        }
+def coerce_runtime_handle_ref(value: object) -> RuntimeHandleRef | None:
+    if isinstance(value, RuntimeHandleRef):
+        return value
     if isinstance(value, Mapping):
-        payload_ref = RuntimeArtifactRef.from_payload(value)
-        if payload_ref is not None:
-            return payload_ref.to_payload()
-        return {
-            str(key): serialize_runtime_value(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [serialize_runtime_value(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(serialize_runtime_value(item) for item in value)
-    if isinstance(value, set):
-        return {serialize_runtime_value(item) for item in value}
-    if isinstance(value, frozenset):
-        return frozenset(serialize_runtime_value(item) for item in value)
-    return copy.deepcopy(value)
+        return RuntimeHandleRef.from_payload(value)
+    return None
+
+
+def serialize_runtime_value(value: Any) -> Any:
+    from ea_node_editor.execution.runtime_value_codec import serialize_runtime_value as _serialize_runtime_value
+
+    return _serialize_runtime_value(value)
 
 
 def deserialize_runtime_value(value: Any) -> Any:
-    if isinstance(value, Mapping):
-        payload_ref = RuntimeArtifactRef.from_payload(value)
-        if payload_ref is not None:
-            return payload_ref
-        return {
-            str(key): deserialize_runtime_value(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [deserialize_runtime_value(item) for item in value]
-    if isinstance(value, tuple):
-        return tuple(deserialize_runtime_value(item) for item in value)
-    if isinstance(value, set):
-        return {deserialize_runtime_value(item) for item in value}
-    if isinstance(value, frozenset):
-        return frozenset(deserialize_runtime_value(item) for item in value)
-    return copy.deepcopy(value)
+    from ea_node_editor.execution.runtime_value_codec import deserialize_runtime_value as _deserialize_runtime_value
+
+    return _deserialize_runtime_value(value)
 
 
 @dataclass(slots=True, frozen=True)

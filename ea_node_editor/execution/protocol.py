@@ -5,11 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field, fields
 from typing import Any, Literal, TypeAlias
 
+from ea_node_editor.execution.runtime_value_codec import (
+    deserialize_runtime_value,
+    serialize_runtime_value,
+)
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     coerce_runtime_snapshot_payload,
 )
-from ea_node_editor.nodes.types import deserialize_runtime_value, serialize_runtime_value
 
 EngineState = Literal["ready", "running", "paused", "error"]
 RunTransition = Literal["start", "pause", "resume", "stop", "complete", "fail"]

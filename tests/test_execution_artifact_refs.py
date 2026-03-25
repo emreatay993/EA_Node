@@ -13,12 +13,32 @@ from ea_node_editor.execution.protocol import (
     event_to_dict,
 )
 from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+from ea_node_editor.execution.runtime_value_codec import (
+    deserialize_runtime_value,
+    serialize_runtime_value,
+)
 from ea_node_editor.nodes.builtins.integrations import FileReadNodePlugin, FileWriteNodePlugin
 from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
 
 class ExecutionArtifactRefProtocolTests(unittest.TestCase):
+    def test_runtime_artifact_payload_shape_stays_wire_compatible_through_codec(self) -> None:
+        payload = {
+            "__ea_runtime_value__": "artifact_ref",
+            "ref": "artifact-stage://stored_stdout",
+            "artifact_id": "stored_stdout",
+            "scope": "staged",
+            "metadata": {"line_count": 4},
+        }
+
+        restored = deserialize_runtime_value(payload)
+        self.assertIsInstance(restored, RuntimeArtifactRef)
+        self.assertEqual(
+            serialize_runtime_value(restored),
+            payload,
+        )
+
     def test_node_completed_event_round_trips_runtime_artifact_ref_payloads(self) -> None:
         event = NodeCompletedEvent(
             run_id="run_artifact",
