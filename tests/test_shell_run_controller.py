@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from tests.main_window_shell.base import MainWindowShellTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,211 @@ _SHELL_TEST_RUNNER = (
 )
 
 
+class _ViewerExecutionClientStub:
+    def __init__(self) -> None:
+        self.next_run_id = "run_live"
+        self.start_calls: list[dict] = []
+        self.pause_calls: list[str] = []
+        self.resume_calls: list[str] = []
+        self.stop_calls: list[str] = []
+        self.open_calls: list[dict] = []
+        self.update_calls: list[dict] = []
+        self.close_calls: list[dict] = []
+        self._request_counter = 0
+
+    def _next_request_id(self, prefix: str) -> str:
+        self._request_counter += 1
+        return f"{prefix}_{self._request_counter}"
+
+    def start_run(self, *, project_path: str, workspace_id: str, trigger: dict) -> str:
+        self.start_calls.append(
+            {
+                "project_path": project_path,
+                "workspace_id": workspace_id,
+                "trigger": trigger,
+            }
+        )
+        return self.next_run_id
+
+    def pause_run(self, run_id: str) -> None:
+        self.pause_calls.append(str(run_id))
+
+    def resume_run(self, run_id: str) -> None:
+        self.resume_calls.append(str(run_id))
+
+    def stop_run(self, run_id: str) -> None:
+        self.stop_calls.append(str(run_id))
+
+    def open_viewer_session(
+        self,
+        *,
+        workspace_id: str,
+        node_id: str,
+        session_id: str = "",
+        data_refs: dict | None = None,
+        summary: dict | None = None,
+        options: dict | None = None,
+    ) -> str:
+        request_id = self._next_request_id("open")
+        self.open_calls.append(
+            {
+                "request_id": request_id,
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "session_id": session_id,
+                "data_refs": dict(data_refs or {}),
+                "summary": dict(summary or {}),
+                "options": dict(options or {}),
+            }
+        )
+        return request_id
+
+    def update_viewer_session(
+        self,
+        *,
+        workspace_id: str,
+        node_id: str,
+        session_id: str,
+        data_refs: dict | None = None,
+        summary: dict | None = None,
+        options: dict | None = None,
+    ) -> str:
+        request_id = self._next_request_id("update")
+        self.update_calls.append(
+            {
+                "request_id": request_id,
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "session_id": session_id,
+                "data_refs": dict(data_refs or {}),
+                "summary": dict(summary or {}),
+                "options": dict(options or {}),
+            }
+        )
+        return request_id
+
+    def close_viewer_session(
+        self,
+        *,
+        workspace_id: str,
+        node_id: str,
+        session_id: str,
+        options: dict | None = None,
+    ) -> str:
+        request_id = self._next_request_id("close")
+        self.close_calls.append(
+            {
+                "request_id": request_id,
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "session_id": session_id,
+                "options": dict(options or {}),
+            }
+        )
+        return request_id
+
+    def shutdown(self) -> None:
+        return None
+
+
+def _viewer_opened_event(*, request_id: str, workspace_id: str, node_id: str, session_id: str) -> dict:
+    return {
+        "type": "viewer_session_opened",
+        "request_id": request_id,
+        "workspace_id": workspace_id,
+        "node_id": node_id,
+        "session_id": session_id,
+        "data_refs": {},
+        "summary": {
+            "cache_state": "proxy_ready",
+            "result_name": "displacement",
+        },
+        "options": {
+            "session_state": "open",
+            "cache_state": "proxy_ready",
+            "live_policy": "focus_only",
+            "keep_live": False,
+            "playback_state": "paused",
+            "live_mode": "proxy",
+        },
+    }
+
+
 class ShellRunControllerTests(MainWindowShellTestBase):
+
+    def test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace(self) -> None:
+        execution_client = _ViewerExecutionClientStub()
+        self.window.execution_client = execution_client
+
+        bridge = self.window.quick_widget.rootContext().contextProperty("viewerSessionBridge")
+        self.assertIsInstance(bridge, ViewerSessionBridge)
+        self.assertIs(bridge, self.window.viewer_session_bridge)
+
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=40.0)
+        session_id = bridge.open(node_id, {"summary": {"result_name": "displacement"}})
+        open_call = execution_client.open_calls[-1]
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=session_id,
+            )
+        )
+        self.app.processEvents()
+
+        self.window._run_workflow()
+        self.app.processEvents()
+
+        state = bridge.session_state(node_id)
+        self.assertEqual(state["phase"], "invalidated")
+        self.assertEqual(state["invalidated_reason"], "workspace_rerun")
+        self.assertEqual(state["summary"]["run_id"], "run_live")
+        self.assertEqual(self.window.run_state.active_run_id, "run_live")
+        self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
+
+    def test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset(self) -> None:
+        execution_client = _ViewerExecutionClientStub()
+        self.window.execution_client = execution_client
+
+        bridge = self.window.viewer_session_bridge
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=80.0)
+        session_id = bridge.open(node_id)
+        open_call = execution_client.open_calls[-1]
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=session_id,
+            )
+        )
+        self.app.processEvents()
+
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        with patch.object(QMessageBox, "critical") as critical:
+            self.window.execution_event.emit(
+                {
+                    "type": "run_failed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": node_id,
+                    "error": "Execution worker terminated unexpectedly.",
+                    "traceback": "",
+                    "fatal": True,
+                }
+            )
+            self.app.processEvents()
+
+        state = bridge.session_state(node_id)
+        self.assertEqual(state["phase"], "invalidated")
+        self.assertEqual(state["invalidated_reason"], "worker_reset")
+        self.assertEqual(self.window.run_state.active_run_id, "")
+        critical.assert_called_once()
 
     def test_stream_log_events_are_scoped_to_active_run(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

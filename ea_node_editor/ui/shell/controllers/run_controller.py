@@ -77,6 +77,7 @@ class RunController:
             return
         self._state.active_run_id = run_id
         self._state.active_run_workspace_id = workspace_id
+        self._invalidate_viewer_sessions_for_rerun(workspace_id=workspace_id, run_id=run_id)
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def toggle_pause_resume(self) -> None:
@@ -142,6 +143,8 @@ class RunController:
                 event.get("node_id", ""),
                 event.get("error", ""),
             )
+            if bool(event.get("fatal", False)):
+                self._invalidate_viewer_sessions_for_worker_reset()
             self.clear_active_run()
             self.update_run_actions()
         elif event_type == "run_stopped":
@@ -193,3 +196,25 @@ class RunController:
         self._host.action_pause.setText(pause_label)
         if hasattr(self._host.action_pause, "setIcon"):
             self._host.action_pause.setIcon(qicon("resume" if pause_label == "Resume" else "pause"))
+
+    def _invalidate_viewer_sessions_for_rerun(self, *, workspace_id: str, run_id: str) -> None:
+        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
+        if viewer_session_bridge is None:
+            return
+        invalidate_workspace_sessions = getattr(viewer_session_bridge, "invalidate_workspace_sessions", None)
+        if not callable(invalidate_workspace_sessions):
+            return
+        invalidate_workspace_sessions(
+            workspace_id,
+            reason="workspace_rerun",
+            run_id=run_id,
+        )
+
+    def _invalidate_viewer_sessions_for_worker_reset(self) -> None:
+        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
+        if viewer_session_bridge is None:
+            return
+        invalidate_all_sessions = getattr(viewer_session_bridge, "invalidate_all_sessions", None)
+        if not callable(invalidate_all_sessions):
+            return
+        invalidate_all_sessions(reason="worker_reset")

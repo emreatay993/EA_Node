@@ -112,6 +112,7 @@ from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
+from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -204,6 +205,18 @@ class ShellWindow(QMainWindow):
         if bridges is None:
             return None
         return bridges.graph_canvas_command_bridge
+
+    @property
+    def viewer_session_bridge(self) -> ViewerSessionBridge:
+        bridge = getattr(self, "_viewer_session_bridge", None)
+        if bridge is None:
+            bridge = ViewerSessionBridge(
+                self,
+                shell_window=self,
+                scene_bridge=self.scene,
+            )
+            self._viewer_session_bridge = bridge
+        return bridge
 
     @property
     def project_path(self) -> str:
@@ -358,6 +371,12 @@ class ShellWindow(QMainWindow):
 
     def _create_execution_client(self):
         return ProcessExecutionClient()
+
+    def _reset_viewer_session_bridge(self, *, reason: str) -> None:
+        bridge = getattr(self, "_viewer_session_bridge", None)
+        if bridge is None:
+            return
+        bridge.reset_all_sessions(reason=reason)
 
     @pyqtProperty(str, notify=project_meta_changed)
     def project_display_name(self) -> str:
@@ -1278,13 +1297,23 @@ class ShellWindow(QMainWindow):
         return self.project_session_controller.show_project_files_dialog()
 
     def _new_project(self):
-        return self.project_session_controller.new_project()
+        self.project_session_controller.new_project()
+        self._reset_viewer_session_bridge(reason="project_close")
+        return None
 
     def _open_project(self):
-        return self.project_session_controller.open_project()
+        before_project_path = self.project_path
+        before_project_object_id = id(self.model.project)
+        self.project_session_controller.open_project()
+        if self.project_path != before_project_path or id(self.model.project) != before_project_object_id:
+            self._reset_viewer_session_bridge(reason="project_close")
+        return None
 
     def _open_project_path(self, path):
-        return self.project_session_controller.open_project_path(path)
+        opened = bool(self.project_session_controller.open_project_path(path))
+        if opened:
+            self._reset_viewer_session_bridge(reason="project_close")
+        return opened
 
     def _clear_recent_projects(self):
         return self.project_session_controller.clear_recent_projects()
@@ -1617,6 +1646,7 @@ class ShellWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: ANN001
         self.autosave_timer.stop()
         try:
+            self._reset_viewer_session_bridge(reason="project_close")
             self.project_session_controller.close_session()
         finally:
             self.execution_client.shutdown()
