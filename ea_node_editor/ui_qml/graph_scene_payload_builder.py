@@ -24,7 +24,10 @@ from ea_node_editor.ui.graph_theme import (
 from ea_node_editor.ui.support.node_presentation import build_inline_property_items
 from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size
-from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
+from ea_node_editor.ui_qml.graph_surface_metrics import (
+    node_surface_metrics,
+    viewer_surface_contract_payload,
+)
 
 if TYPE_CHECKING:
     from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
@@ -330,7 +333,7 @@ class GraphScenePayloadBuilder:
             workspace_nodes=workspace.nodes,
             port_connection_counts=port_connection_counts,
         )
-        return {
+        payload = {
             "node_id": node.node_id,
             "type_id": node.type_id,
             "title": node.title,
@@ -357,6 +360,13 @@ class GraphScenePayloadBuilder:
             ),
             "inline_properties": inline_properties_payload,
         }
+        if str(spec.surface_family or "").strip() == "viewer":
+            payload["viewer_surface"] = viewer_surface_contract_payload(
+                width=width,
+                height=height,
+                surface_metrics=surface_metrics,
+            )
+        return payload
 
     def _payload_node(self, node, spec: NodeTypeSpec):
         properties = self._payload_properties(node=node, spec=spec)

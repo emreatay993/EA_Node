@@ -1,0 +1,372 @@
+from __future__ import annotations
+
+import unittest
+
+from ea_node_editor.graph.model import GraphModel, NodeInstance
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
+from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
+from ea_node_editor.ui_qml.graph_surface_metrics import (
+    node_surface_metrics,
+    viewer_surface_contract_payload,
+)
+from tests.graph_surface_pointer_regression import (
+    QML_POINTER_REGRESSION_HELPERS,
+    run_qml_probe,
+)
+
+
+class _ViewerSurfacePlugin:
+    def __init__(self, spec: NodeTypeSpec) -> None:
+        self._spec = spec
+
+    def spec(self) -> NodeTypeSpec:
+        return self._spec
+
+    def execute(self, _ctx) -> NodeResult:  # noqa: ANN001
+        return NodeResult()
+
+
+def _viewer_surface_spec() -> NodeTypeSpec:
+    return NodeTypeSpec(
+        type_id="tests.viewer_surface_contract",
+        display_name="Viewer Contract",
+        category="Tests",
+        icon="",
+        ports=(
+            PortSpec("fields", "in", "data", "dpf_field"),
+            PortSpec("session", "out", "data", "dpf_view_session"),
+        ),
+        properties=(),
+        surface_family="viewer",
+        render_quality=NodeRenderQualitySpec(
+            weight_class="heavy",
+            max_performance_strategy="proxy_surface",
+            supported_quality_tiers=("full", "proxy"),
+        ),
+    )
+
+
+class ViewerSurfaceContractTests(unittest.TestCase):
+    def _run_qml_probe(self, label: str, body: str) -> None:
+        run_qml_probe(
+            self,
+            label,
+            """
+            from pathlib import Path
+
+            from PyQt6.QtCore import QObject, QUrl, pyqtProperty
+            from PyQt6.QtQml import QQmlComponent, QQmlEngine
+            from PyQt6.QtWidgets import QApplication
+
+            from ea_node_editor.ui.media_preview_provider import (
+                LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
+                LocalMediaPreviewImageProvider,
+            )
+
+            class ThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def palette(self):
+                    return {
+                        "accent": "#2F89FF",
+                        "border": "#3a4355",
+                        "canvas_bg": "#151821",
+                        "canvas_major_grid": "#2f3644",
+                        "canvas_minor_grid": "#222833",
+                        "group_title_fg": "#d5dbea",
+                        "hover": "#33405c",
+                        "muted_fg": "#95a0b8",
+                        "panel_bg": "#1b1f2a",
+                        "panel_title_fg": "#eef3ff",
+                        "pressed": "#22304a",
+                        "toolbar_bg": "#202635",
+                    }
+
+            class GraphThemeBridgeStub(QObject):
+                @pyqtProperty("QVariantMap", constant=True)
+                def node_palette(self):
+                    return {
+                        "card_bg": "#1f2431",
+                        "card_border": "#414a5d",
+                        "card_selected_border": "#5da9ff",
+                        "header_bg": "#252c3c",
+                        "header_fg": "#eef3ff",
+                        "inline_driven_fg": "#aeb8ce",
+                        "inline_input_bg": "#18202d",
+                        "inline_input_border": "#465066",
+                        "inline_input_fg": "#eef3ff",
+                        "inline_label_fg": "#d5dbea",
+                        "inline_row_bg": "#202635",
+                        "inline_row_border": "#3a4355",
+                        "port_interactive_border": "#8ca0c7",
+                        "port_interactive_fill": "#101521",
+                        "port_interactive_ring_border": "#7fb2ff",
+                        "port_interactive_ring_fill": "#1a2233",
+                        "port_label_fg": "#d5dbea",
+                        "scope_badge_bg": "#1f3657",
+                        "scope_badge_border": "#4c7bc0",
+                        "scope_badge_fg": "#eef3ff",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def port_kind_palette(self):
+                    return {
+                        "data": "#7AA8FF",
+                        "exec": "#67D487",
+                        "completed": "#E4CE7D",
+                        "failed": "#D94F4F",
+                    }
+
+                @pyqtProperty("QVariantMap", constant=True)
+                def edge_palette(self):
+                    return {
+                        "invalid_drag_stroke": "#D94F4F",
+                        "preview_stroke": "#95a0b8",
+                        "selected_stroke": "#5da9ff",
+                        "valid_drag_stroke": "#67D487",
+                    }
+
+            app = QApplication.instance() or QApplication([])
+            engine = QQmlEngine()
+            engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
+            engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
+            engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
+
+            repo_root = Path.cwd()
+            graph_node_host_qml_path = repo_root / "ea_node_editor" / "ui_qml" / "components" / "graph" / "GraphNodeHost.qml"
+
+            def create_component(path, initial_properties):
+                component = QQmlComponent(engine, QUrl.fromLocalFile(str(path)))
+                if component.status() != QQmlComponent.Status.Ready:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError(f"Failed to load {path.name}:\\n{errors}")
+                if hasattr(component, "createWithInitialProperties"):
+                    obj = component.createWithInitialProperties(initial_properties)
+                else:
+                    obj = component.create()
+                    for key, value in initial_properties.items():
+                        obj.setProperty(key, value)
+                if obj is None:
+                    errors = "\\n".join(error.toString() for error in component.errors())
+                    raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
+                app.processEvents()
+                return obj
+
+            def viewer_payload():
+                return {
+                    "node_id": "node_viewer_surface_contract",
+                    "type_id": "tests.viewer_surface_contract",
+                    "title": "Viewer Contract",
+                    "x": 120.0,
+                    "y": 90.0,
+                    "width": 296.0,
+                    "height": 236.0,
+                    "accent": "#2F89FF",
+                    "collapsed": False,
+                    "selected": False,
+                    "runtime_behavior": "active",
+                    "surface_family": "viewer",
+                    "surface_variant": "",
+                    "render_quality": {
+                        "weight_class": "heavy",
+                        "max_performance_strategy": "proxy_surface",
+                        "supported_quality_tiers": ["full", "proxy"],
+                    },
+                    "surface_metrics": {
+                        "default_width": 296.0,
+                        "default_height": 236.0,
+                        "min_width": 220.0,
+                        "min_height": 208.0,
+                        "collapsed_width": 130.0,
+                        "collapsed_height": 36.0,
+                        "header_height": 24.0,
+                        "header_top_margin": 4.0,
+                        "body_top": 30.0,
+                        "body_height": 176.0,
+                        "port_top": 206.0,
+                        "port_height": 18.0,
+                        "port_center_offset": 6.0,
+                        "port_side_margin": 8.0,
+                        "port_dot_radius": 3.5,
+                        "resize_handle_size": 16.0,
+                        "title_top": 4.0,
+                        "title_height": 24.0,
+                        "title_left_margin": 10.0,
+                        "title_right_margin": 42.0,
+                        "title_centered": False,
+                        "body_left_margin": 14.0,
+                        "body_right_margin": 14.0,
+                        "body_bottom_margin": 12.0,
+                        "show_header_background": True,
+                        "show_accent_bar": True,
+                        "use_host_chrome": True,
+                        "standard_title_full_width": 0.0,
+                        "standard_left_label_width": 0.0,
+                        "standard_right_label_width": 0.0,
+                        "standard_port_gutter": 21.5,
+                        "standard_center_gap": 24.0,
+                        "standard_port_label_min_width": 0.0,
+                    },
+                    "viewer_surface": {
+                        "body_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                        "proxy_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                        "live_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                        "overlay_target": "body",
+                        "proxy_surface_supported": True,
+                        "live_surface_supported": True,
+                    },
+                    "visual_style": {},
+                    "can_enter_scope": False,
+                    "ports": [
+                        {
+                            "key": "fields",
+                            "label": "Fields",
+                            "direction": "in",
+                            "kind": "data",
+                            "data_type": "dpf_field",
+                            "connected": False,
+                        },
+                        {
+                            "key": "session",
+                            "label": "Session",
+                            "direction": "out",
+                            "kind": "data",
+                            "data_type": "dpf_view_session",
+                            "connected": False,
+                        },
+                    ],
+                    "inline_properties": [],
+                }
+            """,
+            QML_POINTER_REGRESSION_HELPERS,
+            body,
+        )
+
+    def test_registry_accepts_viewer_surface_family(self) -> None:
+        registry = NodeRegistry()
+        spec = _viewer_surface_spec()
+
+        registry.register(lambda: _ViewerSurfacePlugin(spec))
+
+        self.assertEqual(registry.get_spec(spec.type_id).surface_family, "viewer")
+
+    def test_viewer_surface_metrics_publish_reserved_body_contract(self) -> None:
+        spec = _viewer_surface_spec()
+        node = NodeInstance(
+            node_id="node_viewer_surface_contract",
+            type_id=spec.type_id,
+            title="Viewer Contract",
+            x=24.0,
+            y=18.0,
+        )
+
+        metrics = node_surface_metrics(node, spec, {node.node_id: node})
+        contract = viewer_surface_contract_payload(
+            width=metrics.default_width,
+            height=metrics.default_height,
+            surface_metrics=metrics,
+        )
+
+        self.assertEqual(metrics.default_width, 296.0)
+        self.assertEqual(metrics.default_height, 236.0)
+        self.assertEqual(metrics.min_width, 220.0)
+        self.assertEqual(metrics.min_height, 208.0)
+        self.assertEqual(metrics.body_top, 30.0)
+        self.assertEqual(metrics.body_height, 176.0)
+        self.assertEqual(metrics.port_top, 206.0)
+        self.assertEqual(metrics.title_right_margin, 42.0)
+        self.assertTrue(metrics.show_header_background)
+        self.assertTrue(metrics.show_accent_bar)
+        self.assertTrue(metrics.use_host_chrome)
+        self.assertEqual(
+            contract,
+            {
+                "body_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "proxy_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "live_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "overlay_target": "body",
+                "proxy_surface_supported": True,
+                "live_surface_supported": True,
+            },
+        )
+
+    def test_graph_scene_payload_builder_publishes_viewer_surface_payload(self) -> None:
+        registry = NodeRegistry()
+        spec = _viewer_surface_spec()
+        registry.register(lambda: _ViewerSurfacePlugin(spec))
+
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(
+            workspace_id,
+            spec.type_id,
+            spec.display_name,
+            64.0,
+            96.0,
+        )
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=None,
+        )
+
+        payload = next(item for item in nodes_payload if item["type_id"] == spec.type_id)
+        self.assertEqual(payload["surface_family"], "viewer")
+        self.assertEqual(payload["surface_metrics"]["default_height"], 236.0)
+        self.assertEqual(payload["viewer_surface"]["overlay_target"], "body")
+        self.assertEqual(
+            payload["viewer_surface"]["live_rect"],
+            {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+        )
+        self.assertEqual(
+            payload["render_quality"],
+            {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            },
+        )
+
+    def test_graph_node_host_routes_viewer_surface_family_through_loader(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-loader-contract",
+            """
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": viewer_payload(),
+                    "snapshotReuseActive": True,
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            assert loader is not None
+            assert surface is not None
+
+            assert host.property("surfaceFamily") == "viewer"
+            assert loader.property("loadedSurfaceKey") == "viewer"
+            assert host.property("resolvedQualityTier") == "proxy"
+            assert bool(surface.property("proxySurfaceActive"))
+            assert not bool(surface.property("liveSurfaceActive"))
+
+            contract = variant_value(loader.property("viewerSurfaceContract"))
+            assert contract["overlay_target"] == "body"
+            assert bool(contract["proxy_surface_supported"])
+            assert bool(contract["live_surface_supported"])
+
+            body_rect = loader.property("viewerBodyRect")
+            live_rect = loader.property("viewerLiveSurfaceRect")
+            assert rect_field(body_rect, "x") == 14.0
+            assert rect_field(body_rect, "y") == 30.0
+            assert rect_field(body_rect, "width") == 268.0
+            assert rect_field(body_rect, "height") == 176.0
+            assert rect_field(live_rect, "x") == 14.0
+            assert rect_field(live_rect, "y") == 30.0
+            assert rect_field(live_rect, "width") == 268.0
+            assert rect_field(live_rect, "height") == 176.0
+            """,
+        )

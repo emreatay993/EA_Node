@@ -363,6 +363,112 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_accepts_viewer_surface_family_without_canvas_special_cases(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-family-contract",
+            """
+            payload = node_payload(surface_family="viewer")
+            payload["type_id"] = "tests.viewer_surface_contract"
+            payload["title"] = "Viewer Contract"
+            payload["width"] = 296.0
+            payload["height"] = 236.0
+            payload["ports"] = [
+                {
+                    "key": "fields",
+                    "label": "Fields",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "dpf_field",
+                    "connected": False,
+                },
+                {
+                    "key": "session",
+                    "label": "Session",
+                    "direction": "out",
+                    "kind": "data",
+                    "data_type": "dpf_view_session",
+                    "connected": False,
+                },
+            ]
+            payload["inline_properties"] = []
+            payload["render_quality"] = {
+                "weight_class": "heavy",
+                "max_performance_strategy": "proxy_surface",
+                "supported_quality_tiers": ["full", "proxy"],
+            }
+            payload["surface_metrics"] = {
+                "default_width": 296.0,
+                "default_height": 236.0,
+                "min_width": 220.0,
+                "min_height": 208.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_left_margin": 14.0,
+                "body_right_margin": 14.0,
+                "body_top": 30.0,
+                "body_height": 176.0,
+                "body_bottom_margin": 12.0,
+                "port_top": 206.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+                "title_top": 4.0,
+                "title_height": 24.0,
+                "title_left_margin": 10.0,
+                "title_right_margin": 42.0,
+                "title_centered": False,
+                "show_header_background": True,
+                "show_accent_bar": True,
+                "use_host_chrome": True,
+                "standard_title_full_width": 0.0,
+                "standard_left_label_width": 0.0,
+                "standard_right_label_width": 0.0,
+                "standard_port_gutter": 21.5,
+                "standard_center_gap": 24.0,
+                "standard_port_label_min_width": 0.0,
+            }
+            payload["viewer_surface"] = {
+                "body_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "proxy_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "live_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "overlay_target": "body",
+                "proxy_surface_supported": True,
+                "live_surface_supported": True,
+            }
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "snapshotReuseActive": True,
+                },
+            )
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            assert loader is not None
+            assert surface is not None
+
+            assert host.property("surfaceFamily") == "viewer"
+            assert loader.property("loadedSurfaceKey") == "viewer"
+            assert host.property("requestedQualityTier") == "reduced"
+            assert host.property("resolvedQualityTier") == "proxy"
+            assert bool(surface.property("proxySurfaceActive"))
+
+            contract = variant_value(loader.property("viewerSurfaceContract"))
+            assert contract["overlay_target"] == "body"
+
+            live_rect = loader.property("viewerLiveSurfaceRect")
+            assert rect_field(live_rect, "x") == 14.0
+            assert rect_field(live_rect, "y") == 30.0
+            assert rect_field(live_rect, "width") == 268.0
+            assert rect_field(live_rect, "height") == 176.0
+            """,
+        )
+
     def test_surface_loader_forwards_embedded_interactive_rects_for_inline_properties(self) -> None:
         self._run_qml_probe(
             "loader-embedded-rects",

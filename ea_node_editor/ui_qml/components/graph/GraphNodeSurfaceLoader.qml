@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import "passive" as GraphPassiveComponents
+import "viewer" as GraphViewerComponents
 
 Item {
     id: root
@@ -21,6 +22,30 @@ Item {
     readonly property bool proxySurfaceActive: proxySurfaceRequested && loader.item
         ? Boolean(loader.item.proxySurfaceActive)
         : false
+    readonly property var viewerSurfaceContract: {
+        if (loader.item && loader.item.viewerSurfaceContract !== undefined && loader.item.viewerSurfaceContract !== null)
+            return loader.item.viewerSurfaceContract;
+        if (root.nodeData && root.nodeData.viewer_surface)
+            return root.nodeData.viewer_surface;
+        return ({});
+    }
+    readonly property rect viewerBodyRect: {
+        if (root.loadedSurfaceKey !== "viewer")
+            return Qt.rect(0.0, 0.0, 0.0, 0.0);
+        return _rectValue(root.viewerSurfaceContract.body_rect);
+    }
+    readonly property rect viewerProxySurfaceRect: {
+        if (root.loadedSurfaceKey !== "viewer")
+            return Qt.rect(0.0, 0.0, 0.0, 0.0);
+        var contract = root.viewerSurfaceContract;
+        return _rectValue(contract.proxy_rect !== undefined ? contract.proxy_rect : contract.body_rect);
+    }
+    readonly property rect viewerLiveSurfaceRect: {
+        if (root.loadedSurfaceKey !== "viewer")
+            return Qt.rect(0.0, 0.0, 0.0, 0.0);
+        var contract = root.viewerSurfaceContract;
+        return _rectValue(contract.live_rect !== undefined ? contract.live_rect : contract.body_rect);
+    }
     readonly property var surfaceQualityContext: host ? host.surfaceQualityContext : ({
         "requested_quality_tier": root.requestedQualityTier,
         "resolved_quality_tier": root.resolvedQualityTier,
@@ -56,7 +81,25 @@ Item {
             return "comment_backdrop";
         if (normalizedFamily === "media")
             return "media";
+        if (normalizedFamily === "viewer")
+            return "viewer";
         return "standard";
+    }
+
+    function _rectValue(value) {
+        var x = value !== undefined && value !== null ? Number(value.x) : NaN;
+        var y = value !== undefined && value !== null ? Number(value.y) : NaN;
+        var width = value !== undefined && value !== null ? Number(value.width) : NaN;
+        var height = value !== undefined && value !== null ? Number(value.height) : NaN;
+        if (!isFinite(x))
+            x = 0.0;
+        if (!isFinite(y))
+            y = 0.0;
+        if (!isFinite(width))
+            width = 0.0;
+        if (!isFinite(height))
+            height = 0.0;
+        return Qt.rect(x, y, Math.max(0.0, width), Math.max(0.0, height));
     }
 
     function triggerHoverAction() {
@@ -91,6 +134,8 @@ Item {
                 return commentBackdropSurfaceComponent;
             if (root.loadedSurfaceKey === "media")
                 return mediaSurfaceComponent;
+            if (root.loadedSurfaceKey === "viewer")
+                return viewerSurfaceComponent;
             return standardSurfaceComponent;
         }
     }
@@ -139,6 +184,14 @@ Item {
         id: commentBackdropSurfaceComponent
 
         GraphPassiveComponents.GraphCommentBackdropSurface {
+            host: root.host
+        }
+    }
+
+    Component {
+        id: viewerSurfaceComponent
+
+        GraphViewerComponents.GraphViewerSurface {
             host: root.host
         }
     }

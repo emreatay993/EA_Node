@@ -43,7 +43,9 @@ class NodeRegistry:
         "flowchart",
         "planning",
         "annotation",
+        "comment_backdrop",
         "media",
+        "viewer",
     }
 
     def __init__(self) -> None:

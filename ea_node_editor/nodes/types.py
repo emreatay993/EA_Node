@@ -25,7 +25,15 @@ PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
 InlineEditorType = Literal["", "text", "number", "toggle", "enum", "path", "textarea"]
 InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum"]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
-SurfaceFamily = Literal["standard", "flowchart", "planning", "annotation", "media"]
+SurfaceFamily = Literal[
+    "standard",
+    "flowchart",
+    "planning",
+    "annotation",
+    "comment_backdrop",
+    "media",
+    "viewer",
+]
 PluginProvenanceKind = Literal["runtime", "file", "package", "entry_point"]
 RenderWeightClass = Literal["standard", "heavy"]
 MaxPerformanceStrategy = Literal["generic_fallback", "proxy_surface"]
