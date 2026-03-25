@@ -38,6 +38,7 @@ from ea_node_editor.execution.runtime_snapshot import (
     build_runtime_snapshot,
     coerce_runtime_snapshot_payload,
 )
+from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.types import ExecutionContext, deserialize_runtime_value
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
@@ -490,6 +491,7 @@ class _NodeExecutor:
         publisher: _RunEventPublisher,
         *,
         artifact_service: _RuntimeArtifactService,
+        worker_services: WorkerServices,
         project_path: str,
         runtime_snapshot: RuntimeSnapshot,
         trigger: dict[str, Any],
@@ -499,6 +501,7 @@ class _NodeExecutor:
         self._control = control
         self._publisher = publisher
         self._artifact_service = artifact_service
+        self._worker_services = worker_services
         self._project_path = str(project_path).strip()
         self._runtime_snapshot = runtime_snapshot
         self._trigger = trigger
@@ -566,6 +569,7 @@ class _NodeExecutor:
             project_path=self._project_path,
             runtime_snapshot=self._runtime_snapshot,
             path_resolver=self._artifact_service.resolve_path,
+            worker_services=self._worker_services,
         )
 
         try:
@@ -665,7 +669,9 @@ class _WorkflowRunner:
         command: StartRunCommand,
         event_queue: Queue,
         command_queue: Queue | None = None,
+        worker_services: WorkerServices | None = None,
     ) -> None:
+        self._command = command
         self._control = _RunControl(
             command_queue,
             event_queue,
@@ -677,6 +683,7 @@ class _WorkflowRunner:
             run_id=command.run_id,
             workspace_id=command.workspace_id,
         )
+        self._worker_services = worker_services or WorkerServices()
         prepared = _prepare_runtime(command)
         self._registry = prepared.registry
         self._runtime_snapshot = prepared.runtime_snapshot
@@ -692,34 +699,38 @@ class _WorkflowRunner:
             self._control,
             self._publisher,
             artifact_service=self._artifact_service,
+            worker_services=self._worker_services,
             project_path=command.project_path,
             runtime_snapshot=self._runtime_snapshot,
             trigger=build_execution_trigger(command.trigger, self._runtime_snapshot),
         )
 
     def run(self) -> None:
-        self._publisher.emit_run_started()
-        self._publisher.emit_log("info", "Workflow run started.")
+        try:
+            self._publisher.emit_run_started()
+            self._publisher.emit_log("info", "Workflow run started.")
 
-        ready = self._plan.initial_ready()
-        while ready:
-            node_id = ready.popleft()
-            if node_id in self._executor.executed:
-                continue
-            status = self._executor.run_node(node_id)
-            if self._handle_terminal_status(status):
-                return
-            ready.extend(self._plan.release_downstream(node_id, status))
-
-        if not self._executor.executed and self._plan.has_only_dependency_nodes():
-            for node_id in self._plan.dependency_sinks():
+            ready = self._plan.initial_ready()
+            while ready:
+                node_id = ready.popleft()
                 if node_id in self._executor.executed:
                     continue
                 status = self._executor.run_node(node_id)
                 if self._handle_terminal_status(status):
                     return
+                ready.extend(self._plan.release_downstream(node_id, status))
 
-        self._publisher.emit_run_completed()
+            if not self._executor.executed and self._plan.has_only_dependency_nodes():
+                for node_id in self._plan.dependency_sinks():
+                    if node_id in self._executor.executed:
+                        continue
+                    status = self._executor.run_node(node_id)
+                    if self._handle_terminal_status(status):
+                        return
+
+            self._publisher.emit_run_completed()
+        finally:
+            self._worker_services.cleanup_run(self._command.run_id)
 
     def _handle_terminal_status(self, status: str) -> bool:
         if status == "failed":
@@ -734,16 +745,23 @@ def run_workflow(
     command: StartRunCommand | dict[str, Any],
     event_queue: Queue,
     command_queue: Queue | None = None,
+    worker_services: WorkerServices | None = None,
 ) -> None:
     typed_command = _coerce_start_run_command(command)
     _WorkflowRunner(
         typed_command,
         event_queue,
         command_queue=command_queue,
+        worker_services=worker_services,
     ).run()
 
 
-def worker_main(command_queue: Queue, event_queue: Queue) -> None:
+def worker_main(
+    command_queue: Queue,
+    event_queue: Queue,
+    worker_services: WorkerServices | None = None,
+) -> None:
+    services = worker_services or WorkerServices()
     while True:
         raw_command = command_queue.get()
         if not isinstance(raw_command, dict):
@@ -760,8 +778,14 @@ def worker_main(command_queue: Queue, event_queue: Queue) -> None:
             break
         if isinstance(command, StartRunCommand):
             try:
-                run_workflow(command, event_queue, command_queue=command_queue)
+                run_workflow(
+                    command,
+                    event_queue,
+                    command_queue=command_queue,
+                    worker_services=services,
+                )
             except Exception as exc:  # noqa: BLE001
+                services.reset()
                 _emit(
                     event_queue,
                     RunFailedEvent(

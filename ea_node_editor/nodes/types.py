@@ -429,6 +429,7 @@ class ExecutionContext:
     project_path: str = ""
     runtime_snapshot: RuntimeSnapshot | None = None
     path_resolver: Callable[[Any], Path | None] = field(default=lambda _value: None)
+    worker_services: Any = None
 
     def log_info(self, message: str) -> None:
         self.emit_log("info", message)
@@ -441,6 +442,58 @@ class ExecutionContext:
 
     def runtime_artifact_ref(self, value: Any) -> RuntimeArtifactRef | None:
         return coerce_runtime_artifact_ref(value)
+
+    def runtime_handle_ref(self, value: Any) -> RuntimeHandleRef | None:
+        return coerce_runtime_handle_ref(value)
+
+    def _require_worker_services(self) -> Any:
+        if self.worker_services is None:
+            raise RuntimeError("ExecutionContext does not have worker services.")
+        return self.worker_services
+
+    def register_handle(
+        self,
+        value: Any,
+        *,
+        kind: str,
+        owner_scope: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef:
+        return self._require_worker_services().register_handle(
+            value,
+            kind=kind,
+            run_id=self.run_id,
+            owner_scope=owner_scope,
+            metadata=metadata,
+        )
+
+    def resolve_handle(self, value: Any, *, expected_kind: str = "") -> Any:
+        runtime_ref = self.runtime_handle_ref(value)
+        if runtime_ref is None:
+            raise TypeError("ExecutionContext.resolve_handle requires a RuntimeHandleRef payload.")
+        return self._require_worker_services().resolve_handle(runtime_ref, expected_kind=expected_kind)
+
+    def release_handle(self, value: Any) -> bool:
+        runtime_ref = self.runtime_handle_ref(value)
+        if runtime_ref is None:
+            raise TypeError("ExecutionContext.release_handle requires a RuntimeHandleRef payload.")
+        return self._require_worker_services().release_handle(runtime_ref)
+
+    def handle_ref(
+        self,
+        value: Any,
+        *,
+        kind: str = "",
+        owner_scope: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef:
+        return self._require_worker_services().handle_ref(
+            value,
+            kind=kind,
+            run_id=self.run_id,
+            owner_scope=owner_scope,
+            metadata=metadata,
+        )
 
     def resolve_path_value(self, value: Any) -> Path | None:
         runtime_ref = self.runtime_artifact_ref(value)

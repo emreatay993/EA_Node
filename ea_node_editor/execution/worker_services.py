@@ -1,0 +1,86 @@
+from __future__ import annotations
+
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
+
+from ea_node_editor.execution.handle_registry import HandleRegistry
+from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
+
+
+@dataclass(slots=True)
+class WorkerServices:
+    handle_registry: HandleRegistry = field(default_factory=HandleRegistry)
+
+    @property
+    def worker_generation(self) -> int:
+        return self.handle_registry.worker_generation
+
+    @staticmethod
+    def run_owner_scope(run_id: str) -> str:
+        return f"run:{str(run_id).strip()}"
+
+    def register_handle(
+        self,
+        value: Any,
+        *,
+        kind: str,
+        run_id: str = "",
+        owner_scope: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef:
+        resolved_owner_scope = owner_scope or self.run_owner_scope(run_id)
+        return self.handle_registry.register(
+            value,
+            kind=kind,
+            owner_scope=resolved_owner_scope,
+            metadata=metadata,
+        )
+
+    def handle_ref(
+        self,
+        value: Any,
+        *,
+        kind: str = "",
+        run_id: str = "",
+        owner_scope: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef:
+        runtime_ref = coerce_runtime_handle_ref(value)
+        if runtime_ref is not None:
+            return self.handle_registry.acquire(runtime_ref)
+        if not str(kind).strip():
+            raise TypeError("kind is required when registering a new runtime handle")
+        return self.register_handle(
+            value,
+            kind=kind,
+            run_id=run_id,
+            owner_scope=owner_scope,
+            metadata=metadata,
+        )
+
+    def resolve_handle(self, value: Any, *, expected_kind: str = "") -> Any:
+        return self.handle_registry.resolve(value, expected_kind=expected_kind)
+
+    def release_handle(self, value: Any) -> bool:
+        return self.handle_registry.release(value)
+
+    def promote_handle(
+        self,
+        value: Any,
+        *,
+        owner_scope: str,
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef:
+        return self.handle_registry.promote(value, owner_scope=owner_scope, metadata=metadata)
+
+    def cleanup_run(self, run_id: str) -> int:
+        return self.handle_registry.release_owner_scope(self.run_owner_scope(run_id))
+
+    def reset(self) -> int:
+        return self.handle_registry.reset()
+
+
+__all__ = [
+    "WorkerServices",
+]

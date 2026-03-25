@@ -8,12 +8,21 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.execution.protocol import ShutdownCommand, StartRunCommand, command_to_dict
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
-from ea_node_editor.execution.worker import run_workflow
+from ea_node_editor.execution.worker import run_workflow, worker_main
+from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec, RuntimeArtifactRef
+from ea_node_editor.nodes.types import (
+    ExecutionContext,
+    NodeResult,
+    PortSpec,
+    RuntimeArtifactRef,
+    deserialize_runtime_value,
+)
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 
@@ -83,6 +92,65 @@ class _ArtifactSinkPlugin:
                 "exec_out": True,
             }
         )
+
+
+@node_type(
+    type_id="tests.handle_source",
+    display_name="Handle Source",
+    category="Tests",
+    icon="memory",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("handle", "out", "data", "json", exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _HandleSourcePlugin:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        handle_ref = ctx.register_handle({"value": "from_handle"}, kind="tests.payload")
+        return NodeResult(outputs={"handle": handle_ref, "exec_out": True})
+
+
+@node_type(
+    type_id="tests.persistent_handle_source",
+    display_name="Persistent Handle Source",
+    category="Tests",
+    icon="database",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("handle", "out", "data", "json", exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _PersistentHandleSourcePlugin:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        handle_ref = ctx.register_handle(
+            {"value": "cached_handle"},
+            kind="tests.payload",
+            owner_scope="cache:tests:persistent_handle",
+        )
+        return NodeResult(outputs={"handle": handle_ref, "exec_out": True})
+
+
+@node_type(
+    type_id="tests.handle_sink",
+    display_name="Handle Sink",
+    category="Tests",
+    icon="download",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("handle", "in", "data", "json", required=True),
+        PortSpec("resolved_value", "out", "data", "str", exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _HandleSinkPlugin:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        payload = ctx.resolve_handle(ctx.inputs["handle"], expected_kind="tests.payload")
+        return NodeResult(outputs={"resolved_value": payload["value"], "exec_out": True})
 
 
 class ExecutionWorkerTests(unittest.TestCase):
@@ -322,6 +390,137 @@ class ExecutionWorkerTests(unittest.TestCase):
             )
             self.assertEqual(sink_completed["outputs"]["resolved_path"], str(artifact_path))
             self.assertEqual(sink_completed["outputs"]["artifact_size"], len(large_payload))
+
+    def test_run_workflow_resolves_runtime_handle_refs_and_cleans_run_scope_handles(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        source = model.add_node(ws.workspace_id, "tests.handle_source", "Handle Source", 120, 0)
+        sink = model.add_node(ws.workspace_id, "tests.handle_sink", "Handle Sink", 260, 0)
+        end = model.add_node(ws.workspace_id, "core.end", "End", 400, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", source.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, source.node_id, "exec_out", sink.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, source.node_id, "handle", sink.node_id, "handle")
+        model.add_edge(ws.workspace_id, sink.node_id, "exec_out", end.node_id, "exec_in")
+
+        registry = build_default_registry()
+        registry.register(_HandleSourcePlugin)
+        registry.register(_HandleSinkPlugin)
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
+        event_queue: queue.Queue = queue.Queue()
+        worker_services = WorkerServices()
+
+        with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=registry):
+            run_workflow(
+                {
+                    "run_id": "run_handle_refs",
+                    "workspace_id": ws.workspace_id,
+                    "runtime_snapshot": runtime_snapshot,
+                    "trigger": {},
+                },
+                event_queue,
+                worker_services=worker_services,
+            )
+
+        events = self._drain_events(event_queue)
+        source_completed = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_completed"
+            and str(event.get("node_id", "")) == source.node_id
+        )
+        self.assertEqual(source_completed["outputs"]["handle"]["__ea_runtime_value__"], "handle_ref")
+        handle_ref = deserialize_runtime_value(source_completed["outputs"]["handle"])
+        sink_completed = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_completed"
+            and str(event.get("node_id", "")) == sink.node_id
+        )
+        self.assertEqual(sink_completed["outputs"]["resolved_value"], "from_handle")
+        self.assertEqual(worker_services.handle_registry.active_handle_count, 0)
+
+        with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
+            worker_services.resolve_handle(handle_ref)
+
+    def test_run_workflow_retains_non_run_scope_handles_when_allowed(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        source = model.add_node(
+            ws.workspace_id,
+            "tests.persistent_handle_source",
+            "Persistent Handle Source",
+            120,
+            0,
+        )
+        end = model.add_node(ws.workspace_id, "core.end", "End", 260, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", source.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, source.node_id, "exec_out", end.node_id, "exec_in")
+
+        registry = build_default_registry()
+        registry.register(_PersistentHandleSourcePlugin)
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
+        event_queue: queue.Queue = queue.Queue()
+        worker_services = WorkerServices()
+
+        with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=registry):
+            run_workflow(
+                {
+                    "run_id": "run_persistent_handles",
+                    "workspace_id": ws.workspace_id,
+                    "runtime_snapshot": runtime_snapshot,
+                    "trigger": {},
+                },
+                event_queue,
+                worker_services=worker_services,
+            )
+
+        events = self._drain_events(event_queue)
+        source_completed = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_completed"
+            and str(event.get("node_id", "")) == source.node_id
+        )
+        handle_ref = deserialize_runtime_value(source_completed["outputs"]["handle"])
+        self.assertEqual(handle_ref.owner_scope, "cache:tests:persistent_handle")
+        self.assertEqual(
+            worker_services.resolve_handle(handle_ref, expected_kind="tests.payload"),
+            {"value": "cached_handle"},
+        )
+        self.assertEqual(worker_services.handle_registry.active_handle_count, 1)
+        self.assertTrue(worker_services.release_handle(handle_ref))
+        self.assertEqual(worker_services.handle_registry.active_handle_count, 0)
+
+    def test_worker_main_resets_services_after_worker_exception(self) -> None:
+        worker_services = WorkerServices()
+        persistent_ref = worker_services.register_handle(
+            {"value": "preloaded"},
+            kind="tests.payload",
+            owner_scope="cache:tests:preloaded",
+        )
+        command_queue: queue.Queue = queue.Queue()
+        event_queue: queue.Queue = queue.Queue()
+        command_queue.put(command_to_dict(StartRunCommand(run_id="run_crash", workspace_id="ws_main")))
+        command_queue.put(command_to_dict(ShutdownCommand()))
+
+        with mock.patch(
+            "ea_node_editor.execution.worker.run_workflow",
+            side_effect=RuntimeError("worker boom"),
+        ):
+            worker_main(command_queue, event_queue, worker_services=worker_services)
+
+        events = self._drain_events(event_queue)
+        failed = [event for event in events if str(event.get("type", "")) == "run_failed"]
+
+        self.assertTrue(failed)
+        self.assertEqual(failed[0]["run_id"], "run_crash")
+        self.assertIn("worker boom", str(failed[0]["error"]))
+        self.assertEqual(worker_services.worker_generation, persistent_ref.worker_generation + 1)
+
+        with self.assertRaisesRegex(StaleHandleError, "worker_generation is stale"):
+            worker_services.resolve_handle(persistent_ref)
 
     def test_run_workflow_skips_action_nodes_without_exec_trigger(self) -> None:
         model = GraphModel()
