@@ -96,6 +96,7 @@ from ea_node_editor.ui.shell.window_library_inspector import (
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui.theme import build_theme_stylesheet
 from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlayManager
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -217,6 +218,50 @@ class ShellWindow(QMainWindow):
             )
             self._viewer_session_bridge = bridge
         return bridge
+
+    @property
+    def embedded_viewer_overlay_manager(self) -> EmbeddedViewerOverlayManager | None:
+        return self._ensure_embedded_viewer_overlay_manager()
+
+    def _ensure_embedded_viewer_overlay_manager(
+        self,
+        quick_widget: QQuickWidget | None = None,
+    ) -> EmbeddedViewerOverlayManager | None:
+        resolved_quick_widget = quick_widget
+        if resolved_quick_widget is None:
+            candidate = getattr(self, "quick_widget", None)
+            resolved_quick_widget = candidate if isinstance(candidate, QQuickWidget) else None
+        if resolved_quick_widget is None:
+            return None
+
+        manager = getattr(self, "_embedded_viewer_overlay_manager", None)
+        if manager is not None and manager.quick_widget is resolved_quick_widget:
+            return manager
+        if manager is not None:
+            manager.deleteLater()
+
+        manager = EmbeddedViewerOverlayManager(
+            resolved_quick_widget,
+            quick_widget=resolved_quick_widget,
+            shell_window=self,
+            viewer_session_bridge=self.viewer_session_bridge,
+            scene_bridge=self.scene,
+            view_bridge=self.view,
+        )
+        self._embedded_viewer_overlay_manager = manager
+        return manager
+
+    def setCentralWidget(self, widget) -> None:  # noqa: ANN001, N802
+        existing_quick_widget = getattr(self, "quick_widget", None)
+        if isinstance(existing_quick_widget, QQuickWidget) and widget is not existing_quick_widget:
+            manager = getattr(self, "_embedded_viewer_overlay_manager", None)
+            if manager is not None:
+                manager.deleteLater()
+                self._embedded_viewer_overlay_manager = None
+        super().setCentralWidget(widget)
+        if isinstance(widget, QQuickWidget):
+            self.quick_widget = widget
+            self._ensure_embedded_viewer_overlay_manager(widget)
 
     @property
     def project_path(self) -> str:
