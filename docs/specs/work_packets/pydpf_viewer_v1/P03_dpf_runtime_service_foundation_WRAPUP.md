@@ -5,8 +5,8 @@
 - Branch Label: `codex/pydpf-viewer-v1/p03-dpf-runtime-service-foundation`
 - Commit Owner: `worker`
 - Commit SHA: `1944b1c1e5b9332b7d8a9e58bc52a25050214043`
-- Changed Files: `ea_node_editor/execution/dpf_runtime_service.py`; `ea_node_editor/execution/worker_services.py`; `tests/ansys_dpf_core/fixture_paths.py`; `tests/test_dpf_runtime_service.py`; `docs/specs/work_packets/pydpf_viewer_v1/P03_dpf_runtime_service_foundation_WRAPUP.md`
-- Artifacts Produced: `ea_node_editor/execution/dpf_runtime_service.py`; `tests/ansys_dpf_core/fixture_paths.py`; `tests/test_dpf_runtime_service.py`; `docs/specs/work_packets/pydpf_viewer_v1/P03_dpf_runtime_service_foundation_WRAPUP.md`
+- Changed Files: docs/specs/work_packets/pydpf_viewer_v1/P03_dpf_runtime_service_foundation_WRAPUP.md, ea_node_editor/execution/dpf_runtime_service.py, ea_node_editor/execution/worker_services.py, tests/ansys_dpf_core/fixture_paths.py, tests/test_dpf_runtime_service.py
+- Artifacts Produced: docs/specs/work_packets/pydpf_viewer_v1/P03_dpf_runtime_service_foundation_WRAPUP.md, ea_node_editor/execution/dpf_runtime_service.py, ea_node_editor/execution/worker_services.py, tests/ansys_dpf_core/fixture_paths.py, tests/test_dpf_runtime_service.py
 - Added a lazy `WorkerServices.dpf_runtime_service` seam plus `DpfRuntimeService` methods for supported result-file handles, model handles, mesh scoping handles, and time scoping handles without importing `ansys.dpf.core` during worker startup.
 - Cache-key rule: result-file and model caches use the canonical absolute result path after `Path.resolve(strict=True)` and `casefold()`. Stable cache owner scopes are emitted as `cache:dpf:result_file:<sha1>` and `cache:dpf:model:<sha1>` so run cleanup skips persistent DPF cache entries while `WorkerServices.reset()` invalidates them.
 - Fixture helper location: `tests/ansys_dpf_core/fixture_paths.py` is the authoritative packet-owned helper for `tests/ansys_dpf_core/example_outputs/`. It resolves fixtures from either the packet worktree or the sibling main checkout because this worktree did not contain copied fixture files.
