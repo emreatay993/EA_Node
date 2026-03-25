@@ -10,15 +10,18 @@ from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_r
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.dpf_runtime_service import DpfRuntimeService
+    from ea_node_editor.execution.viewer_session_service import ViewerSessionService
 
 
 @dataclass(slots=True)
 class WorkerServices:
     handle_registry: HandleRegistry = field(default_factory=HandleRegistry)
     _dpf_runtime_service: DpfRuntimeService | None = field(default=None, init=False, repr=False)
+    _viewer_session_service: ViewerSessionService | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_dpf_runtime_service", None)
+        object.__setattr__(self, "_viewer_session_service", None)
 
     @property
     def worker_generation(self) -> int:
@@ -31,6 +34,14 @@ class WorkerServices:
 
             self._dpf_runtime_service = DpfRuntimeService(self)
         return self._dpf_runtime_service
+
+    @property
+    def viewer_session_service(self) -> ViewerSessionService:
+        if self._viewer_session_service is None:
+            from ea_node_editor.execution.viewer_session_service import ViewerSessionService
+
+            self._viewer_session_service = ViewerSessionService(self)
+        return self._viewer_session_service
 
     @staticmethod
     def run_owner_scope(run_id: str) -> str:
@@ -101,6 +112,8 @@ class WorkerServices:
         released_count = self.handle_registry.reset()
         if self._dpf_runtime_service is not None:
             self._dpf_runtime_service.reset()
+        if self._viewer_session_service is not None:
+            self._viewer_session_service.reset()
         return released_count
 
 

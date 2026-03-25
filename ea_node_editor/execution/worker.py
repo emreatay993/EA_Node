@@ -11,9 +11,12 @@ from multiprocessing import Queue
 from typing import Any
 
 from ea_node_editor.execution.protocol import (
+    CloseViewerSessionCommand,
     LogEvent,
+    MaterializeViewerDataCommand,
     NodeCompletedEvent,
     NodeStartedEvent,
+    OpenViewerSessionCommand,
     PauseRunCommand,
     ProtocolErrorEvent,
     ResumeRunCommand,
@@ -27,6 +30,8 @@ from ea_node_editor.execution.protocol import (
     StopRunCommand,
     WorkerCommand,
     WorkerEvent,
+    ViewerSessionFailedEvent,
+    UpdateViewerSessionCommand,
     dict_to_command,
     event_to_dict,
 )
@@ -90,6 +95,26 @@ def _emit_protocol_error(
     )
 
 
+def _dispatch_viewer_command(
+    command: WorkerCommand,
+    *,
+    event_queue: Queue,
+    worker_services: WorkerServices,
+) -> None:
+    try:
+        event = worker_services.viewer_session_service.handle_command(command)
+    except Exception as exc:  # noqa: BLE001
+        event = ViewerSessionFailedEvent(
+            request_id=str(getattr(command, "request_id", "")).strip(),
+            workspace_id=str(getattr(command, "workspace_id", "")).strip(),
+            node_id=str(getattr(command, "node_id", "")).strip(),
+            session_id=str(getattr(command, "session_id", "")).strip(),
+            command=str(getattr(command, "type", "")).strip(),
+            error=str(exc).strip() or "viewer session dispatch failed",
+        )
+    _emit(event_queue, event)
+
+
 def _load_runtime_snapshot(
     command: StartRunCommand,
     *,
@@ -118,11 +143,13 @@ class _RunControl:
         *,
         run_id: str,
         workspace_id: str,
+        viewer_command_handler: Callable[[WorkerCommand], None] | None = None,
     ) -> None:
         self._command_queue = command_queue
         self._event_queue = event_queue
         self.run_id = run_id
         self.workspace_id = workspace_id
+        self._viewer_command_handler = viewer_command_handler
         self.paused = False
         self.stop_requested = False
         self.shutdown_requested = False
@@ -198,6 +225,26 @@ class _RunControl:
             self.stop_requested = True
             self.stop_reason = "stop_requested"
             self._invoke_cancel_callbacks()
+            return
+
+        if isinstance(
+            command,
+            (
+                OpenViewerSessionCommand,
+                UpdateViewerSessionCommand,
+                CloseViewerSessionCommand,
+                MaterializeViewerDataCommand,
+            ),
+        ):
+            if self._viewer_command_handler is None:
+                _emit_protocol_error(
+                    self._event_queue,
+                    "Viewer command handler is unavailable.",
+                    workspace_id=command_workspace_id,
+                    command=command_type,
+                )
+                return
+            self._viewer_command_handler(command)
             return
 
         if isinstance(command, StartRunCommand):
@@ -672,23 +719,34 @@ class _WorkflowRunner:
         worker_services: WorkerServices | None = None,
     ) -> None:
         self._command = command
+        self._worker_services = worker_services or WorkerServices()
         self._control = _RunControl(
             command_queue,
             event_queue,
             run_id=command.run_id,
             workspace_id=command.workspace_id,
+            viewer_command_handler=lambda viewer_command: _dispatch_viewer_command(
+                viewer_command,
+                event_queue=event_queue,
+                worker_services=self._worker_services,
+            ),
         )
         self._publisher = _RunEventPublisher(
             event_queue,
             run_id=command.run_id,
             workspace_id=command.workspace_id,
         )
-        self._worker_services = worker_services or WorkerServices()
         prepared = _prepare_runtime(command)
         self._registry = prepared.registry
         self._runtime_snapshot = prepared.runtime_snapshot
         self._workspace = prepared.workspace
         self._plan = prepared.plan
+        self._worker_services.viewer_session_service.prepare_workspace_context(
+            workspace_id=command.workspace_id,
+            project_path=command.project_path,
+            runtime_snapshot=self._runtime_snapshot,
+            invalidate_existing=True,
+        )
         self._artifact_service = _RuntimeArtifactService(
             project_path=command.project_path,
             runtime_snapshot=self._runtime_snapshot,
@@ -818,6 +876,20 @@ def worker_main(
                 run_id=command.run_id,
                 workspace_id="",
                 command=command.type,
+            )
+        elif isinstance(
+            command,
+            (
+                OpenViewerSessionCommand,
+                UpdateViewerSessionCommand,
+                CloseViewerSessionCommand,
+                MaterializeViewerDataCommand,
+            ),
+        ):
+            _dispatch_viewer_command(
+                command,
+                event_queue=event_queue,
+                worker_services=services,
             )
         else:
             _emit_protocol_error(

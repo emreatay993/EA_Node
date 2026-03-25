@@ -4,12 +4,28 @@ import json
 import queue
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
+from ea_node_editor.execution.dpf_runtime_service import (
+    DPF_FIELDS_CONTAINER_HANDLE_KIND,
+    DPF_MODEL_HANDLE_KIND,
+    DPF_VIEWER_DATASET_HANDLE_KIND,
+    DpfMaterializationResult,
+)
 from ea_node_editor.execution.handle_registry import StaleHandleError
-from ea_node_editor.execution.protocol import ShutdownCommand, StartRunCommand, command_to_dict
+from ea_node_editor.execution.protocol import (
+    CloseViewerSessionCommand,
+    MaterializeViewerDataCommand,
+    OpenViewerSessionCommand,
+    ShutdownCommand,
+    StartRunCommand,
+    UpdateViewerSessionCommand,
+    command_to_dict,
+)
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow, worker_main
 from ea_node_editor.execution.worker_services import WorkerServices
@@ -24,6 +40,9 @@ from ea_node_editor.nodes.types import (
     deserialize_runtime_value,
 )
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
+
+_WAIT_NODE_ENTERED = threading.Event()
+_WAIT_NODE_RELEASE = threading.Event()
 
 
 @node_type(
@@ -135,6 +154,59 @@ class _PersistentHandleSourcePlugin:
 
 
 @node_type(
+    type_id="tests.viewer_source",
+    display_name="Viewer Source",
+    category="Tests",
+    icon="image",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("fields", "out", "data", "json", exposed=True),
+        PortSpec("model", "out", "data", "json", exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _ViewerSourcePlugin:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        fields_ref = ctx.register_handle(
+            {"viewer": "fields"},
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+        )
+        model_ref = ctx.register_handle(
+            {"viewer": "model"},
+            kind=DPF_MODEL_HANDLE_KIND,
+        )
+        return NodeResult(
+            outputs={
+                "fields": fields_ref,
+                "model": model_ref,
+                "exec_out": True,
+            }
+        )
+
+
+@node_type(
+    type_id="tests.viewer_wait",
+    display_name="Viewer Wait",
+    category="Tests",
+    icon="hourglass",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(),
+)
+class _ViewerWaitPlugin:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        _WAIT_NODE_ENTERED.set()
+        deadline = time.time() + 5.0
+        while not _WAIT_NODE_RELEASE.is_set() and time.time() < deadline:
+            ctx.should_stop()
+            time.sleep(0.01)
+        return NodeResult(outputs={"exec_out": True})
+
+
+@node_type(
     type_id="tests.handle_sink",
     display_name="Handle Sink",
     category="Tests",
@@ -169,6 +241,83 @@ class ExecutionWorkerTests(unittest.TestCase):
             workspace_id=model.active_workspace.workspace_id,
             registry=runtime_registry,
         )
+
+    @staticmethod
+    def _wait_for_event(
+        event_queue: queue.Queue,
+        predicate,  # noqa: ANN001
+        *,
+        timeout: float = 5.0,
+        collected: list[dict[str, object]] | None = None,
+    ) -> dict[str, object] | None:
+        deadline = time.time() + timeout
+        seen_events = collected if collected is not None else []
+        while time.time() < deadline:
+            try:
+                event = event_queue.get(timeout=0.05)
+            except queue.Empty:
+                continue
+            seen_events.append(event)
+            if predicate(event):
+                return event
+        return None
+
+    def _fake_viewer_materialize(
+        self,
+        worker_services: WorkerServices,
+        calls: list[dict[str, object]],
+    ):
+        def _materialize(
+            value,  # noqa: ANN001
+            *,
+            model,  # noqa: ANN001
+            mesh=None,  # noqa: ANN001
+            output_profile: str,
+            artifact_store=None,  # noqa: ANN001
+            artifact_key: str = "",
+            export_formats=(),  # noqa: ANN001
+            temporary_root_parent=None,  # noqa: ANN001
+            run_id: str = "",
+            owner_scope: str = "",
+        ) -> DpfMaterializationResult:
+            worker_services.resolve_handle(value, expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND)
+            worker_services.resolve_handle(model, expected_kind=DPF_MODEL_HANDLE_KIND)
+            calls.append(
+                {
+                    "fields_owner_scope": value.owner_scope,
+                    "model_owner_scope": model.owner_scope,
+                    "artifact_key": artifact_key,
+                    "output_profile": output_profile,
+                    "export_formats": tuple(export_formats),
+                    "artifact_store_present": artifact_store is not None,
+                    "temporary_root_parent": temporary_root_parent,
+                    "run_id": run_id,
+                    "owner_scope": owner_scope,
+                }
+            )
+
+            dataset_ref = None
+            if output_profile in {"memory", "both"}:
+                dataset_ref = worker_services.register_handle(
+                    {"dataset": "viewer"},
+                    kind=DPF_VIEWER_DATASET_HANDLE_KIND,
+                    owner_scope=owner_scope or "cache:tests:viewer_dataset",
+                    metadata={"dataset_type": "fake_dataset", "array_names": ["U"]},
+                )
+            artifacts = {}
+            if output_profile in {"stored", "both"}:
+                artifacts["png"] = RuntimeArtifactRef.staged(
+                    "worker_viewer_png",
+                    metadata={"format": "png"},
+                )
+            return DpfMaterializationResult(
+                output_profile=output_profile,
+                dataset_ref=dataset_ref,
+                artifacts=artifacts,
+                summary={"output_profile": output_profile, "field_count": 1},
+            )
+
+        return _materialize
 
     def test_run_workflow_completes(self) -> None:
         model = GraphModel()
@@ -521,6 +670,316 @@ class ExecutionWorkerTests(unittest.TestCase):
 
         with self.assertRaisesRegex(StaleHandleError, "worker_generation is stale"):
             worker_services.resolve_handle(persistent_ref)
+
+    def test_worker_main_routes_viewer_commands_during_run_and_after_completion(self) -> None:
+        _WAIT_NODE_ENTERED.clear()
+        _WAIT_NODE_RELEASE.clear()
+        command_queue: queue.Queue = queue.Queue()
+        event_queue: queue.Queue = queue.Queue()
+        worker_services = WorkerServices()
+        materialize_calls: list[dict[str, object]] = []
+        thread: threading.Thread | None = None
+
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        source = model.add_node(ws.workspace_id, "tests.viewer_source", "Viewer Source", 120, 0)
+        wait_node = model.add_node(ws.workspace_id, "tests.viewer_wait", "Viewer Wait", 260, 0)
+        end = model.add_node(ws.workspace_id, "core.end", "End", 400, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", source.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, source.node_id, "exec_out", wait_node.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, wait_node.node_id, "exec_out", end.node_id, "exec_in")
+
+        registry = build_default_registry()
+        registry.register(_ViewerSourcePlugin)
+        registry.register(_ViewerWaitPlugin)
+        runtime_snapshot = self._runtime_snapshot(model, registry=registry)
+
+        with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=registry):
+            with mock.patch.object(
+                worker_services.dpf_runtime_service,
+                "materialize_viewer_dataset",
+                side_effect=self._fake_viewer_materialize(worker_services, materialize_calls),
+            ):
+                thread = threading.Thread(
+                    target=worker_main,
+                    args=(command_queue, event_queue),
+                    kwargs={"worker_services": worker_services},
+                    daemon=True,
+                )
+                thread.start()
+                collected_events: list[dict[str, object]] = []
+                try:
+                    command_queue.put(
+                        command_to_dict(
+                            StartRunCommand(
+                                run_id="run_viewer_worker",
+                                workspace_id=ws.workspace_id,
+                                runtime_snapshot=runtime_snapshot,
+                            )
+                        )
+                    )
+
+                    source_completed = self._wait_for_event(
+                        event_queue,
+                        lambda event: str(event.get("type", "")) == "node_completed"
+                        and str(event.get("node_id", "")) == source.node_id,
+                        timeout=6.0,
+                        collected=collected_events,
+                    )
+                    self.assertIsNotNone(source_completed)
+                    self.assertTrue(_WAIT_NODE_ENTERED.wait(timeout=6.0))
+                    if source_completed is None:
+                        self.fail("Expected viewer source outputs before sending session commands")
+
+                    fields_ref = deserialize_runtime_value(source_completed["outputs"]["fields"])
+                    model_ref = deserialize_runtime_value(source_completed["outputs"]["model"])
+
+                    command_queue.put(
+                        command_to_dict(
+                            OpenViewerSessionCommand(
+                                request_id="viewer_req_open",
+                                workspace_id=ws.workspace_id,
+                                node_id="node_viewer",
+                                session_id="session_worker",
+                                data_refs={"fields": fields_ref, "model": model_ref},
+                                summary={"result_name": "displacement"},
+                                options={"live_mode": "full"},
+                            )
+                        )
+                    )
+                    opened = self._wait_for_event(
+                        event_queue,
+                        lambda event: str(event.get("type", "")) == "viewer_session_opened",
+                        timeout=6.0,
+                        collected=collected_events,
+                    )
+                    self.assertIsNotNone(opened)
+
+                    command_queue.put(
+                        command_to_dict(
+                            UpdateViewerSessionCommand(
+                                request_id="viewer_req_update",
+                                workspace_id=ws.workspace_id,
+                                node_id="node_viewer",
+                                session_id="session_worker",
+                                summary={"camera": {"zoom": 1.1}},
+                                options={"selection": {"set_ids": [3]}},
+                            )
+                        )
+                    )
+                    updated = self._wait_for_event(
+                        event_queue,
+                        lambda event: str(event.get("type", "")) == "viewer_session_updated",
+                        timeout=6.0,
+                        collected=collected_events,
+                    )
+                    self.assertIsNotNone(updated)
+
+                    _WAIT_NODE_RELEASE.set()
+                    completed = self._wait_for_event(
+                        event_queue,
+                        lambda event: str(event.get("type", "")) == "run_completed"
+                        and str(event.get("run_id", "")) == "run_viewer_worker",
+                        timeout=6.0,
+                        collected=collected_events,
+                    )
+                    self.assertIsNotNone(completed)
+                    if completed is None:
+                        self.fail("Expected run completion after releasing wait node")
+
+                    with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
+                        worker_services.resolve_handle(fields_ref)
+                    with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
+                        worker_services.resolve_handle(model_ref)
+
+                    command_queue.put(
+                        command_to_dict(
+                            MaterializeViewerDataCommand(
+                                request_id="viewer_req_materialize",
+                                workspace_id=ws.workspace_id,
+                                node_id="node_viewer",
+                                session_id="session_worker",
+                                options={"output_profile": "both", "export_formats": ["png"]},
+                            )
+                        )
+                    )
+                    materialized = self._wait_for_event(
+                        event_queue,
+                        lambda event: str(event.get("type", "")) == "viewer_data_materialized",
+                        timeout=6.0,
+                        collected=collected_events,
+                    )
+                    self.assertIsNotNone(materialized)
+                    self.assertEqual(len(materialize_calls), 1)
+                    self.assertEqual(materialize_calls[0]["output_profile"], "both")
+                    self.assertEqual(materialize_calls[0]["artifact_key"], "node_viewer_session_worker")
+                    self.assertEqual(
+                        materialize_calls[0]["fields_owner_scope"],
+                        f"cache:viewer_session:{ws.workspace_id}:session_worker",
+                    )
+                    self.assertEqual(
+                        materialize_calls[0]["model_owner_scope"],
+                        f"cache:viewer_session:{ws.workspace_id}:session_worker",
+                    )
+                    self.assertIn("dataset", materialized["data_refs"])
+                    self.assertIn("png", materialized["data_refs"])
+
+                    opened_index = next(
+                        index
+                        for index, event in enumerate(collected_events)
+                        if str(event.get("type", "")) == "viewer_session_opened"
+                    )
+                    updated_index = next(
+                        index
+                        for index, event in enumerate(collected_events)
+                        if str(event.get("type", "")) == "viewer_session_updated"
+                    )
+                    completed_index = next(
+                        index
+                        for index, event in enumerate(collected_events)
+                        if str(event.get("type", "")) == "run_completed"
+                        and str(event.get("run_id", "")) == "run_viewer_worker"
+                    )
+                    self.assertLess(opened_index, completed_index)
+                    self.assertLess(updated_index, completed_index)
+
+                    command_queue.put(
+                        command_to_dict(
+                            CloseViewerSessionCommand(
+                                request_id="viewer_req_close",
+                                workspace_id=ws.workspace_id,
+                                node_id="node_viewer",
+                                session_id="session_worker",
+                                options={"reason": "node_hidden", "release_handles": True},
+                            )
+                        )
+                    )
+                    closed = self._wait_for_event(
+                        event_queue,
+                        lambda event: str(event.get("type", "")) == "viewer_session_closed",
+                        timeout=6.0,
+                        collected=collected_events,
+                    )
+                    self.assertIsNotNone(closed)
+                finally:
+                    _WAIT_NODE_RELEASE.set()
+                    command_queue.put(command_to_dict(ShutdownCommand()))
+                    if thread is not None:
+                        thread.join(timeout=6.0)
+                        self.assertFalse(thread.is_alive())
+
+    def test_worker_main_invalidates_cached_viewer_sessions_on_rerun(self) -> None:
+        command_queue: queue.Queue = queue.Queue()
+        event_queue: queue.Queue = queue.Queue()
+        worker_services = WorkerServices()
+
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        end = model.add_node(ws.workspace_id, "core.end", "End", 120, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", end.node_id, "exec_in")
+        runtime_snapshot = self._runtime_snapshot(model)
+
+        fields_ref = worker_services.register_handle(
+            {"viewer": "fields"},
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            owner_scope="cache:tests:viewer_fields",
+        )
+        model_ref = worker_services.register_handle(
+            {"viewer": "model"},
+            kind=DPF_MODEL_HANDLE_KIND,
+            owner_scope="cache:tests:viewer_model",
+        )
+
+        with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=build_default_registry()):
+            thread = threading.Thread(
+                target=worker_main,
+                args=(command_queue, event_queue),
+                kwargs={"worker_services": worker_services},
+                daemon=True,
+            )
+            thread.start()
+            collected_events: list[dict[str, object]] = []
+            try:
+                command_queue.put(
+                    command_to_dict(
+                        StartRunCommand(
+                            run_id="run_viewer_cache_a",
+                            workspace_id=ws.workspace_id,
+                            runtime_snapshot=runtime_snapshot,
+                        )
+                    )
+                )
+                completed_a = self._wait_for_event(
+                    event_queue,
+                    lambda event: str(event.get("type", "")) == "run_completed"
+                    and str(event.get("run_id", "")) == "run_viewer_cache_a",
+                    timeout=6.0,
+                    collected=collected_events,
+                )
+                self.assertIsNotNone(completed_a)
+
+                command_queue.put(
+                    command_to_dict(
+                        OpenViewerSessionCommand(
+                            request_id="viewer_req_open",
+                            workspace_id=ws.workspace_id,
+                            node_id="node_viewer",
+                            session_id="session_rerun",
+                            data_refs={"fields": fields_ref, "model": model_ref},
+                        )
+                    )
+                )
+                opened = self._wait_for_event(
+                    event_queue,
+                    lambda event: str(event.get("type", "")) == "viewer_session_opened",
+                    timeout=6.0,
+                    collected=collected_events,
+                )
+                self.assertIsNotNone(opened)
+
+                command_queue.put(
+                    command_to_dict(
+                        StartRunCommand(
+                            run_id="run_viewer_cache_b",
+                            workspace_id=ws.workspace_id,
+                            runtime_snapshot=runtime_snapshot,
+                        )
+                    )
+                )
+                completed_b = self._wait_for_event(
+                    event_queue,
+                    lambda event: str(event.get("type", "")) == "run_completed"
+                    and str(event.get("run_id", "")) == "run_viewer_cache_b",
+                    timeout=6.0,
+                    collected=collected_events,
+                )
+                self.assertIsNotNone(completed_b)
+
+                command_queue.put(
+                    command_to_dict(
+                        MaterializeViewerDataCommand(
+                            request_id="viewer_req_materialize",
+                            workspace_id=ws.workspace_id,
+                            node_id="node_viewer",
+                            session_id="session_rerun",
+                            options={"output_profile": "memory"},
+                        )
+                    )
+                )
+                failed = self._wait_for_event(
+                    event_queue,
+                    lambda event: str(event.get("type", "")) == "viewer_session_failed",
+                    timeout=6.0,
+                    collected=collected_events,
+                )
+                self.assertIsNotNone(failed)
+                self.assertIn("invalidated", str(failed.get("error", "")))
+            finally:
+                command_queue.put(command_to_dict(ShutdownCommand()))
+                thread.join(timeout=6.0)
+                self.assertFalse(thread.is_alive())
 
     def test_run_workflow_skips_action_nodes_without_exec_trigger(self) -> None:
         model = GraphModel()
