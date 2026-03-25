@@ -257,13 +257,11 @@ class EmbeddedViewerOverlayManager(QObject):
             state = _mapping(item)
             if _string(state.get("phase")) != "open":
                 continue
+            if _string(state.get("cache_state")) != "live_ready":
+                continue
             options = _mapping(state.get("options"))
-            summary = _mapping(state.get("summary"))
             live_mode = _string(options.get("live_mode", state.get("live_mode", "")))
-            demoted_reason = _string(summary.get("demoted_reason"))
-            # Node pan/zoom/move/resize should keep a live overlay synced even though
-            # the bridge's broader graph-mutation fallback currently demotes to proxy.
-            if live_mode != "full" and not (live_mode == "proxy" and demoted_reason == "graph_mutation"):
+            if live_mode != "full":
                 continue
             workspace_id = _string(state.get("workspace_id"))
             node_id = _string(state.get("node_id"))

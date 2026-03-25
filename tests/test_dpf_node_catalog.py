@@ -30,6 +30,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf import (
     DpfResultFieldNodePlugin,
     DpfResultFileNodePlugin,
     DpfTimeScopingNodePlugin,
+    DpfViewerNodePlugin,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_EXPORT_NODE_TYPE_ID,
@@ -43,6 +44,8 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_RESULT_FIELD_NODE_TYPE_ID,
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
+    DPF_VIEWER_LIVE_POLICY_VALUES,
+    DPF_VIEWER_NODE_TYPE_ID,
 )
 from ea_node_editor.nodes.types import (
     DPF_FIELD_DATA_TYPE,
@@ -51,6 +54,7 @@ from ea_node_editor.nodes.types import (
     DPF_PUBLIC_DATA_TYPES,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
+    DPF_VIEW_SESSION_DATA_TYPE,
     ExecutionContext,
 )
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
@@ -136,6 +140,19 @@ _EXPECTED_DPF_SPECS = {
         },
         "output_mode_default": DPF_OUTPUT_MODE_STORED,
     },
+    DPF_VIEWER_NODE_TYPE_ID: {
+        "display_name": "DPF Viewer",
+        "ports": ("exec_in", "field", "model", "mesh", "session", "exec_out"),
+        "properties": ("viewer_live_policy", "output_mode"),
+        "output_types": {"session": DPF_VIEW_SESSION_DATA_TYPE},
+        "output_mode_default": "both",
+        "surface_family": "viewer",
+        "render_quality": {
+            "weight_class": "heavy",
+            "max_performance_strategy": "proxy_surface",
+            "supported_quality_tiers": ("full", "proxy"),
+        },
+    },
 }
 
 
@@ -183,13 +200,30 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(spec.display_name, expected["display_name"])
             self.assertEqual(spec.category, DPF_NODE_CATEGORY)
             self.assertEqual(spec.runtime_behavior, "active")
-            self.assertEqual(spec.surface_family, "standard")
+            self.assertEqual(spec.surface_family, expected.get("surface_family", "standard"))
             self.assertEqual(tuple(port.key for port in spec.ports), expected["ports"])
             self.assertEqual(tuple(prop.key for prop in spec.properties), expected["properties"])
 
             output_mode = next(prop for prop in spec.properties if prop.key == "output_mode")
             self.assertEqual(output_mode.default, expected["output_mode_default"])
             self.assertEqual(output_mode.enum_values, ("memory", "stored", "both"))
+            if spec.type_id == DPF_VIEWER_NODE_TYPE_ID:
+                live_policy = next(prop for prop in spec.properties if prop.key == "viewer_live_policy")
+                self.assertEqual(live_policy.default, "focus_only")
+                self.assertEqual(live_policy.enum_values, DPF_VIEWER_LIVE_POLICY_VALUES)
+                self.assertEqual(spec.surface_family, expected["surface_family"])
+                self.assertEqual(
+                    spec.render_quality.supported_quality_tiers,
+                    expected["render_quality"]["supported_quality_tiers"],
+                )
+                self.assertEqual(
+                    spec.render_quality.max_performance_strategy,
+                    expected["render_quality"]["max_performance_strategy"],
+                )
+                self.assertEqual(
+                    spec.render_quality.weight_class,
+                    expected["render_quality"]["weight_class"],
+                )
 
             ports_by_key = {port.key: port for port in spec.ports}
             for port_key, data_type in expected["output_types"].items():

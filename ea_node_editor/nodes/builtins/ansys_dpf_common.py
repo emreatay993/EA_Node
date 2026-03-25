@@ -30,6 +30,7 @@ DPF_RESULT_FIELD_NODE_TYPE_ID = "dpf.result_field"
 DPF_FIELD_OPS_NODE_TYPE_ID = "dpf.field_ops"
 DPF_MESH_EXTRACT_NODE_TYPE_ID = "dpf.mesh_extract"
 DPF_EXPORT_NODE_TYPE_ID = "dpf.export"
+DPF_VIEWER_NODE_TYPE_ID = "dpf.viewer"
 
 DPF_OUTPUT_MODE_MEMORY = "memory"
 DPF_OUTPUT_MODE_STORED = "stored"
@@ -38,6 +39,13 @@ DPF_OUTPUT_MODE_VALUES = (
     DPF_OUTPUT_MODE_MEMORY,
     DPF_OUTPUT_MODE_STORED,
     DPF_OUTPUT_MODE_BOTH,
+)
+
+DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY = "focus_only"
+DPF_VIEWER_LIVE_POLICY_KEEP_LIVE = "keep_live"
+DPF_VIEWER_LIVE_POLICY_VALUES = (
+    DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
+    DPF_VIEWER_LIVE_POLICY_KEEP_LIVE,
 )
 
 DPF_MESH_SELECTION_NAMED_SELECTION = "named_selection"
@@ -128,6 +136,23 @@ def normalize_dpf_output_mode(value: Any, *, default: str = DPF_OUTPUT_MODE_MEMO
         raise ValueError(
             "DPF output_mode must be one of "
             f"{', '.join(DPF_OUTPUT_MODE_VALUES)}."
+        )
+    return normalized
+
+
+def normalize_dpf_viewer_live_policy(
+    value: Any,
+    *,
+    default: str = DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
+) -> str:
+    normalized_default = str(default or DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY).strip().lower()
+    if normalized_default not in DPF_VIEWER_LIVE_POLICY_VALUES:
+        normalized_default = DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY
+    normalized = str(value or normalized_default).strip().lower()
+    if normalized not in DPF_VIEWER_LIVE_POLICY_VALUES:
+        raise ValueError(
+            "viewer_live_policy must be one of "
+            f"{', '.join(DPF_VIEWER_LIVE_POLICY_VALUES)}."
         )
     return normalized
 
@@ -828,6 +853,10 @@ __all__ = [
     "DPF_OUTPUT_MODE_MEMORY",
     "DPF_OUTPUT_MODE_STORED",
     "DPF_OUTPUT_MODE_VALUES",
+    "DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY",
+    "DPF_VIEWER_LIVE_POLICY_KEEP_LIVE",
+    "DPF_VIEWER_LIVE_POLICY_VALUES",
+    "DPF_VIEWER_NODE_TYPE_ID",
     "DPF_RESULT_FIELD_LOCATION_VALUES",
     "DPF_RESULT_FIELD_NODE_TYPE_ID",
     "DPF_RESULT_FILE_NODE_TYPE_ID",
@@ -848,6 +877,7 @@ __all__ = [
     "is_result_file_handle",
     "is_time_scoping_handle",
     "normalize_dpf_output_mode",
+    "normalize_dpf_viewer_live_policy",
     "normalize_export_artifact_key",
     "normalize_export_formats",
     "normalize_float_values",

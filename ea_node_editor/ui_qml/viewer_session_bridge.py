@@ -11,6 +11,12 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
+_LIVE_MODE_FULL = "full"
+_LIVE_MODE_PROXY = "proxy"
+_LIVE_POLICY_FOCUS_ONLY = "focus_only"
+_LIVE_POLICY_KEEP_LIVE = "keep_live"
+_OPEN_SESSION_PHASES = frozenset({"open", "opening"})
+
 
 @dataclass(slots=True)
 class _ViewerSessionState:
@@ -27,12 +33,16 @@ class _ViewerSessionState:
     keep_live: bool = False
     cache_state: str = "empty"
     invalidated_reason: str = ""
+    demoted_reason: str = ""
     close_reason: str = ""
     data_refs: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
     def payload(self) -> dict[str, Any]:
+        summary = copy.deepcopy(self.summary)
+        if self.demoted_reason:
+            summary.setdefault("demoted_reason", self.demoted_reason)
         return {
             "workspace_id": self.workspace_id,
             "node_id": self.node_id,
@@ -49,7 +59,7 @@ class _ViewerSessionState:
             "invalidated_reason": self.invalidated_reason,
             "close_reason": self.close_reason,
             "data_refs": copy.deepcopy(self.data_refs),
-            "summary": copy.deepcopy(self.summary),
+            "summary": summary,
             "options": copy.deepcopy(self.options),
         }
 
@@ -58,6 +68,20 @@ def _copy_mapping(value: Any) -> dict[str, Any]:
     if not isinstance(value, dict):
         return {}
     return {str(key): copy.deepcopy(item) for key, item in value.items()}
+
+
+def _normalize_live_policy(value: Any) -> str:
+    normalized = str(value or _LIVE_POLICY_FOCUS_ONLY).strip().lower()
+    if normalized not in {_LIVE_POLICY_FOCUS_ONLY, _LIVE_POLICY_KEEP_LIVE}:
+        return _LIVE_POLICY_FOCUS_ONLY
+    return normalized
+
+
+def _normalize_live_mode(value: Any) -> str:
+    normalized = str(value or _LIVE_MODE_PROXY).strip().lower()
+    if normalized not in {_LIVE_MODE_PROXY, _LIVE_MODE_FULL}:
+        return _LIVE_MODE_PROXY
+    return normalized
 
 
 class ViewerSessionBridge(QObject):
@@ -77,6 +101,7 @@ class ViewerSessionBridge(QObject):
         self._scene_bridge = scene_bridge
         self._sessions: dict[tuple[str, str], _ViewerSessionState] = {}
         self._last_error = ""
+        self._policy_sync_in_progress = False
 
         if shell_window is not None:
             execution_event = getattr(shell_window, "execution_event", None)
@@ -84,6 +109,7 @@ class ViewerSessionBridge(QObject):
                 execution_event.connect(self._handle_execution_event)
         if scene_bridge is not None:
             scene_bridge.workspace_changed.connect(self._on_workspace_changed)
+            scene_bridge.selection_changed.connect(self._on_selection_changed)
             scene_bridge.nodes_changed.connect(self._on_nodes_changed)
             scene_bridge.edges_changed.connect(self._on_edges_changed)
 
@@ -145,6 +171,7 @@ class ViewerSessionBridge(QObject):
 
         state.phase = "opening"
         state.invalidated_reason = ""
+        state.demoted_reason = ""
         state.close_reason = ""
         state.last_error = ""
         state.last_command = "open"
@@ -157,6 +184,11 @@ class ViewerSessionBridge(QObject):
         self._merge_session_options(state, option_updates)
 
         request_options = self._request_options(state, option_updates)
+        request_options["live_mode"] = self._desired_live_mode_map(workspace_id).get(
+            (workspace_id, normalized_node_id),
+            _LIVE_MODE_PROXY,
+        )
+        state.options["live_mode"] = request_options["live_mode"]
         request_id = self._send_execution_command(
             "open_viewer_session",
             workspace_id=workspace_id,
@@ -206,6 +238,7 @@ class ViewerSessionBridge(QObject):
         state.phase = "closing"
         state.close_reason = str(option_updates.get("reason", "")).strip()
         self.sessions_changed.emit()
+        self._sync_live_policy(state.workspace_id)
         return True
 
     @pyqtSlot(str, result=bool)
@@ -351,12 +384,15 @@ class ViewerSessionBridge(QObject):
         state.request_id = request_id
         state.last_command = command_name
         state.summary.update(summary)
+        if _normalize_live_mode(request_options.get("live_mode")) == _LIVE_MODE_FULL:
+            state.demoted_reason = ""
         self.sessions_changed.emit()
+        self._sync_live_policy(state.workspace_id)
         return True
 
     def _merge_session_options(self, state: _ViewerSessionState, options: dict[str, Any]) -> None:
         state.options.update(copy.deepcopy(options))
-        state.live_policy = str(state.options.get("live_policy", state.live_policy)).strip() or "focus_only"
+        state.live_policy = _normalize_live_policy(state.options.get("live_policy", state.live_policy))
         state.keep_live = bool(state.options.get("keep_live", state.keep_live))
         playback_state = str(state.options.get("playback_state", state.playback_state)).strip()
         state.playback_state = playback_state or "paused"
@@ -369,11 +405,26 @@ class ViewerSessionBridge(QObject):
     def _request_options(self, state: _ViewerSessionState, option_updates: dict[str, Any]) -> dict[str, Any]:
         options = copy.deepcopy(state.options)
         options.update(copy.deepcopy(option_updates))
-        options["live_policy"] = str(options.get("live_policy", state.live_policy)).strip() or "focus_only"
+        options["live_policy"] = _normalize_live_policy(options.get("live_policy", state.live_policy))
         options["keep_live"] = bool(options.get("keep_live", state.keep_live))
         playback_state = str(options.get("playback_state", state.playback_state)).strip()
         options["playback_state"] = playback_state or "paused"
-        options["live_mode"] = str(options.get("live_mode", "proxy")).strip() or "proxy"
+        options["live_mode"] = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_PROXY))
+        return options
+
+    def _materialize_options(
+        self,
+        state: _ViewerSessionState,
+        option_updates: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        options = copy.deepcopy(state.options)
+        if option_updates:
+            options.update(copy.deepcopy(option_updates))
+        output_profile = str(options.get("output_profile", "memory")).strip() or "memory"
+        options["output_profile"] = output_profile
+        options["live_mode"] = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_FULL))
+        options["live_policy"] = _normalize_live_policy(options.get("live_policy", state.live_policy))
+        options["keep_live"] = bool(options.get("keep_live", state.keep_live))
         return options
 
     def _send_execution_command(self, method_name: str, **kwargs: Any) -> str:
@@ -392,6 +443,31 @@ class ViewerSessionBridge(QObject):
             return ""
         self._set_last_error("")
         return str(request_id or "")
+
+    def _send_materialize_command(
+        self,
+        state: _ViewerSessionState,
+        *,
+        option_updates: dict[str, Any] | None = None,
+    ) -> bool:
+        request_options = self._materialize_options(state, option_updates)
+        request_id = self._send_execution_command(
+            "materialize_viewer_data",
+            workspace_id=state.workspace_id,
+            node_id=state.node_id,
+            session_id=state.session_id,
+            options=request_options,
+        )
+        if not request_id:
+            state.phase = "error"
+            state.last_command = "materialize"
+            return False
+        state.request_id = request_id
+        state.last_command = "materialize"
+        state.options["live_mode"] = request_options["live_mode"]
+        state.cache_state = "materializing"
+        state.demoted_reason = ""
+        return True
 
     def _ensure_session_state(self, workspace_id: str, node_id: str) -> _ViewerSessionState:
         session_key = (workspace_id, node_id)
@@ -475,6 +551,12 @@ class ViewerSessionBridge(QObject):
             )
         ).strip() or "empty"
         state.invalidated_reason = str(state.summary.get("invalidated_reason", "")).strip()
+        event_demoted_reason = str(state.summary.get("demoted_reason", "")).strip()
+        if event_demoted_reason:
+            state.demoted_reason = event_demoted_reason
+        elif _normalize_live_mode(state.options.get("live_mode")) == _LIVE_MODE_FULL:
+            state.demoted_reason = ""
+            state.summary.pop("demoted_reason", None)
         state.close_reason = str(
             state.summary.get("close_reason", state.options.get("reason", state.close_reason))
         ).strip()
@@ -482,23 +564,32 @@ class ViewerSessionBridge(QObject):
         if event_type == "viewer_session_closed":
             state.phase = "closed"
             state.data_refs.clear()
+            state.demoted_reason = ""
+            state.summary.pop("demoted_reason", None)
         elif state.invalidated_reason:
             state.phase = "invalidated"
+            state.demoted_reason = ""
+            state.summary.pop("demoted_reason", None)
         else:
             state.phase = "open"
         self.sessions_changed.emit()
+        self._sync_live_policy(workspace_id)
 
     def _on_workspace_changed(self, _workspace_id: str) -> None:
         self.active_workspace_changed.emit()
         self.sessions_changed.emit()
+        self._sync_live_policy(self._current_workspace_id())
+
+    def _on_selection_changed(self) -> None:
+        self._sync_live_policy(self._current_workspace_id())
 
     def _on_nodes_changed(self) -> None:
-        self._handle_graph_mutation()
+        self._handle_graph_mutation(demote_existing=False)
 
     def _on_edges_changed(self) -> None:
-        self._handle_graph_mutation()
+        self._handle_graph_mutation(demote_existing=True)
 
-    def _handle_graph_mutation(self) -> None:
+    def _handle_graph_mutation(self, *, demote_existing: bool) -> None:
         workspace_id = self._current_workspace_id()
         if not workspace_id:
             return
@@ -513,10 +604,11 @@ class ViewerSessionBridge(QObject):
                 self._invalidate_state(state, "graph_mutation")
                 changed = True
                 continue
-            if self._demote_state_to_proxy(state, reason="graph_mutation"):
+            if demote_existing and self._demote_state_to_proxy(state, reason="graph_mutation"):
                 changed = True
         if changed:
             self.sessions_changed.emit()
+        self._sync_live_policy(workspace_id)
 
     def _workspace_node_ids(self, workspace_id: str) -> set[str] | None:
         shell_window = self._shell_window
@@ -538,28 +630,165 @@ class ViewerSessionBridge(QObject):
     @staticmethod
     def _demote_state_to_proxy(state: _ViewerSessionState, *, reason: str) -> bool:
         options_before = copy.deepcopy(state.options)
-        summary_before = copy.deepcopy(state.summary)
         cache_before = state.cache_state
+        demoted_before = state.demoted_reason
         if state.options.get("live_mode") != "proxy":
             state.options["live_mode"] = "proxy"
         if state.cache_state == "live_ready":
             state.cache_state = "proxy_ready"
-        state.summary["demoted_reason"] = reason
+        state.summary.pop("demoted_reason", None)
+        state.demoted_reason = str(reason).strip()
         return (
             state.options != options_before
-            or state.summary != summary_before
             or state.cache_state != cache_before
+            or state.demoted_reason != demoted_before
         )
 
     @staticmethod
     def _invalidate_state(state: _ViewerSessionState, reason: str) -> None:
         state.phase = "invalidated"
         state.invalidated_reason = reason
+        state.demoted_reason = ""
         state.cache_state = "invalidated"
         state.data_refs.clear()
         state.close_reason = ""
         state.options["live_mode"] = "proxy"
         state.summary["invalidated_reason"] = reason
+
+    def _workspace_open_states(self, workspace_id: str) -> list[_ViewerSessionState]:
+        states = [
+            state
+            for state in self._sessions.values()
+            if state.workspace_id == workspace_id and state.phase in _OPEN_SESSION_PHASES
+        ]
+        states.sort(key=lambda state: state.node_id)
+        return states
+
+    def _desired_live_mode_map(self, workspace_id: str) -> dict[tuple[str, str], str]:
+        desired_modes: dict[tuple[str, str], str] = {}
+        if not workspace_id:
+            return desired_modes
+        states = self._workspace_open_states(workspace_id)
+        if not states:
+            return desired_modes
+
+        keep_live_keys: list[tuple[str, str]] = []
+        focus_only_keys: list[tuple[str, str]] = []
+        for state in states:
+            key = (state.workspace_id, state.node_id)
+            if state.keep_live or state.live_policy == _LIVE_POLICY_KEEP_LIVE:
+                keep_live_keys.append(key)
+            else:
+                focus_only_keys.append(key)
+
+        selected_lookup = _copy_mapping(getattr(self._scene_bridge, "selected_node_lookup", {}))
+        chosen_focus_key: tuple[str, str] | None = None
+        for key in focus_only_keys:
+            if bool(selected_lookup.get(key[1], False)):
+                chosen_focus_key = key
+                break
+        if chosen_focus_key is None:
+            for state in states:
+                key = (state.workspace_id, state.node_id)
+                if key not in focus_only_keys:
+                    continue
+                if _normalize_live_mode(state.options.get("live_mode")) == _LIVE_MODE_FULL:
+                    chosen_focus_key = key
+                    break
+
+        for key in keep_live_keys:
+            desired_modes[key] = _LIVE_MODE_FULL
+        if chosen_focus_key is not None:
+            desired_modes[chosen_focus_key] = _LIVE_MODE_FULL
+        for key in focus_only_keys:
+            desired_modes.setdefault(key, _LIVE_MODE_PROXY)
+        return desired_modes
+
+    def _sync_live_policy(self, workspace_id: str) -> None:
+        normalized_workspace_id = str(workspace_id).strip()
+        if not normalized_workspace_id or self._policy_sync_in_progress:
+            return
+        desired_modes = self._desired_live_mode_map(normalized_workspace_id)
+        if not desired_modes:
+            return
+
+        self._policy_sync_in_progress = True
+        changed = False
+        try:
+            for state in self._workspace_open_states(normalized_workspace_id):
+                if state.phase != "open":
+                    continue
+                desired_mode = desired_modes.get((state.workspace_id, state.node_id), _LIVE_MODE_PROXY)
+                changed = self._apply_desired_live_mode(state, desired_mode) or changed
+        finally:
+            self._policy_sync_in_progress = False
+
+        if changed:
+            self.sessions_changed.emit()
+
+    def _apply_desired_live_mode(self, state: _ViewerSessionState, desired_mode: str) -> bool:
+        normalized_desired_mode = _normalize_live_mode(desired_mode)
+        current_live_mode = _normalize_live_mode(state.options.get("live_mode"))
+        changed = False
+
+        if normalized_desired_mode == _LIVE_MODE_PROXY:
+            was_live = current_live_mode != _LIVE_MODE_PROXY or state.cache_state == "live_ready"
+            if current_live_mode != _LIVE_MODE_PROXY:
+                request_options = self._request_options(state, {"live_mode": _LIVE_MODE_PROXY})
+                request_id = self._send_execution_command(
+                    "update_viewer_session",
+                    workspace_id=state.workspace_id,
+                    node_id=state.node_id,
+                    session_id=state.session_id,
+                    options=request_options,
+                )
+                if not request_id:
+                    state.phase = "error"
+                    state.last_command = "set_live_mode"
+                    return True
+                state.request_id = request_id
+                state.last_command = "set_live_mode"
+                state.options["live_mode"] = _LIVE_MODE_PROXY
+                changed = True
+            if state.cache_state == "live_ready":
+                state.cache_state = "proxy_ready"
+                changed = True
+            if was_live and state.demoted_reason != _LIVE_POLICY_FOCUS_ONLY:
+                state.demoted_reason = _LIVE_POLICY_FOCUS_ONLY
+                changed = True
+            return changed
+
+        if state.demoted_reason:
+            state.demoted_reason = ""
+            state.summary.pop("demoted_reason", None)
+            changed = True
+        if state.cache_state == "live_ready":
+            if current_live_mode != _LIVE_MODE_FULL:
+                request_options = self._request_options(state, {"live_mode": _LIVE_MODE_FULL})
+                request_id = self._send_execution_command(
+                    "update_viewer_session",
+                    workspace_id=state.workspace_id,
+                    node_id=state.node_id,
+                    session_id=state.session_id,
+                    options=request_options,
+                )
+                if not request_id:
+                    state.phase = "error"
+                    state.last_command = "set_live_mode"
+                    return True
+                state.request_id = request_id
+                state.last_command = "set_live_mode"
+                state.options["live_mode"] = _LIVE_MODE_FULL
+                changed = True
+            return changed
+
+        if state.cache_state != "materializing":
+            materialize_requested = self._send_materialize_command(
+                state,
+                option_updates={"live_mode": _LIVE_MODE_FULL},
+            )
+            return materialize_requested or state.phase == "error" or changed
+        return changed
 
     def _set_last_error(self, value: str) -> None:
         normalized = str(value).strip()

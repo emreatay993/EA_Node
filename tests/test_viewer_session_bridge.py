@@ -19,6 +19,7 @@ class _ViewerExecutionClientStub:
         self.stop_calls: list[str] = []
         self.open_calls: list[dict[str, Any]] = []
         self.update_calls: list[dict[str, Any]] = []
+        self.materialize_calls: list[dict[str, Any]] = []
         self.close_calls: list[dict[str, Any]] = []
         self._request_counter = 0
 
@@ -113,18 +114,48 @@ class _ViewerExecutionClientStub:
         )
         return request_id
 
+    def materialize_viewer_data(
+        self,
+        *,
+        workspace_id: str,
+        node_id: str,
+        session_id: str,
+        options: dict[str, Any] | None = None,
+    ) -> str:
+        request_id = self._next_request_id("materialize")
+        self.materialize_calls.append(
+            {
+                "request_id": request_id,
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "session_id": session_id,
+                "options": dict(options or {}),
+            }
+        )
+        return request_id
+
     def shutdown(self) -> None:
         return None
 
 
 class _SceneStub(QObject):
     workspace_changed = pyqtSignal(str)
+    selection_changed = pyqtSignal()
     nodes_changed = pyqtSignal()
     edges_changed = pyqtSignal()
 
     def __init__(self, workspace_id: str = "ws_main") -> None:
         super().__init__()
         self.workspace_id = workspace_id
+        self.selected_node_lookup: dict[str, bool] = {}
+
+    def set_selected(self, *node_ids: str) -> None:
+        self.selected_node_lookup = {
+            str(node_id): True
+            for node_id in node_ids
+            if str(node_id).strip()
+        }
+        self.selection_changed.emit()
 
 
 class _WorkspaceManagerStub:
@@ -164,6 +195,9 @@ class _HostStub(QObject):
                     "ws_main": _WorkspaceState(
                         nodes={
                             "node_viewer": object(),
+                            "node_viewer_b": object(),
+                            "node_viewer_restore": object(),
+                            "node_viewer_other": object(),
                         }
                     )
                 }
@@ -221,6 +255,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         )
 
     def test_open_close_and_control_actions_route_through_execution_client_and_track_state(self) -> None:
+        self.host.scene.set_selected("node_viewer")
         session_id = self.bridge.open(
             "node_viewer",
             {
@@ -238,6 +273,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(open_call["session_id"], session_id)
         self.assertEqual(open_call["data_refs"], {"fields": "fields_ref"})
         self.assertEqual(open_call["options"]["live_policy"], "focus_only")
+        self.assertEqual(open_call["options"]["live_mode"], "full")
         self.assertEqual(open_call["options"]["playback_state"], "paused")
 
         opening_state = self.bridge.session_state("node_viewer")
@@ -251,12 +287,14 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id=session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "full"},
             )
         )
 
         opened_state = self.bridge.session_state("node_viewer")
         self.assertEqual(opened_state["phase"], "open")
-        self.assertEqual(opened_state["cache_state"], "proxy_ready")
+        self.assertEqual(opened_state["cache_state"], "live_ready")
         self.assertEqual(opened_state["summary"]["result_name"], "displacement")
 
         self.assertTrue(self.bridge.play("node_viewer"))
@@ -298,7 +336,8 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(closed_state["phase"], "closed")
         self.assertEqual(closed_state["close_reason"], "user_close")
 
-    def test_graph_mutation_demotes_existing_session_and_invalidates_removed_node(self) -> None:
+    def test_node_mutation_keeps_live_session_and_removed_node_invalidates_it(self) -> None:
+        self.host.scene.set_selected("node_viewer")
         session_id = self.bridge.open("node_viewer")
         open_call = self.host.execution_client.open_calls[-1]
         self.host.execution_event.emit(
@@ -314,11 +353,10 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         )
 
         self.host.scene.nodes_changed.emit()
-        demoted_state = self.bridge.session_state("node_viewer")
-        self.assertEqual(demoted_state["phase"], "open")
-        self.assertEqual(demoted_state["options"]["live_mode"], "proxy")
-        self.assertEqual(demoted_state["cache_state"], "proxy_ready")
-        self.assertEqual(demoted_state["summary"]["demoted_reason"], "graph_mutation")
+        live_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(live_state["phase"], "open")
+        self.assertEqual(live_state["options"]["live_mode"], "full")
+        self.assertEqual(live_state["cache_state"], "live_ready")
 
         self.host.model.project.workspaces["ws_main"].nodes.pop("node_viewer")
         self.host.scene.nodes_changed.emit()
@@ -326,6 +364,107 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(invalidated_state["phase"], "invalidated")
         self.assertEqual(invalidated_state["invalidated_reason"], "graph_mutation")
         self.assertEqual(invalidated_state["cache_state"], "invalidated")
+
+    def test_focus_only_selection_keeps_one_live_session_until_keep_live_is_enabled(self) -> None:
+        self.host.scene.set_selected("node_viewer")
+        first_session_id = self.bridge.open("node_viewer")
+        first_open = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=first_open["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id=first_session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "full"},
+                data_refs={"dataset": {"kind": "mock_a"}},
+            )
+        )
+
+        second_session_id = self.bridge.open("node_viewer_b")
+        second_open = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=second_open["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer_b",
+                session_id=second_session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "proxy"},
+                data_refs={"dataset": {"kind": "mock_b"}},
+            )
+        )
+
+        self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "full")
+        self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "proxy")
+
+        self.host.scene.set_selected("node_viewer_b")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "proxy")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer_b")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "proxy")
+        self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "full")
+        self.assertEqual(self.bridge.session_state("node_viewer_b")["cache_state"], "materializing")
+
+        self.assertTrue(self.bridge.set_keep_live("node_viewer_b", True))
+        self.host.scene.set_selected("node_viewer")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer_b")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["keep_live"], True)
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "full")
+        self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "full")
+
+    def test_proxy_demotion_preserves_summary_for_restoration(self) -> None:
+        self.host.scene.set_selected("node_viewer_restore")
+        restore_session_id = self.bridge.open(
+            "node_viewer_restore",
+            {
+                "summary": {"camera": {"zoom": 1.2}, "result_name": "displacement"},
+            },
+        )
+        restore_open = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=restore_open["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer_restore",
+                session_id=restore_session_id,
+                summary={"cache_state": "live_ready", "camera": {"zoom": 1.2}},
+                options={"live_mode": "full"},
+                data_refs={"dataset": {"kind": "restore_dataset"}},
+            )
+        )
+
+        other_session_id = self.bridge.open("node_viewer_other")
+        other_open = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=other_open["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer_other",
+                session_id=other_session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "proxy"},
+                data_refs={"dataset": {"kind": "other_dataset"}},
+            )
+        )
+
+        self.host.scene.set_selected("node_viewer_other")
+        demoted_state = self.bridge.session_state("node_viewer_restore")
+        self.assertEqual(demoted_state["options"]["live_mode"], "proxy")
+        self.assertEqual(demoted_state["summary"]["camera"], {"zoom": 1.2})
+        self.assertEqual(demoted_state["summary"]["demoted_reason"], "focus_only")
+
+        self.host.scene.set_selected("node_viewer_restore")
+        restored_state = self.bridge.session_state("node_viewer_restore")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer_restore")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(restored_state["options"]["live_mode"], "full")
+        self.assertEqual(restored_state["cache_state"], "materializing")
+        self.assertEqual(restored_state["summary"]["camera"], {"zoom": 1.2})
+        self.assertNotIn("demoted_reason", restored_state["summary"])
 
 
 class ViewerSessionBridgeShellIntegrationTests(MainWindowShellTestBase):

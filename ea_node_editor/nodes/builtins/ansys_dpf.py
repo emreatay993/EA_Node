@@ -1,7 +1,15 @@
 from __future__ import annotations
 
+import hashlib
+import copy
 from typing import Any
 
+from ea_node_editor.execution.protocol import (
+    MaterializeViewerDataCommand,
+    OpenViewerSessionCommand,
+    UpdateViewerSessionCommand,
+    ViewerSessionFailedEvent,
+)
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
@@ -23,6 +31,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_MESH_SELECTION_NODE_IDS,
     DPF_MESH_SELECTION_VALUES,
     DPF_MODEL_NODE_TYPE_ID,
+    DPF_OUTPUT_MODE_BOTH,
     DPF_NODE_CATEGORY,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_OUTPUT_MODE_STORED,
@@ -31,12 +40,17 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TARGET_FIELD_LOCATION_VALUES,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
+    DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
+    DPF_VIEWER_LIVE_POLICY_KEEP_LIVE,
+    DPF_VIEWER_LIVE_POLICY_VALUES,
+    DPF_VIEWER_NODE_TYPE_ID,
     build_mesh_scoping_metadata,
     build_time_scoping_metadata,
     clone_field_handle_with_metadata,
     clone_handle_with_metadata,
     dpf_output_mode_property,
     normalize_dpf_output_mode,
+    normalize_dpf_viewer_live_policy,
     normalize_export_artifact_key,
     normalize_export_formats,
     normalize_field_operation,
@@ -68,7 +82,9 @@ from ea_node_editor.nodes.types import (
     DPF_MODEL_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
+    DPF_VIEW_SESSION_DATA_TYPE,
     NodeResult,
+    NodeRenderQualitySpec,
     PortSpec,
     PropertySpec,
 )
@@ -107,6 +123,47 @@ def _default_export_artifact_key(ctx, field_ref) -> str:  # noqa: ANN001
     result_name = str(field_ref.metadata.get("result_name", "")).strip() or "field"
     set_id = int(field_ref.metadata.get("set_id", 1))
     return f"{ctx.workspace_id}.{ctx.node_id}.{result_name}.set{set_id}"
+
+
+def _default_viewer_session_id(workspace_id: str, node_id: str) -> str:
+    digest = hashlib.sha1(f"{workspace_id}:{node_id}".encode("utf-8")).hexdigest()[:16]
+    return f"viewer_session_{digest}"
+
+
+def _viewer_event_payload(event: object) -> dict[str, Any]:
+    return {
+        "workspace_id": str(getattr(event, "workspace_id", "")).strip(),
+        "node_id": str(getattr(event, "node_id", "")).strip(),
+        "session_id": str(getattr(event, "session_id", "")).strip(),
+        "data_refs": copy.deepcopy(getattr(event, "data_refs", {})),
+        "summary": copy.deepcopy(getattr(event, "summary", {})),
+        "options": copy.deepcopy(getattr(event, "options", {})),
+    }
+
+
+def _viewer_summary_from_field_ref(field_ref) -> dict[str, Any]:  # noqa: ANN001
+    metadata = field_ref.metadata
+    summary: dict[str, Any] = {
+        "result_name": str(metadata.get("result_name", "")).strip(),
+    }
+    set_id = metadata.get("set_id")
+    try:
+        normalized_set_id = int(set_id)
+    except (TypeError, ValueError):
+        normalized_set_id = 0
+    if normalized_set_id > 0:
+        summary["set_id"] = normalized_set_id
+        summary["set_label"] = f"Set {normalized_set_id}"
+        summary["step_index"] = max(0, normalized_set_id - 1)
+    time_value = metadata.get("time_value")
+    try:
+        normalized_time_value = float(time_value) if time_value is not None else None
+    except (TypeError, ValueError):
+        normalized_time_value = None
+    if normalized_time_value is not None:
+        summary["time_value"] = normalized_time_value
+        summary["time_label"] = f"{normalized_time_value:g}"
+    return summary
 
 
 @node_type(
@@ -642,6 +699,133 @@ class DpfExportNodePlugin:
             ctx.release_handle(wrapped_fields_ref)
 
 
+@node_type(
+    type_id=DPF_VIEWER_NODE_TYPE_ID,
+    display_name="DPF Viewer",
+    category=DPF_NODE_CATEGORY,
+    icon="monitor",
+    description="Caches a DPF viewer session and its proxy/live dataset state through the worker session service.",
+    ports=(
+        PortSpec("exec_in", "in", "exec", "exec", required=False),
+        PortSpec("field", "in", "data", DPF_FIELD_DATA_TYPE, required=False),
+        PortSpec("model", "in", "data", DPF_MODEL_DATA_TYPE, required=False),
+        PortSpec("mesh", "in", "data", DPF_MESH_DATA_TYPE, required=False),
+        PortSpec("session", "out", "data", DPF_VIEW_SESSION_DATA_TYPE, exposed=True),
+        PortSpec("exec_out", "out", "exec", "exec", exposed=True),
+    ),
+    properties=(
+        PropertySpec(
+            "viewer_live_policy",
+            "enum",
+            DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
+            "Viewer Live Policy",
+            enum_values=DPF_VIEWER_LIVE_POLICY_VALUES,
+            inspector_editor="enum",
+        ),
+        dpf_output_mode_property(default=DPF_OUTPUT_MODE_BOTH),
+    ),
+    surface_family="viewer",
+    render_quality=NodeRenderQualitySpec(
+        weight_class="heavy",
+        max_performance_strategy="proxy_surface",
+        supported_quality_tiers=("full", "proxy"),
+    ),
+)
+class DpfViewerNodePlugin:
+    def execute(self, ctx) -> NodeResult:  # noqa: ANN001
+        output_mode = normalize_dpf_output_mode(
+            ctx.properties.get("output_mode"),
+            default=DPF_OUTPUT_MODE_BOTH,
+        )
+        live_policy = normalize_dpf_viewer_live_policy(
+            ctx.properties.get("viewer_live_policy"),
+            default=DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
+        )
+        model_ref, _ = _require_model_input(ctx, node_name="DPF Viewer")
+        field_ref, _ = resolve_field_handle_and_object(
+            ctx,
+            ctx.inputs.get("field"),
+            node_name="DPF Viewer",
+        )
+        wrapped_fields_ref = wrap_field_handle_as_fields_container(
+            ctx,
+            field_ref,
+            node_name="DPF Viewer",
+        )
+        mesh_ref = ctx.inputs.get("mesh")
+        session_service = ctx.worker_services.viewer_session_service
+        session_id = _default_viewer_session_id(ctx.workspace_id, ctx.node_id)
+        summary = _viewer_summary_from_field_ref(field_ref)
+        options = {
+            "live_mode": "proxy",
+            "live_policy": live_policy,
+            "keep_live": live_policy == DPF_VIEWER_LIVE_POLICY_KEEP_LIVE,
+            "output_profile": output_mode,
+            "playback_state": "paused",
+            "step_index": int(summary.get("step_index", 0)),
+        }
+        try:
+            opened = session_service.open_session(
+                OpenViewerSessionCommand(
+                    workspace_id=ctx.workspace_id,
+                    node_id=ctx.node_id,
+                    session_id=session_id,
+                    data_refs={
+                        "fields": wrapped_fields_ref,
+                        "model": model_ref,
+                        **({"mesh": mesh_ref} if mesh_ref is not None else {}),
+                    },
+                    summary=summary,
+                    options=options,
+                )
+            )
+            if isinstance(opened, ViewerSessionFailedEvent):
+                raise RuntimeError(opened.error)
+
+            session_event = opened
+            if output_mode in {DPF_OUTPUT_MODE_MEMORY, DPF_OUTPUT_MODE_BOTH}:
+                materialize_output_mode = (
+                    DPF_OUTPUT_MODE_MEMORY
+                    if output_mode == DPF_OUTPUT_MODE_BOTH
+                    else output_mode
+                )
+                materialized = session_service.materialize_data(
+                    MaterializeViewerDataCommand(
+                        workspace_id=ctx.workspace_id,
+                        node_id=ctx.node_id,
+                        session_id=session_id,
+                        options={
+                            "output_profile": materialize_output_mode,
+                            "live_mode": "proxy",
+                        },
+                    )
+                )
+                if isinstance(materialized, ViewerSessionFailedEvent):
+                    raise RuntimeError(materialized.error)
+                session_event = materialized
+                if materialize_output_mode != output_mode:
+                    updated = session_service.update_session(
+                        UpdateViewerSessionCommand(
+                            workspace_id=ctx.workspace_id,
+                            node_id=ctx.node_id,
+                            session_id=session_id,
+                            options={"output_profile": output_mode},
+                        )
+                    )
+                    if isinstance(updated, ViewerSessionFailedEvent):
+                        raise RuntimeError(updated.error)
+                    session_event = updated
+
+            return NodeResult(
+                outputs={
+                    "session": _viewer_event_payload(session_event),
+                    "exec_out": True,
+                }
+            )
+        finally:
+            ctx.release_handle(wrapped_fields_ref)
+
+
 ANSYS_DPF_NODE_PLUGINS = (
     DpfResultFileNodePlugin,
     DpfModelNodePlugin,
@@ -651,6 +835,7 @@ ANSYS_DPF_NODE_PLUGINS = (
     DpfFieldOpsNodePlugin,
     DpfMeshExtractNodePlugin,
     DpfExportNodePlugin,
+    DpfViewerNodePlugin,
 )
 
 
@@ -664,4 +849,5 @@ __all__ = [
     "DpfResultFieldNodePlugin",
     "DpfResultFileNodePlugin",
     "DpfTimeScopingNodePlugin",
+    "DpfViewerNodePlugin",
 ]

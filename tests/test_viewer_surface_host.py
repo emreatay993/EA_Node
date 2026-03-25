@@ -493,6 +493,53 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_surface_reflects_proxy_demotion_and_live_restoration(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-proxy-restore",
+            """
+            bridge = ViewerSessionBridgeStub()
+            bridge._set_state(
+                cache_state="live_ready",
+                options={"live_mode": "full"},
+                summary={"camera": {"zoom": 1.2}},
+            )
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            assert surface is not None
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                assert bool(surface.property("liveSurfaceActive"))
+                assert not bool(surface.property("proxySurfaceActive"))
+
+                bridge._set_state(
+                    cache_state="proxy_ready",
+                    options={"live_mode": "proxy"},
+                    summary={"demoted_reason": "focus_only"},
+                )
+                settle_events(5)
+                assert not bool(surface.property("liveSurfaceActive"))
+                assert bool(surface.property("proxySurfaceActive"))
+                assert "focus_only" in str(surface.property("viewerHintText"))
+
+                bridge._set_state(
+                    cache_state="live_ready",
+                    options={"live_mode": "full"},
+                    summary={"demoted_reason": ""},
+                )
+                settle_events(5)
+                assert bool(surface.property("liveSurfaceActive"))
+                assert not bool(surface.property("proxySurfaceActive"))
+                assert "Demoted to proxy" not in str(surface.property("viewerHintText"))
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
