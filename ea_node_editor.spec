@@ -9,7 +9,8 @@ from pathlib import Path, PurePosixPath
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+_SPEC_PATH = Path(globals().get("__file__", Path.cwd() / "ea_node_editor.spec")).resolve()
+PROJECT_ROOT = _SPEC_PATH.parent
 PACKAGE_PROFILE_ENV_VAR = "EA_NODE_EDITOR_PACKAGE_PROFILE"
 BASE_PACKAGE_PROFILE = "base"
 VIEWER_PACKAGE_PROFILE = "viewer"

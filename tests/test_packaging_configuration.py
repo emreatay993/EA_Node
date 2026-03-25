@@ -94,8 +94,17 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'artifacts\\pyinstaller' in build_package_source
     assert 'Join-Path (Join-Path $artifactRoot "dist") $PackageProfile' in build_package_source
     assert 'Join-Path (Join-Path $artifactRoot "build") $PackageProfile' in build_package_source
+    assert '[System.IO.Path]::GetTempFileName()' in build_package_source
+    assert 'Path(sys.argv[1]).write_text' in build_package_source
+    assert 'Start-Process -FilePath $PythonExecutable -ArgumentList @($probeScriptPath, $probeOutputPath) -PassThru -Wait' in build_package_source
+    assert 'Start-Process -FilePath $pythonExe -ArgumentList $buildArgs -PassThru -Wait -NoNewWindow' in build_package_source
 
     assert '[ValidateSet("base", "viewer")]' in build_installer_source
     assert '$DistPath = "artifacts\\pyinstaller\\dist\\$PackageProfile\\COREX_Node_Editor"' in build_installer_source
     assert '$OutputRoot = "artifacts\\releases\\installer\\$PackageProfile"' in build_installer_source
     assert 'package_profile = $PackageProfile' in build_installer_source
+    assert 'New-InstallerBundleZip' in build_installer_source
+    assert 'Get-Command "tar.exe"' in build_installer_source
+    assert 'Resolve-PowerShellHostPath' in build_installer_source
+    assert '$validationShellPath = Resolve-PowerShellHostPath' in build_installer_source
+    assert 'Invoke-PowerShellScriptFile -HostPath $validationShellPath' in build_installer_source

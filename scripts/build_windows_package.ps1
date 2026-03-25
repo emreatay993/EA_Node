@@ -47,9 +47,13 @@ function Get-DependencyAvailability {
         [string]$PythonExecutable
     )
 
-    $probeScript = @"
+    $probeScriptPath = [System.IO.Path]::GetTempFileName()
+    $probeOutputPath = Join-Path $env:TEMP ("ea_node_editor_dependency_probe_" + [guid]::NewGuid().ToString("N") + ".json")
+    Set-Content -Path $probeScriptPath -Encoding utf8 -Value @"
 import importlib.util
 import json
+import sys
+from pathlib import Path
 
 modules = {
     "openpyxl": "openpyxl",
@@ -59,12 +63,13 @@ modules = {
     "pyvistaqt": "pyvistaqt",
     "vtk": "vtkmodules",
 }
-print(json.dumps({key: bool(importlib.util.find_spec(value)) for key, value in modules.items()}))
+payload = {key: bool(importlib.util.find_spec(value)) for key, value in modules.items()}
+Path(sys.argv[1]).write_text(json.dumps(payload), encoding="utf-8")
 "@
 
     try {
-        $raw = & $PythonExecutable -c $probeScript
-        if ($LASTEXITCODE -ne 0) {
+        $probeProcess = Start-Process -FilePath $PythonExecutable -ArgumentList @($probeScriptPath, $probeOutputPath) -PassThru -Wait
+        if ($probeProcess.ExitCode -ne 0) {
             return @{
                 openpyxl = "unknown"
                 psutil = "unknown"
@@ -74,7 +79,17 @@ print(json.dumps({key: bool(importlib.util.find_spec(value)) for key, value in m
                 vtk = "unknown"
             }
         }
-        $parsed = $raw | ConvertFrom-Json
+        if (-not (Test-Path $probeOutputPath)) {
+            return @{
+                openpyxl = "unknown"
+                psutil = "unknown"
+                ansys_dpf_core = "unknown"
+                pyvista = "unknown"
+                pyvistaqt = "unknown"
+                vtk = "unknown"
+            }
+        }
+        $parsed = Get-Content -Path $probeOutputPath -Raw | ConvertFrom-Json
         return @{
             openpyxl = [bool]$parsed.openpyxl
             psutil = [bool]$parsed.psutil
@@ -93,6 +108,9 @@ print(json.dumps({key: bool(importlib.util.find_spec(value)) for key, value in m
             pyvistaqt = "unknown"
             vtk = "unknown"
         }
+    }
+    finally {
+        Remove-Item -Path $probeScriptPath, $probeOutputPath -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -244,9 +262,9 @@ $previousPackageProfile = [System.Environment]::GetEnvironmentVariable($packageP
 Write-Host "Building Windows package with PyInstaller (profile: $PackageProfile)..."
 try {
     [System.Environment]::SetEnvironmentVariable($packageProfileEnvVar, $PackageProfile, "Process")
-    & $pythonExe @buildArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "PyInstaller build failed with exit code $LASTEXITCODE."
+    $buildProcess = Start-Process -FilePath $pythonExe -ArgumentList $buildArgs -PassThru -Wait -NoNewWindow
+    if ($buildProcess.ExitCode -ne 0) {
+        throw "PyInstaller build failed with exit code $($buildProcess.ExitCode)."
     }
 }
 finally {

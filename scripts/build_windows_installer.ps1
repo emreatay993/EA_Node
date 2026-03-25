@@ -13,6 +13,103 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $repoRoot
 
+function Resolve-PowerShellHostPath {
+    $candidateNames = @(
+        "powershell.exe",
+        "pwsh.exe",
+        "powershell",
+        "pwsh"
+    )
+
+    foreach ($candidateName in $candidateNames) {
+        try {
+            $command = Get-Command $candidateName -ErrorAction Stop
+            if (-not [string]::IsNullOrWhiteSpace($command.Source)) {
+                return $command.Source
+            }
+            if (-not [string]::IsNullOrWhiteSpace($command.Path)) {
+                return $command.Path
+            }
+            return $candidateName
+        }
+        catch {
+            continue
+        }
+    }
+
+    foreach ($candidatePath in @((Join-Path $PSHOME "powershell.exe"), (Join-Path $PSHOME "pwsh.exe"))) {
+        if (Test-Path $candidatePath) {
+            return $candidatePath
+        }
+    }
+
+    throw "Unable to resolve a PowerShell host for installer validation."
+}
+
+function Invoke-PowerShellScriptFile {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$HostPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ScriptPath,
+        [Parameter(Mandatory = $true)]
+        [string]$InstallRoot
+    )
+
+    $childProcess = Start-Process -FilePath $HostPath -ArgumentList @(
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        $ScriptPath,
+        "-InstallRoot",
+        $InstallRoot
+    ) -PassThru -Wait -NoNewWindow
+    if ($childProcess.ExitCode -ne 0) {
+        throw "PowerShell child host failed for script: $ScriptPath"
+    }
+}
+
+function New-InstallerBundleZip {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BundleRoot,
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationPath
+    )
+
+    $tarCommand = Get-Command "tar.exe" -ErrorAction SilentlyContinue
+    if ($null -ne $tarCommand) {
+        $tarProcess = Start-Process -FilePath $tarCommand.Source -ArgumentList @(
+            "-a",
+            "-cf",
+            $DestinationPath,
+            "-C",
+            $BundleRoot,
+            "payload",
+            "scripts"
+        ) -PassThru -Wait -NoNewWindow
+        if ($tarProcess.ExitCode -ne 0) {
+            throw "tar.exe failed with exit code $($tarProcess.ExitCode)."
+        }
+        if (-not (Test-Path $DestinationPath)) {
+            throw "tar.exe did not create installer bundle: $DestinationPath"
+        }
+        if ((Get-Item $DestinationPath).Length -le 0) {
+            throw "tar.exe created an empty installer bundle: $DestinationPath"
+        }
+        return
+    }
+
+    Compress-Archive -Path (Join-Path $BundleRoot "payload"), (Join-Path $BundleRoot "scripts") -DestinationPath $DestinationPath -Force
+    if (-not (Test-Path $DestinationPath)) {
+        throw "Compress-Archive did not create installer bundle: $DestinationPath"
+    }
+    if ((Get-Item $DestinationPath).Length -le 0) {
+        throw "Compress-Archive created an empty installer bundle: $DestinationPath"
+    }
+}
+
 function Resolve-RepoPath {
     param(
         [Parameter(Mandatory = $true)]
@@ -113,22 +210,16 @@ Set-Content -Path $uninstallScriptPath -Value $uninstallScript
 $bundleZip = Join-Path $bundleRoot "COREX_Node_Editor_installer_bundle_$runId.zip"
 $zipCreated = $false
 $zipError = ""
-for ($attempt = 1; $attempt -le 5; $attempt++) {
-    try {
-        Compress-Archive -Path (Join-Path $bundleRoot "payload"), (Join-Path $bundleRoot "scripts") -DestinationPath $bundleZip -Force
-        $zipCreated = $true
-        $zipError = ""
-        break
-    }
-    catch {
-        $zipError = $_.Exception.Message
-        if ($attempt -lt 5) {
-            Start-Sleep -Seconds 2
-        }
-    }
+try {
+    New-InstallerBundleZip -BundleRoot $bundleRoot -DestinationPath $bundleZip
+    $zipCreated = $true
+    $zipError = ""
+}
+catch {
+    $zipError = $_.Exception.Message
 }
 if (-not $zipCreated) {
-    Write-Warning "Installer zip creation skipped after retries: $zipError"
+    Write-Warning "Installer zip creation skipped: $zipError"
 }
 
 $validationTempRoot = Join-Path $env:TEMP "ea_installer_validation_$runId"
@@ -147,9 +238,12 @@ if ($zipCreated) {
 $validationInstallRoot = Join-Path $validationTempRoot "install_root"
 $expandedInstallScript = Join-Path $packageRootForValidation "scripts\Install-COREX_Node_Editor.ps1"
 $expandedUninstallScript = Join-Path $packageRootForValidation "scripts\Uninstall-COREX_Node_Editor.ps1"
+$validationShellPath = Resolve-PowerShellHostPath
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File $expandedInstallScript -InstallRoot $validationInstallRoot
-if ($LASTEXITCODE -ne 0) {
+try {
+    Invoke-PowerShellScriptFile -HostPath $validationShellPath -ScriptPath $expandedInstallScript -InstallRoot $validationInstallRoot
+}
+catch {
     throw "Installer validation failed during install phase."
 }
 
@@ -185,8 +279,10 @@ finally {
     }
 }
 
-& powershell -NoProfile -ExecutionPolicy Bypass -File $expandedUninstallScript -InstallRoot $validationInstallRoot
-if ($LASTEXITCODE -ne 0) {
+try {
+    Invoke-PowerShellScriptFile -HostPath $validationShellPath -ScriptPath $expandedUninstallScript -InstallRoot $validationInstallRoot
+}
+catch {
     throw "Installer validation failed during uninstall phase."
 }
 
@@ -218,6 +314,7 @@ $validationReport = [ordered]@{
         smoke_exit_code = $smokeExitCode
         uninstall_phase = if ($uninstallPassed) { "pass" } else { "fail" }
         install_root = $validationInstallRoot
+        validation_shell = $validationShellPath
     }
     packaging = [ordered]@{
         package_profile = $PackageProfile
