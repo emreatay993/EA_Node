@@ -7,7 +7,7 @@
 - Commit Owner: `worker`
 - Commit SHA: `c888c60ff2e3d356050bed8adc37d5cdbcb852dc`
 - Changed Files: `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/viewer_session_service.py`, `ea_node_editor/execution/worker.py`, `ea_node_editor/nodes/builtins/integrations_process.py`, `ea_node_editor/nodes/output_artifacts.py`, `ea_node_editor/nodes/types.py`, `ea_node_editor/persistence/artifact_store.py`, `tests/test_execution_artifact_refs.py`, `tests/test_process_run_node.py`, `tests/test_project_artifact_store.py`, `docs/specs/work_packets/architecture_refactor/P07_runtime_snapshot_context_WRAPUP.md`
-- Artifacts Produced: `docs/specs/work_packets/architecture_refactor/P07_runtime_snapshot_context_WRAPUP.md`
+- Artifacts Produced: `docs/specs/work_packets/architecture_refactor/P07_runtime_snapshot_context_WRAPUP.md`, `ea_node_editor/execution/runtime_snapshot.py`, `ea_node_editor/execution/viewer_session_service.py`, `ea_node_editor/execution/worker.py`, `ea_node_editor/nodes/builtins/integrations_process.py`, `ea_node_editor/nodes/output_artifacts.py`, `ea_node_editor/nodes/types.py`, `ea_node_editor/persistence/artifact_store.py`, `tests/test_execution_artifact_refs.py`, `tests/test_process_run_node.py`, `tests/test_project_artifact_store.py`
 
 Runtime execution now carries an explicit `RuntimeSnapshotContext` alongside the immutable `RuntimeSnapshot` input. Packet-owned node code uses that context's shared `ProjectArtifactStore` scratch state instead of mutating `RuntimeSnapshot.metadata`, `ExecutionContext.worker_services` is narrowed to a typed handle-services protocol, and stored transcript cleanup now uses a public `ProjectArtifactStore.discard_staged_entries()` API rather than packet-owned private state mutation.
 
