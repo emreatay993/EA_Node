@@ -4,7 +4,7 @@
 - Packet: `P01`
 - Branch Label: `codex/architecture-refactor/p01-shell-host-composition`
 - Commit Owner: `worker`
-- Commit SHA: `25e71ee66ef54a99fad1cb23286b2e6d854f75b3`
+- Commit SHA: `8cf3776aae79caa26deb5dd9a4872dcb241c043e`
 - Changed Files: `ea_node_editor/ui/shell/context_bridges.py`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/presenters.py`, `ea_node_editor/ui/shell/window.py`, `ea_node_editor/ui_qml/shell_context_bootstrap.py`, `tests/test_main_bootstrap.py`
 - Artifacts Produced: `docs/specs/work_packets/architecture_refactor/P01_shell_host_composition_WRAPUP.md`, `docs/specs/work_packets/architecture_refactor/ARCHITECTURE_REFACTOR_STATUS.md`
 - Moved shell-context bridge construction into `ea_node_editor/ui/shell/context_bridges.py` so composition and QML bootstrap share one bridge authority instead of recreating the same bundle in two places.
@@ -15,12 +15,12 @@
 
 ## Verification
 - PASS: `QT_QPA_PLATFORM=offscreen /mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py --ignore=venv -q`
-- FAIL: `QT_QPA_PLATFORM=offscreen /mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py tests/test_main_window_shell.py tests/main_window_shell/shell_runtime_contracts.py tests/main_window_shell/bridge_contracts.py --ignore=venv -q`
-- Final Verification Verdict: FAIL
+- PASS: `QT_QPA_PLATFORM=offscreen /mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/venv/Scripts/python.exe -m pytest tests/test_main_window_shell.py tests/main_window_shell/shell_runtime_contracts.py tests/main_window_shell/bridge_contracts.py --ignore=venv -q`
+- PASS: `QT_QPA_PLATFORM=offscreen /mnt/c/Users/emre_/PycharmProjects/EA_Node_Editor/venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py tests/test_main_window_shell.py tests/main_window_shell/shell_runtime_contracts.py tests/main_window_shell/bridge_contracts.py --ignore=venv -q`
+- Final Verification Verdict: PASS
 
 ## Residual Risks
-- The broader shell verification still fails in passive image/pdf and flow-edge coverage that is outside the P01 bootstrap seam.
-- P01 itself is internally consistent, but the packet cannot be marked fully green until those unrelated shell-suite regressions are cleared in a later packet or baseline fix.
+- None noted after the baseline shell-suite alignment landed on `main`.
 
 ## Ready for Integration
-- No: the packet review gate passes, but the broader packet verification command still fails outside the P01 seam.
+- Yes: the packet review gate passes, the broader packet verification command passes, and the packet artifacts now record the rebased substantive commit SHA.
