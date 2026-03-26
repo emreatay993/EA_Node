@@ -642,10 +642,10 @@ class ShellWorkspacePresenter(QObject):
     workspace_state_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
 
-    def __init__(self, host: "ShellWindow") -> None:
+    def __init__(self, host: "ShellWindow", *, ui_state: ShellWorkspaceUiState | None = None) -> None:
         super().__init__(host)
         self._host = host
-        self._ui_state = host.workspace_ui_state
+        self._ui_state = ui_state if ui_state is not None else host.workspace_ui_state
         host.project_meta_changed.connect(self.project_meta_changed.emit)
         host.workspace_state_changed.connect(self.workspace_state_changed.emit)
         host.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
