@@ -415,22 +415,38 @@ def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
     return _serialize_dataclass_payload(event)
 
 
+def _start_run_command_from_payload(payload: Mapping[str, Any]) -> StartRunCommand:
+    trigger_payload = deserialize_runtime_value(payload.get("trigger"))
+    runtime_snapshot_payload = deserialize_runtime_value(payload.get("runtime_snapshot"))
+    legacy_project_doc = deserialize_runtime_value(payload.get("project_doc"))
+    return StartRunCommand(
+        run_id=str(payload.get("run_id", "")),
+        project_path=str(payload.get("project_path", "")),
+        workspace_id=str(payload.get("workspace_id", "")),
+        trigger=dict(trigger_payload) if isinstance(trigger_payload, Mapping) else {},
+        runtime_snapshot=coerce_runtime_snapshot_payload(
+            runtime_snapshot_payload,
+            legacy_project_doc=legacy_project_doc if isinstance(legacy_project_doc, Mapping) else None,
+        ),
+    )
+
+
+def coerce_start_run_command(command: StartRunCommand | Mapping[str, Any]) -> StartRunCommand:
+    if isinstance(command, StartRunCommand):
+        return command
+
+    payload = dict(command)
+    payload.setdefault("type", "start_run")
+    typed_command = dict_to_command(payload)
+    if not isinstance(typed_command, StartRunCommand):
+        raise ValueError("run_workflow requires a start_run command payload.")
+    return typed_command
+
+
 def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
     command_type = str(payload.get("type", ""))
     if command_type == "start_run":
-        trigger_payload = deserialize_runtime_value(payload.get("trigger"))
-        runtime_snapshot_payload = deserialize_runtime_value(payload.get("runtime_snapshot"))
-        legacy_project_doc = deserialize_runtime_value(payload.get("project_doc"))
-        return StartRunCommand(
-            run_id=str(payload.get("run_id", "")),
-            project_path=str(payload.get("project_path", "")),
-            workspace_id=str(payload.get("workspace_id", "")),
-            trigger=dict(trigger_payload) if isinstance(trigger_payload, dict) else {},
-            runtime_snapshot=coerce_runtime_snapshot_payload(
-                runtime_snapshot_payload,
-                legacy_project_doc=legacy_project_doc if isinstance(legacy_project_doc, dict) else None,
-            ),
-        )
+        return _start_run_command_from_payload(payload)
     if command_type == "stop_run":
         return StopRunCommand(
             run_id=str(payload.get("run_id", "")),

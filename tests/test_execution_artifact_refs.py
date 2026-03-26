@@ -8,6 +8,7 @@ from ea_node_editor.execution.protocol import (
     NodeCompletedEvent,
     StartRunCommand,
     command_to_dict,
+    coerce_start_run_command,
     dict_to_command,
     dict_to_event,
     event_to_dict,
@@ -103,6 +104,33 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         if restored.runtime_snapshot is None:
             self.fail("runtime snapshot was not restored")
         restored_ref = restored.runtime_snapshot.metadata["artifact_cache"]["stdout"]
+        self.assertIsInstance(restored_ref, RuntimeArtifactRef)
+        self.assertEqual(restored_ref.ref, "artifact://stored_report")
+
+    def test_legacy_project_doc_adapter_restores_runtime_snapshot_artifact_refs(self) -> None:
+        snapshot = RuntimeSnapshot(
+            schema_version=1,
+            project_id="project_demo",
+            metadata={
+                "artifact_cache": {
+                    "stdout": RuntimeArtifactRef.managed("stored_report"),
+                }
+            },
+        )
+
+        command = coerce_start_run_command(
+            {
+                "run_id": "run_legacy",
+                "workspace_id": "ws_main",
+                "trigger": {"kind": "manual"},
+                "project_doc": snapshot.to_document(),
+            }
+        )
+
+        self.assertIsNotNone(command.runtime_snapshot)
+        if command.runtime_snapshot is None:
+            self.fail("legacy project_doc payload did not restore a runtime snapshot")
+        restored_ref = command.runtime_snapshot.metadata["artifact_cache"]["stdout"]
         self.assertIsInstance(restored_ref, RuntimeArtifactRef)
         self.assertEqual(restored_ref.ref, "artifact://stored_report")
 

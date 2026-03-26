@@ -19,7 +19,6 @@ from ea_node_editor.execution.protocol import (
     RunFailedEvent,
     RunStateEvent,
     ShutdownCommand,
-    StartRunCommand,
     StopRunCommand,
     UpdateViewerSessionCommand,
     VIEWER_COMMAND_TYPES,
@@ -28,10 +27,10 @@ from ea_node_editor.execution.protocol import (
     WorkerCommand,
     WorkerEvent,
     command_to_dict,
+    coerce_start_run_command,
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot_payload
 from ea_node_editor.execution.worker import worker_main
 
 _LISTENER_SHUTDOWN_SENTINEL = {"type": "__listener_shutdown__"}
@@ -239,16 +238,17 @@ class ProcessExecutionClient:
 
         run_id = f"run_{uuid.uuid4().hex[:8]}"
         trigger_payload = dict(trigger or {})
-        runtime_snapshot = coerce_runtime_snapshot_payload(
-            trigger_payload.pop("runtime_snapshot", None),
-            legacy_project_doc=trigger_payload.pop("project_doc", None),
-        )
-        command = StartRunCommand(
-            run_id=run_id,
-            project_path=project_path,
-            workspace_id=workspace_id,
-            trigger=trigger_payload,
-            runtime_snapshot=runtime_snapshot,
+        runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
+        legacy_project_doc = trigger_payload.pop("project_doc", None)
+        command = coerce_start_run_command(
+            {
+                "run_id": run_id,
+                "project_path": project_path,
+                "workspace_id": workspace_id,
+                "trigger": trigger_payload,
+                "runtime_snapshot": runtime_snapshot,
+                "project_doc": legacy_project_doc,
+            }
         )
         with self._state_lock:
             self._active_run_id = run_id
