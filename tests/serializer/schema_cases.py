@@ -3,6 +3,7 @@ from __future__ import annotations
 from ea_node_editor.execution.compiler import compile_workspace_document
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.persistence.project_codec import ProjectDocumentFlavor, ProjectPersistenceEnvelope
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 from tests.serializer.base_cases import (
@@ -182,7 +183,16 @@ class SerializerSchemaMixin:
             ["node_end", "node_start"],
         )
         self.assertEqual([edge["edge_id"] for edge in runtime_workspace_doc["edges"]], ["edge_valid"])
-        self.assertIn("_runtime_unresolved_workspaces", runtime_doc["metadata"])
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_doc)
+        self.assertEqual(runtime_envelope.document_flavor, ProjectDocumentFlavor.RUNTIME)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_plugin").unresolved_node_docs),
+            {"node_unknown"},
+        )
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_plugin").unresolved_edge_docs),
+            {"edge_unknown_to_known"},
+        )
 
         compiled = compile_workspace_document(runtime_workspace_doc, registry)
         self.assertEqual(

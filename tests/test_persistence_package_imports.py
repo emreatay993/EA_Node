@@ -50,3 +50,20 @@ class PersistencePackageImportTests(unittest.TestCase):
             result.stdout.strip(),
             "JsonProjectCodec,JsonProjectMigration,JsonProjectSerializer,SessionAutosaveStore",
         )
+
+    def test_project_codec_contract_types_import_without_cycle(self) -> None:
+        result = self._run_python(
+            "from ea_node_editor.persistence.project_codec import "
+            "ProjectDocumentFlavor, ProjectPersistenceEnvelope; "
+            "print(','.join([ProjectDocumentFlavor.RUNTIME.value, ProjectPersistenceEnvelope.__name__]))"
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=result.stderr or result.stdout,
+        )
+        self.assertEqual(
+            result.stdout.strip(),
+            "runtime,ProjectPersistenceEnvelope",
+        )

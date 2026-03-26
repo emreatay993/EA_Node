@@ -458,7 +458,11 @@ class GraphInvariantKernel:
             unknown_node_ids = set(workspace.nodes) - set(resolved_nodes)
             for resolution in resolved_nodes.values():
                 node = resolution.node
-                node.properties = registry.normalize_properties(node.type_id, node.properties)
+                node.properties = registry.normalize_properties(
+                    node.type_id,
+                    node.properties,
+                    include_defaults=False,
+                )
 
             for node_id in sorted(unknown_node_ids):
                 node = workspace.nodes.pop(node_id, None)
@@ -486,9 +490,9 @@ class GraphInvariantKernel:
                     target_node_id=edge.target_node_id,
                     target_port_key=edge.target_port_key,
                     resolved_nodes=resolved_nodes,
-                    require_source_output=False,
+                    require_source_output=True,
                     require_target_input=True,
-                    require_exposed_ports=False,
+                    require_exposed_ports=True,
                 )
                 if resolution is None or not cls.accept_registry_edge(
                     resolution,

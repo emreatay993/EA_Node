@@ -29,6 +29,7 @@ from ea_node_editor.nodes.types import (
     PortSpec,
     PropertySpec,
 )
+from ea_node_editor.persistence.overlay import WorkspacePersistenceEnvelope
 
 
 class _Plugin:
@@ -95,6 +96,40 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(
             source.persistence_state.unresolved_node_docs["node_missing"]["type_id"],
             "plugin.missing",
+        )
+
+    def test_workspace_persistence_envelope_round_trips_runtime_payload(self) -> None:
+        workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
+        workspace.persistence_state.replace_unresolved_node_docs(
+            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        )
+        workspace.persistence_state.replace_unresolved_edge_docs(
+            {
+                "edge_missing": {
+                    "edge_id": "edge_missing",
+                    "source_node_id": "node_missing",
+                    "target_node_id": "node_known",
+                }
+            }
+        )
+        workspace.persistence_state.replace_authored_node_overrides(
+            {"node_known": {"parent_node_id": "node_missing"}}
+        )
+
+        payload = WorkspacePersistenceEnvelope.capture(workspace).to_mapping()
+        restored = WorkspacePersistenceEnvelope.from_mapping(payload)
+
+        self.assertEqual(
+            restored.unresolved_node_docs["node_missing"]["type_id"],
+            "plugin.missing",
+        )
+        self.assertEqual(
+            restored.unresolved_edge_docs["edge_missing"]["source_node_id"],
+            "node_missing",
+        )
+        self.assertEqual(
+            restored.authored_node_overrides["node_known"]["parent_node_id"],
+            "node_missing",
         )
 
     def test_register_rejects_duplicate_port_keys(self) -> None:

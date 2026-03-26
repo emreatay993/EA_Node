@@ -5,13 +5,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
-from ea_node_editor.graph.model import node_instance_from_mapping
-from ea_node_editor.graph.normalization import (
-    accept_registry_edge,
-    normalized_exposed_ports,
-    resolve_registry_nodes,
-    validate_registry_edge,
-)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.passive_style_normalization import normalize_passive_style_presets
 from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
@@ -193,127 +186,31 @@ class JsonProjectMigration:
             active_view_id = next(iter(views_by_id))
 
         nodes_by_id: dict[str, dict[str, Any]] = {}
-        unresolved_node_ids: set[str] = set()
         for node_doc in self.as_list(workspace_doc.get("nodes", [])):
             if not isinstance(node_doc, Mapping):
                 continue
-            node_id = self._coerce_str(node_doc.get("node_id"))
-            type_id = self._coerce_str(node_doc.get("type_id"))
-            if not node_id or node_id in nodes_by_id or not type_id:
+            normalized_node = self._normalize_node_doc(node_doc)
+            if normalized_node is None:
                 continue
-            spec = self._registry.spec_or_none(type_id)
-            if spec is None:
-                preserved_node = self._copy_mapping(node_doc)
-                preserved_node["node_id"] = node_id
-                preserved_node["type_id"] = type_id
-                nodes_by_id[node_id] = preserved_node
-                unresolved_node_ids.add(node_id)
+            node_id = normalized_node["node_id"]
+            if node_id in nodes_by_id:
                 continue
-            nodes_by_id[node_id] = {
-                "node_id": node_id,
-                "type_id": type_id,
-                "title": self._coerce_str(node_doc.get("title"), spec.display_name),
-                "x": self._coerce_float(node_doc.get("x"), 0.0),
-                "y": self._coerce_float(node_doc.get("y"), 0.0),
-                "collapsed": self._coerce_bool(node_doc.get("collapsed"), False),
-                "properties": self._registry.normalize_properties(
-                    type_id,
-                    self.as_dict(node_doc.get("properties")),
-                    include_defaults=False,
-                ),
-                "exposed_ports": {
-                    key: self._coerce_bool(value)
-                    for key, value in self.as_dict(node_doc.get("exposed_ports")).items()
-                },
-                "visual_style": self.as_dict(node_doc.get("visual_style")),
-                "parent_node_id": self._coerce_str(node_doc.get("parent_node_id")) or None,
-                "custom_width": self._coerce_float(node_doc["custom_width"]) if node_doc.get("custom_width") is not None else None,
-                "custom_height": self._coerce_float(node_doc["custom_height"]) if node_doc.get("custom_height") is not None else None,
-            }
-
-        for node_id, node in nodes_by_id.items():
-            parent_id = self._coerce_str(node.get("parent_node_id")) or None
-            if parent_id not in nodes_by_id or parent_id == node_id:
-                if node_id not in unresolved_node_ids:
-                    node["parent_node_id"] = None
-
-        workspace_nodes_for_ports = {
-            node_id: node_instance_from_mapping(node)
-            for node_id, node in nodes_by_id.items()
-        }
-        workspace_nodes_for_ports = {
-            node_id: node
-            for node_id, node in workspace_nodes_for_ports.items()
-            if node is not None
-        }
-        resolved_nodes = resolve_registry_nodes(workspace_nodes_for_ports, self._registry)
-        for node_id, resolution in resolved_nodes.items():
-            normalized_ports = normalized_exposed_ports(
-                resolution,
-                workspace_nodes=workspace_nodes_for_ports,
-            )
-            nodes_by_id[node_id]["exposed_ports"] = normalized_ports
-            workspace_nodes_for_ports[node_id].exposed_ports = dict(normalized_ports)
+            nodes_by_id[node_id] = normalized_node
 
         edges_by_id: dict[str, dict[str, Any]] = {}
-        seen_connections: set[tuple[str, str, str, str]] = set()
-        occupied_single_target_ports: set[tuple[str, str]] = set()
         for edge_doc in self.as_list(workspace_doc.get("edges", [])):
             if not isinstance(edge_doc, Mapping):
                 continue
-            edge_id = self._coerce_str(edge_doc.get("edge_id"))
-            source_node_id = self._coerce_str(edge_doc.get("source_node_id"))
-            source_port_key = self._coerce_str(edge_doc.get("source_port_key"))
-            target_node_id = self._coerce_str(edge_doc.get("target_node_id"))
-            target_port_key = self._coerce_str(edge_doc.get("target_port_key"))
-            if (
-                not edge_id
-                or not source_node_id
-                or not source_port_key
-                or not target_node_id
-                or not target_port_key
-            ):
+            normalized_edge = self._normalize_edge_doc(
+                edge_doc,
+                valid_node_ids=set(nodes_by_id),
+            )
+            if normalized_edge is None:
                 continue
+            edge_id = normalized_edge["edge_id"]
             if edge_id in edges_by_id:
                 continue
-            if source_node_id not in nodes_by_id or target_node_id not in nodes_by_id:
-                continue
-            if source_node_id in unresolved_node_ids or target_node_id in unresolved_node_ids:
-                preserved_edge = self._copy_mapping(edge_doc)
-                preserved_edge["edge_id"] = edge_id
-                preserved_edge["source_node_id"] = source_node_id
-                preserved_edge["source_port_key"] = source_port_key
-                preserved_edge["target_node_id"] = target_node_id
-                preserved_edge["target_port_key"] = target_port_key
-                edges_by_id[edge_id] = preserved_edge
-                continue
-
-            resolution = validate_registry_edge(
-                source_node_id=source_node_id,
-                source_port_key=source_port_key,
-                target_node_id=target_node_id,
-                target_port_key=target_port_key,
-                resolved_nodes=resolved_nodes,
-                require_source_output=True,
-                require_target_input=True,
-                require_exposed_ports=True,
-            )
-            if resolution is None or not accept_registry_edge(
-                resolution,
-                seen_connections=seen_connections,
-                occupied_single_target_ports=occupied_single_target_ports,
-            ):
-                continue
-
-            edges_by_id[edge_id] = {
-                "edge_id": edge_id,
-                "source_node_id": source_node_id,
-                "source_port_key": source_port_key,
-                "target_node_id": target_node_id,
-                "target_port_key": target_port_key,
-                "label": self._coerce_str(edge_doc.get("label")),
-                "visual_style": self.as_dict(edge_doc.get("visual_style")),
-            }
+            edges_by_id[edge_id] = normalized_edge
 
         return {
             "workspace_id": workspace_id,
@@ -321,6 +218,88 @@ class JsonProjectMigration:
             "dirty": self._coerce_bool(workspace_doc.get("dirty"), False),
             "active_view_id": active_view_id,
             "views": list(views_by_id.values()),
-            "nodes": [nodes_by_id[node_id] for node_id in sorted(nodes_by_id)],
-            "edges": [edges_by_id[edge_id] for edge_id in sorted(edges_by_id)],
+            "nodes": list(nodes_by_id.values()),
+            "edges": list(edges_by_id.values()),
         }
+
+    def _normalize_node_doc(self, node_doc: Mapping[str, Any]) -> dict[str, Any] | None:
+        node_id = self._coerce_str(node_doc.get("node_id"))
+        type_id = self._coerce_str(node_doc.get("type_id"))
+        if not node_id or not type_id:
+            return None
+        title_default = type_id
+        spec = self._registry.spec_or_none(type_id)
+        if spec is not None:
+            title_default = spec.display_name
+        normalized = self._copy_mapping(node_doc)
+        normalized["node_id"] = node_id
+        normalized["type_id"] = type_id
+        normalized["title"] = self._coerce_str(node_doc.get("title"), title_default)
+        normalized["x"] = self._coerce_float(node_doc.get("x"), 0.0)
+        normalized["y"] = self._coerce_float(node_doc.get("y"), 0.0)
+        normalized["collapsed"] = self._coerce_bool(node_doc.get("collapsed"), False)
+        normalized["properties"] = self.as_dict(node_doc.get("properties"))
+        normalized["exposed_ports"] = {
+            key: self._coerce_bool(value)
+            for key, value in self.as_dict(node_doc.get("exposed_ports")).items()
+            if key
+        }
+        port_labels = {
+            key: self._coerce_str(value)
+            for key, value in self.as_dict(node_doc.get("port_labels")).items()
+            if key and self._coerce_str(value)
+        }
+        if "port_labels" in node_doc or port_labels:
+            normalized["port_labels"] = port_labels
+        visual_style = self.as_dict(node_doc.get("visual_style"))
+        if "visual_style" in node_doc or visual_style:
+            normalized["visual_style"] = visual_style
+        normalized["parent_node_id"] = self._coerce_str(node_doc.get("parent_node_id")) or None
+        if "custom_width" in node_doc:
+            normalized["custom_width"] = (
+                self._coerce_float(node_doc["custom_width"])
+                if node_doc.get("custom_width") is not None
+                else None
+            )
+        if "custom_height" in node_doc:
+            normalized["custom_height"] = (
+                self._coerce_float(node_doc["custom_height"])
+                if node_doc.get("custom_height") is not None
+                else None
+            )
+        return normalized
+
+    def _normalize_edge_doc(
+        self,
+        edge_doc: Mapping[str, Any],
+        *,
+        valid_node_ids: set[str],
+    ) -> dict[str, Any] | None:
+        edge_id = self._coerce_str(edge_doc.get("edge_id"))
+        source_node_id = self._coerce_str(edge_doc.get("source_node_id"))
+        source_port_key = self._coerce_str(edge_doc.get("source_port_key"))
+        target_node_id = self._coerce_str(edge_doc.get("target_node_id"))
+        target_port_key = self._coerce_str(edge_doc.get("target_port_key"))
+        if (
+            not edge_id
+            or not source_node_id
+            or not source_port_key
+            or not target_node_id
+            or not target_port_key
+        ):
+            return None
+        if source_node_id not in valid_node_ids or target_node_id not in valid_node_ids:
+            return None
+        normalized = self._copy_mapping(edge_doc)
+        normalized["edge_id"] = edge_id
+        normalized["source_node_id"] = source_node_id
+        normalized["source_port_key"] = source_port_key
+        normalized["target_node_id"] = target_node_id
+        normalized["target_port_key"] = target_port_key
+        label = self._coerce_str(edge_doc.get("label"))
+        if "label" in edge_doc or label:
+            normalized["label"] = label
+        visual_style = self.as_dict(edge_doc.get("visual_style"))
+        if "visual_style" in edge_doc or visual_style:
+            normalized["visual_style"] = visual_style
+        return normalized
