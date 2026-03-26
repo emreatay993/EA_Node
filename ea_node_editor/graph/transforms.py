@@ -10,11 +10,10 @@ from ea_node_editor.graph.effective_ports import (
     find_port,
     is_subnode_pin_type,
     port_side,
-    port_supports_incoming_edge,
-    port_supports_outgoing_edge,
 )
 from ea_node_editor.graph.hierarchy import normalize_scope_path, scope_parent_id, subtree_node_ids
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, WorkspaceData
+from ea_node_editor.graph.normalization import GraphInvariantKernel
 from ea_node_editor.graph.subnode_contract import (
     SUBNODE_INPUT_TYPE_ID,
     SUBNODE_OUTPUT_TYPE_ID,
@@ -546,58 +545,10 @@ def graph_fragment_payload_is_valid(
     fragment_payload: Mapping[str, Any],
     registry: NodeRegistry,
 ) -> bool:
-    raw_nodes = fragment_payload.get("nodes")
-    raw_edges = fragment_payload.get("edges")
-    if not isinstance(raw_nodes, list) or not isinstance(raw_edges, list):
-        return False
-
-    node_specs: dict[str, NodeTypeSpec] = {}
-    fragment_nodes: dict[str, NodeInstance] = {}
-    for node_payload in raw_nodes:
-        ref_id = str(node_payload.get("ref_id", "")).strip()
-        type_id = str(node_payload.get("type_id", "")).strip()
-        if not ref_id or not type_id:
-            return False
-        try:
-            node_specs[ref_id] = registry.get_spec(type_id)
-        except KeyError:
-            return False
-        fragment_nodes[ref_id] = fragment_node_from_payload(node_payload)
-
-    occupied_single_target_ports: set[tuple[str, str]] = set()
-    for edge_payload in raw_edges:
-        source_ref_id = str(edge_payload.get("source_ref_id", "")).strip()
-        target_ref_id = str(edge_payload.get("target_ref_id", "")).strip()
-        source_port_key = str(edge_payload.get("source_port_key", "")).strip()
-        target_port_key = str(edge_payload.get("target_port_key", "")).strip()
-        source_node = fragment_nodes.get(source_ref_id)
-        target_node = fragment_nodes.get(target_ref_id)
-        source_spec = node_specs.get(source_ref_id)
-        target_spec = node_specs.get(target_ref_id)
-        if source_node is None or target_node is None or source_spec is None or target_spec is None:
-            return False
-        source_port = find_port(
-            node=source_node,
-            spec=source_spec,
-            workspace_nodes=fragment_nodes,
-            port_key=source_port_key,
-        )
-        target_port = find_port(
-            node=target_node,
-            spec=target_spec,
-            workspace_nodes=fragment_nodes,
-            port_key=target_port_key,
-        )
-        if source_port is None or target_port is None:
-            return False
-        if not port_supports_outgoing_edge(source_port) or not port_supports_incoming_edge(target_port):
-            return False
-        target_key = (target_ref_id, target_port_key)
-        if not target_port.allow_multiple_connections and target_key in occupied_single_target_ports:
-            return False
-        if not target_port.allow_multiple_connections:
-            occupied_single_target_ports.add(target_key)
-    return True
+    return GraphInvariantKernel.graph_fragment_payload_is_valid(
+        fragment_payload=fragment_payload,
+        registry=registry,
+    )
 
 
 def insert_graph_fragment(

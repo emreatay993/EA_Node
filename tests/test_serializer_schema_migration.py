@@ -171,16 +171,16 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
                         {
                             "edge_id": "edge_a",
                             "source_node_id": "node_start_a",
-                            "source_port_key": "flow_out",
+                            "source_port_key": "right",
                             "target_node_id": "node_end",
-                            "target_port_key": "flow_in",
+                            "target_port_key": "left",
                         },
                         {
                             "edge_id": "edge_b",
                             "source_node_id": "node_start_b",
-                            "source_port_key": "flow_out",
+                            "source_port_key": "right",
                             "target_node_id": "node_end",
-                            "target_port_key": "flow_in",
+                            "target_port_key": "left",
                         },
                     ],
                 }
@@ -203,8 +203,8 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
                 for edge in workspace.edges.values()
             },
             {
-                ("node_start_a", "flow_out", "node_end", "flow_in"),
-                ("node_start_b", "flow_out", "node_end", "flow_in"),
+                ("node_start_a", "right", "node_end", "left"),
+                ("node_start_b", "right", "node_end", "left"),
             },
         )
 

@@ -548,6 +548,11 @@ class RegistryValidationTests(unittest.TestCase):
                 "dpf.model",
                 "dpf.scoping.mesh",
                 "dpf.scoping.time",
+                "dpf.viewer",
+                "dpf.result_field",
+                "dpf.export",
+                "dpf.field_ops",
+                "dpf.mesh_extract",
             },
         )
         self.assertEqual([spec.type_id for spec in result_file_specs], ["dpf.result_file"])
