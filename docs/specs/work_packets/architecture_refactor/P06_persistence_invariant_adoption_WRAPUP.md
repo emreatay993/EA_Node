@@ -5,10 +5,11 @@
 - Packet: `P06`
 - Branch Label: `codex/architecture-refactor/p06-persistence-invariant-adoption`
 - Commit Owner: `worker`
-- Commit SHA: `93d7bdda84fd7db7cb5432f40f7005d972484643`
+- Commit SHA: `6d00ea04305f1d4a8a7fe77fd1089e16c397f5c3`
 - Changed Files: `ea_node_editor/graph/normalization.py`, `ea_node_editor/persistence/migration.py`, `ea_node_editor/persistence/overlay.py`, `ea_node_editor/persistence/project_codec.py`, `tests/serializer/schema_cases.py`, `tests/test_persistence_package_imports.py`, `tests/test_registry_validation.py`, `docs/specs/work_packets/architecture_refactor/P06_persistence_invariant_adoption_WRAPUP.md`
 - Artifacts Produced: `ea_node_editor/graph/normalization.py`, `ea_node_editor/persistence/migration.py`, `ea_node_editor/persistence/overlay.py`, `ea_node_editor/persistence/project_codec.py`, `tests/serializer/schema_cases.py`, `tests/test_persistence_package_imports.py`, `tests/test_registry_validation.py`, `docs/specs/work_packets/architecture_refactor/P06_persistence_invariant_adoption_WRAPUP.md`
 - Simplified `JsonProjectMigration` down to schema-shape normalization so registry-dependent node, port, and edge policy no longer diverges from the shared graph invariant kernel.
+- Restored the compatibility fallback that fills missing known-node titles from the registry display name during both migration and codec reconstruction, and added a packet-owned regression test for that case.
 - Added explicit `WorkspacePersistenceEnvelope`, `ProjectPersistenceEnvelope`, and `ProjectDocumentFlavor` contracts so runtime unresolved payloads and authored-node overrides are handled as named persistence-envelope data instead of an anonymous metadata sidecar.
 - Moved codec reconstruction onto `normalize_project_for_registry()` and tightened the kernel’s load-time rules to preserve authored sparse properties, hidden-port filtering, and deterministic single-target edge acceptance through one shared authority.
 - Updated the packet-owned serializer and import tests to assert the new runtime-envelope contract and guard the new helper types against import-cycle regressions.
