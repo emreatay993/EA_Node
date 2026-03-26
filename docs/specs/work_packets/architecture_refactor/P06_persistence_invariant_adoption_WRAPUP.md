@@ -15,9 +15,9 @@
 
 ## Verification
 
-PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_serializer_schema_migration.py tests/test_serializer.py tests/test_registry_validation.py tests/test_persistence_package_imports.py --ignore=venv -q`
-PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_serializer_schema_migration.py tests/test_persistence_package_imports.py --ignore=venv -q`
-Final Verification Verdict: PASS
+- PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_serializer_schema_migration.py tests/test_serializer.py tests/test_registry_validation.py tests/test_persistence_package_imports.py --ignore=venv -q`
+- PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_serializer_schema_migration.py tests/test_persistence_package_imports.py --ignore=venv -q`
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 
@@ -34,4 +34,4 @@ Ready for manual testing
 
 ## Ready for Integration
 
-Yes: the packet-local implementation, review gate, and full verification command all passed, and the wrap-up records the substantive worker-owned commit SHA.
+- Yes: the packet-local implementation, review gate, and full verification command all passed, and the wrap-up records the substantive worker-owned commit SHA.
