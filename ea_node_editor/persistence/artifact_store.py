@@ -570,6 +570,42 @@ class ProjectArtifactStore:
             self._state = replace(self._state, staging_root=None)
         return removed_any
 
+    def discard_staged_entries(self, artifact_ids: Iterable[object]) -> tuple[str, ...]:
+        normalized_ids: list[str] = []
+        seen_ids: set[str] = set()
+        for value in artifact_ids:
+            artifact_id = coerce_staged_artifact_id(value)
+            if not artifact_id or artifact_id in seen_ids:
+                continue
+            seen_ids.add(artifact_id)
+            normalized_ids.append(artifact_id)
+
+        if not normalized_ids:
+            return ()
+
+        current_state = self._state
+        staged = dict(current_state.staged)
+        removed_ids: list[str] = []
+        stop_roots = self._cleanup_stop_roots()
+        for artifact_id in normalized_ids:
+            entry = staged.pop(artifact_id, None)
+            if entry is None:
+                continue
+            self._delete_staged_entry_payload(entry, stop_roots=stop_roots)
+            removed_ids.append(artifact_id)
+
+        if not removed_ids:
+            return ()
+
+        if not staged and current_state.staging_root is not None:
+            shutil.rmtree(current_state.staging_root.as_path(), ignore_errors=True)
+        self._state = replace(
+            current_state,
+            staged=staged,
+            staging_root=current_state.staging_root if staged else None,
+        )
+        return tuple(removed_ids)
+
     def commit_referenced_artifacts(
         self,
         *,

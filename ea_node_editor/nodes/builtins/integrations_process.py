@@ -8,13 +8,11 @@ import subprocess
 import threading
 import time
 from collections import deque
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from ea_node_editor.nodes.output_artifacts import (
-    _artifact_store_for_context,
-    _persist_runtime_artifact_store,
+    artifact_store_for_context,
     write_managed_output,
 )
 from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
@@ -71,25 +69,8 @@ def normalize_output_mode(value: Any) -> str:
 def _discard_stored_transcript_entries(ctx, artifact_ids: tuple[str, ...]) -> None:  # noqa: ANN001
     if not artifact_ids:
         return
-    store = _artifact_store_for_context(ctx)
-    current_state = store.state
-    staged = dict(current_state.staged)
-    removed_any = False
-    stop_roots = store._cleanup_stop_roots()  # type: ignore[attr-defined]
-    for artifact_id in artifact_ids:
-        entry = staged.pop(str(artifact_id).strip(), None)
-        if entry is None:
-            continue
-        removed_any = True
-        store._delete_staged_entry_payload(entry, stop_roots=stop_roots)  # type: ignore[attr-defined]
-    if not removed_any:
-        return
-    store._state = replace(  # type: ignore[attr-defined]
-        current_state,
-        staged=staged,
-        staging_root=current_state.staging_root if staged else None,
-    )
-    _persist_runtime_artifact_store(ctx, store)
+    store = artifact_store_for_context(ctx)
+    store.discard_staged_entries(artifact_ids)
 
 
 class ProcessRunNodePlugin:

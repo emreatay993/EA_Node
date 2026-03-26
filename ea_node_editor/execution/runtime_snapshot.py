@@ -9,6 +9,8 @@ from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.model import ProjectData
@@ -96,6 +98,51 @@ class RuntimeSnapshot:
         return dict(serialized) if isinstance(serialized, Mapping) else payload
 
 
+@dataclass(slots=True)
+class RuntimeSnapshotContext:
+    runtime_snapshot: RuntimeSnapshot | None = None
+    project_path: str = ""
+    artifact_store: ProjectArtifactStore | None = None
+
+    def __post_init__(self) -> None:
+        if self.artifact_store is None:
+            self.artifact_store = ProjectArtifactStore.from_project_metadata(
+                project_path=self.project_path or None,
+                project_metadata=(
+                    self.runtime_snapshot.metadata
+                    if self.runtime_snapshot is not None
+                    else None
+                ),
+            )
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        runtime_snapshot: RuntimeSnapshot | None,
+        *,
+        project_path: str = "",
+        artifact_store: ProjectArtifactStore | None = None,
+    ) -> RuntimeSnapshotContext:
+        return cls(
+            runtime_snapshot=runtime_snapshot,
+            project_path=str(project_path).strip(),
+            artifact_store=artifact_store,
+        )
+
+    def project_metadata(self) -> dict[str, Any]:
+        metadata = (
+            copy.deepcopy(self.runtime_snapshot.metadata)
+            if self.runtime_snapshot is not None
+            else {}
+        )
+        artifact_store = self.artifact_store
+        if artifact_store is None:
+            metadata.pop(PROJECT_ARTIFACT_STORE_METADATA_KEY, None)
+            return metadata
+        metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = artifact_store.metadata
+        return metadata
+
+
 def coerce_runtime_snapshot(value: RuntimeSnapshot | Mapping[str, Any] | None) -> RuntimeSnapshot | None:
     if isinstance(value, RuntimeSnapshot):
         return value
@@ -158,6 +205,7 @@ def build_execution_trigger(
 
 __all__ = [
     "RuntimeSnapshot",
+    "RuntimeSnapshotContext",
     "build_execution_trigger",
     "build_runtime_snapshot",
     "coerce_runtime_snapshot",

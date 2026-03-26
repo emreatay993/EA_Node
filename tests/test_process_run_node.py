@@ -9,7 +9,11 @@ import time
 import unittest
 from pathlib import Path
 
-from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, build_runtime_snapshot
+from ea_node_editor.execution.runtime_snapshot import (
+    RuntimeSnapshot,
+    RuntimeSnapshotContext,
+    build_runtime_snapshot,
+)
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -21,6 +25,7 @@ from ea_node_editor.nodes.builtins.integrations_process import (
 )
 from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 
 
 def _context(
@@ -32,6 +37,7 @@ def _context(
     register_cancel=None,  # noqa: ANN001
     project_path: str = "",
     runtime_snapshot: RuntimeSnapshot | None = None,
+    runtime_snapshot_context: RuntimeSnapshotContext | None = None,
     path_resolver=None,  # noqa: ANN001
 ) -> ExecutionContext:
     return ExecutionContext(
@@ -46,6 +52,7 @@ def _context(
         register_cancel=register_cancel or (lambda _callback: None),
         project_path=project_path,
         runtime_snapshot=runtime_snapshot,
+        runtime_snapshot_context=runtime_snapshot_context,
         path_resolver=path_resolver or (lambda _value: None),
     )
 
@@ -98,9 +105,18 @@ class ProcessRunNodeTests(unittest.TestCase):
                 project_id="project_process_run",
                 metadata={},
             )
-            resolver = ProjectArtifactResolver(
+            artifact_store = ProjectArtifactStore.from_project_metadata(
                 project_path=project_path,
                 project_metadata=runtime_snapshot.metadata,
+            )
+            runtime_snapshot_context = RuntimeSnapshotContext.from_snapshot(
+                runtime_snapshot,
+                project_path=str(project_path),
+                artifact_store=artifact_store,
+            )
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                artifact_store=artifact_store,
             )
 
             result = plugin.execute(
@@ -129,6 +145,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                     },
                     project_path=str(project_path),
                     runtime_snapshot=runtime_snapshot,
+                    runtime_snapshot_context=runtime_snapshot_context,
                     path_resolver=resolver.resolve_to_path,
                 )
             )
@@ -151,9 +168,10 @@ class ProcessRunNodeTests(unittest.TestCase):
             self.assertEqual(stderr_path.read_text(encoding="utf-8"), stderr_text)
             self.assertEqual(stdout_output.scope, "staged")
             self.assertEqual(stderr_output.scope, "staged")
-            self.assertIn("artifact_store", runtime_snapshot.metadata)
-            self.assertIn(stdout_output.artifact_id, runtime_snapshot.metadata["artifact_store"]["staged"])
-            self.assertIn(stderr_output.artifact_id, runtime_snapshot.metadata["artifact_store"]["staged"])
+            self.assertEqual(runtime_snapshot.metadata, {})
+            artifact_store_metadata = runtime_snapshot_context.project_metadata()["artifact_store"]
+            self.assertIn(stdout_output.artifact_id, artifact_store_metadata["staged"])
+            self.assertIn(stderr_output.artifact_id, artifact_store_metadata["staged"])
             self.assertIn("artifacts/generated/process_run/", stdout_path.as_posix())
             self.assertIn("artifacts/generated/process_run/", stderr_path.as_posix())
 
@@ -167,9 +185,18 @@ class ProcessRunNodeTests(unittest.TestCase):
                 project_id="project_process_run_failure",
                 metadata={},
             )
-            resolver = ProjectArtifactResolver(
+            artifact_store = ProjectArtifactStore.from_project_metadata(
                 project_path=project_path,
                 project_metadata=runtime_snapshot.metadata,
+            )
+            runtime_snapshot_context = RuntimeSnapshotContext.from_snapshot(
+                runtime_snapshot,
+                project_path=str(project_path),
+                artifact_store=artifact_store,
+            )
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                artifact_store=artifact_store,
             )
 
             with self.assertRaises(RuntimeError) as error:
@@ -201,6 +228,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                         },
                         project_path=str(project_path),
                         runtime_snapshot=runtime_snapshot,
+                        runtime_snapshot_context=runtime_snapshot_context,
                         path_resolver=resolver.resolve_to_path,
                     )
                 )
@@ -208,7 +236,8 @@ class ProcessRunNodeTests(unittest.TestCase):
             self.assertIn("stored_transcripts_discarded=True", str(error.exception))
             self.assertIn("stored failure line", str(error.exception))
 
-            artifact_store_metadata = runtime_snapshot.metadata.get("artifact_store", {})
+            self.assertEqual(runtime_snapshot.metadata, {})
+            artifact_store_metadata = runtime_snapshot_context.project_metadata().get("artifact_store", {})
             staged_entries = artifact_store_metadata.get("staged", {})
             self.assertNotIn("generated.ws.node.stdout", staged_entries)
             self.assertNotIn("generated.ws.node.stderr", staged_entries)
@@ -374,6 +403,7 @@ class ProcessRunNodeTests(unittest.TestCase):
                 workspace_id=workspace.workspace_id,
                 registry=build_default_registry(),
             )
+            initial_runtime_metadata = json.loads(json.dumps(runtime_snapshot.to_document()["metadata"]))
             event_queue: queue.Queue = queue.Queue()
             run_workflow(
                 {
@@ -399,6 +429,7 @@ class ProcessRunNodeTests(unittest.TestCase):
             self.assertEqual(stdout_payload["scope"], "staged")
             self.assertTrue(str(stdout_payload["ref"]).startswith("artifact-stage://"))
             self.assertNotIn("stored_output_from_artifact", json.dumps(process_completed))
+            self.assertEqual(runtime_snapshot.to_document()["metadata"], initial_runtime_metadata)
 
             file_read_completed = next(
                 event

@@ -11,7 +11,6 @@ from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolv
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import (
     PROJECT_ARTIFACT_SESSION_STAGING_DIRNAME,
-    PROJECT_ARTIFACT_STORE_METADATA_KEY,
     PROJECT_MANAGED_ARTIFACTS_DIRNAME,
     recent_session_path,
 )
@@ -83,36 +82,41 @@ def _resolver_store_from_context(ctx: ExecutionContext) -> ProjectArtifactStore 
     direct_store = getattr(owner, "store", None)
     if isinstance(direct_store, ProjectArtifactStore):
         return direct_store
-
-    nested_resolver = getattr(owner, "_resolver", None)
-    if isinstance(nested_resolver, ProjectArtifactResolver):
-        return nested_resolver.store
-
-    nested_store = getattr(nested_resolver, "store", None)
-    if isinstance(nested_store, ProjectArtifactStore):
-        return nested_store
     return None
 
 
 def _artifact_store_for_context(ctx: ExecutionContext) -> ProjectArtifactStore:
     live_store = _resolver_store_from_context(ctx)
     if live_store is not None:
+        _persist_runtime_artifact_store(ctx, live_store)
         return live_store
 
-    runtime_metadata = ctx.runtime_snapshot.metadata if ctx.runtime_snapshot is not None else None
-    return ProjectArtifactStore.from_project_metadata(
+    if ctx.artifact_store is not None:
+        return ctx.artifact_store
+
+    store = ProjectArtifactStore.from_project_metadata(
         project_path=ctx.project_path or None,
-        project_metadata=runtime_metadata,
+        project_metadata=ctx.runtime_project_metadata(),
     )
+    _persist_runtime_artifact_store(ctx, store)
+    return store
 
 
 def _persist_runtime_artifact_store(ctx: ExecutionContext, store: ProjectArtifactStore) -> None:
-    if ctx.runtime_snapshot is not None:
-        ctx.runtime_snapshot.metadata[PROJECT_ARTIFACT_STORE_METADATA_KEY] = store.metadata
+    if ctx.runtime_snapshot_context is not None:
+        ctx.runtime_snapshot_context.artifact_store = store
+        return
 
-    live_store = _resolver_store_from_context(ctx)
-    if live_store is not None and live_store is not store:
-        live_store._state = store.state  # type: ignore[attr-defined]
+    if ctx.runtime_snapshot is None and not ctx.project_path:
+        return
+
+    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshotContext
+
+    ctx.runtime_snapshot_context = RuntimeSnapshotContext.from_snapshot(
+        ctx.runtime_snapshot,
+        project_path=ctx.project_path,
+        artifact_store=store,
+    )
 
 
 def write_managed_output(

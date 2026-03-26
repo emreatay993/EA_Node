@@ -39,6 +39,7 @@ from ea_node_editor.execution.compiler import compile_runtime_snapshot
 from ea_node_editor.execution.runtime_dto import RuntimeEdge, RuntimeWorkspace
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
+    RuntimeSnapshotContext,
     build_execution_trigger,
     build_runtime_snapshot,
     coerce_runtime_snapshot_payload,
@@ -400,6 +401,7 @@ def _is_exec_entry_spec(spec: Any) -> bool:
 class _PreparedRuntime:
     registry: Any
     runtime_snapshot: RuntimeSnapshot
+    runtime_context: RuntimeSnapshotContext
     workspace: RuntimeWorkspace
     plan: "_ExecutionPlan"
 
@@ -508,18 +510,26 @@ class _RuntimeArtifactService:
     def __init__(
         self,
         *,
-        project_path: str,
-        runtime_snapshot: RuntimeSnapshot,
+        runtime_context: RuntimeSnapshotContext,
     ) -> None:
-        self._project_path = str(project_path).strip()
+        self._runtime_context = runtime_context
+        self._project_path = str(runtime_context.project_path).strip()
         self._resolver = ProjectArtifactResolver(
             project_path=self._project_path or None,
-            project_metadata=runtime_snapshot.metadata,
+            artifact_store=runtime_context.artifact_store,
         )
 
     @property
     def project_path(self) -> str:
         return self._project_path
+
+    @property
+    def runtime_context(self) -> RuntimeSnapshotContext:
+        return self._runtime_context
+
+    @property
+    def store(self):
+        return self._resolver.store
 
     def normalize_outputs(self, payload: dict[str, Any]) -> dict[str, Any]:
         normalized = deserialize_runtime_value(payload)
@@ -541,6 +551,7 @@ class _NodeExecutor:
         worker_services: WorkerServices,
         project_path: str,
         runtime_snapshot: RuntimeSnapshot,
+        runtime_context: RuntimeSnapshotContext,
         trigger: dict[str, Any],
     ) -> None:
         self._plan = execution_plan
@@ -551,6 +562,7 @@ class _NodeExecutor:
         self._worker_services = worker_services
         self._project_path = str(project_path).strip()
         self._runtime_snapshot = runtime_snapshot
+        self._runtime_context = runtime_context
         self._trigger = trigger
         self.node_outputs: dict[str, dict[str, Any]] = {}
         self.executed: set[str] = set()
@@ -615,6 +627,7 @@ class _NodeExecutor:
             register_cancel=self._control.register_cancel_callback,
             project_path=self._project_path,
             runtime_snapshot=self._runtime_snapshot,
+            runtime_snapshot_context=self._runtime_context,
             path_resolver=self._artifact_service.resolve_path,
             worker_services=self._worker_services,
         )
@@ -697,6 +710,10 @@ def _prepare_runtime(command: StartRunCommand) -> _PreparedRuntime:
         serializer=serializer,
         registry=registry,
     )
+    runtime_context = RuntimeSnapshotContext.from_snapshot(
+        runtime_snapshot,
+        project_path=command.project_path,
+    )
     workspace = compile_runtime_snapshot(
         runtime_snapshot,
         workspace_id=command.workspace_id,
@@ -705,6 +722,7 @@ def _prepare_runtime(command: StartRunCommand) -> _PreparedRuntime:
     return _PreparedRuntime(
         registry=registry,
         runtime_snapshot=runtime_snapshot,
+        runtime_context=runtime_context,
         workspace=workspace,
         plan=_ExecutionPlan(workspace, registry),
     )
@@ -739,17 +757,18 @@ class _WorkflowRunner:
         prepared = _prepare_runtime(command)
         self._registry = prepared.registry
         self._runtime_snapshot = prepared.runtime_snapshot
+        self._runtime_context = prepared.runtime_context
         self._workspace = prepared.workspace
         self._plan = prepared.plan
         self._worker_services.viewer_session_service.prepare_workspace_context(
             workspace_id=command.workspace_id,
             project_path=command.project_path,
             runtime_snapshot=self._runtime_snapshot,
+            runtime_snapshot_context=self._runtime_context,
             invalidate_existing=True,
         )
         self._artifact_service = _RuntimeArtifactService(
-            project_path=command.project_path,
-            runtime_snapshot=self._runtime_snapshot,
+            runtime_context=self._runtime_context,
         )
         self._executor = _NodeExecutor(
             self._plan,
@@ -760,6 +779,7 @@ class _WorkflowRunner:
             worker_services=self._worker_services,
             project_path=command.project_path,
             runtime_snapshot=self._runtime_snapshot,
+            runtime_context=self._runtime_context,
             trigger=build_execution_trigger(command.trigger, self._runtime_snapshot),
         )
 

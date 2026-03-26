@@ -29,7 +29,7 @@ from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.protocol import WorkerEvent, WorkerCommand
-    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
     from ea_node_editor.execution.worker_services import WorkerServices
 
 _DEFAULT_OUTPUT_PROFILE = "memory"
@@ -50,6 +50,7 @@ _CLOSE_TRANSIENT_OPTION_KEYS = frozenset({"reason", "release_handles"})
 class _ViewerWorkspaceContext:
     project_path: str = ""
     runtime_snapshot: RuntimeSnapshot | None = None
+    runtime_snapshot_context: RuntimeSnapshotContext | None = None
 
 
 @dataclass(slots=True)
@@ -125,6 +126,7 @@ class ViewerSessionService:
         workspace_id: str,
         project_path: str = "",
         runtime_snapshot: RuntimeSnapshot | None = None,
+        runtime_snapshot_context: RuntimeSnapshotContext | None = None,
         invalidate_existing: bool = False,
     ) -> None:
         normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
@@ -136,6 +138,7 @@ class ViewerSessionService:
         self._workspace_contexts[normalized_workspace_id] = _ViewerWorkspaceContext(
             project_path=str(project_path).strip(),
             runtime_snapshot=runtime_snapshot,
+            runtime_snapshot_context=runtime_snapshot_context,
         )
 
     def invalidate_workspace(self, workspace_id: str, *, reason: str) -> int:
@@ -320,13 +323,16 @@ class ViewerSessionService:
         artifact_store: ProjectArtifactStore | None = None
         if output_profile in {"stored", "both"}:
             context = self._workspace_contexts.get(record.workspace_id)
-            project_path = context.project_path if context is not None else ""
-            runtime_snapshot = context.runtime_snapshot if context is not None else None
-            project_metadata = runtime_snapshot.metadata if runtime_snapshot is not None else None
-            artifact_store = ProjectArtifactStore.from_project_metadata(
-                project_path=project_path or None,
-                project_metadata=project_metadata if isinstance(project_metadata, Mapping) else None,
-            )
+            if context is not None and context.runtime_snapshot_context is not None:
+                artifact_store = context.runtime_snapshot_context.artifact_store
+            else:
+                project_path = context.project_path if context is not None else ""
+                runtime_snapshot = context.runtime_snapshot if context is not None else None
+                project_metadata = runtime_snapshot.metadata if runtime_snapshot is not None else None
+                artifact_store = ProjectArtifactStore.from_project_metadata(
+                    project_path=project_path or None,
+                    project_metadata=project_metadata if isinstance(project_metadata, Mapping) else None,
+                )
 
         try:
             result = self._worker_services.dpf_runtime_service.materialize_viewer_dataset(
