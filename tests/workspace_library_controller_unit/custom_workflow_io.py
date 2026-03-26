@@ -125,7 +125,7 @@ class WorkspaceLibraryControllerCustomWorkflowIOTests(WorkspaceLibraryController
             }
         ]
         host.model.project.metadata["custom_workflows"] = definitions
-        controller._prompt_custom_workflow_export_definition = lambda items: items[0]  # type: ignore[method-assign]
+        controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = lambda items: items[0]  # type: ignore[method-assign]
 
         with tempfile.TemporaryDirectory() as temp_dir:
             target_path = Path(temp_dir) / "workflow_export"

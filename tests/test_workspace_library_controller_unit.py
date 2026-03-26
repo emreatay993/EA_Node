@@ -239,39 +239,39 @@ class _DropConnectSceneStub:
 
 
 class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
-    def test_controller_initializes_focused_controller_owners_with_explicit_capabilities(self) -> None:
+    def test_controller_initializes_focused_controller_owners_with_direct_surfaces(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
 
         self.assertIsInstance(controller.workflow_library_controller, WorkflowLibraryController)
         self.assertIsInstance(controller.workspace_navigation_controller, WorkspaceNavigationController)
         self.assertIsInstance(controller.workspace_graph_edit_controller, WorkspaceGraphEditController)
         self.assertIsInstance(controller.workspace_package_io_controller, WorkspacePackageIOController)
-        self.assertIsNot(controller._custom_workflow_capability, controller.workflow_library_controller)
-        self.assertIsNot(controller._navigation_capability, controller.workspace_navigation_controller)
-        self.assertIsNot(controller._edit_command_capability, controller.workspace_graph_edit_controller)
-        self.assertIsNot(controller._import_export_capability, controller.workspace_package_io_controller)
+        self.assertIs(controller.workspace_navigation_controller._ops._controller, controller.workspace_navigation_controller)
+        self.assertIs(controller.workspace_graph_edit_controller._drop_connect_ops._controller, controller.workspace_graph_edit_controller)
+        self.assertIs(controller.workspace_graph_edit_controller._edit_ops._controller, controller.workspace_graph_edit_controller)
+        self.assertIs(controller.workspace_package_io_controller._ops._controller, controller.workspace_package_io_controller)
 
     def test_internal_capabilities_delegate_only_to_focused_subcontrollers(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
         refresh_calls: list[str] = []
         controller.workspace_graph_edit_controller.selected_node_context = lambda: "selected"  # type: ignore[method-assign]
-        controller.refresh_workspace_tabs = lambda: refresh_calls.append("tabs")  # type: ignore[method-assign]
-        controller.workflow_library_controller.resolve_custom_workflow_definition = lambda workflow_id: {  # type: ignore[method-assign]
+        controller.workspace_graph_edit_controller.refresh_workspace_tabs = lambda: refresh_calls.append("tabs")  # type: ignore[method-assign]
+        controller.workspace_graph_edit_controller.resolve_custom_workflow_definition = lambda workflow_id: {  # type: ignore[method-assign]
             "workflow_id": workflow_id
         }
         controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = (  # type: ignore[method-assign]
             lambda definitions: definitions[0] if definitions else None
         )
 
-        self.assertEqual(controller._custom_workflow_capability.selected_node_context(), "selected")
-        controller._navigation_capability.refresh_workspace_tabs()
+        self.assertEqual(controller.workspace_graph_edit_controller.selected_node_context(), "selected")
+        controller.workspace_graph_edit_controller.refresh_workspace_tabs()
         self.assertEqual(refresh_calls, ["tabs"])
         self.assertEqual(
-            controller._edit_command_capability.resolve_custom_workflow_definition("wf-1"),
+            controller.workspace_graph_edit_controller.resolve_custom_workflow_definition("wf-1"),
             {"workflow_id": "wf-1"},
         )
         self.assertEqual(
-            controller._import_export_capability._prompt_custom_workflow_export_definition(
+            controller.workspace_package_io_controller.prompt_custom_workflow_export_definition(
                 [{"workflow_id": "wf-2"}]
             ),
             {"workflow_id": "wf-2"},
@@ -289,7 +289,7 @@ class WorkspaceLibraryControllerSurfaceDelegationTests(unittest.TestCase):
 
     def test_facade_delegates_navigation_surface_to_focused_controller(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        controller.workspace_navigation_controller.search_graph_nodes = lambda query, limit: [  # type: ignore[method-assign]
+        controller.workspace_navigation_controller.search_graph_nodes = lambda query, limit, enabled_scopes=None: [  # type: ignore[method-assign]
             {"query": query, "limit": limit}
         ]
 
@@ -327,7 +327,7 @@ class WorkspaceLibraryControllerCloseViewTests(unittest.TestCase):
         host = _CloseViewHostStub()
         controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
         restore_calls: list[str] = []
-        controller.restore_active_view_state = lambda: restore_calls.append("restore")  # type: ignore[method-assign]
+        controller.workspace_navigation_controller.restore_active_view_state = lambda: restore_calls.append("restore")  # type: ignore[method-assign]
 
         closed = controller.close_view("view-2")
 
@@ -348,8 +348,8 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
         controller = WorkspaceLibraryController(host)  # type: ignore[arg-type]
         refresh_calls: list[str] = []
         switch_calls: list[str] = []
-        controller.refresh_workspace_tabs = lambda: refresh_calls.append("refresh")  # type: ignore[method-assign]
-        controller.switch_workspace = lambda workspace_id: switch_calls.append(workspace_id)  # type: ignore[method-assign]
+        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: refresh_calls.append("refresh")  # type: ignore[method-assign]
+        controller.workspace_navigation_controller.switch_workspace = lambda workspace_id: switch_calls.append(workspace_id)  # type: ignore[method-assign]
 
         with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Refactor Scope", True)):
             controller.create_workspace()
@@ -369,8 +369,8 @@ class WorkspaceLibraryControllerDelegationTests(unittest.TestCase):
             insert_calls.append((type_id, x_value, y_value))
             return "node-1"
 
-        controller.insert_library_node = _insert  # type: ignore[method-assign]
-        controller.refresh_workspace_tabs = lambda: refresh_calls.append("refresh")  # type: ignore[method-assign]
+        controller.workspace_graph_edit_controller.insert_library_node = _insert  # type: ignore[method-assign]
+        controller.workspace_graph_edit_controller.refresh_workspace_tabs = lambda: refresh_calls.append("refresh")  # type: ignore[method-assign]
 
         controller.add_node_from_library("core.logger")
 

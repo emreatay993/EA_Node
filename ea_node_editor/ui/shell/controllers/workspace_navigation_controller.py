@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QRectF
 
@@ -10,35 +10,10 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
-class _WorkspaceNavigationControllerProtocol(Protocol):
-    def save_active_view_state(self) -> None: ...
-
-    def restore_active_view_state(self) -> None: ...
-
-    def refresh_workspace_tabs(self) -> None: ...
-
-    def switch_workspace(self, workspace_id: str) -> None: ...
-
-    def rename_workspace_by_id(self, workspace_id: str) -> bool: ...
-
-    def on_workspace_tab_close(self, index: int) -> None: ...
-
-    def reveal_parent_chain(self, workspace_id: str, node_id: str) -> list[str]: ...
-
-    def center_on_node(self, node_id: str) -> bool: ...
-
-    def center_on_selection(self) -> bool: ...
-
-
 class WorkspaceNavigationController:
-    def __init__(
-        self,
-        host: ShellWindow,
-        controller: _WorkspaceNavigationControllerProtocol,
-    ) -> None:
+    def __init__(self, host: ShellWindow) -> None:
         self._host = host
-        self._controller = controller
-        self._ops = WorkspaceViewNavOps(host, controller)
+        self._ops = WorkspaceViewNavOps(host, self)
 
     def switch_workspace_by_offset(self, offset: int) -> None:
         self._ops.switch_workspace_by_offset(offset)
@@ -59,7 +34,7 @@ class WorkspaceNavigationController:
         if from_index == bounded_index:
             return False
         self._host.workspace_manager.move_workspace(from_index, bounded_index)
-        self._controller.refresh_workspace_tabs()
+        self.refresh_workspace_tabs()
         return True
 
     def save_active_view_state(self) -> None:
@@ -136,15 +111,15 @@ class WorkspaceNavigationController:
             return
         workspace_id = self._host.workspace_manager.create_workspace(name=name or None)
         self._host.runtime_history.clear_workspace(workspace_id)
-        self._controller.refresh_workspace_tabs()
-        self._controller.switch_workspace(workspace_id)
+        self.refresh_workspace_tabs()
+        self.switch_workspace(workspace_id)
 
     def rename_active_workspace(self) -> None:
         index = self._host.workspace_tabs.currentIndex()
         if index < 0:
             return
         workspace_id = self._host.workspace_tabs.tabData(index)
-        self._controller.rename_workspace_by_id(workspace_id)
+        self.rename_workspace_by_id(workspace_id)
 
     def rename_workspace_by_id(self, workspace_id: str) -> bool:
         from PyQt6.QtWidgets import QInputDialog
@@ -160,7 +135,7 @@ class WorkspaceNavigationController:
         if not ok or not normalized_name or normalized_name == workspace.name:
             return False
         self._host.workspace_manager.rename_workspace(normalized_workspace_id, normalized_name)
-        self._controller.refresh_workspace_tabs()
+        self.refresh_workspace_tabs()
         return True
 
     def duplicate_active_workspace(self) -> None:
@@ -172,13 +147,13 @@ class WorkspaceNavigationController:
             return
         duplicated_id = self._host.workspace_manager.duplicate_workspace(workspace_id)
         self._host.runtime_history.clear_workspace(duplicated_id)
-        self._controller.refresh_workspace_tabs()
-        self._controller.switch_workspace(duplicated_id)
+        self.refresh_workspace_tabs()
+        self.switch_workspace(duplicated_id)
 
     def close_active_workspace(self) -> None:
         index = self._host.workspace_tabs.currentIndex()
         if index >= 0:
-            self._controller.on_workspace_tab_close(index)
+            self.on_workspace_tab_close(index)
 
     def close_workspace_by_id(self, workspace_id: str) -> bool:
         normalized_workspace_id = str(workspace_id or "").strip()
@@ -192,7 +167,7 @@ class WorkspaceNavigationController:
             break
         if target_index < 0:
             return False
-        self._controller.on_workspace_tab_close(target_index)
+        self.on_workspace_tab_close(target_index)
         return normalized_workspace_id not in self._host.model.project.workspaces
 
     def close_view(self, view_id: str) -> bool:
@@ -213,7 +188,7 @@ class WorkspaceNavigationController:
         active_view_closed = workspace.active_view_id == normalized_view_id
         self._host.workspace_manager.close_view(workspace_id, normalized_view_id)
         if active_view_closed:
-            self._controller.restore_active_view_state()
+            self.restore_active_view_state()
             self._host.scene.sync_scope_with_active_view()
             self._host.search_scope_controller.restore_scope_camera()
 
@@ -267,7 +242,7 @@ class WorkspaceNavigationController:
             return
         workspace_id = self._host.workspace_tabs.tabData(index)
         if workspace_id:
-            self._controller.switch_workspace(workspace_id)
+            self.switch_workspace(workspace_id)
 
     def on_workspace_tab_close(self, index: int) -> None:
         from PyQt6.QtWidgets import QMessageBox
@@ -291,8 +266,8 @@ class WorkspaceNavigationController:
             QMessageBox.warning(self._host, "Workspace", "Cannot close the last workspace.")
             return
         self._host.runtime_history.clear_workspace(workspace_id)
-        self._controller.refresh_workspace_tabs()
-        self._controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        self.refresh_workspace_tabs()
+        self.switch_workspace(self._host.workspace_manager.active_workspace_id())
 
     def focus_failed_node(self, workspace_id: str, node_id: str, error: str) -> None:
         self._ops.focus_failed_node(workspace_id, node_id, error)

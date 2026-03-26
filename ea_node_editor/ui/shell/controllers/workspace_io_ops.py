@@ -21,11 +21,11 @@ if TYPE_CHECKING:
 
 
 class _WorkspaceIOControllerProtocol(Protocol):
-    def _custom_workflow_definitions(self) -> list[dict[str, Any]]: ...
+    def custom_workflow_definitions(self) -> list[dict[str, Any]]: ...
 
-    def _set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None: ...
+    def set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None: ...
 
-    def _prompt_custom_workflow_export_definition(
+    def prompt_custom_workflow_export_definition(
         self,
         definitions: list[dict[str, Any]],
     ) -> dict[str, Any] | None: ...
@@ -328,7 +328,7 @@ class WorkspaceIOOps:
             QMessageBox.warning(self._host, "Import Failed", f"Could not import custom workflow.\n{exc}")
             return
 
-        definitions = self._controller._custom_workflow_definitions()
+        definitions = self._controller.custom_workflow_definitions()
         workflow_id = imported_definition["workflow_id"]
         replaced_existing = False
         for index, definition in enumerate(definitions):
@@ -340,7 +340,7 @@ class WorkspaceIOOps:
         if not replaced_existing:
             definitions.append(imported_definition)
 
-        self._controller._set_custom_workflow_definitions(definitions)
+        self._controller.set_custom_workflow_definitions(definitions)
         self._host.project_meta_changed.emit()
         self._host.node_library_changed.emit()
         action = "Updated" if replaced_existing else "Imported"
@@ -354,7 +354,7 @@ class WorkspaceIOOps:
         from PyQt6.QtWidgets import QFileDialog, QMessageBox
 
         definitions = sorted(
-            self._controller._custom_workflow_definitions(),
+            self._controller.custom_workflow_definitions(),
             key=lambda definition: (
                 str(definition.get("name", "")).lower(),
                 str(definition.get("workflow_id", "")).lower(),
@@ -364,7 +364,7 @@ class WorkspaceIOOps:
             QMessageBox.information(self._host, "Export Custom Workflow", "No custom workflows are available to export.")
             return
 
-        selected_definition = self._controller._prompt_custom_workflow_export_definition(definitions)
+        selected_definition = self._controller.prompt_custom_workflow_export_definition(definitions)
         if selected_definition is None:
             return
         default_name = self.custom_workflow_default_filename(selected_definition.get("name"))

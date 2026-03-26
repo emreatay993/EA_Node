@@ -15,143 +15,48 @@ from ea_node_editor.ui.shell.controllers.workspace_package_io_controller import 
 _GRAPH_SEARCH_LIMIT = 10
 
 
-class _WorkflowLibraryCapability:
-    def __init__(self, controller: "WorkspaceLibraryController") -> None:
-        self._controller = controller
+class _WorkspaceSelectionContext:
+    def __init__(self, host) -> None:  # noqa: ANN001
+        self._host = host
 
     def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
-        return self._controller.selected_node_context()
+        node_id = self._host.scene.selected_node_id()
+        if not node_id:
+            return None
+        workspace_id = str(
+            getattr(self._host, "active_workspace_id", "")
+            or self._host.workspace_manager.active_workspace_id()
+        ).strip()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
+        if workspace is None:
+            return None
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return None
+        spec = self._host.registry.get_spec(node.type_id)
+        return node, spec
 
     def active_workspace(self):
-        return self._controller.active_workspace()
-
-
-class _WorkspaceNavigationCapability:
-    def __init__(self, controller: "WorkspaceLibraryController") -> None:
-        self._controller = controller
-
-    def save_active_view_state(self) -> None:
-        self._controller.save_active_view_state()
-
-    def restore_active_view_state(self) -> None:
-        self._controller.restore_active_view_state()
-
-    def refresh_workspace_tabs(self) -> None:
-        self._controller.refresh_workspace_tabs()
-
-    def switch_workspace(self, workspace_id: str) -> None:
-        self._controller.switch_workspace(workspace_id)
-
-    def rename_workspace_by_id(self, workspace_id: str) -> bool:
-        return self._controller.rename_workspace_by_id(workspace_id)
-
-    def on_workspace_tab_close(self, index: int) -> None:
-        self._controller.on_workspace_tab_close(index)
-
-    def reveal_parent_chain(self, workspace_id: str, node_id: str) -> list[str]:
-        return self._controller.reveal_parent_chain(workspace_id, node_id)
-
-    def center_on_node(self, node_id: str) -> bool:
-        return self._controller.center_on_node(node_id)
-
-    def center_on_selection(self) -> bool:
-        return self._controller.center_on_selection()
-
-
-class _WorkspaceGraphEditCapability:
-    def __init__(self, controller: "WorkspaceLibraryController") -> None:
-        self._controller = controller
-
-    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None:
-        return self._controller.selected_node_context()
-
-    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None:
-        return self._controller.resolve_custom_workflow_definition(workflow_id)
-
-    def active_workspace(self):
-        return self._controller.active_workspace()
-
-    def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None:
-        self._controller.workspace_graph_edit_controller.on_node_property_changed(node_id, key, value)
-
-    def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None:
-        self._controller.workspace_graph_edit_controller.on_port_exposed_changed(node_id, key, exposed)
-
-    def on_node_collapse_changed(self, node_id: str, collapsed: bool) -> None:
-        self._controller.workspace_graph_edit_controller.on_node_collapse_changed(node_id, collapsed)
-
-    def refresh_workspace_tabs(self) -> None:
-        self._controller.refresh_workspace_tabs()
-
-    def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
-        return self._controller._write_graph_fragment_to_clipboard(fragment_payload)
-
-    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
-        return self._controller._read_graph_fragment_from_clipboard()
-
-    def copy_selected_nodes_to_clipboard(self) -> bool:
-        return self._controller.copy_selected_nodes_to_clipboard()
-
-    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]:
-        return self._controller.request_delete_selected_graph_items(edge_ids)
-
-    def clipboard_fragment_signature(self) -> str:
-        return self._controller.clipboard_fragment_signature()
-
-    def set_clipboard_fragment_signature(self, signature: str) -> None:
-        self._controller.set_clipboard_fragment_signature(signature)
-
-    def clipboard_paste_count(self) -> int:
-        return self._controller.clipboard_paste_count()
-
-    def set_clipboard_paste_count(self, count: int) -> None:
-        self._controller.set_clipboard_paste_count(count)
-
-    def prompt_connection_candidate(
-        self,
-        *,
-        title: str,
-        label: str,
-        candidates: list[dict[str, Any]],
-    ) -> dict[str, Any] | None:
-        return self._controller.prompt_connection_candidate(
-            title=title,
-            label=label,
-            candidates=candidates,
-        )
-
-    def insert_library_node(self, type_id: str, x: float, y: float) -> str:
-        return self._controller.insert_library_node(type_id, x, y)
-
-
-class _WorkspacePackageIOCapability:
-    def __init__(self, controller: "WorkspaceLibraryController") -> None:
-        self._controller = controller
-
-    def _custom_workflow_definitions(self) -> list[dict[str, Any]]:
-        return self._controller._custom_workflow_definitions()
-
-    def _set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None:
-        self._controller._set_custom_workflow_definitions(definitions)
-
-    def _prompt_custom_workflow_export_definition(
-        self,
-        definitions: list[dict[str, Any]],
-    ) -> dict[str, Any] | None:
-        return self._controller._prompt_custom_workflow_export_definition(definitions)
+        workspace_id = self._host.workspace_manager.active_workspace_id()
+        return self._host.model.project.workspaces.get(workspace_id)
 
 
 class WorkspaceLibraryController:
     def __init__(self, host) -> None:  # noqa: ANN001
         self._host = host
-        self._custom_workflow_capability = _WorkflowLibraryCapability(self)
-        self._navigation_capability = _WorkspaceNavigationCapability(self)
-        self._edit_command_capability = _WorkspaceGraphEditCapability(self)
-        self._import_export_capability = _WorkspacePackageIOCapability(self)
-        self.workflow_library_controller = WorkflowLibraryController(host, self._custom_workflow_capability)
-        self.workspace_navigation_controller = WorkspaceNavigationController(host, self._navigation_capability)
-        self.workspace_graph_edit_controller = WorkspaceGraphEditController(host, self._edit_command_capability)
-        self.workspace_package_io_controller = WorkspacePackageIOController(host, self._import_export_capability)
+        self.workflow_library_controller = WorkflowLibraryController(host, _WorkspaceSelectionContext(host))
+        self.workspace_navigation_controller = WorkspaceNavigationController(host)
+        self.workspace_graph_edit_controller = WorkspaceGraphEditController(
+            host,
+            lambda workflow_id: self.workflow_library_controller.resolve_custom_workflow_definition(workflow_id),
+            lambda: self.workspace_navigation_controller.refresh_workspace_tabs(),
+        )
+        self.workspace_package_io_controller = WorkspacePackageIOController(
+            host,
+            lambda: self.workflow_library_controller.custom_workflow_definitions(),
+            lambda definitions: self.workflow_library_controller.set_custom_workflow_definitions(definitions),
+            self._prompt_custom_workflow_export_definition,
+        )
 
     def _project_metadata(self) -> dict[str, Any]:
         return self.workflow_library_controller.project_metadata()
