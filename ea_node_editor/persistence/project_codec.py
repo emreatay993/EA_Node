@@ -442,9 +442,13 @@ class JsonProjectCodec:
         if node_id in workspace.nodes:
             return
         sanitized_node_doc = self._copy_node_mapping(node_doc)
-        if self._registry is not None and self._registry.spec_or_none(type_id) is None:
-            persistence_envelope.unresolved_node_docs[node_id] = sanitized_node_doc
-            return
+        if self._registry is not None:
+            spec = self._registry.spec_or_none(type_id)
+            if spec is None:
+                persistence_envelope.unresolved_node_docs[node_id] = sanitized_node_doc
+                return
+            if not str(sanitized_node_doc.get("title", "")).strip():
+                sanitized_node_doc["title"] = spec.display_name
         node = node_instance_from_mapping(sanitized_node_doc)
         if node is None:
             return

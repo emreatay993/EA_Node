@@ -96,6 +96,47 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual([workspace["workspace_id"] for workspace in migrated["workspaces"]], ["ws_b", "ws_a"])
         self.assertEqual(migrated["active_workspace_id"], "ws_b")
 
+    def test_migrate_and_load_known_node_without_title_uses_registry_display_name(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_missing_title",
+            "name": "Missing Title",
+            "workspace_order": ["ws"],
+            "active_workspace_id": "ws",
+            "workspaces": [
+                {
+                    "workspace_id": "ws",
+                    "name": "Workspace",
+                    "active_view_id": "view",
+                    "views": [
+                        {
+                            "view_id": "view",
+                            "name": "V1",
+                            "zoom": 1.0,
+                            "pan_x": 0.0,
+                            "pan_y": 0.0,
+                            "scope_path": [],
+                        }
+                    ],
+                    "nodes": [
+                        {
+                            "node_id": "node1",
+                            "type_id": "core.start",
+                        }
+                    ],
+                    "edges": [],
+                }
+            ],
+            "metadata": {},
+        }
+
+        migrated = serializer.migrate(payload)
+        project = serializer.from_document(payload)
+
+        self.assertEqual(migrated["workspaces"][0]["nodes"][0]["title"], "Start")
+        self.assertEqual(project.workspaces["ws"].nodes["node1"].title, "Start")
+
     def test_migrate_rejects_pre_current_schema_document(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = {

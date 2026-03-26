@@ -227,10 +227,14 @@ class JsonProjectMigration:
         type_id = self._coerce_str(node_doc.get("type_id"))
         if not node_id or not type_id:
             return None
+        title_default = type_id
+        spec = self._registry.spec_or_none(type_id)
+        if spec is not None:
+            title_default = spec.display_name
         normalized = self._copy_mapping(node_doc)
         normalized["node_id"] = node_id
         normalized["type_id"] = type_id
-        normalized["title"] = self._coerce_str(node_doc.get("title"), type_id)
+        normalized["title"] = self._coerce_str(node_doc.get("title"), title_default)
         normalized["x"] = self._coerce_float(node_doc.get("x"), 0.0)
         normalized["y"] = self._coerce_float(node_doc.get("y"), 0.0)
         normalized["collapsed"] = self._coerce_bool(node_doc.get("collapsed"), False)
