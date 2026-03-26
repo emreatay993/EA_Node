@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from typing import TYPE_CHECKING
 
+from ea_node_editor.execution.dpf_runtime import create_dpf_runtime_service
 from ea_node_editor.execution.handle_registry import HandleRegistry
 from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
 
@@ -30,9 +31,7 @@ class WorkerServices:
     @property
     def dpf_runtime_service(self) -> DpfRuntimeService:
         if self._dpf_runtime_service is None:
-            from ea_node_editor.execution.dpf_runtime_service import DpfRuntimeService
-
-            self._dpf_runtime_service = DpfRuntimeService(self)
+            self._dpf_runtime_service = create_dpf_runtime_service(self)
         return self._dpf_runtime_service
 
     @property
