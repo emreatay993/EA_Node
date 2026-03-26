@@ -7,7 +7,7 @@
 - Commit Owner: `worker`
 - Commit SHA: `dc00bc1a0aa0b69da617def261e056b651d11252`
 - Changed Files: `ea_node_editor/execution/client.py`, `ea_node_editor/execution/protocol.py`, `ea_node_editor/execution/worker.py`, `ea_node_editor/execution/worker_protocol.py`, `ea_node_editor/execution/worker_runner.py`, `ea_node_editor/execution/worker_runtime.py`, `tests/test_execution_artifact_refs.py`, `docs/specs/work_packets/architecture_refactor/P08_worker_protocol_split_WRAPUP.md`
-- Artifacts Produced: `ea_node_editor/execution/worker_protocol.py`, `ea_node_editor/execution/worker_runner.py`, `ea_node_editor/execution/worker_runtime.py`, `docs/specs/work_packets/architecture_refactor/P08_worker_protocol_split_WRAPUP.md`
+- Artifacts Produced: `ea_node_editor/execution/client.py`, `ea_node_editor/execution/protocol.py`, `ea_node_editor/execution/worker.py`, `ea_node_editor/execution/worker_protocol.py`, `ea_node_editor/execution/worker_runner.py`, `ea_node_editor/execution/worker_runtime.py`, `tests/test_execution_artifact_refs.py`, `docs/specs/work_packets/architecture_refactor/P08_worker_protocol_split_WRAPUP.md`
 
 ## Verification
 
