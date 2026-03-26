@@ -188,6 +188,40 @@ class ProjectArtifactStoreTests(unittest.TestCase):
             self.assertNotIn("staging_root", store.metadata)
             self.assertIn("pending_output", store.metadata["staged"])
 
+    def test_discard_staged_entries_removes_selected_payloads_without_reaching_into_private_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_path = Path(temp_dir) / "demo.sfe"
+            layout = ProjectArtifactLayout.from_project_path(project_path)
+            stdout_path = layout.staging_root / "outputs" / "stdout.txt"
+            stderr_path = layout.staging_root / "outputs" / "stderr.txt"
+            stdout_path.parent.mkdir(parents=True, exist_ok=True)
+            stdout_path.write_text("stdout", encoding="utf-8")
+            stderr_path.write_text("stderr", encoding="utf-8")
+            store = ProjectArtifactStore(
+                project_path=project_path,
+                metadata={
+                    "staged": {
+                        "stdout_output": {"relative_path": ".staging/outputs/stdout.txt"},
+                        "stderr_output": {"relative_path": ".staging/outputs/stderr.txt"},
+                    }
+                },
+            )
+
+            removed_ids = store.discard_staged_entries(["stdout_output"])
+
+            self.assertEqual(removed_ids, ("stdout_output",))
+            self.assertFalse(stdout_path.exists())
+            self.assertTrue(stderr_path.exists())
+            self.assertEqual(
+                store.metadata,
+                {
+                    "artifacts": {},
+                    "staged": {
+                        "stderr_output": {"relative_path": ".staging/outputs/stderr.txt"},
+                    },
+                },
+            )
+
     def test_commit_referenced_artifacts_promotes_unsaved_temp_entries_into_first_saved_sidecar(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             staging_root = Path(temp_dir) / "session_staging" / "project-123"

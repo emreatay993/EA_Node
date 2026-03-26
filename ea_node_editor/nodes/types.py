@@ -16,7 +16,8 @@ from ea_node_editor.persistence.artifact_refs import (
 )
 
 if TYPE_CHECKING:
-    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+    from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
+    from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 
 PortDirection = Literal["in", "out", "neutral"]
 PortSide = Literal["", "top", "right", "bottom", "left"]
@@ -333,6 +334,32 @@ def deserialize_runtime_value(value: Any) -> Any:
     return _deserialize_runtime_value(value)
 
 
+class ExecutionHandleServices(Protocol):
+    def register_handle(
+        self,
+        value: Any,
+        *,
+        kind: str,
+        run_id: str = "",
+        owner_scope: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef: ...
+
+    def resolve_handle(self, value: Any, *, expected_kind: str = "") -> Any: ...
+
+    def release_handle(self, value: Any) -> bool: ...
+
+    def handle_ref(
+        self,
+        value: Any,
+        *,
+        kind: str = "",
+        run_id: str = "",
+        owner_scope: str = "",
+        metadata: Mapping[str, Any] | None = None,
+    ) -> RuntimeHandleRef: ...
+
+
 @dataclass(slots=True, frozen=True)
 class PortSpec:
     key: str
@@ -450,8 +477,24 @@ class ExecutionContext:
     register_cancel: Callable[[Callable[[], None]], None] = field(default=lambda _callback: None)
     project_path: str = ""
     runtime_snapshot: RuntimeSnapshot | None = None
+    runtime_snapshot_context: RuntimeSnapshotContext | None = None
     path_resolver: Callable[[Any], Path | None] = field(default=lambda _value: None)
-    worker_services: Any = None
+    worker_services: ExecutionHandleServices | None = None
+
+    @property
+    def artifact_store(self) -> ProjectArtifactStore | None:
+        context = self.runtime_snapshot_context
+        if context is None:
+            return None
+        return context.artifact_store
+
+    def runtime_project_metadata(self) -> dict[str, Any]:
+        context = self.runtime_snapshot_context
+        if context is not None:
+            return context.project_metadata()
+        if self.runtime_snapshot is None:
+            return {}
+        return copy.deepcopy(self.runtime_snapshot.metadata)
 
     def log_info(self, message: str) -> None:
         self.emit_log("info", message)
@@ -468,7 +511,7 @@ class ExecutionContext:
     def runtime_handle_ref(self, value: Any) -> RuntimeHandleRef | None:
         return coerce_runtime_handle_ref(value)
 
-    def _require_worker_services(self) -> Any:
+    def _require_worker_services(self) -> ExecutionHandleServices:
         if self.worker_services is None:
             raise RuntimeError("ExecutionContext does not have worker services.")
         return self.worker_services

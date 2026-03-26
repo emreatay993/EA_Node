@@ -12,7 +12,7 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot
+from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
 from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
@@ -20,6 +20,7 @@ from ea_node_editor.execution.runtime_value_codec import (
 from ea_node_editor.nodes.builtins.integrations import FileReadNodePlugin, FileWriteNodePlugin
 from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 
 
 class ExecutionArtifactRefProtocolTests(unittest.TestCase):
@@ -146,9 +147,18 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 project_id="project_demo",
                 metadata={},
             )
-            resolver = ProjectArtifactResolver(
+            artifact_store = ProjectArtifactStore.from_project_metadata(
                 project_path=project_path,
                 project_metadata=runtime_snapshot.metadata,
+            )
+            runtime_snapshot_context = RuntimeSnapshotContext.from_snapshot(
+                runtime_snapshot,
+                project_path=str(project_path),
+                artifact_store=artifact_store,
+            )
+            resolver = ProjectArtifactResolver(
+                project_path=project_path,
+                artifact_store=artifact_store,
             )
 
             write_ctx = ExecutionContext(
@@ -161,6 +171,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 trigger={},
                 project_path=str(project_path),
                 runtime_snapshot=runtime_snapshot,
+                runtime_snapshot_context=runtime_snapshot_context,
                 path_resolver=resolver.resolve_to_path,
             )
 
@@ -177,8 +188,11 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 self.fail("managed output artifact ref did not resolve to a staged file")
             self.assertTrue(staged_path.exists())
             self.assertEqual(staged_path.read_text(encoding="utf-8"), "managed output")
-            self.assertIn("artifact_store", runtime_snapshot.metadata)
-            self.assertIn(written_ref.artifact_id, runtime_snapshot.metadata["artifact_store"]["staged"])
+            self.assertEqual(runtime_snapshot.metadata, {})
+            self.assertIn(
+                written_ref.artifact_id,
+                runtime_snapshot_context.project_metadata()["artifact_store"]["staged"],
+            )
 
             read_ctx = ExecutionContext(
                 run_id="run_demo",
@@ -190,6 +204,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
                 trigger={},
                 project_path=str(project_path),
                 runtime_snapshot=runtime_snapshot,
+                runtime_snapshot_context=runtime_snapshot_context,
                 path_resolver=resolver.resolve_to_path,
             )
 
