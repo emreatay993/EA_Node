@@ -114,6 +114,14 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
             f"with {property_name!r}={expected_value!r}."
         )
 
+    def _open_media_inline_editors(self, node_id: str) -> QQuickItem:
+        surface = self._graph_node_card(node_id).findChild(QQuickItem, "graphNodeMediaSurface")
+        self.assertIsNotNone(surface)
+        assert surface is not None
+        surface.setProperty("inlineEditorsOpened", True)
+        self.app.processEvents()
+        return self._hold_qml_ref(surface)
+
     @staticmethod
     def _item_scene_center(item: QQuickItem) -> QPoint:
         scene_point = item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5))
@@ -166,8 +174,8 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
-        self.assertEqual(node.properties["source_path"], str(picked_path))
-        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertTrue(str(node.properties["source_path"]).startswith("artifact-stage://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
         self.assertEqual(preview_info["state"], "ready")
         self.assertEqual(preview_info["page_count"], 2)
 
@@ -180,6 +188,7 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         picked_path = Path(self._env.temp_path) / "graph-inline-picked.pdf"
         _write_pdf(picked_path, page_count=2)
 
+        self._open_media_inline_editors(node_id)
         path_editor = self._graph_node_child_with_property(
             node_id,
             "graphNodeInlinePathEditor",
@@ -205,8 +214,8 @@ class MainWindowShellPassivePdfNodesTests(MainWindowShellTestBase):
         node = workspace.nodes[node_id]
         preview_info = self.window.describe_pdf_preview(node.properties["source_path"], node.properties["page_number"])
         self.assertEqual(self.window.scene.selected_node_id(), node_id)
-        self.assertEqual(node.properties["source_path"], str(picked_path))
-        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertTrue(str(node.properties["source_path"]).startswith("artifact-stage://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
         self.assertEqual(preview_info["state"], "ready")
         self.assertEqual(preview_info["page_count"], 2)
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
