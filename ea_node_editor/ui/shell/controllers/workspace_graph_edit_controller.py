@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Callable
 
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -13,58 +13,18 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
-class _WorkspaceGraphEditControllerProtocol(Protocol):
-    def selected_node_context(self) -> tuple[NodeInstance, NodeTypeSpec] | None: ...
-
-    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None: ...
-
-    def active_workspace(self) -> WorkspaceData | None: ...
-
-    def on_node_property_changed(self, node_id: str, key: str, value: Any) -> None: ...
-
-    def on_port_exposed_changed(self, node_id: str, key: str, exposed: bool) -> None: ...
-
-    def on_node_collapse_changed(self, node_id: str, collapsed: bool) -> None: ...
-
-    def refresh_workspace_tabs(self) -> None: ...
-
-    def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool: ...
-
-    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None: ...
-
-    def copy_selected_nodes_to_clipboard(self) -> bool: ...
-
-    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> ControllerResult[bool]: ...
-
-    def clipboard_fragment_signature(self) -> str: ...
-
-    def set_clipboard_fragment_signature(self, signature: str) -> None: ...
-
-    def clipboard_paste_count(self) -> int: ...
-
-    def set_clipboard_paste_count(self, count: int) -> None: ...
-
-    def prompt_connection_candidate(
-        self,
-        *,
-        title: str,
-        label: str,
-        candidates: list[dict[str, Any]],
-    ) -> dict[str, Any] | None: ...
-
-    def insert_library_node(self, type_id: str, x: float, y: float) -> str: ...
-
-
 class WorkspaceGraphEditController:
     def __init__(
         self,
         host: ShellWindow,
-        controller: _WorkspaceGraphEditControllerProtocol,
+        resolve_custom_workflow_definition: Callable[[str], dict[str, Any] | None],
+        refresh_workspace_tabs: Callable[[], None],
     ) -> None:
         self._host = host
-        self._controller = controller
-        self._drop_connect_ops = WorkspaceDropConnectOps(host, controller)
-        self._edit_ops = WorkspaceEditOps(host, controller)
+        self._resolve_custom_workflow_definition = resolve_custom_workflow_definition
+        self._refresh_workspace_tabs = refresh_workspace_tabs
+        self._drop_connect_ops = WorkspaceDropConnectOps(host, self)
+        self._edit_ops = WorkspaceEditOps(host, self)
         self._last_clipboard_fragment_signature = ""
         self._clipboard_paste_count = 0
 
@@ -72,7 +32,11 @@ class WorkspaceGraphEditController:
         node_id = self._host.scene.selected_node_id()
         if not node_id:
             return None
-        workspace = self._host.model.project.workspaces.get(self._host.active_workspace_id)
+        workspace_id = str(
+            getattr(self._host, "active_workspace_id", "")
+            or self._host.workspace_manager.active_workspace_id()
+        ).strip()
+        workspace = self._host.model.project.workspaces.get(workspace_id)
         if workspace is None:
             return None
         node = workspace.nodes.get(node_id)
@@ -80,6 +44,9 @@ class WorkspaceGraphEditController:
             return None
         spec = self._host.registry.get_spec(node.type_id)
         return node, spec
+
+    def resolve_custom_workflow_definition(self, workflow_id: str) -> dict[str, Any] | None:
+        return self._resolve_custom_workflow_definition(workflow_id)
 
     def set_selected_node_property(self, key: str, value: Any) -> None:
         self._edit_ops.set_selected_node_property(key, value)
@@ -96,10 +63,13 @@ class WorkspaceGraphEditController:
     def request_add_selected_subnode_pin(self, direction: str) -> ControllerResult[str]:
         return self._edit_ops.request_add_selected_subnode_pin(direction)
 
+    def refresh_workspace_tabs(self) -> None:
+        self._refresh_workspace_tabs()
+
     def add_node_from_library(self, type_id: str) -> None:
         center = self._host.view.mapToScene(self._host.view.viewport().rect().center())
-        if self._controller.insert_library_node(type_id, center.x(), center.y()):
-            self._controller.refresh_workspace_tabs()
+        if self.insert_library_node(type_id, center.x(), center.y()):
+            self.refresh_workspace_tabs()
 
     def insert_library_node(self, type_id: str, x: float, y: float) -> str:
         return self._drop_connect_ops.insert_library_node(type_id, x, y)
@@ -133,7 +103,10 @@ class WorkspaceGraphEditController:
         )
 
     def active_workspace(self) -> WorkspaceData | None:
-        workspace_id = self._host.workspace_manager.active_workspace_id()
+        workspace_id = str(
+            getattr(self._host, "active_workspace_id", "")
+            or self._host.workspace_manager.active_workspace_id()
+        ).strip()
         return self._host.model.project.workspaces.get(workspace_id)
 
     def clipboard_fragment_signature(self) -> str:
@@ -252,6 +225,12 @@ class WorkspaceGraphEditController:
 
     def clipboard(self):
         return self._edit_ops.clipboard()
+
+    def _write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
+        return self.write_graph_fragment_to_clipboard(fragment_payload)
+
+    def _read_graph_fragment_from_clipboard(self) -> dict[str, Any] | None:
+        return self.read_graph_fragment_from_clipboard()
 
     def write_graph_fragment_to_clipboard(self, fragment_payload: dict[str, Any]) -> bool:
         return self._edit_ops.write_graph_fragment_to_clipboard(fragment_payload)

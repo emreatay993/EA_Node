@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Callable
 
 from ea_node_editor.ui.shell.controllers.workspace_io_ops import WorkspaceIOOps
 
@@ -8,24 +8,30 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
-class _WorkspacePackageIOControllerProtocol(Protocol):
-    def _custom_workflow_definitions(self) -> list[dict[str, Any]]: ...
-
-    def _set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None: ...
-
-    def _prompt_custom_workflow_export_definition(
-        self,
-        definitions: list[dict[str, Any]],
-    ) -> dict[str, Any] | None: ...
-
-
 class WorkspacePackageIOController:
     def __init__(
         self,
         host: ShellWindow,
-        controller: _WorkspacePackageIOControllerProtocol,
+        custom_workflow_definitions: Callable[[], list[dict[str, Any]]],
+        set_custom_workflow_definitions: Callable[[list[dict[str, Any]]], None],
+        prompt_custom_workflow_export_definition: Callable[[list[dict[str, Any]]], dict[str, Any] | None],
     ) -> None:
-        self._ops = WorkspaceIOOps(host, controller)
+        self._custom_workflow_definitions = custom_workflow_definitions
+        self._set_custom_workflow_definitions = set_custom_workflow_definitions
+        self._prompt_custom_workflow_export_definition = prompt_custom_workflow_export_definition
+        self._ops = WorkspaceIOOps(host, self)
+
+    def custom_workflow_definitions(self) -> list[dict[str, Any]]:
+        return self._custom_workflow_definitions()
+
+    def set_custom_workflow_definitions(self, definitions: list[dict[str, Any]]) -> None:
+        self._set_custom_workflow_definitions(definitions)
+
+    def prompt_custom_workflow_export_definition(
+        self,
+        definitions: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        return self._prompt_custom_workflow_export_definition(definitions)
 
     @staticmethod
     def custom_workflow_export_label(definition: dict[str, Any]) -> str:
@@ -40,12 +46,6 @@ class WorkspacePackageIOController:
 
     def export_custom_workflow(self) -> None:
         self._ops.export_custom_workflow()
-
-    def prompt_custom_workflow_export_definition(
-        self,
-        definitions: list[dict[str, Any]],
-    ) -> dict[str, Any] | None:
-        return self._ops.prompt_custom_workflow_export_definition(definitions)
 
     def import_node_package(self) -> None:
         self._ops.import_node_package()
