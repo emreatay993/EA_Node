@@ -11,6 +11,7 @@ from ea_node_editor.graph.hierarchy import (
     scope_breadcrumb_payload,
     subtree_node_ids,
 )
+from ea_node_editor.graph.boundary_adapters import set_graph_boundary_adapters
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.graph.transforms import (
     build_subtree_fragment_payload_data,
@@ -21,6 +22,8 @@ from ea_node_editor.nodes.types import NodeTypeSpec
 from ea_node_editor.ui.shell.runtime_clipboard import build_graph_fragment_payload
 from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition
+from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
+from ea_node_editor.ui_qml.edge_routing import node_size
 from ea_node_editor.ui_qml.graph_scene_mutation_history import GraphSceneMutationHistory
 from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_scene_scope_selection import (
@@ -238,6 +241,7 @@ class GraphSceneBridge(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
+        self._install_graph_boundary_adapters()
         self._model: GraphModel | None = None
         self._registry: NodeRegistry | None = None
         self._history: RuntimeGraphHistory | None = None
@@ -255,6 +259,12 @@ class GraphSceneBridge(QObject):
         self._edges_payload: list[dict[str, Any]] = []
         self._graph_theme_bridge: GraphThemeBridge | None = None
         self._pending_surface_action_node_id: str = ""
+
+    def _install_graph_boundary_adapters(self) -> None:
+        set_graph_boundary_adapters(
+            node_size_resolver=node_size,
+            clamp_pdf_page_number_resolver=clamp_pdf_page_number,
+        )
 
     def _graphics_preference_source(self) -> object | None:
         host = self.parent()
@@ -466,6 +476,7 @@ class GraphSceneBridge(QObject):
         return self._scene_context.require_bound()
 
     def set_workspace(self, model: GraphModel, registry: NodeRegistry, workspace_id: str) -> None:
+        self._install_graph_boundary_adapters()
         self._model = model
         self._registry = registry
         self._scope_selection.set_workspace(workspace_id)

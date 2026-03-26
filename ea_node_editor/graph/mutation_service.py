@@ -11,6 +11,7 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
     CommentBackdropWrapResult,
     build_comment_backdrop_wrap_bounds,
 )
+from ea_node_editor.graph.boundary_adapters import clamp_pdf_page_number, node_size
 from ea_node_editor.graph.hierarchy import normalize_scope_path, node_scope_path, scope_parent_id
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
 from ea_node_editor.graph.transforms import (
@@ -21,8 +22,6 @@ from ea_node_editor.graph.transforms import (
     _ungroup_subnode_transaction,
 )
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID
-from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
-from ea_node_editor.ui_qml.edge_routing import node_size
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.normalization import ValidatedGraphMutation
