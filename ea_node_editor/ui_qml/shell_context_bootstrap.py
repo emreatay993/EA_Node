@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -8,6 +7,10 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtQml import QQmlContext
 from PyQt6.QtQuickWidgets import QQuickWidget
 
+from ea_node_editor.ui.shell.context_bridges import (
+    ShellContextBridges,
+    create_shell_context_bridges,
+)
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID
 from ea_node_editor.ui.media_preview_provider import (
     LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
@@ -15,70 +18,8 @@ from ea_node_editor.ui.media_preview_provider import (
 from ea_node_editor.ui.pdf_preview_provider import (
     LOCAL_PDF_PREVIEW_PROVIDER_ID,
 )
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
-from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
-from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
-from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
-from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
-from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
-
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
-
-
-@dataclass(frozen=True, slots=True)
-class ShellContextBridges:
-    shell_library_bridge: ShellLibraryBridge
-    shell_workspace_bridge: ShellWorkspaceBridge
-    shell_inspector_bridge: ShellInspectorBridge
-    graph_canvas_state_bridge: GraphCanvasStateBridge
-    graph_canvas_command_bridge: GraphCanvasCommandBridge
-    graph_canvas_bridge: GraphCanvasBridge
-
-
-def create_shell_context_bridges(host: "ShellWindow") -> ShellContextBridges:
-    graph_canvas_state_bridge = GraphCanvasStateBridge(
-        host,
-        shell_window=host,
-        scene_bridge=host.scene,
-        view_bridge=host.view,
-    )
-    graph_canvas_command_bridge = GraphCanvasCommandBridge(
-        host,
-        shell_window=host,
-        scene_bridge=host.scene,
-        view_bridge=host.view,
-    )
-    return ShellContextBridges(
-        shell_library_bridge=ShellLibraryBridge(
-            host,
-            shell_window=host,
-        ),
-        shell_workspace_bridge=ShellWorkspaceBridge(
-            host,
-            shell_window=host,
-            scene_bridge=host.scene,
-            view_bridge=host.view,
-            console_bridge=host.console_panel,
-            workspace_tabs_bridge=host.workspace_tabs,
-        ),
-        shell_inspector_bridge=ShellInspectorBridge(
-            host,
-            shell_window=host,
-            scene_bridge=host.scene,
-        ),
-        graph_canvas_state_bridge=graph_canvas_state_bridge,
-        graph_canvas_command_bridge=graph_canvas_command_bridge,
-        graph_canvas_bridge=GraphCanvasBridge(
-            host,
-            shell_window=host,
-            scene_bridge=host.scene,
-            view_bridge=host.view,
-            state_bridge=graph_canvas_state_bridge,
-            command_bridge=graph_canvas_command_bridge,
-        ),
-    )
-
 
 def _register_image_providers(host: "ShellWindow", quick_widget: QQuickWidget) -> None:
     engine = quick_widget.engine()

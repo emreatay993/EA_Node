@@ -102,11 +102,6 @@ from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBrid
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
-from ea_node_editor.ui_qml.shell_context_bootstrap import (
-    ShellContextBridges,
-    bootstrap_shell_qml_context,
-    create_shell_context_bridges,
-)
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge

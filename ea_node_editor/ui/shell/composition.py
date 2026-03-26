@@ -25,6 +25,10 @@ from ea_node_editor.ui.shell.controllers import (
     WorkspaceLibraryController,
 )
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
+from ea_node_editor.ui.shell.context_bridges import (
+    ShellContextBridges,
+    create_shell_context_bridges,
+)
 from ea_node_editor.ui.shell.presenters import (
     GraphCanvasPresenter,
     ShellInspectorPresenter,
@@ -36,19 +40,10 @@ from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.console_model import ConsoleModel
-from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
-from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
-from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
-from ea_node_editor.ui_qml.shell_context_bootstrap import (
-    ShellContextBridges,
-    bootstrap_shell_qml_context,
-)
-from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
-from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
-from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
+from ea_node_editor.ui_qml.shell_context_bootstrap import bootstrap_shell_qml_context
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -206,6 +201,13 @@ class ShellWindowComposition:
     presenters: ShellPresenterDependencies
     context_bridges: ShellContextBridgeDependencies
 
+    def attach(self, host: "ShellWindow") -> None:
+        self.state.attach(host)
+        self.primitives.attach(host)
+        self.controllers.attach(host)
+        self.presenters.attach(host)
+        self.context_bridges.attach(host)
+
 
 class ShellWindowDependencyFactory:
     def __init__(self, host: "ShellWindow") -> None:
@@ -213,19 +215,10 @@ class ShellWindowDependencyFactory:
 
     def build_composition(self) -> ShellWindowComposition:
         state = self.create_state_dependencies()
-        state.attach(self._host)
-
-        primitives = self.create_primitive_dependencies()
-        primitives.attach(self._host)
-
-        controllers = self.create_controller_dependencies()
-        controllers.attach(self._host)
-
-        presenters = self.create_presenter_dependencies()
-        presenters.attach(self._host)
-
-        context_bridges = self.create_context_bridge_dependencies()
-
+        primitives = self.create_primitive_dependencies(state)
+        controllers = self.create_controller_dependencies(state)
+        presenters = self.create_presenter_dependencies(state)
+        context_bridges = self.create_context_bridge_dependencies(primitives)
         return ShellWindowComposition(
             state=state,
             primitives=primitives,
@@ -237,27 +230,26 @@ class ShellWindowDependencyFactory:
     def create_state_dependencies(self) -> ShellStateDependencies:
         return _create_shell_state_dependencies()
 
-    def create_primitive_dependencies(self) -> ShellPrimitiveDependencies:
-        return _create_shell_primitive_dependencies(self._host)
+    def create_primitive_dependencies(self, state: ShellStateDependencies) -> ShellPrimitiveDependencies:
+        return _create_shell_primitive_dependencies(self._host, state)
 
-    def create_controller_dependencies(self) -> ShellControllerDependencies:
-        return _create_shell_controller_dependencies(self._host)
+    def create_controller_dependencies(self, state: ShellStateDependencies) -> ShellControllerDependencies:
+        return _create_shell_controller_dependencies(self._host, state)
 
-    def create_presenter_dependencies(self) -> ShellPresenterDependencies:
-        return _create_shell_presenter_dependencies(self._host)
+    def create_presenter_dependencies(self, state: ShellStateDependencies) -> ShellPresenterDependencies:
+        return _create_shell_presenter_dependencies(self._host, state)
 
-    def create_context_bridge_dependencies(self) -> ShellContextBridgeDependencies:
-        return _create_shell_context_bridge_dependencies(self._host)
+    def create_context_bridge_dependencies(
+        self,
+        primitives: ShellPrimitiveDependencies,
+    ) -> ShellContextBridgeDependencies:
+        return _create_shell_context_bridge_dependencies(self._host, primitives)
 
 
 class ShellWindowBootstrapCoordinator:
     def bootstrap(self, host: "ShellWindow", composition: ShellWindowComposition) -> None:
         _configure_shell_window_host(host)
-        composition.state.attach(host)
-        composition.primitives.attach(host)
-        composition.controllers.attach(host)
-        composition.presenters.attach(host)
-        composition.context_bridges.attach(host)
+        composition.attach(host)
         _run_shell_startup_sequence(host)
         self.create_timer_dependencies(host).attach(host)
         _finalize_shell_window_bootstrap(host)
@@ -311,7 +303,10 @@ def _create_shell_state_dependencies() -> ShellStateDependencies:
     )
 
 
-def _create_shell_primitive_dependencies(host: "ShellWindow") -> ShellPrimitiveDependencies:
+def _create_shell_primitive_dependencies(
+    host: "ShellWindow",
+    state: ShellStateDependencies,
+) -> ShellPrimitiveDependencies:
     registry = build_default_registry()
     serializer = JsonProjectSerializer(registry)
     session_store = host._create_session_store(serializer)
@@ -339,10 +334,10 @@ def _create_shell_primitive_dependencies(host: "ShellWindow") -> ShellPrimitiveD
     status_metrics = StatusItemModel("M", "FPS:0 CPU:0% RAM:0/0 GB", host)
     status_notifications = StatusItemModel("N", "W:0 E:0", host)
     frame_rate_sampler = FrameRateSampler()
-    theme_bridge = ThemeBridge(host, theme_id=host.workspace_ui_state.active_theme_id)
+    theme_bridge = ThemeBridge(host, theme_id=state.workspace_ui_state.active_theme_id)
     graph_theme_bridge = GraphThemeBridge(
         host,
-        theme_id=default_graph_theme_id_for_shell_theme(host.workspace_ui_state.active_theme_id),
+        theme_id=default_graph_theme_id_for_shell_theme(state.workspace_ui_state.active_theme_id),
     )
     scene.bind_graph_theme_bridge(graph_theme_bridge)
     return ShellPrimitiveDependencies(
@@ -375,8 +370,11 @@ def _create_shell_primitive_dependencies(host: "ShellWindow") -> ShellPrimitiveD
     )
 
 
-def _create_shell_controller_dependencies(host: "ShellWindow") -> ShellControllerDependencies:
-    search_scope_controller = WindowSearchScopeController(host, host.search_scope_state)
+def _create_shell_controller_dependencies(
+    host: "ShellWindow",
+    state: ShellStateDependencies,
+) -> ShellControllerDependencies:
+    search_scope_controller = WindowSearchScopeController(host, state.search_scope_state)
     workspace_library_controller = WorkspaceLibraryController(host)
     project_session_controller = ProjectSessionController(host)
     run_controller = RunController(host)
@@ -394,10 +392,13 @@ def _create_shell_controller_dependencies(host: "ShellWindow") -> ShellControlle
     )
 
 
-def _create_shell_presenter_dependencies(host: "ShellWindow") -> ShellPresenterDependencies:
+def _create_shell_presenter_dependencies(
+    host: "ShellWindow",
+    state: ShellStateDependencies,
+) -> ShellPresenterDependencies:
     shell_host_presenter = ShellHostPresenter(host)
     shell_library_presenter = ShellLibraryPresenter(host)
-    shell_workspace_presenter = ShellWorkspacePresenter(host)
+    shell_workspace_presenter = ShellWorkspacePresenter(host, ui_state=state.workspace_ui_state)
     shell_inspector_presenter = ShellInspectorPresenter(host)
     graph_canvas_presenter = GraphCanvasPresenter(
         host,
@@ -414,47 +415,16 @@ def _create_shell_presenter_dependencies(host: "ShellWindow") -> ShellPresenterD
     )
 
 
-def _create_shell_context_bridge_dependencies(host: "ShellWindow") -> ShellContextBridgeDependencies:
-    graph_canvas_state_bridge = GraphCanvasStateBridge(
+def _create_shell_context_bridge_dependencies(
+    host: "ShellWindow",
+    primitives: ShellPrimitiveDependencies,
+) -> ShellContextBridgeDependencies:
+    shell_context_bridges = create_shell_context_bridges(
         host,
-        shell_window=host,
-        scene_bridge=host.scene,
-        view_bridge=host.view,
-    )
-    graph_canvas_command_bridge = GraphCanvasCommandBridge(
-        host,
-        shell_window=host,
-        scene_bridge=host.scene,
-        view_bridge=host.view,
-    )
-    shell_context_bridges = ShellContextBridges(
-        shell_library_bridge=ShellLibraryBridge(
-            host,
-            shell_window=host,
-        ),
-        shell_workspace_bridge=ShellWorkspaceBridge(
-            host,
-            shell_window=host,
-            scene_bridge=host.scene,
-            view_bridge=host.view,
-            console_bridge=host.console_panel,
-            workspace_tabs_bridge=host.workspace_tabs,
-        ),
-        shell_inspector_bridge=ShellInspectorBridge(
-            host,
-            shell_window=host,
-            scene_bridge=host.scene,
-        ),
-        graph_canvas_state_bridge=graph_canvas_state_bridge,
-        graph_canvas_command_bridge=graph_canvas_command_bridge,
-        graph_canvas_bridge=GraphCanvasBridge(
-            host,
-            shell_window=host,
-            scene_bridge=host.scene,
-            view_bridge=host.view,
-            state_bridge=graph_canvas_state_bridge,
-            command_bridge=graph_canvas_command_bridge,
-        ),
+        scene=primitives.scene,
+        view=primitives.view,
+        console_panel=primitives.console_panel,
+        workspace_tabs=primitives.workspace_tabs,
     )
     return ShellContextBridgeDependencies(
         _shell_context_bridges=shell_context_bridges,

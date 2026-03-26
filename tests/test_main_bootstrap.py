@@ -159,10 +159,36 @@ class AppBootstrapTests(unittest.TestCase):
         self.assertIsInstance(composition.controllers, shell_composition_module.ShellControllerDependencies)
         self.assertIsInstance(composition.presenters, shell_composition_module.ShellPresenterDependencies)
         self.assertIsInstance(composition.context_bridges, shell_composition_module.ShellContextBridgeDependencies)
+        self.assertNotIn("_shell_context_bridges", window.__dict__)
         window.close()
         window.deleteLater()
         self.app.sendPostedEvents()
         self.app.processEvents()
+
+    def test_bootstrap_shell_window_uses_single_explicit_attach_point(self) -> None:
+        host = Mock()
+        composition = Mock(spec=shell_composition_module.ShellWindowComposition)
+        timer_dependencies = Mock()
+
+        with patch.object(shell_composition_module, "_configure_shell_window_host") as configure_mock, patch.object(
+            shell_composition_module,
+            "_run_shell_startup_sequence",
+        ) as startup_mock, patch.object(
+            shell_composition_module.ShellWindowBootstrapCoordinator,
+            "create_timer_dependencies",
+            return_value=timer_dependencies,
+        ) as create_timer_mock, patch.object(
+            shell_composition_module,
+            "_finalize_shell_window_bootstrap",
+        ) as finalize_mock:
+            shell_composition_module.bootstrap_shell_window(host, composition)
+
+        configure_mock.assert_called_once_with(host)
+        composition.attach.assert_called_once_with(host)
+        startup_mock.assert_called_once_with(host)
+        create_timer_mock.assert_called_once()
+        timer_dependencies.attach.assert_called_once_with(host)
+        finalize_mock.assert_called_once_with(host)
 
     def test_shell_window_accepts_injected_composition_bundle(self) -> None:
         composition = object()
