@@ -89,6 +89,12 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
                 return self._hold_qml_ref(item)
         self.fail(f"Could not find {object_name!r} for node {node_id!r}.")
 
+    def _open_media_inline_editors(self, node_id: str) -> QQuickItem:
+        surface = self._graph_node_child(node_id, "graphNodeMediaSurface")
+        surface.setProperty("inlineEditorsOpened", True)
+        self.app.processEvents()
+        return surface
+
     def _graph_node_child_with_property(
         self,
         node_id: str,
@@ -178,8 +184,8 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         node_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
         updated_card = self._graph_node_card(node_id)
-        self.assertEqual(node.properties["source_path"], str(picked_path))
-        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertTrue(str(node.properties["source_path"]).startswith("artifact-stage://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
         self.assertIsNone(node.custom_width)
         self.assertIsNone(node.custom_height)
         self.assertGreater(float(node_payload["height"]), initial_height)
@@ -196,6 +202,7 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
         image.fill(QColor("#2c85bf"))
         self.assertTrue(image.save(str(picked_path)))
 
+        self._open_media_inline_editors(node_id)
         path_editor = self._graph_node_child_with_property(
             node_id,
             "graphNodeInlinePathEditor",
@@ -220,8 +227,8 @@ class MainWindowShellPassiveImageNodesTests(MainWindowShellTestBase):
 
         node = workspace.nodes[node_id]
         self.assertEqual(self.window.scene.selected_node_id(), node_id)
-        self.assertEqual(node.properties["source_path"], str(picked_path))
-        self.assertEqual(str(path_editor.property("text")), str(picked_path))
+        self.assertTrue(str(node.properties["source_path"]).startswith("artifact-stage://"))
+        self.assertEqual(str(path_editor.property("text")), node.properties["source_path"])
         self.assertAlmostEqual(float(node.x), initial_x, places=6)
         self.assertAlmostEqual(float(node.y), initial_y, places=6)
 
