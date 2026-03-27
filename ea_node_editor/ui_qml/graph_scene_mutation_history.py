@@ -10,7 +10,12 @@ from ea_node_editor.graph.effective_ports import (
     preferred_connection_port,
     ports_compatible,
 )
-from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_parent_id
+from ea_node_editor.graph.hierarchy import (
+    is_node_in_scope,
+    root_node_ids_for_fragment,
+    scope_parent_id,
+    subtree_node_ids,
+)
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
 from ea_node_editor.graph.transforms import (
     LayoutNodeBounds,
@@ -18,6 +23,7 @@ from ea_node_editor.graph.transforms import (
     build_distribution_position_updates,
     build_subtree_fragment_payload_data,
     collect_layout_node_bounds,
+    expand_comment_backdrop_fragment_node_ids,
     fragment_node_from_payload,
     graph_fragment_bounds,
     graph_fragment_payload_is_valid,
@@ -46,6 +52,7 @@ from ea_node_editor.ui.shell.runtime_history import (
     ACTION_REMOVE_NODE,
     ACTION_RENAME_NODE,
     ACTION_RESIZE_NODE,
+    ACTION_DELETE_SELECTED,
     ACTION_TOGGLE_COLLAPSED,
     ACTION_TOGGLE_EXPOSED_PORT,
 )
@@ -917,7 +924,7 @@ class GraphSceneMutationHistory:
         workspace = model.project.workspaces.get(self._scene_context.workspace_id)
         if workspace is None:
             return None
-        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
+        selected_node_ids = self._expanded_selected_node_ids_for_fragment(workspace)
         if not selected_node_ids:
             return None
         return self._build_subgraph_fragment_payload(workspace, selected_node_ids)
@@ -952,6 +959,54 @@ class GraphSceneMutationHistory:
             return False
 
         self._scope_selection.set_selected_node_ids(pasted_node_ids)
+        self._scene_context.rebuild_models()
+        return True
+
+    def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
+        model = self._scene_context.model
+        registry = self._scene_context.registry
+        if model is None or registry is None:
+            return False
+        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+        if workspace is None:
+            return False
+
+        requested_edge_ids: list[str] = []
+        seen_edge_ids: set[str] = set()
+        for value in edge_ids:
+            edge_id = str(value).strip()
+            if not edge_id or edge_id in seen_edge_ids:
+                continue
+            seen_edge_ids.add(edge_id)
+            requested_edge_ids.append(edge_id)
+
+        removable_node_ids = self._removable_node_ids_for_fragment(workspace)
+        if not requested_edge_ids and not removable_node_ids:
+            return False
+
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+        removed_any = False
+        history_group = self._scene_context.grouped_history_action(ACTION_DELETE_SELECTED, workspace)
+        with history_group:
+            for edge_id in requested_edge_ids:
+                if edge_id not in workspace.edges:
+                    continue
+                mutations.remove_edge(edge_id)
+                removed_any = True
+            for node_id in reversed(removable_node_ids):
+                if node_id not in workspace.nodes:
+                    continue
+                mutations.remove_node(node_id)
+                removed_any = True
+        if not removed_any:
+            return False
+
+        remaining_selected = [
+            node_id
+            for node_id in self._scene_context.selected_node_ids
+            if node_id in workspace.nodes
+        ]
+        self._scope_selection.set_selected_node_ids(remaining_selected, workspace=workspace)
         self._scene_context.rebuild_models()
         return True
 
@@ -990,6 +1045,23 @@ class GraphSceneMutationHistory:
 
     def _selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
         return self._scope_selection.selected_node_ids_in_workspace(workspace)
+
+    def _expanded_selected_node_ids_for_fragment(self, workspace: WorkspaceData) -> list[str]:
+        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
+        if not selected_node_ids:
+            return []
+        return expand_comment_backdrop_fragment_node_ids(
+            workspace=workspace,
+            selected_node_ids=selected_node_ids,
+            backdrop_payloads=self._scene_context.backdrop_nodes_payload,
+        )
+
+    def _removable_node_ids_for_fragment(self, workspace: WorkspaceData) -> list[str]:
+        selected_node_ids = self._expanded_selected_node_ids_for_fragment(workspace)
+        if not selected_node_ids:
+            return []
+        removable_roots = root_node_ids_for_fragment(workspace, selected_node_ids)
+        return subtree_node_ids(workspace, removable_roots)
 
     def _selected_layout_metrics(self) -> tuple[WorkspaceData | None, list[LayoutNodeBounds]]:
         model = self._scene_context.model

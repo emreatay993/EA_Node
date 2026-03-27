@@ -425,17 +425,17 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var viewBridge: root._canvasViewStateBridgeRef",
             "root._canvasStateBridgeRef.graphics_show_grid",
             "root._canvasSceneStateBridgeRef.nodes_model",
-            "bridge.selected_node_lookup",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
+            "GraphCanvasComponents.GraphCanvasSceneState {",
+            "GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {",
+            "GraphCanvasComponents.GraphCanvasWorldLayer {",
             "property alias hoveredPort: interactionState.hoveredPort",
             "property alias pendingConnectionPort: interactionState.pendingConnectionPort",
             "property alias interactionActive: interactionState.interactionActive",
             "interactionState.updateLibraryDropPreview(screenX, screenY, payload);",
             "interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);",
             "var bridge = root._canvasShellCommandBridgeRef",
-            "var bridge = root._canvasSceneCommandBridgeRef",
             "var view = root._canvasViewStateBridgeRef",
-            "scale: root._canvasViewStateBridgeRef ? root._canvasViewStateBridgeRef.zoom_value : 1.0",
             "viewBridge: root._canvasViewStateBridgeRef",
             "sceneBridge: root._canvasSceneStateBridgeRef",
             "shellCommandBridge: root._canvasShellCommandBridgeRef",
@@ -474,6 +474,38 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         for snippet in present_snippets:
             with self.subTest(snippet=snippet):
                 self.assertIn(snippet, helper_text)
+
+    def test_graph_canvas_helper_components_hold_scene_surface_and_delegate_logic(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneState.qml": (
+                "property var selectedEdgeIds: []",
+                "function sceneNodePayload(nodeId) {",
+                "function syncEdgePayload() {",
+                'bridge && typeof bridge.selected_node_lookup !== "undefined"',
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml": (
+                "function requestOpenSubnodeScope(nodeId) {",
+                "function commitNodeSurfaceProperties(nodeId, properties) {",
+                "function browseNodePropertyPath(nodeId, key, currentPath) {",
+                "var bridge = root.canvasItem ? root.canvasItem._canvasSceneCommandBridgeRef : null;",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeDelegate.qml": (
+                "GraphComponents.GraphNodeHost {",
+                "property bool backdropInputOverlay: false",
+                "canvasItem.requestEdgeRedraw",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasWorldLayer.qml": (
+                "property bool backdropInputOverlay: false",
+                "delegate: GraphCanvasNodeDelegate {",
+                "scale: viewBridge ? viewBridge.zoom_value : 1.0",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
 
     def test_overlay_host_item_plumbing_remains_live_for_canvas_overlay_paths(self) -> None:
         expectations = {

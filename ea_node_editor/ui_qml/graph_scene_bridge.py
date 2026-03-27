@@ -7,20 +7,12 @@ from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyq
 
 from ea_node_editor.graph.hierarchy import (
     ScopePath,
-    root_node_ids_for_fragment,
     scope_breadcrumb_payload,
-    subtree_node_ids,
 )
 from ea_node_editor.graph.boundary_adapters import set_graph_boundary_adapters
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
-from ea_node_editor.graph.transforms import (
-    build_subtree_fragment_payload_data,
-    expand_comment_backdrop_fragment_node_ids,
-)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
-from ea_node_editor.ui.shell.runtime_clipboard import build_graph_fragment_payload
-from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
 from ea_node_editor.ui.graph_theme import GraphThemeDefinition
 from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
 from ea_node_editor.ui_qml.edge_routing import node_size
@@ -87,6 +79,10 @@ class _GraphSceneContext:
     @property
     def graphics_show_port_labels(self) -> bool:
         return self._bridge.graphics_show_port_labels
+
+    @property
+    def backdrop_nodes_payload(self) -> list[dict[str, Any]]:
+        return self._bridge._backdrop_nodes_payload
 
     def require_bound(self) -> tuple[GraphModel, NodeRegistry]:
         if self.model is None or self.registry is None:
@@ -731,38 +727,10 @@ class GraphSceneBridge(QObject):
 
     @pyqtSlot(result=bool)
     def duplicate_selected_subgraph(self) -> bool:
-        fragment_payload = self.serialize_selected_subgraph_fragment()
-        if fragment_payload is None:
-            return False
-        fragment_center = self.fragment_bounds_center(fragment_payload)
-        if fragment_center is None:
-            return False
-        return self.paste_subgraph_fragment(
-            fragment_payload,
-            fragment_center[0] + 40.0,
-            fragment_center[1] + 40.0,
-        )
+        return self._mutation_history.duplicate_selected_subgraph()
 
     def serialize_selected_subgraph_fragment(self) -> dict[str, Any] | None:
-        model = self._scene_context.model
-        if model is None:
-            return None
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return None
-        selected_node_ids = self._expanded_selected_node_ids_for_backdrop_fragment(workspace)
-        if not selected_node_ids:
-            return None
-        fragment_data = build_subtree_fragment_payload_data(
-            workspace=workspace,
-            selected_node_ids=selected_node_ids,
-        )
-        if fragment_data is None:
-            return None
-        return build_graph_fragment_payload(
-            nodes=fragment_data["nodes"],
-            edges=fragment_data["edges"],
-        )
+        return self._mutation_history.serialize_selected_subgraph_fragment()
 
     def fragment_bounds_center(self, fragment_payload: Any) -> tuple[float, float] | None:
         return self._mutation_history.fragment_bounds_center(fragment_payload)
@@ -771,66 +739,7 @@ class GraphSceneBridge(QObject):
         return self._mutation_history.paste_subgraph_fragment(fragment_payload, center_x, center_y)
 
     def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-
-        requested_edge_ids: list[str] = []
-        seen_edge_ids: set[str] = set()
-        for value in edge_ids:
-            edge_id = str(value).strip()
-            if not edge_id or edge_id in seen_edge_ids:
-                continue
-            seen_edge_ids.add(edge_id)
-            requested_edge_ids.append(edge_id)
-
-        removable_roots = root_node_ids_for_fragment(
-            workspace,
-            self._expanded_selected_node_ids_for_backdrop_fragment(workspace),
-        )
-        removable_node_ids = subtree_node_ids(workspace, removable_roots)
-        if not requested_edge_ids and not removable_node_ids:
-            return False
-
-        mutations = model.validated_mutations(workspace.workspace_id, registry)
-        removed_any = False
-        history_group = self._scene_context.grouped_history_action(ACTION_DELETE_SELECTED, workspace)
-        with history_group:
-            for edge_id in requested_edge_ids:
-                if edge_id not in workspace.edges:
-                    continue
-                mutations.remove_edge(edge_id)
-                removed_any = True
-            for node_id in reversed(removable_node_ids):
-                if node_id not in workspace.nodes:
-                    continue
-                mutations.remove_node(node_id)
-                removed_any = True
-        if not removed_any:
-            return False
-
-        remaining_selected = [
-            node_id
-            for node_id in self._scene_context.selected_node_ids
-            if node_id in workspace.nodes
-        ]
-        self._scope_selection.set_selected_node_ids(remaining_selected, workspace=workspace)
-        self._scene_context.rebuild_models()
-        return True
-
-    def _expanded_selected_node_ids_for_backdrop_fragment(self, workspace: WorkspaceData) -> list[str]:
-        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
-        if not selected_node_ids:
-            return []
-        return expand_comment_backdrop_fragment_node_ids(
-            workspace=workspace,
-            selected_node_ids=selected_node_ids,
-            backdrop_payloads=self._backdrop_nodes_payload,
-        )
+        return self._mutation_history.delete_selected_graph_items(edge_ids)
 
     def _node(self, node_id: str) -> NodeInstance | None:
         return self._scene_context.node(node_id)

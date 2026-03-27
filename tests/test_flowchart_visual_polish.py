@@ -176,6 +176,8 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
 
+            from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+            from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
             from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
             from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
             from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
@@ -190,7 +192,28 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
             graph_canvas_qml_path = components_dir / "GraphCanvas.qml"
             graph_node_host_qml_path = components_dir / "graph" / "GraphNodeHost.qml"
 
+            def _graph_canvas_initial_properties(path, initial_properties):
+                normalized = dict(initial_properties)
+                if path != graph_canvas_qml_path:
+                    return normalized, []
+                if "canvasStateBridge" in normalized or "canvasCommandBridge" in normalized:
+                    refs = [
+                        normalized.get("canvasStateBridge"),
+                        normalized.get("canvasCommandBridge"),
+                    ]
+                    return normalized, [ref for ref in refs if ref is not None]
+                view_bridge = normalized.pop("viewBridge", None)
+                state_bridge = GraphCanvasStateBridge(view_bridge=view_bridge)
+                command_bridge = GraphCanvasCommandBridge(view_bridge=view_bridge)
+                normalized["canvasStateBridge"] = state_bridge
+                normalized["canvasCommandBridge"] = command_bridge
+                refs = [state_bridge, command_bridge]
+                if view_bridge is not None:
+                    refs.append(view_bridge)
+                return normalized, refs
+
             def create_component(path, initial_properties):
+                initial_properties, persistent_refs = _graph_canvas_initial_properties(path, initial_properties)
                 component = QQmlComponent(engine, QUrl.fromLocalFile(str(path)))
                 if component.status() != QQmlComponent.Status.Ready:
                     errors = "\\n".join(error.toString() for error in component.errors())
@@ -204,6 +227,8 @@ class FlowchartVisualPolishQmlTests(unittest.TestCase):
                 if obj is None:
                     errors = "\\n".join(error.toString() for error in component.errors())
                     raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
+                if persistent_refs:
+                    setattr(obj, "_graph_canvas_refs", persistent_refs)
                 app.processEvents()
                 return obj
 
