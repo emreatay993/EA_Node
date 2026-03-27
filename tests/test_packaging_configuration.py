@@ -14,6 +14,7 @@ PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 SPEC_PATH = REPO_ROOT / "ea_node_editor.spec"
 BUILD_PACKAGE_PATH = REPO_ROOT / "scripts" / "build_windows_package.ps1"
 BUILD_INSTALLER_PATH = REPO_ROOT / "scripts" / "build_windows_installer.ps1"
+SIGN_RELEASE_PATH = REPO_ROOT / "scripts" / "sign_release_artifacts.ps1"
 
 
 def _load_pyproject() -> dict:
@@ -86,12 +87,14 @@ def test_spec_declares_viewer_profile_hooks_and_runtime_assets() -> None:
 def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None:
     build_package_source = BUILD_PACKAGE_PATH.read_text(encoding="utf-8")
     build_installer_source = BUILD_INSTALLER_PATH.read_text(encoding="utf-8")
+    sign_release_source = SIGN_RELEASE_PATH.read_text(encoding="utf-8")
 
     assert '[ValidateSet("base", "viewer")]' in build_package_source
     assert '$PackageProfile = "base"' in build_package_source
     assert 'EA_NODE_EDITOR_PACKAGE_PROFILE' in build_package_source
     assert 'Assert-PackageProfileDependencies' in build_package_source
     assert 'artifacts\\pyinstaller' in build_package_source
+    assert 'artifacts\\releases\\packaging\\$PackageProfile\\dependency_matrix.csv' in build_package_source
     assert 'Join-Path (Join-Path $artifactRoot "dist") $PackageProfile' in build_package_source
     assert 'Join-Path (Join-Path $artifactRoot "build") $PackageProfile' in build_package_source
     assert '[System.IO.Path]::GetTempFileName()' in build_package_source
@@ -108,3 +111,10 @@ def test_windows_build_scripts_use_profile_specific_packaging_switches() -> None
     assert 'Resolve-PowerShellHostPath' in build_installer_source
     assert '$validationShellPath = Resolve-PowerShellHostPath' in build_installer_source
     assert 'Invoke-PowerShellScriptFile -HostPath $validationShellPath' in build_installer_source
+
+    assert '[ValidateSet("base", "viewer")]' in sign_release_source
+    assert '$PackageProfile = "base"' in sign_release_source
+    assert 'artifacts\\releases\\signing\\$PackageProfile' in sign_release_source
+    assert 'artifacts\\pyinstaller\\dist\\$PackageProfile\\COREX_Node_Editor\\COREX_Node_Editor.exe' in sign_release_source
+    assert 'artifacts\\releases\\installer\\$PackageProfile' in sign_release_source
+    assert 'package_profile = $PackageProfile' in sign_release_source

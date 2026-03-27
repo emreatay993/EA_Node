@@ -1,14 +1,11 @@
 # Pilot Sign-off Report
 
 - Updated: `2026-03-18`
-- Evidence Status: Archived packaged desktop pilot sign-off restored from repo
-  history after the checked-in report disappeared from the current proof layer.
+- Evidence Status: Archived 2026-03-01 packaged desktop pilot snapshot.
 - Historical Run Window (UTC): `2026-03-01T18:15:23Z` to `2026-03-01T18:18:51Z`
 - Evidence Run Id: `20260301_211523`
-- Current Constraint: P08 did not rerun the packaged pilot. The historical
-  `artifacts/pilot_signoff/20260301_211523/` screenshot and JSON bundle is not
-  retained in this checkout, so rerun [docs/PILOT_RUNBOOK.md](../../PILOT_RUNBOOK.md)
-  before treating this as current sign-off evidence.
+- Current pilot proof must be rerun from `docs/PILOT_RUNBOOK.md` and tracked in `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.
+- The historical `artifacts/pilot_signoff/20260301_211523/` screenshot and JSON bundle is not retained in this checkout, so do not treat this as current sign-off evidence.
 
 ## Archived 2026-03-01 Snapshot
 

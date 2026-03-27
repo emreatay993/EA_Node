@@ -27,13 +27,12 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [PROJECT_MANAGED_FILES QA Matrix](perf/PROJECT_MANAGED_FILES_QA_MATRIX.md)
 - [ARCHITECTURE_REFACTOR Work Packet Manifest](work_packets/architecture_refactor/ARCHITECTURE_REFACTOR_MANIFEST.md)
 - [ARCHITECTURE_REFACTOR Status Ledger](work_packets/architecture_refactor/ARCHITECTURE_REFACTOR_STATUS.md)
-- [PYDPF_VIEWER_V1 Work Packet Manifest](work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_MANIFEST.md)
-- [PYDPF_VIEWER_V1 Status Ledger](work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_STATUS.md)
-- [PYDPF_VIEWER_V1 QA Matrix](perf/PYDPF_VIEWER_V1_QA_MATRIX.md)
+- [ARCHITECTURE_REFACTOR QA Matrix](perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md)
+- [PYDPF_VIEWER_V1 QA Matrix](perf/PYDPF_VIEWER_V1_QA_MATRIX.md) - closeout evidence only; packet planning docs are archived outside the canonical spec pack.
 
 ## ADRs
 
-1. [ADR-0001 UI Stack](adrs/ADR-0001-ui-stack.md)
-2. [ADR-0002 Runtime Isolation](adrs/ADR-0002-process-isolation.md)
-3. [ADR-0003 Project Format](adrs/ADR-0003-project-format.md)
-4. [ADR-0004 Script Trust Model](adrs/ADR-0004-security-trust-model.md)
+The legacy ADR markdown files are not retained in this checkout. Use the
+requirements modules, retained packet manifests and status ledgers, and the
+published QA matrices above as the canonical architecture history on this
+branch.

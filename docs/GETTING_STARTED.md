@@ -58,8 +58,13 @@ Before merge, inspect or run the full workflow:
 - After editing packet-owned verification docs, perf reports, or traceability
   links, run `./venv/Scripts/python.exe scripts/check_traceability.py` to audit
   the proof layer.
+- After editing canonical markdown docs or spec-index links, run
+  `./venv/Scripts/python.exe scripts/check_markdown_links.py` to catch broken
+  local references before handoff.
 - The current architecture/docs closeout evidence is summarized in
-  `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
+  `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
+  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`,
+  `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
   commands.
@@ -122,10 +127,11 @@ Manual passive-media fixture:
 - [README.md](../README.md): top-level feature summary, structure map, and doc links
 - [ARCHITECTURE.md](../ARCHITECTURE.md): runtime architecture, QML composition, and Mermaid diagrams
 - [docs/specs/INDEX.md](./specs/INDEX.md): canonical requirements, ADRs, and traceability
+- [docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md](./specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md): final docs/release/manual-check matrix and archived-evidence boundaries
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
 - [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and shell-module verification status
 - [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
-- Only the retained `PROJECT_MANAGED_FILES` packet window (`P10` through `P12`) stays in Git; older work-packet docs are archived locally under `artifacts/work_packet_archive/`
+- `docs/specs/INDEX.md` lists the retained work-packet manifests, status ledgers, and closeout QA matrices that stay canonical on this branch.
 
 ## Updating Architecture Diagrams
 

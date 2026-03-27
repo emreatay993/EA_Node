@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
+    [ValidateSet("base", "viewer")]
+    [string]$PackageProfile = "base",
     [switch]$VerifyOnly,
     [switch]$RequireSignedArtifacts,
     [string]$CertThumbprint = "",
     [string]$TimestampServer = "",
-    [string]$SigningOutputRoot = "artifacts\releases\signing",
-    [string]$PackagedExePath = "artifacts\pyinstaller\dist\COREX_Node_Editor\COREX_Node_Editor.exe",
-    [string]$InstallerRoot = "artifacts\releases\installer"
+    [string]$SigningOutputRoot = "",
+    [string]$PackagedExePath = "",
+    [string]$InstallerRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,6 +25,16 @@ function Resolve-RepoPath {
         return $PathValue
     }
     return Join-Path $repoRoot $PathValue
+}
+
+if ([string]::IsNullOrWhiteSpace($SigningOutputRoot)) {
+    $SigningOutputRoot = "artifacts\releases\signing\$PackageProfile"
+}
+if ([string]::IsNullOrWhiteSpace($PackagedExePath)) {
+    $PackagedExePath = "artifacts\pyinstaller\dist\$PackageProfile\COREX_Node_Editor\COREX_Node_Editor.exe"
+}
+if ([string]::IsNullOrWhiteSpace($InstallerRoot)) {
+    $InstallerRoot = "artifacts\releases\installer\$PackageProfile"
 }
 
 function Get-LatestInstallerRun {
@@ -242,6 +254,7 @@ foreach ($target in $targets) {
 $manifest = [ordered]@{
     run_id = $runId
     generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+    package_profile = $PackageProfile
     mode = if ($VerifyOnly) { "verify_only" } else { "sign_and_verify" }
     require_signed_artifacts = [bool]$RequireSignedArtifacts
     certificate_thumbprint = $CertThumbprint
@@ -262,6 +275,7 @@ $summaryLines = New-Object System.Collections.ArrayList
 [void]$summaryLines.Add("# Signing Verification Summary")
 [void]$summaryLines.Add("")
 [void]$summaryLines.Add("- Run id: " + $runId)
+[void]$summaryLines.Add("- Package profile: " + $PackageProfile)
 [void]$summaryLines.Add("- Mode: " + $manifest.mode)
 [void]$summaryLines.Add("- Require signed artifacts: " + $manifest.require_signed_artifacts)
 [void]$summaryLines.Add("- Certificate thumbprint: " + $summaryCertThumbprint)

@@ -311,14 +311,18 @@ Inspect or run the full workflow with:
 ./venv/Scripts/python.exe scripts/run_verification.py --mode full
 ```
 
-When you change verification docs or packet-owned proof links, audit them with:
+When you change verification docs, release docs, or packet-owned proof links,
+audit them with:
 
 ```bash
 ./venv/Scripts/python.exe scripts/check_traceability.py
+./venv/Scripts/python.exe scripts/check_markdown_links.py
 ```
 
 - The current architecture/docs closeout evidence is summarized in
-  `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
+  `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
+  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`,
+  `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - `fast` targets `pytest -m "not gui and not slow"` and, when
   `pytest-xdist` is available in the project venv, resolves an explicit worker
@@ -388,10 +392,11 @@ Regenerate the committed app icon asset set with:
 - [Spec Pack Index](docs/specs/INDEX.md) -- requirements, ADRs, traceability
 - [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
+- [Architecture Refactor QA Matrix](docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md) -- final docs/release guardrails, archived-evidence boundaries, and Windows-only follow-ups
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
-- Only the retained `PROJECT_MANAGED_FILES` packet window (`P10` through `P12`) stays in Git; older work-packet docs are archived locally under `artifacts/work_packet_archive/`
+- The Spec Pack Index lists the retained work-packet manifests, status ledgers, and closeout QA matrices that remain canonical on this branch.
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 

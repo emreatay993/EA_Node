@@ -2,60 +2,77 @@
 
 ## Scope
 
-- Audience: internal pilot operators validating packaged desktop build `COREX_Node_Editor.exe`.
-- Release: `COREX_Node_Editor_RC1_2026-03-01`.
-- Package root: `artifacts/releases/COREX_Node_Editor_RC1_2026-03-01/`.
+- Audience: internal operators validating a freshly built packaged desktop
+  candidate.
+- Default pilot target: the `base` package profile.
+- Canonical active release docs: `docs/PACKAGING_WINDOWS.md` and
+  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.
+- Historical context only: `docs/specs/perf/PILOT_SIGNOFF.md` preserves the
+  archived 2026-03-01 pilot snapshot and must not be treated as fresh sign-off.
+
+## Prepare Candidate Build
+
+1. Open PowerShell in the repository root.
+2. Build the packaged app:
+   `.\scripts\build_windows_package.ps1 -PackageProfile base -Clean`
+3. Build the installer bundle:
+   `.\scripts\build_windows_installer.ps1 -PackageProfile base`
+4. Confirm the packaged executable exists:
+   `Test-Path artifacts\pyinstaller\dist\base\COREX_Node_Editor\COREX_Node_Editor.exe`
+5. Optional verify-only signing snapshot:
+   `.\scripts\sign_release_artifacts.ps1 -PackageProfile base -VerifyOnly`
+
+If you are validating the viewer profile, rerun the same steps with
+`-PackageProfile viewer` from a venv that already has `.[ansys,viewer]` or
+`.[dev]` installed.
 
 ## Install And Start
 
-1. Open PowerShell in repository root.
-2. Confirm executable exists:
-   `Test-Path artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\dist\COREX_Node_Editor\COREX_Node_Editor.exe`
-3. (Recommended) Validate checksum:
-   `Get-FileHash artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\dist\COREX_Node_Editor\COREX_Node_Editor.exe -Algorithm SHA256`
-   Compare with `artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\COREX_Node_Editor.exe.sha256`.
-4. Launch app:
-   `.\artifacts\releases\COREX_Node_Editor_RC1_2026-03-01\dist\COREX_Node_Editor\COREX_Node_Editor.exe`
-5. Wait for main window and verify the status bar initializes to an idle/ready state.
-6. Open `Settings > Graphics Settings` and confirm the dialog shows controls for grid, minimap, snap-to-grid, and theme selection.
+1. Launch the packaged executable:
+   `.\artifacts\pyinstaller\dist\base\COREX_Node_Editor\COREX_Node_Editor.exe`
+2. Wait for the main shell to finish loading.
+3. Confirm the status strip initializes to an idle or ready state.
+4. Open `Settings > Graphics Settings` and confirm the dialog opens without
+   errors.
 
 ## Smoke Workflows
 
 1. Graphics settings and theme behavior
    - Open `Settings > Graphics Settings`.
-   - Switch to `Stitch Light`, disable grid, disable minimap, enable snap-to-grid, and accept the dialog.
-   - Pass criteria: shell and graph canvas restyle immediately, the canvas hides the grid/minimap, and subsequent node moves snap to the grid.
+   - Switch shell theme, toggle grid and minimap, and accept the dialog.
+   - Pass criteria: shell and graph canvas restyle immediately, and the saved
+     values still apply after restart.
 2. Workspace and graph setup
-   - Create a new workspace and a new view.
-   - Add `Start`, `Logger`, `End` nodes.
-   - Connect `Start -> Logger -> End`.
-   - Pass criteria: nodes and edges appear correctly; no error dialog.
+   - Create a workspace and view, add `Start`, `Logger`, and `End`, and connect
+     `Start -> Logger -> End`.
+   - Pass criteria: nodes and edges appear correctly; no unexpected dialog.
 3. Simple execution flow
    - Run `Start -> Logger -> End`.
-   - Pass criteria: execution completes and status returns to `Ready (Completed)`.
+   - Pass criteria: execution completes and the status strip returns to
+     `Ready (Completed)`.
 4. File pipeline flow
-   - Build `File Read -> Python Script -> File Write`.
-   - Use small text input and script transform (for example uppercase).
-   - Pass criteria: output file is written and output content matches expected transform.
+   - Build `File Read -> Python Script -> File Write` with a small text sample.
+   - Pass criteria: output file is written and content matches the transform.
 5. Controlled failure UX
-   - In `Python Script`, intentionally raise an error.
-   - Run flow and observe UI.
-   - Pass criteria: `Workflow Error` dialog appears; failed node is focused/inspectable.
-6. Save, reopen, recovery behavior
-   - Save project as `.sfe`, close app, relaunch app.
-   - Accept recovery prompt when prompted.
-   - Pass criteria: prior tabs/views restore, unsaved recovery graph is restored after acceptance, and the last accepted graphics settings remain active after relaunch.
+   - Make the `Python Script` raise an error and rerun the flow.
+   - Pass criteria: the failure dialog appears and the failed node remains
+     inspectable.
+6. Save, reopen, and recovery behavior
+   - Save as `.sfe`, close the app, relaunch it, and accept the recovery prompt
+     if it appears.
+   - Pass criteria: prior state restores correctly and app-wide graphics
+     preferences remain active after relaunch.
 
 ## Failure Reporting Template
 
 Use this template in pilot issue reports:
 
 ```text
-Title: [Pilot][RC1] <short failure title>
+Title: [Pilot] <short failure title>
 Date/Time (UTC): <YYYY-MM-DDTHH:MM:SSZ>
 Operator: <name>
-Build Label: COREX_Node_Editor_RC1_2026-03-01
-Executable Path: artifacts/releases/COREX_Node_Editor_RC1_2026-03-01/dist/COREX_Node_Editor/COREX_Node_Editor.exe
+Package Profile: <base|viewer>
+Build Source: artifacts/pyinstaller/dist/<profile>/COREX_Node_Editor/COREX_Node_Editor.exe
 Workflow: <1-6 from runbook>
 Expected Result: <expected behavior>
 Actual Result: <observed behavior>
@@ -65,16 +82,17 @@ Repro Steps:
 3) ...
 Artifacts:
 - Screenshot(s): <path>
-- Console/log text: <path or pasted excerpt>
+- Console/log text: <path or excerpt>
 - Sample project/input files: <path>
 Severity: <P0/P1/P2>
 ```
 
 ## Rollback Instructions
 
-1. Stop pilot usage of RC1 executable.
-2. Announce rollback in pilot channel with timestamp and reason.
-3. Switch launch target to last approved packaged build location.
-4. Archive failing RC1 evidence under `artifacts/pilot_signoff/<new_run_id>/`.
-5. Update `docs/specs/perf/PILOT_BACKLOG.md` with failure summary and blocker classification.
-6. Do not resume RC1 pilot until a new sign-off run records decision `GO`.
+1. Stop pilot usage of the current packaged candidate.
+2. Announce the rollback timestamp and reason in the pilot channel.
+3. Switch operators back to the last approved packaged build.
+4. Preserve screenshots, logs, and sample files with the issue report.
+5. Update the active follow-up status in
+   `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md` before claiming a fresh
+   pilot sign-off.
