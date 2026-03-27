@@ -69,6 +69,22 @@ class GraphCanvasCommandBridge(QObject):
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:
         _invoke(self._canvas_source, "set_graphics_minimap_expanded", bool(expanded))
 
+    @pyqtSlot(bool)
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
+        _invoke_chain(
+            (self._canvas_source, self._shell_window),
+            "set_graphics_show_port_labels",
+            bool(show_port_labels),
+        )
+
+    @pyqtSlot(str)
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        _invoke_chain(
+            (self._canvas_source, self._shell_window),
+            "set_graphics_performance_mode",
+            mode,
+        )
+
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
         _invoke(self._view_bridge, "adjust_zoom", float(factor))

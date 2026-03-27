@@ -10,57 +10,22 @@ Item {
     objectName: "graphCanvas"
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
-    readonly property var canvasStateBridgeRef: root.canvasStateBridge
-        ? root.canvasStateBridge
-        : null
-    readonly property var canvasCommandBridgeRef: root.canvasCommandBridge
-        ? root.canvasCommandBridge
-        : null
-    property var mainWindowBridge: root.canvasCommandBridgeRef
-        ? root.canvasCommandBridgeRef
-        : null
-    property var sceneBridge: root.canvasStateBridgeRef
-        ? root.canvasStateBridgeRef
-        : null
-    property var viewBridge: root.canvasStateBridgeRef
-        ? root.canvasStateBridgeRef
-        : null
+    readonly property var canvasStateBridgeRef: root.canvasStateBridge || null
+    readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null
     readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
-        ? root.canvasStateBridgeRef
-        : root.mainWindowBridge
     readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
-        ? root.canvasStateBridgeRef
-        : root.sceneBridge
-    readonly property var _canvasStateViewportBridgeRef: root.canvasStateBridgeRef
+    readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef
         && root.canvasStateBridgeRef.viewport_bridge
         ? root.canvasStateBridgeRef.viewport_bridge
         : null
-    readonly property var _canvasCommandViewportBridgeRef: root.canvasCommandBridgeRef
+    readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
+    readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
+    readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
         && root.canvasCommandBridgeRef.viewport_bridge
         ? root.canvasCommandBridgeRef.viewport_bridge
         : null
-    readonly property var _canvasRawViewBridgeRef: root._canvasStateViewportBridgeRef
-        ? root._canvasStateViewportBridgeRef
-        : (root._canvasCommandViewportBridgeRef
-            ? root._canvasCommandViewportBridgeRef
-            : root.viewBridge)
-    readonly property var _canvasViewStateBridgeRef: root._canvasRawViewBridgeRef
-        ? root._canvasRawViewBridgeRef
-        : (root.canvasStateBridgeRef
-            ? root.canvasStateBridgeRef
-            : root.viewBridge)
-    readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
-        ? root.canvasCommandBridgeRef
-        : root.mainWindowBridge
-    readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
-        ? root.canvasCommandBridgeRef
-        : root.sceneBridge
-    readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
-        ? root.canvasCommandBridgeRef
-        : root._canvasRawViewBridgeRef
-    readonly property var _canvasCompatBridgeRef: typeof graphCanvasBridge !== "undefined"
-        ? graphCanvasBridge
-        : null
+    readonly property var sceneBridge: root._canvasSceneStateBridgeRef
+    readonly property var viewBridge: root._canvasViewStateBridgeRef
     property var overlayHostItem: null
     property var edgePayload: []
     property var liveDragOffsets: ({})
@@ -437,9 +402,6 @@ Item {
     }
 
     function _sceneBackdropNodesModel() {
-        var compatBridge = root._canvasCompatBridgeRef;
-        if (compatBridge && compatBridge.backdrop_nodes_model !== undefined)
-            return compatBridge.backdrop_nodes_model || [];
         var stateBridge = root._canvasSceneStateBridgeRef;
         if (stateBridge && stateBridge.backdrop_nodes_model !== undefined)
             return stateBridge.backdrop_nodes_model || [];

@@ -93,12 +93,10 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         context = self.window.quick_widget.rootContext()
 
         expected_context_names = (
-            "consoleBridge",
             "scriptEditorBridge",
             "scriptHighlighterBridge",
             "themeBridge",
             "graphThemeBridge",
-            "workspaceTabsBridge",
             "uiIcons",
             "statusEngine",
             "statusJobs",
@@ -109,13 +107,19 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "shellInspectorBridge",
             "graphCanvasStateBridge",
             "graphCanvasCommandBridge",
-            "graphCanvasBridge",
         )
         for name in expected_context_names:
             with self.subTest(name=name):
                 self.assertIsNotNone(context.contextProperty(name))
 
-        for name in ("mainWindow", "sceneBridge", "viewBridge"):
+        for name in (
+            "mainWindow",
+            "sceneBridge",
+            "viewBridge",
+            "consoleBridge",
+            "workspaceTabsBridge",
+            "graphCanvasBridge",
+        ):
             with self.subTest(name=name, expectation="removed"):
                 self.assertIsNone(context.contextProperty(name))
 
@@ -136,7 +140,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(shell_inspector_bridge.shell_window, self.window)
         self.assertIs(shell_inspector_bridge.scene_bridge, self.window.scene)
 
-        graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
+        graph_canvas_bridge = self.window.graph_canvas_bridge
         self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
         self.assertIs(graph_canvas_bridge.parent(), self.window)
         self.assertIs(graph_canvas_bridge.shell_window, self.window)
@@ -286,7 +290,6 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         context = self.window.quick_widget.rootContext()
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
-        graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
         canvas_bridge = graph_canvas.property("canvasBridge")
         canvas_state_bridge = graph_canvas.property("canvasStateBridge")
         canvas_command_bridge = graph_canvas.property("canvasCommandBridge")
@@ -294,7 +297,8 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
 
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
-        self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
+        self.assertIsNone(context.contextProperty("graphCanvasBridge"))
+        self.assertIsInstance(self.window.graph_canvas_bridge, GraphCanvasBridge)
         self.assertEqual(graph_canvas.objectName(), "graphCanvas")
         self.assertIsInstance(canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(canvas_state_bridge, graph_canvas_state_bridge)

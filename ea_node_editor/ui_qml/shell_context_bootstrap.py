@@ -47,16 +47,13 @@ def shell_context_property_bindings(
     host: "ShellWindow",
     bridges: ShellContextBridges,
 ) -> tuple[tuple[str, object], ...]:
-    bridge_first_bindings = (
+    return (
         ("shellLibraryBridge", bridges.shell_library_bridge),
         ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
-        ("graphCanvasBridge", bridges.graph_canvas_bridge),
         ("viewerSessionBridge", host.viewer_session_bridge),
-    )
-    shared_service_bindings = (
         ("scriptEditorBridge", host.script_editor),
         ("scriptHighlighterBridge", host.script_highlighter),
         ("themeBridge", host.theme_bridge),
@@ -67,11 +64,6 @@ def shell_context_property_bindings(
         ("statusMetrics", host.status_metrics),
         ("statusNotifications", host.status_notifications),
     )
-    deferred_compatibility_bindings = (
-        ("consoleBridge", host.console_panel),
-        ("workspaceTabsBridge", host.workspace_tabs),
-    )
-    return bridge_first_bindings + shared_service_bindings + deferred_compatibility_bindings
 
 
 def _main_shell_qml_path() -> Path:

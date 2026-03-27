@@ -161,6 +161,10 @@ class GraphCanvasStateBridge(QObject):
     def minimap_nodes_model(self) -> list[dict]:
         return _copy_list(_source_attr(self._scene_bridge, "minimap_nodes_model", []))
 
+    @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+    def backdrop_nodes_model(self) -> list[dict]:
+        return _copy_list(_source_attr(self._scene_bridge, "backdrop_nodes_model", []))
+
     @pyqtProperty("QVariantMap", notify=scene_nodes_changed)
     def workspace_scene_bounds_payload(self) -> dict[str, Any]:
         return _copy_dict(_source_attr(self._scene_bridge, "workspace_scene_bounds_payload", {}))

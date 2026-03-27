@@ -50,6 +50,8 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
                 LocalMediaPreviewImageProvider,
             )
+            from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+            from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 
             class ThemeBridgeStub(QObject):
                 @pyqtProperty("QVariantMap", constant=True)
@@ -140,6 +142,19 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                     raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
                 app.processEvents()
                 return obj
+
+            def build_canvas_bridges(*, shell_bridge=None, scene_bridge=None, view_bridge=None):
+                state_bridge = GraphCanvasStateBridge(
+                    shell_window=shell_bridge,
+                    scene_bridge=scene_bridge,
+                    view_bridge=view_bridge,
+                )
+                command_bridge = GraphCanvasCommandBridge(
+                    shell_window=shell_bridge,
+                    scene_bridge=scene_bridge,
+                    view_bridge=view_bridge,
+                )
+                return state_bridge, command_bridge
 
             def node_payload(surface_family="standard", surface_variant=""):
                 return {
@@ -837,11 +852,15 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
 
             scene_bridge = SceneBridgeStub()
             window_bridge = MainWindowBridgeStub()
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=window_bridge,
+                scene_bridge=scene_bridge,
+            )
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "sceneBridge": scene_bridge,
-                    "mainWindowBridge": window_bridge,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                 },
             )
             def walk_items(item):
@@ -1020,11 +1039,15 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
 
             scene_bridge = SceneBridgeStub()
             window_bridge = MainWindowBridgeStub()
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=window_bridge,
+                scene_bridge=scene_bridge,
+            )
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "sceneBridge": scene_bridge,
-                    "mainWindowBridge": window_bridge,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
                     "height": 480.0,
                 },
@@ -1184,11 +1207,15 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
 
             scene_bridge = SceneBridgeStub()
             window_bridge = MainWindowBridgeStub()
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=window_bridge,
+                scene_bridge=scene_bridge,
+            )
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "sceneBridge": scene_bridge,
-                    "mainWindowBridge": window_bridge,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
                     "height": 480.0,
                 },
@@ -1272,12 +1299,16 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             view = ViewportBridge()
             view.set_viewport_size(640.0, 480.0)
             view.set_view_state(1.0, 0.0, 0.0)
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                scene_bridge=scene,
+                view_bridge=view,
+            )
 
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "sceneBridge": scene,
-                    "viewBridge": view,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
                     "height": 480.0,
                 },
@@ -1627,6 +1658,11 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             shell_bridge = FlowchartShellBridgeStub(interactions)
             view = ViewportBridge()
             view.set_viewport_size(640.0, 480.0)
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
 
             first_source_id = scene.add_node_from_type("passive.flowchart.process", 20.0, 20.0)
             first_target_id = scene.add_node_from_type("passive.flowchart.process", 360.0, 160.0)
@@ -1636,9 +1672,8 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "sceneBridge": scene,
-                    "mainWindowBridge": shell_bridge,
-                    "viewBridge": view,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
                     "height": 480.0,
                 },
@@ -1781,15 +1816,19 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             shell_bridge = FlowShellBridgeStub()
             view = ViewportBridge()
             view.set_viewport_size(640.0, 480.0)
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
 
             node_id = scene.add_node_from_type("core.logger", 20.0, 20.0)
 
             canvas = create_component(
                 graph_canvas_qml_path,
                 {
-                    "sceneBridge": scene,
-                    "mainWindowBridge": shell_bridge,
-                    "viewBridge": view,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 640.0,
                     "height": 480.0,
                 },
