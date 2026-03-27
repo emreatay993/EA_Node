@@ -4,7 +4,8 @@ import QtQuick.Layouts 1.15
 Rectangle {
     id: root
     objectName: "shellStatusStrip"
-    property var canvasBridgeRef
+    property var canvasStateBridgeRef
+    property var canvasCommandBridgeRef
     property var statusEngineRef
     property var statusJobsRef
     property var statusMetricsRef
@@ -14,8 +15,8 @@ Rectangle {
     readonly property string maxPerformanceLabel: "Max Performance"
     readonly property string fullFidelityCopy: "Keeps normal visual quality and applies only invisible structural optimizations."
     readonly property string maxPerformanceCopy: "Temporarily simplifies whole-canvas rendering during pan, zoom, and burst edits; idle quality restores automatically."
-    readonly property string graphicsPerformanceMode: root.canvasBridgeRef
-        ? String(root.canvasBridgeRef.graphics_performance_mode || "full_fidelity")
+    readonly property string graphicsPerformanceMode: root.canvasStateBridgeRef
+        ? String(root.canvasStateBridgeRef.graphics_performance_mode || "full_fidelity")
         : "full_fidelity"
     readonly property string graphicsPerformanceModeLabel: root.graphicsPerformanceMode === "max_performance"
         ? root.maxPerformanceLabel
@@ -67,8 +68,8 @@ Rectangle {
                 tooltipText: root.fullFidelityCopy
                 selectedStyle: root.graphicsPerformanceMode === "full_fidelity"
                 onClicked: {
-                    if (root.canvasBridgeRef && root.graphicsPerformanceMode !== "full_fidelity")
-                        root.canvasBridgeRef.set_graphics_performance_mode("full_fidelity")
+                    if (root.canvasCommandBridgeRef && root.graphicsPerformanceMode !== "full_fidelity")
+                        root.canvasCommandBridgeRef.set_graphics_performance_mode("full_fidelity")
                 }
             }
 
@@ -79,8 +80,8 @@ Rectangle {
                 tooltipText: root.maxPerformanceCopy
                 selectedStyle: root.graphicsPerformanceMode === "max_performance"
                 onClicked: {
-                    if (root.canvasBridgeRef && root.graphicsPerformanceMode !== "max_performance")
-                        root.canvasBridgeRef.set_graphics_performance_mode("max_performance")
+                    if (root.canvasCommandBridgeRef && root.graphicsPerformanceMode !== "max_performance")
+                        root.canvasCommandBridgeRef.set_graphics_performance_mode("max_performance")
                 }
             }
         }

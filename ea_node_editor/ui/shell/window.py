@@ -1590,7 +1590,12 @@ class ShellWindow(QMainWindow):
         return self.workspace_library_controller.import_custom_workflow()
 
     def _export_custom_workflow(self):
-        return self.workspace_library_controller.export_custom_workflow()
+        controller = self.workspace_library_controller
+        package_io_controller = getattr(controller, "workspace_package_io_controller", None)
+        prompt_override = getattr(controller, "_prompt_custom_workflow_export_definition", None)
+        if package_io_controller is not None and callable(prompt_override):
+            package_io_controller._prompt_custom_workflow_export_definition = prompt_override
+        return controller.export_custom_workflow()
 
     def _import_node_package(self):
         return self.workspace_library_controller.import_node_package()
@@ -1713,7 +1718,7 @@ class ShellWindow(QMainWindow):
             cpu_percent,
             ram_used_gb,
             ram_total_gb,
-            fps=fps,
+            fps=0.0 if fps is None else fps,
         )
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:

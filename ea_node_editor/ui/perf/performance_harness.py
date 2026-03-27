@@ -35,6 +35,8 @@ from ea_node_editor.ui.pdf_preview_provider import (
     LocalPdfPreviewImageProvider,
     describe_pdf_preview,
 )
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -784,6 +786,16 @@ class _GraphCanvasBenchmarkHost:
         self.theme_bridge = ThemeBridge(self.engine, theme_id=_CANVAS_THEME_ID)
         self.graph_theme_bridge = GraphThemeBridge(self.engine, theme_id=_CANVAS_GRAPH_THEME_ID)
         self.main_window_bridge = _BenchmarkMainWindowBridge(performance_mode=performance_mode)
+        self.canvas_state_bridge = GraphCanvasStateBridge(
+            shell_window=self.main_window_bridge,  # type: ignore[arg-type]
+            scene_bridge=self.scene,
+            view_bridge=self.view,
+        )
+        self.canvas_command_bridge = GraphCanvasCommandBridge(
+            shell_window=self.main_window_bridge,  # type: ignore[arg-type]
+            scene_bridge=self.scene,
+            view_bridge=self.view,
+        )
         root_context = self.engine.rootContext()
         root_context.setContextProperty("themeBridge", self.theme_bridge)
         root_context.setContextProperty("graphThemeBridge", self.graph_theme_bridge)
@@ -796,9 +808,8 @@ class _GraphCanvasBenchmarkHost:
         self.window = QQuickWindow()
         self.window.resize(_CANVAS_BENCHMARK_WIDTH, _CANVAS_BENCHMARK_HEIGHT)
         initial_properties = {
-            "mainWindowBridge": self.main_window_bridge,
-            "sceneBridge": self.scene,
-            "viewBridge": self.view,
+            "canvasStateBridge": self.canvas_state_bridge,
+            "canvasCommandBridge": self.canvas_command_bridge,
             "width": float(_CANVAS_BENCHMARK_WIDTH),
             "height": float(_CANVAS_BENCHMARK_HEIGHT),
         }
