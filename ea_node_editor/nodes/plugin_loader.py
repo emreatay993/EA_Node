@@ -324,11 +324,25 @@ def _load_plugins_from_package_directory(
     return loaded
 
 
+def discover_package_plugins(
+    package_dir: Path,
+    registry: NodeRegistry,
+    *,
+    descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
+) -> list[str]:
+    """Load discoverable plugin modules from one installed package directory."""
+    return _load_plugins_from_package_directory(
+        package_dir,
+        registry,
+        descriptor_overrides=descriptor_overrides,
+    )
+
+
 def _load_plugins_from_root(root_directory: Path, registry: NodeRegistry) -> list[str]:
     """Load public plugin modules from a plugin root and its package subdirectories."""
     loaded = _load_plugins_from_directory(root_directory, registry)
     for package_dir in _plugin_package_directories(root_directory):
-        loaded.extend(_load_plugins_from_package_directory(package_dir, registry))
+        loaded.extend(discover_package_plugins(package_dir, registry))
     return loaded
 
 
@@ -383,3 +397,10 @@ def discover_and_load_plugins(
     if loaded:
         logger.info("Loaded %d plugin node(s): %s", len(loaded), ", ".join(loaded))
     return loaded
+
+
+__all__ = [
+    "ENTRY_POINT_GROUP",
+    "discover_and_load_plugins",
+    "discover_package_plugins",
+]
