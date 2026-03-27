@@ -27,6 +27,17 @@ Item {
     property bool showPortLabelsPreference: true
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
+
+    GraphNodeHostTheme {
+        id: themeState
+        host: card
+    }
+
+    GraphNodeHostLayout {
+        id: chromeLayout
+        host: card
+    }
+
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.node_palette
         : ({})
@@ -65,95 +76,67 @@ Item {
     readonly property bool usesCardinalNeutralFlowHandles: !!nodeData
         && GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(nodeData)
     readonly property bool isPassiveNode: !!nodeData && String(nodeData.runtime_behavior || "").toLowerCase() === "passive"
-    readonly property var passiveStyle: isPassiveNode && nodeData && nodeData.visual_style ? nodeData.visual_style : ({})
-    readonly property string _passiveFillOverride: card._styleString(passiveStyle.fill_color)
-    readonly property string _passiveBorderOverride: card._styleString(passiveStyle.border_color)
-    readonly property string _passiveTextOverride: card._styleString(passiveStyle.text_color)
-    readonly property string _passiveAccentOverride: card._styleString(passiveStyle.accent_color)
-    readonly property string _passiveHeaderOverride: card._styleString(passiveStyle.header_color)
-    readonly property bool hasPassiveFillOverride: isPassiveNode && _passiveFillOverride.length > 0
-    readonly property bool hasPassiveBorderOverride: isPassiveNode && _passiveBorderOverride.length > 0
-    readonly property bool hasPassiveTextOverride: isPassiveNode && _passiveTextOverride.length > 0
-    readonly property bool hasPassiveAccentOverride: isPassiveNode && _passiveAccentOverride.length > 0
-    readonly property bool hasPassiveHeaderOverride: isPassiveNode && _passiveHeaderOverride.length > 0
-    readonly property color themeSurfaceColor: nodePalette.card_bg || "#1b1d22"
-    readonly property color themeOutlineColor: nodePalette.card_border || "#3a3d45"
-    readonly property color themeSelectedOutlineColor: nodePalette.card_selected_border || "#60CDFF"
-    readonly property color themeHeaderColor: nodePalette.header_bg || "#2a2b30"
-    readonly property color themeHeaderTextColor: nodePalette.header_fg || "#f0f4fb"
-    readonly property color themeScopeBadgeColor: nodePalette.scope_badge_bg || "#1D8CE0"
-    readonly property color themeScopeBadgeBorderColor: nodePalette.scope_badge_border || "#60CDFF"
-    readonly property color themeScopeBadgeTextColor: nodePalette.scope_badge_fg || "#f2f4f8"
-    readonly property color themeInlineRowColor: nodePalette.inline_row_bg || "#24262c"
-    readonly property color themeInlineRowBorderColor: nodePalette.inline_row_border || "#4a4f5a"
-    readonly property color themeInlineLabelColor: nodePalette.inline_label_fg || "#d0d5de"
-    readonly property color themeInlineInputTextColor: nodePalette.inline_input_fg || "#f0f2f5"
-    readonly property color themeInlineInputBackgroundColor: nodePalette.inline_input_bg || "#22242a"
-    readonly property color themeInlineInputBorderColor: nodePalette.inline_input_border || "#4a4f5a"
-    readonly property color themeInlineDrivenTextColor: nodePalette.inline_driven_fg || "#bdc5d3"
-    readonly property color themePortLabelColor: nodePalette.port_label_fg || "#d0d5de"
-    readonly property color flowchartDefaultFillColor: "#F5FAFD"
-    readonly property color flowchartDefaultOutlineColor: "#61798B"
-    readonly property color flowchartDefaultSelectedOutlineColor: "#2C85BF"
-    readonly property color flowchartDefaultTextColor: "#173247"
-    readonly property color surfaceColor: isPassiveNode
-        ? (_passiveFillOverride || (isFlowchartSurface ? flowchartDefaultFillColor : themeSurfaceColor))
-        : themeSurfaceColor
-    readonly property color outlineColor: isPassiveNode
-        ? (_passiveBorderOverride || (isFlowchartSurface ? flowchartDefaultOutlineColor : themeOutlineColor))
-        : themeOutlineColor
-    readonly property color selectedOutlineColor: isPassiveNode
-        ? (isFlowchartSurface
-            ? (hasPassiveBorderOverride ? Qt.lighter(outlineColor, 1.18) : flowchartDefaultSelectedOutlineColor)
-            : Qt.lighter(outlineColor, 1.25))
-        : themeSelectedOutlineColor
-    readonly property color headerColor: isPassiveNode
-        ? (_passiveHeaderOverride || (isFlowchartSurface ? surfaceColor : themeHeaderColor))
-        : themeHeaderColor
-    readonly property color headerTextColor: isPassiveNode
-        ? (_passiveTextOverride || (isFlowchartSurface ? flowchartDefaultTextColor : themeHeaderTextColor))
-        : themeHeaderTextColor
-    readonly property color scopeBadgeColor: isPassiveNode
-        ? (_passiveAccentOverride || (isFlowchartSurface ? selectedOutlineColor : themeScopeBadgeColor))
-        : themeScopeBadgeColor
-    readonly property color scopeBadgeBorderColor: isPassiveNode
-        ? Qt.lighter(scopeBadgeColor, 1.16)
-        : themeScopeBadgeBorderColor
-    readonly property color scopeBadgeTextColor: isPassiveNode ? "#f2f4f8" : themeScopeBadgeTextColor
-    readonly property color inlineRowColor: isPassiveNode ? Qt.darker(surfaceColor, 1.04) : themeInlineRowColor
-    readonly property color inlineRowBorderColor: isPassiveNode ? Qt.alpha(outlineColor, 0.85) : themeInlineRowBorderColor
-    readonly property color inlineLabelColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.82) : themeInlineLabelColor
-    readonly property color inlineInputTextColor: isPassiveNode ? headerTextColor : themeInlineInputTextColor
-    readonly property color inlineInputBackgroundColor: isPassiveNode
-        ? Qt.darker(surfaceColor, 1.08)
-        : themeInlineInputBackgroundColor
-    readonly property color inlineInputBorderColor: isPassiveNode ? Qt.alpha(outlineColor, 0.9) : themeInlineInputBorderColor
-    readonly property color inlineDrivenTextColor: isPassiveNode ? Qt.alpha(headerTextColor, 0.72) : themeInlineDrivenTextColor
-    readonly property color portLabelColor: isPassiveNode
-        ? Qt.alpha(headerTextColor, usesCardinalNeutralFlowHandles ? 0.74 : 0.84)
-        : themePortLabelColor
-    readonly property color portInteractiveFillColor: usesCardinalNeutralFlowHandles
-        ? Qt.alpha(selectedOutlineColor, 0.18)
-        : (nodePalette.port_interactive_fill || "#FFDA6B")
-    readonly property color portInteractiveBorderColor: usesCardinalNeutralFlowHandles
-        ? selectedOutlineColor
-        : (nodePalette.port_interactive_border || "#FFE48B")
-    readonly property color portInteractiveRingFillColor: usesCardinalNeutralFlowHandles
-        ? Qt.alpha(selectedOutlineColor, 0.1)
-        : (nodePalette.port_interactive_ring_fill || "#44FFC857")
-    readonly property color portInteractiveRingBorderColor: usesCardinalNeutralFlowHandles
-        ? Qt.alpha(selectedOutlineColor, 0.38)
-        : (nodePalette.port_interactive_ring_border || "#66FFE29A")
-    readonly property color flowchartConnectedPortFillColor: Qt.alpha(outlineColor, 0.18)
-    readonly property real flowchartRestPortDiameter: 6.0
-    readonly property real flowchartConnectedPortDiameter: 7.0
-    readonly property real flowchartSelectedPortDiameter: 8.0
-    readonly property real flowchartInteractivePortDiameter: 11.0
-    readonly property real flowchartInteractiveRingDiameter: 15.0
-    readonly property real passiveBorderWidth: card._styleNumber(passiveStyle.border_width, 1.0, false)
-    readonly property real passiveCornerRadius: card._styleNumber(passiveStyle.corner_radius, 6.0, true)
-    readonly property real passiveFontPixelSize: card._styleNumber(passiveStyle.font_size, 12.0, false)
-    readonly property bool passiveFontBold: card._styleString(passiveStyle.font_weight).toLowerCase() === "bold"
+    readonly property var passiveStyle: themeState.passiveStyle
+    readonly property string _passiveFillOverride: themeState.passiveFillOverride
+    readonly property string _passiveBorderOverride: themeState.passiveBorderOverride
+    readonly property string _passiveTextOverride: themeState.passiveTextOverride
+    readonly property string _passiveAccentOverride: themeState.passiveAccentOverride
+    readonly property string _passiveHeaderOverride: themeState.passiveHeaderOverride
+    readonly property bool hasPassiveFillOverride: themeState.hasPassiveFillOverride
+    readonly property bool hasPassiveBorderOverride: themeState.hasPassiveBorderOverride
+    readonly property bool hasPassiveTextOverride: themeState.hasPassiveTextOverride
+    readonly property bool hasPassiveAccentOverride: themeState.hasPassiveAccentOverride
+    readonly property bool hasPassiveHeaderOverride: themeState.hasPassiveHeaderOverride
+    readonly property color themeSurfaceColor: themeState.themeSurfaceColor
+    readonly property color themeOutlineColor: themeState.themeOutlineColor
+    readonly property color themeSelectedOutlineColor: themeState.themeSelectedOutlineColor
+    readonly property color themeHeaderColor: themeState.themeHeaderColor
+    readonly property color themeHeaderTextColor: themeState.themeHeaderTextColor
+    readonly property color themeScopeBadgeColor: themeState.themeScopeBadgeColor
+    readonly property color themeScopeBadgeBorderColor: themeState.themeScopeBadgeBorderColor
+    readonly property color themeScopeBadgeTextColor: themeState.themeScopeBadgeTextColor
+    readonly property color themeInlineRowColor: themeState.themeInlineRowColor
+    readonly property color themeInlineRowBorderColor: themeState.themeInlineRowBorderColor
+    readonly property color themeInlineLabelColor: themeState.themeInlineLabelColor
+    readonly property color themeInlineInputTextColor: themeState.themeInlineInputTextColor
+    readonly property color themeInlineInputBackgroundColor: themeState.themeInlineInputBackgroundColor
+    readonly property color themeInlineInputBorderColor: themeState.themeInlineInputBorderColor
+    readonly property color themeInlineDrivenTextColor: themeState.themeInlineDrivenTextColor
+    readonly property color themePortLabelColor: themeState.themePortLabelColor
+    readonly property color flowchartDefaultFillColor: themeState.flowchartDefaultFillColor
+    readonly property color flowchartDefaultOutlineColor: themeState.flowchartDefaultOutlineColor
+    readonly property color flowchartDefaultSelectedOutlineColor: themeState.flowchartDefaultSelectedOutlineColor
+    readonly property color flowchartDefaultTextColor: themeState.flowchartDefaultTextColor
+    readonly property color surfaceColor: themeState.surfaceColor
+    readonly property color outlineColor: themeState.outlineColor
+    readonly property color selectedOutlineColor: themeState.selectedOutlineColor
+    readonly property color headerColor: themeState.headerColor
+    readonly property color headerTextColor: themeState.headerTextColor
+    readonly property color scopeBadgeColor: themeState.scopeBadgeColor
+    readonly property color scopeBadgeBorderColor: themeState.scopeBadgeBorderColor
+    readonly property color scopeBadgeTextColor: themeState.scopeBadgeTextColor
+    readonly property color inlineRowColor: themeState.inlineRowColor
+    readonly property color inlineRowBorderColor: themeState.inlineRowBorderColor
+    readonly property color inlineLabelColor: themeState.inlineLabelColor
+    readonly property color inlineInputTextColor: themeState.inlineInputTextColor
+    readonly property color inlineInputBackgroundColor: themeState.inlineInputBackgroundColor
+    readonly property color inlineInputBorderColor: themeState.inlineInputBorderColor
+    readonly property color inlineDrivenTextColor: themeState.inlineDrivenTextColor
+    readonly property color portLabelColor: themeState.portLabelColor
+    readonly property color portInteractiveFillColor: themeState.portInteractiveFillColor
+    readonly property color portInteractiveBorderColor: themeState.portInteractiveBorderColor
+    readonly property color portInteractiveRingFillColor: themeState.portInteractiveRingFillColor
+    readonly property color portInteractiveRingBorderColor: themeState.portInteractiveRingBorderColor
+    readonly property color flowchartConnectedPortFillColor: themeState.flowchartConnectedPortFillColor
+    readonly property real flowchartRestPortDiameter: themeState.flowchartRestPortDiameter
+    readonly property real flowchartConnectedPortDiameter: themeState.flowchartConnectedPortDiameter
+    readonly property real flowchartSelectedPortDiameter: themeState.flowchartSelectedPortDiameter
+    readonly property real flowchartInteractivePortDiameter: themeState.flowchartInteractivePortDiameter
+    readonly property real flowchartInteractiveRingDiameter: themeState.flowchartInteractiveRingDiameter
+    readonly property real passiveBorderWidth: themeState.passiveBorderWidth
+    readonly property real passiveCornerRadius: themeState.passiveCornerRadius
+    readonly property real passiveFontPixelSize: themeState.passiveFontPixelSize
+    readonly property bool passiveFontBold: themeState.passiveFontBold
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
     readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
     readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
@@ -238,86 +221,40 @@ Item {
     readonly property bool canEnterScope: !!card.nodeData && !!card.nodeData.can_enter_scope
     readonly property bool sharedHeaderTitleEditable: !!card.nodeData
     readonly property bool flowchartTitleEditable: card.isFlowchartSurface && card.sharedHeaderTitleEditable
-    readonly property bool _useHostChrome: card.isCollapsed || Boolean(surfaceMetrics.use_host_chrome)
-    readonly property bool _showAccentBar: card.isCollapsed || Boolean(surfaceMetrics.show_accent_bar)
-    readonly property bool _showHeaderBackground: card.isCollapsed
-        || Boolean(surfaceMetrics.show_header_background)
-        || (card.isPassiveNode && card._useHostChrome && card.hasPassiveHeaderOverride)
-    readonly property real _titleTop: card.isCollapsed ? 4.0 : Number(surfaceMetrics.title_top)
-    readonly property real _titleHeight: card.isCollapsed ? 24.0 : Number(surfaceMetrics.title_height)
-    readonly property real _titleLeftMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_left_margin)
-    readonly property real _titleRightMargin: card.isCollapsed ? 10.0 : Number(surfaceMetrics.title_right_margin)
-    readonly property bool _titleCentered: !card.isCollapsed && Boolean(surfaceMetrics.title_centered)
-    readonly property bool _portLabelsSuppressedBySurfaceRule: card.usesCardinalNeutralFlowHandles
-    readonly property bool _standardExpandedNonPassiveNode: !card.isCollapsed
-        && card.surfaceFamily === "standard"
-        && !card.isPassiveNode
+    readonly property bool _useHostChrome: chromeLayout.useHostChrome
+    readonly property bool _showAccentBar: chromeLayout.showAccentBar
+    readonly property bool _showHeaderBackground: chromeLayout.showHeaderBackground
+    readonly property real _titleTop: chromeLayout.titleTop
+    readonly property real _titleHeight: chromeLayout.titleHeight
+    readonly property real _titleLeftMargin: chromeLayout.titleLeftMargin
+    readonly property real _titleRightMargin: chromeLayout.titleRightMargin
+    readonly property bool _titleCentered: chromeLayout.titleCentered
+    readonly property bool _portLabelsSuppressedBySurfaceRule: chromeLayout.portLabelsSuppressedBySurfaceRule
+    readonly property bool _standardExpandedNonPassiveNode: chromeLayout.standardExpandedNonPassiveNode
     // Consume the scene-owned width contract for visible standard-node labels.
-    readonly property real _standardLeftLabelMetricWidth: Math.max(0.0, Number(surfaceMetrics.standard_left_label_width))
-    readonly property real _standardRightLabelMetricWidth: Math.max(0.0, Number(surfaceMetrics.standard_right_label_width))
-    readonly property real _standardPortGutterMetric: Math.max(0.0, Number(surfaceMetrics.standard_port_gutter))
-    readonly property real _standardCenterGapMetric: Math.max(0.0, Number(surfaceMetrics.standard_center_gap))
-    readonly property real _standardPortLabelMinMetricWidth: Math.max(
-        0.0,
-        Number(surfaceMetrics.standard_port_label_min_width)
-    )
-    readonly property bool _standardPortLabelMetricsReady: card._standardLeftLabelMetricWidth > 0.0
-        || card._standardRightLabelMetricWidth > 0.0
-        || card._standardPortLabelMinMetricWidth > 0.0
-    readonly property bool _usesStandardPortLabelColumns: card._standardExpandedNonPassiveNode
-        && card.showPortLabelsPreference
-        && !card._portLabelsSuppressedBySurfaceRule
-        && card._standardPortLabelMetricsReady
-    readonly property int _standardVisibleLabelColumnCount: (card._standardLeftLabelMetricWidth > 0.0 ? 1 : 0)
-        + (card._standardRightLabelMetricWidth > 0.0 ? 1 : 0)
-    // Let manual/default width beyond the P03 minimum widen both label columns
-    // while preserving the shared center-gutter contract.
-    readonly property real _standardExtraLabelWidthPerColumn: card._usesStandardPortLabelColumns
-        && card._standardVisibleLabelColumnCount > 0
-        ? Math.max(0.0, card.width - card._standardPortLabelMinMetricWidth) / card._standardVisibleLabelColumnCount
-        : 0.0
-    readonly property real _standardLeftLabelWidth: card._usesStandardPortLabelColumns
-        && card._standardLeftLabelMetricWidth > 0.0
-        ? card._standardLeftLabelMetricWidth + card._standardExtraLabelWidthPerColumn
-        : 0.0
-    readonly property real _standardRightLabelWidth: card._usesStandardPortLabelColumns
-        && card._standardRightLabelMetricWidth > 0.0
-        ? card._standardRightLabelMetricWidth + card._standardExtraLabelWidthPerColumn
-        : 0.0
-    readonly property real _standardPortGutter: card._usesStandardPortLabelColumns
-        ? card._standardPortGutterMetric
-        : 0.0
-    readonly property real _standardCenterGap: card._usesStandardPortLabelColumns
-        ? card._standardCenterGapMetric
-        : 0.0
-    readonly property real _portLabelGap: {
-        if (!card._usesStandardPortLabelColumns)
-            return 6.0;
-        var portSideMargin = Math.max(0.0, Number(surfaceMetrics.port_side_margin));
-        var portDotRadius = Math.max(0.0, Number(surfaceMetrics.port_dot_radius));
-        return Math.max(0.0, card._standardPortGutter - (portSideMargin + (portDotRadius * 2.0)));
-    }
-    readonly property real _portLabelMaxWidth: card._usesStandardPortLabelColumns
-        ? Math.max(40.0, card._standardLeftLabelWidth, card._standardRightLabelWidth)
-        : Math.max(40.0, card.width * 0.46)
-    readonly property bool _tooltipOnlyPortLabelsActive: card._standardExpandedNonPassiveNode
-        && !card.showPortLabelsPreference
-        && !card._portLabelsSuppressedBySurfaceRule
-    readonly property bool _portLabelsVisible: !card._portLabelsSuppressedBySurfaceRule
-        && !card._tooltipOnlyPortLabelsActive
-    readonly property bool _surfaceOwnsShadow: card.isFlowchartSurface && !card._useHostChrome
-    readonly property bool _backgroundShadowVisible: card.showShadow
-        && !card.shadowSimplificationActive
-        && !card._surfaceOwnsShadow
-    readonly property bool _surfaceShadowVisible: card.showShadow
-        && !card.shadowSimplificationActive
-        && card._surfaceOwnsShadow
-    readonly property bool _shadowVisible: card._backgroundShadowVisible || card._surfaceShadowVisible
-    // Full-fidelity viewport motion must keep live shadows, so avoid the host
-    // texture layer there; it clips shadow pixels outside the node bounds.
-    readonly property bool effectiveTextureCacheActive: card.snapshotReuseActive
-        || (card.viewportInteractionCacheActive && !card.fullFidelityMode)
-    readonly property int nodeTextRenderType: Text.CurveRendering
+    readonly property real _standardLeftLabelMetricWidth: chromeLayout.standardLeftLabelMetricWidth
+    readonly property real _standardRightLabelMetricWidth: chromeLayout.standardRightLabelMetricWidth
+    readonly property real _standardPortGutterMetric: chromeLayout.standardPortGutterMetric
+    readonly property real _standardCenterGapMetric: chromeLayout.standardCenterGapMetric
+    readonly property real _standardPortLabelMinMetricWidth: chromeLayout.standardPortLabelMinMetricWidth
+    readonly property bool _standardPortLabelMetricsReady: chromeLayout.standardPortLabelMetricsReady
+    readonly property bool _usesStandardPortLabelColumns: chromeLayout.usesStandardPortLabelColumns
+    readonly property int _standardVisibleLabelColumnCount: chromeLayout.standardVisibleLabelColumnCount
+    readonly property real _standardExtraLabelWidthPerColumn: chromeLayout.standardExtraLabelWidthPerColumn
+    readonly property real _standardLeftLabelWidth: chromeLayout.standardLeftLabelWidth
+    readonly property real _standardRightLabelWidth: chromeLayout.standardRightLabelWidth
+    readonly property real _standardPortGutter: chromeLayout.standardPortGutter
+    readonly property real _standardCenterGap: chromeLayout.standardCenterGap
+    readonly property real _portLabelGap: chromeLayout.portLabelGap
+    readonly property real _portLabelMaxWidth: chromeLayout.portLabelMaxWidth
+    readonly property bool _tooltipOnlyPortLabelsActive: chromeLayout.tooltipOnlyPortLabelsActive
+    readonly property bool _portLabelsVisible: chromeLayout.portLabelsVisible
+    readonly property bool _surfaceOwnsShadow: chromeLayout.surfaceOwnsShadow
+    readonly property bool _backgroundShadowVisible: chromeLayout.backgroundShadowVisible
+    readonly property bool _surfaceShadowVisible: chromeLayout.surfaceShadowVisible
+    readonly property bool _shadowVisible: chromeLayout.shadowVisible
+    readonly property bool effectiveTextureCacheActive: chromeLayout.effectiveTextureCacheActive
+    readonly property int nodeTextRenderType: chromeLayout.nodeTextRenderType
 
     readonly property var inputPorts: {
         return GraphNodeSurfaceMetrics.visiblePortsForDirection(card.nodeData, "in");
@@ -325,48 +262,14 @@ Item {
     readonly property var outputPorts: {
         return GraphNodeSurfaceMetrics.visiblePortsForDirection(card.nodeData, "out");
     }
-    readonly property real resolvedBorderWidth: card.isPassiveNode
-        ? (card.isSelected ? Math.max(2.0, card.passiveBorderWidth) : card.passiveBorderWidth)
-        : (card.isSelected ? 2.0 : 1.0)
-    readonly property real resolvedCornerRadius: card.isPassiveNode ? card.passiveCornerRadius : 6.0
-    // The chrome/shadow background owns its own cache so viewport and policy
-    // churn do not invalidate it unless the local chrome/shadow pixels change.
-    readonly property bool chromeCacheActive: card._useHostChrome
-    readonly property bool shadowCacheActive: card.showShadow && !card._surfaceOwnsShadow
-    readonly property bool surfaceShadowCacheActive: card.showShadow && card._surfaceOwnsShadow
-    readonly property bool chromeShadowCacheActive: card.chromeCacheActive || card.shadowCacheActive
-    readonly property string chromeShadowCacheKey: [
-        card.chromeCacheActive ? "chrome-active" : "chrome-inactive",
-        card.shadowCacheActive ? "shadow-active" : "shadow-inactive",
-        Number(card.width).toFixed(3),
-        Number(card.height).toFixed(3),
-        Number(card.resolvedCornerRadius).toFixed(3),
-        Number(card.resolvedBorderWidth).toFixed(3),
-        card.isSelected ? "selected" : "idle",
-        String(card.surfaceColor),
-        String(card.outlineColor),
-        String(card.selectedOutlineColor),
-        card.showShadow ? "shadow-enabled" : "shadow-disabled",
-        String(Number(card.shadowStrength)),
-        String(Number(card.shadowSoftness)),
-        String(Number(card.shadowOffset))
-    ].join("|")
-    readonly property string surfaceShadowCacheKey: [
-        "surface-shadow",
-        String(card.surfaceFamily),
-        String(card.surfaceVariant),
-        Number(card.width).toFixed(3),
-        Number(card.height).toFixed(3),
-        Number(card.resolvedBorderWidth).toFixed(3),
-        card.isSelected ? "selected" : "idle",
-        String(card.surfaceColor),
-        String(card.outlineColor),
-        String(card.selectedOutlineColor),
-        card.showShadow ? "shadow-enabled" : "shadow-disabled",
-        String(Number(card.shadowStrength)),
-        String(Number(card.shadowSoftness)),
-        String(Number(card.shadowOffset))
-    ].join("|")
+    readonly property real resolvedBorderWidth: themeState.resolvedBorderWidth
+    readonly property real resolvedCornerRadius: themeState.resolvedCornerRadius
+    readonly property bool chromeCacheActive: chromeLayout.chromeCacheActive
+    readonly property bool shadowCacheActive: chromeLayout.shadowCacheActive
+    readonly property bool surfaceShadowCacheActive: chromeLayout.surfaceShadowCacheActive
+    readonly property bool chromeShadowCacheActive: chromeLayout.chromeShadowCacheActive
+    readonly property string chromeShadowCacheKey: chromeLayout.chromeShadowCacheKey
+    readonly property string surfaceShadowCacheKey: chromeLayout.surfaceShadowCacheKey
 
     function localPortPoint(direction, rowIndex) {
         if (!card.nodeData)

@@ -231,18 +231,15 @@ class GraphScenePayloadBuilder:
         show_port_labels: bool = True,
     ) -> tuple[float, float]:
         if not is_comment_backdrop:
-            return node_size(
-                node,
-                spec,
-                workspace.nodes,
-                show_port_labels=show_port_labels,
-            )
+            return node_size(node, spec, workspace.nodes, show_port_labels=show_port_labels)
         surface_metrics = node_surface_metrics(
             node,
             spec,
             workspace.nodes,
             show_port_labels=show_port_labels,
         )
+        # Backdrop membership has to keep using the expanded surface envelope so
+        # collapsed comment backdrops still own and serialize their descendants.
         width = node.custom_width if node.custom_width is not None else surface_metrics.default_width
         height = node.custom_height if node.custom_height is not None else surface_metrics.default_height
         return max(float(surface_metrics.min_width), float(width)), float(height)

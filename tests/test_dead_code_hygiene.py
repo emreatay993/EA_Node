@@ -31,3 +31,19 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
             for function_name in absent_names:
                 with self.subTest(path=relative_path, function_name=function_name):
                     self.assertNotIn(function_name, function_names)
+
+    def test_graph_geometry_modules_keep_extracted_helper_boundaries(self) -> None:
+        edge_routing_text = (_REPO_ROOT / "ea_node_editor/ui_qml/edge_routing.py").read_text(encoding="utf-8")
+        graph_surface_metrics_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/graph_surface_metrics.py"
+        ).read_text(encoding="utf-8")
+        payload_builder_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/graph_scene_payload_builder.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("class _EdgeLaneOffsets:", edge_routing_text)
+        self.assertIn("def _edge_payload_lane_offsets(workspace_edges: list[EdgeInstance]) -> _EdgeLaneOffsets:", edge_routing_text)
+        self.assertIn("def _build_edge_payload_item(", edge_routing_text)
+        self.assertIn("def resolved_node_surface_size(", graph_surface_metrics_text)
+        self.assertIn("def _membership_candidate_size(", payload_builder_text)
+        self.assertIn("surface_metrics = node_surface_metrics(", payload_builder_text)

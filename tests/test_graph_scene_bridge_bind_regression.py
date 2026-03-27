@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from ea_node_editor.graph.model import GraphModel
@@ -8,8 +9,23 @@ from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
 
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
+    def test_scene_bridge_routes_fragment_and_delete_flows_through_mutation_history_helper(self) -> None:
+        bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
+        helper_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation_history.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("return self._mutation_history.duplicate_selected_subgraph()", bridge_text)
+        self.assertIn("return self._mutation_history.serialize_selected_subgraph_fragment()", bridge_text)
+        self.assertIn("return self._mutation_history.paste_subgraph_fragment(fragment_payload, center_x, center_y)", bridge_text)
+        self.assertIn("return self._mutation_history.delete_selected_graph_items(edge_ids)", bridge_text)
+        self.assertIn("def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:", helper_text)
+        self.assertIn("def _expanded_selected_node_ids_for_fragment(self, workspace: WorkspaceData) -> list[str]:", helper_text)
+
     def test_set_workspace_does_not_mutate_node_properties_or_exposed_ports(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
