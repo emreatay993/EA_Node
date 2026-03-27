@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
@@ -25,6 +26,16 @@ class _FakeDpfObject:
 
 
 class ViewerExecutionProtocolTests(unittest.TestCase):
+    def test_dpf_viewer_protocol_edge_is_owned_by_adapter_module(self) -> None:
+        builtins_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "nodes" / "builtins"
+        ansys_dpf_text = (builtins_dir / "ansys_dpf.py").read_text(encoding="utf-8")
+        viewer_text = (builtins_dir / "ansys_dpf_viewer.py").read_text(encoding="utf-8")
+        adapter_text = (builtins_dir / "ansys_dpf_viewer_adapter.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("from ea_node_editor.execution.protocol import", ansys_dpf_text)
+        self.assertNotIn("from ea_node_editor.execution.protocol import", viewer_text)
+        self.assertIn("from ea_node_editor.execution.protocol import", adapter_text)
+
     def test_viewer_command_family_round_trips_runtime_refs_and_options(self) -> None:
         shared_handle = RuntimeHandleRef(
             handle_id="viewer_dataset_001",
