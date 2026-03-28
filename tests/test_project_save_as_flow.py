@@ -264,8 +264,8 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(
-                ProjectSessionController,
-                "_prompt_project_files_action",
+                controller._project_files_service,
+                "prompt_project_files_action",
                 return_value=True,
             ), patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
@@ -333,8 +333,8 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             target_project = root / "copies" / "clone_project.sfe"
 
             with patch.object(
-                ProjectSessionController,
-                "_prompt_project_files_action",
+                controller._project_files_service,
+                "prompt_project_files_action",
                 return_value=True,
             ) as prompt, patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
@@ -365,8 +365,8 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(
-                ProjectSessionController,
-                "_prompt_project_files_action",
+                controller._project_files_service,
+                "prompt_project_files_action",
                 return_value=False,
             ) as prompt, patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
@@ -416,8 +416,8 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
             with patch.object(
-                ProjectSessionController,
-                "_prompt_project_files_action",
+                controller._project_files_service,
+                "prompt_project_files_action",
                 return_value=True,
             ), patch(
                 "PyQt6.QtWidgets.QFileDialog.getSaveFileName",

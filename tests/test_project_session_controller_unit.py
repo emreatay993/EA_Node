@@ -146,7 +146,7 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         host = _ProjectHostStub()
         controller = ProjectSessionController(host)  # type: ignore[arg-type]
 
-        with mock.patch.object(controller, "persist_session") as persist_session:
+        with mock.patch.object(controller._session_service, "persist_session") as persist_session:
             controller.set_recent_project_paths(["alpha.sfe", "beta.sfe"], persist=False)
             updated = controller.add_recent_project_path("beta", persist=True)
             self.assertEqual(updated[:2], ["beta.sfe", "alpha.sfe"])
@@ -154,6 +154,80 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             updated = controller.remove_recent_project_path("alpha", persist=True)
             self.assertEqual(updated, ["beta.sfe"])
             self.assertEqual(persist_session.call_count, 2)
+
+    def test_controller_routes_project_session_actions_through_service_authorities(self) -> None:
+        host = _ProjectHostStub()
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        snapshot = mock.sentinel.snapshot
+        issue = mock.sentinel.issue
+        recovered_project = host.model.project
+
+        with (
+            mock.patch.object(controller._document_service, "save_project") as save_project,
+            mock.patch.object(controller._document_service, "save_project_as") as save_project_as,
+            mock.patch.object(controller._document_service, "open_project") as open_project,
+            mock.patch.object(
+                controller._document_service,
+                "open_project_path",
+                return_value=True,
+            ) as open_project_path,
+            mock.patch.object(
+                controller._project_files_service,
+                "prompt_project_files_action",
+                return_value=True,
+            ) as prompt_project_files_action,
+            mock.patch.object(controller._project_files_service, "show_project_files_dialog") as show_project_files_dialog,
+            mock.patch.object(
+                controller._project_files_service,
+                "repair_project_file_issue",
+                return_value=True,
+            ) as repair_project_file_issue,
+            mock.patch.object(
+                controller._session_service,
+                "prompt_recover_autosave",
+                return_value=mock.sentinel.choice,
+            ) as prompt_recover_autosave,
+        ):
+            controller.save_project()
+            controller.save_project_as()
+            controller.open_project()
+            self.assertTrue(controller.open_project_path("example.sfe", show_errors=False))
+            self.assertTrue(
+                controller._prompt_project_files_action(
+                    title="Save Project",
+                    text="summary",
+                    continue_label="Save Project",
+                    cancel_standard_button=object(),
+                    snapshot=snapshot,
+                    context_key="save",
+                    allow_repair=True,
+                    always_prompt=True,
+                )
+            )
+            controller.show_project_files_dialog(snapshot=snapshot, allow_repair=True)
+            self.assertTrue(controller._repair_project_file_issue(issue))
+            self.assertIs(
+                controller.prompt_recover_autosave(recovered_project),
+                mock.sentinel.choice,
+            )
+
+        save_project.assert_called_once_with()
+        save_project_as.assert_called_once_with()
+        open_project.assert_called_once_with()
+        open_project_path.assert_called_once_with("example.sfe", show_errors=False)
+        prompt_project_files_action.assert_called_once_with(
+            title="Save Project",
+            text="summary",
+            continue_label="Save Project",
+            cancel_standard_button=mock.ANY,
+            snapshot=snapshot,
+            context_key="save",
+            allow_repair=True,
+            always_prompt=True,
+        )
+        show_project_files_dialog.assert_called_once_with(snapshot=snapshot, allow_repair=True)
+        repair_project_file_issue.assert_called_once_with(issue)
+        prompt_recover_autosave.assert_called_once_with(recovered_project)
 
     def test_restore_script_editor_state_requires_selected_node_for_visibility(self) -> None:
         host = _ProjectHostStub()

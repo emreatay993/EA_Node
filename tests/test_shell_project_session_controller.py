@@ -412,8 +412,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         }
 
         with patch.object(
-            self.window.project_session_controller,
-            "_prompt_project_files_action",
+            self.window.project_session_controller._project_files_service,
+            "prompt_project_files_action",
             return_value=True,
         ), patch(
             "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
@@ -496,8 +496,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         stale_staging_path.write_text("stale staging", encoding="utf-8")
 
         with patch.object(
-            self.window.project_session_controller,
-            "_prompt_project_files_action",
+            self.window.project_session_controller._project_files_service,
+            "prompt_project_files_action",
             return_value=True,
         ), patch(
             "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
@@ -577,8 +577,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         save_target = Path(self._temp_dir.name) / "projects" / "prompted_save"
 
         with patch.object(
-            self.window.project_session_controller,
-            "_prompt_project_files_action",
+            self.window.project_session_controller._project_files_service,
+            "prompt_project_files_action",
             return_value=True,
         ) as prompt, patch(
             "PyQt6.QtWidgets.QFileDialog.getSaveFileName",
@@ -632,8 +632,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.window.serializer.save_document(str(project_path), self.window.serializer.to_document(model.project))
 
         with patch.object(
-            self.window.project_session_controller,
-            "_prompt_project_files_action",
+            self.window.project_session_controller._project_files_service,
+            "prompt_project_files_action",
             return_value=False,
         ) as prompt:
             result = self.window._open_project_path(str(project_path))
@@ -686,8 +686,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         }
 
         with patch.object(
-            self.window.project_session_controller,
-            "_prompt_project_files_action",
+            self.window.project_session_controller._project_files_service,
+            "prompt_project_files_action",
             return_value=True,
         ) as prompt:
             choice = self.window.project_session_controller.prompt_recover_autosave(recovered_model.project)
