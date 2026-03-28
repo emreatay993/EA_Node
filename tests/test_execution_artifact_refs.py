@@ -107,7 +107,7 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         self.assertIsInstance(restored_ref, RuntimeArtifactRef)
         self.assertEqual(restored_ref.ref, "artifact://stored_report")
 
-    def test_legacy_project_doc_adapter_restores_runtime_snapshot_artifact_refs(self) -> None:
+    def test_start_run_command_rejects_legacy_project_doc_payload(self) -> None:
         snapshot = RuntimeSnapshot(
             schema_version=1,
             project_id="project_demo",
@@ -118,21 +118,15 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
             },
         )
 
-        command = coerce_start_run_command(
-            {
-                "run_id": "run_legacy",
-                "workspace_id": "ws_main",
-                "trigger": {"kind": "manual"},
-                "project_doc": snapshot.to_document(),
-            }
-        )
-
-        self.assertIsNotNone(command.runtime_snapshot)
-        if command.runtime_snapshot is None:
-            self.fail("legacy project_doc payload did not restore a runtime snapshot")
-        restored_ref = command.runtime_snapshot.metadata["artifact_cache"]["stdout"]
-        self.assertIsInstance(restored_ref, RuntimeArtifactRef)
-        self.assertEqual(restored_ref.ref, "artifact://stored_report")
+        with self.assertRaisesRegex(ValueError, "does not accept project_doc"):
+            coerce_start_run_command(
+                {
+                    "run_id": "run_legacy",
+                    "workspace_id": "ws_main",
+                    "trigger": {"kind": "manual"},
+                    "project_doc": snapshot.to_document(),
+                }
+            )
 
     def test_execution_context_resolves_runtime_artifact_inputs_through_project_artifact_resolver(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

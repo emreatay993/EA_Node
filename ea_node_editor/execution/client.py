@@ -4,7 +4,6 @@ import multiprocessing as mp
 import queue
 import threading
 import uuid
-from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -59,9 +58,6 @@ class ProcessExecutionClient:
         self._active_workspace_id = ""
         self._viewer_request_lock = threading.Lock()
         self._pending_viewer_requests: dict[str, _PendingViewerRequest] = {}
-        self._pending_viewer_request_order: dict[str, deque[str]] = {
-            command_type: deque() for command_type in VIEWER_COMMAND_TYPES
-        }
         self._listener_thread = threading.Thread(
             target=self._event_listener,
             daemon=True,
@@ -99,13 +95,21 @@ class ProcessExecutionClient:
             except Exception:
                 continue
 
-    def _emit_protocol_error(self, message: str, *, run_id: str = "", command: str = "") -> None:
+    def _emit_protocol_error(
+        self,
+        message: str,
+        *,
+        run_id: str = "",
+        request_id: str = "",
+        command: str = "",
+    ) -> None:
         with self._state_lock:
             workspace_id = self._active_workspace_id
         self._dispatch_event(
             ProtocolErrorEvent(
                 run_id=run_id,
                 workspace_id=workspace_id,
+                request_id=request_id,
                 command=command,
                 error=message,
             )
@@ -121,6 +125,7 @@ class ProcessExecutionClient:
             self._emit_protocol_error(
                 message,
                 run_id=getattr(command, "run_id", ""),
+                request_id=getattr(command, "request_id", ""),
                 command=getattr(command, "type", ""),
             )
             return False, message
@@ -136,27 +141,12 @@ class ProcessExecutionClient:
     def _track_viewer_request(self, pending: _PendingViewerRequest) -> None:
         with self._viewer_request_lock:
             self._pending_viewer_requests[pending.request_id] = pending
-            self._pending_viewer_request_order.setdefault(pending.command, deque()).append(
-                pending.request_id
-            )
 
     def _complete_viewer_request(self, request_id: str) -> _PendingViewerRequest | None:
         if not request_id:
             return None
         with self._viewer_request_lock:
             return self._pending_viewer_requests.pop(request_id, None)
-
-    def _pop_pending_viewer_request_for_command(self, command: str) -> _PendingViewerRequest | None:
-        with self._viewer_request_lock:
-            pending_ids = self._pending_viewer_request_order.get(command)
-            if pending_ids is None:
-                return None
-            while pending_ids:
-                request_id = pending_ids.popleft()
-                pending = self._pending_viewer_requests.pop(request_id, None)
-                if pending is not None:
-                    return pending
-        return None
 
     def _dispatch_viewer_request_failure(self, pending: _PendingViewerRequest, error: str) -> None:
         self._dispatch_event(
@@ -177,7 +167,8 @@ class ProcessExecutionClient:
         command = str(payload.get("command", ""))
         if command not in VIEWER_COMMAND_TYPES:
             return None
-        pending = self._pop_pending_viewer_request_for_command(command)
+        request_id = str(payload.get("request_id", ""))
+        pending = self._complete_viewer_request(request_id)
         if pending is None:
             return None
         return ViewerSessionFailedEvent(
@@ -230,26 +221,35 @@ class ProcessExecutionClient:
         workspace_id: str,
         trigger: dict[str, Any] | None = None,
     ) -> str:
+        trigger_payload = dict(trigger or {})
+        if "project_doc" in trigger_payload:
+            self._emit_protocol_error(
+                "start_run trigger does not accept project_doc; use runtime_snapshot.",
+                command="start_run",
+            )
+            return ""
+
+        run_id = f"run_{uuid.uuid4().hex[:8]}"
+        runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
+        try:
+            command = coerce_start_run_command(
+                {
+                    "run_id": run_id,
+                    "project_path": project_path,
+                    "workspace_id": workspace_id,
+                    "trigger": trigger_payload,
+                    "runtime_snapshot": runtime_snapshot,
+                }
+            )
+        except ValueError as exc:
+            self._emit_protocol_error(str(exc), run_id=run_id, command="start_run")
+            return ""
+
         try:
             self._ensure_process()
         except Exception as exc:  # noqa: BLE001
             self._emit_protocol_error(f"Failed to start worker process: {exc}", command="start_run")
             return ""
-
-        run_id = f"run_{uuid.uuid4().hex[:8]}"
-        trigger_payload = dict(trigger or {})
-        runtime_snapshot = trigger_payload.pop("runtime_snapshot", None)
-        legacy_project_doc = trigger_payload.pop("project_doc", None)
-        command = coerce_start_run_command(
-            {
-                "run_id": run_id,
-                "project_path": project_path,
-                "workspace_id": workspace_id,
-                "trigger": trigger_payload,
-                "runtime_snapshot": runtime_snapshot,
-                "project_doc": legacy_project_doc,
-            }
-        )
         with self._state_lock:
             self._active_run_id = run_id
             self._active_workspace_id = workspace_id
@@ -375,8 +375,6 @@ class ProcessExecutionClient:
             self._process = None
         with self._viewer_request_lock:
             self._pending_viewer_requests.clear()
-            for pending_ids in self._pending_viewer_request_order.values():
-                pending_ids.clear()
         if self._listener_thread.is_alive():
             self._listener_thread.join(timeout=1.0)
         self._close_queue(self._command_queue)

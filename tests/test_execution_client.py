@@ -244,7 +244,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertTrue(any("tick_client_1" in message for message in stream_messages))
         self.assertTrue(any("warn_client_0" in message for message in stream_messages))
 
-    def test_client_accepts_legacy_project_doc_trigger(self) -> None:
+    def test_client_rejects_legacy_project_doc_trigger(self) -> None:
         workspace_id, runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=False)
 
         run_id = self.client.start_run(
@@ -256,13 +256,16 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 "project_doc": runtime_snapshot.to_document(),
             },
         )
-        self.assertTrue(run_id)
+        self.assertEqual(run_id, "")
 
-        completed = self._wait_for_event(
-            lambda event: event.get("type") == "run_completed" and event.get("run_id") == run_id,
-            timeout=6.0,
+        protocol_error = self._wait_for_event(
+            lambda event: event.get("type") == "protocol_error"
+            and event.get("command") == "start_run"
+            and "does not accept project_doc" in str(event.get("error", "")),
+            timeout=3.0,
         )
-        self.assertIsNotNone(completed)
+        self.assertIsNotNone(protocol_error)
+        self.assertIsNone(self.client._process)  # noqa: SLF001
 
     def test_open_viewer_session_enqueues_correlated_runtime_ref_payload(self) -> None:
         self.client._ensure_process = lambda: None  # type: ignore[method-assign]  # noqa: SLF001
@@ -313,20 +316,28 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertEqual(payload["summary"], {"result_name": "displacement", "set_ids": [1, 2]})
         self.assertEqual(payload["options"], {"live_mode": "proxy"})
 
-    def test_viewer_protocol_error_emits_correlated_failure_event(self) -> None:
+    def test_viewer_protocol_error_uses_request_id_instead_of_command_order(self) -> None:
         self.client._ensure_process = lambda: None  # type: ignore[method-assign]  # noqa: SLF001
 
-        request_id = self.client.update_viewer_session(
+        first_request_id = self.client.update_viewer_session(
+            "ws_main",
+            "node_viewer",
+            "session_live",
+            options={"selection": {"set_ids": [1]}},
+        )
+        second_request_id = self.client.update_viewer_session(
             "ws_main",
             "node_viewer",
             "session_live",
             options={"selection": {"set_ids": [2]}},
         )
         self.client._command_queue.get(timeout=1.0)  # noqa: SLF001
+        self.client._command_queue.get(timeout=1.0)  # noqa: SLF001
 
         self.client._event_queue.put(
             event_to_dict(
                 ProtocolErrorEvent(
+                    request_id=second_request_id,
                     workspace_id="ws_main",
                     command="update_viewer_session",
                     error="Unknown command type.",
@@ -336,12 +347,13 @@ class ProcessExecutionClientTests(unittest.TestCase):
 
         failure = self._wait_for_event(
             lambda event: event.get("type") == "viewer_session_failed"
-            and event.get("request_id") == request_id,
+            and event.get("request_id") == second_request_id,
             timeout=3.0,
         )
         protocol_error = self._wait_for_event(
             lambda event: event.get("type") == "protocol_error"
-            and event.get("command") == "update_viewer_session",
+            and event.get("command") == "update_viewer_session"
+            and event.get("request_id") == second_request_id,
             timeout=3.0,
         )
 
@@ -354,6 +366,9 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertEqual(failure["session_id"], "session_live")
         self.assertEqual(failure["command"], "update_viewer_session")
         self.assertEqual(failure["error"], "Unknown command type.")
+        with self.client._viewer_request_lock:  # noqa: SLF001
+            self.assertIn(first_request_id, self.client._pending_viewer_requests)  # noqa: SLF001
+            self.assertNotIn(second_request_id, self.client._pending_viewer_requests)  # noqa: SLF001
 
     def test_viewer_success_event_coexists_with_run_terminal_state_reset(self) -> None:
         self.client._ensure_process = lambda: None  # type: ignore[method-assign]  # noqa: SLF001

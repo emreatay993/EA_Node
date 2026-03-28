@@ -39,7 +39,6 @@ from ea_node_editor.nodes.types import (
     RuntimeArtifactRef,
     deserialize_runtime_value,
 )
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 _WAIT_NODE_ENTERED = threading.Event()
 _WAIT_NODE_RELEASE = threading.Event()
@@ -1023,7 +1022,7 @@ class ExecutionWorkerTests(unittest.TestCase):
             )
         )
 
-    def test_run_workflow_manual_ui_trigger_preserves_project_doc_for_start_output(self) -> None:
+    def test_run_workflow_manual_ui_trigger_omits_project_doc_from_start_output(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
         start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
@@ -1052,10 +1051,10 @@ class ExecutionWorkerTests(unittest.TestCase):
             for event in events
             if str(event.get("type", "")) == "log" and str(event.get("node_id", "")) == logger.node_id
         ]
-        self.assertTrue(any("'project_doc':" in message for message in logger_logs))
+        self.assertFalse(any("'project_doc':" in message for message in logger_logs))
         self.assertTrue(any("'workflow_settings': {'general': {'project_name': 'Demo'}}" in message for message in logger_logs))
 
-    def test_run_workflow_accepts_legacy_project_doc_payload(self) -> None:
+    def test_run_workflow_rejects_legacy_project_doc_payload(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
         start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
@@ -1072,26 +1071,18 @@ class ExecutionWorkerTests(unittest.TestCase):
         model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
-        run_workflow(
-            {
-                "run_id": "run_legacy_project_doc",
-                "workspace_id": ws.workspace_id,
-                "project_doc": serializer.to_document(model.project),
-                "trigger": {},
-            },
-            event_queue,
-        )
-
-        events = self._drain_events(event_queue)
-        event_types = [str(event.get("type", "")) for event in events]
-        self.assertIn("run_completed", event_types)
-        logger_logs = [
-            str(event.get("message", ""))
-            for event in events
-            if str(event.get("type", "")) == "log" and str(event.get("node_id", "")) == logger.node_id
-        ]
-        self.assertIn("legacy project doc", logger_logs)
+        runtime_snapshot = self._runtime_snapshot(model)
+        with self.assertRaisesRegex(ValueError, "does not accept project_doc"):
+            run_workflow(
+                {
+                    "run_id": "run_legacy_project_doc",
+                    "workspace_id": ws.workspace_id,
+                    "runtime_snapshot": runtime_snapshot,
+                    "project_doc": runtime_snapshot.to_document(),
+                    "trigger": {},
+                },
+                event_queue,
+            )
 
     def test_run_workflow_emits_pause_resume_and_stop_transitions(self) -> None:
         model = GraphModel()

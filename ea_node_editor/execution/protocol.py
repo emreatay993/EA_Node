@@ -12,7 +12,7 @@ from ea_node_editor.execution.runtime_value_codec import (
 )
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
-    coerce_runtime_snapshot_payload,
+    coerce_runtime_snapshot,
 )
 
 EngineState = Literal["ready", "running", "paused", "error"]
@@ -224,6 +224,7 @@ class ProtocolErrorEvent:
     type: Literal["protocol_error"] = "protocol_error"
     run_id: str = ""
     workspace_id: str = ""
+    request_id: str = ""
     command: str = ""
     error: str = ""
 
@@ -416,18 +417,16 @@ def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
 
 
 def _start_run_command_from_payload(payload: Mapping[str, Any]) -> StartRunCommand:
+    if "project_doc" in payload:
+        raise ValueError("start_run payload does not accept project_doc; use runtime_snapshot.")
     trigger_payload = deserialize_runtime_value(payload.get("trigger"))
     runtime_snapshot_payload = deserialize_runtime_value(payload.get("runtime_snapshot"))
-    legacy_project_doc = deserialize_runtime_value(payload.get("project_doc"))
     return StartRunCommand(
         run_id=str(payload.get("run_id", "")),
         project_path=str(payload.get("project_path", "")),
         workspace_id=str(payload.get("workspace_id", "")),
         trigger=dict(trigger_payload) if isinstance(trigger_payload, Mapping) else {},
-        runtime_snapshot=coerce_runtime_snapshot_payload(
-            runtime_snapshot_payload,
-            legacy_project_doc=legacy_project_doc if isinstance(legacy_project_doc, Mapping) else None,
-        ),
+        runtime_snapshot=coerce_runtime_snapshot(runtime_snapshot_payload),
     )
 
 
@@ -558,6 +557,7 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
         return ProtocolErrorEvent(
             run_id=str(payload.get("run_id", "")),
             workspace_id=str(payload.get("workspace_id", "")),
+            request_id=str(payload.get("request_id", "")),
             command=str(payload.get("command", "")),
             error=str(payload.get("error", "")),
         )

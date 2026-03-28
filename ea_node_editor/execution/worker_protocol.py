@@ -50,6 +50,7 @@ def emit_protocol_error(
     *,
     run_id: str = "",
     workspace_id: str = "",
+    request_id: str = "",
     command: str = "",
 ) -> None:
     emit(
@@ -57,6 +58,7 @@ def emit_protocol_error(
         ProtocolErrorEvent(
             run_id=run_id,
             workspace_id=workspace_id,
+            request_id=request_id,
             command=command,
             error=message,
         ),
@@ -99,10 +101,17 @@ def decode_command_payload(raw_command: Any, *, event_queue: Queue) -> WorkerCom
     if not isinstance(raw_command, dict):
         emit_protocol_error(event_queue, "Command payload must be a dictionary.")
         return None
+    command_type = str(raw_command.get("type", "")).strip()
+    request_id = str(raw_command.get("request_id", "")).strip()
     try:
         return dict_to_command(dict(raw_command))
     except ValueError as exc:
-        emit_protocol_error(event_queue, f"Invalid command payload: {exc}")
+        emit_protocol_error(
+            event_queue,
+            f"Invalid command payload: {exc}",
+            request_id=request_id,
+            command=command_type,
+        )
         return None
 
 

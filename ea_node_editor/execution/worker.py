@@ -87,6 +87,7 @@ def worker_main(
                 "No active run to stop.",
                 run_id=command.run_id,
                 workspace_id=command.workspace_id,
+                request_id=getattr(command, "request_id", ""),
                 command=command.type,
             )
         elif isinstance(command, (PauseRunCommand, ResumeRunCommand)):
@@ -95,6 +96,7 @@ def worker_main(
                 "No active run for command.",
                 run_id=command.run_id,
                 workspace_id="",
+                request_id=getattr(command, "request_id", ""),
                 command=command.type,
             )
         elif is_viewer_command(command):
@@ -109,5 +111,6 @@ def worker_main(
                 "Unknown command type.",
                 run_id=getattr(command, "run_id", ""),
                 workspace_id=getattr(command, "workspace_id", ""),
+                request_id=getattr(command, "request_id", ""),
                 command=getattr(command, "type", ""),
             )

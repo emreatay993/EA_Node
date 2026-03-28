@@ -24,7 +24,7 @@ from ea_node_editor.execution.protocol import (
 from ea_node_editor.execution.runtime_snapshot import (
     RuntimeSnapshot,
     RuntimeSnapshotContext,
-    build_execution_trigger,
+    sanitize_execution_trigger,
 )
 from ea_node_editor.execution.worker_protocol import (
     decode_command_payload,
@@ -85,6 +85,7 @@ class RunControl:
         command_type = command.type
         command_run_id = getattr(command, "run_id", "")
         command_workspace_id = getattr(command, "workspace_id", "")
+        command_request_id = getattr(command, "request_id", "")
 
         if isinstance(command, ShutdownCommand):
             self.shutdown_requested = True
@@ -99,6 +100,7 @@ class RunControl:
                 "Ignoring command for inactive run.",
                 run_id=command_run_id,
                 workspace_id=command_workspace_id,
+                request_id=command_request_id,
                 command=command_type,
             )
             return
@@ -141,6 +143,7 @@ class RunControl:
                     self._event_queue,
                     "Viewer command handler is unavailable.",
                     workspace_id=command_workspace_id,
+                    request_id=command_request_id,
                     command=command_type,
                 )
                 return
@@ -153,6 +156,7 @@ class RunControl:
                 "Worker already has an active run.",
                 run_id=command_run_id,
                 workspace_id=command_workspace_id,
+                request_id=command_request_id,
                 command=command_type,
             )
             return
@@ -162,6 +166,7 @@ class RunControl:
             "Unsupported command while run is active.",
             run_id=command_run_id or self.run_id,
             workspace_id=command_workspace_id or self.workspace_id,
+            request_id=command_request_id,
             command=command_type,
         )
 
@@ -468,7 +473,7 @@ class WorkflowRunner:
             project_path=command.project_path,
             runtime_snapshot=self._runtime_snapshot,
             runtime_context=self._runtime_context,
-            trigger=build_execution_trigger(command.trigger, self._runtime_snapshot),
+            trigger=sanitize_execution_trigger(command.trigger),
         )
 
     def run(self) -> None:

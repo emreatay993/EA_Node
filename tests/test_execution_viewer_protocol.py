@@ -7,6 +7,7 @@ from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
     OpenViewerSessionCommand,
+    ProtocolErrorEvent,
     ViewerDataMaterializedEvent,
     ViewerSessionClosedEvent,
     ViewerSessionFailedEvent,
@@ -198,6 +199,25 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                     self.assertIsInstance(restored.data_refs["dataset"], RuntimeHandleRef)
                 if isinstance(restored, ViewerDataMaterializedEvent):
                     self.assertIsInstance(restored.data_refs["png"], RuntimeArtifactRef)
+
+    def test_protocol_error_event_round_trips_request_correlation(self) -> None:
+        event = ProtocolErrorEvent(
+            workspace_id="ws_main",
+            request_id="viewer_req_fail",
+            command="update_viewer_session",
+            error="Unknown command type.",
+        )
+
+        payload = event_to_dict(event)
+        self.assertEqual(payload["request_id"], "viewer_req_fail")
+        self.assertEqual(payload["command"], "update_viewer_session")
+
+        restored = dict_to_event(payload)
+        self.assertIsInstance(restored, ProtocolErrorEvent)
+        self.assertEqual(restored.workspace_id, event.workspace_id)
+        self.assertEqual(restored.request_id, event.request_id)
+        self.assertEqual(restored.command, event.command)
+        self.assertEqual(restored.error, event.error)
 
     def test_viewer_command_payloads_reject_non_json_safe_objects(self) -> None:
         command = OpenViewerSessionCommand(
