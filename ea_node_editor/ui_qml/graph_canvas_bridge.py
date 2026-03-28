@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Legacy graph-canvas edge adapter retained for non-packet callers.
+
+P01 retires this wrapper from shell/QML context export. Packet-owned callers
+must bind the split state and command bridges directly.
+"""
+
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot

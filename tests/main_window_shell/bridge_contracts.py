@@ -1467,11 +1467,10 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
 
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
-    def test_qml_context_registers_state_command_and_compat_canvas_bridges(self) -> None:
+    def test_qml_context_registers_only_state_and_command_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
-        graph_canvas_bridge = context.contextProperty("graphCanvasBridge")
 
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
@@ -1485,44 +1484,34 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
 
-        self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
-        self.assertIs(graph_canvas_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_bridge.state_bridge, graph_canvas_state_bridge)
-        self.assertIs(graph_canvas_bridge.command_bridge, graph_canvas_command_bridge)
-        self.assertIs(graph_canvas_bridge.shell_window, self.window)
-        self.assertIs(graph_canvas_bridge.scene_bridge, self.window.scene)
-        self.assertIs(graph_canvas_bridge.view_bridge, self.window.view)
+        self.assertIsNone(context.contextProperty("graphCanvasBridge"))
 
-    def test_shell_window_keeps_graph_canvas_bridge_aliases_in_sync_with_context_bundle(self) -> None:
+    def test_shell_window_keeps_split_canvas_bridge_aliases_in_sync_with_context_bundle(self) -> None:
         bridges = self.window._shell_context_bridges
 
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
-        self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
 
-    def test_shell_window_and_graph_canvas_bridge_share_persisted_port_label_preference_path(self) -> None:
+    def test_shell_window_and_split_graph_canvas_bridges_share_persisted_port_label_preference_path(self) -> None:
         graph_canvas_state_bridge = self.window.graph_canvas_state_bridge
-        graph_canvas_bridge = self.window.graph_canvas_bridge
+        graph_canvas_command_bridge = self.window.graph_canvas_command_bridge
 
         self.assertTrue(self.window.graphics_show_port_labels)
         self.assertTrue(graph_canvas_state_bridge.graphics_show_port_labels)
-        self.assertTrue(graph_canvas_bridge.graphics_show_port_labels)
 
         self.window.set_graphics_show_port_labels(False)
         self.app.processEvents()
 
         self.assertFalse(self.window.graphics_show_port_labels)
         self.assertFalse(graph_canvas_state_bridge.graphics_show_port_labels)
-        self.assertFalse(graph_canvas_bridge.graphics_show_port_labels)
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertFalse(persisted["graphics"]["canvas"]["show_port_labels"])
 
-        graph_canvas_bridge.set_graphics_show_port_labels(True)
+        graph_canvas_command_bridge.set_graphics_show_port_labels(True)
         self.app.processEvents()
 
         self.assertTrue(self.window.graphics_show_port_labels)
         self.assertTrue(graph_canvas_state_bridge.graphics_show_port_labels)
-        self.assertTrue(graph_canvas_bridge.graphics_show_port_labels)
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertTrue(persisted["graphics"]["canvas"]["show_port_labels"])
 
