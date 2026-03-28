@@ -166,6 +166,16 @@ def build_commands(mode: str) -> list[CommandSpec]:
 
 
 def format_command(command: CommandSpec) -> str:
+    if os.name == "nt":
+        env_prefix = " ".join(
+            f"$env:{name}={_powershell_quote(value)};" for name, value in sorted(command.env.items())
+        )
+        display_argv = tuple(_powershell_display_arg(part) for part in command.display_argv)
+        argv = " ".join(_powershell_quote(part) for part in display_argv)
+        if env_prefix:
+            return f"{env_prefix} & {argv}"
+        return f"& {argv}"
+
     env_prefix = " ".join(
         f"{name}={shlex.quote(value)}" for name, value in sorted(command.env.items())
     )
@@ -173,6 +183,16 @@ def format_command(command: CommandSpec) -> str:
     if env_prefix:
         return f"{env_prefix} {argv}"
     return argv
+
+
+def _powershell_quote(value: str) -> str:
+    return "'" + value.replace("'", "''") + "'"
+
+
+def _powershell_display_arg(value: str) -> str:
+    if value.startswith("./"):
+        return ".\\" + value[2:].replace("/", "\\")
+    return value
 
 
 def run_command(command: CommandSpec) -> int:

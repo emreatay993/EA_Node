@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPF Viewer — UI Design Concepts</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0e1117;
+    color: #eef3ff;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    padding: 40px 32px;
+  }
+
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #c5cfe8;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: #6b7a99;
+    font-size: 13px;
+    margin-bottom: 48px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 40px 48px;
+  }
+
+  .variant-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #4a5578;
+    margin-bottom: 10px;
+  }
+
+  .variant-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #9daac8;
+    margin-bottom: 4px;
+  }
+
+  .variant-desc {
+    font-size: 12px;
+    color: #4a5578;
+    margin-bottom: 18px;
+    line-height: 1.5;
+  }
+
+  /* ── Graph canvas backdrop ── */
+  .canvas {
+    background:
+      linear-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 24px 24px;
+    background-color: #141820;
+    border-radius: 12px;
+    padding: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 280px;
+  }
+
+  /* ── Node shell ── */
+  .node {
+    background: #1c2233;
+    border-radius: 10px;
+    overflow: hidden;
+    width: 340px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.55), 0 0 0 1.5px #2e3a52;
+  }
+
+  .node-header {
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #eef3ff;
+    border-bottom: 1px solid #252f45;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .node-header-icon { color: #5da9ff; opacity: 0.85; flex-shrink: 0; }
+
+  .node-body {
+    padding: 10px;
+  }
+
+  /* ── Port rows ── */
+  .ports {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0 0;
+  }
+  .port-col { display: flex; flex-direction: column; gap: 5px; }
+  .port {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: #5a6a88;
+  }
+  .port.right { flex-direction: row-reverse; }
+  .port-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid #3d5280;
+    background: #1c2233;
+    flex-shrink: 0;
+  }
+
+  .port-exec-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #4cbb6e;
+    filter: drop-shadow(0 0 3px rgba(76,187,110,0.55));
+  }
+
+  /* ── Surface body ── */
+  .surface-body {
+    border-radius: 7px;
+    border: 1px solid rgba(93,169,255,0.35);
+    background: rgba(20,28,46,0.7);
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+
+  /* ── Accent colors ── */
+  .accent-blue  { color: #5da9ff; }
+  .accent-green { color: #67d487; }
+  .accent-orange{ color: #d98b4b; }
+  .accent-red   { color: #d94f4f; }
+  .accent-muted { color: #7a8aaa; }
+
+  /* ─────────────────────────────────────── CURRENT (reference) ─── */
+  .current-toolbar {
+    padding: 10px 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .btn-row { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  .btn-text {
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid rgba(93,169,255,0.4);
+    background: rgba(26,32,48,0.96);
+    color: #c8d4ee;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: default;
+    white-space: nowrap;
+  }
+  .btn-text.active-green {
+    background: rgba(103,212,135,0.2);
+    border-color: rgba(103,212,135,0.7);
+    color: #67d487;
+  }
+  .btn-text.active-blue {
+    background: rgba(93,169,255,0.22);
+    border-color: rgba(93,169,255,0.8);
+    color: #9ecaff;
+  }
+
+  .status-pane {
+    margin: 8px 10px 10px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(93,169,255,0.28);
+    padding: 10px 12px;
+  }
+  .status-headline { font-size: 13px; font-weight: 700; color: #d0daf5; margin-bottom: 3px; }
+  .status-hint { font-size: 10px; color: #5c6e8a; margin-bottom: 8px; line-height: 1.4; }
+  .badge-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 7px; }
+  .badge {
+    padding: 2px 8px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(93,169,255,0.15);
+    border: 1px solid rgba(93,169,255,0.5);
+    color: #9ecaff;
+  }
+  .meta-line { font-size: 10px; color: #4a5a78; margin-top: 2px; }
+  .meta-line.bold { font-weight: 700; }
+
+  /* ─────────────────────────────────────── OPTION A ─── */
+  .opta-toolbar {
+    padding: 10px 10px 0;
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .opta-sep {
+    width: 1px; height: 18px;
+    background: rgba(255,255,255,0.1);
+    margin: 0 3px;
+    flex-shrink: 0;
+  }
+  .btn-icon-text {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid rgba(93,169,255,0.35);
+    background: rgba(26,32,48,0.95);
+    color: #c8d4ee;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: default;
+    white-space: nowrap;
+  }
+  .btn-icon-text.primary {
+    border-color: rgba(103,212,135,0.6);
+    background: rgba(103,212,135,0.12);
+    color: #80e89a;
+  }
+  .btn-icon-text.active {
+    background: rgba(93,169,255,0.2);
+    border-color: rgba(93,169,255,0.75);
+    color: #9ecaff;
+  }
+  .btn-icon-text.muted {
+    border-color: rgba(255,255,255,0.1);
+    color: #5a6a88;
+  }
+  .btn-icon-text i, .btn-icon-text svg { flex-shrink: 0; }
+
+  .opta-status {
+    margin: 8px 10px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(93,169,255,0.25);
+    padding: 10px 12px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .opta-status-icon {
+    margin-top: 2px;
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
+  .opta-status-body { flex: 1; min-width: 0; }
+  .opta-headline { font-size: 13px; font-weight: 700; color: #d0daf5; }
+  .opta-sub { font-size: 10px; color: #5c6e8a; margin-top: 2px; }
+  .mode-badge {
+    align-self: flex-start;
+    padding: 3px 9px;
+    border-radius: 9px;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(93,169,255,0.18);
+    border: 1px solid rgba(93,169,255,0.65);
+    color: #9ecaff;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ─────────────────────────────────────── OPTION B ─── */
+  .optb-toolbar {
+    padding: 8px 8px 0;
+    display: flex;
+    gap: 3px;
+    align-items: center;
+  }
+
+  .icon-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 8px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #6a7a99;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    cursor: default;
+    transition: all 0.15s;
+    min-width: 40px;
+  }
+  .icon-btn:hover { background: rgba(255,255,255,0.05); }
+  .icon-btn.primary {
+    color: #67d487;
+    border-color: rgba(103,212,135,0.35);
+    background: rgba(103,212,135,0.1);
+  }
+  .icon-btn.blue {
+    color: #5da9ff;
+    border-color: rgba(93,169,255,0.3);
+    background: rgba(93,169,255,0.08);
+  }
+  .icon-btn.active-fill {
+    color: #67d487;
+    border-color: rgba(103,212,135,0.6);
+    background: rgba(103,212,135,0.16);
+  }
+  .icon-btn.dimmed { opacity: 0.35; }
+
+  .optb-sep {
+    width: 1px; height: 28px;
+    background: rgba(255,255,255,0.08);
+    margin: 0 2px;
+    flex-shrink: 0;
+  }
+  .spacer { flex: 1; }
+
+  /* segmented policy */
+  .seg-group {
+    display: flex;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(93,169,255,0.25);
+  }
+  .seg-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 9px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #5a6a88;
+    background: rgba(20,28,46,0.8);
+    cursor: default;
+    white-space: nowrap;
+  }
+  .seg-btn + .seg-btn { border-left: 1px solid rgba(93,169,255,0.2); }
+  .seg-btn.seg-active {
+    background: rgba(93,169,255,0.2);
+    color: #9ecaff;
+  }
+
+  .optb-status {
+    margin: 8px 8px 8px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(93,169,255,0.2);
+    padding: 10px 12px;
+    position: relative;
+  }
+  .optb-mode-pill {
+    position: absolute;
+    top: 8px; right: 8px;
+    padding: 2px 8px;
+    border-radius: 9px;
+    font-size: 9px;
+    font-weight: 700;
+    background: rgba(93,169,255,0.15);
+    border: 1px solid rgba(93,169,255,0.55);
+    color: #7ab8ff;
+  }
+
+  .result-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 10px;
+    color: #5a6a88;
+  }
+
+  /* ─────────────────────────────────────── OPTION C ─── */
+  .optc-toolbar {
+    padding: 8px 8px 0;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding-bottom: 8px;
+    border-radius: 0;
+  }
+
+  .ic-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #5a6a88;
+    cursor: default;
+    flex-shrink: 0;
+  }
+  .ic-btn.open-btn {
+    width: auto;
+    padding: 0 12px;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #67d487;
+    border-color: rgba(103,212,135,0.45);
+    background: rgba(103,212,135,0.1);
+  }
+  .ic-btn.ic-blue {
+    color: #5da9ff;
+    border-color: rgba(93,169,255,0.3);
+    background: rgba(93,169,255,0.07);
+  }
+  .ic-btn.ic-active {
+    color: #67d487;
+    border-color: rgba(103,212,135,0.55);
+    background: rgba(103,212,135,0.13);
+  }
+  .ic-btn.ic-dim { opacity: 0.3; }
+  .ic-sep {
+    width: 1px; height: 22px;
+    background: rgba(255,255,255,0.08);
+    margin: 0 4px;
+    flex-shrink: 0;
+  }
+  .ic-spacer { flex: 1; }
+
+  /* segmented control for C */
+  .ic-seg {
+    display: flex;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(93,169,255,0.22);
+    height: 32px;
+  }
+  .ic-seg-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 9px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #4a5a78;
+    background: rgba(20,28,46,0.7);
+    cursor: default;
+    white-space: nowrap;
+  }
+  .ic-seg-btn + .ic-seg-btn { border-left: 1px solid rgba(93,169,255,0.18); }
+  .ic-seg-btn.active {
+    background: rgba(93,169,255,0.2);
+    color: #9ecaff;
+  }
+
+  /* status panel for C */
+  .optc-status {
+    margin: 10px 8px 8px;
+    border-radius: 7px;
+    border: 1px solid rgba(93,169,255,0.2);
+    background: rgba(15,22,38,0.6);
+    overflow: hidden;
+  }
+  .optc-status-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .optc-status-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #5da9ff;
+    box-shadow: 0 0 6px rgba(93,169,255,0.7);
+    flex-shrink: 0;
+  }
+  .optc-status-text { font-size: 12px; font-weight: 700; color: #b8c8e8; flex: 1; }
+  .optc-mode-tag {
+    padding: 2px 8px;
+    border-radius: 5px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    background: rgba(93,169,255,0.15);
+    border: 1px solid rgba(93,169,255,0.4);
+    color: #7ab8ff;
+  }
+  .optc-meta {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .optc-meta-label { font-size: 10px; color: #3d4f6a; }
+  .optc-meta-val { font-size: 10px; color: #5a6a88; }
+  .optc-meta-dot { font-size: 10px; color: #2a3448; }
+
+  /* ─────────────────────────────────────── OPTION D ─── */
+  .optd-wrap { position: relative; }
+  .optd-toolbar {
+    padding: 7px 8px;
+    display: flex;
+    gap: 2px;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .optd-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px; height: 30px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #5a6a88;
+    cursor: default;
+    position: relative;
+  }
+  .optd-btn.open {
+    color: #67d487;
+    border-color: rgba(103,212,135,0.5);
+    background: rgba(103,212,135,0.12);
+  }
+  .optd-btn.active-blue {
+    color: #5da9ff;
+    border-color: rgba(93,169,255,0.35);
+    background: rgba(93,169,255,0.1);
+  }
+  .optd-btn.active-green {
+    color: #67d487;
+    border-color: rgba(103,212,135,0.55);
+    background: rgba(103,212,135,0.13);
+  }
+  .optd-btn.dim { opacity: 0.25; }
+  .optd-sep {
+    width: 1px; height: 20px;
+    background: rgba(255,255,255,0.08);
+    margin: 0 3px;
+  }
+  .optd-spacer { flex: 1; }
+
+  /* live status strip */
+  .optd-strip {
+    padding: 6px 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .strip-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #5da9ff;
+    box-shadow: 0 0 5px rgba(93,169,255,0.8);
+    flex-shrink: 0;
+  }
+  .strip-text { font-size: 10px; color: #7a8eae; flex: 1; }
+  .strip-badge {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: rgba(93,169,255,0.15);
+    border: 1px solid rgba(93,169,255,0.4);
+    color: #7ab8ff;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* viewport placeholder */
+  .optd-viewport {
+    margin: 8px;
+    border-radius: 6px;
+    background:
+      repeating-linear-gradient(
+        45deg,
+        rgba(255,255,255,0.015),
+        rgba(255,255,255,0.015) 1px,
+        transparent 1px,
+        transparent 12px
+      ),
+      rgba(10,16,28,0.8);
+    border: 1px dashed rgba(93,169,255,0.2);
+    height: 110px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 6px;
+    color: #2a3850;
+  }
+  .viewport-icon { opacity: 0.4; }
+  .viewport-label { font-size: 10px; color: #2a3850; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
+  /* tooltip hint */
+  .tooltip-hint {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.06);
+    flex-wrap: wrap;
+  }
+  .th-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: #4a5578; }
+  .th-icon { color: #3d5070; }
+
+  /* recommended badge */
+  .rec-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #67d487;
+    background: rgba(103,212,135,0.1);
+    border: 1px solid rgba(103,212,135,0.3);
+    padding: 2px 8px;
+    border-radius: 5px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<h1>DPF Viewer — UI Design Concepts</h1>
+<p class="subtitle">4 layout variants · click-to-compare · hover for tooltips</p>
+
+<div class="grid">
+
+  <!-- ════════════════════════════════ CURRENT (ref) ════════════════════════════════ -->
+  <div>
+    <div class="variant-label">Current · Reference</div>
+    <div class="variant-title">Text-only buttons, flat layout</div>
+    <div class="variant-desc">Two unrelated button rows, debug badges visible, no visual grouping by function.</div>
+    <div class="canvas">
+      <div class="node">
+        <div class="node-header">
+          <i data-lucide="monitor" class="node-header-icon" width="13" height="13"></i>
+          DPF Viewer
+        </div>
+        <div class="node-body">
+          <div class="surface-body">
+            <div class="current-toolbar">
+              <div class="btn-row">
+                <div class="btn-text" style="border-color:rgba(103,212,135,0.5);color:#80e89a">Open</div>
+                <div class="btn-text">Play</div>
+                <div class="btn-text">Step</div>
+                <div class="btn-text">Pin</div>
+              </div>
+              <div class="btn-row">
+                <div class="btn-text active-blue">Focus</div>
+                <div class="btn-text">Keep</div>
+                <div class="btn-text active-blue" style="border-radius:9px;border-color:rgba(93,169,255,0.75)">Overlay</div>
+              </div>
+            </div>
+            <div class="status-pane">
+              <div class="status-headline">Ready to open viewer session</div>
+              <div class="status-hint">Use the quick actions to open the viewer session or inspect the proxy surface.</div>
+              <div class="badge-row">
+                <div class="badge">Phase closed</div>
+                <div class="badge">Cache empty</div>
+                <div class="badge">Mode reserved</div>
+              </div>
+              <div class="meta-line">Result: DPF Viewer</div>
+              <div class="meta-line bold" style="color:#7a8aaa">Overlay target: body | Step 0</div>
+            </div>
+          </div>
+          <div class="ports">
+            <div class="port-col">
+              <div class="port"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port"><div class="port-dot"></div>field</div>
+              <div class="port"><div class="port-dot"></div>model</div>
+              <div class="port"><div class="port-dot"></div>mesh</div>
+            </div>
+            <div class="port-col">
+              <div class="port right"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port right"><div class="port-dot"></div>session</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ OPTION A ════════════════════════════════ -->
+  <div>
+    <div class="variant-label">Option A</div>
+    <div class="variant-title">Grouped icon+text — Minimal lift</div>
+    <div class="variant-desc">Buttons gain icons and are grouped by function with separators. Debug badges removed. Lowest change effort.</div>
+    <div class="canvas">
+      <div class="node">
+        <div class="node-header">
+          <i data-lucide="monitor" class="node-header-icon" width="13" height="13"></i>
+          DPF Viewer
+        </div>
+        <div class="node-body">
+          <div class="surface-body">
+            <div class="opta-toolbar">
+              <!-- Session group -->
+              <div class="btn-icon-text primary">
+                <i data-lucide="play-circle" width="12" height="12"></i>
+                Open
+              </div>
+              <div class="opta-sep"></div>
+              <!-- Playback group -->
+              <div class="btn-icon-text muted">
+                <i data-lucide="play" width="12" height="12"></i>
+                Play
+              </div>
+              <div class="btn-icon-text muted">
+                <i data-lucide="skip-forward" width="12" height="12"></i>
+                Step
+              </div>
+              <div class="opta-sep"></div>
+              <!-- Policy group -->
+              <div class="btn-icon-text active">
+                <i data-lucide="crosshair" width="12" height="12"></i>
+                Focus
+              </div>
+              <div class="btn-icon-text muted">
+                <i data-lucide="bookmark" width="12" height="12"></i>
+                Keep
+              </div>
+              <div class="opta-sep"></div>
+              <!-- Pin -->
+              <div class="btn-icon-text muted">
+                <i data-lucide="pin" width="12" height="12"></i>
+                Pin
+              </div>
+            </div>
+            <div class="opta-status" style="margin-top:8px">
+              <i data-lucide="circle" class="opta-status-icon" width="14" height="14" style="color:#3d5270"></i>
+              <div class="opta-status-body">
+                <div class="opta-headline">Ready to open</div>
+                <div class="opta-sub">Session closed · no data loaded</div>
+              </div>
+              <div class="mode-badge">Overlay</div>
+            </div>
+          </div>
+          <div class="ports">
+            <div class="port-col">
+              <div class="port"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port"><div class="port-dot"></div>field</div>
+              <div class="port"><div class="port-dot"></div>model</div>
+              <div class="port"><div class="port-dot"></div>mesh</div>
+            </div>
+            <div class="port-col">
+              <div class="port right"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port right"><div class="port-dot"></div>session</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ OPTION B ════════════════════════════════ -->
+  <div>
+    <div class="variant-label">Option B</div>
+    <div class="variant-title">Icon-first toolbar + segmented policy</div>
+    <div class="variant-desc">Icon buttons with small labels below. Policy becomes a segmented toggle. Clean data footer strip instead of badges.</div>
+    <div class="canvas">
+      <div class="node">
+        <div class="node-header">
+          <i data-lucide="monitor" class="node-header-icon" width="13" height="13"></i>
+          DPF Viewer
+        </div>
+        <div class="node-body">
+          <div class="surface-body">
+            <div class="optb-toolbar">
+              <!-- Open -->
+              <div class="icon-btn primary">
+                <i data-lucide="play-circle" width="16" height="16"></i>
+                OPEN
+              </div>
+              <div class="optb-sep"></div>
+              <!-- Playback -->
+              <div class="icon-btn dimmed">
+                <i data-lucide="play" width="16" height="16"></i>
+                PLAY
+              </div>
+              <div class="icon-btn dimmed">
+                <i data-lucide="skip-forward" width="16" height="16"></i>
+                STEP
+              </div>
+              <div class="optb-sep"></div>
+              <!-- Policy segmented -->
+              <div class="seg-group">
+                <div class="seg-btn seg-active">
+                  <i data-lucide="crosshair" width="11" height="11"></i>
+                  Focus
+                </div>
+                <div class="seg-btn">
+                  <i data-lucide="bookmark" width="11" height="11"></i>
+                  Keep
+                </div>
+              </div>
+              <div class="spacer"></div>
+              <!-- Pin -->
+              <div class="icon-btn dimmed">
+                <i data-lucide="pin" width="16" height="16"></i>
+                PIN
+              </div>
+            </div>
+
+            <div class="optb-status">
+              <div class="optb-mode-pill">Overlay</div>
+              <div class="opta-headline" style="color:#8899bb;font-size:11px;font-weight:600">Ready to open viewer session</div>
+              <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap">
+                <div class="result-chip">
+                  <i data-lucide="layers" width="10" height="10"></i>
+                  DPF Viewer
+                </div>
+                <div class="result-chip">
+                  <i data-lucide="hash" width="10" height="10"></i>
+                  Step 0
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ports">
+            <div class="port-col">
+              <div class="port"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port"><div class="port-dot"></div>field</div>
+              <div class="port"><div class="port-dot"></div>model</div>
+              <div class="port"><div class="port-dot"></div>mesh</div>
+            </div>
+            <div class="port-col">
+              <div class="port right"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port right"><div class="port-dot"></div>session</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════ OPTION C / D ════════════════════════════════ -->
+  <div>
+    <div class="variant-label">Option C <span class="rec-badge">★ Recommended</span></div>
+    <div class="variant-title">Icon-only toolbar + status pane + viewport area</div>
+    <div class="variant-desc">Pure icon toolbar (no labels), reserved viewport area below for live/proxy overlay, minimal status strip. Maximum space efficiency.</div>
+    <div class="canvas">
+      <div class="node">
+        <div class="node-header">
+          <i data-lucide="monitor" class="node-header-icon" width="13" height="13"></i>
+          DPF Viewer
+        </div>
+        <div class="node-body">
+          <div class="surface-body">
+
+            <!-- Icon-only toolbar -->
+            <div class="optd-toolbar">
+              <!-- Open -->
+              <div class="optd-btn open" title="Open session">
+                <i data-lucide="play-circle" width="15" height="15"></i>
+              </div>
+              <div class="optd-sep"></div>
+              <!-- Play / Step -->
+              <div class="optd-btn dim" title="Play">
+                <i data-lucide="play" width="15" height="15"></i>
+              </div>
+              <div class="optd-btn dim" title="Step forward">
+                <i data-lucide="skip-forward" width="15" height="15"></i>
+              </div>
+              <div class="optd-sep"></div>
+              <!-- Policy: segmented -->
+              <div class="ic-seg">
+                <div class="ic-seg-btn active" title="Focus only policy">
+                  <i data-lucide="crosshair" width="11" height="11"></i>
+                  Focus
+                </div>
+                <div class="ic-seg-btn" title="Keep live policy">
+                  <i data-lucide="bookmark" width="11" height="11"></i>
+                  Keep
+                </div>
+              </div>
+              <div class="ic-spacer"></div>
+              <!-- Pin -->
+              <div class="optd-btn dim" title="Pin session">
+                <i data-lucide="pin" width="15" height="15"></i>
+              </div>
+              <!-- Settings / more -->
+              <div class="optd-btn dim" title="More options">
+                <i data-lucide="more-horizontal" width="15" height="15"></i>
+              </div>
+            </div>
+
+            <!-- Status strip -->
+            <div class="optd-strip">
+              <div class="strip-dot"></div>
+              <div class="strip-text">Ready · no session active</div>
+              <div class="strip-badge">Overlay</div>
+            </div>
+
+            <!-- Viewport placeholder -->
+            <div class="optd-viewport">
+              <div class="viewport-icon">
+                <i data-lucide="box" width="28" height="28"></i>
+              </div>
+              <div class="viewport-label">Open session to view</div>
+            </div>
+
+          </div>
+          <div class="ports">
+            <div class="port-col">
+              <div class="port"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port"><div class="port-dot"></div>field</div>
+              <div class="port"><div class="port-dot"></div>model</div>
+              <div class="port"><div class="port-dot"></div>mesh</div>
+            </div>
+            <div class="port-col">
+              <div class="port right"><div class="port-exec-icon"><i data-lucide="arrow-right" width="10" height="10"></i></div></div>
+              <div class="port right"><div class="port-dot"></div>session</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Icon legend -->
+    <div class="tooltip-hint">
+      <div class="th-item"><i data-lucide="play-circle" class="th-icon" width="12" height="12"></i>Open / Close</div>
+      <div class="th-item"><i data-lucide="play" class="th-icon" width="12" height="12"></i>Play / Pause</div>
+      <div class="th-item"><i data-lucide="skip-forward" class="th-icon" width="12" height="12"></i>Step</div>
+      <div class="th-item"><i data-lucide="crosshair" class="th-icon" width="12" height="12"></i>Focus policy</div>
+      <div class="th-item"><i data-lucide="bookmark" class="th-icon" width="12" height="12"></i>Keep live</div>
+      <div class="th-item"><i data-lucide="pin" class="th-icon" width="12" height="12"></i>Pin session</div>
+    </div>
+  </div>
+
+</div>
+
+<script>lucide.createIcons();</script>
+</body>
+</html>
