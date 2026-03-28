@@ -25,21 +25,22 @@ Recent UI/UX architecture highlights:
 
 ## Getting Started
 
-```bash
+```powershell
 # 1. Create the project virtual environment (Windows-first layout)
 py -3.10 -m venv venv
 
 # 2. Install runtime + developer dependencies into that venv
-./venv/Scripts/python.exe -m pip install --upgrade pip
-./venv/Scripts/python.exe -m pip install -e ".[all,dev]"
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\python.exe -m pip install -e ".[all,dev]"
 
 # 3. Launch the app
-./venv/Scripts/python.exe main.py
+.\venv\Scripts\python.exe .\main.py
 ```
 
 - For a fuller setup and orientation guide, see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
 - On Windows, user data lives under `%APPDATA%\COREX_Node_Editor\`; public single-file plugin drop-ins live directly in `%APPDATA%\COREX_Node_Editor\plugins\`, and imported `.eanp` packages install as subdirectories beneath that same root.
 - The console entry point installed by editable mode is `corex-node-editor`.
+- PowerShell examples are shown here. If you still open the repo from `bash`, use the same `venv/Scripts/python.exe` interpreter with `./...` path syntax.
 
 ## Project Structure
 
@@ -294,8 +295,8 @@ package contents are `node_package.json` plus top-level `.py` modules only.
 
 ## Running Tests
 
-```bash
-./venv/Scripts/python.exe scripts/run_verification.py --mode fast
+```powershell
+.\venv\Scripts\python.exe .\scripts\run_verification.py --mode fast
 ```
 
 Use the repo-owned runner for the default day-to-day loop. It keeps the
@@ -306,18 +307,22 @@ shell-backed suites on a dedicated fresh-process shell-isolation phase in
 
 Inspect or run the full workflow with:
 
-```bash
-./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run
-./venv/Scripts/python.exe scripts/run_verification.py --mode full
+```powershell
+.\venv\Scripts\python.exe .\scripts\run_verification.py --mode full --dry-run
+.\venv\Scripts\python.exe .\scripts\run_verification.py --mode full
 ```
 
 When you change verification docs, release docs, or packet-owned proof links,
 audit them with:
 
-```bash
-./venv/Scripts/python.exe scripts/check_traceability.py
-./venv/Scripts/python.exe scripts/check_markdown_links.py
+```powershell
+.\venv\Scripts\python.exe .\scripts\check_traceability.py
+.\venv\Scripts\python.exe .\scripts\check_markdown_links.py
 ```
+
+The canonical script paths remain `scripts/check_traceability.py` and
+`scripts/check_markdown_links.py`; the PowerShell form simply prefixes them
+with `.\`.
 
 - The current architecture/docs closeout evidence is summarized in
   `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
@@ -329,9 +334,13 @@ audit them with:
   count as `psutil.cpu_count(logical=True)`, else `os.cpu_count()`, else `1`,
   then passes `-n <resolved_count> --dist load`. If `pytest-xdist` is
   unavailable, it falls back to serial pytest and prints the runner notice.
+- Direct `.\venv\Scripts\python.exe -m pytest` runs now auto-enable xdist only
+  for the safe non-GUI path. Broad invocations default to the same
+  `not gui and not slow` slice, and focused GUI, slow, or shell-backed targets
+  stay off that automatic parallel path to avoid Qt/QML RAM bloat.
 - `gui` and `slow` keep the QML-heavy phases explicit:
-  `./venv/Scripts/python.exe scripts/run_verification.py --mode gui` and
-  `./venv/Scripts/python.exe scripts/run_verification.py --mode slow`. The
+  `.\venv\Scripts\python.exe .\scripts\run_verification.py --mode gui` and
+  `.\venv\Scripts\python.exe .\scripts\run_verification.py --mode slow`. The
   `gui` phase also uses `-n <gui_resolved_count> --dist load` when
   `pytest-xdist` is available, where `<gui_resolved_count>` is capped at `6`
   workers to avoid over-saturating the QML-heavy slice; `slow` remains serial
@@ -355,14 +364,16 @@ audit them with:
   shapes, dedicated shell-isolation phase, benchmark evidence, companion
   proof-audit command, and current baseline-status notes.
 
-Focused graph-surface regression gate:
+Focused graph-surface regression gate in PowerShell:
 
-```bash
-QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest \
-  tests.test_graph_surface_input_contract \
-  tests.test_graph_surface_input_inline \
-  tests.test_passive_graph_surface_host \
+```powershell
+$env:QT_QPA_PLATFORM = "offscreen"
+.\venv\Scripts\python.exe -m unittest `
+  tests.test_graph_surface_input_contract `
+  tests.test_graph_surface_input_inline `
+  tests.test_passive_graph_surface_host `
   tests.test_passive_image_nodes -v
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ```
 
 ## Interaction Notes
@@ -383,8 +394,8 @@ packaging, installer creation, and code signing instructions.
 
 Regenerate the committed app icon asset set with:
 
-```bash
-./venv/Scripts/python.exe scripts/generate_app_icons.py
+```powershell
+.\venv\Scripts\python.exe .\scripts\generate_app_icons.py
 ```
 
 ## Documentation
@@ -403,8 +414,8 @@ Regenerate the committed app icon asset set with:
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:
 
-```bash
-./venv/Scripts/python.exe scripts/export_architecture_diagrams.py
+```powershell
+.\venv\Scripts\python.exe .\scripts\export_architecture_diagrams.py
 ```
 
 The exporter writes `.mmd`, `.svg`, and `.png` assets into `docs/architecture_diagrams/` and uses the Kroki Mermaid rendering service, so it requires network access.

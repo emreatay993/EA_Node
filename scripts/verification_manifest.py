@@ -89,6 +89,8 @@ GUI_TEST_PATHS = (
     "tests/test_shell_project_session_controller.py",
     "tests/test_shell_run_controller.py",
     "tests/test_shell_theme.py",
+    "tests/test_viewer_surface_contract.py",
+    "tests/test_viewer_surface_host.py",
     "tests/test_workflow_settings_dialog.py",
 )
 SLOW_TEST_PATHS = ("tests/test_track_h_perf_harness.py",)

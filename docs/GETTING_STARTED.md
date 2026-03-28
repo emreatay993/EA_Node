@@ -14,24 +14,25 @@ current Windows-first workflow.
 
 From the repository root:
 
-```bash
+```powershell
 py -3.10 -m venv venv
-./venv/Scripts/python.exe -m pip install --upgrade pip
-./venv/Scripts/python.exe -m pip install -e ".[all,dev]"
+.\venv\Scripts\python.exe -m pip install --upgrade pip
+.\venv\Scripts\python.exe -m pip install -e ".[all,dev]"
 ```
 
 Notes:
 
 - `.[all,dev]` installs the optional spreadsheet/HPC dependencies plus the local dev tools used in this repo.
 - The repo uses a Windows-style virtualenv layout even when opened from `bash`, so prefer `./venv/Scripts/python.exe` over a shell-default `python`.
+- The examples below use native PowerShell path syntax. If you are in `bash`, use the same interpreter path with `./venv/Scripts/python.exe`.
 - Editable install also exposes the `corex-node-editor` console entry point inside `venv/Scripts/`.
 
 ## First Launch
 
 Start the application from the repository root:
 
-```bash
-./venv/Scripts/python.exe main.py
+```powershell
+.\venv\Scripts\python.exe .\main.py
 ```
 
 You should see:
@@ -44,23 +45,26 @@ You should see:
 
 Create a quick regression pass before doing larger changes:
 
-```bash
-./venv/Scripts/python.exe scripts/run_verification.py --mode fast
+```powershell
+.\venv\Scripts\python.exe .\scripts\run_verification.py --mode fast
 ```
 
 Before merge, inspect or run the full workflow:
 
-```bash
-./venv/Scripts/python.exe scripts/run_verification.py --mode full --dry-run
-./venv/Scripts/python.exe scripts/run_verification.py --mode full
+```powershell
+.\venv\Scripts\python.exe .\scripts\run_verification.py --mode full --dry-run
+.\venv\Scripts\python.exe .\scripts\run_verification.py --mode full
 ```
 
 - After editing packet-owned verification docs, perf reports, or traceability
-  links, run `./venv/Scripts/python.exe scripts/check_traceability.py` to audit
+  links, run `.\venv\Scripts\python.exe .\scripts\check_traceability.py` to audit
   the proof layer.
 - After editing canonical markdown docs or spec-index links, run
-  `./venv/Scripts/python.exe scripts/check_markdown_links.py` to catch broken
+  `.\venv\Scripts\python.exe .\scripts\check_markdown_links.py` to catch broken
   local references before handoff.
+- The canonical script paths remain `scripts/check_traceability.py` and
+  `scripts/check_markdown_links.py`; the PowerShell form simply prefixes them
+  with `.\`.
 - The current architecture/docs closeout evidence is summarized in
   `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
   `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`,
@@ -68,6 +72,10 @@ Before merge, inspect or run the full workflow:
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
   commands.
+- Direct `.\venv\Scripts\python.exe -m pytest` now auto-parallelizes only the
+  safe non-GUI path. Broad invocations default to the `not gui and not slow`
+  slice, while focused GUI, slow, and shell-backed targets stay off that
+  automatic parallel path to avoid Qt/QML RAM bloat.
 - `fast` and the dedicated `full` shell-isolation phase use
   `-n <resolved_count> --dist load` when `pytest-xdist` is installed in the
   project venv, where `<resolved_count>` resolves as
@@ -88,18 +96,20 @@ Before merge, inspect or run the full workflow:
   focused manual reruns, but they are no longer the documented `full`
   workflow.
 - The previously documented serializer spot-check
-  `./venv/Scripts/python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
+  `.\venv\Scripts\python.exe -m pytest tests/test_serializer.py -k passive_image_panel_properties_and_size -q`
   now passes in the project venv, so the QA matrix no longer carries that
   caveat as an open out-of-scope baseline.
 
 If you only need the graph-surface gate:
 
-```bash
-QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest \
-  tests.test_graph_surface_input_contract \
-  tests.test_graph_surface_input_inline \
-  tests.test_passive_graph_surface_host \
+```powershell
+$env:QT_QPA_PLATFORM = "offscreen"
+.\venv\Scripts\python.exe -m unittest `
+  tests.test_graph_surface_input_contract `
+  tests.test_graph_surface_input_inline `
+  tests.test_passive_graph_surface_host `
   tests.test_passive_image_nodes -v
+Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
 ```
 
 Manual passive-media fixture:
@@ -140,8 +150,8 @@ the Mermaid blocks in `ARCHITECTURE.md`.
 
 Regenerate them with:
 
-```bash
-./venv/Scripts/python.exe scripts/export_architecture_diagrams.py
+```powershell
+.\venv\Scripts\python.exe .\scripts\export_architecture_diagrams.py
 ```
 
 That exporter writes `.mmd`, `.svg`, and `.png` files and uses the Kroki

@@ -69,4 +69,4 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "gui: marks tests requiring Qt GUI",
 ]
-addopts = "--strict-markers"
+addopts = "--strict-markers -p ea_node_editor.pytest_defaults"
