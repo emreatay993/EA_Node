@@ -22,8 +22,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             "generated_at_utc": "2026-03-21T00:00:00+00:00",
             "config": {
                 "performance_mode": "full_fidelity",
-                "show_grid": True,
-                "grid_style": "lines",
                 "scenario": "synthetic_exec",
             },
             "environment": {
@@ -60,8 +58,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         node_mix = scenario_details["node_mix"]
 
         self.assertEqual(config["performance_mode"], performance_mode)
-        self.assertTrue(config["show_grid"])
-        self.assertEqual(config["grid_style"], "lines")
         self.assertEqual(config["scenario"], "heavy_media")
         self.assertEqual(scenario_details["fixture_strategy"], "generated_local_media_reuse")
         self.assertGreater(node_mix["image_panel_nodes"], 0)
@@ -75,8 +71,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             node_mix["image_panel_nodes"] + node_mix["pdf_panel_nodes"],
         )
         self.assertEqual(interaction_benchmark["performance_mode"], performance_mode)
-        self.assertTrue(interaction_benchmark["show_grid"])
-        self.assertEqual(interaction_benchmark["grid_style"], "lines")
         self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], performance_mode)
         self.assertEqual(interaction_benchmark["scenario"], "heavy_media")
         self.assertEqual(
@@ -152,8 +146,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertGreaterEqual(report["metrics"]["pan_zoom_combined_ms"]["summary"]["p95"], 0.0)
         self.assertGreaterEqual(report["metrics"]["node_drag_control_ms"]["summary"]["p95"], 0.0)
         self.assertEqual(report["config"]["performance_mode"], "full_fidelity")
-        self.assertTrue(report["config"]["show_grid"])
-        self.assertEqual(report["config"]["grid_style"], "lines")
         self.assertEqual(report["config"]["scenario"], "synthetic_exec")
         self.assertEqual(report["config"]["scenario_details"]["node_mix"]["image_panel_nodes"], 0)
         self.assertEqual(report["config"]["scenario_details"]["node_mix"]["pdf_panel_nodes"], 0)
@@ -167,8 +159,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertTrue(interaction_benchmark["steady_state_canvas_host_reused"])
         self.assertEqual(interaction_benchmark["warmup_samples"], 1)
         self.assertEqual(interaction_benchmark["performance_mode"], "full_fidelity")
-        self.assertTrue(interaction_benchmark["show_grid"])
-        self.assertEqual(interaction_benchmark["grid_style"], "lines")
         self.assertEqual(interaction_benchmark["resolved_graphics_performance_mode"], "full_fidelity")
         self.assertEqual(interaction_benchmark["scenario"], "synthetic_exec")
         self.assertEqual(interaction_benchmark["media_surface_count"], 0)
@@ -191,8 +181,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertEqual(baseline_series["mode"], "interactive")
         self.assertEqual(baseline_series["tag"], "unit_test")
         self.assertEqual(baseline_series["performance_mode"], "full_fidelity")
-        self.assertTrue(baseline_series["show_grid"])
-        self.assertEqual(baseline_series["grid_style"], "lines")
         self.assertEqual(baseline_series["scenario"], "synthetic_exec")
         self.assertEqual(baseline_series["run_count"], 2)
         self.assertEqual(len(baseline_series["runs"]), 2)
@@ -201,8 +189,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
         self.assertIn("run_id", first_run)
         self.assertIn("generated_at_utc", first_run)
         self.assertEqual(first_run["performance_mode"], "full_fidelity")
-        self.assertTrue(first_run["show_grid"])
-        self.assertEqual(first_run["grid_style"], "lines")
         self.assertEqual(first_run["scenario"], "synthetic_exec")
         self.assertIn("environment", first_run)
         self.assertIn("metrics", first_run)
@@ -263,23 +249,6 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
 
     def test_heavy_media_full_fidelity_records_all_media_surfaces(self) -> None:
         self._assert_heavy_media_scenario("full_fidelity")
-
-    def test_benchmark_runner_records_grid_visibility_and_style_overrides(self) -> None:
-        report = run_benchmark(
-            BenchmarkConfig(
-                synthetic_graph=SyntheticGraphConfig(node_count=40, edge_count=100, seed=19),
-                load_iterations=1,
-                interaction_samples=2,
-                interaction_warmup_samples=0,
-                show_grid=False,
-                grid_style="points",
-            )
-        )
-
-        self.assertFalse(report["config"]["show_grid"])
-        self.assertEqual(report["config"]["grid_style"], "points")
-        self.assertFalse(report["interaction_benchmark"]["show_grid"])
-        self.assertEqual(report["interaction_benchmark"]["grid_style"], "points")
 
     def test_resolve_baseline_mode_auto(self) -> None:
         self.assertEqual(_resolve_baseline_mode("auto", "offscreen"), "offscreen")
