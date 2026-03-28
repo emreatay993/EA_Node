@@ -61,6 +61,133 @@ function distancePolyline(px, py, points) {
     return minDistance;
 }
 
+function distancePoints(x1, y1, x2, y2) {
+    var dx = Number(x2) - Number(x1);
+    var dy = Number(y2) - Number(y1);
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function _normalizedPoint(pointLike) {
+    if (!pointLike)
+        return null;
+    var x = Number(pointLike.x);
+    var y = Number(pointLike.y);
+    if (!isFinite(x) || !isFinite(y))
+        return null;
+    return {"x": x, "y": y};
+}
+
+function sampleBezierPolyline(x0, y0, x1, y1, x2, y2, x3, y3, sceneStep) {
+    var step = Math.max(0.01, Number(sceneStep || 12.0));
+    var approxLength = distancePoints(x0, y0, x1, y1)
+        + distancePoints(x1, y1, x2, y2)
+        + distancePoints(x2, y2, x3, y3);
+    var sampleCount = Math.max(18, Math.min(160, Math.ceil(approxLength / step)));
+    var points = [];
+    for (var i = 0; i <= sampleCount; i++) {
+        var t = i / sampleCount;
+        points.push({
+            "x": cubicPoint(t, x0, x1, x2, x3),
+            "y": cubicPoint(t, y0, y1, y2, y3)
+        });
+    }
+    return points;
+}
+
+function sampleGeometryPolyline(geometry, sceneStep) {
+    if (!geometry)
+        return [];
+    if (geometry.route === "pipe") {
+        var pipePoints = geometry.pipe_points || [];
+        var copied = [];
+        for (var i = 0; i < pipePoints.length; i++) {
+            var point = _normalizedPoint(pipePoints[i]);
+            if (point)
+                copied.push(point);
+        }
+        return copied;
+    }
+    return sampleBezierPolyline(
+        geometry.sx,
+        geometry.sy,
+        geometry.c1x,
+        geometry.c1y,
+        geometry.c2x,
+        geometry.c2y,
+        geometry.tx,
+        geometry.ty,
+        sceneStep
+    );
+}
+
+function _segmentBounds(a, b) {
+    return {
+        "left": Math.min(Number(a.x), Number(b.x)),
+        "top": Math.min(Number(a.y), Number(b.y)),
+        "right": Math.max(Number(a.x), Number(b.x)),
+        "bottom": Math.max(Number(a.y), Number(b.y))
+    };
+}
+
+function polylineMetrics(points) {
+    var sourcePoints = points || [];
+    var normalized = [];
+    var minX = Number.POSITIVE_INFINITY;
+    var minY = Number.POSITIVE_INFINITY;
+    var maxX = Number.NEGATIVE_INFINITY;
+    var maxY = Number.NEGATIVE_INFINITY;
+    var i;
+
+    for (i = 0; i < sourcePoints.length; i++) {
+        var point = _normalizedPoint(sourcePoints[i]);
+        if (!point)
+            continue;
+        if (normalized.length > 0) {
+            var prevPoint = normalized[normalized.length - 1];
+            if (distancePoints(prevPoint.x, prevPoint.y, point.x, point.y) <= 1e-6)
+                continue;
+        }
+        normalized.push(point);
+        minX = Math.min(minX, point.x);
+        minY = Math.min(minY, point.y);
+        maxX = Math.max(maxX, point.x);
+        maxY = Math.max(maxY, point.y);
+    }
+
+    var segments = [];
+    var totalLength = 0.0;
+    for (i = 1; i < normalized.length; i++) {
+        var start = normalized[i - 1];
+        var end = normalized[i];
+        var length = distancePoints(start.x, start.y, end.x, end.y);
+        if (length <= 1e-6)
+            continue;
+        segments.push({
+            "a": start,
+            "b": end,
+            "length": length,
+            "startDistance": totalLength,
+            "endDistance": totalLength + length,
+            "bounds": _segmentBounds(start, end)
+        });
+        totalLength += length;
+    }
+
+    return {
+        "points": normalized,
+        "segments": segments,
+        "totalLength": totalLength,
+        "bounds": isFinite(minX) && isFinite(minY) && isFinite(maxX) && isFinite(maxY)
+            ? {
+                "left": minX,
+                "top": minY,
+                "right": maxX,
+                "bottom": maxY
+            }
+            : null
+    };
+}
+
 function _vectorAngleDegrees(dx, dy) {
     return Math.atan2(dy, dx) * 180.0 / Math.PI;
 }
@@ -179,6 +306,113 @@ function pointTangentAlongPolyline(points, fraction) {
         "dy": tailNormalized.dy,
         "angle": _vectorAngleDegrees(tailNormalized.dx, tailNormalized.dy)
     };
+}
+
+function rectsIntersect(a, b) {
+    if (!a || !b)
+        return false;
+    return Number(a.left) <= Number(b.right) + 1e-6
+        && Number(a.right) + 1e-6 >= Number(b.left)
+        && Number(a.top) <= Number(b.bottom) + 1e-6
+        && Number(a.bottom) + 1e-6 >= Number(b.top);
+}
+
+function _crossProduct(ax, ay, bx, by) {
+    return ax * by - ay * bx;
+}
+
+function segmentIntersection(a1, a2, b1, b2) {
+    var p = _normalizedPoint(a1);
+    var p2 = _normalizedPoint(a2);
+    var q = _normalizedPoint(b1);
+    var q2 = _normalizedPoint(b2);
+    if (!p || !p2 || !q || !q2)
+        return null;
+    var rx = p2.x - p.x;
+    var ry = p2.y - p.y;
+    var sx = q2.x - q.x;
+    var sy = q2.y - q.y;
+    var denominator = _crossProduct(rx, ry, sx, sy);
+    if (Math.abs(denominator) <= 1e-9)
+        return null;
+    var qpx = q.x - p.x;
+    var qpy = q.y - p.y;
+    var t = _crossProduct(qpx, qpy, sx, sy) / denominator;
+    var u = _crossProduct(qpx, qpy, rx, ry) / denominator;
+    if (t < -1e-6 || t > 1.0 + 1e-6 || u < -1e-6 || u > 1.0 + 1e-6)
+        return null;
+    t = clamp(t, 0.0, 1.0);
+    u = clamp(u, 0.0, 1.0);
+    return {
+        "x": p.x + rx * t,
+        "y": p.y + ry * t,
+        "tA": t,
+        "tB": u
+    };
+}
+
+function distanceNearPolylineEndpoints(distanceAlong, totalLength, margin) {
+    var distance = Number(distanceAlong);
+    var total = Number(totalLength);
+    var threshold = Math.max(0.0, Number(margin || 0.0));
+    if (!isFinite(distance) || !isFinite(total))
+        return true;
+    return distance <= threshold + 1e-6 || distance >= total - threshold - 1e-6;
+}
+
+function mergeBreakRanges(ranges, mergeGap, totalLength) {
+    var sourceRanges = ranges || [];
+    var maximumLength = Number(totalLength);
+    var clamped = [];
+    var i;
+
+    for (i = 0; i < sourceRanges.length; i++) {
+        var range = sourceRanges[i];
+        if (!range)
+            continue;
+        var startDistance = Number(range.startDistance);
+        var endDistance = Number(range.endDistance);
+        if (!isFinite(startDistance) || !isFinite(endDistance))
+            continue;
+        if (endDistance < startDistance) {
+            var swap = startDistance;
+            startDistance = endDistance;
+            endDistance = swap;
+        }
+        if (isFinite(maximumLength)) {
+            startDistance = clamp(startDistance, 0.0, maximumLength);
+            endDistance = clamp(endDistance, 0.0, maximumLength);
+        }
+        if (endDistance - startDistance <= 1e-6)
+            continue;
+        clamped.push({
+            "startDistance": startDistance,
+            "endDistance": endDistance
+        });
+    }
+
+    clamped.sort(function(a, b) {
+        if (Math.abs(a.startDistance - b.startDistance) > 1e-6)
+            return a.startDistance - b.startDistance;
+        return a.endDistance - b.endDistance;
+    });
+
+    var merged = [];
+    var mergeDistance = Math.max(0.0, Number(mergeGap || 0.0));
+    for (i = 0; i < clamped.length; i++) {
+        var current = clamped[i];
+        if (!merged.length) {
+            merged.push(current);
+            continue;
+        }
+        var last = merged[merged.length - 1];
+        if (current.startDistance <= last.endDistance + mergeDistance + 1e-6) {
+            last.endDistance = Math.max(last.endDistance, current.endDistance);
+        } else {
+            merged.push(current);
+        }
+    }
+    return merged;
 }
 
 function normalizeCardinalSide(sideLike, fallback) {

@@ -58,8 +58,11 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         self.assertIn("id: viewportMath", edge_layer_text)
         self.assertIn("id: flowStylePolicy", edge_layer_text)
         self.assertIn("id: edgeRenderer", edge_layer_text)
+        self.assertIn("id: edgeCrossingPolicy", edge_layer_text)
         self.assertIn("id: flowLabelPolicy", edge_layer_text)
         self.assertIn("edgeRenderer.traceGeometry(ctx, geometry)", edge_layer_text)
+        self.assertIn("edgeRenderer.traceBrokenGeometry(ctx, geometry", edge_layer_text)
+        self.assertIn("edgeCrossingPolicy.applyCrossingMetadata", edge_layer_text)
         self.assertIn("flowLabelPolicy.flowLabelMode(edge)", edge_layer_text)
 
     def test_flow_edge_payload_normalizes_render_metadata(self) -> None:
@@ -125,6 +128,103 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
 
 
 class FlowEdgeLabelQmlTests(unittest.TestCase):
+    def _run_edge_layer_probe(self, label: str, body: str) -> None:
+        script = textwrap.dedent(
+            """
+            from pathlib import Path
+
+            from PyQt6.QtCore import QUrl
+            from PyQt6.QtQml import QQmlComponent, QQmlEngine
+            from PyQt6.QtWidgets import QApplication
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.nodes.decorators import in_port, node_type, out_port
+            from ea_node_editor.nodes.registry import NodeRegistry
+            from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            @node_type(
+                type_id="tests.flow_edge_label_probe_node",
+                display_name="Flow Edge Label Probe",
+                category="Tests",
+                icon="branch",
+                ports=(in_port("flow_in", kind="flow"), out_port("flow_out", kind="flow")),
+                properties=(),
+                runtime_behavior="passive",
+                surface_family="annotation",
+                surface_variant="sticky_note",
+            )
+            class _FlowEdgeLabelProbeNode:
+                def execute(self, _ctx: ExecutionContext) -> NodeResult:
+                    return NodeResult(outputs={})
+
+            def build_registry() -> NodeRegistry:
+                registry = build_default_registry()
+                registry.register(_FlowEdgeLabelProbeNode)
+                return registry
+
+            def to_variant(value):
+                return value.toVariant() if hasattr(value, "toVariant") else value
+
+            def snapshot(edge_layer, edge_id):
+                result = to_variant(edge_layer._visibleEdgeSnapshot(edge_id))
+                assert result is not None, edge_id
+                return result
+
+            def refresh(edge_layer):
+                edge_layer.requestRedraw()
+                app.processEvents()
+                return to_variant(edge_layer.property("_visibleEdgeSnapshots"))
+
+            app = QApplication.instance() or QApplication([])
+            engine = QQmlEngine()
+            component = QQmlComponent(
+                engine,
+                QUrl.fromLocalFile(
+                    str(Path.cwd() / "ea_node_editor" / "ui_qml" / "components" / "graph" / "EdgeLayer.qml")
+                ),
+            )
+            if component.status() != QQmlComponent.Status.Ready:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError(f"Failed to load EdgeLayer.qml:\\n{errors}")
+
+            view = ViewportBridge()
+            view.set_viewport_size(1280.0, 720.0)
+            view.centerOn(240.0, 180.0)
+            edge_layer = component.createWithInitialProperties(
+                {
+                    "width": 1280.0,
+                    "height": 720.0,
+                    "viewBridge": view,
+                }
+            ) if hasattr(component, "createWithInitialProperties") else component.create()
+            if edge_layer is None:
+                errors = "\\n".join(error.toString() for error in component.errors())
+                raise AssertionError(f"Failed to instantiate EdgeLayer.qml:\\n{errors}")
+            if not hasattr(component, "createWithInitialProperties"):
+                edge_layer.setProperty("width", 1280.0)
+                edge_layer.setProperty("height", 720.0)
+                edge_layer.setProperty("viewBridge", view)
+            app.processEvents()
+            """
+        ) + "\n" + textwrap.dedent(body)
+        env = os.environ.copy()
+        env["QT_QPA_PLATFORM"] = "offscreen"
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=_REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            details = "\n".join(
+                part for part in (result.stdout.strip(), result.stderr.strip()) if part
+            )
+            self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
+
     def _run_qml_probe(self, label: str, body: str) -> None:
         script = textwrap.dedent(
             """
@@ -548,6 +648,165 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
             canvas.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_edge_layer_gap_break_uses_payload_order_for_plain_bezier_crossings(self) -> None:
+        self._run_edge_layer_probe(
+            "edge-layer-gap-break-bezier-payload-order",
+            """
+            def bezier_edge(edge_id, sx, sy, tx, ty):
+                return {
+                    "edge_id": edge_id,
+                    "source_node_id": "",
+                    "source_port_key": "",
+                    "target_node_id": "",
+                    "target_port_key": "",
+                    "source_port_kind": "data",
+                    "target_port_kind": "data",
+                    "edge_family": "standard",
+                    "label": "",
+                    "visual_style": {},
+                    "flow_style": {},
+                    "source_port_side": "right",
+                    "target_port_side": "left",
+                    "source_anchor_side": "right",
+                    "target_anchor_side": "left",
+                    "source_anchor_kind": "scene",
+                    "target_anchor_kind": "scene",
+                    "source_anchor_node_id": "",
+                    "target_anchor_node_id": "",
+                    "source_hidden_by_backdrop_id": "",
+                    "target_hidden_by_backdrop_id": "",
+                    "source_anchor_bounds": None,
+                    "target_anchor_bounds": None,
+                    "lane_bias": 0.0,
+                    "sx": sx,
+                    "sy": sy,
+                    "tx": tx,
+                    "ty": ty,
+                    "c1x": sx + 72.0,
+                    "c1y": sy,
+                    "c2x": tx - 72.0,
+                    "c2y": ty,
+                    "route": "bezier",
+                    "pipe_points": [],
+                    "color": "#7AA8FF",
+                    "data_type_warning": False,
+                }
+
+            edge_layer.setProperty(
+                "edges",
+                [
+                    bezier_edge("payload_first", 80.0, 80.0, 320.0, 320.0),
+                    bezier_edge("payload_second", 80.0, 320.0, 320.0, 80.0),
+                ],
+            )
+            edge_layer.setProperty("edgeCrossingStyle", "gap_break")
+            refresh(edge_layer)
+
+            first = snapshot(edge_layer, "payload_first")
+            second = snapshot(edge_layer, "payload_second")
+            assert first["drawOrderIndex"] == 0
+            assert second["drawOrderIndex"] == 1
+            assert len(first["crossingBreaks"]) >= 1
+            assert second["crossingBreaks"] == []
+            assert first["crossingSamplePoints"]
+            assert first["crossingBreaks"][0]["centerDistance"] > first["crossingBreaks"][0]["startDistance"]
+
+            edge_layer.deleteLater()
+            app.processEvents()
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_edge_layer_gap_break_preserves_bezier_hit_testing_inside_visual_gap(self) -> None:
+        self._run_edge_layer_probe(
+            "edge-layer-gap-break-bezier-hit-testing",
+            """
+            def bezier_edge(edge_id, sx, sy, tx, ty):
+                return {
+                    "edge_id": edge_id,
+                    "source_node_id": "",
+                    "source_port_key": "",
+                    "target_node_id": "",
+                    "target_port_key": "",
+                    "source_port_kind": "data",
+                    "target_port_kind": "data",
+                    "edge_family": "standard",
+                    "label": "",
+                    "visual_style": {},
+                    "flow_style": {},
+                    "source_port_side": "right",
+                    "target_port_side": "left",
+                    "source_anchor_side": "right",
+                    "target_anchor_side": "left",
+                    "source_anchor_kind": "scene",
+                    "target_anchor_kind": "scene",
+                    "source_anchor_node_id": "",
+                    "target_anchor_node_id": "",
+                    "source_hidden_by_backdrop_id": "",
+                    "target_hidden_by_backdrop_id": "",
+                    "source_anchor_bounds": None,
+                    "target_anchor_bounds": None,
+                    "lane_bias": 0.0,
+                    "sx": sx,
+                    "sy": sy,
+                    "tx": tx,
+                    "ty": ty,
+                    "c1x": sx + 72.0,
+                    "c1y": sy,
+                    "c2x": tx - 72.0,
+                    "c2y": ty,
+                    "route": "bezier",
+                    "pipe_points": [],
+                    "color": "#7AA8FF",
+                    "data_type_warning": False,
+                }
+
+            under_edge_id = "bezier_under"
+            over_edge_id = "bezier_over"
+            edge_layer.setProperty(
+                "edges",
+                [
+                    bezier_edge(under_edge_id, 80.0, 80.0, 320.0, 320.0),
+                    bezier_edge(over_edge_id, 80.0, 320.0, 320.0, 80.0),
+                ],
+            )
+            edge_layer.setProperty("edgeCrossingStyle", "gap_break")
+            view.centerOn(200.0, 200.0)
+            refresh(edge_layer)
+
+            under = snapshot(edge_layer, under_edge_id)
+            over = snapshot(edge_layer, over_edge_id)
+            assert under["drawOrderIndex"] == 0
+            assert over["drawOrderIndex"] == 1
+            assert len(under["crossingBreaks"]) >= 1
+            assert over["crossingBreaks"] == []
+
+            center_break = under["crossingBreaks"][0]
+            center_screen_x = edge_layer.sceneToScreenX(center_break["centerX"])
+            center_screen_y = edge_layer.sceneToScreenY(center_break["centerY"])
+            assert edge_layer.edgeAtScreen(center_screen_x, center_screen_y) == over_edge_id
+
+            for zoom in (1.0, 2.0, 0.5):
+                view.set_zoom(zoom)
+                app.processEvents()
+                refresh(edge_layer)
+                under = snapshot(edge_layer, under_edge_id)
+                center_break = under["crossingBreaks"][0]
+                scene_offset = 3.0 / float(view.zoom_value)
+                gap_scene_x = center_break["centerX"] + center_break["tangentX"] * scene_offset
+                gap_scene_y = center_break["centerY"] + center_break["tangentY"] * scene_offset
+                gap_screen_x = edge_layer.sceneToScreenX(gap_scene_x)
+                gap_screen_y = edge_layer.sceneToScreenY(gap_scene_y)
+                assert edge_layer.edgeAtScreen(gap_screen_x, gap_screen_y) == under_edge_id
+
+            edge_layer.deleteLater()
             app.processEvents()
             engine.deleteLater()
             app.processEvents()

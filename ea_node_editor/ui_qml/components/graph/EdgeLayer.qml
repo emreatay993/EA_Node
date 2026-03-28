@@ -49,6 +49,10 @@ Item {
     readonly property color flowDefaultLabelBorderColor: shellPalette.border || "#3a3d45"
     property real flowLabelHideZoomThreshold: 0.55
     property real flowLabelSimplifyZoomThreshold: 0.85
+    property real edgeCrossingGapScreenPx: 14.0
+    property real edgeCrossingAnchorGuardScreenPx: 18.0
+    property real edgeCrossingMergeScreenPx: 6.0
+    property real edgeCrossingSampleStepScreenPx: 10.0
 
     signal edgeClicked(string edgeId, bool additive)
     signal edgeContextRequested(string edgeId, real screenX, real screenY)
@@ -213,20 +217,104 @@ Item {
             );
         }
 
+        function tracePolylineGeometry(ctx, points) {
+            var polylinePoints = points || [];
+            for (var i = 0; i < polylinePoints.length; i++) {
+                var point = polylinePoints[i];
+                if (i === 0)
+                    ctx.moveTo(point.x, point.y);
+                else
+                    ctx.lineTo(point.x, point.y);
+            }
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+        }
+
+        function _tracePolylineSegmentSpan(ctx, segment, startDistance, endDistance) {
+            if (!segment || segment.length <= 1e-6)
+                return;
+            if (endDistance - startDistance <= 1e-6)
+                return;
+            var startFraction = EdgeMath.clamp(
+                (startDistance - segment.startDistance) / segment.length,
+                0.0,
+                1.0
+            );
+            var endFraction = EdgeMath.clamp(
+                (endDistance - segment.startDistance) / segment.length,
+                0.0,
+                1.0
+            );
+            if (endFraction - startFraction <= 1e-6)
+                return;
+            var startPoint = {
+                "x": segment.a.x + (segment.b.x - segment.a.x) * startFraction,
+                "y": segment.a.y + (segment.b.y - segment.a.y) * startFraction
+            };
+            var endPoint = {
+                "x": segment.a.x + (segment.b.x - segment.a.x) * endFraction,
+                "y": segment.a.y + (segment.b.y - segment.a.y) * endFraction
+            };
+            ctx.moveTo(startPoint.x, startPoint.y);
+            ctx.lineTo(endPoint.x, endPoint.y);
+        }
+
+        function traceBrokenGeometry(ctx, geometry, sampledPoints, breakRanges) {
+            var metrics = EdgeMath.polylineMetrics(sampledPoints || []);
+            if (!metrics.points.length) {
+                traceGeometry(ctx, geometry);
+                return;
+            }
+            if (!(breakRanges || []).length) {
+                tracePolylineGeometry(ctx, metrics.points);
+                return;
+            }
+            var ranges = breakRanges || [];
+            var rangeIndex = 0;
+            var segments = metrics.segments || [];
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+
+            for (var i = 0; i < segments.length; i++) {
+                var segment = segments[i];
+                var segmentStart = segment.startDistance;
+                var segmentEnd = segment.endDistance;
+                while (rangeIndex < ranges.length
+                       && Number(ranges[rangeIndex].endDistance) <= segmentStart + 1e-6) {
+                    rangeIndex += 1;
+                }
+                var visibleStart = segmentStart;
+                var scanIndex = rangeIndex;
+                while (scanIndex < ranges.length
+                       && Number(ranges[scanIndex].startDistance) < segmentEnd - 1e-6) {
+                    var gapRange = ranges[scanIndex];
+                    var gapStart = Number(gapRange.startDistance);
+                    var gapEnd = Number(gapRange.endDistance);
+                    if (gapStart > visibleStart + 1e-6) {
+                        _tracePolylineSegmentSpan(
+                            ctx,
+                            segment,
+                            visibleStart,
+                            Math.min(gapStart, segmentEnd)
+                        );
+                    }
+                    visibleStart = Math.max(visibleStart, Math.min(segmentEnd, gapEnd));
+                    if (gapEnd <= segmentEnd + 1e-6)
+                        scanIndex += 1;
+                    else
+                        break;
+                }
+                if (visibleStart < segmentEnd - 1e-6)
+                    _tracePolylineSegmentSpan(ctx, segment, visibleStart, segmentEnd);
+                rangeIndex = scanIndex;
+            }
+        }
+
         function traceGeometry(ctx, geometry) {
             if (!geometry)
                 return;
             if (geometry.route === "pipe") {
-                var pipePoints = geometry.pipe_points || [];
-                for (var i = 0; i < pipePoints.length; i++) {
-                    var point = pipePoints[i];
-                    if (i === 0)
-                        ctx.moveTo(point.x, point.y);
-                    else
-                        ctx.lineTo(point.x, point.y);
-                }
-                ctx.lineJoin = "round";
-                ctx.lineCap = "round";
+                tracePolylineGeometry(ctx, geometry.pipe_points || []);
                 return;
             }
             traceBezierGeometry(ctx, geometry);
@@ -290,6 +378,185 @@ Item {
                 ctx.stroke();
             }
             ctx.restore();
+        }
+    }
+
+    QtObject {
+        id: edgeCrossingPolicy
+
+        function decorationEnabled() {
+            return root.edgeCrossingStyle === "gap_break"
+                && root.performanceMode === "full_fidelity"
+                && !root.transientPerformanceActivityActive
+                && !root.transientDegradedWindowActive;
+        }
+
+        function _resetSnapshot(snapshot) {
+            if (!snapshot)
+                return;
+            snapshot.crossingBreaks = [];
+            snapshot.crossingSamplePoints = [];
+            snapshot.drawOrderIndex = -1;
+        }
+
+        function orderSnapshotsForDraw(snapshots) {
+            var background = [];
+            var elevated = [];
+            var sourceSnapshots = snapshots || [];
+            for (var i = 0; i < sourceSnapshots.length; i++) {
+                var snapshot = sourceSnapshots[i];
+                if (!snapshot)
+                    continue;
+                _resetSnapshot(snapshot);
+                if (snapshot.previewed || snapshot.selected)
+                    elevated.push(snapshot);
+                else
+                    background.push(snapshot);
+            }
+            var ordered = background.concat(elevated);
+            for (i = 0; i < ordered.length; i++)
+                ordered[i].drawOrderIndex = i;
+            return ordered;
+        }
+
+        function _samplingModelForSnapshot(snapshot, viewportTransform) {
+            if (!snapshot || snapshot.culled || !snapshot.geometry)
+                return null;
+            var sceneStep = viewportMath.screenLengthToScene(root.edgeCrossingSampleStepScreenPx, viewportTransform);
+            var points = EdgeMath.sampleGeometryPolyline(snapshot.geometry, sceneStep);
+            var metrics = EdgeMath.polylineMetrics(points);
+            if (!metrics.points.length || !metrics.segments.length || !metrics.bounds)
+                return null;
+            snapshot.crossingSamplePoints = metrics.points;
+            return {
+                "snapshot": snapshot,
+                "points": metrics.points,
+                "metrics": metrics
+            };
+        }
+
+        function _rawBreakRangesForPair(underModel, overModel, gapHalfScene, anchorMarginScene) {
+            var ranges = [];
+            if (!underModel || !overModel)
+                return ranges;
+            var underMetrics = underModel.metrics;
+            var overMetrics = overModel.metrics;
+            if (!EdgeMath.rectsIntersect(underMetrics.bounds, overMetrics.bounds))
+                return ranges;
+            var underSegments = underMetrics.segments || [];
+            var overSegments = overMetrics.segments || [];
+            for (var i = 0; i < underSegments.length; i++) {
+                var underSegment = underSegments[i];
+                for (var j = 0; j < overSegments.length; j++) {
+                    var overSegment = overSegments[j];
+                    if (!EdgeMath.rectsIntersect(underSegment.bounds, overSegment.bounds))
+                        continue;
+                    var intersection = EdgeMath.segmentIntersection(
+                        underSegment.a,
+                        underSegment.b,
+                        overSegment.a,
+                        overSegment.b
+                    );
+                    if (!intersection)
+                        continue;
+                    var underDistance = underSegment.startDistance + underSegment.length * intersection.tA;
+                    var overDistance = overSegment.startDistance + overSegment.length * intersection.tB;
+                    if (EdgeMath.distanceNearPolylineEndpoints(
+                            underDistance,
+                            underMetrics.totalLength,
+                            anchorMarginScene
+                        )) {
+                        continue;
+                    }
+                    if (EdgeMath.distanceNearPolylineEndpoints(
+                            overDistance,
+                            overMetrics.totalLength,
+                            anchorMarginScene
+                        )) {
+                        continue;
+                    }
+                    ranges.push({
+                        "startDistance": underDistance - gapHalfScene,
+                        "endDistance": underDistance + gapHalfScene
+                    });
+                }
+            }
+            return ranges;
+        }
+
+        function _enrichedBreakRanges(ranges, points, totalLength) {
+            var enriched = [];
+            var mergedRanges = ranges || [];
+            for (var i = 0; i < mergedRanges.length; i++) {
+                var range = mergedRanges[i];
+                var centerDistance = (Number(range.startDistance) + Number(range.endDistance)) * 0.5;
+                var fraction = totalLength > 1e-6 ? centerDistance / totalLength : 0.5;
+                var tangent = EdgeMath.pointTangentAlongPolyline(points, fraction);
+                enriched.push({
+                    "startDistance": Number(range.startDistance),
+                    "endDistance": Number(range.endDistance),
+                    "centerDistance": centerDistance,
+                    "centerX": tangent ? Number(tangent.x) : 0.0,
+                    "centerY": tangent ? Number(tangent.y) : 0.0,
+                    "tangentX": tangent ? Number(tangent.dx) : 1.0,
+                    "tangentY": tangent ? Number(tangent.dy) : 0.0
+                });
+            }
+            return enriched;
+        }
+
+        function applyCrossingMetadata(snapshots, viewportTransform) {
+            var ordered = orderSnapshotsForDraw(snapshots);
+            if (!decorationEnabled())
+                return ordered;
+
+            var gapHalfScene = viewportMath.screenLengthToScene(
+                root.edgeCrossingGapScreenPx * 0.5,
+                viewportTransform
+            );
+            var anchorMarginScene = viewportMath.screenLengthToScene(
+                root.edgeCrossingAnchorGuardScreenPx,
+                viewportTransform
+            );
+            var mergeGapScene = viewportMath.screenLengthToScene(
+                root.edgeCrossingMergeScreenPx,
+                viewportTransform
+            );
+            var samplingModels = [];
+            var i;
+
+            for (i = 0; i < ordered.length; i++) {
+                var model = _samplingModelForSnapshot(ordered[i], viewportTransform);
+                if (model)
+                    samplingModels.push(model);
+            }
+
+            for (i = 0; i < samplingModels.length; i++) {
+                var underModel = samplingModels[i];
+                var rawRanges = [];
+                for (var j = i + 1; j < samplingModels.length; j++) {
+                    rawRanges = rawRanges.concat(
+                        _rawBreakRangesForPair(
+                            underModel,
+                            samplingModels[j],
+                            gapHalfScene,
+                            anchorMarginScene
+                        )
+                    );
+                }
+                var merged = EdgeMath.mergeBreakRanges(
+                    rawRanges,
+                    mergeGapScene,
+                    underModel.metrics.totalLength
+                );
+                underModel.snapshot.crossingBreaks = _enrichedBreakRanges(
+                    merged,
+                    underModel.points,
+                    underModel.metrics.totalLength
+                );
+            }
+
+            return ordered;
         }
     }
 
@@ -1078,6 +1345,7 @@ Item {
         var edgesList = root.edges || [];
         var nodeById = root._getNodeMap();
         var viewportBounds = root._expandedVisibleSceneBounds();
+        var viewportTransform = viewportMath.viewportTransform();
 
         for (var i = 0; i < edgesList.length; i++) {
             var edge = edgesList[i];
@@ -1100,6 +1368,9 @@ Item {
                 "flowEdge": flowStylePolicy.edgeIsFlow(edge),
                 "labelText": flowLabelPolicy.edgeLabelText(edge),
                 "labelMode": labelMode,
+                "drawOrderIndex": i,
+                "crossingBreaks": [],
+                "crossingSamplePoints": [],
                 "labelAnchorScene": labelMode !== "hidden" && geometry
                     ? flowLabelPolicy.flowLabelAnchorScene(geometry)
                     : null
@@ -1107,6 +1378,8 @@ Item {
             snapshots.push(snapshot);
             snapshotById[edgeId] = snapshot;
         }
+
+        snapshots = edgeCrossingPolicy.applyCrossingMetadata(snapshots, viewportTransform);
 
         return {
             "snapshots": snapshots,
@@ -1206,9 +1479,13 @@ Item {
                 var selected = snapshot.selected;
                 var previewed = snapshot.previewed;
                 var flowEdge = snapshot.flowEdge;
+                var crossingBreaks = snapshot.crossingBreaks || [];
                 ctx.save();
                 ctx.beginPath();
-                edgeRenderer.traceGeometry(ctx, geometry);
+                if (crossingBreaks.length > 0)
+                    edgeRenderer.traceBrokenGeometry(ctx, geometry, snapshot.crossingSamplePoints || [], crossingBreaks);
+                else
+                    edgeRenderer.traceGeometry(ctx, geometry);
 
                 if (flowEdge) {
                     var flowStrokeColor = flowStylePolicy.flowStrokeColor(edge, selected, previewed);
@@ -1364,6 +1641,15 @@ Item {
     onEdgePaletteChanged: requestRedraw()
     onShellPaletteChanged: requestRedraw()
     onPortKindPaletteChanged: requestRedraw()
+    onEdgeCrossingStyleChanged: requestRedraw()
+    onPerformanceModeChanged: requestRedraw()
+    onTransientPerformanceActivityActiveChanged: {
+        if (root.transientPerformanceActivityActive)
+            markViewStateRedrawDirty()
+        else
+            requestRedraw()
+    }
+    onTransientDegradedWindowActiveChanged: requestRedraw()
     onEdgeLabelSimplificationActiveChanged: requestRedraw()
 
 }

@@ -10,8 +10,14 @@ from PyQt6.QtCore import QPoint
 from PyQt6.QtQuick import QQuickWindow
 from PyQt6.QtTest import QTest
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.decorators import in_port, node_type, out_port
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from tests.graph_track_b.scene_and_model import (
     QApplication,
     GraphThemeBridge,
@@ -59,6 +65,31 @@ def _named_child_items(root: QObject, object_name: str) -> list[QObject]:
 
     _walk(root)
     return matches
+
+
+@node_type(
+    type_id="tests.edge_crossing_pipe_probe_node",
+    display_name="Edge Crossing Pipe Probe",
+    category="Tests",
+    icon="branch",
+    ports=(
+        in_port("flow_in", kind="flow"),
+        out_port("flow_out", kind="flow"),
+    ),
+    properties=(),
+    runtime_behavior="passive",
+    surface_family="annotation",
+    surface_variant="sticky_note",
+)
+class _EdgeCrossingPipeProbeNode:
+    def execute(self, _ctx: ExecutionContext) -> NodeResult:
+        return NodeResult(outputs={})
+
+
+def _build_edge_crossing_pipe_registry() -> NodeRegistry:
+    registry = build_default_registry()
+    registry.register(_EdgeCrossingPipeProbeNode)
+    return registry
 
 
 class _GraphCanvasPerformancePreferenceBridge(_GraphCanvasPreferenceBridge):
@@ -132,6 +163,29 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
         self.app.processEvents()
         return canvas
+
+    def _create_edge_layer(self, initial_properties: dict[str, object] | None = None) -> QObject:
+        component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_EDGE_LAYER_QML_PATH)))
+        if component.status() != QQmlComponent.Status.Ready:
+            errors = "\n".join(str(error) for error in component.errors())
+            self.fail(f"Failed to load EdgeLayer.qml:\n{errors}")
+
+        properties = {"width": 1280.0, "height": 720.0}
+        if initial_properties:
+            properties.update(initial_properties)
+
+        if hasattr(component, "createWithInitialProperties"):
+            edge_layer = component.createWithInitialProperties(properties)
+        else:
+            edge_layer = component.create()
+            if edge_layer is not None:
+                for key, value in properties.items():
+                    edge_layer.setProperty(key, value)
+        if edge_layer is None:
+            errors = "\n".join(str(error) for error in component.errors())
+            self.fail(f"Failed to instantiate EdgeLayer.qml:\n{errors}")
+        self.app.processEvents()
+        return edge_layer
 
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
@@ -917,21 +971,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(edge_layer.property("liveNodeGeometry"), payload)
 
     def test_edge_layer_applies_live_drag_offsets_to_recomputed_node_port_geometry(self) -> None:
-        component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_EDGE_LAYER_QML_PATH)))
-        if component.status() != QQmlComponent.Status.Ready:
-            errors = "\n".join(str(error) for error in component.errors())
-            self.fail(f"Failed to load EdgeLayer.qml:\n{errors}")
-
-        if hasattr(component, "createWithInitialProperties"):
-            edge_layer = component.createWithInitialProperties({"width": 1280.0, "height": 720.0})
-        else:
-            edge_layer = component.create()
-            if edge_layer is not None:
-                edge_layer.setProperty("width", 1280.0)
-                edge_layer.setProperty("height", 720.0)
-        if edge_layer is None:
-            errors = "\n".join(str(error) for error in component.errors())
-            self.fail(f"Failed to instantiate EdgeLayer.qml:\n{errors}")
+        edge_layer = self._create_edge_layer()
 
         surface_metrics = {
             "default_width": 210.0,
@@ -1066,6 +1106,154 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertAlmostEqual(offset_geometry["c1y"], baseline_geometry["c1y"] + 20.0, places=6)
         self.assertAlmostEqual(offset_geometry["tx"], baseline_geometry["tx"], places=6)
         self.assertAlmostEqual(offset_geometry["ty"], baseline_geometry["ty"], places=6)
+
+        edge_layer.deleteLater()
+        self.app.processEvents()
+
+    def test_edge_layer_gap_break_metadata_respects_style_and_performance_gates(self) -> None:
+        edge_layer = self._create_edge_layer({"viewBridge": self.view})
+        self.view.centerOn(200.0, 200.0)
+        self.app.processEvents()
+
+        def _bezier_edge(edge_id: str, sx: float, sy: float, tx: float, ty: float) -> dict[str, object]:
+            return {
+                "edge_id": edge_id,
+                "source_node_id": "",
+                "source_port_key": "",
+                "target_node_id": "",
+                "target_port_key": "",
+                "source_port_kind": "data",
+                "target_port_kind": "data",
+                "edge_family": "standard",
+                "label": "",
+                "visual_style": {},
+                "flow_style": {},
+                "source_port_side": "right",
+                "target_port_side": "left",
+                "source_anchor_side": "right",
+                "target_anchor_side": "left",
+                "source_anchor_kind": "scene",
+                "target_anchor_kind": "scene",
+                "source_anchor_node_id": "",
+                "target_anchor_node_id": "",
+                "source_hidden_by_backdrop_id": "",
+                "target_hidden_by_backdrop_id": "",
+                "source_anchor_bounds": None,
+                "target_anchor_bounds": None,
+                "lane_bias": 0.0,
+                "sx": sx,
+                "sy": sy,
+                "tx": tx,
+                "ty": ty,
+                "c1x": sx + 72.0,
+                "c1y": sy,
+                "c2x": tx - 72.0,
+                "c2y": ty,
+                "route": "bezier",
+                "pipe_points": [],
+                "color": "#7AA8FF",
+                "data_type_warning": False,
+            }
+
+        selected_edge_id = "selected_over"
+        plain_edge_id = "plain_under"
+        edge_layer.setProperty(
+            "edges",
+            [
+                _bezier_edge(selected_edge_id, 80.0, 320.0, 320.0, 80.0),
+                _bezier_edge(plain_edge_id, 80.0, 80.0, 320.0, 320.0),
+            ],
+        )
+        edge_layer.setProperty("selectedEdgeIds", [selected_edge_id])
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        baseline_under = edge_layer._visibleEdgeSnapshot(plain_edge_id).toVariant()
+        baseline_selected = edge_layer._visibleEdgeSnapshot(selected_edge_id).toVariant()
+        self.assertEqual(baseline_under["drawOrderIndex"], 0)
+        self.assertEqual(baseline_selected["drawOrderIndex"], 1)
+        self.assertEqual(baseline_under["crossingBreaks"], [])
+        self.assertEqual(baseline_selected["crossingBreaks"], [])
+
+        edge_layer.setProperty("edgeCrossingStyle", "gap_break")
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        decorated_under = edge_layer._visibleEdgeSnapshot(plain_edge_id).toVariant()
+        decorated_selected = edge_layer._visibleEdgeSnapshot(selected_edge_id).toVariant()
+        self.assertEqual(decorated_under["drawOrderIndex"], 0)
+        self.assertEqual(decorated_selected["drawOrderIndex"], 1)
+        self.assertGreaterEqual(len(decorated_under["crossingBreaks"]), 1)
+        self.assertEqual(decorated_selected["crossingBreaks"], [])
+        self.assertIn("centerX", decorated_under["crossingBreaks"][0])
+        self.assertIn("tangentX", decorated_under["crossingBreaks"][0])
+
+        edge_layer.setProperty("performanceMode", "max_performance")
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        suppressed_under = edge_layer._visibleEdgeSnapshot(plain_edge_id).toVariant()
+        suppressed_selected = edge_layer._visibleEdgeSnapshot(selected_edge_id).toVariant()
+        self.assertEqual(suppressed_under["crossingBreaks"], [])
+        self.assertEqual(suppressed_selected["crossingBreaks"], [])
+
+        edge_layer.setProperty("performanceMode", "full_fidelity")
+        edge_layer.setProperty("transientDegradedWindowActive", True)
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        degraded_under = edge_layer._visibleEdgeSnapshot(plain_edge_id).toVariant()
+        degraded_selected = edge_layer._visibleEdgeSnapshot(selected_edge_id).toVariant()
+        self.assertEqual(degraded_under["crossingBreaks"], [])
+        self.assertEqual(degraded_selected["crossingBreaks"], [])
+
+        edge_layer.deleteLater()
+        self.app.processEvents()
+
+    def test_edge_layer_gap_break_marks_only_under_edge_for_pipe_pipe_crossings(self) -> None:
+        edge_layer = self._create_edge_layer({"viewBridge": self.view})
+        self.view.centerOn(280.0, 220.0)
+        self.app.processEvents()
+
+        model = GraphModel()
+        scene = GraphSceneBridge()
+        scene.set_workspace(
+            model,
+            _build_edge_crossing_pipe_registry(),
+            model.active_workspace.workspace_id,
+        )
+        upper_right_id = scene.add_node_from_type("tests.edge_crossing_pipe_probe_node", 420.0, 40.0)
+        lower_left_id = scene.add_node_from_type("tests.edge_crossing_pipe_probe_node", 40.0, 300.0)
+        lower_right_id = scene.add_node_from_type("tests.edge_crossing_pipe_probe_node", 420.0, 300.0)
+        upper_left_id = scene.add_node_from_type("tests.edge_crossing_pipe_probe_node", 40.0, 40.0)
+        under_edge_id = scene.add_edge(upper_right_id, "flow_out", lower_left_id, "flow_in")
+        over_edge_id = scene.add_edge(lower_right_id, "flow_out", upper_left_id, "flow_in")
+
+        edge_layer.setProperty("nodes", scene.nodes_model)
+        edge_layer.setProperty("edges", scene.edges_model)
+        edge_layer.setProperty("edgeCrossingStyle", "gap_break")
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        snapshots = [
+            edge_layer._visibleEdgeSnapshot(under_edge_id).toVariant(),
+            edge_layer._visibleEdgeSnapshot(over_edge_id).toVariant(),
+        ]
+        snapshots.sort(key=lambda payload: payload["drawOrderIndex"])
+        lower_snapshot, upper_snapshot = snapshots
+        self.assertEqual(lower_snapshot["geometry"]["route"], "pipe")
+        self.assertEqual(upper_snapshot["geometry"]["route"], "pipe")
+        self.assertEqual(lower_snapshot["drawOrderIndex"], 0)
+        self.assertEqual(upper_snapshot["drawOrderIndex"], 1)
+        self.assertGreaterEqual(len(lower_snapshot["crossingBreaks"]), 1)
+        self.assertEqual(upper_snapshot["crossingBreaks"], [])
+        self.assertIn("centerDistance", lower_snapshot["crossingBreaks"][0])
+        self.assertIn("tangentY", lower_snapshot["crossingBreaks"][0])
 
         edge_layer.deleteLater()
         self.app.processEvents()
