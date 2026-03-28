@@ -41,6 +41,7 @@ _SUBPROCESS_TEST_RUNNER = (
     "result = unittest.TextTestRunner(verbosity=2).run(suite); "
     "sys.exit(0 if result.wasSuccessful() else 1)"
 )
+_EDGE_LAYER_QML_PATH = _GRAPH_CANVAS_QML_PATH.parent / "graph" / "EdgeLayer.qml"
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QObject]:
@@ -885,6 +886,160 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         self.assertEqual(self.canvas.property("liveNodeGeometry"), payload)
         self.assertEqual(edge_layer.property("liveNodeGeometry"), payload)
+
+    def test_edge_layer_applies_live_drag_offsets_to_recomputed_node_port_geometry(self) -> None:
+        component = QQmlComponent(self.engine, QUrl.fromLocalFile(str(_EDGE_LAYER_QML_PATH)))
+        if component.status() != QQmlComponent.Status.Ready:
+            errors = "\n".join(str(error) for error in component.errors())
+            self.fail(f"Failed to load EdgeLayer.qml:\n{errors}")
+
+        if hasattr(component, "createWithInitialProperties"):
+            edge_layer = component.createWithInitialProperties({"width": 1280.0, "height": 720.0})
+        else:
+            edge_layer = component.create()
+            if edge_layer is not None:
+                edge_layer.setProperty("width", 1280.0)
+                edge_layer.setProperty("height", 720.0)
+        if edge_layer is None:
+            errors = "\n".join(str(error) for error in component.errors())
+            self.fail(f"Failed to instantiate EdgeLayer.qml:\n{errors}")
+
+        surface_metrics = {
+            "default_width": 210.0,
+            "default_height": 88.0,
+            "min_width": 120.0,
+            "min_height": 50.0,
+            "collapsed_width": 130.0,
+            "collapsed_height": 36.0,
+            "header_height": 24.0,
+            "header_top_margin": 4.0,
+            "body_top": 30.0,
+            "body_height": 30.0,
+            "port_top": 60.0,
+            "port_height": 18.0,
+            "port_center_offset": 6.0,
+            "port_side_margin": 8.0,
+            "port_dot_radius": 3.5,
+            "resize_handle_size": 16.0,
+        }
+        nodes = [
+            {
+                "node_id": "source",
+                "type_id": "core.logger",
+                "title": "Source",
+                "x": 100.0,
+                "y": 100.0,
+                "width": 210.0,
+                "height": 88.0,
+                "surface_family": "standard",
+                "surface_variant": "",
+                "collapsed": False,
+                "ports": [
+                    {
+                        "key": "out",
+                        "label": "Out",
+                        "direction": "out",
+                        "kind": "data",
+                        "data_type": "str",
+                        "connected": False,
+                        "side": "right",
+                    }
+                ],
+                "surface_metrics": surface_metrics,
+            },
+            {
+                "node_id": "target",
+                "type_id": "core.logger",
+                "title": "Target",
+                "x": 400.0,
+                "y": 100.0,
+                "width": 210.0,
+                "height": 88.0,
+                "surface_family": "standard",
+                "surface_variant": "",
+                "collapsed": False,
+                "ports": [
+                    {
+                        "key": "in",
+                        "label": "In",
+                        "direction": "in",
+                        "kind": "data",
+                        "data_type": "str",
+                        "connected": False,
+                        "side": "left",
+                    }
+                ],
+                "surface_metrics": surface_metrics,
+            },
+        ]
+        edge_payload = {
+            "edge_id": "edge_drag_offset_test",
+            "source_node_id": "source",
+            "source_port_key": "out",
+            "target_node_id": "target",
+            "target_port_key": "in",
+            "source_port_kind": "data",
+            "target_port_kind": "data",
+            "edge_family": "standard",
+            "label": "",
+            "visual_style": {},
+            "flow_style": {},
+            "source_port_side": "right",
+            "target_port_side": "left",
+            "source_anchor_side": "right",
+            "target_anchor_side": "left",
+            "source_anchor_kind": "node",
+            "target_anchor_kind": "node",
+            "source_anchor_node_id": "source",
+            "target_anchor_node_id": "target",
+            "source_hidden_by_backdrop_id": "",
+            "target_hidden_by_backdrop_id": "",
+            "source_anchor_bounds": {"x": 100.0, "y": 100.0, "width": 210.0, "height": 88.0},
+            "target_anchor_bounds": {"x": 400.0, "y": 100.0, "width": 210.0, "height": 88.0},
+            "lane_bias": 0.0,
+            "sx": 310.0,
+            "sy": 144.0,
+            "tx": 400.0,
+            "ty": 144.0,
+            "c1x": 366.0,
+            "c1y": 144.0,
+            "c2x": 344.0,
+            "c2y": 144.0,
+            "route": "bezier",
+            "pipe_points": [],
+            "color": "#7AA8FF",
+            "data_type_warning": False,
+        }
+
+        edge_layer.setProperty("nodes", nodes)
+        edge_layer.setProperty("edges", [edge_payload])
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        baseline_snapshot = edge_layer._visibleEdgeSnapshot("edge_drag_offset_test").toVariant()
+        baseline_geometry = dict(baseline_snapshot["geometry"])
+        baseline_redraws = int(edge_layer.property("_redrawRequestCount"))
+
+        edge_layer.setProperty("dragOffsets", {"source": {"dx": 40.0, "dy": 20.0}})
+        wait_for_condition_or_raise(
+            lambda: int(edge_layer.property("_redrawRequestCount")) > baseline_redraws,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for edge-layer drag offset redraw.",
+        )
+
+        offset_snapshot = edge_layer._visibleEdgeSnapshot("edge_drag_offset_test").toVariant()
+        offset_geometry = dict(offset_snapshot["geometry"])
+        self.assertAlmostEqual(offset_geometry["sx"], baseline_geometry["sx"] + 40.0, places=6)
+        self.assertAlmostEqual(offset_geometry["sy"], baseline_geometry["sy"] + 20.0, places=6)
+        self.assertAlmostEqual(offset_geometry["c1x"], baseline_geometry["c1x"] + 40.0, places=6)
+        self.assertAlmostEqual(offset_geometry["c1y"], baseline_geometry["c1y"] + 20.0, places=6)
+        self.assertAlmostEqual(offset_geometry["tx"], baseline_geometry["tx"], places=6)
+        self.assertAlmostEqual(offset_geometry["ty"], baseline_geometry["ty"], places=6)
+
+        edge_layer.deleteLater()
+        self.app.processEvents()
 
     def test_graph_canvas_propagates_visible_scene_rect_payload_to_edge_layer(self) -> None:
         edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")

@@ -728,8 +728,17 @@ Item {
             var anchorNode = nodeById[anchorNodeId];
             var portPoint = root._portScenePoint(anchorNode, portKey);
             if (portPoint) {
+                // Drag previews keep the scene payload static, so edge anchors need the
+                // transient node offset applied explicitly while the node is moving.
+                var nodeOffset = root.dragOffsets ? root.dragOffsets[anchorNodeId] : null;
+                var offsetX = nodeOffset ? Number(nodeOffset.dx) : 0.0;
+                var offsetY = nodeOffset ? Number(nodeOffset.dy) : 0.0;
+                if (!isFinite(offsetX))
+                    offsetX = 0.0;
+                if (!isFinite(offsetY))
+                    offsetY = 0.0;
                 return {
-                    "point": {"x": portPoint.x, "y": portPoint.y},
+                    "point": {"x": portPoint.x + offsetX, "y": portPoint.y + offsetY},
                     "bounds": bounds,
                     "side": side
                 };
