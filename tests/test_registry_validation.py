@@ -617,6 +617,81 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(data_output.kind, "data")
         self.assertEqual(data_output.data_type, "float")
 
+    def test_validated_mutation_service_round_trips_subnode_grouping_through_split_ops(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace = model.active_workspace
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+
+        start = mutations.add_node(type_id="core.start", title="Start", x=0.0, y=0.0)
+        logger = mutations.add_node(type_id="core.logger", title="Logger", x=220.0, y=0.0)
+        end = mutations.add_node(type_id="core.end", title="End", x=520.0, y=0.0)
+
+        mutations.add_edge(
+            source_node_id=start.node_id,
+            source_port_key="exec_out",
+            target_node_id=logger.node_id,
+            target_port_key="exec_in",
+        )
+        mutations.add_edge(
+            source_node_id=logger.node_id,
+            source_port_key="exec_out",
+            target_node_id=end.node_id,
+            target_port_key="exec_in",
+        )
+
+        grouped = mutations.group_selection_into_subnode(
+            selected_node_ids=[start.node_id, logger.node_id],
+            scope_path=[],
+            shell_x=140.0,
+            shell_y=40.0,
+        )
+
+        self.assertIsNotNone(grouped)
+        assert grouped is not None
+        self.assertEqual(workspace.nodes[grouped.shell_node_id].type_id, SUBNODE_TYPE_ID)
+        self.assertEqual(workspace.nodes[start.node_id].parent_node_id, grouped.shell_node_id)
+        self.assertEqual(workspace.nodes[logger.node_id].parent_node_id, grouped.shell_node_id)
+        self.assertEqual(len(grouped.created_pin_node_ids), 1)
+        self.assertTrue(
+            any(
+                edge.source_node_id == grouped.shell_node_id
+                and edge.target_node_id == end.node_id
+                and edge.target_port_key == "exec_in"
+                for edge in workspace.edges.values()
+            )
+        )
+
+        ungrouped = model.mutation_service(workspace.workspace_id).ungroup_subnode(
+            shell_node_id=grouped.shell_node_id
+        )
+
+        self.assertIsNotNone(ungrouped)
+        assert ungrouped is not None
+        self.assertEqual(ungrouped.removed_shell_node_id, grouped.shell_node_id)
+        self.assertCountEqual(ungrouped.removed_pin_node_ids, grouped.created_pin_node_ids)
+        self.assertNotIn(grouped.shell_node_id, workspace.nodes)
+        self.assertIsNone(workspace.nodes[start.node_id].parent_node_id)
+        self.assertIsNone(workspace.nodes[logger.node_id].parent_node_id)
+        self.assertTrue(
+            any(
+                edge.source_node_id == start.node_id
+                and edge.source_port_key == "exec_out"
+                and edge.target_node_id == logger.node_id
+                and edge.target_port_key == "exec_in"
+                for edge in workspace.edges.values()
+            )
+        )
+        self.assertTrue(
+            any(
+                edge.source_node_id == logger.node_id
+                and edge.source_port_key == "exec_out"
+                and edge.target_node_id == end.node_id
+                and edge.target_port_key == "exec_in"
+                for edge in workspace.edges.values()
+            )
+        )
+
     def test_default_registry_accepts_foundational_dpf_port_types_in_filters(self) -> None:
         registry = build_default_registry()
 

@@ -14,12 +14,12 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
 from ea_node_editor.graph.boundary_adapters import clamp_pdf_page_number, node_size
 from ea_node_editor.graph.hierarchy import normalize_scope_path, node_scope_path, scope_parent_id
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
-from ea_node_editor.graph.transforms import (
+from ea_node_editor.graph.transform_fragment_ops import _insert_graph_fragment_operation
+from ea_node_editor.graph.transform_grouping_ops import (
     GroupSubnodeResult,
     UngroupSubnodeResult,
-    _group_selection_into_subnode_transaction,
-    _insert_graph_fragment_transaction,
-    _ungroup_subnode_transaction,
+    _group_selection_into_subnode_operation,
+    _ungroup_subnode_operation,
 )
 from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID
 
@@ -126,7 +126,10 @@ class WorkspaceMutationService:
         self._normalize_pdf_panel_page_number(node.node_id, validated)
         return node
 
-    def add_node_raw(
+    # Packet-owned transform operations use these low-level record writers when a
+    # multi-step structural edit must stage graph state before the validated layer
+    # re-exposes the final graph shape.
+    def _add_node_record(
         self,
         *,
         type_id: str,
@@ -148,13 +151,13 @@ class WorkspaceMutationService:
             exposed_ports=None if exposed_ports is None else dict(exposed_ports),
             visual_style=None if visual_style is None else dict(visual_style),
         )
-        self.set_node_parent_raw(node.node_id, parent_node_id)
+        self._set_node_parent_record(node.node_id, parent_node_id)
         return node
 
     def set_node_parent(self, node_id: str, parent_node_id: str | None) -> bool:
         return self._validated().set_node_parent(node_id, parent_node_id)
 
-    def set_node_parent_raw(self, node_id: str, parent_node_id: str | None) -> bool:
+    def _set_node_parent_record(self, node_id: str, parent_node_id: str | None) -> bool:
         node = self.workspace.nodes[node_id]
         normalized_parent_id = str(parent_node_id or "").strip() or None
         if node.parent_node_id == normalized_parent_id:
@@ -182,7 +185,7 @@ class WorkspaceMutationService:
             visual_style=visual_style,
         )
 
-    def add_edge_raw(
+    def _add_edge_record(
         self,
         *,
         source_node_id: str,
@@ -245,13 +248,13 @@ class WorkspaceMutationService:
     def remove_edge(self, edge_id: str) -> None:
         self._validated().remove_edge(edge_id)
 
-    def remove_edge_raw(self, edge_id: str) -> None:
+    def _remove_edge_record(self, edge_id: str) -> None:
         self.model.remove_edge(self.workspace_id, edge_id)
 
     def remove_node(self, node_id: str) -> None:
         self._validated().remove_node(node_id)
 
-    def remove_node_raw(self, node_id: str) -> None:
+    def _remove_node_record(self, node_id: str) -> None:
         self.model.remove_node(self.workspace_id, node_id)
 
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
@@ -270,7 +273,7 @@ class WorkspaceMutationService:
     ) -> None:
         self._validated().set_node_geometry(node_id, x, y, width, height)
 
-    def set_node_fragment_state(
+    def _set_node_fragment_state_record(
         self,
         node_id: str,
         *,
@@ -303,9 +306,8 @@ class WorkspaceMutationService:
         delta_x: float,
         delta_y: float,
     ) -> list[str]:
-        return _insert_graph_fragment_transaction(
+        return _insert_graph_fragment_operation(
             mutations=self,
-            workspace=self.workspace,
             fragment_payload=fragment_payload,
             delta_x=delta_x,
             delta_y=delta_y,
@@ -321,10 +323,8 @@ class WorkspaceMutationService:
     ) -> GroupSubnodeResult | None:
         if self.registry is None:
             raise RuntimeError("Node registry is required for subnode grouping transactions.")
-        return _group_selection_into_subnode_transaction(
+        return _group_selection_into_subnode_operation(
             mutations=self,
-            registry=self.registry,
-            workspace=self.workspace,
             selected_node_ids=selected_node_ids,
             scope_path=scope_path,
             shell_x=shell_x,
@@ -332,9 +332,8 @@ class WorkspaceMutationService:
         )
 
     def ungroup_subnode(self, *, shell_node_id: object) -> UngroupSubnodeResult | None:
-        return _ungroup_subnode_transaction(
+        return _ungroup_subnode_operation(
             mutations=self,
-            workspace=self.workspace,
             shell_node_id=shell_node_id,
         )
 
