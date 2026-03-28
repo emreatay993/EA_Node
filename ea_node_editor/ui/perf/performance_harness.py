@@ -61,6 +61,8 @@ class BenchmarkConfig:
     interaction_zoom_min: float = 0.5
     interaction_zoom_max: float = 2.0
     performance_mode: str = "full_fidelity"
+    show_grid: bool = True
+    grid_style: str = "lines"
     scenario: str = _DEFAULT_BENCHMARK_SCENARIO
     interaction_warmup_samples: int = 3
 
@@ -92,6 +94,8 @@ class _InteractionBenchmarkSamples:
     node_drag_control_ms: list[float]
     warmup_samples: int
     performance_mode: str
+    show_grid: bool
+    grid_style: str
     resolved_performance_mode: str
     scenario: str
     media_surface_count: int
@@ -142,6 +146,8 @@ class _InteractionBenchmarkSamples:
             "steady_state_canvas_host_reused": True,
             "warmup_samples": self.warmup_samples,
             "performance_mode": self.performance_mode,
+            "show_grid": self.show_grid,
+            "grid_style": self.grid_style,
             "resolved_graphics_performance_mode": self.resolved_performance_mode,
             "scenario": self.scenario,
             "media_surface_count": self.media_surface_count,
@@ -278,6 +284,16 @@ def _normalize_benchmark_scenario(value: Any, default: str = _DEFAULT_BENCHMARK_
     return _DEFAULT_BENCHMARK_SCENARIO
 
 
+def _normalize_grid_style(value: Any, default: str = "lines") -> str:
+    normalized = str(value).strip().lower()
+    if normalized == "points":
+        return "points"
+    resolved_default = str(default).strip().lower()
+    if resolved_default == "points":
+        return "points"
+    return "lines"
+
+
 def _collect_environment_snapshot() -> dict[str, Any]:
     uname = platform.uname()
     return {
@@ -296,9 +312,18 @@ def _collect_environment_snapshot() -> dict[str, Any]:
 
 
 class _BenchmarkMainWindowBridge(QObject):
-    def __init__(self, *, performance_mode: str, parent: QObject | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        performance_mode: str,
+        show_grid: bool = True,
+        grid_style: str = "lines",
+        parent: QObject | None = None,
+    ) -> None:
         super().__init__(parent)
         self._graphics_performance_mode = normalize_graphics_performance_mode(performance_mode)
+        self._graphics_show_grid = bool(show_grid)
+        self._graphics_grid_style = _normalize_grid_style(grid_style)
 
     @pyqtProperty(bool, constant=True)
     def graphics_minimap_expanded(self) -> bool:
@@ -306,7 +331,11 @@ class _BenchmarkMainWindowBridge(QObject):
 
     @pyqtProperty(bool, constant=True)
     def graphics_show_grid(self) -> bool:
-        return True
+        return self._graphics_show_grid
+
+    @pyqtProperty(str, constant=True)
+    def graphics_grid_style(self) -> str:
+        return self._graphics_grid_style
 
     @pyqtProperty(bool, constant=True)
     def graphics_show_minimap(self) -> bool:
@@ -845,6 +874,8 @@ class _GraphCanvasBenchmarkHost:
         doc: dict[str, Any],
         workspace_id: str,
         performance_mode: str,
+        show_grid: bool,
+        grid_style: str,
     ) -> None:
         self.app = app
         serializer = JsonProjectSerializer(build_default_registry())
@@ -862,7 +893,11 @@ class _GraphCanvasBenchmarkHost:
         self.engine.addImageProvider(LOCAL_PDF_PREVIEW_PROVIDER_ID, LocalPdfPreviewImageProvider())
         self.theme_bridge = ThemeBridge(self.engine, theme_id=_CANVAS_THEME_ID)
         self.graph_theme_bridge = GraphThemeBridge(self.engine, theme_id=_CANVAS_GRAPH_THEME_ID)
-        self.main_window_bridge = _BenchmarkMainWindowBridge(performance_mode=performance_mode)
+        self.main_window_bridge = _BenchmarkMainWindowBridge(
+            performance_mode=performance_mode,
+            show_grid=show_grid,
+            grid_style=grid_style,
+        )
         self.canvas_state_bridge = GraphCanvasStateBridge(
             shell_window=self.main_window_bridge,  # type: ignore[arg-type]
             scene_bridge=self.scene,
@@ -1236,6 +1271,8 @@ def benchmark_pan_zoom_ms(
     zoom_min: float,
     zoom_max: float,
     performance_mode: str,
+    show_grid: bool,
+    grid_style: str,
     scenario: str,
     expected_media_surface_count: int = 0,
 ) -> dict[str, Any]:
@@ -1264,6 +1301,8 @@ def benchmark_pan_zoom_ms(
             doc=doc,
             workspace_id=workspace_id,
             performance_mode=performance_mode,
+            show_grid=show_grid,
+            grid_style=grid_style,
         )
         if expected_media_surface_count > 0:
             canvas_host.prepare_media_ready_view()
@@ -1346,6 +1385,8 @@ def benchmark_pan_zoom_ms(
         node_drag_control_ms=node_drag_control_samples_ms,
         warmup_samples=warmup_samples,
         performance_mode=performance_mode,
+        show_grid=show_grid,
+        grid_style=_normalize_grid_style(grid_style),
         resolved_performance_mode=resolved_performance_mode,
         scenario=scenario,
         media_surface_count=expected_media_surface_count,
@@ -1356,6 +1397,7 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     app = QApplication.instance() or QApplication([])
     _ = app
     performance_mode = normalize_graphics_performance_mode(config.performance_mode)
+    grid_style = _normalize_grid_style(config.grid_style)
     scenario = _normalize_benchmark_scenario(config.scenario)
 
     with _build_scenario_project(config) as scenario_project:
@@ -1378,6 +1420,8 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             zoom_min=config.interaction_zoom_min,
             zoom_max=config.interaction_zoom_max,
             performance_mode=performance_mode,
+            show_grid=bool(config.show_grid),
+            grid_style=grid_style,
             scenario=scenario,
             expected_media_surface_count=int(scenario_project.scenario_details["expected_media_surface_count"]),
         )
@@ -1407,6 +1451,8 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
             "interaction_zoom_min": config.interaction_zoom_min,
             "interaction_zoom_max": config.interaction_zoom_max,
             "performance_mode": performance_mode,
+            "show_grid": bool(config.show_grid),
+            "grid_style": grid_style,
             "scenario": scenario,
             "scenario_details": scenario_project.scenario_details,
         },
@@ -1476,6 +1522,8 @@ def _baseline_series_run(
         "mode": baseline_mode,
         "tag": baseline_tag,
         "performance_mode": str(run_report["config"]["performance_mode"]),
+        "show_grid": bool(run_report["config"].get("show_grid", True)),
+        "grid_style": str(run_report["config"].get("grid_style", "lines")),
         "scenario": str(run_report["config"]["scenario"]),
         "environment": run_report["environment"],
         "metrics": {
@@ -1522,6 +1570,8 @@ def _baseline_series_payload(
         "mode": baseline_mode,
         "tag": baseline_tag,
         "performance_mode": str(latest_report["config"]["performance_mode"]),
+        "show_grid": bool(latest_report["config"].get("show_grid", True)),
+        "grid_style": str(latest_report["config"].get("grid_style", "lines")),
         "scenario": str(latest_report["config"]["scenario"]),
         "run_count": baseline_runs,
         "runs": series_runs,
@@ -1609,6 +1659,10 @@ def _run_single_benchmark_subprocess(
             str(config.interaction_warmup_samples),
             "--performance-mode",
             str(config.performance_mode),
+            "--show-grid",
+            "true" if config.show_grid else "false",
+            "--grid-style",
+            str(config.grid_style),
             "--scenario",
             str(config.scenario),
             "--baseline-runs",
@@ -1674,6 +1728,8 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     lines.append(f"- Warmup samples: `{cfg.get('interaction_warmup_samples', 0)}`")
     lines.append(f"- Pan/zoom samples: `{cfg['interaction_samples']}`")
     lines.append(f"- Performance mode: `{cfg['performance_mode']}`")
+    lines.append(f"- Show grid: `{bool(cfg.get('show_grid', True))}`")
+    lines.append(f"- Grid style: `{cfg.get('grid_style', 'lines')}`")
     lines.append(f"- Scenario: `{cfg['scenario']}`")
     scenario_details = cfg.get("scenario_details", {})
     node_mix = scenario_details.get("node_mix", {})
@@ -1711,6 +1767,8 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
             f"- Theme pair: `{interaction_benchmark.get('theme_id', '')}` / `{interaction_benchmark.get('graph_theme_id', '')}`"
         )
         lines.append(f"- Selected performance mode: `{interaction_benchmark.get('performance_mode', '')}`")
+        lines.append(f"- Show grid: `{bool(interaction_benchmark.get('show_grid', True))}`")
+        lines.append(f"- Grid style: `{interaction_benchmark.get('grid_style', 'lines')}`")
         lines.append(
             f"- Resolved canvas mode: `{interaction_benchmark.get('resolved_graphics_performance_mode', '')}`"
         )
@@ -1784,6 +1842,8 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
         lines.append(f"- Mode: `{baseline_series.get('mode', 'offscreen')}`")
         lines.append(f"- Tag: `{baseline_series.get('tag', 'local')}`")
         lines.append(f"- Performance mode: `{baseline_series.get('performance_mode', 'full_fidelity')}`")
+        lines.append(f"- Show grid: `{bool(baseline_series.get('show_grid', True))}`")
+        lines.append(f"- Grid style: `{baseline_series.get('grid_style', 'lines')}`")
         lines.append(f"- Scenario: `{baseline_series.get('scenario', _DEFAULT_BENCHMARK_SCENARIO)}`")
         lines.append(f"- Run count: `{baseline_series.get('run_count', 0)}`")
         lines.append("")
@@ -1850,6 +1910,15 @@ def _write_markdown_report(report: dict[str, Any], path: Path) -> None:
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
+def _parse_bool_arg(value: str) -> bool:
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise argparse.ArgumentTypeError("expected one of: true, false, 1, 0, yes, no, on, off")
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Track H performance harness for COREX Node Editor.")
     parser.add_argument("--nodes", type=int, default=1000, help="Synthetic node count.")
@@ -1868,6 +1937,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         choices=("full_fidelity", "max_performance"),
         default="full_fidelity",
         help="Graphics performance mode applied to the benchmark canvas.",
+    )
+    parser.add_argument(
+        "--show-grid",
+        type=_parse_bool_arg,
+        default=True,
+        help="Whether the benchmark canvas renders the background grid.",
+    )
+    parser.add_argument(
+        "--grid-style",
+        choices=("lines", "points"),
+        default="lines",
+        help="Grid style applied when --show-grid is enabled.",
     )
     parser.add_argument(
         "--scenario",
@@ -1923,6 +2004,8 @@ def main(argv: list[str] | None = None) -> int:
         interaction_samples=args.interaction_samples,
         interaction_warmup_samples=args.interaction_warmup_samples,
         performance_mode=args.performance_mode,
+        show_grid=bool(args.show_grid),
+        grid_style=args.grid_style,
         scenario=args.scenario,
     )
     report = run_benchmark(
@@ -1951,6 +2034,8 @@ def main(argv: list[str] | None = None) -> int:
             f"{baseline.get('mode', 'offscreen')} baseline_runs={baseline.get('run_count', 1)}"
         )
     print(f"performance_mode={report['config']['performance_mode']}")
+    print(f"show_grid={bool(report['config'].get('show_grid', True))}")
+    print(f"grid_style={report['config'].get('grid_style', 'lines')}")
     print(f"scenario={report['config']['scenario']}")
     print(f"load_p50_ms={load['p50']:.3f}")
     print(f"load_p95_ms={load['p95']:.3f}")

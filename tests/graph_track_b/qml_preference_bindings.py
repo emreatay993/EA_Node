@@ -183,6 +183,31 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(str(background.property("gridStyle")), "points")
         self.assertEqual(str(background.property("effectiveGridStyle")), "points")
 
+    def test_graph_canvas_background_repaints_when_grid_mode_changes(self) -> None:
+        background = self.canvas.findChild(QObject, "graphCanvasBackground")
+        self.assertIsNotNone(background)
+
+        initial_redraw_count = int(background.property("_redrawRequestCount"))
+
+        self.bridge.set_graphics_grid_style_value("points")
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) > initial_redraw_count,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for grid canvas redraw after switching to point mode.",
+        )
+        self.assertEqual(str(background.property("effectiveGridStyle")), "points")
+
+        point_redraw_count = int(background.property("_redrawRequestCount"))
+        self.bridge.set_graphics_grid_style_value("lines")
+        wait_for_condition_or_raise(
+            lambda: int(background.property("_redrawRequestCount")) > point_redraw_count,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for grid canvas redraw after switching back to line mode.",
+        )
+        self.assertEqual(str(background.property("effectiveGridStyle")), "lines")
+
     def test_graph_canvas_passes_port_label_preference_into_graph_node_hosts(self) -> None:
         from PyQt6.QtCore import pyqtProperty, pyqtSignal
 
