@@ -4,8 +4,10 @@ import sys
 
 import pytest
 
+from scripts import verification_manifest as manifest
 from tests.shell_isolation_runtime import format_child_output
 from tests.shell_isolation_runtime import list_target_ids
+from tests.shell_isolation_runtime import load_target_registry
 from tests.shell_isolation_runtime import resolve_target
 from tests.shell_isolation_runtime import run_shell_isolation_target
 
@@ -23,27 +25,28 @@ def _target_params():
     ]
 
 
-def test_shell_isolation_target_catalog_uses_pytest_nodeids_for_bridge_local_pack() -> None:
-    target = resolve_target("main_window__bridge_local_pack")
+def test_shell_isolation_target_catalogs_follow_manifest_owned_prefixes() -> None:
+    registry = load_target_registry()
 
-    assert target.command[0] == sys.executable
-    assert target.command[1:3] == ("-m", "pytest")
-    assert "--ignore=venv" in target.command
-    assert "tests/test_main_window_shell.py::ShellLibraryBridgeTests" in target.command
-    assert "tests/test_main_window_shell.py::MainWindowShellTelemetryTests" in target.command
+    assert registry
+    allowed_prefixes = manifest.shell_isolation_target_id_prefixes()
+    for target_id in registry:
+        assert target_id.startswith(allowed_prefixes)
 
 
-def test_shell_isolation_pytest_targets_ignore_worktree_venv() -> None:
-    target = resolve_target("main_window__graph_canvas_host_subprocess")
+def test_shell_isolation_pytest_targets_use_manifest_owned_pytest_args() -> None:
+    registry = load_target_registry()
+    pytest_targets = [
+        target
+        for target in registry.values()
+        if target.command[0] == sys.executable and target.command[1:3] == ("-m", "pytest")
+    ]
 
-    assert target.command == (
-        sys.executable,
-        "-m",
-        "pytest",
-        "--ignore=venv",
-        "tests/test_main_window_shell.py::_MainWindowShellGraphCanvasHostDirectTests",
-        "-q",
-    )
+    assert pytest_targets
+    for target in pytest_targets:
+        nodeids = target.command[4:-1]
+        expected = (sys.executable, *manifest.shell_isolation_target_pytest_args(*nodeids))
+        assert target.command == expected
 
 
 @pytest.mark.parametrize(

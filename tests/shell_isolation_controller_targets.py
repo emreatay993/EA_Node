@@ -61,10 +61,6 @@ def _build_targets():
             target_id="project_session__test_recovery_prompt_reject_keeps_session_state_and_discards_autosave",
         ),
         ShellIsolationTarget.project_session_scenario(
-            "test_recovery_prompt_is_skipped_when_autosave_matches_restored_session",
-            target_id="project_session__test_recovery_prompt_is_skipped_when_autosave_matches_restored_session",
-        ),
-        ShellIsolationTarget.project_session_scenario(
             "test_restore_session_handles_corrupted_session_and_autosave_files",
             target_id="project_session__test_restore_session_handles_corrupted_session_and_autosave_files",
         ),

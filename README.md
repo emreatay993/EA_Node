@@ -321,7 +321,7 @@ audit them with:
 
 - The current architecture/docs closeout evidence is summarized in
   `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
-  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`,
+  `docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md`,
   `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - `fast` targets `pytest -m "not gui and not slow"` and, when
@@ -344,7 +344,10 @@ audit them with:
   `tests.test_shell_run_controller`, and
   `tests.test_shell_project_session_controller` catalogs; without
   `pytest-xdist`, the same phase falls back to serial pytest and preserves the
-  fresh-process model.
+  fresh-process model. The manifest-owned contract for that phase now lives in
+  `scripts/verification_manifest.py` (`SHELL_ISOLATION_SPEC` plus
+  `SHELL_ISOLATION_CATALOG_SPECS`) and is executed through
+  `tests/shell_isolation_runtime.py`.
 - The direct module-level shell `unittest` commands listed in
   `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md` remain supported for
   focused reruns outside the published `full` workflow.
@@ -392,7 +395,7 @@ Regenerate the committed app icon asset set with:
 - [Spec Pack Index](docs/specs/INDEX.md) -- requirements, ADRs, traceability
 - [Release Notes](RELEASE_NOTES.md) -- shipped capabilities and known risks
 - [Pilot Runbook](docs/PILOT_RUNBOOK.md) -- validation steps for pilot deployments
-- [Architecture Refactor QA Matrix](docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md) -- final docs/release guardrails, archived-evidence boundaries, and Windows-only follow-ups
+- [Architecture Maintainability Refactor QA Matrix](docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md) -- current docs/release guardrails, shell-isolation contract, historical pointers, and Windows-only follow-ups
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes

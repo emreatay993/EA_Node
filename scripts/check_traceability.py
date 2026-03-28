@@ -205,22 +205,26 @@ GRAPHICS_PERFORMANCE_MODES_TRACK_H_REPORT_FORBIDDEN_TOKENS = (
     "P08 did not rerun the performance harness.",
     "Interactive desktop/GPU validation remains required",
 )
-ARCHITECTURE_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
     "## Locked Scope",
+    "## Shell Isolation Contract",
     "## Final Verification Commands",
     "## Focused Narrow Reruns",
-    "## 2026-03-27 Execution Results",
+    "## 2026-03-28 Execution Results",
     "## Remaining Manual and Windows-Only Checks",
-    "## Archived Evidence Boundaries",
+    "## Historical References",
     "## Residual Risks",
     manifest.PACKAGING_WINDOWS_DOC,
     manifest.PILOT_RUNBOOK_DOC,
+    manifest.ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+    "tests/shell_isolation_runtime.py",
+    "tests/shell_isolation_main_window_targets.py",
+    "tests/shell_isolation_controller_targets.py",
     "RC_PACKAGING_REPORT.md",
     "PILOT_SIGNOFF.md",
-    "tests/test_packaging_configuration.py",
     manifest.MARKDOWN_HYGIENE_TEST,
 )
-ARCHITECTURE_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
     manifest.DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
     manifest.proof_audit_command(),
     f"{manifest.LOCAL_VENV_PYTHON_DISPLAY} {manifest.CHECK_MARKDOWN_LINKS_SCRIPT}",
@@ -388,6 +392,20 @@ def parse_markdown_table(section_text: str) -> list[dict[str, str]] | None:
             continue
         rows.append(dict(zip(headers, cells)))
     return rows
+
+
+def parse_traceability_rows(matrix_text: str) -> dict[str, dict[str, str]]:
+    """Parse the top-level requirement traceability table by requirement id."""
+
+    rows = parse_markdown_table(matrix_text)
+    if rows is None:
+        return {}
+    parsed: dict[str, dict[str, str]] = {}
+    for row in rows:
+        row_id = strip_code_fence(row.get("Requirement ID", ""))
+        if row_id:
+            parsed[row_id] = row
+    return parsed
 
 
 def table_after_heading(
@@ -753,12 +771,16 @@ def audit_track_h_report(text: str, relative_path: str, issues: list[str]) -> No
             issues.append(f"{relative_path}: found stale text: {forbidden}")
 
 
-def audit_architecture_refactor_qa_matrix(text: str, relative_path: str, issues: list[str]) -> None:
+def audit_architecture_maintainability_refactor_qa_matrix(
+    text: str,
+    relative_path: str,
+    issues: list[str],
+) -> None:
     require_tokens(
         text,
-        ARCHITECTURE_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
         relative_path=relative_path,
-        label="architecture-refactor qa matrix",
+        label="architecture-maintainability-refactor qa matrix",
         issues=issues,
     )
 
@@ -769,7 +791,7 @@ def audit_architecture_refactor_qa_matrix(text: str, relative_path: str, issues:
         issues=issues,
     )
     if final_rows is not None:
-        for command in ARCHITECTURE_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+        for command in ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
             row = find_row(
                 final_rows,
                 column="Command",
@@ -783,43 +805,48 @@ def audit_architecture_refactor_qa_matrix(text: str, relative_path: str, issues:
     execution_rows = table_after_heading(
         text,
         relative_path=relative_path,
-        heading="2026-03-27 Execution Results",
+        heading="2026-03-28 Execution Results",
         issues=issues,
     )
     if execution_rows is not None:
-        for command in ARCHITECTURE_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+        for command in ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
             require_command_result(
                 execution_rows,
                 relative_path=relative_path,
-                heading="2026-03-27 Execution Results",
+                heading="2026-03-28 Execution Results",
                 predicate=lambda value, command=command: value == command,
                 label=command,
                 issues=issues,
             )
 
 
-def find_traceability_row(matrix_text: str, row_id: str) -> str | None:
-    for line in matrix_text.splitlines():
-        if line.startswith(f"| {row_id} |"):
-            return line
-    return None
+def find_traceability_row(matrix_text: str, row_id: str) -> dict[str, str] | None:
+    return parse_traceability_rows(matrix_text).get(row_id)
 
 
 def audit_traceability_rows(matrix_text: str, issues: list[str]) -> None:
+    rows = parse_traceability_rows(matrix_text)
+    if not rows:
+        issues.append(f"{manifest.TRACEABILITY_MATRIX_DOC}: missing requirement traceability table")
+        return
+
     for row_id, required_tokens in TRACEABILITY_ROW_REQUIRED_TOKENS.items():
-        row = find_traceability_row(matrix_text, row_id)
+        row = rows.get(row_id)
         if row is None:
             issues.append(f"{manifest.TRACEABILITY_MATRIX_DOC}: missing row: {row_id}")
             continue
+        implementation_artifacts = row.get("Implementation Artifact", "")
         for token in required_tokens:
-            if token not in row:
+            if token not in implementation_artifacts:
                 issues.append(
-                    f"{manifest.TRACEABILITY_MATRIX_DOC}: row {row_id} missing required text: {token}"
+                    f"{manifest.TRACEABILITY_MATRIX_DOC}: row {row_id} missing implementation "
+                    f"artifact text: {token}"
                 )
         for token in TRACEABILITY_ROW_FORBIDDEN_TOKENS.get(row_id, ()):
-            if token in row:
+            if token in implementation_artifacts:
                 issues.append(
-                    f"{manifest.TRACEABILITY_MATRIX_DOC}: row {row_id} found stale text: {token}"
+                    f"{manifest.TRACEABILITY_MATRIX_DOC}: row {row_id} found stale implementation "
+                    f"artifact text: {token}"
                 )
 
 
@@ -832,7 +859,7 @@ SPECIAL_DOCUMENT_AUDITORS = {
     manifest.VERIFICATION_SPEED_MATRIX_DOC: audit_verification_speed_matrix,
     manifest.GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
     manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
-    manifest.ARCHITECTURE_REFACTOR_QA_MATRIX_DOC: audit_architecture_refactor_qa_matrix,
+    manifest.CURRENT_CLOSEOUT_QA_MATRIX_DOC: audit_architecture_maintainability_refactor_qa_matrix,
 }
 
 

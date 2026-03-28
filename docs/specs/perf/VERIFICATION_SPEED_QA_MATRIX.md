@@ -34,7 +34,8 @@
 - Each `tests/test_shell_isolation_phase.py` target launches its own child
   process through `tests/shell_isolation_runtime.py`, so QML shell state is
   not shared across catalog entries even when xdist schedules targets in
-  parallel.
+  parallel. `scripts/verification_manifest.py` owns that contract through
+  `SHELL_ISOLATION_SPEC` and `SHELL_ISOLATION_CATALOG_SPECS`.
 - The direct module-level shell commands remain supported for focused manual
   reruns, but they are not the documented `full` workflow:
   - `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m unittest tests.test_main_window_shell -v`
@@ -95,7 +96,7 @@
   local Markdown links inside the same active canonical docs.
 - The current public closeout evidence for those proof layers is summarized in
   `README.md`, `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
-  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`, and
+  `docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - Run both doc guards after editing verification docs, archived QA evidence
   summaries, release docs, or packet-owned traceability references.

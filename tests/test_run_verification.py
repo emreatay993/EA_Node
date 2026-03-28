@@ -170,7 +170,13 @@ class RunVerificationTests(unittest.TestCase):
     def test_shell_isolation_runtime_uses_manifest_owned_target_catalogs(self) -> None:
         self.assertEqual(
             self.manifest.shell_isolation_target_catalog_module_names(),
-            ("tests.shell_isolation_main_window_targets", "tests.shell_isolation_controller_targets"),
+            tuple(spec.module_name for spec in self.manifest.SHELL_ISOLATION_CATALOG_SPECS),
+        )
+
+    def test_shell_isolation_target_catalog_specs_own_target_prefixes(self) -> None:
+        self.assertEqual(
+            ("main_window__", "script_editor__", "run_controller__", "project_session__"),
+            self.manifest.shell_isolation_target_id_prefixes(),
         )
 
     def test_pytest_marker_catalogs_follow_verification_manifest(self) -> None:

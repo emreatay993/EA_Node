@@ -177,69 +177,77 @@ PYDPF_VIEWER_V1_QA_MATRIX_TOKENS = (
     "## Remaining Manual Smoke Checks",
     "## Future-Scope Deferrals",
 )
-ARCHITECTURE_REFACTOR_QA_MATRIX = (
-    REPO_ROOT / "docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md"
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md"
 )
-ARCHITECTURE_REFACTOR_FINAL_REGRESSION_COMMAND = (
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_FINAL_REGRESSION_COMMAND = (
     "./venv/Scripts/python.exe -m pytest "
-    "tests/test_run_verification.py tests/test_traceability_checker.py "
-    "tests/test_packaging_configuration.py tests/test_dead_code_hygiene.py "
-    "tests/test_markdown_hygiene.py --ignore=venv -q"
+    "tests/test_dead_code_hygiene.py tests/test_run_verification.py "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py "
+    "tests/test_shell_isolation_phase.py --ignore=venv -q"
 )
-ARCHITECTURE_REFACTOR_TRACEABILITY_COMMAND = "./venv/Scripts/python.exe scripts/check_traceability.py"
-ARCHITECTURE_REFACTOR_MARKDOWN_COMMAND = "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
 
-ARCHITECTURE_REFACTOR_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
         "REQ-QA-025": (
             "scripts/check_markdown_links.py",
             "docs/PACKAGING_WINDOWS.md",
             "docs/PILOT_RUNBOOK.md",
             "docs/specs/INDEX.md",
-            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
         ),
         "AC-REQ-QA-025-01": (
-            ARCHITECTURE_REFACTOR_FINAL_REGRESSION_COMMAND,
-            ARCHITECTURE_REFACTOR_TRACEABILITY_COMMAND,
-            ARCHITECTURE_REFACTOR_MARKDOWN_COMMAND,
-            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            ARCHITECTURE_MAINTAINABILITY_REFACTOR_FINAL_REGRESSION_COMMAND,
+            ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_COMMAND,
+            ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND,
+            "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
         ),
     },
 }
 
-ARCHITECTURE_REFACTOR_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
     "REQ-QA-025": (
         "ARCHITECTURE.md",
         "docs/PACKAGING_WINDOWS.md",
         "docs/PILOT_RUNBOOK.md",
         "docs/specs/INDEX.md",
-        "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+        "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
         "scripts/check_markdown_links.py",
-        "tests/test_packaging_configuration.py",
+        "tests/test_shell_isolation_phase.py",
         "tests/test_markdown_hygiene.py",
     ),
     "AC-REQ-QA-025-01": (
-        ARCHITECTURE_REFACTOR_FINAL_REGRESSION_COMMAND,
-        ARCHITECTURE_REFACTOR_TRACEABILITY_COMMAND,
-        ARCHITECTURE_REFACTOR_MARKDOWN_COMMAND,
-        "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_FINAL_REGRESSION_COMMAND,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_COMMAND,
+        ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND,
+        "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
     ),
 }
 
-ARCHITECTURE_REFACTOR_QA_MATRIX_TOKENS = (
-    "Architecture Refactor QA Matrix",
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_TOKENS = (
+    "Architecture Maintainability Refactor QA Matrix",
     "## Locked Scope",
-    ARCHITECTURE_REFACTOR_FINAL_REGRESSION_COMMAND,
-    ARCHITECTURE_REFACTOR_TRACEABILITY_COMMAND,
-    ARCHITECTURE_REFACTOR_MARKDOWN_COMMAND,
+    "## Shell Isolation Contract",
+    ARCHITECTURE_MAINTAINABILITY_REFACTOR_FINAL_REGRESSION_COMMAND,
+    ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_COMMAND,
+    ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND,
     "docs/PACKAGING_WINDOWS.md",
     "docs/PILOT_RUNBOOK.md",
+    "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
     "RC_PACKAGING_REPORT.md",
     "PILOT_SIGNOFF.md",
-    "tests/test_packaging_configuration.py",
+    "tests/shell_isolation_runtime.py",
+    "tests/shell_isolation_main_window_targets.py",
+    "tests/shell_isolation_controller_targets.py",
     "tests/test_markdown_hygiene.py",
     "## Remaining Manual and Windows-Only Checks",
-    "## Archived Evidence Boundaries",
+    "## Historical References",
 )
 
 
@@ -304,6 +312,19 @@ def parse_requirement_lines(text: str) -> dict[str, str]:
     return parsed
 
 
+def parse_markdown_table(text: str) -> list[dict[str, str]]:
+    table_lines = [line for line in text.splitlines() if line.startswith("|")]
+    if len(table_lines) < 2:
+        raise AssertionError("Markdown table not found.")
+    headers = [cell.strip() for cell in table_lines[0].strip().strip("|").split("|")]
+    rows: list[dict[str, str]] = []
+    for line in table_lines[2:]:
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) == len(headers):
+            rows.append(dict(zip(headers, cells)))
+    return rows
+
+
 def requirement_line(path: Path, requirement_id: str) -> str:
     requirements = parse_requirement_lines(path.read_text(encoding="utf-8-sig"))
     body = requirements.get(requirement_id)
@@ -313,9 +334,10 @@ def requirement_line(path: Path, requirement_id: str) -> str:
 
 
 def traceability_row(path: Path, row_id: str) -> str:
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
-        if line.startswith(f"| {row_id} |"):
-            return line
+    rows = parse_markdown_table(path.read_text(encoding="utf-8-sig"))
+    for row in rows:
+        if row.get("Requirement ID") == row_id:
+            return row.get("Implementation Artifact", "")
     raise AssertionError(f"Traceability row not found: {row_id}")
 
 
@@ -442,8 +464,8 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
         self.assertIn(
-            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row AC-REQ-QA-018-01 missing required text: "
-            "artifacts/graphics_performance_modes_docs/track_h_benchmark_report.json",
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row AC-REQ-QA-018-01 missing implementation "
+            "artifact text: artifacts/graphics_performance_modes_docs/track_h_benchmark_report.json",
             issues,
         )
 
@@ -512,8 +534,8 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
         self.assertIn(
-            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-UI-024 missing required text: "
-            "ShellStatusStrip.qml",
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-UI-024 missing implementation "
+            "artifact text: ShellStatusStrip.qml",
             issues,
         )
 
@@ -595,7 +617,8 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
         self.assertIn(
-            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-015 missing required text: {self.manifest.SHELL_ISOLATION_SPEC.test_path}",
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-015 missing implementation "
+            f"artifact text: {self.manifest.SHELL_ISOLATION_SPEC.test_path}",
             issues,
         )
 
@@ -611,12 +634,12 @@ class TraceabilityCheckerTests(unittest.TestCase):
             )
             replace_text(
                 repo_root / "docs/specs/INDEX.md",
-                "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
-                "ARCHITECTURE_REFACTOR_MATRIX.md",
+                "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
+                "ARCHITECTURE_MAINTAINABILITY_REFACTOR_MATRIX.md",
             )
             update_markdown_table_result(
-                repo_root / "docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md",
-                ARCHITECTURE_REFACTOR_MARKDOWN_COMMAND,
+                repo_root / "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
+                ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND,
                 "Pending",
                 "Markdown links were not rerun after the doc refresh",
             )
@@ -628,12 +651,13 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
         self.assertIn(
-            "docs/specs/INDEX.md: missing required text: ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            "docs/specs/INDEX.md: missing required text: ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
             issues,
         )
         self.assertIn(
-            "docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md: 2026-03-27 Execution Results command "
-            f"{ARCHITECTURE_REFACTOR_MARKDOWN_COMMAND} has unexpected result: Pending",
+            "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md: "
+            "2026-03-28 Execution Results command "
+            f"{ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND} has unexpected result: Pending",
             issues,
         )
 
@@ -677,24 +701,24 @@ class TraceabilityCheckerTests(unittest.TestCase):
         for token in PYDPF_VIEWER_V1_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
-    def test_architecture_refactor_docs_record_final_scope_tokens(self) -> None:
-        for relative_path, requirement_tokens in ARCHITECTURE_REFACTOR_REQUIREMENT_TOKENS.items():
+    def test_architecture_maintainability_refactor_docs_record_final_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in ARCHITECTURE_MAINTAINABILITY_REFACTOR_REQUIREMENT_TOKENS.items():
             path = REPO_ROOT / relative_path
             for requirement_id, tokens in requirement_tokens.items():
                 body = requirement_line(path, requirement_id)
                 for token in tokens:
                     self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
 
-    def test_architecture_refactor_traceability_rows_reference_packet_artifacts(self) -> None:
+    def test_architecture_maintainability_refactor_traceability_rows_reference_packet_artifacts(self) -> None:
         traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
-        for row_id, tokens in ARCHITECTURE_REFACTOR_TRACEABILITY_ROW_TOKENS.items():
+        for row_id, tokens in ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_ROW_TOKENS.items():
             row_text = traceability_row(traceability_path, row_id)
             for token in tokens:
                 self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
 
-    def test_architecture_refactor_qa_matrix_records_commands_and_boundaries(self) -> None:
-        text = ARCHITECTURE_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
-        for token in ARCHITECTURE_REFACTOR_QA_MATRIX_TOKENS:
+    def test_architecture_maintainability_refactor_qa_matrix_records_commands_and_boundaries(self) -> None:
+        text = ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
 

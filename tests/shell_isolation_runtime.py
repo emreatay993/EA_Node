@@ -163,19 +163,25 @@ class ShellIsolationTarget:
 
 def load_target_registry() -> dict[str, ShellIsolationTarget]:
     registry: dict[str, ShellIsolationTarget] = {}
-    for module_name in manifest.shell_isolation_target_catalog_module_names():
-        catalog_module = importlib.import_module(module_name)
+    for catalog_spec in manifest.SHELL_ISOLATION_CATALOG_SPECS:
+        catalog_module = importlib.import_module(catalog_spec.module_name)
         targets = getattr(catalog_module, "TARGETS", ())
         for target in targets:
             if not isinstance(target, ShellIsolationTarget):
                 raise TypeError(
-                    f"{module_name}.TARGETS must contain ShellIsolationTarget instances; "
+                    f"{catalog_spec.module_name}.TARGETS must contain ShellIsolationTarget instances; "
                     f"got {type(target).__name__}."
+                )
+            if not target.target_id.startswith(catalog_spec.target_id_prefixes):
+                expected_prefixes = ", ".join(catalog_spec.target_id_prefixes)
+                raise ValueError(
+                    f"{catalog_spec.module_name} target_id {target.target_id!r} must start with one "
+                    f"of: {expected_prefixes}."
                 )
             if target.target_id in registry:
                 raise ValueError(
                     f"Duplicate shell isolation target_id {target.target_id!r} "
-                    f"found while loading {module_name}."
+                    f"found while loading {catalog_spec.module_name}."
                 )
             registry[target.target_id] = target
     return registry

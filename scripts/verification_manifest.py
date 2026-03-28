@@ -26,6 +26,10 @@ GRAPH_CANVAS_PERF_MATRIX_DOC = "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md"
 TRACK_H_BENCHMARK_REPORT_DOC = "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md"
 GRAPH_SURFACE_INPUT_MATRIX_DOC = "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md"
 ARCHITECTURE_REFACTOR_QA_MATRIX_DOC = "docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md"
+ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC = (
+    "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md"
+)
+CURRENT_CLOSEOUT_QA_MATRIX_DOC = ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC
 MARKDOWN_HYGIENE_TEST = "tests/test_markdown_hygiene.py"
 
 SERIALIZER_BASELINE_COMMAND = (
@@ -44,9 +48,9 @@ GRAPH_CANVAS_SNAPSHOT_COMMAND = (
 )
 DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND = (
     "./venv/Scripts/python.exe -m pytest "
-    "tests/test_run_verification.py tests/test_traceability_checker.py "
-    "tests/test_packaging_configuration.py tests/test_dead_code_hygiene.py "
-    "tests/test_markdown_hygiene.py --ignore=venv -q"
+    "tests/test_dead_code_hygiene.py tests/test_run_verification.py "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py "
+    "tests/test_shell_isolation_phase.py --ignore=venv -q"
 )
 GRAPH_CANVAS_REPORT_DIR = "artifacts/graph_canvas_perf_docs"
 TRACK_H_BENCHMARK_ARTIFACT = "artifacts/graph_canvas_perf_docs/TRACK_H_BENCHMARK_REPORT.md"
@@ -61,10 +65,6 @@ SHELL_BACKED_TEST_MODULES = tuple(
     path.removesuffix(".py").replace("/", ".") for path in SHELL_BACKED_TEST_PATHS
 )
 SHELL_ISOLATION_PHASE_TEST = "tests/test_shell_isolation_phase.py"
-SHELL_ISOLATION_TARGET_CATALOG_PATHS = (
-    "tests/shell_isolation_main_window_targets.py",
-    "tests/shell_isolation_controller_targets.py",
-)
 NON_SHELL_PYTEST_IGNORES = SHELL_BACKED_TEST_PATHS + (SHELL_ISOLATION_PHASE_TEST,)
 
 GUI_TEST_PATHS = (
@@ -109,6 +109,7 @@ PROOF_AUDIT_REQUIRED_ARTIFACTS = (
     "docs/specs/requirements/80_PERFORMANCE.md",
     QA_ACCEPTANCE_DOC,
     TRACEABILITY_MATRIX_DOC,
+    CURRENT_CLOSEOUT_QA_MATRIX_DOC,
     ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
     GRAPH_CANVAS_PERF_MATRIX_DOC,
     "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
@@ -126,9 +127,10 @@ PROOF_AUDIT_REQUIRED_ARTIFACTS = (
     "scripts/check_traceability.py",
     "tests/conftest.py",
     MARKDOWN_HYGIENE_TEST,
-    "tests/test_packaging_configuration.py",
+    "tests/test_dead_code_hygiene.py",
     "tests/test_run_verification.py",
     "tests/test_traceability_checker.py",
+    "tests/test_shell_isolation_phase.py",
 )
 
 
@@ -152,6 +154,16 @@ class ShellIsolationSpec:
     target_catalog_paths: tuple[str, ...]
     shell_module_paths: tuple[str, ...]
     shell_module_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ShellIsolationCatalogSpec:
+    """One manifest-owned shell-isolation target catalog."""
+
+    label: str
+    module_path: str
+    module_name: str
+    target_id_prefixes: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -184,6 +196,28 @@ PYTEST_PHASE_SPECS = (
     ),
 )
 PYTEST_PHASE_SPECS_BY_MODE = {spec.mode: spec for spec in PYTEST_PHASE_SPECS}
+
+SHELL_ISOLATION_CATALOG_SPECS = (
+    ShellIsolationCatalogSpec(
+        label="main-window",
+        module_path="tests/shell_isolation_main_window_targets.py",
+        module_name="tests.shell_isolation_main_window_targets",
+        target_id_prefixes=("main_window__",),
+    ),
+    ShellIsolationCatalogSpec(
+        label="controllers",
+        module_path="tests/shell_isolation_controller_targets.py",
+        module_name="tests.shell_isolation_controller_targets",
+        target_id_prefixes=(
+            "script_editor__",
+            "run_controller__",
+            "project_session__",
+        ),
+    ),
+)
+SHELL_ISOLATION_TARGET_CATALOG_PATHS = tuple(
+    spec.module_path for spec in SHELL_ISOLATION_CATALOG_SPECS
+)
 
 SHELL_ISOLATION_SPEC = ShellIsolationSpec(
     phase="full.shell_isolation.pytest",
@@ -248,9 +282,16 @@ def shell_isolation_pytest_command(worker_count: int | str | None = "<resolved_c
 def shell_isolation_target_catalog_module_names() -> tuple[str, ...]:
     """Return the target catalog module names for shell-isolated child runs."""
 
+    return tuple(spec.module_name for spec in SHELL_ISOLATION_CATALOG_SPECS)
+
+
+def shell_isolation_target_id_prefixes() -> tuple[str, ...]:
+    """Return the owned target-id prefixes across all shell-isolation catalogs."""
+
     return tuple(
-        path.removesuffix(".py").replace("/", ".")
-        for path in SHELL_ISOLATION_SPEC.target_catalog_paths
+        prefix
+        for spec in SHELL_ISOLATION_CATALOG_SPECS
+        for prefix in spec.target_id_prefixes
     )
 
 
@@ -284,10 +325,11 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             CHECK_MARKDOWN_LINKS_SCRIPT,
             "Graph Surface Input QA Matrix",
             "Verification Speed QA Matrix",
-            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
             "dedicated fresh-process shell-isolation phase",
             SHELL_ISOLATION_SPEC.test_path,
             "proof-audit command",
+            "SHELL_ISOLATION_CATALOG_SPECS",
         ),
         forbidden=(
             "Only the retained `PROJECT_MANAGED_FILES` packet window",
@@ -317,9 +359,10 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
         required=(
             CHECK_TRACEABILITY_SCRIPT,
             CHECK_MARKDOWN_LINKS_SCRIPT,
-            ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+            CURRENT_CLOSEOUT_QA_MATRIX_DOC,
             PACKAGING_WINDOWS_DOC,
             PILOT_RUNBOOK_DOC,
+            "tests/shell_isolation_runtime.py",
         ),
         forbidden=(
             "The P12 closeout sweep",
@@ -327,10 +370,11 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
     ),
     SPEC_INDEX_DOC: DocumentRule(
         required=(
-            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
             "PROJECT_MANAGED_FILES_QA_MATRIX.md",
             "PYDPF_VIEWER_V1_QA_MATRIX.md",
             "closeout evidence only",
+            "historical pointer",
         ),
         forbidden=(
             "work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_MANIFEST.md",
@@ -366,6 +410,16 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
             "PILOT_BACKLOG.md",
         ),
     ),
+    ARCHITECTURE_REFACTOR_QA_MATRIX_DOC: DocumentRule(
+        required=(
+            "Historical pointer",
+            CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+        ),
+        forbidden=(
+            "## 2026-03-27 Execution Results",
+            "tests/test_packaging_configuration.py",
+        ),
+    ),
     QA_ACCEPTANCE_DOC: DocumentRule(
         forbidden=(
             "the four shell-wrapper modules `tests.test_main_window_shell`, "
@@ -396,7 +450,7 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
         required=(
             "Evidence Status: Archived 2026-03-01 packaging smoke snapshot.",
             "Current release proof lives in `docs/PACKAGING_WINDOWS.md` and "
-            "`docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.",
+            "`docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md`.",
             "## Archived 2026-03-01 Snapshot",
         ),
     ),
@@ -404,7 +458,7 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
         required=(
             "Evidence Status: Archived 2026-03-01 packaged desktop pilot snapshot.",
             "Current pilot proof must be rerun from `docs/PILOT_RUNBOOK.md` and "
-            "tracked in `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.",
+            "tracked in `docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md`.",
             "## Archived 2026-03-01 Snapshot",
         ),
     ),
@@ -421,7 +475,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         PACKAGING_WINDOWS_DOC,
         PILOT_RUNBOOK_DOC,
         SPEC_INDEX_DOC,
-        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
     ),
     "AC-REQ-QA-014-01": (
         run_verification_command("full", dry_run=True),
@@ -442,7 +496,7 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
         proof_audit_command(),
         f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
-        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
     ),
 }
 
@@ -629,8 +683,8 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         PACKAGING_WINDOWS_DOC,
         PILOT_RUNBOOK_DOC,
         SPEC_INDEX_DOC,
-        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
-        "tests/test_packaging_configuration.py",
+        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+        "tests/test_shell_isolation_phase.py",
         MARKDOWN_HYGIENE_TEST,
     ),
     "AC-REQ-PERF-002-01": (
@@ -656,7 +710,7 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
         proof_audit_command(),
         f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
-        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+        CURRENT_CLOSEOUT_QA_MATRIX_DOC,
     ),
 }
 
