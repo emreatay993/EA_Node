@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path, PurePosixPath
 from uuid import uuid4
 
-from ea_node_editor.nodes.plugin_loader import _load_plugins_from_package_directory
+from ea_node_editor.nodes import plugin_loader
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import PluginDescriptor
 from ea_node_editor.settings import plugins_dir
@@ -298,7 +298,7 @@ def _discovered_package_node_ids(
     descriptor_overrides: dict[str, tuple[PluginDescriptor, ...]] | None = None,
 ) -> tuple[str, ...]:
     registry = NodeRegistry()
-    loaded_type_ids = _load_plugins_from_package_directory(
+    loaded_type_ids = plugin_loader.discover_package_plugins(
         package_dir,
         registry,
         descriptor_overrides=descriptor_overrides,

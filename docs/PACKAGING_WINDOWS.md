@@ -1,138 +1,120 @@
-# Windows Packaging Guide (PyInstaller)
+# Windows Packaging Guide
 
-This project ships a Windows package using PyInstaller and the repository-root spec file `ea_node_editor.spec`.
-The packaged executable icon is embedded from `ea_node_editor/assets/app_icon/corex_app.ico`.
+This repository ships Windows release artifacts from the repository-root
+PyInstaller spec file `ea_node_editor.spec`. The active release flow is
+profile-aware: `base` is the default packaged app, and `viewer` adds the
+optional PyDPF/PyVista runtime stack.
 
 ## Prerequisites
 
-- Virtualenv exists at `venv\`.
-- Build dependency installed: `venv\Scripts\python -m pip install pyinstaller`.
+- Use the project venv at `venv\`.
+- Base profile: install `.[dev]` or at minimum `pyinstaller` in that venv.
+- Viewer profile: install `.[ansys,viewer]` or `.[dev]` in that venv before
+  packaging.
+- If the icon assets change, regenerate the committed SVG/PNG/ICO set first:
+  `.\venv\Scripts\python.exe .\scripts\generate_app_icons.py`
 
-## Build Command
+## Build Commands
+
+Base package with the default startup smoke check:
 
 ```powershell
-.\scripts\build_windows_package.ps1 -Clean
+.\scripts\build_windows_package.ps1 -PackageProfile base -Clean
 ```
 
-If the app icon assets change, regenerate the committed SVG/PNG/ICO set first:
+Viewer-enabled package without the startup smoke check:
 
 ```powershell
-.\venv\Scripts\python.exe .\scripts\generate_app_icons.py
+.\scripts\build_windows_package.ps1 -PackageProfile viewer -Clean -SkipSmoke
 ```
 
-## Optional Flags
+Useful flags:
 
 - `-SkipSmoke`: build only, no startup smoke check.
 - `-SmokeSeconds <int>`: startup smoke duration in seconds (default `5`).
-- `-DependencyMatrixPath <path>`: output path for optional dependency policy matrix (default `docs\specs\perf\rc3\dependency_matrix.csv`).
+- `-DependencyMatrixPath <path>`: override the generated dependency policy CSV.
+  The default path is `artifacts\releases\packaging\<profile>\dependency_matrix.csv`.
 
-## Output Folder Conventions
+## Output Paths
 
-- `artifacts\pyinstaller\build\`:
-  PyInstaller work files (safe to delete).
-- `artifacts\pyinstaller\dist\COREX_Node_Editor\`:
-  distributable onedir package.
-- `artifacts\pyinstaller\dist\COREX_Node_Editor\COREX_Node_Editor.exe`:
-  packaged desktop executable.
-- `ea_node_editor.spec`:
-  repository-root PyInstaller build configuration used by the script.
+- PyInstaller build cache: `artifacts\pyinstaller\build\<profile>\`
+- PyInstaller dist root: `artifacts\pyinstaller\dist\<profile>\COREX_Node_Editor\`
+- Base executable: `artifacts\pyinstaller\dist\base\COREX_Node_Editor\COREX_Node_Editor.exe`
+- Viewer executable: `artifacts\pyinstaller\dist\viewer\COREX_Node_Editor\COREX_Node_Editor.exe`
+- Dependency matrix CSV: `artifacts\releases\packaging\<profile>\dependency_matrix.csv`
 
-## Smoke Test Command
+The build script sets `EA_NODE_EDITOR_PACKAGE_PROFILE` for the PyInstaller run,
+verifies the expected executable exists, and by default launches it under
+`QT_QPA_PLATFORM=offscreen` for a short liveness smoke test.
 
-The build script runs an automated startup smoke test by default:
+## Installer Pipeline
 
-1. sets `QT_QPA_PLATFORM=offscreen`,
-2. launches `COREX_Node_Editor.exe`,
-3. waits for the configured short duration,
-4. fails if process exits early,
-5. terminates the process after successful startup verification.
-
-Manual smoke run:
+Generate and validate an installer bundle from an existing dist folder:
 
 ```powershell
-.\scripts\build_windows_package.ps1 -SmokeSeconds 8
+.\scripts\build_windows_installer.ps1 -PackageProfile base
 ```
 
-## Notes
-
-- The onedir output is preferred for RC reliability and simpler diagnostics.
-
-## Optional Dependency Policy
-
-The packaging script now emits a deterministic dependency matrix CSV on each build run:
-
-- `docs\specs\perf\rc3\dependency_matrix.csv`
-
-Current dependency contract:
-
-- `openpyxl`:
-  - Source runtime: CSV flows are always supported; XLSX flows require `openpyxl`.
-  - Packaged runtime: same behavior, with deterministic runtime guidance to rebuild package with `openpyxl` in build environment.
-  - Policy: optional include, bundle only when installed in build environment.
-- `psutil`:
-  - Source runtime: live system metrics require `psutil`.
-  - Packaged runtime: packaged builds must include `psutil` so the telemetry strip reports live CPU/RAM readings.
-  - Policy: required dependency; treat missing installation as a packaging defect.
-
-Recommended packaging command for policy evidence:
+Viewer installer bundle from the viewer dist output:
 
 ```powershell
-.\scripts\build_windows_package.ps1 -SkipSmoke -DependencyMatrixPath docs\specs\perf\rc3\dependency_matrix.csv
+.\scripts\build_windows_installer.ps1 -PackageProfile viewer
 ```
 
-## Installer Pipeline (RC3)
+Installer outputs are written under `artifacts\releases\installer\<profile>\<run_id>\`
+and include:
 
-Generate unattended installer bundle artifacts and validate install/uninstall lifecycle:
+- `COREX_Node_Editor_installer_bundle_<run_id>.zip`
+- `scripts\Install-COREX_Node_Editor.ps1`
+- `scripts\Uninstall-COREX_Node_Editor.ps1`
+- `installer_manifest.json`
+- `installer_validation.json`
+
+The installer script validates install, offscreen startup, and uninstall before
+reporting `PASS`.
+
+## Signing and Verification
+
+Capture a verify-only signing snapshot for the latest installer run in the
+selected profile:
 
 ```powershell
-.\scripts\build_windows_installer.ps1
+.\scripts\sign_release_artifacts.ps1 -PackageProfile base -VerifyOnly
 ```
 
-Installer outputs are written under:
-
-- `artifacts\releases\installer\<run_id>\`
-  - `COREX_Node_Editor_installer_bundle_<run_id>.zip`
-  - `scripts\Install-COREX_Node_Editor.ps1`
-  - `scripts\Uninstall-COREX_Node_Editor.ps1`
-  - `installer_manifest.json`
-  - `installer_validation.json`
-
-Validation performed by the installer script:
-
-1. Install payload to a temporary target root.
-2. Verify installed `COREX_Node_Editor.exe` exists.
-3. Launch installed executable in `QT_QPA_PLATFORM=offscreen` mode for short liveness check.
-4. Execute uninstall and verify executable removal.
-
-The existing OneDir output remains the fallback distribution path.
-
-## Signing and Verification (RC3)
-
-Validate signing metadata for release artifacts:
+Sign then verify the latest profile-specific package and installer artifacts:
 
 ```powershell
-.\scripts\sign_release_artifacts.ps1 -VerifyOnly
+.\scripts\sign_release_artifacts.ps1 -PackageProfile base -CertThumbprint <thumbprint> -TimestampServer <url> -RequireSignedArtifacts
 ```
 
-Sign then verify signable targets (certificate material is externalized):
+The signing script defaults to profile-aware paths:
 
-```powershell
-.\scripts\sign_release_artifacts.ps1 -CertThumbprint <thumbprint> -TimestampServer <url> -RequireSignedArtifacts
-```
+- Base signing output root: `artifacts\releases\signing\base\`
+- Viewer signing output root: `artifacts\releases\signing\viewer\`
+- Packaged executable: `artifacts\pyinstaller\dist\<profile>\COREX_Node_Editor\COREX_Node_Editor.exe`
+- Installer root: `artifacts\releases\installer\<profile>\`
 
 Environment variable equivalents:
 
-- `EA_SIGN_CERT_THUMBPRINT`: signing certificate thumbprint (no private key material stored in repo).
-- `EA_SIGN_TIMESTAMP_URL`: RFC3161/AuthentiCode timestamp URL.
-- `EA_SIGN_REQUIRE_SIGNED`: strict validation gate (`1|true|yes`) for signable artifacts.
+- `EA_SIGN_CERT_THUMBPRINT`
+- `EA_SIGN_TIMESTAMP_URL`
+- `EA_SIGN_REQUIRE_SIGNED`
 
-Signing evidence outputs:
+Each signing run writes:
 
-- `artifacts\releases\signing\<run_id>\signing_manifest.json`
-- `artifacts\releases\signing\<run_id>\signing_summary.md`
+- `artifacts\releases\signing\<profile>\<run_id>\signing_manifest.json`
+- `artifacts\releases\signing\<profile>\<run_id>\signing_summary.md`
 
-Validation behavior:
+## Release-Doc Guardrails
 
-1. Collect signature snapshots for packaged executable and latest installer scripts.
-2. Optionally apply signatures when certificate thumbprint is supplied.
-3. Fail fast with non-zero exit when missing artifacts are detected or strict signature verification fails.
+- `tests/test_packaging_configuration.py` checks that `pyproject.toml`,
+  `ea_node_editor.spec`, and the Windows packaging scripts stay aligned.
+- `tests/test_markdown_hygiene.py` plus
+  `.\venv\Scripts\python.exe .\scripts\check_markdown_links.py` catch broken
+  canonical-doc links.
+- `.\venv\Scripts\python.exe .\scripts\check_traceability.py` is the semantic
+  proof gate for packaging, spec-index, pilot, and final QA-matrix drift.
+
+See `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md` for the final
+cross-packet release follow-ups and the archived-evidence boundaries.

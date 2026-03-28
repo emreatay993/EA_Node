@@ -185,9 +185,7 @@ class GraphCanvasBridge(QObject):
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def backdrop_nodes_model(self) -> list[dict]:
-        scene_bridge = self.scene_bridge
-        payload = getattr(scene_bridge, "backdrop_nodes_model", []) if scene_bridge is not None else []
-        return list(payload) if isinstance(payload, list) else []
+        return self._state_bridge.backdrop_nodes_model
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def minimap_nodes_model(self) -> list[dict]:
@@ -211,25 +209,11 @@ class GraphCanvasBridge(QObject):
 
     @pyqtSlot(bool)
     def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
-        _invoke_chain(
-            (
-                getattr(self.shell_window, "graph_canvas_presenter", None),
-                self.shell_window,
-            ),
-            "set_graphics_show_port_labels",
-            show_port_labels,
-        )
+        self._command_bridge.set_graphics_show_port_labels(show_port_labels)
 
     @pyqtSlot(str)
     def set_graphics_performance_mode(self, mode: str) -> None:
-        _invoke_chain(
-            (
-                getattr(self.shell_window, "graph_canvas_presenter", None),
-                self.shell_window,
-            ),
-            "set_graphics_performance_mode",
-            mode,
-        )
+        self._command_bridge.set_graphics_performance_mode(mode)
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:

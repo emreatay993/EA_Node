@@ -5,7 +5,6 @@ from collections.abc import Callable
 from typing import Any
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QBrush, QColor, QFont
 from PyQt6.QtWidgets import (
     QDialog,
     QFormLayout,
@@ -34,7 +33,6 @@ from ea_node_editor.ui.dialogs.passive_style_controls import (
 )
 from ea_node_editor.ui.graph_theme import (
     DEFAULT_GRAPH_THEME_ID,
-    GRAPH_THEME_REGISTRY,
     create_blank_custom_graph_theme,
     duplicate_graph_theme_as_custom,
     is_custom_graph_theme_id,
@@ -42,88 +40,16 @@ from ea_node_editor.ui.graph_theme import (
     resolve_graph_theme_id,
     serialize_custom_graph_themes,
 )
+from ea_node_editor.ui.dialogs.graph_theme_editor_support import (
+    CollapsibleSection,
+    build_theme_tree_items,
+    custom_theme_index,
+    h_separator,
+    is_active_explicit_custom_theme,
+    resolve_preview_metadata,
+    token_label,
+)
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
-
-_TOKEN_LABEL_EXPANSIONS: dict[str, str] = {
-    "bg": "Background",
-    "fg": "Foreground",
-    "btn": "Button",
-}
-
-
-# ---------------------------------------------------------------------------
-# Helper widgets
-# ---------------------------------------------------------------------------
-
-
-class _CollapsibleSection(QWidget):
-    """A collapsible section with a toggle header and a content area."""
-
-    def __init__(
-        self,
-        title: str,
-        token_count: int,
-        parent: QWidget | None = None,
-        *,
-        initially_expanded: bool = True,
-    ) -> None:
-        super().__init__(parent)
-        self._title = title
-        self._token_count = token_count
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        self._toggle_button = QPushButton(self)
-        self._toggle_button.setCheckable(True)
-        self._toggle_button.setFlat(True)
-        self._toggle_button.setFixedHeight(32)
-        self._toggle_button.setObjectName("collapsibleSectionHeader")
-        self._toggle_button.setStyleSheet(
-            "QPushButton#collapsibleSectionHeader {"
-            "  text-align: left;"
-            "  font-weight: 600;"
-            "  padding: 4px 8px;"
-            "  border: none;"
-            "  border-bottom: 1px solid palette(mid);"
-            "}"
-            "QPushButton#collapsibleSectionHeader:hover {"
-            "  background: rgba(128, 128, 128, 0.1);"
-            "}"
-        )
-        self._toggle_button.toggled.connect(self._on_toggled)
-        layout.addWidget(self._toggle_button)
-
-        self._content = QWidget(self)
-        content_layout = QVBoxLayout(self._content)
-        content_layout.setContentsMargins(0, 4, 0, 4)
-        content_layout.setSpacing(0)
-        layout.addWidget(self._content)
-
-        self._toggle_button.setChecked(initially_expanded)
-        self._update_header_text(initially_expanded)
-
-    @property
-    def content_widget(self) -> QWidget:
-        return self._content
-
-    @property
-    def expanded(self) -> bool:
-        return self._toggle_button.isChecked()
-
-    @expanded.setter
-    def expanded(self, value: bool) -> None:
-        self._toggle_button.setChecked(value)
-
-    def _on_toggled(self, checked: bool) -> None:
-        self._content.setVisible(checked)
-        self._update_header_text(checked)
-
-    def _update_header_text(self, expanded: bool) -> None:
-        arrow = "\u25BC" if expanded else "\u25B6"
-        self._toggle_button.setText(f"  {arrow}  {self._title} ({self._token_count})")
-
 
 # ---------------------------------------------------------------------------
 # Main dialog
@@ -166,7 +92,7 @@ class GraphThemeEditorDialog(QDialog):
         self._token_swatch_frames: dict[str, dict[str, QFrame]] = {}
         self._suppress_token_sync = False
         self._collapsed_sections: dict[str, bool] = {}
-        self._collapsible_sections: dict[str, _CollapsibleSection] = {}
+        self._collapsible_sections: dict[str, CollapsibleSection] = {}
 
         self._build_ui()
         self._rebuild_theme_tree(selected_theme_id=self._preview_theme_id)
@@ -217,7 +143,7 @@ class GraphThemeEditorDialog(QDialog):
         top_bar = self._build_top_bar()
         root.addWidget(top_bar)
 
-        sep1 = _h_separator()
+        sep1 = h_separator()
         root.addWidget(sep1)
 
         # --- Splitter ---
@@ -229,7 +155,7 @@ class GraphThemeEditorDialog(QDialog):
         splitter.setStretchFactor(1, 1)
         root.addWidget(splitter, stretch=1)
 
-        sep2 = _h_separator()
+        sep2 = h_separator()
         root.addWidget(sep2)
 
         # --- Bottom bar ---
@@ -379,7 +305,7 @@ class GraphThemeEditorDialog(QDialog):
             token_count = len(section_mapping)
 
             initially_expanded = self._collapsed_sections.get(section_name, True)
-            collapsible = _CollapsibleSection(
+            collapsible = CollapsibleSection(
                 section_title, token_count, preview_content, initially_expanded=initially_expanded
             )
             self._collapsible_sections[section_name] = collapsible
@@ -395,7 +321,7 @@ class GraphThemeEditorDialog(QDialog):
                 control = ColorHexFieldControl(
                     collapsible.content_widget,
                     allow_empty=False,
-                    color_dialog_title=f"Pick color for {_token_label(token_name)}",
+                    color_dialog_title=f"Pick color for {token_label(token_name)}",
                 )
                 control.setObjectNames(
                     value_name=f"{section_name}_{token_name}_value",
@@ -408,7 +334,7 @@ class GraphThemeEditorDialog(QDialog):
                         text,
                     )
                 )
-                form.addRow(_token_label(token_name), control)
+                form.addRow(token_label(token_name), control)
 
                 value_fields[token_name] = control.line_edit
                 swatch_frames[token_name] = control.swatch
@@ -435,43 +361,13 @@ class GraphThemeEditorDialog(QDialog):
 
         self.theme_tree.blockSignals(True)
         self.theme_tree.clear()
-        self._theme_items = {}
-
-        active_id = resolve_graph_theme_id(self._explicit_theme_id, custom_themes=self._custom_graph_themes)
-        bold_font = QFont()
-        bold_font.setBold(True)
-        muted_brush = QBrush(QColor("#8899aa"))
-
-        built_in_root = _section_item("Built-in Themes")
-        built_in_root.setForeground(0, muted_brush)
-        for theme in GRAPH_THEME_REGISTRY.values():
-            label = theme.label
-            if theme.theme_id == active_id:
-                label += " (active)"
-            item = QTreeWidgetItem([label])
-            item.setData(0, self._THEME_ID_ROLE, theme.theme_id)
-            if theme.theme_id == active_id:
-                item.setFont(0, bold_font)
-            built_in_root.addChild(item)
-            self._theme_items[theme.theme_id] = item
-        self.theme_tree.addTopLevelItem(built_in_root)
-        built_in_root.setExpanded(True)
-
-        custom_root = _section_item("Custom Themes")
-        custom_root.setForeground(0, muted_brush)
-        for theme in self._custom_graph_themes:
-            theme_id = str(theme.get("theme_id", "")).strip()
-            label = str(theme.get("label", theme_id)).strip() or theme_id
-            if theme_id == active_id:
-                label += " (active)"
-            item = QTreeWidgetItem([label])
-            item.setData(0, self._THEME_ID_ROLE, theme_id)
-            if theme_id == active_id:
-                item.setFont(0, bold_font)
-            custom_root.addChild(item)
-            self._theme_items[theme_id] = item
-        self.theme_tree.addTopLevelItem(custom_root)
-        custom_root.setExpanded(True)
+        tree_roots, self._theme_items = build_theme_tree_items(
+            custom_graph_themes=self._custom_graph_themes,
+            explicit_theme_id=self._explicit_theme_id,
+            theme_id_role=self._THEME_ID_ROLE,
+        )
+        for root_item in tree_roots:
+            self.theme_tree.addTopLevelItem(root_item)
         self.theme_tree.blockSignals(False)
 
         self._select_theme_item(selection)
@@ -503,26 +399,22 @@ class GraphThemeEditorDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _sync_preview(self) -> None:
-        theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
-        is_custom = is_custom_graph_theme_id(theme.theme_id)
-        is_active_explicit = self._is_active_explicit_custom_theme(theme.theme_id)
+        preview_metadata = resolve_preview_metadata(
+            preview_theme_id=self._preview_theme_id,
+            explicit_theme_id=self._explicit_theme_id,
+            custom_graph_themes=self._custom_graph_themes,
+            follow_shell_theme=self._follow_shell_theme,
+        )
+        theme = preview_metadata.theme
+        is_custom = preview_metadata.is_custom
 
         # Top bar
         self._top_bar_name.setText(theme.label)
         self._top_bar_id.setText(theme.theme_id)
-        if is_active_explicit:
-            self._top_bar_status.setText("Custom theme (editable, active explicit theme)")
-        elif is_custom:
-            self._top_bar_status.setText("Custom theme (editable)")
-        else:
-            self._top_bar_status.setText("Built-in theme (read-only)")
+        self._top_bar_status.setText(preview_metadata.status_text)
 
         # Context note
-        self.preview_note.setText(
-            "Duplicate a built-in theme to create an editable copy."
-            if not is_custom
-            else "Editing tokens applies live when this is the active theme."
-        )
+        self.preview_note.setText(preview_metadata.preview_note)
 
         # Token fields
         self._suppress_token_sync = True
@@ -570,7 +462,7 @@ class GraphThemeEditorDialog(QDialog):
 
     def _rename_selected_theme(self) -> None:
         theme_id = self._preview_theme_id
-        index = _custom_theme_index(self._custom_graph_themes, theme_id)
+        index = custom_theme_index(self._custom_graph_themes, theme_id)
         if index < 0:
             return
         current_label = str(self._custom_graph_themes[index].get("label", "")).strip()
@@ -591,7 +483,7 @@ class GraphThemeEditorDialog(QDialog):
 
     def _delete_selected_theme(self) -> None:
         theme_id = self._preview_theme_id
-        index = _custom_theme_index(self._custom_graph_themes, theme_id)
+        index = custom_theme_index(self._custom_graph_themes, theme_id)
         if index < 0:
             return
         label = str(self._custom_graph_themes[index].get("label", theme_id)).strip() or str(theme_id)
@@ -657,7 +549,7 @@ class GraphThemeEditorDialog(QDialog):
         if self._suppress_token_sync:
             return
         theme_id = self._preview_theme_id
-        theme_index = _custom_theme_index(self._custom_graph_themes, theme_id)
+        theme_index = custom_theme_index(self._custom_graph_themes, theme_id)
         if theme_index < 0:
             return
 
@@ -692,11 +584,12 @@ class GraphThemeEditorDialog(QDialog):
         self._live_apply_callback(self.graph_theme_settings())
 
     def _is_active_explicit_custom_theme(self, theme_id: object) -> bool:
-        if self._follow_shell_theme:
-            return False
-        resolved_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
-        explicit_theme_id = resolve_graph_theme_id(self._explicit_theme_id, custom_themes=self._custom_graph_themes)
-        return is_custom_graph_theme_id(resolved_theme_id) and resolved_theme_id == explicit_theme_id
+        return is_active_explicit_custom_theme(
+            theme_id=theme_id,
+            explicit_theme_id=self._explicit_theme_id,
+            custom_graph_themes=self._custom_graph_themes,
+            follow_shell_theme=self._follow_shell_theme,
+        )
 
     def _set_token_swatch(self, section_name: str, token_name: str, token_value: str) -> None:
         self._token_swatch_frames[section_name][token_name].setStyleSheet(swatch_style(token_value))
@@ -721,40 +614,5 @@ class GraphThemeEditorDialog(QDialog):
             return None
         normalized = str(theme_id).strip()
         return normalized or None
-
-
-# ---------------------------------------------------------------------------
-# Module-level helpers
-# ---------------------------------------------------------------------------
-
-
-def _custom_theme_index(custom_themes: list[dict[str, object]], theme_id: object) -> int:
-    normalized_theme_id = str(theme_id).strip().lower()
-    for index, theme in enumerate(custom_themes):
-        if str(theme.get("theme_id", "")).strip().lower() == normalized_theme_id:
-            return index
-    return -1
-
-
-def _section_item(label: str) -> QTreeWidgetItem:
-    item = QTreeWidgetItem([label])
-    item.setFlags(Qt.ItemFlag.ItemIsEnabled)
-    return item
-
-
-def _token_label(token_name: str) -> str:
-    parts = str(token_name).split("_")
-    expanded = [_TOKEN_LABEL_EXPANSIONS.get(p, p) for p in parts]
-    return " ".join(expanded).title()
-
-
-def _h_separator() -> QFrame:
-    sep = QFrame()
-    sep.setFrameShape(QFrame.Shape.HLine)
-    sep.setFrameShadow(QFrame.Shadow.Plain)
-    sep.setFixedHeight(1)
-    sep.setStyleSheet("color: rgba(128, 128, 128, 0.3);")
-    return sep
-
 
 __all__ = ["GraphThemeEditorDialog"]

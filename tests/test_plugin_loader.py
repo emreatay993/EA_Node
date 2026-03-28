@@ -108,6 +108,43 @@ class PackagePlugin:
     assert descriptor.provenance.source_path == (package_dir / "package_plugin.py").resolve()
 
 
+def test_discover_package_plugins_loads_one_package_directory(tmp_path: Path) -> None:
+    package_dir = tmp_path / "plugins" / "example_package"
+    _write_text(package_dir / "helper.py", 'DISPLAY_NAME = "Package Directory Plugin"\n')
+    _write_text(
+        package_dir / "package_plugin.py",
+        """
+from .helper import DISPLAY_NAME
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+
+
+class PackagePlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.package.single",
+            display_name=DISPLAY_NAME,
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult()
+""".strip()
+        + "\n",
+    )
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_package_plugins(package_dir, registry)
+
+    assert loaded == ["packet.package.single"]
+    descriptor = registry.get_descriptor("packet.package.single")
+    assert descriptor.provenance is not None
+    assert descriptor.provenance.kind == "package"
+    assert descriptor.provenance.package_root == package_dir.resolve()
+
+
 def test_discover_and_load_plugins_continues_after_bad_modules(
     tmp_path: Path,
     monkeypatch,

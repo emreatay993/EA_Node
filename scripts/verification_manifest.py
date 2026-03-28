@@ -7,6 +7,7 @@ from dataclasses import dataclass
 LOCAL_VENV_PYTHON_DISPLAY = "./venv/Scripts/python.exe"
 RUN_VERIFICATION_SCRIPT = "scripts/run_verification.py"
 CHECK_TRACEABILITY_SCRIPT = "scripts/check_traceability.py"
+CHECK_MARKDOWN_LINKS_SCRIPT = "scripts/check_markdown_links.py"
 OFFSCREEN_ENV = {"QT_QPA_PLATFORM": "offscreen"}
 WORKTREE_PYTEST_IGNORE_PATHS = ("venv",)
 SHELL_LIFECYCLE_TRUTH = "fresh-process shell isolation"
@@ -15,12 +16,17 @@ SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE = "one isolated child process"
 MODE_NAMES = ("fast", "gui", "slow", "full")
 MAX_GUI_PARALLEL_WORKERS = 6
 
+PACKAGING_WINDOWS_DOC = "docs/PACKAGING_WINDOWS.md"
+PILOT_RUNBOOK_DOC = "docs/PILOT_RUNBOOK.md"
+SPEC_INDEX_DOC = "docs/specs/INDEX.md"
 QA_ACCEPTANCE_DOC = "docs/specs/requirements/90_QA_ACCEPTANCE.md"
 TRACEABILITY_MATRIX_DOC = "docs/specs/requirements/TRACEABILITY_MATRIX.md"
 VERIFICATION_SPEED_MATRIX_DOC = "docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md"
 GRAPH_CANVAS_PERF_MATRIX_DOC = "docs/specs/perf/GRAPH_CANVAS_PERF_QA_MATRIX.md"
 TRACK_H_BENCHMARK_REPORT_DOC = "docs/specs/perf/TRACK_H_BENCHMARK_REPORT.md"
 GRAPH_SURFACE_INPUT_MATRIX_DOC = "docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md"
+ARCHITECTURE_REFACTOR_QA_MATRIX_DOC = "docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md"
+MARKDOWN_HYGIENE_TEST = "tests/test_markdown_hygiene.py"
 
 SERIALIZER_BASELINE_COMMAND = (
     "./venv/Scripts/python.exe -m pytest "
@@ -35,6 +41,12 @@ GRAPH_CANVAS_SNAPSHOT_COMMAND = (
     "-m ea_node_editor.telemetry.performance_harness "
     "--nodes 120 --edges 320 --load-iterations 1 --interaction-samples 10 "
     "--baseline-runs 1 --report-dir artifacts/graph_canvas_perf_docs"
+)
+DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_run_verification.py tests/test_traceability_checker.py "
+    "tests/test_packaging_configuration.py tests/test_dead_code_hygiene.py "
+    "tests/test_markdown_hygiene.py --ignore=venv -q"
 )
 GRAPH_CANVAS_REPORT_DIR = "artifacts/graph_canvas_perf_docs"
 TRACK_H_BENCHMARK_ARTIFACT = "artifacts/graph_canvas_perf_docs/TRACK_H_BENCHMARK_REPORT.md"
@@ -88,11 +100,16 @@ XDIST_RESOLUTION_TOKENS = (
 )
 
 PROOF_AUDIT_REQUIRED_ARTIFACTS = (
+    "ARCHITECTURE.md",
     "README.md",
     "docs/GETTING_STARTED.md",
+    PACKAGING_WINDOWS_DOC,
+    PILOT_RUNBOOK_DOC,
+    SPEC_INDEX_DOC,
     "docs/specs/requirements/80_PERFORMANCE.md",
     QA_ACCEPTANCE_DOC,
     TRACEABILITY_MATRIX_DOC,
+    ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
     GRAPH_CANVAS_PERF_MATRIX_DOC,
     "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
     GRAPH_SURFACE_INPUT_MATRIX_DOC,
@@ -100,10 +117,16 @@ PROOF_AUDIT_REQUIRED_ARTIFACTS = (
     TRACK_H_BENCHMARK_REPORT_DOC,
     "docs/specs/perf/RC_PACKAGING_REPORT.md",
     "docs/specs/perf/PILOT_SIGNOFF.md",
+    "scripts/build_windows_package.ps1",
+    "scripts/build_windows_installer.ps1",
+    CHECK_MARKDOWN_LINKS_SCRIPT,
     "scripts/run_verification.py",
+    "scripts/sign_release_artifacts.ps1",
     "scripts/verification_manifest.py",
     "scripts/check_traceability.py",
     "tests/conftest.py",
+    MARKDOWN_HYGIENE_TEST,
+    "tests/test_packaging_configuration.py",
     "tests/test_run_verification.py",
     "tests/test_traceability_checker.py",
 )
@@ -258,13 +281,16 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
     "README.md": DocumentRule(
         required=(
             CHECK_TRACEABILITY_SCRIPT,
+            CHECK_MARKDOWN_LINKS_SCRIPT,
             "Graph Surface Input QA Matrix",
             "Verification Speed QA Matrix",
+            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
             "dedicated fresh-process shell-isolation phase",
             SHELL_ISOLATION_SPEC.test_path,
             "proof-audit command",
         ),
         forbidden=(
+            "Only the retained `PROJECT_MANAGED_FILES` packet window",
             "serializer caveat.",
             "shell-wrapper suites for isolated `unittest` execution",
         ),
@@ -272,16 +298,72 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
     "docs/GETTING_STARTED.md": DocumentRule(
         required=(
             CHECK_TRACEABILITY_SCRIPT,
+            CHECK_MARKDOWN_LINKS_SCRIPT,
             SHELL_ISOLATION_SPEC.test_path,
             XDIST_RESOLUTION_TOKENS[0],
+            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
             "dedicated fresh-process",
             "serializer spot-check",
             "no longer carries that",
             "benchmark evidence",
         ),
         forbidden=(
+            "Only the retained `PROJECT_MANAGED_FILES` packet window",
             "remains a separate persistence follow-up",
             "isolated module-level",
+        ),
+    ),
+    "ARCHITECTURE.md": DocumentRule(
+        required=(
+            CHECK_TRACEABILITY_SCRIPT,
+            CHECK_MARKDOWN_LINKS_SCRIPT,
+            ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+            PACKAGING_WINDOWS_DOC,
+            PILOT_RUNBOOK_DOC,
+        ),
+        forbidden=(
+            "The P12 closeout sweep",
+        ),
+    ),
+    SPEC_INDEX_DOC: DocumentRule(
+        required=(
+            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            "PROJECT_MANAGED_FILES_QA_MATRIX.md",
+            "PYDPF_VIEWER_V1_QA_MATRIX.md",
+            "closeout evidence only",
+        ),
+        forbidden=(
+            "work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_MANIFEST.md",
+            "work_packets/pydpf_viewer_v1/PYDPF_VIEWER_V1_STATUS.md",
+        ),
+    ),
+    PACKAGING_WINDOWS_DOC: DocumentRule(
+        required=(
+            ".\\scripts\\build_windows_package.ps1 -PackageProfile base -Clean",
+            ".\\scripts\\build_windows_package.ps1 -PackageProfile viewer -Clean -SkipSmoke",
+            "artifacts\\pyinstaller\\dist\\base\\COREX_Node_Editor\\",
+            "artifacts\\pyinstaller\\dist\\viewer\\COREX_Node_Editor\\",
+            ".\\scripts\\build_windows_installer.ps1 -PackageProfile base",
+            ".\\scripts\\sign_release_artifacts.ps1 -PackageProfile base -VerifyOnly",
+            "artifacts\\releases\\signing\\base\\",
+            "tests/test_packaging_configuration.py",
+        ),
+        forbidden=(
+            "RC3",
+            "artifacts\\pyinstaller\\dist\\COREX_Node_Editor\\COREX_Node_Editor.exe",
+        ),
+    ),
+    PILOT_RUNBOOK_DOC: DocumentRule(
+        required=(
+            "build_windows_package.ps1 -PackageProfile base -Clean",
+            "build_windows_installer.ps1 -PackageProfile base",
+            "artifacts\\pyinstaller\\dist\\base\\COREX_Node_Editor\\COREX_Node_Editor.exe",
+            "ARCHITECTURE_REFACTOR_QA_MATRIX.md",
+            "PILOT_SIGNOFF.md",
+        ),
+        forbidden=(
+            "RC1",
+            "PILOT_BACKLOG.md",
         ),
     ),
     QA_ACCEPTANCE_DOC: DocumentRule(
@@ -312,15 +394,17 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
     ),
     "docs/specs/perf/RC_PACKAGING_REPORT.md": DocumentRule(
         required=(
-            "Evidence Status: Archived RC packaging smoke snapshot restored from repo",
-            "Current Constraint: P08 did not rerun packaging.",
+            "Evidence Status: Archived 2026-03-01 packaging smoke snapshot.",
+            "Current release proof lives in `docs/PACKAGING_WINDOWS.md` and "
+            "`docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.",
             "## Archived 2026-03-01 Snapshot",
         ),
     ),
     "docs/specs/perf/PILOT_SIGNOFF.md": DocumentRule(
         required=(
-            "Evidence Status: Archived packaged desktop pilot sign-off restored from repo",
-            "Current Constraint: P08 did not rerun the packaged pilot.",
+            "Evidence Status: Archived 2026-03-01 packaged desktop pilot snapshot.",
+            "Current pilot proof must be rerun from `docs/PILOT_RUNBOOK.md` and "
+            "tracked in `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.",
             "## Archived 2026-03-01 Snapshot",
         ),
     ),
@@ -332,6 +416,13 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
     "REQ-QA-016": ("pytest-xdist", *XDIST_RESOLUTION_TOKENS),
     "REQ-QA-017": ("baseline failures", "fully green aggregate"),
     "REQ-QA-018": ("GraphCanvas.qml", "interactive desktop/manual follow-up"),
+    "REQ-QA-025": (
+        CHECK_MARKDOWN_LINKS_SCRIPT,
+        PACKAGING_WINDOWS_DOC,
+        PILOT_RUNBOOK_DOC,
+        SPEC_INDEX_DOC,
+        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+    ),
     "AC-REQ-QA-014-01": (
         run_verification_command("full", dry_run=True),
         VERIFICATION_SPEED_MATRIX_DOC,
@@ -346,6 +437,12 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         proof_audit_command(),
         GRAPH_CANVAS_PERF_MATRIX_DOC,
         TRACK_H_BENCHMARK_REPORT_DOC,
+    ),
+    "AC-REQ-QA-025-01": (
+        DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
+        proof_audit_command(),
+        f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
+        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
     ),
 }
 
@@ -526,6 +623,16 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         CHECK_TRACEABILITY_SCRIPT,
         "tests/test_traceability_checker.py",
     ),
+    "REQ-QA-025": (
+        CHECK_TRACEABILITY_SCRIPT,
+        CHECK_MARKDOWN_LINKS_SCRIPT,
+        PACKAGING_WINDOWS_DOC,
+        PILOT_RUNBOOK_DOC,
+        SPEC_INDEX_DOC,
+        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
+        "tests/test_packaging_configuration.py",
+        MARKDOWN_HYGIENE_TEST,
+    ),
     "AC-REQ-PERF-002-01": (
         "TRACK_H_BENCHMARK_REPORT.md",
         "tests/test_track_h_perf_harness.py",
@@ -544,6 +651,12 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         "GRAPH_CANVAS_PERF_QA_MATRIX.md",
         "TRACK_H_BENCHMARK_REPORT.md",
         CHECK_TRACEABILITY_SCRIPT,
+    ),
+    "AC-REQ-QA-025-01": (
+        DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
+        proof_audit_command(),
+        f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
+        ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
     ),
 }
 

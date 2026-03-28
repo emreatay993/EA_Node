@@ -4,7 +4,7 @@ param(
     [switch]$SkipSmoke,
     [ValidateSet("base", "viewer")]
     [string]$PackageProfile = "base",
-    [string]$DependencyMatrixPath = "docs\specs\perf\rc3\dependency_matrix.csv",
+    [string]$DependencyMatrixPath = "",
     [ValidateRange(2, 60)]
     [int]$SmokeSeconds = 5
 )
@@ -239,6 +239,10 @@ function Write-DependencyMatrix {
 
 $dependencyAvailability = Get-DependencyAvailability -PythonExecutable $pythonExe
 Assert-PackageProfileDependencies -Profile $PackageProfile -Availability $dependencyAvailability
+
+if ([string]::IsNullOrWhiteSpace($DependencyMatrixPath)) {
+    $DependencyMatrixPath = "artifacts\releases\packaging\$PackageProfile\dependency_matrix.csv"
+}
 
 $dependencyMatrixFullPath = if ([System.IO.Path]::IsPathRooted($DependencyMatrixPath)) {
     $DependencyMatrixPath

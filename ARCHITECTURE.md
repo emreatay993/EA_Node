@@ -135,9 +135,10 @@ Design intent:
 
 ## Verification and traceability closure
 
-- The public closeout snapshot lives in `ARCHITECTURE.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, `docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md`, and `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
-- `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, packet-owned doc anchors, and the declarative fact sets consumed by both `scripts/run_verification.py` and `scripts/check_traceability.py`.
-- The P12 closeout sweep also publishes the packet-scoped managed-files regression matrix and reruns `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_project_artifact_store.py tests/test_project_artifact_resolution.py tests/test_pdf_preview_provider.py tests/test_project_save_as_flow.py tests/test_app_preferences_import_defaults.py tests/test_project_file_issues.py tests/test_project_files_dialog.py tests/test_execution_artifact_refs.py tests/test_integrations_track_f.py tests/test_process_run_node.py tests/test_graph_output_mode_ui.py tests/test_shell_project_session_controller.py --ignore=venv -q` plus `./venv/Scripts/python.exe scripts/check_traceability.py` in the project venv so the published managed-file docs stay aligned with the shipped code.
+- The public closeout snapshot now spans `ARCHITECTURE.md`, `docs/specs/INDEX.md`, `docs/PACKAGING_WINDOWS.md`, `docs/PILOT_RUNBOOK.md`, `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`, `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
+- `scripts/verification_manifest.py` is the canonical proof source for verification modes, shell-isolation catalogs, packaging/doc anchors, and the declarative fact sets consumed by both `scripts/run_verification.py` and `scripts/check_traceability.py`.
+- `scripts/check_traceability.py` is the semantic drift gate for the canonical docs above, while `scripts/check_markdown_links.py` is the local-link hygiene gate for the active Markdown docs in this branch.
+- Archived release reports remain separated from current release claims: `docs/specs/perf/RC_PACKAGING_REPORT.md` and `docs/specs/perf/PILOT_SIGNOFF.md` preserve the 2026-03-01 snapshots as historical context only, and `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md` records the fresh manual or Windows-only follow-up commands still required after the refactor closeout.
 
 ## Visual architecture maps
 If your Markdown viewer supports Mermaid, these diagrams render inline.

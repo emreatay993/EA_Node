@@ -22,6 +22,8 @@ from ea_node_editor.execution.dpf_runtime_service import (
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf import (
+    ANSYS_DPF_NODE_PLUGINS,
+    ANSYS_DPF_PLUGIN_DESCRIPTORS,
     DpfExportNodePlugin,
     DpfFieldOpsNodePlugin,
     DpfMeshExtractNodePlugin,
@@ -228,6 +230,18 @@ class DpfNodeCatalogTests(unittest.TestCase):
             ports_by_key = {port.key: port for port in spec.ports}
             for port_key, data_type in expected["output_types"].items():
                 self.assertEqual(ports_by_key[port_key].data_type, data_type)
+
+    def test_dpf_catalog_descriptors_remain_authoritative_and_stable(self) -> None:
+        expected_type_ids = tuple(_EXPECTED_DPF_SPECS)
+
+        self.assertEqual(
+            tuple(descriptor.spec.type_id for descriptor in ANSYS_DPF_PLUGIN_DESCRIPTORS),
+            expected_type_ids,
+        )
+        self.assertEqual(
+            tuple(descriptor.factory for descriptor in ANSYS_DPF_PLUGIN_DESCRIPTORS),
+            ANSYS_DPF_NODE_PLUGINS,
+        )
 
     def test_default_registry_exposes_dpf_category_and_scoping_ports(self) -> None:
         dpf_specs = self.registry.filter_nodes(category=DPF_NODE_CATEGORY)

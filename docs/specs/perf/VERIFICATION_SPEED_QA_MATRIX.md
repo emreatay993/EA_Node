@@ -86,14 +86,19 @@
 ## Companion Proof Audit
 
 - `./venv/Scripts/python.exe scripts/check_traceability.py` validates the
-  packet-owned proof layer in `README.md`, `docs/GETTING_STARTED.md`,
+  packet-owned proof layer in `README.md`, `ARCHITECTURE.md`,
+  `docs/GETTING_STARTED.md`, `docs/PACKAGING_WINDOWS.md`,
+  `docs/PILOT_RUNBOOK.md`, `docs/specs/INDEX.md`,
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`, and the packet-owned docs
   under `docs/specs/perf/`.
+- `./venv/Scripts/python.exe scripts/check_markdown_links.py` validates the
+  local Markdown links inside the same active canonical docs.
 - The current public closeout evidence for those proof layers is summarized in
-  `README.md`, `docs/GETTING_STARTED.md`, and
+  `README.md`, `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
+  `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
-- Run the checker after editing verification docs, archived QA evidence
-  summaries, or packet-owned traceability references.
+- Run both doc guards after editing verification docs, archived QA evidence
+  summaries, release docs, or packet-owned traceability references.
 
 ## Current Baseline Status
 

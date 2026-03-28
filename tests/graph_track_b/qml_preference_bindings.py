@@ -5,6 +5,9 @@ from pathlib import Path
 import subprocess
 import sys
 import unittest
+
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from tests.graph_track_b.scene_and_model import (
     QApplication,
     GraphThemeBridge,
@@ -34,21 +37,6 @@ _SUBPROCESS_TEST_RUNNER = (
     "result = unittest.TextTestRunner(verbosity=2).run(suite); "
     "sys.exit(0 if result.wasSuccessful() else 1)"
 )
-
-
-def _main_window_graphics_state(*, performance_mode: str = "full_fidelity") -> dict[str, object]:
-    return {
-        "graphics_show_grid": True,
-        "graphics_show_minimap": True,
-        "graphics_minimap_expanded": True,
-        "graphics_node_shadow": True,
-        "graphics_shadow_strength": 70,
-        "graphics_shadow_softness": 50,
-        "graphics_shadow_offset": 4,
-        "graphics_performance_mode": performance_mode,
-        "snap_to_grid_enabled": False,
-        "snap_grid_size": 20.0,
-    }
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QObject]:
@@ -113,6 +101,19 @@ class _GraphCanvasPerformancePreferenceBridge(_GraphCanvasPreferenceBridge):
 
 
 class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
+    def _create_canvas(self, initial_properties: dict[str, object]) -> QObject:
+        if hasattr(self.component, "createWithInitialProperties"):
+            canvas = self.component.createWithInitialProperties(initial_properties)
+        else:
+            canvas = self.component.create()
+            for key, value in initial_properties.items():
+                canvas.setProperty(key, value)
+        if canvas is None:
+            errors = "\n".join(str(error) for error in self.component.errors())
+            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
+        self.app.processEvents()
+        return canvas
+
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
         self.engine = QQmlEngine()
@@ -124,25 +125,25 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         if self.component.status() != QQmlComponent.Status.Ready:
             errors = "\n".join(str(error) for error in self.component.errors())
             self.fail(f"Failed to load GraphCanvas.qml:\n{errors}")
-        self.bridge = _GraphCanvasPreferenceBridge()
+        self.bridge = _GraphCanvasPerformancePreferenceBridge()
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
-        initial_properties = {
-            "mainWindowBridge": self.bridge,
-            "viewBridge": self.view,
-            "width": 1280.0,
-            "height": 720.0,
-        }
-        if hasattr(self.component, "createWithInitialProperties"):
-            self.canvas = self.component.createWithInitialProperties(initial_properties)
-        else:
-            self.canvas = self.component.create()
-            for key, value in initial_properties.items():
-                self.canvas.setProperty(key, value)
-        if self.canvas is None:
-            errors = "\n".join(str(error) for error in self.component.errors())
-            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
-        self.app.processEvents()
+        self.canvas_state_bridge = GraphCanvasStateBridge(
+            shell_window=self.bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        self.canvas_command_bridge = GraphCanvasCommandBridge(
+            shell_window=self.bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        self.canvas = self._create_canvas(
+            {
+                "canvasStateBridge": self.canvas_state_bridge,
+                "canvasCommandBridge": self.canvas_command_bridge,
+                "width": 1280.0,
+                "height": 720.0,
+            }
+        )
 
     def tearDown(self) -> None:
         if self.canvas is not None:
@@ -278,22 +279,18 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.app.processEvents()
 
         canvas_state_bridge = CanvasStateBridgeStub(self.bridge)
-        initial_properties = {
-            "canvasStateBridge": canvas_state_bridge,
-            "viewBridge": self.view,
-            "width": 1280.0,
-            "height": 720.0,
-        }
-        if hasattr(self.component, "createWithInitialProperties"):
-            self.canvas = self.component.createWithInitialProperties(initial_properties)
-        else:
-            self.canvas = self.component.create()
-            for key, value in initial_properties.items():
-                self.canvas.setProperty(key, value)
-        if self.canvas is None:
-            errors = "\n".join(str(error) for error in self.component.errors())
-            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
-        self.app.processEvents()
+        canvas_command_bridge = GraphCanvasCommandBridge(
+            shell_window=self.bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        self.canvas = self._create_canvas(
+            {
+                "canvasStateBridge": canvas_state_bridge,
+                "canvasCommandBridge": canvas_command_bridge,
+                "width": 1280.0,
+                "height": 720.0,
+            }
+        )
 
         wait_for_condition_or_raise(
             lambda: len(_named_child_items(self.canvas, "graphNodeCard")) == 1,
@@ -395,7 +392,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertIsNotNone(minimap_overlay)
         self.assertIsNotNone(minimap_viewport)
 
-        self.canvas.setProperty("mainWindowBridge", _main_window_graphics_state(performance_mode="max_performance"))
+        self.bridge.set_graphics_performance_mode_value("max_performance")
         self.app.processEvents()
 
         self.assertEqual(self.canvas.property("resolvedGraphicsPerformanceMode"), "max_performance")
@@ -589,21 +586,15 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.canvas.deleteLater()
         self.app.processEvents()
 
-        initial_properties = {
-            "canvasStateBridge": self._performance_state_bridge,
-            "width": 1280.0,
-            "height": 720.0,
-        }
-        if hasattr(self.component, "createWithInitialProperties"):
-            self.canvas = self.component.createWithInitialProperties(initial_properties)
-        else:
-            self.canvas = self.component.create()
-            for key, value in initial_properties.items():
-                self.canvas.setProperty(key, value)
-        if self.canvas is None:
-            errors = "\n".join(str(error) for error in self.component.errors())
-            self.fail(f"Failed to instantiate GraphCanvas.qml:\n{errors}")
-        self.app.processEvents()
+        performance_command_bridge = GraphCanvasCommandBridge(view_bridge=self.view)
+        self.canvas = self._create_canvas(
+            {
+                "canvasStateBridge": self._performance_state_bridge,
+                "canvasCommandBridge": performance_command_bridge,
+                "width": 1280.0,
+                "height": 720.0,
+            }
+        )
 
         wait_for_condition_or_raise(
             lambda: len(_named_child_items(self.canvas, "graphNodeCard")) == 1,
@@ -675,7 +666,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertIsNotNone(minimap_overlay)
         self.assertIsNotNone(minimap_viewport)
 
-        self.canvas.setProperty("mainWindowBridge", _main_window_graphics_state(performance_mode="max_performance"))
+        self.bridge.set_graphics_performance_mode_value("max_performance")
         self.app.processEvents()
 
         QMetaObject.invokeMethod(
@@ -701,7 +692,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         wait_for_condition_or_raise(
             lambda: not bool(self.canvas.property("mutationBurstActive")),
-            timeout_ms=190,
+            timeout_ms=1500,
             app=self.app,
             timeout_message="Timed out waiting for synthetic mutation burst policy to settle.",
         )

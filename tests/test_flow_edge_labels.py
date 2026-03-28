@@ -118,7 +118,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """
             from pathlib import Path
 
-            from PyQt6.QtCore import QObject, QUrl
+            from PyQt6.QtCore import QObject, QUrl, pyqtProperty, pyqtSignal
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtQuick import QQuickItem
             from PyQt6.QtWidgets import QApplication
@@ -127,6 +127,8 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             from ea_node_editor.nodes.bootstrap import build_default_registry
             from ea_node_editor.nodes.decorators import in_port, node_type, out_port
             from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+            from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+            from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
             from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
             from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
             from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -218,6 +220,60 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 assert abs(label_item.property("anchorScreenY") - expected_screen_y) < 0.001
                 return snapshot
 
+            class CanvasShellBridge(QObject):
+                graphics_preferences_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self._graphics_performance_mode = "full_fidelity"
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(str, notify=graphics_preferences_changed)
+                def graphics_performance_mode(self):
+                    return self._graphics_performance_mode
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                def set_graphics_performance_mode_value(self, mode):
+                    normalized = str(mode or "full_fidelity")
+                    if self._graphics_performance_mode == normalized:
+                        return
+                    self._graphics_performance_mode = normalized
+                    self.graphics_preferences_changed.emit()
+
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.rootContext().setContextProperty("themeBridge", ThemeBridge(theme_id="stitch_dark"))
@@ -252,11 +308,22 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             view = ViewportBridge()
             view.set_viewport_size(1280.0, 720.0)
             view.centerOn(240.0, 90.0)
+            shell_bridge = CanvasShellBridge()
+            canvas_state_bridge = GraphCanvasStateBridge(
+                shell_window=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
+            canvas_command_bridge = GraphCanvasCommandBridge(
+                shell_window=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
 
             canvas = component.createWithInitialProperties(
                 {
-                    "sceneBridge": scene,
-                    "viewBridge": view,
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
                     "width": 1280.0,
                     "height": 720.0,
                 }
@@ -265,8 +332,8 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 errors = "\\n".join(error.toString() for error in component.errors())
                 raise AssertionError(f"Failed to instantiate GraphCanvas.qml:\\n{errors}")
             if not hasattr(component, "createWithInitialProperties"):
-                canvas.setProperty("sceneBridge", scene)
-                canvas.setProperty("viewBridge", view)
+                canvas.setProperty("canvasStateBridge", canvas_state_bridge)
+                canvas.setProperty("canvasCommandBridge", canvas_command_bridge)
                 canvas.setProperty("width", 1280.0)
                 canvas.setProperty("height", 720.0)
             app.processEvents()
@@ -557,21 +624,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             """
             from tests.qt_wait import wait_for_condition_or_raise
 
-            canvas.setProperty(
-                "mainWindowBridge",
-                {
-                    "graphics_show_grid": True,
-                    "graphics_show_minimap": True,
-                    "graphics_minimap_expanded": True,
-                    "graphics_node_shadow": True,
-                    "graphics_shadow_strength": 70,
-                    "graphics_shadow_softness": 50,
-                    "graphics_shadow_offset": 4,
-                    "graphics_performance_mode": "max_performance",
-                    "snap_to_grid_enabled": False,
-                    "snap_grid_size": 20.0,
-                },
-            )
+            shell_bridge.set_graphics_performance_mode_value("max_performance")
             app.processEvents()
 
             labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")

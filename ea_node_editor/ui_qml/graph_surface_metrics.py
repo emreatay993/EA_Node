@@ -839,6 +839,36 @@ def _resolved_dimensions(
     return width, height
 
 
+def resolved_node_surface_size(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    show_port_labels: bool = True,
+    surface_metrics: GraphNodeSurfaceMetrics | None = None,
+    clamp_height: bool = False,
+) -> tuple[float, float]:
+    metrics = surface_metrics or node_surface_metrics(
+        node,
+        spec,
+        workspace_nodes,
+        show_port_labels=show_port_labels,
+    )
+    if node.collapsed:
+        return float(metrics.collapsed_width), float(metrics.collapsed_height)
+
+    width, height = _resolved_dimensions(
+        node,
+        default_width=metrics.default_width,
+        default_height=metrics.default_height,
+    )
+    resolved_width = max(float(metrics.min_width), float(width))
+    resolved_height = float(height)
+    if clamp_height:
+        resolved_height = max(float(metrics.min_height), resolved_height)
+    return resolved_width, resolved_height
+
+
 def _visible_port_count(
     node: NodeInstance,
     spec: NodeTypeSpec,

@@ -92,6 +92,13 @@ def test_import_package_installs_package_directory_that_loader_discovers(
     assert registry.get_spec("packet.imported").display_name == "Imported Package"
 
 
+def test_package_manager_uses_public_package_discovery_surface() -> None:
+    source = Path(package_manager.__file__).read_text(encoding="utf-8")
+
+    assert "discover_package_plugins" in source
+    assert "_load_plugins_from_package_directory" not in source
+
+
 def test_import_package_requires_manifest(tmp_path: Path) -> None:
     plugins_root = tmp_path / "plugins"
     package_path = tmp_path / "missing_manifest.eanp"

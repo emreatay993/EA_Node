@@ -1,14 +1,11 @@
 # RC Packaging Report
 
 - Updated: `2026-03-18`
-- Evidence Status: Archived RC packaging smoke snapshot restored from repo
-  history after the checked-in report disappeared from the current proof layer.
+- Evidence Status: Archived 2026-03-01 packaging smoke snapshot.
 - Snapshot Date (UTC): `2026-03-01T17:01:38.434491+00:00`
 - Snapshot Build Command: `.\scripts\build_windows_package.ps1 -Clean`
-- Current Constraint: P08 did not rerun packaging. The historical
-  `artifacts\pyinstaller\` bundle referenced by the archived run is not
-  retained in this checkout, so rerun packaging before using this as current
-  release evidence.
+- Current release proof lives in `docs/PACKAGING_WINDOWS.md` and `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`.
+- The historical `artifacts\pyinstaller\` bundle referenced by the archived run is not retained in this checkout, so rerun packaging before using this as current release evidence.
 
 ## Archived 2026-03-01 Snapshot
 

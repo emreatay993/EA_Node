@@ -1,11 +1,33 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from tests.graph_surface_pointer_regression import (
     QML_POINTER_REGRESSION_HELPERS,
     run_qml_probe,
 )
+
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class PassiveGraphSurfaceHostBoundaryTests(unittest.TestCase):
+    def test_graph_node_host_routes_theme_and_layout_derivations_through_split_helpers(self) -> None:
+        host_text = (_REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHost.qml").read_text(encoding="utf-8")
+        theme_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHostTheme.qml"
+        ).read_text(encoding="utf-8")
+        layout_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHostLayout.qml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("GraphNodeHostTheme {", host_text)
+        self.assertIn("GraphNodeHostLayout {", host_text)
+        self.assertIn("readonly property color surfaceColor: themeState.surfaceColor", host_text)
+        self.assertIn("readonly property bool _useHostChrome: chromeLayout.useHostChrome", host_text)
+        self.assertIn("readonly property color surfaceColor:", theme_text)
+        self.assertIn("readonly property bool useHostChrome:", layout_text)
+        self.assertIn("readonly property string chromeShadowCacheKey:", layout_text)
 
 
 class PassiveGraphSurfaceHostTests(unittest.TestCase):
@@ -106,6 +128,14 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 "ea_node_editor.ui_qml.graph_scene_bridge",
                 Path("ea_node_editor/ui_qml/graph_scene_bridge.py"),
             ).GraphSceneBridge
+            GraphCanvasStateBridge = load_module(
+                "ea_node_editor.ui_qml.graph_canvas_state_bridge",
+                Path("ea_node_editor/ui_qml/graph_canvas_state_bridge.py"),
+            ).GraphCanvasStateBridge
+            GraphCanvasCommandBridge = load_module(
+                "ea_node_editor.ui_qml.graph_canvas_command_bridge",
+                Path("ea_node_editor/ui_qml/graph_canvas_command_bridge.py"),
+            ).GraphCanvasCommandBridge
             ViewportBridge = load_module(
                 "ea_node_editor.ui_qml.viewport_bridge",
                 Path("ea_node_editor/ui_qml/viewport_bridge.py"),
@@ -178,7 +208,47 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
             engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
 
+            class CanvasShellSource:
+                def __init__(self, values=None):
+                    for key, value in dict(values or {}).items():
+                        setattr(self, str(key), value)
+
+            def _graph_canvas_initial_properties(path, initial_properties):
+                normalized = dict(initial_properties)
+                if path != graph_canvas_qml_path:
+                    return normalized, []
+                if "canvasStateBridge" in normalized or "canvasCommandBridge" in normalized:
+                    refs = [
+                        normalized.get("canvasStateBridge"),
+                        normalized.get("canvasCommandBridge"),
+                    ]
+                    return normalized, [ref for ref in refs if ref is not None]
+
+                scene_bridge = normalized.pop("sceneBridge", None)
+                view_bridge = normalized.pop("viewBridge", None)
+                shell_source = normalized.pop("mainWindowBridge", None)
+                if isinstance(shell_source, dict):
+                    shell_source = CanvasShellSource(shell_source)
+
+                state_bridge = GraphCanvasStateBridge(
+                    shell_window=shell_source,
+                    scene_bridge=scene_bridge,
+                    view_bridge=view_bridge,
+                )
+                command_bridge = GraphCanvasCommandBridge(
+                    shell_window=shell_source,
+                    scene_bridge=scene_bridge,
+                    view_bridge=view_bridge,
+                )
+                normalized["canvasStateBridge"] = state_bridge
+                normalized["canvasCommandBridge"] = command_bridge
+                refs = [state_bridge, command_bridge]
+                if shell_source is not None:
+                    refs.append(shell_source)
+                return normalized, refs
+
             def create_component(path, initial_properties):
+                initial_properties, persistent_refs = _graph_canvas_initial_properties(path, initial_properties)
                 component = QQmlComponent(engine, QUrl.fromLocalFile(str(path)))
                 if component.status() != QQmlComponent.Status.Ready:
                     errors = "\\n".join(error.toString() for error in component.errors())
@@ -192,6 +262,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 if obj is None:
                     errors = "\\n".join(error.toString() for error in component.errors())
                     raise AssertionError(f"Failed to instantiate {path.name}:\\n{errors}")
+                if persistent_refs:
+                    setattr(obj, "_graph_canvas_refs", persistent_refs)
                 app.processEvents()
                 return obj
 

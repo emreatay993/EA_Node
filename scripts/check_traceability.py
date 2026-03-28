@@ -205,6 +205,26 @@ GRAPHICS_PERFORMANCE_MODES_TRACK_H_REPORT_FORBIDDEN_TOKENS = (
     "P08 did not rerun the performance harness.",
     "Interactive desktop/GPU validation remains required",
 )
+ARCHITECTURE_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
+    "## Locked Scope",
+    "## Final Verification Commands",
+    "## Focused Narrow Reruns",
+    "## 2026-03-27 Execution Results",
+    "## Remaining Manual and Windows-Only Checks",
+    "## Archived Evidence Boundaries",
+    "## Residual Risks",
+    manifest.PACKAGING_WINDOWS_DOC,
+    manifest.PILOT_RUNBOOK_DOC,
+    "RC_PACKAGING_REPORT.md",
+    "PILOT_SIGNOFF.md",
+    "tests/test_packaging_configuration.py",
+    manifest.MARKDOWN_HYGIENE_TEST,
+)
+ARCHITECTURE_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
+    manifest.DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
+    manifest.proof_audit_command(),
+    f"{manifest.LOCAL_VENV_PYTHON_DISPLAY} {manifest.CHECK_MARKDOWN_LINKS_SCRIPT}",
+)
 
 P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
     "REQ-UI-016": (
@@ -733,6 +753,51 @@ def audit_track_h_report(text: str, relative_path: str, issues: list[str]) -> No
             issues.append(f"{relative_path}: found stale text: {forbidden}")
 
 
+def audit_architecture_refactor_qa_matrix(text: str, relative_path: str, issues: list[str]) -> None:
+    require_tokens(
+        text,
+        ARCHITECTURE_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
+        relative_path=relative_path,
+        label="architecture-refactor qa matrix",
+        issues=issues,
+    )
+
+    final_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="Final Verification Commands",
+        issues=issues,
+    )
+    if final_rows is not None:
+        for command in ARCHITECTURE_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+            row = find_row(
+                final_rows,
+                column="Command",
+                predicate=lambda value, command=command: strip_code_fence(value) == command,
+            )
+            if row is None:
+                issues.append(
+                    f"{relative_path}: Final Verification Commands missing command row: {command}"
+                )
+
+    execution_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="2026-03-27 Execution Results",
+        issues=issues,
+    )
+    if execution_rows is not None:
+        for command in ARCHITECTURE_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+            require_command_result(
+                execution_rows,
+                relative_path=relative_path,
+                heading="2026-03-27 Execution Results",
+                predicate=lambda value, command=command: value == command,
+                label=command,
+                issues=issues,
+            )
+
+
 def find_traceability_row(matrix_text: str, row_id: str) -> str | None:
     for line in matrix_text.splitlines():
         if line.startswith(f"| {row_id} |"):
@@ -767,6 +832,7 @@ SPECIAL_DOCUMENT_AUDITORS = {
     manifest.VERIFICATION_SPEED_MATRIX_DOC: audit_verification_speed_matrix,
     manifest.GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
     manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
+    manifest.ARCHITECTURE_REFACTOR_QA_MATRIX_DOC: audit_architecture_refactor_qa_matrix,
 }
 
 
