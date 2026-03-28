@@ -47,6 +47,7 @@
 - `REQ-UI-030`: source-import workflows shall honor an app preference for `managed_copy` versus `external_link`, defaulting to managed copy, and tracked missing-file surfaces shall stay limited to the packet-owned node-level repair affordances for passive media, File Read, and Excel Read.
 - `REQ-UI-031`: `Process Run` shall expose an inline `Output Mode` quick control limited to `memory` and `stored`, with a status chip that explains whether stdout/stderr stay inline or emit staged transcript refs.
 - `REQ-UI-032`: the PyDPF viewer UX shall ship `dpf.viewer` as a viewer-family surface that routes proxy/live state through `viewerSessionBridge`, preserves reopen summaries, and enforces one-live `focus_only` behavior by default with explicit `keep_live` opt-in.
+- `REQ-UI-033`: Graphics Settings shall expose one canvas-global `Crossing style` control backed by `graphics.canvas.edge_crossing_style`, limited to `none` and `gap_break`, defaulting to `none`, and keeping the choice global-only without per-edge overrides or `.sfe` persistence-payload expansion.
 
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.
@@ -74,3 +75,4 @@
 - `AC-REQ-UI-030-01`: source-import default and file-issue regressions confirm managed-copy is the default browse mode, tracked missing managed/staged/external paths surface node-level guidance, and supported node types keep the approved repair affordances.
 - `AC-REQ-UI-031-01`: `Process Run` regressions confirm the inline `memory` / `stored` toggle, chip wording, and stored transcript-ref behavior without widening quick-toggle UI to other heavy-output nodes.
 - `AC-REQ-UI-032-01`: `dpf.viewer`, bridge, and viewer-surface regressions confirm `focus_only` versus `keep_live` live-policy behavior, preserved proxy reopen summaries, and shell-managed live overlays without regressing the shared viewer surface contract.
+- `AC-REQ-UI-033-01`: Graphics Settings, app-preference persistence, and canvas/QML regressions confirm `Crossing style` offers only `None` and `Gap break`, restores the same app-wide choice after relaunch, and only changes visual edge-crossing decoration rather than hit testing, label anchors, arrowheads, or stored graph data.

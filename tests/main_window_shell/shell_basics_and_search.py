@@ -100,6 +100,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         meta = self.window.metaObject()
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_grid"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_grid_style"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_edge_crossing_style"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_minimap"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_minimap_expanded"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_performance_mode"), 0)
@@ -108,6 +109,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(meta.indexOfProperty("snap_to_grid_enabled"), 0)
         self.assertTrue(self.window.graphics_show_grid)
         self.assertEqual(self.window.graphics_grid_style, "lines")
+        self.assertEqual(self.window.graphics_edge_crossing_style, "none")
         self.assertTrue(self.window.graphics_show_minimap)
         self.assertTrue(self.window.graphics_minimap_expanded)
         self.assertEqual(self.window.graphics_performance_mode, "full_fidelity")
@@ -171,6 +173,44 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.action_show_port_labels.isChecked())
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertTrue(persisted["graphics"]["canvas"]["show_port_labels"])
+
+    def test_graphics_settings_dialog_persists_edge_crossing_style_through_shell_window(self) -> None:
+        captured_initial_settings: list[dict[str, object]] = []
+        accepted_values = self.window.app_preferences_controller.graphics_settings()
+        accepted_values["canvas"]["edge_crossing_style"] = "gap_break"
+
+        class AcceptingDialog:
+            class DialogCode:
+                Rejected = 0
+                Accepted = 1
+
+            def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+                captured_initial_settings.append(copy.deepcopy(kwargs["initial_settings"]))
+
+            def exec(self) -> int:
+                return self.DialogCode.Accepted
+
+            def values(self) -> dict[str, object]:
+                return copy.deepcopy(accepted_values)
+
+        with patch(
+            "ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog",
+            AcceptingDialog,
+        ):
+            self.window.show_graphics_settings_dialog()
+            self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        edge_layer = graph_canvas.findChild(QObject, "graphCanvasEdgeLayer")
+
+        self.assertEqual(len(captured_initial_settings), 1)
+        self.assertEqual(captured_initial_settings[0]["canvas"]["edge_crossing_style"], "none")
+        self.assertIsNotNone(edge_layer)
+        self.assertEqual(self.window.graphics_edge_crossing_style, "gap_break")
+        self.assertEqual(str(graph_canvas.property("edgeCrossingStyle")), "gap_break")
+        self.assertEqual(str(edge_layer.property("edgeCrossingStyle")), "gap_break")
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["graphics"]["canvas"]["edge_crossing_style"], "gap_break")
 
     def test_port_labels_setting_persists_across_window_restart(self) -> None:
         self.assertTrue(self.window.graphics_show_port_labels)
@@ -305,22 +345,27 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         graph_canvas = self._graph_canvas_item()
         background = graph_canvas.findChild(QObject, "graphCanvasBackground")
         minimap_overlay = graph_canvas.findChild(QObject, "graphCanvasMinimapOverlay")
+        edge_layer = graph_canvas.findChild(QObject, "graphCanvasEdgeLayer")
         self.assertIsNotNone(background)
         self.assertIsNotNone(minimap_overlay)
+        self.assertIsNotNone(edge_layer)
 
         self.assertTrue(bool(graph_canvas.property("showGrid")))
         self.assertEqual(str(graph_canvas.property("gridStyle")), "lines")
+        self.assertEqual(str(graph_canvas.property("edgeCrossingStyle")), "none")
         self.assertTrue(bool(background.property("showGrid")))
         self.assertEqual(str(background.property("gridStyle")), "lines")
         self.assertTrue(bool(graph_canvas.property("minimapVisible")))
         self.assertTrue(bool(minimap_overlay.property("visible")))
         self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
+        self.assertEqual(str(edge_layer.property("edgeCrossingStyle")), "none")
 
         self.window.app_preferences_controller.set_graphics_settings(
             {
                 "canvas": {
                     "show_grid": False,
                     "grid_style": "points",
+                    "edge_crossing_style": "gap_break",
                     "show_minimap": False,
                     "minimap_expanded": False,
                 },
@@ -337,15 +382,18 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
 
         self.assertFalse(self.window.graphics_show_grid)
         self.assertEqual(self.window.graphics_grid_style, "points")
+        self.assertEqual(self.window.graphics_edge_crossing_style, "gap_break")
         self.assertFalse(self.window.graphics_show_minimap)
         self.assertFalse(self.window.graphics_minimap_expanded)
         self.assertFalse(bool(graph_canvas.property("showGrid")))
         self.assertEqual(str(graph_canvas.property("gridStyle")), "points")
+        self.assertEqual(str(graph_canvas.property("edgeCrossingStyle")), "gap_break")
         self.assertFalse(bool(background.property("showGrid")))
         self.assertEqual(str(background.property("gridStyle")), "points")
         self.assertFalse(bool(graph_canvas.property("minimapVisible")))
         self.assertFalse(bool(minimap_overlay.property("visible")))
         self.assertFalse(bool(graph_canvas.property("minimapExpanded")))
+        self.assertEqual(str(edge_layer.property("edgeCrossingStyle")), "gap_break")
 
     def test_qml_tab_strip_density_follows_shell_state(self) -> None:
         root_object = self.window.quick_widget.rootObject()

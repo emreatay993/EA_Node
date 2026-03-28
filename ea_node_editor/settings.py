@@ -70,6 +70,10 @@ GRID_OVERLAY_STYLE_CHOICES = (
     ("lines", "Lines"),
     ("points", "Points"),
 )
+EDGE_CROSSING_STYLE_CHOICES = (
+    ("none", "None"),
+    ("gap_break", "Gap break"),
+)
 SOURCE_IMPORT_MODE_CHOICES = (
     ("managed_copy", "Managed Copy"),
     ("external_link", "External Link"),
@@ -77,12 +81,14 @@ SOURCE_IMPORT_MODE_CHOICES = (
 
 DEFAULT_GRAPHICS_PERFORMANCE_MODE = GRAPHICS_PERFORMANCE_MODE_CHOICES[0][0]
 DEFAULT_GRID_OVERLAY_STYLE = GRID_OVERLAY_STYLE_CHOICES[0][0]
+DEFAULT_EDGE_CROSSING_STYLE = EDGE_CROSSING_STYLE_CHOICES[0][0]
 DEFAULT_SOURCE_IMPORT_MODE = SOURCE_IMPORT_MODE_CHOICES[0][0]
 
 DEFAULT_GRAPHICS_SETTINGS = {
     "canvas": {
         "show_grid": True,
         "grid_style": DEFAULT_GRID_OVERLAY_STYLE,
+        "edge_crossing_style": DEFAULT_EDGE_CROSSING_STYLE,
         "show_minimap": True,
         "show_port_labels": True,
         "minimap_expanded": True,

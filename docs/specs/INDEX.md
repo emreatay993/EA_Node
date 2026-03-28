@@ -34,6 +34,9 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Work Packet Manifest](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Status Ledger](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_STATUS.md)
 - [PYDPF_VIEWER_V1 QA Matrix](perf/PYDPF_VIEWER_V1_QA_MATRIX.md) - closeout evidence only; packet planning docs are archived outside the canonical spec pack.
+- [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Work Packet Manifest](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md)
+- [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Status Ledger](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_STATUS.md)
+- [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT QA Matrix](perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md)
 
 ## ADRs
 
