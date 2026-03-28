@@ -1,4 +1,5 @@
 import QtQuick 2.15
+import QtQml 2.15
 import "GraphCanvasLogic.js" as GraphCanvasLogic
 
 Item {
@@ -17,12 +18,6 @@ Item {
     property real _cachedGridStep: 0.0
     property real _cachedGridPeriod: 0.0
     property real _gridScale: 1.0
-    property real _gridContentWidth: 0.0
-    property real _gridContentHeight: 0.0
-    property int _minorVerticalLineCount: 0
-    property int _minorHorizontalLineCount: 0
-    property int _majorVerticalLineCount: 0
-    property int _majorHorizontalLineCount: 0
     readonly property var themePalette: themeBridge.palette
     readonly property color backgroundTopColor: themePalette.canvas_bg
     readonly property color backgroundBottomColor: themePalette.panel_bg
@@ -31,8 +26,8 @@ Item {
     readonly property color majorGridColor: themePalette.canvas_major_grid
     readonly property bool effectiveShowGrid: root.showGrid && !root.degradedWindowActive
     readonly property string effectiveGridStyle: root.gridStyle === "points" ? "points" : "lines"
-    readonly property real minorGridPointSize: 1.75 / Math.max(0.0001, root._gridScale)
-    readonly property real majorGridPointSize: 2.75 / Math.max(0.0001, root._gridScale)
+    readonly property real minorGridPointSize: 1.75
+    readonly property real majorGridPointSize: 2.75
 
     function _normalizedZoom(value) {
         var zoom = Number(value);
@@ -66,12 +61,6 @@ Item {
         root._cachedGridStep = 0.0;
         root._cachedGridPeriod = 0.0;
         root._gridScale = 1.0;
-        root._gridContentWidth = 0.0;
-        root._gridContentHeight = 0.0;
-        root._minorVerticalLineCount = 0;
-        root._minorHorizontalLineCount = 0;
-        root._majorVerticalLineCount = 0;
-        root._majorHorizontalLineCount = 0;
     }
 
     function _ensureGridCache(forceRebuild) {
@@ -88,22 +77,9 @@ Item {
         }
 
         if (rebuild) {
-            var minScale = 1.0 / root._zoomBucketScaleLimit;
             var cachedPeriod = currentStep * 5.0;
             root._cachedGridStep = currentStep;
             root._cachedGridPeriod = cachedPeriod;
-            root._gridContentWidth = Math.max(
-                cachedPeriod * 2.0,
-                root.width / minScale + cachedPeriod * 2.0
-            );
-            root._gridContentHeight = Math.max(
-                cachedPeriod * 2.0,
-                root.height / minScale + cachedPeriod * 2.0
-            );
-            root._minorVerticalLineCount = Math.max(0, Math.ceil(root._gridContentWidth / currentStep) + 1);
-            root._minorHorizontalLineCount = Math.max(0, Math.ceil(root._gridContentHeight / currentStep) + 1);
-            root._majorVerticalLineCount = Math.max(0, Math.ceil(root._gridContentWidth / cachedPeriod) + 1);
-            root._majorHorizontalLineCount = Math.max(0, Math.ceil(root._gridContentHeight / cachedPeriod) + 1);
             root._gridCacheBuildCount += 1;
         }
 
@@ -140,46 +116,30 @@ Item {
         return root._cachedGridPeriod * root._gridScale;
     }
 
-    function _gridOffsetX() {
-        var currentStep = _currentGridStep();
-        var currentPeriod = _currentGridPeriod();
-        if (!(currentStep > 0.0) || !(currentPeriod > 0.0))
-            return 0.0;
-        var anchor = root.width * 0.5 - root._committedCenterX * root._committedZoom;
-        var offset = GraphCanvasLogic.normalizedOffset(currentStep, anchor);
-        return offset - currentPeriod;
+    function _gridAnchorX() {
+        return root.width * 0.5 - root._committedCenterX * root._committedZoom;
     }
 
-    function _gridOffsetY() {
-        var currentStep = _currentGridStep();
-        var currentPeriod = _currentGridPeriod();
-        if (!(currentStep > 0.0) || !(currentPeriod > 0.0))
-            return 0.0;
-        var anchor = root.height * 0.5 - root._committedCenterY * root._committedZoom;
-        var offset = GraphCanvasLogic.normalizedOffset(currentStep, anchor);
-        return offset - currentPeriod;
+    function _gridAnchorY() {
+        return root.height * 0.5 - root._committedCenterY * root._committedZoom;
     }
 
-    function _majorLocalOriginX() {
+    function _gridOffsetX(step) {
         var currentStep = _currentGridStep();
-        var currentPeriod = _currentGridPeriod();
-        if (!(currentStep > 0.0) || !(currentPeriod > 0.0))
+        if (step !== undefined)
+            currentStep = Number(step);
+        if (!(currentStep > 0.0))
             return 0.0;
-        var anchor = root.width * 0.5 - root._committedCenterX * root._committedZoom;
-        var minorOffset = GraphCanvasLogic.normalizedOffset(currentStep, anchor);
-        var majorOffset = GraphCanvasLogic.normalizedOffset(currentPeriod, anchor);
-        return (majorOffset - minorOffset + currentPeriod) / Math.max(0.0001, root._gridScale);
+        return GraphCanvasLogic.normalizedOffset(currentStep, root._gridAnchorX());
     }
 
-    function _majorLocalOriginY() {
+    function _gridOffsetY(step) {
         var currentStep = _currentGridStep();
-        var currentPeriod = _currentGridPeriod();
-        if (!(currentStep > 0.0) || !(currentPeriod > 0.0))
+        if (step !== undefined)
+            currentStep = Number(step);
+        if (!(currentStep > 0.0))
             return 0.0;
-        var anchor = root.height * 0.5 - root._committedCenterY * root._committedZoom;
-        var minorOffset = GraphCanvasLogic.normalizedOffset(currentStep, anchor);
-        var majorOffset = GraphCanvasLogic.normalizedOffset(currentPeriod, anchor);
-        return (majorOffset - minorOffset + currentPeriod) / Math.max(0.0001, root._gridScale);
+        return GraphCanvasLogic.normalizedOffset(currentStep, root._gridAnchorY());
     }
 
     onShowGridChanged: requestGridRedraw(true)
@@ -204,115 +164,82 @@ Item {
         color: root.backgroundFillColor
     }
 
-    Item {
+    Canvas {
+        id: gridCanvas
         anchors.fill: parent
-        clip: true
         visible: root.effectiveShowGrid
+        renderTarget: Canvas.FramebufferObject
+        antialiasing: false
 
-        Item {
-            id: gridContent
-            x: root._gridOffsetX()
-            y: root._gridOffsetY()
-            width: root._gridContentWidth
-            height: root._gridContentHeight
-            scale: root._gridScale
-            transformOrigin: Item.TopLeft
+        function drawLineGrid(ctx, minorStep, majorStep) {
+            var minorX = root._gridOffsetX(minorStep);
+            var minorY = root._gridOffsetY(minorStep);
+            var majorX = root._gridOffsetX(majorStep);
+            var majorY = root._gridOffsetY(majorStep);
 
-            Item {
-                anchors.fill: parent
-                visible: root.effectiveGridStyle === "lines"
+            ctx.fillStyle = root.minorGridColor;
+            for (var x = minorX; x <= width; x += minorStep)
+                ctx.fillRect(Math.round(x), 0, 1, height);
+            for (var y = minorY; y <= height; y += minorStep)
+                ctx.fillRect(0, Math.round(y), width, 1);
 
-                Repeater {
-                    model: root._minorVerticalLineCount
-                    delegate: Rectangle {
-                        x: index * root._cachedGridStep
-                        y: 0
-                        width: 1.0 / Math.max(0.0001, root._gridScale)
-                        height: gridContent.height
-                        color: root.minorGridColor
-                    }
-                }
+            ctx.fillStyle = root.majorGridColor;
+            for (var majorVertical = majorX; majorVertical <= width; majorVertical += majorStep)
+                ctx.fillRect(Math.round(majorVertical), 0, 1, height);
+            for (var majorHorizontal = majorY; majorHorizontal <= height; majorHorizontal += majorStep)
+                ctx.fillRect(0, Math.round(majorHorizontal), width, 1);
+        }
 
-                Repeater {
-                    model: root._minorHorizontalLineCount
-                    delegate: Rectangle {
-                        x: 0
-                        y: index * root._cachedGridStep
-                        width: gridContent.width
-                        height: 1.0 / Math.max(0.0001, root._gridScale)
-                        color: root.minorGridColor
-                    }
-                }
+        function drawPointGrid(ctx, minorStep, majorStep) {
+            var minorX = root._gridOffsetX(minorStep);
+            var minorY = root._gridOffsetY(minorStep);
+            var majorX = root._gridOffsetX(majorStep);
+            var majorY = root._gridOffsetY(majorStep);
+            var minorHalf = root.minorGridPointSize * 0.5;
+            var majorHalf = root.majorGridPointSize * 0.5;
 
-                Repeater {
-                    model: root._majorVerticalLineCount
-                    delegate: Rectangle {
-                        x: root._majorLocalOriginX() + index * root._cachedGridPeriod
-                        y: 0
-                        width: 1.0 / Math.max(0.0001, root._gridScale)
-                        height: gridContent.height
-                        color: root.majorGridColor
-                    }
-                }
-
-                Repeater {
-                    model: root._majorHorizontalLineCount
-                    delegate: Rectangle {
-                        x: 0
-                        y: root._majorLocalOriginY() + index * root._cachedGridPeriod
-                        width: gridContent.width
-                        height: 1.0 / Math.max(0.0001, root._gridScale)
-                        color: root.majorGridColor
-                    }
-                }
+            ctx.fillStyle = root.minorGridColor;
+            for (var y = minorY; y <= height; y += minorStep) {
+                for (var x = minorX; x <= width; x += minorStep)
+                    ctx.fillRect(x - minorHalf, y - minorHalf, root.minorGridPointSize, root.minorGridPointSize);
             }
 
-            Item {
-                anchors.fill: parent
-                visible: root.effectiveGridStyle === "points"
-
-                Repeater {
-                    model: root._minorHorizontalLineCount
-                    delegate: Item {
-                        y: index * root._cachedGridStep
-                        width: gridContent.width
-                        height: root.minorGridPointSize
-                        property int rowIndex: index
-
-                        Repeater {
-                            model: root._minorVerticalLineCount
-                            delegate: Rectangle {
-                                width: root.minorGridPointSize
-                                height: root.minorGridPointSize
-                                x: index * root._cachedGridStep - width * 0.5
-                                y: -height * 0.5
-                                radius: width * 0.5
-                                color: root.minorGridColor
-                            }
-                        }
-                    }
+            ctx.fillStyle = root.majorGridColor;
+            for (var majorRow = majorY; majorRow <= height; majorRow += majorStep) {
+                for (var majorColumn = majorX; majorColumn <= width; majorColumn += majorStep) {
+                    ctx.fillRect(
+                        majorColumn - majorHalf,
+                        majorRow - majorHalf,
+                        root.majorGridPointSize,
+                        root.majorGridPointSize
+                    );
                 }
+            }
+        }
 
-                Repeater {
-                    model: root._majorHorizontalLineCount
-                    delegate: Item {
-                        y: root._majorLocalOriginY() + index * root._cachedGridPeriod
-                        width: gridContent.width
-                        height: root.majorGridPointSize
+        onPaint: {
+            var ctx = getContext("2d");
+            ctx.reset();
 
-                        Repeater {
-                            model: root._majorVerticalLineCount
-                            delegate: Rectangle {
-                                width: root.majorGridPointSize
-                                height: root.majorGridPointSize
-                                x: root._majorLocalOriginX() + index * root._cachedGridPeriod - width * 0.5
-                                y: -height * 0.5
-                                radius: width * 0.5
-                                color: root.majorGridColor
-                            }
-                        }
-                    }
-                }
+            if (!root.effectiveShowGrid)
+                return;
+
+            var minorStep = root._currentGridStep();
+            var majorStep = root._currentGridPeriod();
+            if (!(minorStep > 0.0) || !(majorStep > 0.0))
+                return;
+
+            if (root.effectiveGridStyle === "points")
+                drawPointGrid(ctx, minorStep, majorStep);
+            else
+                drawLineGrid(ctx, minorStep, majorStep);
+        }
+
+        Connections {
+            target: root
+
+            function onRedrawRequestCountChanged() {
+                gridCanvas.requestPaint();
             }
         }
     }
