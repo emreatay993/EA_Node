@@ -1018,11 +1018,22 @@ class ShellInspectorPresenter(QObject):
         if selected is None:
             return []
         node, spec = selected
+        workspace = self._host.model.project.workspaces.get(self._host.workspace_manager.active_workspace_id())
+        if workspace is None:
+            return []
+        port_connection_counts: dict[tuple[str, str], int] = {}
+        for edge in workspace.edges.values():
+            source_key = (edge.source_node_id, edge.source_port_key)
+            target_key = (edge.target_node_id, edge.target_port_key)
+            port_connection_counts[source_key] = port_connection_counts.get(source_key, 0) + 1
+            port_connection_counts[target_key] = port_connection_counts.get(target_key, 0) + 1
         metadata = self._host.model.project.metadata
         return build_selected_node_property_items(
             node=node,
             spec=spec,
             subnode_pin_type_ids=self._host._SUBNODE_PIN_TYPE_IDS,
+            workspace_nodes=workspace.nodes,
+            port_connection_counts=port_connection_counts,
             file_issues_by_key=collect_node_file_issues(
                 node=node,
                 spec=spec,

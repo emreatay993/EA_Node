@@ -6,6 +6,10 @@ from typing import Any
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.nodes.types import property_has_inline_editor
 
+_INLINE_PROPERTY_OVERRIDE_PORT_PRECEDENCE: dict[tuple[str, str], tuple[str, ...]] = {
+    ("dpf.model", "path"): ("result_file", "path"),
+}
+
 
 def _inline_property_presentation(
     *,
@@ -29,6 +33,51 @@ def _inline_property_presentation(
         "status_chip_text": "Inline capture",
         "status_chip_variant": "memory",
         "status_chip_description": "stdout/stderr stay inline strings",
+    }
+
+
+def _overriding_input_port(
+    *,
+    node: Any,
+    property_key: str,
+    resolved_input_ports: Mapping[str, Any],
+    port_connection_counts: Mapping[tuple[str, str], int],
+) -> Any | None:
+    node_id = str(getattr(node, "node_id", "")).strip()
+    node_type_id = str(getattr(node, "type_id", "")).strip()
+    candidate_port_keys = _INLINE_PROPERTY_OVERRIDE_PORT_PRECEDENCE.get(
+        (node_type_id, property_key),
+        (property_key,),
+    )
+    for port_key in candidate_port_keys:
+        port = resolved_input_ports.get(port_key)
+        if port is None:
+            continue
+        if port_connection_counts.get((node_id, port_key), 0) > 0:
+            return port
+    return None
+
+
+def build_property_input_override_state(
+    *,
+    node: Any,
+    property_key: str,
+    resolved_input_ports: Mapping[str, Any],
+    port_connection_counts: Mapping[tuple[str, str], int] | None = None,
+) -> dict[str, Any]:
+    overriding_input_port = _overriding_input_port(
+        node=node,
+        property_key=property_key,
+        resolved_input_ports=resolved_input_ports,
+        port_connection_counts=port_connection_counts or {},
+    )
+    return {
+        "overridden_by_input": overriding_input_port is not None,
+        "input_port_label": (
+            str(overriding_input_port.label or overriding_input_port.key)
+            if overriding_input_port is not None
+            else ""
+        ),
     }
 
 
@@ -71,8 +120,12 @@ def build_inline_property_items(
         if not property_has_inline_editor(prop):
             continue
         property_value = node.properties.get(prop.key, prop.default)
-        matching_input_port = resolved_input_ports.get(prop.key)
-        connection_count = counts.get((str(node.node_id), str(prop.key)), 0)
+        overriding_input_port = _overriding_input_port(
+            node=node,
+            property_key=prop.key,
+            resolved_input_ports=resolved_input_ports,
+            port_connection_counts=counts,
+        )
         items.append(
             {
                 "key": prop.key,
@@ -81,11 +134,11 @@ def build_inline_property_items(
                 "value": property_value,
                 "enum_values": list(prop.enum_values),
                 "inline_editor": prop.inline_editor,
-                "overridden_by_input": bool(matching_input_port is not None and connection_count > 0),
-                "input_port_label": (
-                    str(matching_input_port.label or matching_input_port.key)
-                    if matching_input_port is not None
-                    else ""
+                **build_property_input_override_state(
+                    node=node,
+                    property_key=prop.key,
+                    resolved_input_ports=resolved_input_ports,
+                    port_connection_counts=counts,
                 ),
                 **_inline_property_presentation(
                     node=node,
@@ -98,6 +151,7 @@ def build_inline_property_items(
 
 
 __all__ = [
+    "build_property_input_override_state",
     "build_inline_property_items",
     "build_user_facing_node_instance_number",
 ]

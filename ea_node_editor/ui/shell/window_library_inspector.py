@@ -12,6 +12,7 @@ from ea_node_editor.graph.effective_ports import (
 )
 from ea_node_editor.graph.file_issue_state import build_file_issue_payload
 from ea_node_editor.ui.support.node_presentation import (
+    build_property_input_override_state,
     build_inline_property_items,
     build_user_facing_node_instance_number,
 )
@@ -273,6 +274,8 @@ def build_selected_node_property_items(
     node: Any,
     spec: Any,
     subnode_pin_type_ids: set[str],
+    workspace_nodes: Mapping[str, Any] | None = None,
+    port_connection_counts: Mapping[tuple[str, str], int] | None = None,
     file_issues_by_key: Mapping[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     if node.type_id in subnode_pin_type_ids:
@@ -286,6 +289,12 @@ def build_selected_node_property_items(
     else:
         ordered_properties = [prop for prop in spec.properties if property_visible_in_inspector(prop)]
     issue_lookup = dict(file_issues_by_key or {})
+    resolved_workspace_nodes = dict(workspace_nodes or {}) or {str(getattr(node, "node_id", "")).strip(): node}
+    resolved_input_ports = {
+        port.key: port
+        for port in effective_ports(node=node, spec=spec, workspace_nodes=resolved_workspace_nodes)
+        if str(port.direction).strip().lower() == "in" and bool(port.exposed)
+    }
     items: list[dict[str, Any]] = []
     for prop in ordered_properties:
         item = {
@@ -297,6 +306,14 @@ def build_selected_node_property_items(
             "inline_editor": prop.inline_editor,
             "editor_mode": property_inspector_editor(prop),
         }
+        item.update(
+            build_property_input_override_state(
+                node=node,
+                property_key=prop.key,
+                resolved_input_ports=resolved_input_ports,
+                port_connection_counts=port_connection_counts,
+            )
+        )
         item.update(build_file_issue_payload(issue_lookup.get(prop.key)))
         items.append(item)
     return items

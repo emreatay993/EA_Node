@@ -1035,6 +1035,21 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.scene.add_edge(second_source_id, "exec_out", target_id, "exec_in")
 
+    def test_add_edge_rejects_mutually_exclusive_dpf_model_inputs_in_both_directions(self) -> None:
+        result_file_source_a = self.scene.add_node_from_type("dpf.result_file", 0.0, 0.0)
+        model_a = self.scene.add_node_from_type("dpf.model", 320.0, 30.0)
+        self.scene.add_edge(result_file_source_a, "normalized_path", model_a, "path")
+
+        with self.assertRaises(ValueError):
+            self.scene.add_edge(result_file_source_a, "result_file", model_a, "result_file")
+
+        result_file_source_b = self.scene.add_node_from_type("dpf.result_file", 0.0, 180.0)
+        model_b = self.scene.add_node_from_type("dpf.model", 320.0, 210.0)
+        self.scene.add_edge(result_file_source_b, "result_file", model_b, "result_file")
+
+        with self.assertRaises(ValueError):
+            self.scene.add_edge(result_file_source_b, "normalized_path", model_b, "path")
+
     def test_pin_kind_change_prunes_invalid_shell_edge_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
         shell_id = self.scene.add_node_from_type("core.subnode", 240.0, 30.0)

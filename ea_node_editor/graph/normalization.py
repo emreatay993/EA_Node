@@ -35,6 +35,10 @@ from ea_node_editor.nodes.types import NodeTypeSpec
 
 GRAPH_FRAGMENT_KIND = "ea-node-editor/graph-fragment"
 GRAPH_FRAGMENT_VERSION = 1
+_MUTUALLY_EXCLUSIVE_TARGET_INPUT_GROUPS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("dpf.model", "result_file"): ("result_file", "path"),
+    ("dpf.model", "path"): ("result_file", "path"),
+}
 
 
 def build_graph_fragment_payload(
@@ -103,6 +107,28 @@ def normalize_graph_fragment_payload(payload: Any) -> dict[str, Any] | None:
 
 def normalize_edge_label(value: Any) -> str:
     return str(value).strip() if value is not None else ""
+
+
+def _mutually_exclusive_target_input_group(node_type_id: str, port_key: str) -> tuple[str, ...] | None:
+    return _MUTUALLY_EXCLUSIVE_TARGET_INPUT_GROUPS.get((node_type_id, port_key))
+
+
+def _conflicting_target_input_keys(node_type_id: str, port_key: str) -> tuple[str, ...]:
+    group = _mutually_exclusive_target_input_group(node_type_id, port_key)
+    if group is None:
+        return ()
+    return tuple(candidate for candidate in group if candidate != port_key)
+
+
+def _higher_precedence_conflicting_target_input_keys(node_type_id: str, port_key: str) -> tuple[str, ...]:
+    group = _mutually_exclusive_target_input_group(node_type_id, port_key)
+    if group is None:
+        return ()
+    try:
+        current_index = group.index(port_key)
+    except ValueError:
+        return ()
+    return group[:current_index]
 
 
 def normalize_visual_style_payload(value: Any) -> dict[str, Any]:
@@ -222,6 +248,20 @@ class GraphInvariantKernel:
             return ()
         return tuple(self.workspace_edges)
 
+    def _target_node_has_existing_input(
+        self,
+        *,
+        target_node_id: str,
+        target_port_keys: tuple[str, ...],
+    ) -> bool:
+        if not target_port_keys:
+            return False
+        return any(
+            edge.target_node_id == target_node_id
+            and str(edge.target_port_key) in target_port_keys
+            for edge in self._workspace_edge_values()
+        )
+
     def resolve_registry_nodes(self) -> dict[str, RegistryNodeResolution]:
         resolved: dict[str, RegistryNodeResolution] = {}
         for node_id, node in self.workspace_nodes.items():
@@ -285,6 +325,14 @@ class GraphInvariantKernel:
             return None
         if require_compatible_ports and not are_port_kinds_compatible(source_port.kind, target_port.kind):
             return None
+        if self._target_node_has_existing_input(
+            target_node_id=target_node_id,
+            target_port_keys=_higher_precedence_conflicting_target_input_keys(
+                str(target_resolution.spec.type_id),
+                target_port_key,
+            ),
+        ):
+            return None
         return RegistryEdgeResolution(
             source_node_id=source_node_id,
             source_port_key=source_port_key,
@@ -323,6 +371,19 @@ class GraphInvariantKernel:
             raise ValueError(f"Source port is hidden: {source_node_id}.{source_port_key}")
         if not target_port.exposed:
             raise ValueError(f"Target port is hidden: {target_node_id}.{target_port_key}")
+        conflicting_target_port_keys = _conflicting_target_input_keys(str(target_spec.type_id), target_port_key)
+        if self._target_node_has_existing_input(
+            target_node_id=target_node_id,
+            target_port_keys=conflicting_target_port_keys,
+        ):
+            conflict_targets = ", ".join(
+                f"{target_node_id}.{port_key}"
+                for port_key in conflicting_target_port_keys
+            )
+            raise ValueError(
+                "Target inputs are mutually exclusive: "
+                f"{target_node_id}.{target_port_key} conflicts with {conflict_targets}"
+            )
         if not target_port_has_capacity(
             edges=self._workspace_edge_values(),
             node=target_node,
@@ -405,6 +466,7 @@ class GraphInvariantKernel:
 
         seen_connections: set[tuple[str, str, str, str]] = set()
         occupied_single_target_ports: set[tuple[str, str]] = set()
+        occupied_mutually_exclusive_target_groups: set[tuple[str, tuple[str, ...]]] = set()
         for edge_payload in raw_edges:
             normalized_edge = _normalize_fragment_edge_entry(edge_payload)
             if normalized_edge is None:
@@ -433,6 +495,15 @@ class GraphInvariantKernel:
                 return False
             if not port_supports_outgoing_edge(source_port) or not port_supports_incoming_edge(target_port):
                 return False
+            mutually_exclusive_group = _mutually_exclusive_target_input_group(
+                str(target_spec.type_id),
+                normalized_edge["target_port_key"],
+            )
+            if mutually_exclusive_group is not None and (
+                target_ref_id,
+                mutually_exclusive_group,
+            ) in occupied_mutually_exclusive_target_groups:
+                return False
             if not cls.accept_registry_edge(
                 RegistryEdgeResolution(
                     source_node_id=source_ref_id,
@@ -446,6 +517,8 @@ class GraphInvariantKernel:
                 occupied_single_target_ports=occupied_single_target_ports,
             ):
                 return False
+            if mutually_exclusive_group is not None:
+                occupied_mutually_exclusive_target_groups.add((target_ref_id, mutually_exclusive_group))
         return True
 
     @classmethod

@@ -5,16 +5,35 @@ from unittest.mock import patch
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.qt_wait import wait_for_condition_or_raise
 from PyQt6.QtCore import QObject, QMetaObject
+from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtQml import QJSValue
 
 
 class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
+    def _walk_items(self, item: QQuickItem):
+        yield item
+        for child in item.childItems():
+            yield from self._walk_items(child)
+
     def _inspector_object(self, name: str) -> QObject:
         root_object = self.window.quick_widget.rootObject()
         self.assertIsNotNone(root_object)
         item = root_object.findChild(QObject, name)
         self.assertIsNotNone(item)
         return item
+
+    def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        for item in self._walk_items(root_object):
+            if item.objectName() != object_name:
+                continue
+            if str(item.property("propertyKey")) != property_key:
+                continue
+            if not bool(item.property("visible")):
+                continue
+            return item
+        self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
 
     @staticmethod
     def _variant_value(value):  # noqa: ANN001
@@ -572,6 +591,24 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(inline_items["message"]["value"], "inline update")
         self.assertTrue(inline_items["message"]["overridden_by_input"])
         self.assertEqual(inline_items["message"]["input_port_label"], "message")
+
+    def test_qml_dpf_model_path_property_is_overridden_by_result_file_input(self) -> None:
+        model_id = self.window.scene.add_node_from_type("dpf.model", x=260.0, y=120.0)
+        result_file_id = self.window.scene.add_node_from_type("dpf.result_file", x=20.0, y=120.0)
+        self.window.scene.focus_node(model_id)
+        self.window.set_selected_node_property("path", "C:/tmp/example.rst")
+        self.window.request_connect_ports(result_file_id, "result_file", model_id, "result_file")
+        self.app.processEvents()
+
+        property_items = {item["key"]: item for item in self.window.selected_node_property_items}
+        self.assertEqual(property_items["path"]["value"], "C:/tmp/example.rst")
+        self.assertTrue(property_items["path"]["overridden_by_input"])
+        self.assertEqual(property_items["path"]["input_port_label"], "result_file")
+
+        path_editor = self._inspector_property_object("inspectorPathEditor", "path")
+        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "path")
+        self.assertFalse(bool(path_editor.property("enabled")))
+        self.assertFalse(bool(browse_button.property("enabled")))
 
     def test_viewport_commands_frame_all_frame_selection_and_center_selection(self) -> None:
         node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)

@@ -102,6 +102,84 @@ class SerializerSchemaMixin:
             ("node_start", "exec_out", "node_end", "exec_in"),
         )
 
+    def test_migration_prefers_dpf_model_result_file_input_over_path_edge(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_dpf_conflict",
+            "name": "dpf conflict",
+            "active_workspace_id": "ws_a",
+            "workspace_order": ["ws_a"],
+            "workspaces": [
+                {
+                    "workspace_id": "ws_a",
+                    "name": "Workspace",
+                    "active_view_id": "view_a",
+                    "views": [
+                        {
+                            "view_id": "view_a",
+                            "name": "V1",
+                            "zoom": 1.0,
+                            "pan_x": 0.0,
+                            "pan_y": 0.0,
+                        }
+                    ],
+                    "nodes": [
+                        {
+                            "node_id": "node_result_file",
+                            "type_id": "dpf.result_file",
+                            "title": "DPF Result File",
+                            "x": 0.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {"path": "C:/tmp/source.rst"},
+                            "exposed_ports": {},
+                            "parent_node_id": None,
+                        },
+                        {
+                            "node_id": "node_model",
+                            "type_id": "dpf.model",
+                            "title": "DPF Model",
+                            "x": 180.0,
+                            "y": 0.0,
+                            "collapsed": False,
+                            "properties": {"path": "C:/tmp/stale.rst"},
+                            "exposed_ports": {},
+                            "parent_node_id": None,
+                        },
+                    ],
+                    "edges": [
+                        {
+                            "edge_id": "edge_path",
+                            "source_node_id": "node_result_file",
+                            "source_port_key": "normalized_path",
+                            "target_node_id": "node_model",
+                            "target_port_key": "path",
+                        },
+                        {
+                            "edge_id": "edge_result_file",
+                            "source_node_id": "node_result_file",
+                            "source_port_key": "result_file",
+                            "target_node_id": "node_model",
+                            "target_port_key": "result_file",
+                        },
+                    ],
+                }
+            ],
+            "metadata": {},
+        }
+
+        project = serializer.from_document(payload)
+        workspace = project.workspaces["ws_a"]
+
+        self.assertEqual(set(workspace.edges), {"edge_result_file"})
+        edge = workspace.edges["edge_result_file"]
+        self.assertEqual(
+            (edge.source_node_id, edge.source_port_key, edge.target_node_id, edge.target_port_key),
+            ("node_result_file", "result_file", "node_model", "result_file"),
+        )
+        self.assertEqual(workspace.nodes["node_model"].properties["path"], "C:/tmp/stale.rst")
+
     def test_current_schema_fixture_adds_defaults_and_normalizes_workspace_and_view(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = _current_schema_minimal_payload()

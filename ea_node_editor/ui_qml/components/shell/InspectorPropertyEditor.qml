@@ -9,6 +9,8 @@ Column {
     property var propertyItem: ({})
     readonly property string propertyKey: String(propertyItem ? propertyItem.key || "" : "")
     readonly property string editorMode: String(propertyItem ? propertyItem.editor_mode || "" : "")
+    readonly property bool overriddenByInput: !!(propertyItem && propertyItem.overridden_by_input)
+    readonly property string inputPortLabel: String(propertyItem ? propertyItem.input_port_label || "" : "")
     readonly property string propertyValueText: String(
         propertyItem && propertyItem.value !== undefined && propertyItem.value !== null
             ? propertyItem.value
@@ -24,6 +26,17 @@ Column {
         color: propertyEditor.pane.themePalette.group_title_fg
         font.pixelSize: 10
         font.bold: true
+        elide: Text.ElideRight
+    }
+
+    Text {
+        width: parent.width
+        visible: propertyEditor.overriddenByInput
+        text: propertyEditor.inputPortLabel.length
+            ? "Driven by " + propertyEditor.inputPortLabel
+            : "Driven by input"
+        color: propertyEditor.pane.themePalette.muted_fg
+        font.pixelSize: 10
         elide: Text.ElideRight
     }
 
@@ -47,6 +60,7 @@ Column {
             InspectorCheckBox {
                 id: boolToggle
                 pane: propertyEditor.pane
+                enabled: !propertyEditor.overriddenByInput
                 checked: !!propertyEditor.propertyItem.value
                 onToggled: {
                     if (propertyEditor.pane.inspectorBridgeRef)
@@ -67,6 +81,7 @@ Column {
         width: parent.width
         pane: propertyEditor.pane
         visible: propertyEditor.editorMode === "enum"
+        enabled: !propertyEditor.overriddenByInput
         model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values ? propertyEditor.propertyItem.enum_values : []
         currentIndex: {
             var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
@@ -95,6 +110,7 @@ Column {
         width: parent.width
         visible: propertyEditor.pane.isPinInspector
             && propertyEditor.propertyKey === "data_type"
+        enabled: !propertyEditor.overriddenByInput
         model: propertyEditor.pane.pinDataTypeOptions
         currentIndex: {
             var values = propertyEditor.pane.pinDataTypeOptions
@@ -158,6 +174,7 @@ Column {
             objectName: "inspectorTextareaEditor"
             property string propertyKey: textareaEditorGroup.propertyKey
             width: parent.width
+            enabled: !propertyEditor.overriddenByInput
             text: textareaEditorGroup.draftText
             onTextChanged: {
                 if (textareaEditorGroup.draftText !== text)
@@ -184,7 +201,7 @@ Column {
                 objectName: "inspectorTextareaApplyButton"
                 property string propertyKey: textareaEditorGroup.propertyKey
                 compact: true
-                enabled: textareaEditorGroup.draftDirty
+                enabled: !propertyEditor.overriddenByInput && textareaEditorGroup.draftDirty
                 text: "Apply"
                 onClicked: textareaEditorGroup.commitDraft()
             }
@@ -194,7 +211,7 @@ Column {
                 objectName: "inspectorTextareaResetButton"
                 property string propertyKey: textareaEditorGroup.propertyKey
                 compact: true
-                enabled: textareaEditorGroup.draftDirty
+                enabled: !propertyEditor.overriddenByInput && textareaEditorGroup.draftDirty
                 text: "Reset"
                 onClicked: textareaEditorGroup.syncDraftToCommitted()
             }
@@ -227,6 +244,7 @@ Column {
                 objectName: "inspectorPathEditor"
                 property string propertyKey: propertyEditor.propertyKey
                 Layout.fillWidth: true
+                enabled: !propertyEditor.overriddenByInput
                 text: MainShellUtils.toEditorText(propertyEditor.propertyItem)
                 onAccepted: {
                     if (propertyEditor.pane.inspectorBridgeRef)
@@ -243,6 +261,7 @@ Column {
                 objectName: "inspectorPathBrowseButton"
                 property string propertyKey: propertyEditor.propertyKey
                 compact: true
+                enabled: !propertyEditor.overriddenByInput
                 text: "Browse"
                 onClicked: {
                     if (!propertyEditor.pane.inspectorBridgeRef)
@@ -287,6 +306,7 @@ Column {
                     objectName: "inspectorPathRepairButton"
                     property string propertyKey: propertyEditor.propertyKey
                     compact: true
+                    enabled: !propertyEditor.overriddenByInput
                     text: "Repair file..."
                     onClicked: {
                         if (!propertyEditor.pane.inspectorBridgeRef)
@@ -309,6 +329,7 @@ Column {
         pane: propertyEditor.pane
         width: parent.width
         visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "text"
+        enabled: !propertyEditor.overriddenByInput
         text: MainShellUtils.toEditorText(propertyEditor.propertyItem)
         onAccepted: {
             if (propertyEditor.pane.inspectorBridgeRef)
