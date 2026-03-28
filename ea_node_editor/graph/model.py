@@ -8,9 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.persistence.overlay import (
     WorkspacePersistenceState,
+    capture_workspace_persistence_state,
+    copy_workspace_persistence_overlay,
+    restore_workspace_persistence_state,
     set_workspace_authored_node_overrides,
     set_workspace_unresolved_edge_docs,
     set_workspace_unresolved_node_docs,
+    workspace_persistence_overlay,
 )
 from ea_node_editor.settings import SCHEMA_VERSION
 
@@ -161,7 +165,7 @@ class ViewState:
     pan_y: float = 0.0
     scope_path: list[str] = field(default_factory=list)
 
-@dataclass(slots=True)
+@dataclass(eq=False)
 class WorkspaceSnapshot:
     name: str
     nodes: dict[str, NodeInstance]
@@ -169,31 +173,37 @@ class WorkspaceSnapshot:
     views: dict[str, ViewState]
     active_view_id: str
     dirty: bool
-    persistence_state: WorkspacePersistenceState = field(default_factory=WorkspacePersistenceState)
 
     @property
     def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return self.persistence_state.unresolved_node_docs
+        return workspace_persistence_overlay(self).unresolved_node_docs
 
     @property
     def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return self.persistence_state.unresolved_edge_docs
+        return workspace_persistence_overlay(self).unresolved_edge_docs
 
     @property
     def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return self.persistence_state.authored_node_overrides
+        return workspace_persistence_overlay(self).authored_node_overrides
+
+    def capture_persistence_state(self) -> WorkspacePersistenceState:
+        return capture_workspace_persistence_state(self)
+
+    def restore_persistence_state(self, state: WorkspacePersistenceState) -> None:
+        restore_workspace_persistence_state(self, state)
 
     @classmethod
     def capture(cls, workspace: WorkspaceData) -> "WorkspaceSnapshot":
-        return cls(
+        snapshot = cls(
             name=str(workspace.name),
             nodes={node_id: node.clone() for node_id, node in workspace.nodes.items()},
             edges={edge_id: edge.clone() for edge_id, edge in workspace.edges.items()},
             views=copy.deepcopy(workspace.views),
             active_view_id=str(workspace.active_view_id),
             dirty=bool(workspace.dirty),
-            persistence_state=workspace.capture_persistence_state(),
         )
+        copy_workspace_persistence_overlay(workspace, snapshot)
+        return snapshot
 
     def restore(self, workspace: WorkspaceData) -> None:
         workspace.name = str(self.name)
@@ -202,13 +212,26 @@ class WorkspaceSnapshot:
         workspace.views = copy.deepcopy(self.views)
         workspace.active_view_id = str(self.active_view_id)
         workspace.dirty = bool(self.dirty)
-        workspace.restore_persistence_state(self.persistence_state)
+        copy_workspace_persistence_overlay(self, workspace)
         workspace.ensure_default_view()
         if workspace.active_view_id not in workspace.views:
             workspace.active_view_id = next(iter(workspace.views))
 
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, WorkspaceSnapshot):
+            return NotImplemented
+        return (
+            self.name == other.name
+            and self.nodes == other.nodes
+            and self.edges == other.edges
+            and self.views == other.views
+            and self.active_view_id == other.active_view_id
+            and self.dirty == other.dirty
+            and self.capture_persistence_state() == other.capture_persistence_state()
+        )
 
-@dataclass(slots=True)
+
+@dataclass
 class WorkspaceData:
     workspace_id: str
     name: str
@@ -217,11 +240,6 @@ class WorkspaceData:
     views: dict[str, ViewState] = field(default_factory=dict)
     active_view_id: str = ""
     dirty: bool = False
-    persistence_state: WorkspacePersistenceState = field(
-        default_factory=WorkspacePersistenceState,
-        repr=False,
-        compare=False,
-    )
 
     def ensure_default_view(self) -> None:
         if not self.views:
@@ -233,7 +251,7 @@ class WorkspaceData:
 
     @property
     def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return self.persistence_state.unresolved_node_docs
+        return workspace_persistence_overlay(self).unresolved_node_docs
 
     @unresolved_node_docs.setter
     def unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
@@ -241,7 +259,7 @@ class WorkspaceData:
 
     @property
     def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return self.persistence_state.unresolved_edge_docs
+        return workspace_persistence_overlay(self).unresolved_edge_docs
 
     @unresolved_edge_docs.setter
     def unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
@@ -249,17 +267,17 @@ class WorkspaceData:
 
     @property
     def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return self.persistence_state.authored_node_overrides
+        return workspace_persistence_overlay(self).authored_node_overrides
 
     @authored_node_overrides.setter
     def authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
         set_workspace_authored_node_overrides(self, value)
 
     def capture_persistence_state(self) -> WorkspacePersistenceState:
-        return self.persistence_state.clone()
+        return capture_workspace_persistence_state(self)
 
     def restore_persistence_state(self, state: WorkspacePersistenceState) -> None:
-        self.persistence_state = state.clone()
+        restore_workspace_persistence_state(self, state)
 
     def capture_snapshot(self) -> WorkspaceSnapshot:
         return WorkspaceSnapshot.capture(self)

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import copy
+import weakref
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import Any
 
 PERSISTENCE_ENVELOPE_KEY = "_persistence_envelope"
 LEGACY_RUNTIME_PERSISTENCE_KEY = "_runtime_unresolved_workspaces"
@@ -55,11 +56,11 @@ class WorkspacePersistenceState:
         )
 
     @classmethod
-    def capture(cls, workspace: WorkspacePersistenceStateOwner) -> "WorkspacePersistenceState":
-        return workspace.persistence_state.clone()
+    def capture(cls, owner: object) -> "WorkspacePersistenceState":
+        return capture_workspace_persistence_state(owner)
 
-    def restore(self, workspace: WorkspacePersistenceStateOwner) -> None:
-        workspace.persistence_state = self.clone()
+    def restore(self, owner: object) -> None:
+        restore_workspace_persistence_state(owner, self)
 
     def replace_unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
         self.unresolved_node_docs = _copy_overlay_docs(value)
@@ -110,8 +111,8 @@ class WorkspacePersistenceEnvelope:
         )
 
     @classmethod
-    def capture(cls, workspace: "WorkspacePersistenceStateOwner") -> "WorkspacePersistenceEnvelope":
-        return cls.from_state(workspace.persistence_state)
+    def capture(cls, owner: object) -> "WorkspacePersistenceEnvelope":
+        return cls.from_state(capture_workspace_persistence_state(owner))
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any] | None) -> "WorkspacePersistenceEnvelope":
@@ -162,33 +163,76 @@ class WorkspacePersistenceEnvelope:
         state.replace_authored_node_overrides(self.authored_node_overrides)
 
 
-class WorkspacePersistenceStateOwner(Protocol):
-    persistence_state: WorkspacePersistenceState
+_PERSISTENCE_STATE_BY_OWNER: dict[int, tuple[weakref.ReferenceType[Any], WorkspacePersistenceState]] = {}
 
 
-def workspace_persistence_overlay(workspace: WorkspacePersistenceStateOwner) -> WorkspacePersistenceState:
-    return workspace.persistence_state
+def _persistence_state_entry(owner: object) -> tuple[weakref.ReferenceType[Any], WorkspacePersistenceState] | None:
+    owner_id = id(owner)
+    entry = _PERSISTENCE_STATE_BY_OWNER.get(owner_id)
+    if entry is None:
+        return None
+    owner_ref, state = entry
+    if owner_ref() is owner:
+        return owner_ref, state
+    _PERSISTENCE_STATE_BY_OWNER.pop(owner_id, None)
+    return None
+
+
+def _owner_ref(owner: object) -> weakref.ReferenceType[Any]:
+    owner_id = id(owner)
+
+    def _cleanup(owner_ref: weakref.ReferenceType[Any]) -> None:
+        entry = _PERSISTENCE_STATE_BY_OWNER.get(owner_id)
+        if entry is not None and entry[0] is owner_ref:
+            _PERSISTENCE_STATE_BY_OWNER.pop(owner_id, None)
+
+    return weakref.ref(owner, _cleanup)
+
+
+def workspace_has_persistence_overlay(owner: object) -> bool:
+    return _persistence_state_entry(owner) is not None
+
+
+def capture_workspace_persistence_state(owner: object) -> WorkspacePersistenceState:
+    entry = _persistence_state_entry(owner)
+    if entry is None:
+        return WorkspacePersistenceState()
+    return entry[1].clone()
+
+
+def restore_workspace_persistence_state(
+    owner: object,
+    state: WorkspacePersistenceState,
+) -> WorkspacePersistenceState:
+    restored = state.clone()
+    _PERSISTENCE_STATE_BY_OWNER[id(owner)] = (_owner_ref(owner), restored)
+    return restored
+
+
+def workspace_persistence_overlay(owner: object) -> WorkspacePersistenceState:
+    entry = _persistence_state_entry(owner)
+    if entry is not None:
+        return entry[1]
+    return restore_workspace_persistence_state(owner, WorkspacePersistenceState())
 
 
 def copy_workspace_persistence_overlay(
-    source: WorkspacePersistenceStateOwner,
-    target: WorkspacePersistenceStateOwner,
+    source: object,
+    target: object,
 ) -> WorkspacePersistenceState:
-    overlay = source.persistence_state.clone()
-    target.persistence_state = overlay
-    return overlay
+    return restore_workspace_persistence_state(target, capture_workspace_persistence_state(source))
 
 
-def set_workspace_unresolved_node_docs(workspace: WorkspacePersistenceStateOwner, value: Mapping[str, Any] | None) -> None:
-    workspace.persistence_state.replace_unresolved_node_docs(value)
+def set_workspace_unresolved_node_docs(owner: object, value: Mapping[str, Any] | None) -> None:
+    workspace_persistence_overlay(owner).replace_unresolved_node_docs(value)
 
 
-def set_workspace_unresolved_edge_docs(workspace: WorkspacePersistenceStateOwner, value: Mapping[str, Any] | None) -> None:
-    workspace.persistence_state.replace_unresolved_edge_docs(value)
+def set_workspace_unresolved_edge_docs(owner: object, value: Mapping[str, Any] | None) -> None:
+    workspace_persistence_overlay(owner).replace_unresolved_edge_docs(value)
 
 
 def set_workspace_authored_node_overrides(
-    workspace: WorkspacePersistenceStateOwner,
+    owner: object,
     value: Mapping[str, Any] | None,
 ) -> None:
-    workspace.persistence_state.replace_authored_node_overrides(value)
+    workspace_persistence_overlay(owner).replace_authored_node_overrides(value)

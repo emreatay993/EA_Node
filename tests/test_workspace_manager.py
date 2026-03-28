@@ -50,6 +50,33 @@ class WorkspaceManagerTests(unittest.TestCase):
         )
         self.assertEqual(manager.active_workspace_id(), duplicated)
 
+    def test_duplicate_workspace_preserves_externalized_persistence_overlay(self) -> None:
+        model = GraphModel()
+        manager = WorkspaceManager(model)
+        source = model.active_workspace
+        state = source.capture_persistence_state()
+        state.replace_unresolved_node_docs(
+            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        )
+        source.restore_persistence_state(state)
+
+        duplicated_id = manager.duplicate_workspace(source.workspace_id)
+        duplicate = model.project.workspaces[duplicated_id]
+        duplicate_state = duplicate.capture_persistence_state()
+
+        self.assertEqual(
+            duplicate_state.unresolved_node_docs,
+            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}},
+        )
+
+        duplicate_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
+        duplicate.restore_persistence_state(duplicate_state)
+
+        self.assertEqual(
+            source.capture_persistence_state().unresolved_node_docs["node_missing"]["type_id"],
+            "plugin.missing",
+        )
+
     def test_close_workspace_promotes_the_next_workspace_in_authoritative_order(self) -> None:
         model = GraphModel()
         manager = WorkspaceManager(model)

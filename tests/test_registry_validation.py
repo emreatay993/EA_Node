@@ -11,7 +11,7 @@ from ea_node_editor.graph.subnode_contract import (
     default_subnode_pin_label,
     resolve_subnode_pin_definition,
 )
-from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
+from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData, WorkspaceSnapshot
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_NODE_CATEGORY
@@ -29,7 +29,7 @@ from ea_node_editor.nodes.types import (
     PortSpec,
     PropertySpec,
 )
-from ea_node_editor.persistence.overlay import WorkspacePersistenceEnvelope
+from ea_node_editor.persistence.overlay import WorkspacePersistenceEnvelope, workspace_has_persistence_overlay
 
 
 class _Plugin:
@@ -48,22 +48,30 @@ def _factory(spec: NodeTypeSpec):
 
 
 class RegistryValidationTests(unittest.TestCase):
-    def test_workspace_data_owns_explicit_persistence_state_and_preserves_compatibility_properties(self) -> None:
-        self.assertIn("persistence_state", WorkspaceData.__dataclass_fields__)
+    def test_workspace_models_externalize_persistence_state_and_preserve_workspace_boundary_accessors(self) -> None:
+        self.assertNotIn("persistence_state", WorkspaceData.__dataclass_fields__)
+        self.assertNotIn("persistence_state", WorkspaceSnapshot.__dataclass_fields__)
         self.assertNotIn("unresolved_node_docs", WorkspaceData.__dataclass_fields__)
         self.assertNotIn("unresolved_edge_docs", WorkspaceData.__dataclass_fields__)
         self.assertNotIn("authored_node_overrides", WorkspaceData.__dataclass_fields__)
 
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
-        workspace.persistence_state.replace_unresolved_node_docs(
+        self.assertFalse(workspace_has_persistence_overlay(workspace))
+
+        state = workspace.capture_persistence_state()
+        self.assertFalse(workspace_has_persistence_overlay(workspace))
+        state.replace_unresolved_node_docs(
             {"node_missing": {"type_id": "plugin.missing"}}
         )
-        workspace.persistence_state.replace_unresolved_edge_docs(
+        state.replace_unresolved_edge_docs(
             {"edge_missing": {"source_node_id": "node_missing"}}
         )
-        workspace.persistence_state.replace_authored_node_overrides(
+        state.replace_authored_node_overrides(
             {"node_known": {"parent_node_id": "node_missing"}}
         )
+        workspace.restore_persistence_state(state)
+
+        self.assertTrue(workspace_has_persistence_overlay(workspace))
 
         self.assertEqual(workspace.unresolved_node_docs["node_missing"]["type_id"], "plugin.missing")
         self.assertEqual(workspace.unresolved_edge_docs["edge_missing"]["source_node_id"], "node_missing")
@@ -75,35 +83,41 @@ class RegistryValidationTests(unittest.TestCase):
     def test_duplicate_workspace_receives_independent_persistence_state_copy(self) -> None:
         model = GraphModel()
         source = model.active_workspace
-        source.persistence_state.replace_unresolved_node_docs(
+        source_state = source.capture_persistence_state()
+        source_state.replace_unresolved_node_docs(
             {"node_missing": {"type_id": "plugin.missing"}}
         )
-        source.persistence_state.replace_unresolved_edge_docs(
+        source_state.replace_unresolved_edge_docs(
             {"edge_missing": {"source_node_id": "node_missing", "target_node_id": "node_known"}}
         )
-        source.persistence_state.replace_authored_node_overrides(
+        source_state.replace_authored_node_overrides(
             {"node_known": {"parent_node_id": "node_missing"}}
         )
+        source.restore_persistence_state(source_state)
 
         duplicate = model.duplicate_workspace(source.workspace_id)
+        duplicate_state = duplicate.capture_persistence_state()
 
-        self.assertIsNot(duplicate.persistence_state, source.persistence_state)
+        self.assertTrue(workspace_has_persistence_overlay(source))
+        self.assertTrue(workspace_has_persistence_overlay(duplicate))
         self.assertEqual(
-            duplicate.persistence_state.unresolved_node_docs,
-            source.persistence_state.unresolved_node_docs,
+            duplicate_state.unresolved_node_docs,
+            source.capture_persistence_state().unresolved_node_docs,
         )
-        duplicate.persistence_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
+        duplicate_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
+        duplicate.restore_persistence_state(duplicate_state)
         self.assertEqual(
-            source.persistence_state.unresolved_node_docs["node_missing"]["type_id"],
+            source.capture_persistence_state().unresolved_node_docs["node_missing"]["type_id"],
             "plugin.missing",
         )
 
     def test_workspace_persistence_envelope_round_trips_runtime_payload(self) -> None:
         workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
-        workspace.persistence_state.replace_unresolved_node_docs(
+        state = workspace.capture_persistence_state()
+        state.replace_unresolved_node_docs(
             {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
         )
-        workspace.persistence_state.replace_unresolved_edge_docs(
+        state.replace_unresolved_edge_docs(
             {
                 "edge_missing": {
                     "edge_id": "edge_missing",
@@ -112,9 +126,10 @@ class RegistryValidationTests(unittest.TestCase):
                 }
             }
         )
-        workspace.persistence_state.replace_authored_node_overrides(
+        state.replace_authored_node_overrides(
             {"node_known": {"parent_node_id": "node_missing"}}
         )
+        workspace.restore_persistence_state(state)
 
         payload = WorkspacePersistenceEnvelope.capture(workspace).to_mapping()
         restored = WorkspacePersistenceEnvelope.from_mapping(payload)
@@ -131,6 +146,40 @@ class RegistryValidationTests(unittest.TestCase):
             restored.authored_node_overrides["node_known"]["parent_node_id"],
             "node_missing",
         )
+
+    def test_workspace_snapshot_restores_externalized_persistence_overlay(self) -> None:
+        workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
+        initial_state = workspace.capture_persistence_state()
+        initial_state.replace_unresolved_node_docs(
+            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        )
+        workspace.restore_persistence_state(initial_state)
+
+        snapshot = workspace.capture_snapshot()
+
+        mutated_state = workspace.capture_persistence_state()
+        mutated_state.replace_unresolved_node_docs({})
+        workspace.restore_persistence_state(mutated_state)
+
+        workspace.restore_snapshot(snapshot)
+
+        self.assertEqual(
+            workspace.capture_persistence_state().unresolved_node_docs,
+            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}},
+        )
+
+    def test_workspace_snapshot_equality_tracks_externalized_persistence_overlay(self) -> None:
+        workspace = WorkspaceData(workspace_id="ws_test", name="Workspace")
+        before = workspace.capture_snapshot()
+
+        state = workspace.capture_persistence_state()
+        state.replace_unresolved_node_docs(
+            {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
+        )
+        workspace.restore_persistence_state(state)
+        after = workspace.capture_snapshot()
+
+        self.assertNotEqual(before, after)
 
     def test_register_rejects_duplicate_port_keys(self) -> None:
         registry = NodeRegistry()
