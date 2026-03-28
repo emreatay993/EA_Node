@@ -22,6 +22,7 @@ from ea_node_editor.ui.graph_theme import (
     resolve_graph_theme_id,
     serialize_custom_graph_themes,
 )
+from ea_node_editor.ui.pdf_preview_provider import describe_pdf_preview
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_canvas_quick_insert_items,
@@ -1218,10 +1219,24 @@ class GraphCanvasPresenter(QObject):
         self._host.search_scope_controller.set_graphics_minimap_expanded(expanded)
 
     def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
-        self._host.set_graphics_show_port_labels(show_port_labels)
+        self._host.app_preferences_controller.update_graphics_settings(
+            {
+                "canvas": {
+                    "show_port_labels": bool(show_port_labels),
+                }
+            },
+            host=self._host,
+        )
 
     def set_graphics_performance_mode(self, mode: str) -> None:
-        self._host.set_graphics_performance_mode(mode)
+        self._host.app_preferences_controller.update_graphics_settings(
+            {
+                "performance": {
+                    "mode": str(mode),
+                }
+            },
+            host=self._host,
+        )
 
     def request_open_subnode_scope(self, node_id: str) -> bool:
         normalized_node_id = str(node_id).strip()
@@ -1297,7 +1312,79 @@ class GraphCanvasPresenter(QObject):
         self._library_presenter.request_open_canvas_quick_insert(scene_x, scene_y, overlay_x, overlay_y)
 
 
+class GraphCanvasHostPresenter(QObject):
+    def __init__(self, host: "ShellWindow") -> None:
+        super().__init__(host)
+        self._host = host
+
+    def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
+        result = self._host.workspace_library_controller.request_delete_selected_graph_items(edge_ids)
+        return bool(result.payload)
+
+    def request_navigate_scope_parent(self) -> bool:
+        return bool(self._host.search_scope_controller.navigate_scope(self._host.scene.navigate_scope_parent))
+
+    def request_navigate_scope_root(self) -> bool:
+        return bool(self._host.search_scope_controller.navigate_scope(self._host.scene.navigate_scope_root))
+
+    def set_graph_cursor_shape(self, cursor_shape: int) -> None:
+        self._host.shell_host_presenter.set_graph_cursor_shape(cursor_shape)
+
+    def clear_graph_cursor_shape(self) -> None:
+        self._host.shell_host_presenter.clear_graph_cursor_shape()
+
+    def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
+        return describe_pdf_preview(source, page_number)
+
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_edit_flow_edge_style(edge_id))
+
+    def request_edit_flow_edge_label(self, edge_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_edit_flow_edge_label(edge_id))
+
+    def request_reset_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_reset_flow_edge_style(edge_id))
+
+    def request_copy_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_copy_flow_edge_style(edge_id))
+
+    def request_paste_flow_edge_style(self, edge_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_paste_flow_edge_style(edge_id))
+
+    def request_remove_edge(self, edge_id: str) -> bool:
+        result = self._host.workspace_library_controller.request_remove_edge(edge_id)
+        return bool(result.payload)
+
+    def request_edit_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_edit_passive_node_style(node_id))
+
+    def request_reset_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_reset_passive_node_style(node_id))
+
+    def request_copy_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_copy_passive_node_style(node_id))
+
+    def request_paste_passive_node_style(self, node_id: str) -> bool:
+        return bool(self._host.shell_host_presenter.request_paste_passive_node_style(node_id))
+
+    def request_rename_node(self, node_id: str) -> bool:
+        result = self._host.workspace_library_controller.request_rename_node(node_id)
+        return bool(result.payload)
+
+    def request_ungroup_node(self, node_id: str) -> bool:
+        normalized_node_id = str(node_id).strip()
+        if not normalized_node_id:
+            return False
+        self._host.scene.select_node(normalized_node_id)
+        return bool(self._host.workspace_library_controller.ungroup_selected_nodes())
+
+    def request_remove_node(self, node_id: str) -> bool:
+        result = self._host.workspace_library_controller.request_remove_node(node_id)
+        return bool(result.payload)
+
+
 __all__ = [
+    "GraphCanvasHostPresenter",
     "GraphCanvasPresenter",
     "ShellInspectorPresenter",
     "ShellLibraryPresenter",

@@ -1046,6 +1046,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
     def test_command_bridge_routes_canvas_commands_to_explicit_canvas_host_scene_and_view_sources(self) -> None:
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
+        host_source = _GraphCanvasShellHostStub()
         host.graph_canvas_presenter = presenter
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
@@ -1053,7 +1054,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host,
             shell_window=host,
             canvas_source=presenter,
-            host_source=host,
+            host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1061,7 +1062,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertIs(bridge.parent(), host)
         self.assertIs(bridge.shell_window, host)
         self.assertIs(bridge.canvas_source, presenter)
-        self.assertIs(bridge.host_source, host)
+        self.assertIs(bridge.host_source, host_source)
         self.assertIs(bridge.scene_bridge, scene)
         self.assertIs(bridge.view_bridge, view)
 
@@ -1159,7 +1160,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(
-            host.calls,
+            host_source.calls,
             [
                 ("request_delete_selected_graph_items", (["edge-1"],)),
                 ("request_navigate_scope_parent", ()),
@@ -1232,6 +1233,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
     def test_graphics_bridge_uses_explicit_shell_host_and_forwards_canvas_calls(self) -> None:
         host = _GraphCanvasShellHostStub()
+        host_source = _GraphCanvasShellHostStub()
         parent = _GraphCanvasParentStub(host)
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
@@ -1246,7 +1248,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             parent,
             shell_window=host,
             canvas_source=host,
-            host_source=host,
+            host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1346,6 +1348,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ),
             ],
         )
+        self.assertEqual(host_source.calls, [])
         self.assertEqual(
             scene.calls,
             [
@@ -1371,6 +1374,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
     def test_graphics_bridge_uses_explicit_graph_canvas_source_contract_when_injected(self) -> None:
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
+        host_source = _GraphCanvasShellHostStub()
         presenter.graphics_show_grid = False
         presenter.graphics_show_minimap = False
         presenter.graphics_show_port_labels = False
@@ -1393,7 +1397,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             command_bridge=GraphCanvasCommandBridge(
                 shell_window=host,
                 canvas_source=presenter,
-                host_source=host,
+                host_source=host_source,
                 scene_bridge=scene,
                 view_bridge=view,
             ),
@@ -1417,16 +1421,18 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             ],
         )
         self.assertEqual(host.calls, [])
+        self.assertEqual(host_source.calls, [])
 
     def test_bridge_re_emits_shell_scene_and_view_signals(self) -> None:
         host = _GraphCanvasShellHostStub()
+        host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
         bridge = _build_explicit_graph_canvas_bridge(
             parent=host,
             shell_window=host,
             canvas_source=host,
-            host_source=host,
+            host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1473,13 +1479,14 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
     def test_bridge_forwards_selected_node_lookup(self) -> None:
         host = _GraphCanvasShellHostStub()
+        host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
         bridge = _build_explicit_graph_canvas_bridge(
             parent=host,
             shell_window=host,
             canvas_source=host,
-            host_source=host,
+            host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1494,12 +1501,13 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
     def test_bridge_exposes_unified_canvas_contract_extensions(self) -> None:
         host = _GraphCanvasShellHostStub()
+        host_source = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()
         view = _GraphCanvasViewBridgeStub()
         bridge = _build_explicit_graph_canvas_bridge(
             shell_window=host,
             canvas_source=host,
-            host_source=host,
+            host_source=host_source,
             scene_bridge=scene,
             view_bridge=view,
         )
@@ -1547,6 +1555,12 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             host.calls,
             [
                 ("request_open_canvas_quick_insert", (15.0, 25.0, 115.0, 215.0)),
+                ("request_publish_custom_workflow_from_node", ("node-1",)),
+            ],
+        )
+        self.assertEqual(
+            host_source.calls,
+            [
                 ("request_delete_selected_graph_items", (["edge-1"],)),
                 ("request_navigate_scope_parent", ()),
                 ("request_navigate_scope_root", ()),
@@ -1559,7 +1573,6 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("request_copy_flow_edge_style", ("edge-1",)),
                 ("request_paste_flow_edge_style", ("edge-1",)),
                 ("request_remove_edge", ("edge-1",)),
-                ("request_publish_custom_workflow_from_node", ("node-1",)),
                 ("request_edit_passive_node_style", ("node-1",)),
                 ("request_reset_passive_node_style", ("node-1",)),
                 ("request_copy_passive_node_style", ("node-1",)),
@@ -1634,7 +1647,7 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
         self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
-        self.assertIs(graph_canvas_command_bridge.host_source, self.window)
+        self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
 

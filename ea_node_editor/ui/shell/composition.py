@@ -28,6 +28,7 @@ from ea_node_editor.ui.shell.context_bridges import ShellContextBridges
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
 from ea_node_editor.ui.shell.presenters import (
     GraphCanvasPresenter,
+    GraphCanvasHostPresenter,
     ShellInspectorPresenter,
     ShellLibraryPresenter,
     ShellWorkspacePresenter,
@@ -159,6 +160,7 @@ class ShellPresenterDependencies:
     shell_workspace_presenter: ShellWorkspacePresenter
     shell_inspector_presenter: ShellInspectorPresenter
     graph_canvas_presenter: GraphCanvasPresenter
+    graph_canvas_host_presenter: GraphCanvasHostPresenter
 
     def attach(self, host: "ShellWindow") -> None:
         host.shell_host_presenter = self.shell_host_presenter
@@ -166,6 +168,7 @@ class ShellPresenterDependencies:
         host.shell_workspace_presenter = self.shell_workspace_presenter
         host.shell_inspector_presenter = self.shell_inspector_presenter
         host.graph_canvas_presenter = self.graph_canvas_presenter
+        host.graph_canvas_host_presenter = self.graph_canvas_host_presenter
 
 
 @dataclass(frozen=True, slots=True)
@@ -412,12 +415,14 @@ def _create_shell_presenter_dependencies(
         library_presenter=shell_library_presenter,
         inspector_presenter=shell_inspector_presenter,
     )
+    graph_canvas_host_presenter = GraphCanvasHostPresenter(host)
     return ShellPresenterDependencies(
         shell_host_presenter=shell_host_presenter,
         shell_library_presenter=shell_library_presenter,
         shell_workspace_presenter=shell_workspace_presenter,
         shell_inspector_presenter=shell_inspector_presenter,
         graph_canvas_presenter=graph_canvas_presenter,
+        graph_canvas_host_presenter=graph_canvas_host_presenter,
     )
 
 
@@ -437,7 +442,7 @@ def _create_shell_context_bridge_dependencies(
         host,
         shell_window=host,
         canvas_source=presenters.graph_canvas_presenter,
-        host_source=host,
+        host_source=presenters.graph_canvas_host_presenter,
         scene_bridge=primitives.scene,
         view_bridge=primitives.view,
     )

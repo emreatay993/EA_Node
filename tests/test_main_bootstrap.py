@@ -14,6 +14,7 @@ main = importlib.import_module("main")
 bootstrap_module = importlib.import_module("ea_node_editor.bootstrap")
 app_module = importlib.import_module("ea_node_editor.app")
 shell_composition_module = importlib.import_module("ea_node_editor.ui.shell.composition")
+shell_presenters_module = importlib.import_module("ea_node_editor.ui.shell.presenters")
 shell_window_module = importlib.import_module("ea_node_editor.ui.shell.window")
 
 
@@ -159,6 +160,10 @@ class AppBootstrapTests(unittest.TestCase):
         self.assertIsInstance(composition.controllers, shell_composition_module.ShellControllerDependencies)
         self.assertIsInstance(composition.presenters, shell_composition_module.ShellPresenterDependencies)
         self.assertIsInstance(composition.context_bridges, shell_composition_module.ShellContextBridgeDependencies)
+        self.assertIsInstance(
+            composition.presenters.graph_canvas_host_presenter,
+            shell_presenters_module.GraphCanvasHostPresenter,
+        )
         self.assertNotIn("_shell_context_bridges", window.__dict__)
         window.close()
         window.deleteLater()

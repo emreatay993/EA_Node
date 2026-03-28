@@ -156,7 +156,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.parent(), self.window)
         self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
         self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
-        self.assertIs(graph_canvas_command_bridge.host_source, self.window)
+        self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
 
