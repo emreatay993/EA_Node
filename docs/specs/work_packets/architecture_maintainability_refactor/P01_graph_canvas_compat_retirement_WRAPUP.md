@@ -1,26 +1,20 @@
+# P01 Graph Canvas Compat Retirement Wrap-Up
+
 ## Implementation Summary
-Packet: P01
-Branch Label: codex/architecture-maintainability-refactor/p01-graph-canvas-compat-retirement
-Commit Owner: worker
-Commit SHA: f1ddb5e3d5572a12f7e54e1a1de11caa9b14af3e
-Changed Files:
-- ea_node_editor/ui_qml/graph_canvas_bridge.py
-- tests/main_window_shell/bridge_contracts.py
-- tests/test_main_window_shell.py
-- docs/specs/work_packets/architecture_maintainability_refactor/P01_graph_canvas_compat_retirement_WRAPUP.md
-Artifacts Produced:
-- docs/specs/work_packets/architecture_maintainability_refactor/P01_graph_canvas_compat_retirement_WRAPUP.md
-- ea_node_editor/ui_qml/graph_canvas_bridge.py
-- tests/main_window_shell/bridge_contracts.py
-- tests/test_main_window_shell.py
+- Packet: P01
+- Branch Label: codex/architecture-maintainability-refactor/p01-graph-canvas-compat-retirement
+- Commit Owner: worker
+- Commit SHA: f1ddb5e3d5572a12f7e54e1a1de11caa9b14af3e
+- Changed Files: docs/specs/work_packets/architecture_maintainability_refactor/P01_graph_canvas_compat_retirement_WRAPUP.md, ea_node_editor/ui_qml/graph_canvas_bridge.py, tests/main_window_shell/bridge_contracts.py, tests/test_main_window_shell.py
+- Artifacts Produced: docs/specs/work_packets/architecture_maintainability_refactor/P01_graph_canvas_compat_retirement_WRAPUP.md, ea_node_editor/ui_qml/graph_canvas_bridge.py, tests/main_window_shell/bridge_contracts.py, tests/test_main_window_shell.py
 
 Packet-owned regression anchors now enforce the bridge-first graph-canvas contract: QML context export stays limited to `graphCanvasStateBridge` and `graphCanvasCommandBridge`, and the persisted port-label preference path is validated through the split bridges rather than the retired compat export. `graph_canvas_bridge.py` remains in place only as a documented edge adapter for out-of-scope callers that still construct `GraphCanvasBridge`; it is no longer treated as a packet-owned shell/QML context surface.
 
 ## Verification
-PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/main_window_shell/bridge_contracts.py tests/test_main_window_shell.py --ignore=venv -q`
-PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py tests/test_main_window_shell.py tests/main_window_shell/bridge_contracts.py tests/main_window_shell/bridge_qml_boundaries.py tests/test_graph_surface_input_contract.py tests/test_track_h_perf_harness.py tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q`
-PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py tests/main_window_shell/bridge_contracts.py --ignore=venv -q`
-Final Verification Verdict: PASS
+- PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/main_window_shell/bridge_contracts.py tests/test_main_window_shell.py --ignore=venv -q`
+- PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py tests/test_main_window_shell.py tests/main_window_shell/bridge_contracts.py tests/main_window_shell/bridge_qml_boundaries.py tests/test_graph_surface_input_contract.py tests/test_track_h_perf_harness.py tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q`
+- PASS: `QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest tests/test_main_bootstrap.py tests/main_window_shell/bridge_contracts.py --ignore=venv -q`
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 Ready for manual testing
@@ -34,4 +28,4 @@ Ready for manual testing
 - Manual validation should be done in a real desktop Qt session because the required automated verification ran with `QT_QPA_PLATFORM=offscreen`.
 
 ## Ready for Integration
-Yes: packet-owned contracts, verification, and wrap-up are complete, and the remaining compat wrapper scope is explicitly documented as an out-of-scope edge adapter.
+- Yes: packet-owned contracts, verification, and wrap-up are complete, and the remaining compat wrapper scope is explicitly documented as an out-of-scope edge adapter.
