@@ -4,11 +4,11 @@ from collections.abc import Mapping
 from typing import Any
 
 from ea_node_editor.graph.effective_ports import effective_ports
+from ea_node_editor.graph.input_semantics import (
+    driven_by_input_reason,
+    property_override_input_port_keys,
+)
 from ea_node_editor.nodes.types import property_has_inline_editor
-
-_INLINE_PROPERTY_OVERRIDE_PORT_PRECEDENCE: dict[tuple[str, str], tuple[str, ...]] = {
-    ("dpf.model", "path"): ("result_file", "path"),
-}
 
 
 def _inline_property_presentation(
@@ -45,10 +45,7 @@ def _overriding_input_port(
 ) -> Any | None:
     node_id = str(getattr(node, "node_id", "")).strip()
     node_type_id = str(getattr(node, "type_id", "")).strip()
-    candidate_port_keys = _INLINE_PROPERTY_OVERRIDE_PORT_PRECEDENCE.get(
-        (node_type_id, property_key),
-        (property_key,),
-    )
+    candidate_port_keys = property_override_input_port_keys(node_type_id, property_key)
     for port_key in candidate_port_keys:
         port = resolved_input_ports.get(port_key)
         if port is None:
@@ -75,6 +72,11 @@ def build_property_input_override_state(
         "overridden_by_input": overriding_input_port is not None,
         "input_port_label": (
             str(overriding_input_port.label or overriding_input_port.key)
+            if overriding_input_port is not None
+            else ""
+        ),
+        "override_reason": (
+            driven_by_input_reason(str(overriding_input_port.label or overriding_input_port.key))
             if overriding_input_port is not None
             else ""
         ),

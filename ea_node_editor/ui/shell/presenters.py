@@ -1307,7 +1307,15 @@ class GraphCanvasPresenter(QObject):
         port_b: str,
     ) -> bool:
         result = self._host.workspace_library_controller.request_connect_ports(node_a_id, port_a, node_b_id, port_b)
+        if not result.payload and str(result.message or "").strip():
+            self.show_graph_hint(str(result.message), 2400)
         return bool(result.payload)
+
+    def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
+        self._host.show_graph_hint(message, timeout_ms)
+
+    def clear_graph_hint(self) -> None:
+        self._host.clear_graph_hint()
 
     def request_open_connection_quick_insert(
         self,

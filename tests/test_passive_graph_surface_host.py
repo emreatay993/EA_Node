@@ -1365,8 +1365,8 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             input_mouse = named_child_items(host, "graphNodeInputPortMouseArea")[0]
             output_mouse = named_child_items(host, "graphNodeOutputPortMouseArea")[0]
 
-            assert input_label.property("text") == "→"
-            assert output_label.property("text") == "→"
+            assert input_label.property("text") == "\u27A1"
+            assert output_label.property("text") == "\u27A1"
             assert input_mouse.property("portLabelTooltipText") == "Exec In"
             assert output_mouse.property("portLabelTooltipText") == "Exec Out"
             """,
@@ -1505,6 +1505,33 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                 assert bool(input_mouse.property("tooltipVisible"))
             finally:
                 dispose_host_window(host, window)
+            """,
+        )
+
+    def test_standard_host_marks_inactive_input_ports_with_muted_label_and_reason_tooltip(self) -> None:
+        self._run_qml_probe(
+            "inactive-input-port-ux-host",
+            """
+            payload = node_payload()
+            payload["ports"][0]["key"] = "path"
+            payload["ports"][0]["label"] = "path"
+            payload["ports"][0]["kind"] = "data"
+            payload["ports"][0]["data_type"] = "path"
+            payload["ports"][0]["inactive"] = True
+            payload["ports"][0]["inactive_source_key"] = "result_file"
+            payload["ports"][0]["inactive_reason"] = "Driven by result_file"
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            input_dot = named_child_items(host, "graphNodeInputPortDot")[0]
+            inactive_slash = named_child_items(host, "graphNodeInputPortInactiveSlash")[0]
+            input_label = named_child_items(host, "graphNodeInputPortLabel")[0]
+            input_mouse = named_child_items(host, "graphNodeInputPortMouseArea")[0]
+
+            assert abs(float(input_dot.property("opacity")) - 0.46) < 0.01
+            assert abs(float(input_label.property("opacity")) - 0.52) < 0.01
+            assert bool(inactive_slash.property("visible"))
+            assert input_mouse.property("inactiveTooltipText") == "Driven by result_file"
+            assert input_mouse.property("cursorShape") == Qt.CursorShape.ForbiddenCursor
             """,
         )
 

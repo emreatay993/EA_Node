@@ -23,6 +23,12 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         return item
 
     def _inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem:
+        item = self._find_inspector_property_object(object_name, property_key)
+        if item is not None:
+            return item
+        self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
+
+    def _find_inspector_property_object(self, object_name: str, property_key: str) -> QQuickItem | None:
         root_object = self.window.quick_widget.rootObject()
         self.assertIsNotNone(root_object)
         for item in self._walk_items(root_object):
@@ -33,7 +39,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             if not bool(item.property("visible")):
                 continue
             return item
-        self.fail(f"Could not find {object_name!r} for property {property_key!r}.")
+        return None
 
     @staticmethod
     def _variant_value(value):  # noqa: ANN001
@@ -604,11 +610,20 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertEqual(property_items["path"]["value"], "C:/tmp/example.rst")
         self.assertTrue(property_items["path"]["overridden_by_input"])
         self.assertEqual(property_items["path"]["input_port_label"], "result_file")
+        self.assertEqual(property_items["path"]["override_reason"], "Driven by result_file")
 
-        path_editor = self._inspector_property_object("inspectorPathEditor", "path")
-        browse_button = self._inspector_property_object("inspectorPathBrowseButton", "path")
-        self.assertFalse(bool(path_editor.property("enabled")))
-        self.assertFalse(bool(browse_button.property("enabled")))
+        node_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == model_id)
+        ports_by_key = {port["key"]: port for port in node_payload["ports"]}
+        self.assertTrue(ports_by_key["path"]["inactive"])
+        self.assertEqual(ports_by_key["path"]["inactive_source_key"], "result_file")
+        self.assertEqual(ports_by_key["path"]["inactive_reason"], "Driven by result_file")
+
+        self.assertIsNone(self._find_inspector_property_object("inspectorPathEditor", "path"))
+        self.assertIsNone(self._find_inspector_property_object("inspectorPathBrowseButton", "path"))
+        inactive_chip = self._inspector_property_object("inspectorPropertyInactiveChip", "path")
+        override_reason = self._inspector_property_object("inspectorPropertyOverrideReason", "path")
+        self.assertTrue(bool(inactive_chip.property("visible")))
+        self.assertEqual(str(override_reason.property("text")), "Driven by result_file")
 
     def test_viewport_commands_frame_all_frame_selection_and_center_selection(self) -> None:
         node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)

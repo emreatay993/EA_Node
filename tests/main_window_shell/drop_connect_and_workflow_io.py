@@ -152,6 +152,20 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         created = self.window.request_connect_ports(source_id, "exec_out", target_id, "message")
         self.assertFalse(created)
 
+    def test_qml_connect_ports_surfaces_graph_hint_for_mutually_exclusive_dpf_inputs(self) -> None:
+        result_file_id = self.window.scene.add_node_from_type("dpf.result_file", x=40.0, y=40.0)
+        model_id = self.window.scene.add_node_from_type("dpf.model", x=280.0, y=40.0)
+        self.app.processEvents()
+
+        self.assertTrue(self.window.request_connect_ports(result_file_id, "result_file", model_id, "result_file"))
+        self.window.clear_graph_hint()
+        self.app.processEvents()
+
+        created = self.window.request_connect_ports(result_file_id, "normalized_path", model_id, "path")
+        self.assertFalse(created)
+        self.assertTrue(self.window.graph_hint_visible)
+        self.assertEqual(self.window.graph_hint_message, "Can't connect path while result_file is active.")
+
     def test_qml_request_drop_node_from_library_places_node_at_exact_scene_position(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         placed = self.window.request_drop_node_from_library(

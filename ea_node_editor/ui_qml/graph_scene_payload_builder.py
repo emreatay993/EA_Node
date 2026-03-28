@@ -11,6 +11,10 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
 from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.effective_ports import effective_ports, ordered_ports_for_display
 from ea_node_editor.graph.hierarchy import is_node_in_scope, node_scope_path, scope_edges, scope_node_ids
+from ea_node_editor.graph.input_semantics import (
+    driven_by_input_reason,
+    inactive_input_source_key,
+)
 from ea_node_editor.graph.model import GraphModel, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -168,8 +172,19 @@ class _GraphSceneNodePayloadFactory:
             )
             if port.exposed
         ]
+        connected_input_port_keys = {
+            str(port.key)
+            for port in visible_ports
+            if str(port.direction).strip().lower() == "in"
+            and port_connection_counts.get((node.node_id, port.key), 0) > 0
+        }
         for port in ordered_ports_for_display(visible_ports):
             connection_count = port_connection_counts.get((node.node_id, port.key), 0)
+            inactive_source_key = ""
+            if str(port.direction).strip().lower() == "in":
+                inactive_source_key = (
+                    inactive_input_source_key(str(node.type_id), str(port.key), connected_input_port_keys) or ""
+                )
             ports_payload.append(
                 {
                     "key": port.key,
@@ -182,6 +197,9 @@ class _GraphSceneNodePayloadFactory:
                     "allow_multiple_connections": bool(port.allow_multiple_connections),
                     "connection_count": int(connection_count),
                     "connected": bool(connection_count),
+                    "inactive": bool(inactive_source_key),
+                    "inactive_source_key": inactive_source_key,
+                    "inactive_reason": driven_by_input_reason(inactive_source_key),
                 }
             )
         return ports_payload

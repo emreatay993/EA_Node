@@ -32,12 +32,42 @@ Column {
     Text {
         width: parent.width
         visible: propertyEditor.overriddenByInput
-        text: propertyEditor.inputPortLabel.length
-            ? "Driven by " + propertyEditor.inputPortLabel
-            : "Driven by input"
+        objectName: "inspectorPropertyOverrideReason"
+        property string propertyKey: propertyEditor.propertyKey
+        text: String(
+            propertyEditor.propertyItem && propertyEditor.propertyItem.override_reason
+                ? propertyEditor.propertyItem.override_reason
+                : (propertyEditor.inputPortLabel.length ? "Driven by " + propertyEditor.inputPortLabel : "Driven by input")
+        )
         color: propertyEditor.pane.themePalette.muted_fg
         font.pixelSize: 10
         elide: Text.ElideRight
+    }
+
+    Row {
+        width: parent.width
+        visible: propertyEditor.overriddenByInput
+        spacing: 6
+
+        Rectangle {
+            objectName: "inspectorPropertyInactiveChip"
+            property string propertyKey: propertyEditor.propertyKey
+            radius: 8
+            implicitWidth: inactiveChipText.implicitWidth + 10
+            implicitHeight: inactiveChipText.implicitHeight + 4
+            color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.14)
+            border.width: 1
+            border.color: Qt.alpha(propertyEditor.pane.themePalette.accent, 0.36)
+
+            Text {
+                id: inactiveChipText
+                anchors.centerIn: parent
+                text: "Inactive"
+                color: propertyEditor.pane.themePalette.group_title_fg
+                font.pixelSize: 10
+                font.bold: true
+            }
+        }
     }
 
     Rectangle {
@@ -231,7 +261,9 @@ Column {
 
     Column {
         width: parent.width
-        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "path"
+        visible: !pinDataTypeEditor.visible
+            && propertyEditor.editorMode === "path"
+            && !propertyEditor.overriddenByInput
         spacing: 6
 
         RowLayout {
@@ -244,7 +276,6 @@ Column {
                 objectName: "inspectorPathEditor"
                 property string propertyKey: propertyEditor.propertyKey
                 Layout.fillWidth: true
-                enabled: !propertyEditor.overriddenByInput
                 text: MainShellUtils.toEditorText(propertyEditor.propertyItem)
                 onAccepted: {
                     if (propertyEditor.pane.inspectorBridgeRef)
@@ -261,7 +292,6 @@ Column {
                 objectName: "inspectorPathBrowseButton"
                 property string propertyKey: propertyEditor.propertyKey
                 compact: true
-                enabled: !propertyEditor.overriddenByInput
                 text: "Browse"
                 onClicked: {
                     if (!propertyEditor.pane.inspectorBridgeRef)
@@ -306,7 +336,6 @@ Column {
                     objectName: "inspectorPathRepairButton"
                     property string propertyKey: propertyEditor.propertyKey
                     compact: true
-                    enabled: !propertyEditor.overriddenByInput
                     text: "Repair file..."
                     onClicked: {
                         if (!propertyEditor.pane.inspectorBridgeRef)
