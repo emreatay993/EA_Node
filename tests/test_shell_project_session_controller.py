@@ -92,6 +92,44 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.app.processEvents()
         return node_id, staged_ref, staged_path
 
+    def _write_session_payload(
+        self,
+        *,
+        project_path: str = "",
+        last_manual_save_ts: float = 0.0,
+        recent_project_paths: list[str] | None = None,
+    ) -> None:
+        self._session_path.write_text(
+            json.dumps(
+                {
+                    "project_path": project_path,
+                    "last_manual_save_ts": last_manual_save_ts,
+                    "recent_project_paths": list(recent_project_paths or []),
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+
+    def _seed_saved_session_from_current_project(self, filename: str) -> tuple[Path, dict[str, object]]:
+        project_path = Path(self._temp_dir.name) / "projects" / filename
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        baseline_doc = self.window.serializer.to_document(self.window.model.project)
+        self.window.serializer.save_document(str(project_path), baseline_doc)
+        saved_path = project_path.with_suffix(".sfe")
+        self._write_session_payload(
+            project_path=str(saved_path),
+            last_manual_save_ts=saved_path.stat().st_mtime,
+        )
+        return saved_path, baseline_doc
+
+    def _assert_absent_or_current_autosave(self, window: ShellWindow) -> None:
+        if not self._autosave_path.exists():
+            return
+        autosave_doc = json.loads(self._autosave_path.read_text(encoding="utf-8"))
+        self.assertEqual(autosave_doc, window.serializer.to_document(window.model.project))
+
     def test_session_restore_recovers_workspace_order_active_workspace_and_view_camera(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
         second_workspace_id = self.window.workspace_manager.create_workspace("Second")
@@ -142,6 +180,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.window._autosave_tick()
         self.assertTrue(self._autosave_path.exists())
         self.assertTrue(self.window.project_session_state.last_autosave_fingerprint)
+        session_payload = json.loads(self._session_path.read_text(encoding="utf-8"))
+        self.assertNotIn("project_doc", session_payload)
 
         autosave_doc = json.loads(self._autosave_path.read_text(encoding="utf-8"))
         workspace_docs = {
@@ -155,6 +195,8 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id, staged_ref, staged_path = self._attach_unsaved_staged_output()
         self.window._persist_session()
+        session_payload = json.loads(self._session_path.read_text(encoding="utf-8"))
+        self.assertNotIn("project_doc", session_payload)
 
         restored = ShellWindow()
         restored.resize(1200, 800)
@@ -173,19 +215,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
 
     def test_recovery_prompt_accept_loads_newer_autosave(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        baseline_doc = self.window.serializer.to_document(self.window.model.project)
-        self._session_path.write_text(
-            json.dumps(
-                {
-                    "project_path": "",
-                    "last_manual_save_ts": 0.0,
-                    "project_doc": baseline_doc,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        _saved_path, _baseline_doc = self._seed_saved_session_from_current_project("recovery_accept.sfe")
 
         recovered_node_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)
         recovered_doc = self.window.serializer.to_document(self.window.model.project)
@@ -202,25 +232,13 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             try:
                 restored_workspace = restored.model.project.workspaces[workspace_id]
                 self.assertIn(recovered_node_id, restored_workspace.nodes)
-                self.assertFalse(self._autosave_path.exists())
+                self._assert_absent_or_current_autosave(restored)
             finally:
                 self._dispose_secondary_window(restored)
 
     def test_recovery_prompt_accept_recovers_unsaved_temp_staged_refs(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        baseline_doc = self.window.serializer.to_document(self.window.model.project)
-        self._session_path.write_text(
-            json.dumps(
-                {
-                    "project_path": "",
-                    "last_manual_save_ts": 0.0,
-                    "project_doc": baseline_doc,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        _saved_path, _baseline_doc = self._seed_saved_session_from_current_project("recovery_accept_staged.sfe")
         node_id, staged_ref, staged_path = self._attach_unsaved_staged_output()
         autosave_doc = self.window.serializer.to_document(self.window.model.project)
         self._autosave_path.write_text(
@@ -241,26 +259,14 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                     project_metadata=restored.model.project.metadata,
                 )
                 self.assertEqual(store.resolve_staged_path(staged_ref), staged_path)
-                self.assertFalse(self._autosave_path.exists())
+                self._assert_absent_or_current_autosave(restored)
             finally:
                 self._dispose_secondary_window(restored)
 
     def test_recovery_prompt_reject_keeps_session_state_and_discards_autosave(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         baseline_node_id = self.window.scene.add_node_from_type("core.start", x=10.0, y=10.0)
-        baseline_doc = self.window.serializer.to_document(self.window.model.project)
-        self._session_path.write_text(
-            json.dumps(
-                {
-                    "project_path": "",
-                    "last_manual_save_ts": 0.0,
-                    "project_doc": baseline_doc,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        _saved_path, _baseline_doc = self._seed_saved_session_from_current_project("recovery_reject.sfe")
 
         self.window.scene.add_node_from_type("core.logger", x=120.0, y=10.0)
         autosave_doc = self.window.serializer.to_document(self.window.model.project)
@@ -283,19 +289,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 self._dispose_secondary_window(restored)
 
     def test_recovery_prompt_is_skipped_when_autosave_matches_restored_session(self) -> None:
-        baseline_doc = self.window.serializer.to_document(self.window.model.project)
-        self._session_path.write_text(
-            json.dumps(
-                {
-                    "project_path": "",
-                    "last_manual_save_ts": 0.0,
-                    "project_doc": baseline_doc,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        _saved_path, baseline_doc = self._seed_saved_session_from_current_project("recovery_skip_prompt.sfe")
         self._autosave_path.write_text(
             json.dumps(baseline_doc, indent=2, sort_keys=True, ensure_ascii=True),
             encoding="utf-8",
@@ -329,19 +323,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 self._dispose_secondary_window(restored)
 
     def test_recovery_prompt_is_deferred_until_main_window_is_visible(self) -> None:
-        baseline_doc = self.window.serializer.to_document(self.window.model.project)
-        self._session_path.write_text(
-            json.dumps(
-                {
-                    "project_path": "",
-                    "last_manual_save_ts": 0.0,
-                    "project_doc": baseline_doc,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
+        _saved_path, _baseline_doc = self._seed_saved_session_from_current_project("recovery_deferred.sfe")
 
         self.window.scene.add_node_from_type("core.start", x=20.0, y=30.0)
         recovered_doc = self.window.serializer.to_document(self.window.model.project)
@@ -378,8 +360,10 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             restored.show()
             self.app.processEvents()
             try:
-                restored_workspace = restored.model.project.workspaces[workspace_id]
-                self.assertEqual(restored_workspace.nodes[node_id].properties["source_path"], staged_ref)
+                restored_workspace = restored.model.project.workspaces[
+                    restored.workspace_manager.active_workspace_id()
+                ]
+                self.assertNotIn(node_id, restored_workspace.nodes)
                 store = ProjectArtifactStore.from_project_metadata(
                     project_path=restored.project_path,
                     project_metadata=restored.model.project.metadata,

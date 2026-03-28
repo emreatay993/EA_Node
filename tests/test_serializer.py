@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import copy
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.persistence.serializer import JsonProjectSerializer, ProjectSessionMetadata
 from tests.serializer.round_trip_cases import SerializerRoundTripMixin
 from tests.serializer.schema_cases import SerializerSchemaMixin
 from tests.serializer.workflow_cases import SerializerWorkflowMixin
@@ -12,6 +13,54 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 
 class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, SerializerSchemaMixin, unittest.TestCase):
+    def test_project_session_metadata_exposes_typed_substructures_and_preserves_extra_namespaces(self) -> None:
+        metadata = ProjectSessionMetadata.from_mapping(
+            {
+                "ui": {
+                    "script_editor": {
+                        "visible": True,
+                    },
+                    "panel_state": {
+                        "inspector": "expanded",
+                    },
+                },
+                "workflow_settings": {
+                    "solver_config": {
+                        "thread_count": 16,
+                    },
+                },
+                "artifact_store": {
+                    "staged": {
+                        "pending_output": {
+                            "relative_path": "outputs/run.txt",
+                            "slot": "process_run.stdout",
+                        }
+                    }
+                },
+            }
+        )
+
+        self.assertTrue(metadata.ui.script_editor.visible)
+        self.assertFalse(metadata.ui.script_editor.floating)
+        self.assertEqual(metadata.ui.extra["panel_state"], {"inspector": "expanded"})
+        self.assertEqual(metadata.workflow_settings["solver_config"]["thread_count"], 16)
+        self.assertIn("memory_limit_gb", metadata.workflow_settings["solver_config"])
+        self.assertEqual(metadata.extra["artifact_store"]["staged"]["pending_output"]["slot"], "process_run.stdout")
+
+        round_tripped = metadata.to_mapping()
+        self.assertEqual(
+            round_tripped["ui"]["script_editor"],
+            {
+                "visible": True,
+                "floating": False,
+            },
+        )
+        self.assertEqual(round_tripped["ui"]["panel_state"], {"inspector": "expanded"})
+        self.assertEqual(
+            round_tripped["artifact_store"],
+            copy.deepcopy(metadata.extra["artifact_store"]),
+        )
+
     def test_comment_backdrop_load_recomputes_membership_and_drops_persisted_membership_fields(self) -> None:
         registry = build_default_registry()
         model = GraphModel()

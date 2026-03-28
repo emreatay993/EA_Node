@@ -78,6 +78,9 @@ class _SessionStoreStub:
     def discard_autosave_snapshot(self) -> None:
         self.discard_calls += 1
 
+    def autosave_if_changed(self, **kwargs) -> str:  # noqa: ANN003
+        return str(kwargs.get("last_fingerprint") or "stub-autosave-fingerprint")
+
     def persist_session(self, **kwargs) -> None:  # noqa: ANN003
         self.persist_calls.append(copy.deepcopy(kwargs))
 
@@ -279,10 +282,22 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
             self.assertFalse(staging_root.exists())
             self.assertEqual(host.session_store.discard_calls, 1)
             self.assertEqual(len(host.session_store.persist_calls), 1)
-            persisted_doc = host.session_store.persist_calls[0]["project_doc"]
-            self.assertNotIn("staging_root", persisted_doc["metadata"]["artifact_store"])
-            self.assertIn("pending_output", persisted_doc["metadata"]["artifact_store"]["staged"])
+            self.assertNotIn("project_doc", host.session_store.persist_calls[0])
+            self.assertNotIn("staging_root", host.model.project.metadata["artifact_store"])
+            self.assertIn("pending_output", host.model.project.metadata["artifact_store"]["staged"])
             self.assertEqual(host.workspace_library_controller.save_active_view_state_calls, 1)
+
+    def test_persist_session_omits_project_doc_from_recent_session_payload(self) -> None:
+        host = _ProjectHostStub()
+        host.project_session_state.recent_project_paths = ["alpha.sfe"]
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+        controller.persist_session()
+
+        self.assertEqual(len(host.session_store.persist_calls), 1)
+        persisted_session = host.session_store.persist_calls[0]
+        self.assertEqual(persisted_session["recent_project_paths"], ["alpha.sfe"])
+        self.assertNotIn("project_doc", persisted_session)
 
 
 if __name__ == "__main__":

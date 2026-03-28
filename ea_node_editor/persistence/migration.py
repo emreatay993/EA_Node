@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from ea_node_editor.custom_workflows import normalize_custom_workflow_metadata
@@ -10,11 +11,130 @@ from ea_node_editor.passive_style_normalization import normalize_passive_style_p
 from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
 from ea_node_editor.persistence.utils import merge_defaults as merge_defaults_dict
 from ea_node_editor.settings import (
-    DEFAULT_UI_STATE,
     DEFAULT_WORKFLOW_SETTINGS,
     SCHEMA_VERSION,
 )
 from ea_node_editor.workspace.ownership import resolve_workspace_ownership
+
+
+def _coerce_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+    return default
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return {str(key): item for key, item in value.items()}
+    return {}
+
+
+def _merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(values, Mapping):
+        return merge_defaults_dict({}, defaults)
+    return merge_defaults_dict({str(key): value for key, value in values.items()}, defaults)
+
+
+def _copy_mapping_excluding(payload: Mapping[str, Any], *excluded_keys: str) -> dict[str, Any]:
+    excluded = set(excluded_keys)
+    return {
+        str(key): copy.deepcopy(value)
+        for key, value in payload.items()
+        if str(key) not in excluded
+    }
+
+
+@dataclass(frozen=True, slots=True)
+class ScriptEditorSessionState:
+    visible: bool = False
+    floating: bool = False
+
+    @classmethod
+    def from_mapping(cls, payload: Any) -> "ScriptEditorSessionState":
+        state = _as_dict(payload)
+        return cls(
+            visible=_coerce_bool(state.get("visible"), False),
+            floating=_coerce_bool(state.get("floating"), False),
+        )
+
+    def to_mapping(self) -> dict[str, bool]:
+        return {
+            "visible": self.visible,
+            "floating": self.floating,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectUiSessionMetadata:
+    script_editor: ScriptEditorSessionState = field(default_factory=ScriptEditorSessionState)
+    passive_style_presets: dict[str, Any] = field(default_factory=lambda: normalize_passive_style_presets(None))
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, payload: Any) -> "ProjectUiSessionMetadata":
+        ui_metadata = _as_dict(payload)
+        return cls(
+            script_editor=ScriptEditorSessionState.from_mapping(ui_metadata.get("script_editor")),
+            passive_style_presets=normalize_passive_style_presets(ui_metadata.get("passive_style_presets")),
+            extra=_copy_mapping_excluding(ui_metadata, "script_editor", "passive_style_presets"),
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        payload = copy.deepcopy(self.extra)
+        payload["script_editor"] = self.script_editor.to_mapping()
+        payload["passive_style_presets"] = copy.deepcopy(self.passive_style_presets)
+        return payload
+
+    def with_script_editor_state(self, *, visible: bool, floating: bool) -> "ProjectUiSessionMetadata":
+        return replace(
+            self,
+            script_editor=ScriptEditorSessionState(
+                visible=bool(visible),
+                floating=bool(floating),
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectSessionMetadata:
+    ui: ProjectUiSessionMetadata = field(default_factory=ProjectUiSessionMetadata)
+    workflow_settings: dict[str, Any] = field(default_factory=lambda: _merge_defaults({}, DEFAULT_WORKFLOW_SETTINGS))
+    extra: dict[str, Any] = field(default_factory=dict)
+
+    @classmethod
+    def from_mapping(cls, payload: Any) -> "ProjectSessionMetadata":
+        metadata = _as_dict(payload)
+        return cls(
+            ui=ProjectUiSessionMetadata.from_mapping(metadata.get("ui")),
+            workflow_settings=_merge_defaults(metadata.get("workflow_settings"), DEFAULT_WORKFLOW_SETTINGS),
+            extra=_copy_mapping_excluding(metadata, "ui", "workflow_settings"),
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        payload = copy.deepcopy(self.extra)
+        payload["ui"] = self.ui.to_mapping()
+        payload["workflow_settings"] = copy.deepcopy(self.workflow_settings)
+        return payload
+
+    def with_script_editor_state(self, *, visible: bool, floating: bool) -> "ProjectSessionMetadata":
+        return replace(
+            self,
+            ui=self.ui.with_script_editor_state(visible=visible, floating=floating),
+        )
+
+    def with_workflow_settings(self, workflow_settings: Any) -> "ProjectSessionMetadata":
+        return replace(
+            self,
+            workflow_settings=_merge_defaults(workflow_settings, DEFAULT_WORKFLOW_SETTINGS),
+        )
 
 
 class JsonProjectMigration:
@@ -76,15 +196,11 @@ class JsonProjectMigration:
 
     @staticmethod
     def as_dict(value: Any) -> dict[str, Any]:
-        if isinstance(value, Mapping):
-            return {str(key): item for key, item in value.items()}
-        return {}
+        return _as_dict(value)
 
     @staticmethod
     def merge_defaults(values: Any, defaults: dict[str, Any]) -> dict[str, Any]:
-        if not isinstance(values, Mapping):
-            return merge_defaults_dict({}, defaults)
-        return merge_defaults_dict({str(key): value for key, value in values.items()}, defaults)
+        return _merge_defaults(values, defaults)
 
     @staticmethod
     def as_list(value: Any) -> list[Any]:
@@ -104,16 +220,8 @@ class JsonProjectMigration:
 
     @staticmethod
     def normalize_metadata(source: Any, workspace_order: list[str]) -> dict[str, Any]:
-        metadata = JsonProjectMigration.as_dict(source)
+        metadata = ProjectSessionMetadata.from_mapping(source).to_mapping()
         metadata["workspace_order"] = list(workspace_order)
-        metadata["ui"] = JsonProjectMigration.merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
-        metadata["ui"]["passive_style_presets"] = normalize_passive_style_presets(
-            metadata["ui"].get("passive_style_presets")
-        )
-        metadata["workflow_settings"] = JsonProjectMigration.merge_defaults(
-            metadata.get("workflow_settings"),
-            DEFAULT_WORKFLOW_SETTINGS,
-        )
         metadata["custom_workflows"] = normalize_custom_workflow_metadata(metadata.get("custom_workflows"))
         metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         return metadata

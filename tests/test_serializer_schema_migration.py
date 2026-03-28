@@ -96,6 +96,45 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual([workspace["workspace_id"] for workspace in migrated["workspaces"]], ["ws_b", "ws_a"])
         self.assertEqual(migrated["active_workspace_id"], "ws_b")
 
+    def test_migrate_normalizes_session_metadata_substructures_and_preserves_extra_ui_keys(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        payload = {
+            "schema_version": SCHEMA_VERSION,
+            "project_id": "proj_session_metadata",
+            "name": "Session Metadata",
+            "workspace_order": ["ws"],
+            "active_workspace_id": "ws",
+            "workspaces": [_workspace_doc("ws", "Workspace")],
+            "metadata": {
+                "ui": {
+                    "script_editor": {
+                        "visible": True,
+                    },
+                    "panel_state": {
+                        "library": "collapsed",
+                    },
+                },
+                "workflow_settings": {
+                    "solver_config": {
+                        "thread_count": 16,
+                    }
+                },
+            },
+        }
+
+        migrated = serializer.migrate(payload)
+
+        self.assertEqual(
+            migrated["metadata"]["ui"]["script_editor"],
+            {
+                "visible": True,
+                "floating": False,
+            },
+        )
+        self.assertEqual(migrated["metadata"]["ui"]["panel_state"], {"library": "collapsed"})
+        self.assertEqual(migrated["metadata"]["workflow_settings"]["solver_config"]["thread_count"], 16)
+        self.assertIn("memory_limit_gb", migrated["metadata"]["workflow_settings"]["solver_config"])
+
     def test_migrate_and_load_known_node_without_title_uses_registry_display_name(self) -> None:
         serializer = JsonProjectSerializer(build_default_registry())
         payload = {

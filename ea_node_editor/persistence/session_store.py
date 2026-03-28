@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
@@ -27,6 +28,64 @@ class _SerializerProtocol(Protocol):
         ...
 
 
+@dataclass(frozen=True, slots=True)
+class RecentSessionAutosaveState:
+    resume_fingerprint: str = ""
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RecentSessionAutosaveState":
+        if not isinstance(payload, Mapping):
+            return cls()
+        return cls(resume_fingerprint=str(payload.get("resume_fingerprint", "")).strip())
+
+    def to_mapping(self) -> dict[str, Any]:
+        if not self.resume_fingerprint:
+            return {}
+        return {"resume_fingerprint": self.resume_fingerprint}
+
+
+@dataclass(frozen=True, slots=True)
+class RecentSessionEnvelope:
+    project_path: str = ""
+    last_manual_save_ts: float = 0.0
+    recent_project_paths: tuple[str, ...] = ()
+    autosave: RecentSessionAutosaveState = field(default_factory=RecentSessionAutosaveState)
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "RecentSessionEnvelope":
+        if not isinstance(payload, Mapping):
+            return cls()
+        recent_paths_source = payload.get("recent_project_paths")
+        if isinstance(recent_paths_source, Mapping):
+            recent_paths_iterable = recent_paths_source.values()
+        elif isinstance(recent_paths_source, list | tuple):
+            recent_paths_iterable = recent_paths_source
+        else:
+            recent_paths_iterable = ()
+        recent_project_paths = tuple(
+            text
+            for item in recent_paths_iterable
+            if (text := str(item).strip())
+        )
+        return cls(
+            project_path=str(payload.get("project_path", "")).strip(),
+            last_manual_save_ts=coerce_timestamp_value(payload.get("last_manual_save_ts", 0.0)),
+            recent_project_paths=recent_project_paths,
+            autosave=RecentSessionAutosaveState.from_mapping(payload.get("autosave")),
+        )
+
+    def to_mapping(self) -> dict[str, Any]:
+        payload = {
+            "project_path": self.project_path,
+            "last_manual_save_ts": self.last_manual_save_ts,
+            "recent_project_paths": list(self.recent_project_paths),
+        }
+        autosave_payload = self.autosave.to_mapping()
+        if autosave_payload:
+            payload["autosave"] = autosave_payload
+        return payload
+
+
 class SessionAutosaveStore:
     def __init__(
         self,
@@ -49,15 +108,18 @@ class SessionAutosaveStore:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def load_session_payload(self) -> dict[str, Any]:
+    def load_session_envelope(self) -> RecentSessionEnvelope:
         session_path = self._session_path_provider()
         if not session_path.exists():
-            return {}
+            return RecentSessionEnvelope()
         try:
             payload = json.loads(session_path.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
-            return {}
-        return payload if isinstance(payload, dict) else {}
+            return RecentSessionEnvelope()
+        return RecentSessionEnvelope.from_mapping(payload if isinstance(payload, dict) else None)
+
+    def load_session_payload(self) -> dict[str, Any]:
+        return self.load_session_envelope().to_mapping()
 
     def _coerce_snapshot(
         self,
@@ -80,17 +142,23 @@ class SessionAutosaveStore:
         project_path: str,
         last_manual_save_ts: float,
         recent_project_paths: list[str],
-        project_doc: Mapping[str, Any] | None = None,
-        project_snapshot: ProjectDocumentSnapshot | Mapping[str, Any] | None = None,
+        autosave_resume_fingerprint: str = "",
     ) -> None:
-        snapshot = self._coerce_snapshot(project_snapshot=project_snapshot, project_doc=project_doc)
-        session_payload = {
-            "project_path": project_path,
-            "last_manual_save_ts": last_manual_save_ts,
-            "project_doc": snapshot.document,
-            "recent_project_paths": recent_project_paths,
-        }
-        write_json_atomic(self._session_path_provider(), session_payload)
+        write_json_atomic(
+            self._session_path_provider(),
+            RecentSessionEnvelope(
+                project_path=str(project_path).strip(),
+                last_manual_save_ts=coerce_timestamp_value(last_manual_save_ts),
+                recent_project_paths=tuple(
+                    text
+                    for path in recent_project_paths
+                    if (text := str(path).strip())
+                ),
+                autosave=RecentSessionAutosaveState(
+                    resume_fingerprint=str(autosave_resume_fingerprint).strip(),
+                ),
+            ).to_mapping(),
+        )
 
     def discard_autosave_snapshot(self) -> None:
         autosave_path = self._autosave_path_provider()
@@ -155,6 +223,23 @@ class SessionAutosaveStore:
             self.discard_autosave_snapshot()
             return None
 
+        return recovered_project
+
+    def load_resume_autosave(self, *, expected_fingerprint: str) -> ProjectData | None:
+        fingerprint = str(expected_fingerprint).strip()
+        if not fingerprint:
+            return None
+        autosave_path = self._autosave_path_provider()
+        if not autosave_path.exists():
+            return None
+        try:
+            recovered_project = self._serializer.load(str(autosave_path))
+        except Exception:  # noqa: BLE001
+            self.discard_autosave_snapshot()
+            return None
+        recovered_snapshot = self._project_snapshot(recovered_project)
+        if recovered_snapshot.fingerprint != fingerprint:
+            return None
         return recovered_project
 
     @staticmethod

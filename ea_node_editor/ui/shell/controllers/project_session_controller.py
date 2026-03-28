@@ -215,4 +215,4 @@ class ProjectSessionController:
         self._session_service.close_session()
 
     def persist_session(self, project_doc: dict[str, Any] | None = None) -> None:
-        self._session_service.persist_session(project_doc=project_doc)
+        self._session_service.persist_session(project_doc)

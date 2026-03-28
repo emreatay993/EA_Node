@@ -75,6 +75,9 @@ class _SessionStoreStub:
     def discard_autosave_snapshot(self) -> None:
         self.discard_calls += 1
 
+    def autosave_if_changed(self, **kwargs) -> str:  # noqa: ANN003
+        return str(kwargs.get("last_fingerprint") or "stub-autosave-fingerprint")
+
     def persist_session(self, **kwargs) -> None:  # noqa: ANN003
         self.persist_calls.append(copy.deepcopy(kwargs))
 
@@ -287,6 +290,8 @@ class ProjectSaveAsFlowTests(unittest.TestCase):
             self.assertEqual(host.project_meta_changed.emit_count, 1)
             self.assertEqual(host.workspace_library_controller.refresh_workspace_tabs_calls, 1)
             self.assertEqual(host.session_store.discard_calls, 1)
+            self.assertEqual(len(host.session_store.persist_calls), 1)
+            self.assertNotIn("project_doc", host.session_store.persist_calls[0])
             self.assertEqual(
                 saved_doc["metadata"]["artifact_store"],
                 {

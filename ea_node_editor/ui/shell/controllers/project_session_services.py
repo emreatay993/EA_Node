@@ -15,11 +15,9 @@ from ea_node_editor.persistence.project_codec import (
     collect_project_artifact_references,
     rewrite_project_artifact_refs,
 )
+from ea_node_editor.persistence.serializer import ProjectSessionMetadata
 from ea_node_editor.persistence.session_store import SessionAutosaveStore
-from ea_node_editor.persistence.utils import merge_defaults
 from ea_node_editor.settings import (
-    DEFAULT_UI_STATE,
-    DEFAULT_WORKFLOW_SETTINGS,
     PROJECT_ARTIFACT_STORE_METADATA_KEY,
 )
 from ea_node_editor.ui.dialogs.project_files_dialog import (
@@ -29,7 +27,6 @@ from ea_node_editor.ui.dialogs.project_files_dialog import (
     ProjectFilesSnapshot,
     ProjectFilesStagedEntry,
 )
-from ea_node_editor.ui.passive_style_presets import normalize_passive_style_presets
 from ea_node_editor.ui.shell.state import ShellProjectSessionState
 from ea_node_editor.workspace.manager import WorkspaceManager
 
@@ -344,6 +341,25 @@ class ProjectSessionLifecycleService:
         if callable(refresh_menu):
             refresh_menu()
 
+    def _sync_session_state(self) -> None:
+        self._host.workspace_library_controller.save_active_view_state()
+        self._require_document_service().persist_script_editor_state()
+
+    def _current_project_document(self) -> dict[str, Any]:
+        self._sync_session_state()
+        return self._host.serializer.to_document(self._host.model.project)
+
+    def _autosave_resume_fingerprint(self) -> str:
+        return self._session_state.last_autosave_fingerprint if not self._host.project_path else ""
+
+    def _persist_recent_session_payload(self, *, autosave_resume_fingerprint: str = "") -> None:
+        self._host.session_store.persist_session(
+            project_path=self._host.project_path,
+            last_manual_save_ts=self._session_state.last_manual_save_ts,
+            recent_project_paths=list(self._session_state.recent_project_paths),
+            autosave_resume_fingerprint=autosave_resume_fingerprint,
+        )
+
     def set_recent_project_paths(self, paths: Iterable[object], *, persist: bool = True) -> list[str]:
         normalized_paths = normalized_recent_project_paths_value(paths, limit=10)
         self._session_state.recent_project_paths = normalized_paths
@@ -370,12 +386,10 @@ class ProjectSessionLifecycleService:
         self.set_recent_project_paths([], persist=True)
 
     def restore_session(self) -> None:
-        session = self._host.session_store.load_session_payload()
-        session_project_path = str(session.get("project_path", "")).strip()
-        self._session_state.last_manual_save_ts = SessionAutosaveStore.coerce_timestamp(
-            session.get("last_manual_save_ts", 0.0)
-        )
-        self.set_recent_project_paths(session.get("recent_project_paths", []), persist=False)
+        session = self._host.session_store.load_session_envelope()
+        session_project_path = session.project_path
+        self._session_state.last_manual_save_ts = session.last_manual_save_ts
+        self.set_recent_project_paths(session.recent_project_paths, persist=False)
 
         restored = False
         if session_project_path and Path(session_project_path).exists():
@@ -391,14 +405,12 @@ class ProjectSessionLifecycleService:
                 self._host.project_path = ""
 
         if not restored:
-            doc = session.get("project_doc")
-            if isinstance(doc, dict):
-                try:
-                    project = self._host.serializer.from_document(doc)
-                    self._require_document_service()._install_project(project, project_path="")
-                    restored = True
-                except Exception:  # noqa: BLE001
-                    self._host.project_path = ""
+            resumed_project = self._host.session_store.load_resume_autosave(
+                expected_fingerprint=session.autosave.resume_fingerprint,
+            )
+            if resumed_project is not None:
+                self._require_document_service()._install_project(resumed_project, project_path="")
+                restored = True
 
         recovered_project = self.recover_autosave_if_newer()
         if recovered_project is not None:
@@ -482,38 +494,42 @@ class ProjectSessionLifecycleService:
         self._host.workspace_library_controller.refresh_workspace_tabs()
         self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
         self._require_document_service().restore_script_editor_state()
-        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
-            self._host.serializer.to_document(self._host.model.project)
-        )
+        document = self._current_project_document()
+        self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(document)
         self.persist_session()
 
     def autosave_tick(self) -> None:
         try:
-            self._host.workspace_library_controller.save_active_view_state()
-            project_doc = self._host.serializer.to_document(self._host.model.project)
+            project_doc = self._current_project_document()
             self._session_state.last_autosave_fingerprint = self._host.session_store.autosave_if_changed(
                 project_doc=project_doc,
                 last_fingerprint=self._session_state.last_autosave_fingerprint,
             )
-            self.persist_session(project_doc=project_doc)
+            self._persist_recent_session_payload(
+                autosave_resume_fingerprint=self._autosave_resume_fingerprint(),
+            )
         except Exception:  # noqa: BLE001
             return
 
     def close_session(self) -> None:
         self._project_files.discard_staged_scratch_data()
+        try:
+            self._sync_session_state()
+            self._persist_recent_session_payload(autosave_resume_fingerprint="")
+        except Exception:  # noqa: BLE001
+            pass
         self.discard_autosave_snapshot()
-        self.persist_session()
 
     def persist_session(self, project_doc: dict[str, Any] | None = None) -> None:
-        self._host.workspace_library_controller.save_active_view_state()
-        self._require_document_service().persist_script_editor_state()
-        document = project_doc if isinstance(project_doc, dict) else self._host.serializer.to_document(self._host.model.project)
+        del project_doc
         try:
-            self._host.session_store.persist_session(
-                project_path=self._host.project_path,
-                last_manual_save_ts=self._session_state.last_manual_save_ts,
+            document = self._current_project_document()
+            self._session_state.last_autosave_fingerprint = self._host.session_store.autosave_if_changed(
                 project_doc=document,
-                recent_project_paths=list(self._session_state.recent_project_paths),
+                last_fingerprint=self._session_state.last_autosave_fingerprint,
+            )
+            self._persist_recent_session_payload(
+                autosave_resume_fingerprint=self._autosave_resume_fingerprint(),
             )
         except Exception:  # noqa: BLE001
             return
@@ -557,38 +573,29 @@ class ProjectDocumentIOService:
         shutil.copy2(source_path, destination_path)
 
     def ensure_project_metadata_defaults(self) -> None:
-        metadata = self._host.model.project.metadata if isinstance(self._host.model.project.metadata, dict) else {}
-        metadata["ui"] = merge_defaults(metadata.get("ui"), DEFAULT_UI_STATE)
-        metadata["ui"]["passive_style_presets"] = normalize_passive_style_presets(
-            metadata["ui"].get("passive_style_presets")
-        )
-        metadata["workflow_settings"] = merge_defaults(
-            metadata.get("workflow_settings"),
-            DEFAULT_WORKFLOW_SETTINGS,
-        )
-        self._host.model.project.metadata = metadata
+        session_metadata = ProjectSessionMetadata.from_mapping(self._host.model.project.metadata)
+        self._host.model.project.metadata = session_metadata.to_mapping()
 
     def workflow_settings_payload(self) -> dict[str, Any]:
-        self.ensure_project_metadata_defaults()
-        return merge_defaults(
-            self._host.model.project.metadata.get("workflow_settings", {}),
-            DEFAULT_WORKFLOW_SETTINGS,
-        )
+        session_metadata = ProjectSessionMetadata.from_mapping(self._host.model.project.metadata)
+        self._host.model.project.metadata = session_metadata.to_mapping()
+        return copy.deepcopy(session_metadata.workflow_settings)
 
     def persist_script_editor_state(self) -> None:
-        self.ensure_project_metadata_defaults()
-        self._host.model.project.metadata["ui"]["script_editor"] = {
-            "visible": self._host.script_editor.visible,
-            "floating": self._host.script_editor.floating,
-        }
+        session_metadata = ProjectSessionMetadata.from_mapping(self._host.model.project.metadata)
+        self._host.model.project.metadata = session_metadata.with_script_editor_state(
+            visible=self._host.script_editor.visible,
+            floating=self._host.script_editor.floating,
+        ).to_mapping()
 
     def restore_script_editor_state(self) -> None:
-        self.ensure_project_metadata_defaults()
-        state = self._host.model.project.metadata["ui"].get("script_editor", {})
+        session_metadata = ProjectSessionMetadata.from_mapping(self._host.model.project.metadata)
+        self._host.model.project.metadata = session_metadata.to_mapping()
+        state = session_metadata.ui.script_editor
         selected_node_id = self._host.scene.selected_node_id() or ""
         can_show_editor = bool(selected_node_id)
-        visible = bool(state.get("visible", False)) and can_show_editor
-        floating = bool(state.get("floating", False))
+        visible = state.visible and can_show_editor
+        floating = state.floating
         self._host.script_editor.set_floating(floating)
         self._host.script_editor.set_visible(visible)
         self._host.action_toggle_script_editor.setChecked(visible)
@@ -596,14 +603,15 @@ class ProjectDocumentIOService:
     def show_workflow_settings_dialog(self) -> None:
         from ea_node_editor.ui.dialogs.workflow_settings_dialog import WorkflowSettingsDialog
 
-        self.ensure_project_metadata_defaults()
+        session_metadata = ProjectSessionMetadata.from_mapping(self._host.model.project.metadata)
+        self._host.model.project.metadata = session_metadata.to_mapping()
         dialog = WorkflowSettingsDialog(
-            initial_settings=self._host.model.project.metadata.get("workflow_settings", {}),
+            initial_settings=copy.deepcopy(session_metadata.workflow_settings),
             parent=self._host,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
-        self._host.model.project.metadata["workflow_settings"] = dialog.values()
+        self._host.model.project.metadata = session_metadata.with_workflow_settings(dialog.values()).to_mapping()
         self._session.persist_session()
 
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
@@ -935,4 +943,3 @@ class ProjectDocumentIOService:
             return False
         self._finalize_loaded_project(project, project_path=str(resolved_path))
         return True
-

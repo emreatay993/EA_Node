@@ -11,9 +11,22 @@ from ea_node_editor.graph.model import ProjectData
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.settings import PROJECT_EXTENSION
 
-from .migration import JsonProjectMigration
+from .migration import (
+    JsonProjectMigration,
+    ProjectSessionMetadata,
+    ProjectUiSessionMetadata,
+    ScriptEditorSessionState,
+)
 from .project_codec import JsonProjectCodec
 from .utils import document_fingerprint as document_fingerprint_value
+
+__all__ = [
+    "JsonProjectSerializer",
+    "ProjectDocumentSnapshot",
+    "ProjectSessionMetadata",
+    "ProjectUiSessionMetadata",
+    "ScriptEditorSessionState",
+]
 
 
 @dataclass(frozen=True, slots=True)
