@@ -73,6 +73,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                     "graphics": {
                         "canvas": {
                             "show_grid": "yes",
+                            "grid_style": "dots",
                             "show_minimap": False,
                             "show_port_labels": "no",
                             "minimap_expanded": None,
@@ -107,6 +108,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         graphics = self._controller.load()["graphics"]
 
         self.assertEqual(graphics["canvas"]["show_grid"], True)
+        self.assertEqual(graphics["canvas"]["grid_style"], "lines")
         self.assertEqual(graphics["canvas"]["show_minimap"], False)
         self.assertEqual(graphics["canvas"]["show_port_labels"], True)
         self.assertEqual(graphics["canvas"]["minimap_expanded"], True)
@@ -132,6 +134,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
             {
                 "canvas": {
                     "show_grid": False,
+                    "grid_style": "POINTS",
                     "show_minimap": False,
                     "show_port_labels": False,
                     "minimap_expanded": False,
@@ -162,6 +165,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         )
 
         self.assertEqual(host.applied_graphics, [graphics])
+        self.assertEqual(graphics["canvas"]["grid_style"], "points")
         self.assertFalse(graphics["canvas"]["show_port_labels"])
         self.assertEqual(graphics["performance"]["mode"], "max_performance")
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))

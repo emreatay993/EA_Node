@@ -338,6 +338,7 @@ class _GraphCanvasShellHostStub(QObject):
         self.calls: list[tuple[str, tuple[object, ...]]] = []
         self.graphics_minimap_expanded = True
         self.graphics_show_grid = True
+        self.graphics_grid_style = "lines"
         self.graphics_show_minimap = True
         self.graphics_show_port_labels = True
         self.graphics_node_shadow = True
@@ -978,6 +979,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertIs(bridge.view_bridge, view)
         self.assertTrue(bridge.graphics_minimap_expanded)
         self.assertTrue(bridge.graphics_show_grid)
+        self.assertEqual(bridge.graphics_grid_style, "lines")
         self.assertTrue(bridge.graphics_show_minimap)
         self.assertTrue(bridge.graphics_show_port_labels)
         self.assertTrue(bridge.graphics_node_shadow)
@@ -1020,6 +1022,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
         presenter.graphics_show_grid = False
+        presenter.graphics_grid_style = "points"
         presenter.graphics_performance_mode = "max_performance"
         host.graph_canvas_presenter = presenter
 
@@ -1027,6 +1030,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
         self.assertIs(bridge.canvas_source, host)
         self.assertTrue(bridge.graphics_show_grid)
+        self.assertEqual(bridge.graphics_grid_style, "lines")
         self.assertEqual(bridge.graphics_performance_mode, "full_fidelity")
 
     def test_state_bridge_exposes_scene_compatibility_queries_for_bridge_first_qml(self) -> None:
@@ -1376,6 +1380,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         presenter = _GraphCanvasShellHostStub()
         host_source = _GraphCanvasShellHostStub()
         presenter.graphics_show_grid = False
+        presenter.graphics_grid_style = "points"
         presenter.graphics_show_minimap = False
         presenter.graphics_show_port_labels = False
         presenter.graphics_performance_mode = "max_performance"
@@ -1404,6 +1409,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         )
 
         self.assertFalse(bridge.graphics_show_grid)
+        self.assertEqual(bridge.graphics_grid_style, "points")
         self.assertFalse(bridge.graphics_show_minimap)
         self.assertFalse(bridge.graphics_show_port_labels)
         self.assertEqual(bridge.graphics_performance_mode, "max_performance")
@@ -1619,6 +1625,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertIsNone(bridge.shell_window)
         self.assertTrue(bridge.graphics_minimap_expanded)
         self.assertTrue(bridge.graphics_show_grid)
+        self.assertEqual(bridge.graphics_grid_style, "lines")
         self.assertTrue(bridge.graphics_show_minimap)
         self.assertTrue(bridge.graphics_node_shadow)
         self.assertEqual(bridge.graphics_shadow_strength, 70)

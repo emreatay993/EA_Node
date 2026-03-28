@@ -5,6 +5,7 @@ Item {
     id: root
     property var viewBridge: null
     property bool showGrid: true
+    property string gridStyle: "lines"
     property bool degradedWindowActive: false
     property int _redrawRequestCount: 0
     property bool _viewStateRedrawDirty: false
@@ -29,6 +30,9 @@ Item {
     readonly property color minorGridColor: themePalette.canvas_minor_grid
     readonly property color majorGridColor: themePalette.canvas_major_grid
     readonly property bool effectiveShowGrid: root.showGrid && !root.degradedWindowActive
+    readonly property string effectiveGridStyle: root.gridStyle === "points" ? "points" : "lines"
+    readonly property real minorGridPointSize: 1.75 / Math.max(0.0001, root._gridScale)
+    readonly property real majorGridPointSize: 2.75 / Math.max(0.0001, root._gridScale)
 
     function _normalizedZoom(value) {
         var zoom = Number(value);
@@ -179,6 +183,7 @@ Item {
     }
 
     onShowGridChanged: requestGridRedraw(true)
+    onGridStyleChanged: requestGridRedraw(false)
     onDegradedWindowActiveChanged: requestGridRedraw(true)
     onThemePaletteChanged: requestGridRedraw(true)
     onWidthChanged: requestGridRedraw(true)
@@ -213,47 +218,100 @@ Item {
             scale: root._gridScale
             transformOrigin: Item.TopLeft
 
-            Repeater {
-                model: root._minorVerticalLineCount
-                delegate: Rectangle {
-                    x: index * root._cachedGridStep
-                    y: 0
-                    width: 1.0 / Math.max(0.0001, root._gridScale)
-                    height: gridContent.height
-                    color: root.minorGridColor
+            Item {
+                anchors.fill: parent
+                visible: root.effectiveGridStyle === "lines"
+
+                Repeater {
+                    model: root._minorVerticalLineCount
+                    delegate: Rectangle {
+                        x: index * root._cachedGridStep
+                        y: 0
+                        width: 1.0 / Math.max(0.0001, root._gridScale)
+                        height: gridContent.height
+                        color: root.minorGridColor
+                    }
+                }
+
+                Repeater {
+                    model: root._minorHorizontalLineCount
+                    delegate: Rectangle {
+                        x: 0
+                        y: index * root._cachedGridStep
+                        width: gridContent.width
+                        height: 1.0 / Math.max(0.0001, root._gridScale)
+                        color: root.minorGridColor
+                    }
+                }
+
+                Repeater {
+                    model: root._majorVerticalLineCount
+                    delegate: Rectangle {
+                        x: root._majorLocalOriginX() + index * root._cachedGridPeriod
+                        y: 0
+                        width: 1.0 / Math.max(0.0001, root._gridScale)
+                        height: gridContent.height
+                        color: root.majorGridColor
+                    }
+                }
+
+                Repeater {
+                    model: root._majorHorizontalLineCount
+                    delegate: Rectangle {
+                        x: 0
+                        y: root._majorLocalOriginY() + index * root._cachedGridPeriod
+                        width: gridContent.width
+                        height: 1.0 / Math.max(0.0001, root._gridScale)
+                        color: root.majorGridColor
+                    }
                 }
             }
 
-            Repeater {
-                model: root._minorHorizontalLineCount
-                delegate: Rectangle {
-                    x: 0
-                    y: index * root._cachedGridStep
-                    width: gridContent.width
-                    height: 1.0 / Math.max(0.0001, root._gridScale)
-                    color: root.minorGridColor
-                }
-            }
+            Item {
+                anchors.fill: parent
+                visible: root.effectiveGridStyle === "points"
 
-            Repeater {
-                model: root._majorVerticalLineCount
-                delegate: Rectangle {
-                    x: root._majorLocalOriginX() + index * root._cachedGridPeriod
-                    y: 0
-                    width: 1.0 / Math.max(0.0001, root._gridScale)
-                    height: gridContent.height
-                    color: root.majorGridColor
-                }
-            }
+                Repeater {
+                    model: root._minorHorizontalLineCount
+                    delegate: Item {
+                        y: index * root._cachedGridStep
+                        width: gridContent.width
+                        height: root.minorGridPointSize
+                        property int rowIndex: index
 
-            Repeater {
-                model: root._majorHorizontalLineCount
-                delegate: Rectangle {
-                    x: 0
-                    y: root._majorLocalOriginY() + index * root._cachedGridPeriod
-                    width: gridContent.width
-                    height: 1.0 / Math.max(0.0001, root._gridScale)
-                    color: root.majorGridColor
+                        Repeater {
+                            model: root._minorVerticalLineCount
+                            delegate: Rectangle {
+                                width: root.minorGridPointSize
+                                height: root.minorGridPointSize
+                                x: index * root._cachedGridStep - width * 0.5
+                                y: -height * 0.5
+                                radius: width * 0.5
+                                color: root.minorGridColor
+                            }
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: root._majorHorizontalLineCount
+                    delegate: Item {
+                        y: root._majorLocalOriginY() + index * root._cachedGridPeriod
+                        width: gridContent.width
+                        height: root.majorGridPointSize
+
+                        Repeater {
+                            model: root._majorVerticalLineCount
+                            delegate: Rectangle {
+                                width: root.majorGridPointSize
+                                height: root.majorGridPointSize
+                                x: root._majorLocalOriginX() + index * root._cachedGridPeriod - width * 0.5
+                                y: -height * 0.5
+                                radius: width * 0.5
+                                color: root.majorGridColor
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -19,6 +19,7 @@ class _GraphCanvasStateSource(Protocol):
     snap_to_grid_changed: _SignalLike
     graphics_minimap_expanded: bool
     graphics_show_grid: bool
+    graphics_grid_style: str
     graphics_show_minimap: bool
     graphics_show_port_labels: bool
     graphics_node_shadow: bool
@@ -129,6 +130,10 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_grid(self) -> bool:
         return bool(_source_attr(self._canvas_source, "graphics_show_grid", True))
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_grid_style(self) -> str:
+        return str(_source_attr(self._canvas_source, "graphics_grid_style", "lines"))
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:

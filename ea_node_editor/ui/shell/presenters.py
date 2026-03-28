@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from ea_node_editor.app_preferences import normalize_graphics_performance_mode
+from ea_node_editor.app_preferences import normalize_graphics_performance_mode, normalize_grid_overlay_style
 from ea_node_editor.graph.effective_ports import find_port
 from ea_node_editor.graph.file_issue_state import (
     collect_node_file_issues,
@@ -51,6 +51,7 @@ _UNSET = object()
 @dataclass(slots=True)
 class ShellWorkspaceUiState:
     show_grid: bool
+    grid_style: str
     show_minimap: bool
     show_port_labels: bool
     node_shadow: bool
@@ -71,6 +72,9 @@ def build_default_shell_workspace_ui_state(
     theme = graphics_settings.get("theme", {}) if isinstance(graphics_settings, dict) else {}
     return ShellWorkspaceUiState(
         show_grid=bool(canvas.get("show_grid", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])),
+        grid_style=normalize_grid_overlay_style(
+            canvas.get("grid_style", DEFAULT_GRAPHICS_SETTINGS["canvas"]["grid_style"])
+        ),
         show_minimap=bool(canvas.get("show_minimap", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])),
         show_port_labels=bool(
             canvas.get("show_port_labels", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_port_labels"])
@@ -789,6 +793,10 @@ class ShellWorkspacePresenter(QObject):
 
         changed = False
         show_grid = bool(canvas.get("show_grid", self._ui_state.show_grid))
+        grid_style = normalize_grid_overlay_style(
+            canvas.get("grid_style", self._ui_state.grid_style),
+            self._ui_state.grid_style,
+        )
         show_minimap = bool(canvas.get("show_minimap", self._ui_state.show_minimap))
         show_port_labels = bool(canvas.get("show_port_labels", self._ui_state.show_port_labels))
         minimap_expanded = bool(
@@ -830,6 +838,9 @@ class ShellWorkspacePresenter(QObject):
 
         if self._ui_state.show_grid != show_grid:
             self._ui_state.show_grid = show_grid
+            changed = True
+        if self._ui_state.grid_style != grid_style:
+            self._ui_state.grid_style = grid_style
             changed = True
         if self._ui_state.show_minimap != show_minimap:
             self._ui_state.show_minimap = show_minimap
@@ -874,6 +885,7 @@ class ShellWorkspacePresenter(QObject):
         return {
             "canvas": {
                 "show_grid": bool(self._ui_state.show_grid),
+                "grid_style": str(self._ui_state.grid_style),
                 "show_minimap": bool(self._ui_state.show_minimap),
                 "show_port_labels": bool(self._ui_state.show_port_labels),
                 "minimap_expanded": bool(self._host.search_scope_state.graphics_minimap_expanded),
@@ -1175,6 +1187,10 @@ class GraphCanvasPresenter(QObject):
     @property
     def graphics_show_grid(self) -> bool:
         return bool(self._host.workspace_ui_state.show_grid)
+
+    @property
+    def graphics_grid_style(self) -> str:
+        return str(self._host.workspace_ui_state.grid_style)
 
     @property
     def graphics_show_minimap(self) -> bool:

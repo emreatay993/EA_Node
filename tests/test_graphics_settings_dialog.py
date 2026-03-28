@@ -33,6 +33,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
 
             dialog.show_grid_check.setChecked(False)
+            dialog.grid_style_combo.setCurrentIndex(dialog.grid_style_combo.findData("points"))
             dialog.show_minimap_check.setChecked(False)
             dialog.show_port_labels_check.setChecked(False)
             dialog.minimap_expanded_check.setChecked(False)
@@ -45,6 +46,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
 
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
+            expected["canvas"]["grid_style"] = "points"
             expected["canvas"]["show_minimap"] = False
             expected["canvas"]["show_port_labels"] = False
             expected["canvas"]["minimap_expanded"] = False
@@ -125,6 +127,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
             self.assertFalse(dialog.show_port_labels_check.isChecked())
+            self.assertEqual(dialog.grid_style_combo.currentData(), "lines")
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
             expected["canvas"]["show_port_labels"] = False
@@ -304,6 +307,30 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertEqual(dialog.full_fidelity_mode_option.property("performanceModeSelected"), False)
             self.assertEqual(dialog.max_performance_mode_option.property("performanceModeSelected"), True)
             self.assertEqual(dialog.values()["performance"]["mode"], "max_performance")
+        finally:
+            dialog.close()
+
+    def test_grid_style_control_tracks_grid_visibility_and_roundtrips_selection(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "canvas": {
+                    "show_grid": True,
+                    "grid_style": "points",
+                }
+            }
+        )
+        try:
+            self.assertTrue(dialog.show_grid_check.isChecked())
+            self.assertFalse(dialog._grid_style_container.isHidden())
+            self.assertEqual(dialog.grid_style_combo.objectName(), "graphicsSettingsGridStyleCombo")
+            self.assertEqual(dialog.grid_style_combo.currentData(), "points")
+
+            dialog.show_grid_check.setChecked(False)
+            self.assertTrue(dialog._grid_style_container.isHidden())
+            self.assertEqual(dialog.values()["canvas"]["grid_style"], "points")
+
+            dialog.show_grid_check.setChecked(True)
+            self.assertFalse(dialog._grid_style_container.isHidden())
         finally:
             dialog.close()
 

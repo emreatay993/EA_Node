@@ -13,10 +13,12 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
+    DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
     DEFAULT_SOURCE_IMPORT_MODE,
     DEFAULT_SOURCE_IMPORT_SETTINGS,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
+    GRID_OVERLAY_STYLE_CHOICES,
     SOURCE_IMPORT_MODE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
     app_preferences_path,
@@ -32,6 +34,9 @@ from ea_node_editor.ui.theme import DEFAULT_THEME_ID, is_known_theme_id, resolve
 _APP_PREFERENCES_MIGRATION_VERSION = 1
 _GRAPHICS_PERFORMANCE_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in GRAPHICS_PERFORMANCE_MODE_CHOICES
+}
+_GRID_OVERLAY_STYLE_VALUES = {
+    str(choice[0]).strip().lower() for choice in GRID_OVERLAY_STYLE_CHOICES
 }
 _SOURCE_IMPORT_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in SOURCE_IMPORT_MODE_CHOICES
@@ -79,6 +84,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["canvas"]["show_grid"] = _normalize_bool(
             canvas_payload.get("show_grid"),
             defaults["canvas"]["show_grid"],
+        )
+        normalized["canvas"]["grid_style"] = normalize_grid_overlay_style(
+            canvas_payload.get("grid_style"),
+            defaults["canvas"]["grid_style"],
         )
         normalized["canvas"]["show_minimap"] = _normalize_bool(
             canvas_payload.get("show_minimap"),
@@ -264,6 +273,16 @@ def normalize_graphics_performance_mode(value: Any, default: str = DEFAULT_GRAPH
     return DEFAULT_GRAPHICS_PERFORMANCE_MODE
 
 
+def normalize_grid_overlay_style(value: Any, default: str = DEFAULT_GRID_OVERLAY_STYLE) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _GRID_OVERLAY_STYLE_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _GRID_OVERLAY_STYLE_VALUES:
+        return resolved_default
+    return DEFAULT_GRID_OVERLAY_STYLE
+
+
 def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPORT_MODE) -> str:
     normalized = str(value).strip().lower()
     if normalized in _SOURCE_IMPORT_MODE_VALUES:
@@ -279,6 +298,7 @@ __all__ = [
     "default_app_preferences_document",
     "normalize_app_preferences_document",
     "normalize_graph_theme_settings",
+    "normalize_grid_overlay_style",
     "normalize_graphics_performance_mode",
     "normalize_graphics_settings",
     "normalize_source_import_mode",

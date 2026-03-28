@@ -154,6 +154,7 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
     def test_graph_canvas_properties_follow_runtime_preference_updates(self) -> None:
         self.assertTrue(bool(self.canvas.property("showGrid")))
+        self.assertEqual(str(self.canvas.property("gridStyle")), "lines")
         self.assertTrue(bool(self.canvas.property("minimapVisible")))
         self.assertTrue(bool(self.canvas.property("minimapExpanded")))
         self.assertTrue(bool(self.canvas.property("showPortLabels")))
@@ -168,6 +169,19 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertFalse(bool(self.canvas.property("minimapVisible")))
         self.assertFalse(bool(self.canvas.property("minimapExpanded")))
         self.assertFalse(bool(self.canvas.property("showPortLabels")))
+
+    def test_graph_canvas_background_switches_between_line_and_point_grid_modes(self) -> None:
+        background = self.canvas.findChild(QObject, "graphCanvasBackground")
+        self.assertIsNotNone(background)
+        self.assertEqual(str(background.property("gridStyle")), "lines")
+        self.assertEqual(str(background.property("effectiveGridStyle")), "lines")
+
+        self.bridge.set_graphics_grid_style_value("points")
+        self.app.processEvents()
+
+        self.assertEqual(str(self.canvas.property("gridStyle")), "points")
+        self.assertEqual(str(background.property("gridStyle")), "points")
+        self.assertEqual(str(background.property("effectiveGridStyle")), "points")
 
     def test_graph_canvas_passes_port_label_preference_into_graph_node_hosts(self) -> None:
         from PyQt6.QtCore import pyqtProperty, pyqtSignal
@@ -242,6 +256,10 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_grid(self) -> bool:
                 return bool(self._preference_bridge.graphics_show_grid)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_grid_style(self) -> str:
+                return str(self._preference_bridge.graphics_grid_style)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_minimap(self) -> bool:
@@ -507,6 +525,10 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_grid(self) -> bool:
                 return bool(self._preference_bridge.graphics_show_grid)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_grid_style(self) -> str:
+                return str(self._preference_bridge.graphics_grid_style)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_minimap(self) -> bool:

@@ -109,6 +109,7 @@ class _GraphCanvasPreferenceBridge(QObject):
     def __init__(self) -> None:
         super().__init__()
         self._graphics_show_grid = True
+        self._graphics_grid_style = "lines"
         self._graphics_show_minimap = True
         self._graphics_minimap_expanded = True
         self._graphics_show_port_labels = True
@@ -118,6 +119,10 @@ class _GraphCanvasPreferenceBridge(QObject):
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_grid(self) -> bool:
         return bool(self._graphics_show_grid)
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_grid_style(self) -> str:
+        return str(self._graphics_grid_style)
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:
@@ -144,6 +149,15 @@ class _GraphCanvasPreferenceBridge(QObject):
         if self._graphics_show_grid == normalized:
             return
         self._graphics_show_grid = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_grid_style_value(self, value: str) -> None:
+        normalized = str(value or "lines").strip().lower()
+        if normalized not in {"lines", "points"}:
+            normalized = "lines"
+        if self._graphics_grid_style == normalized:
+            return
+        self._graphics_grid_style = normalized
         self.graphics_preferences_changed.emit()
 
     def set_graphics_show_minimap_value(self, value: bool) -> None:

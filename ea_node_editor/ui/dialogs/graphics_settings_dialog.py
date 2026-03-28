@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
+    GRID_OVERLAY_STYLE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
 )
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
@@ -140,11 +141,23 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         outer.addWidget(self._make_section_title("Overlay", page))
         overlay_card, overlay_lay = self._make_section_card(page)
         self.show_grid_check = QCheckBox("Show grid overlay", overlay_card)
+        self.show_grid_check.toggled.connect(self._sync_grid_style_visibility)
+        self._grid_style_container = QWidget(overlay_card)
+        grid_style_form = QFormLayout(self._grid_style_container)
+        grid_style_form.setContentsMargins(20, 4, 0, 0)
+        grid_style_form.setHorizontalSpacing(10)
+        grid_style_form.setVerticalSpacing(0)
+        self.grid_style_combo = QComboBox(self._grid_style_container)
+        self.grid_style_combo.setObjectName("graphicsSettingsGridStyleCombo")
+        for grid_style_id, label in GRID_OVERLAY_STYLE_CHOICES:
+            self.grid_style_combo.addItem(label, grid_style_id)
+        grid_style_form.addRow("Grid style", self.grid_style_combo)
         self.show_minimap_check = QCheckBox("Show minimap", overlay_card)
         self.show_port_labels_check = QCheckBox("Show port labels", overlay_card)
         self.show_port_labels_check.setObjectName("graphicsSettingsShowPortLabelsCheck")
         self.minimap_expanded_check = QCheckBox("Expand minimap by default", overlay_card)
         overlay_lay.addWidget(self.show_grid_check)
+        overlay_lay.addWidget(self._grid_style_container)
         overlay_lay.addWidget(self.show_minimap_check)
         overlay_lay.addWidget(self.show_port_labels_check)
         self.minimap_expanded_check.setContentsMargins(20, 0, 0, 0)
@@ -220,6 +233,12 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
     def _sync_shadow_settings_visibility(self) -> None:
         self._shadow_settings_container.setVisible(self.node_shadow_check.isChecked())
+
+    def _sync_grid_style_visibility(self) -> None:
+        grid_style_container = getattr(self, "_grid_style_container", None)
+        if grid_style_container is None:
+            return
+        grid_style_container.setVisible(self.show_grid_check.isChecked())
 
     def _update_shadow_preview(self) -> None:
         preview = getattr(self, "_shadow_preview", None)
@@ -419,6 +438,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
     def set_values(self, initial_settings: dict[str, Any]) -> None:
         settings = self._normalize(initial_settings)
         self.show_grid_check.setChecked(settings["canvas"]["show_grid"])
+        grid_style_id = settings["canvas"]["grid_style"]
+        grid_style_index = self.grid_style_combo.findData(grid_style_id)
+        self.grid_style_combo.setCurrentIndex(grid_style_index if grid_style_index >= 0 else 0)
+        self._sync_grid_style_visibility()
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.show_port_labels_check.setChecked(settings["canvas"]["show_port_labels"])
         self.minimap_expanded_check.setChecked(settings["canvas"]["minimap_expanded"])
@@ -443,6 +466,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             {
                 "canvas": {
                     "show_grid": self.show_grid_check.isChecked(),
+                    "grid_style": str(
+                        self.grid_style_combo.currentData() or DEFAULT_GRAPHICS_SETTINGS["canvas"]["grid_style"]
+                    ),
                     "show_minimap": self.show_minimap_check.isChecked(),
                     "show_port_labels": self.show_port_labels_check.isChecked(),
                     "minimap_expanded": self.minimap_expanded_check.isChecked(),

@@ -533,6 +533,10 @@ class ShellWindow(QMainWindow):
     def graphics_show_grid(self) -> bool:
         return self.graph_canvas_presenter.graphics_show_grid
 
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_grid_style(self) -> str:
+        return self.graph_canvas_presenter.graphics_grid_style
+
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:
         return self.graph_canvas_presenter.graphics_show_minimap

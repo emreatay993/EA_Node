@@ -99,6 +99,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
     def test_graphics_settings_properties_are_exposed_to_qml(self) -> None:
         meta = self.window.metaObject()
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_grid"), 0)
+        self.assertGreaterEqual(meta.indexOfProperty("graphics_grid_style"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_show_minimap"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_minimap_expanded"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("graphics_performance_mode"), 0)
@@ -106,6 +107,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertGreaterEqual(meta.indexOfProperty("active_theme_id"), 0)
         self.assertGreaterEqual(meta.indexOfProperty("snap_to_grid_enabled"), 0)
         self.assertTrue(self.window.graphics_show_grid)
+        self.assertEqual(self.window.graphics_grid_style, "lines")
         self.assertTrue(self.window.graphics_show_minimap)
         self.assertTrue(self.window.graphics_minimap_expanded)
         self.assertEqual(self.window.graphics_performance_mode, "full_fidelity")
@@ -307,7 +309,9 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertIsNotNone(minimap_overlay)
 
         self.assertTrue(bool(graph_canvas.property("showGrid")))
+        self.assertEqual(str(graph_canvas.property("gridStyle")), "lines")
         self.assertTrue(bool(background.property("showGrid")))
+        self.assertEqual(str(background.property("gridStyle")), "lines")
         self.assertTrue(bool(graph_canvas.property("minimapVisible")))
         self.assertTrue(bool(minimap_overlay.property("visible")))
         self.assertTrue(bool(graph_canvas.property("minimapExpanded")))
@@ -316,6 +320,7 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             {
                 "canvas": {
                     "show_grid": False,
+                    "grid_style": "points",
                     "show_minimap": False,
                     "minimap_expanded": False,
                 },
@@ -331,10 +336,13 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.app.processEvents()
 
         self.assertFalse(self.window.graphics_show_grid)
+        self.assertEqual(self.window.graphics_grid_style, "points")
         self.assertFalse(self.window.graphics_show_minimap)
         self.assertFalse(self.window.graphics_minimap_expanded)
         self.assertFalse(bool(graph_canvas.property("showGrid")))
+        self.assertEqual(str(graph_canvas.property("gridStyle")), "points")
         self.assertFalse(bool(background.property("showGrid")))
+        self.assertEqual(str(background.property("gridStyle")), "points")
         self.assertFalse(bool(graph_canvas.property("minimapVisible")))
         self.assertFalse(bool(minimap_overlay.property("visible")))
         self.assertFalse(bool(graph_canvas.property("minimapExpanded")))

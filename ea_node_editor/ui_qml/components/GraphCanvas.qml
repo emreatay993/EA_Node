@@ -81,6 +81,9 @@ Item {
     readonly property real minimapExpandedHeight: 162
     readonly property real minimapCollapsedWidth: 28
     readonly property real minimapCollapsedHeight: 28
+    readonly property string gridStyle: root._canvasStateBridgeRef
+        ? String(root._canvasStateBridgeRef.graphics_grid_style || "lines")
+        : "lines"
 
     GraphCanvasComponents.GraphCanvasInteractionState {
         id: interactionState
@@ -675,6 +678,7 @@ Item {
         anchors.fill: parent
         viewBridge: root._canvasViewStateBridgeRef
         showGrid: root.showGrid
+        gridStyle: root.gridStyle
         degradedWindowActive: root.gridSimplificationActive
     }
 
