@@ -11,10 +11,10 @@
 Removed packet-owned `project_doc` compatibility from start-run payload coercion, client dispatch, and execution trigger shaping so packet-owned normal runs now rely on `RuntimeSnapshot` instead of rehydrating from embedded project documents. Added explicit `request_id` propagation on protocol-error events and switched client-side viewer failure correlation to request-id matching so concurrent viewer commands no longer depend on FIFO-by-command heuristics.
 
 ## Verification
-PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_client.py tests/test_execution_worker.py tests/test_execution_artifact_refs.py tests/test_execution_viewer_protocol.py --ignore=venv -q`
-PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_client.py tests/test_execution_worker.py tests/test_execution_artifact_refs.py tests/test_execution_handle_refs.py tests/test_execution_viewer_protocol.py tests/test_run_controller_unit.py tests/test_shell_run_controller.py --ignore=venv -q`
-PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_client.py tests/test_execution_artifact_refs.py --ignore=venv -q`
-Final Verification Verdict: PASS
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_client.py tests/test_execution_worker.py tests/test_execution_artifact_refs.py tests/test_execution_viewer_protocol.py --ignore=venv -q`
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_client.py tests/test_execution_worker.py tests/test_execution_artifact_refs.py tests/test_execution_handle_refs.py tests/test_execution_viewer_protocol.py tests/test_run_controller_unit.py tests/test_shell_run_controller.py --ignore=venv -q`
+- PASS: `./venv/Scripts/python.exe -m pytest tests/test_execution_client.py tests/test_execution_artifact_refs.py --ignore=venv -q`
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 Ready for manual testing
@@ -27,4 +27,4 @@ Ready for manual testing
 - Viewer failure synthesis now depends on packet-owned `protocol_error` emitters preserving `request_id`; any out-of-scope producer that fabricates viewer-related protocol errors without a request id will no longer get FIFO-based fallback matching.
 
 ## Ready for Integration
-Yes: Packet-local code, tests, and wrap-up are prepared on the packet branch, and no executor-owned integration state or shared status ledger was changed.
+- Yes: Packet-local code, tests, and wrap-up are prepared on the packet branch, and no executor-owned integration state or shared status ledger was changed.
