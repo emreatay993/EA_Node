@@ -20,6 +20,7 @@ class _GraphCanvasStateSource(Protocol):
     graphics_minimap_expanded: bool
     graphics_show_grid: bool
     graphics_grid_style: str
+    graphics_edge_crossing_style: str
     graphics_show_minimap: bool
     graphics_show_port_labels: bool
     graphics_node_shadow: bool
@@ -134,6 +135,10 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_grid_style(self) -> str:
         return str(_source_attr(self._canvas_source, "graphics_grid_style", "lines"))
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_edge_crossing_style(self) -> str:
+        return str(_source_attr(self._canvas_source, "graphics_edge_crossing_style", "none"))
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:

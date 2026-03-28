@@ -74,6 +74,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                         "canvas": {
                             "show_grid": "yes",
                             "grid_style": "dots",
+                            "edge_crossing_style": "crossing-bridges",
                             "show_minimap": False,
                             "show_port_labels": "no",
                             "minimap_expanded": None,
@@ -109,6 +110,10 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         self.assertEqual(graphics["canvas"]["show_grid"], True)
         self.assertEqual(graphics["canvas"]["grid_style"], "lines")
+        self.assertEqual(
+            graphics["canvas"]["edge_crossing_style"],
+            DEFAULT_GRAPHICS_SETTINGS["canvas"]["edge_crossing_style"],
+        )
         self.assertEqual(graphics["canvas"]["show_minimap"], False)
         self.assertEqual(graphics["canvas"]["show_port_labels"], True)
         self.assertEqual(graphics["canvas"]["minimap_expanded"], True)
@@ -135,6 +140,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 "canvas": {
                     "show_grid": False,
                     "grid_style": "POINTS",
+                    "edge_crossing_style": " GAP_BREAK ",
                     "show_minimap": False,
                     "show_port_labels": False,
                     "minimap_expanded": False,
@@ -166,6 +172,7 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
 
         self.assertEqual(host.applied_graphics, [graphics])
         self.assertEqual(graphics["canvas"]["grid_style"], "points")
+        self.assertEqual(graphics["canvas"]["edge_crossing_style"], "gap_break")
         self.assertFalse(graphics["canvas"]["show_port_labels"])
         self.assertEqual(graphics["performance"]["mode"], "max_performance")
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))

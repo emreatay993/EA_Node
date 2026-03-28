@@ -64,6 +64,7 @@ def _named_child_items(root: QObject, object_name: str) -> list[QObject]:
 class _GraphCanvasPerformancePreferenceBridge(_GraphCanvasPreferenceBridge):
     def __init__(self) -> None:
         super().__init__()
+        self._graphics_edge_crossing_style = "none"
         self._graphics_node_shadow = True
         self._graphics_shadow_strength = 70
         self._graphics_shadow_softness = 50
@@ -90,11 +91,24 @@ class _GraphCanvasPerformancePreferenceBridge(_GraphCanvasPreferenceBridge):
     def graphics_performance_mode(self) -> str:
         return str(self._graphics_performance_mode)
 
+    @property
+    def graphics_edge_crossing_style(self) -> str:
+        return str(self._graphics_edge_crossing_style)
+
     def set_graphics_shadow_softness_value(self, value: int) -> None:
         normalized = int(value)
         if self._graphics_shadow_softness == normalized:
             return
         self._graphics_shadow_softness = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_edge_crossing_style_value(self, value: str) -> None:
+        normalized = str(value or "none").strip().lower()
+        if normalized not in {"none", "gap_break"}:
+            normalized = "none"
+        if self._graphics_edge_crossing_style == normalized:
+            return
+        self._graphics_edge_crossing_style = normalized
         self.graphics_preferences_changed.emit()
 
     def set_graphics_performance_mode_value(self, value: str) -> None:
@@ -158,22 +172,29 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.app.processEvents()
 
     def test_graph_canvas_properties_follow_runtime_preference_updates(self) -> None:
+        edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")
+        self.assertIsNotNone(edge_layer)
         self.assertTrue(bool(self.canvas.property("showGrid")))
         self.assertEqual(str(self.canvas.property("gridStyle")), "lines")
+        self.assertEqual(str(self.canvas.property("edgeCrossingStyle")), "none")
         self.assertTrue(bool(self.canvas.property("minimapVisible")))
         self.assertTrue(bool(self.canvas.property("minimapExpanded")))
         self.assertTrue(bool(self.canvas.property("showPortLabels")))
+        self.assertEqual(str(edge_layer.property("edgeCrossingStyle")), "none")
 
         self.bridge.set_graphics_show_grid_value(False)
         self.bridge.set_graphics_show_minimap_value(False)
         self.bridge.set_graphics_minimap_expanded_value(False)
         self.bridge.set_graphics_show_port_labels_value(False)
+        self.bridge.set_graphics_edge_crossing_style_value("gap_break")
         self.app.processEvents()
 
         self.assertFalse(bool(self.canvas.property("showGrid")))
         self.assertFalse(bool(self.canvas.property("minimapVisible")))
         self.assertFalse(bool(self.canvas.property("minimapExpanded")))
         self.assertFalse(bool(self.canvas.property("showPortLabels")))
+        self.assertEqual(str(self.canvas.property("edgeCrossingStyle")), "gap_break")
+        self.assertEqual(str(edge_layer.property("edgeCrossingStyle")), "gap_break")
 
     def test_graph_canvas_background_switches_between_line_and_point_grid_modes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
@@ -265,6 +286,10 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             @pyqtProperty(str, notify=graphics_preferences_changed)
             def graphics_grid_style(self) -> str:
                 return str(self._preference_bridge.graphics_grid_style)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_edge_crossing_style(self) -> str:
+                return str(self._preference_bridge.graphics_edge_crossing_style)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_minimap(self) -> bool:
@@ -575,6 +600,10 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
             @pyqtProperty(str, notify=graphics_preferences_changed)
             def graphics_grid_style(self) -> str:
                 return str(self._preference_bridge.graphics_grid_style)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_edge_crossing_style(self) -> str:
+                return str(self._preference_bridge.graphics_edge_crossing_style)
 
             @pyqtProperty(bool, notify=graphics_preferences_changed)
             def graphics_show_minimap(self) -> bool:

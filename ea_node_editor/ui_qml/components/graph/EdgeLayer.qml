@@ -24,6 +24,7 @@ Item {
     property var visibleSceneRectPayload: ({})
     property string previewEdgeId: ""
     property var dragConnection: null
+    property string edgeCrossingStyle: "none"
     property string performanceMode: "full_fidelity"
     property bool transientPerformanceActivityActive: false
     property bool transientDegradedWindowActive: false

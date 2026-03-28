@@ -46,6 +46,9 @@ Item {
     readonly property bool showPortLabels: root._canvasStateBridgeRef
         ? Boolean(root._canvasStateBridgeRef.graphics_show_port_labels)
         : true
+    readonly property string edgeCrossingStyle: root._canvasStateBridgeRef
+        ? String(root._canvasStateBridgeRef.graphics_edge_crossing_style || "none")
+        : "none"
     readonly property bool nodeShadowEnabled: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_node_shadow) : true
     readonly property int shadowStrength: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_strength : 70
     readonly property int shadowSoftness: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_softness : 50
@@ -710,6 +713,7 @@ Item {
         visibleSceneRectPayload: root.visibleSceneRectPayload
         previewEdgeId: root.dropPreviewEdgeId
         dragConnection: root.wireDragPreviewConnection()
+        edgeCrossingStyle: root.edgeCrossingStyle
         performanceMode: root.resolvedGraphicsPerformanceMode
         transientPerformanceActivityActive: root.transientPerformanceActivityActive
         transientDegradedWindowActive: root.transientDegradedWindowActive

@@ -26,7 +26,12 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             )
             self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
             self.assertEqual(dialog.show_port_labels_check.objectName(), "graphicsSettingsShowPortLabelsCheck")
+            self.assertEqual(
+                dialog.edge_crossing_style_combo.objectName(),
+                "graphicsSettingsEdgeCrossingStyleCombo",
+            )
             self.assertTrue(dialog.show_port_labels_check.isChecked())
+            self.assertEqual(dialog.edge_crossing_style_combo.currentData(), "none")
             self.assertTrue(dialog.full_fidelity_mode_button.isChecked())
             self.assertFalse(dialog.max_performance_mode_button.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
@@ -34,6 +39,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
 
             dialog.show_grid_check.setChecked(False)
             dialog.grid_style_combo.setCurrentIndex(dialog.grid_style_combo.findData("points"))
+            dialog.edge_crossing_style_combo.setCurrentIndex(dialog.edge_crossing_style_combo.findData("gap_break"))
             dialog.show_minimap_check.setChecked(False)
             dialog.show_port_labels_check.setChecked(False)
             dialog.minimap_expanded_check.setChecked(False)
@@ -47,6 +53,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
             expected["canvas"]["grid_style"] = "points"
+            expected["canvas"]["edge_crossing_style"] = "gap_break"
             expected["canvas"]["show_minimap"] = False
             expected["canvas"]["show_port_labels"] = False
             expected["canvas"]["minimap_expanded"] = False
@@ -96,6 +103,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             initial_settings={
                 "canvas": {
                     "show_grid": False,
+                    "edge_crossing_style": "arc-weld",
                     "show_minimap": "no",
                     "show_port_labels": False,
                     "minimap_expanded": False,
@@ -128,6 +136,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
             self.assertFalse(dialog.show_port_labels_check.isChecked())
             self.assertEqual(dialog.grid_style_combo.currentData(), "lines")
+            self.assertEqual(dialog.edge_crossing_style_combo.currentData(), "none")
             expected = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
             expected["canvas"]["show_grid"] = False
             expected["canvas"]["show_port_labels"] = False

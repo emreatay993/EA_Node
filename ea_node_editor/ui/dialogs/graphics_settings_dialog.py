@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 
 from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
+    EDGE_CROSSING_STYLE_CHOICES,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRID_OVERLAY_STYLE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
@@ -156,12 +157,23 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.show_port_labels_check = QCheckBox("Show port labels", overlay_card)
         self.show_port_labels_check.setObjectName("graphicsSettingsShowPortLabelsCheck")
         self.minimap_expanded_check = QCheckBox("Expand minimap by default", overlay_card)
+        self._edge_crossing_style_container = QWidget(overlay_card)
+        edge_crossing_style_form = QFormLayout(self._edge_crossing_style_container)
+        edge_crossing_style_form.setContentsMargins(20, 0, 0, 0)
+        edge_crossing_style_form.setHorizontalSpacing(10)
+        edge_crossing_style_form.setVerticalSpacing(0)
+        self.edge_crossing_style_combo = QComboBox(self._edge_crossing_style_container)
+        self.edge_crossing_style_combo.setObjectName("graphicsSettingsEdgeCrossingStyleCombo")
+        for edge_crossing_style_id, label in EDGE_CROSSING_STYLE_CHOICES:
+            self.edge_crossing_style_combo.addItem(label, edge_crossing_style_id)
+        edge_crossing_style_form.addRow("Crossing style", self.edge_crossing_style_combo)
         overlay_lay.addWidget(self.show_grid_check)
         overlay_lay.addWidget(self._grid_style_container)
         overlay_lay.addWidget(self.show_minimap_check)
         overlay_lay.addWidget(self.show_port_labels_check)
         self.minimap_expanded_check.setContentsMargins(20, 0, 0, 0)
         overlay_lay.addWidget(self.minimap_expanded_check)
+        overlay_lay.addWidget(self._edge_crossing_style_container)
         outer.addWidget(overlay_card)
 
         # ── Node Shadow section ──
@@ -441,6 +453,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         grid_style_id = settings["canvas"]["grid_style"]
         grid_style_index = self.grid_style_combo.findData(grid_style_id)
         self.grid_style_combo.setCurrentIndex(grid_style_index if grid_style_index >= 0 else 0)
+        edge_crossing_style_id = settings["canvas"]["edge_crossing_style"]
+        edge_crossing_style_index = self.edge_crossing_style_combo.findData(edge_crossing_style_id)
+        self.edge_crossing_style_combo.setCurrentIndex(
+            edge_crossing_style_index if edge_crossing_style_index >= 0 else 0
+        )
         self._sync_grid_style_visibility()
         self.show_minimap_check.setChecked(settings["canvas"]["show_minimap"])
         self.show_port_labels_check.setChecked(settings["canvas"]["show_port_labels"])
@@ -468,6 +485,10 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                     "show_grid": self.show_grid_check.isChecked(),
                     "grid_style": str(
                         self.grid_style_combo.currentData() or DEFAULT_GRAPHICS_SETTINGS["canvas"]["grid_style"]
+                    ),
+                    "edge_crossing_style": str(
+                        self.edge_crossing_style_combo.currentData()
+                        or DEFAULT_GRAPHICS_SETTINGS["canvas"]["edge_crossing_style"]
                     ),
                     "show_minimap": self.show_minimap_check.isChecked(),
                     "show_port_labels": self.show_port_labels_check.isChecked(),

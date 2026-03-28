@@ -12,11 +12,13 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_KIND,
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
+    DEFAULT_EDGE_CROSSING_STYLE,
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
     DEFAULT_SOURCE_IMPORT_MODE,
     DEFAULT_SOURCE_IMPORT_SETTINGS,
+    EDGE_CROSSING_STYLE_CHOICES,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRID_OVERLAY_STYLE_CHOICES,
     SOURCE_IMPORT_MODE_CHOICES,
@@ -37,6 +39,9 @@ _GRAPHICS_PERFORMANCE_MODE_VALUES = {
 }
 _GRID_OVERLAY_STYLE_VALUES = {
     str(choice[0]).strip().lower() for choice in GRID_OVERLAY_STYLE_CHOICES
+}
+_EDGE_CROSSING_STYLE_VALUES = {
+    str(choice[0]).strip().lower() for choice in EDGE_CROSSING_STYLE_CHOICES
 }
 _SOURCE_IMPORT_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in SOURCE_IMPORT_MODE_CHOICES
@@ -88,6 +93,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["canvas"]["grid_style"] = normalize_grid_overlay_style(
             canvas_payload.get("grid_style"),
             defaults["canvas"]["grid_style"],
+        )
+        normalized["canvas"]["edge_crossing_style"] = normalize_edge_crossing_style(
+            canvas_payload.get("edge_crossing_style"),
+            defaults["canvas"]["edge_crossing_style"],
         )
         normalized["canvas"]["show_minimap"] = _normalize_bool(
             canvas_payload.get("show_minimap"),
@@ -283,6 +292,16 @@ def normalize_grid_overlay_style(value: Any, default: str = DEFAULT_GRID_OVERLAY
     return DEFAULT_GRID_OVERLAY_STYLE
 
 
+def normalize_edge_crossing_style(value: Any, default: str = DEFAULT_EDGE_CROSSING_STYLE) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in _EDGE_CROSSING_STYLE_VALUES:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in _EDGE_CROSSING_STYLE_VALUES:
+        return resolved_default
+    return DEFAULT_EDGE_CROSSING_STYLE
+
+
 def normalize_source_import_mode(value: Any, default: str = DEFAULT_SOURCE_IMPORT_MODE) -> str:
     normalized = str(value).strip().lower()
     if normalized in _SOURCE_IMPORT_MODE_VALUES:
@@ -297,6 +316,7 @@ __all__ = [
     "AppPreferencesStore",
     "default_app_preferences_document",
     "normalize_app_preferences_document",
+    "normalize_edge_crossing_style",
     "normalize_graph_theme_settings",
     "normalize_grid_overlay_style",
     "normalize_graphics_performance_mode",
