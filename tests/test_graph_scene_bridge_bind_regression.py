@@ -26,6 +26,31 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:", helper_text)
         self.assertIn("def _expanded_selected_node_ids_for_fragment(self, workspace: WorkspaceData) -> list[str]:", helper_text)
 
+    def test_scene_bridge_keeps_payload_cache_and_pending_surface_action_state_in_focused_helpers(self) -> None:
+        bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
+
+        self.assertIn("class _GraphScenePayloadCache:", bridge_text)
+        self.assertIn("class _GraphScenePendingSurfaceAction:", bridge_text)
+        self.assertIn("self._payload_cache = _GraphScenePayloadCache()", bridge_text)
+        self.assertIn("self._pending_surface_action = _GraphScenePendingSurfaceAction()", bridge_text)
+        self.assertIn("self._bridge._payload_cache.update(", bridge_text)
+
+    def test_mutation_history_routes_property_geometry_structure_and_fragment_flows_through_split_helpers(self) -> None:
+        helper_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation_history.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("class _GraphScenePropertyMutations:", helper_text)
+        self.assertIn("class _GraphSceneGeometryMutations:", helper_text)
+        self.assertIn("class _GraphSceneStructureMutations:", helper_text)
+        self.assertIn("class _GraphSceneFragmentMutations:", helper_text)
+        self.assertIn("self._property_mutations = _GraphScenePropertyMutations(self)", helper_text)
+        self.assertIn("self._geometry_mutations = _GraphSceneGeometryMutations(self)", helper_text)
+        self.assertIn("self._structure_mutations = _GraphSceneStructureMutations(self)", helper_text)
+        self.assertIn("self._fragment_mutations = _GraphSceneFragmentMutations(self)", helper_text)
+        self.assertIn("return self._geometry_mutations.move_nodes_by_delta(node_ids, dx, dy)", helper_text)
+        self.assertIn("return self._fragment_mutations.duplicate_selected_subgraph()", helper_text)
+
     def test_set_workspace_does_not_mutate_node_properties_or_exposed_ports(self) -> None:
         registry = build_default_registry()
         model = GraphModel()

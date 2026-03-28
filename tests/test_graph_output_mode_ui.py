@@ -58,6 +58,24 @@ class GraphOutputModeUiTests(unittest.TestCase):
             item for item in process_payload["inline_properties"] if str(item.get("key", "")) == "output_mode"
         )
 
+    def test_graph_scene_payload_builder_routes_node_and_partition_work_through_split_helpers(self) -> None:
+        builder_text = (
+            Path(__file__).resolve().parents[1]
+            / "ea_node_editor"
+            / "ui_qml"
+            / "graph_scene_payload_builder.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("class _GraphSceneThemeResolver:", builder_text)
+        self.assertIn("class _GraphSceneNodePayloadFactory:", builder_text)
+        self.assertIn("class _GraphSceneBackdropPartitioner:", builder_text)
+        self.assertIn("self._node_payload_factory = _GraphSceneNodePayloadFactory()", builder_text)
+        self.assertIn(
+            "self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)",
+            builder_text,
+        )
+        self.assertIn("return self._backdrop_partitioner.build_payload_models(", builder_text)
+
     def test_process_run_output_mode_inline_payload_exposes_chip_metadata(self) -> None:
         memory_item = self._process_run_output_mode_item("memory")
         stored_item = self._process_run_output_mode_item("stored")

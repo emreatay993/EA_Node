@@ -73,6 +73,649 @@ _DUPLICATE_OFFSET_Y = 40.0
 _SNAP_GRID_SIZE = 20.0
 
 
+class _GraphScenePropertyMutations:
+    def __init__(self, owner: GraphSceneMutationHistory) -> None:
+        self._owner = owner
+
+    @staticmethod
+    def normalize_node_visual_style(visual_style: Any) -> dict[str, Any]:
+        return normalize_visual_style_payload(visual_style)
+
+    @staticmethod
+    def normalize_edge_label(label: Any) -> str:
+        return normalize_edge_label(label)
+
+    @staticmethod
+    def normalize_edge_visual_style(visual_style: Any) -> dict[str, Any]:
+        return normalize_visual_style_payload(visual_style)
+
+    def set_node_property(self, node_id: str, key: str, value: Any) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return
+        workspace = model.project.workspaces[owner._scene_context.workspace_id]
+        node = workspace.nodes[node_id]
+        spec = registry.get_spec(node.type_id)
+        if key == "title":
+            normalized_title = owner._normalized_title_update(node, value)
+            if normalized_title is None:
+                return
+            history_before = owner._capture_history_snapshot()
+            owner._apply_title_update(node_id, node, spec, normalized_title)
+            owner._scene_context.rebuild_models()
+            owner.notify_selected_node_context_updated(node_id)
+            owner._record_history(ACTION_RENAME_NODE, history_before)
+            return
+        normalized = registry.normalize_property_value(node.type_id, key, value)
+        current_value = node.properties.get(key, _MISSING)
+        if current_value is not _MISSING and current_value == normalized:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_node_property(node_id, key, normalized)
+        owner._scene_context.rebuild_models()
+        owner.notify_selected_node_context_updated(node_id)
+        owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return False
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return False
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return False
+        spec = registry.get_spec(node.type_id)
+        normalized_updates: dict[str, Any] = {}
+        normalized_title = None
+        for raw_key, raw_value in dict(values or {}).items():
+            key = str(raw_key or "")
+            if not key:
+                continue
+            if key == "title":
+                normalized_title = owner._normalized_title_update(node, raw_value)
+                continue
+            try:
+                normalized = registry.normalize_property_value(node.type_id, key, raw_value)
+            except KeyError:
+                continue
+            current_value = node.properties.get(key, _MISSING)
+            if current_value is not _MISSING and current_value == normalized:
+                continue
+            normalized_updates[key] = normalized
+        if not normalized_updates and normalized_title is None:
+            return False
+
+        history_before = owner._capture_history_snapshot()
+        if normalized_title is not None and not normalized_updates:
+            owner._apply_title_update(node_id, node, spec, normalized_title)
+            owner._scene_context.rebuild_models()
+            owner.notify_selected_node_context_updated(node_id)
+            owner._record_history(ACTION_RENAME_NODE, history_before)
+            return True
+        owner._mutation_boundary().set_node_properties(node_id, normalized_updates)
+        if normalized_title is not None:
+            owner._apply_title_update(node_id, node, spec, normalized_title)
+        owner._scene_context.rebuild_models()
+        owner.notify_selected_node_context_updated(node_id)
+        owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+        return True
+
+    def set_node_visual_style(self, node_id: str, visual_style: Any) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        normalized = normalize_visual_style_payload(visual_style)
+        if node.visual_style == normalized:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_node_visual_style(node_id, normalized)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    def clear_node_visual_style(self, node_id: str) -> None:
+        self.set_node_visual_style(node_id, {})
+
+    def set_node_title(self, node_id: str, title: str) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return
+        node = owner._node(node_id)
+        if node is None:
+            return
+        spec = registry.get_spec(node.type_id)
+        normalized = owner._normalized_title_update(node, title)
+        if normalized is None:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._apply_title_update(node_id, node, spec, normalized)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_RENAME_NODE, history_before)
+
+    def set_edge_label(self, edge_id: str, label: Any) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        edge = workspace.edges.get(edge_id)
+        if edge is None:
+            return
+        normalized = normalize_edge_label(label)
+        if edge.label == normalized:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_edge_label(edge_id, normalized)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    def clear_edge_label(self, edge_id: str) -> None:
+        self.set_edge_label(edge_id, "")
+
+    def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        edge = workspace.edges.get(edge_id)
+        if edge is None:
+            return
+        normalized = normalize_visual_style_payload(visual_style)
+        if edge.visual_style == normalized:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_edge_visual_style(edge_id, normalized)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+    def clear_edge_visual_style(self, edge_id: str) -> None:
+        self.set_edge_visual_style(edge_id, {})
+
+    def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        spec = registry.get_spec(node.type_id)
+        port = find_port(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_key=key,
+        )
+        if port is None:
+            return
+        normalized_exposed = bool(exposed)
+        current_exposed = bool(port.exposed)
+        if current_exposed == normalized_exposed:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_exposed_port(node_id, key, normalized_exposed)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
+
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        node = workspace.nodes.get(node_id)
+        if node is None:
+            return
+        normalized_label = str(label or "").strip()
+
+        if is_subnode_shell_type(node.type_id):
+            pin_node = workspace.nodes.get(str(port_key or "").strip())
+            if pin_node is None or str(pin_node.parent_node_id or "").strip() != str(node.node_id):
+                return
+            current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+            if not normalized_label or normalized_label == current_label:
+                return
+            history_before = owner._capture_history_snapshot()
+            owner._mutation_boundary().set_node_property(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+            owner._scene_context.rebuild_models()
+            owner.notify_selected_node_context_updated(node.node_id)
+            owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+            return
+
+        if is_subnode_pin_type(node.type_id) and str(port_key or "").strip() == SUBNODE_PIN_PORT_KEY:
+            current_label = str(node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
+            if not normalized_label or normalized_label == current_label:
+                return
+            history_before = owner._capture_history_snapshot()
+            owner._mutation_boundary().set_node_property(node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
+            owner._scene_context.rebuild_models()
+            owner.notify_selected_node_context_updated(node.node_id)
+            owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+            return
+
+        current_label = node.port_labels.get(port_key, "")
+        if normalized_label == current_label:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_port_label(node_id, port_key, normalized_label)
+        owner._scene_context.rebuild_models()
+        owner.notify_selected_node_context_updated(node_id)
+        owner._record_history(ACTION_EDIT_PROPERTY, history_before)
+
+
+class _GraphSceneGeometryMutations:
+    def __init__(self, owner: GraphSceneMutationHistory) -> None:
+        self._owner = owner
+
+    def move_node(self, node_id: str, x: float, y: float) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        if not is_node_in_scope(workspace, node_id, owner._scene_context.scope_path):
+            return
+        node = owner._node(node_id)
+        if node is None:
+            return
+        final_x = float(x)
+        final_y = float(y)
+        if float(node.x) == final_x and float(node.y) == final_y:
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_node_position(node_id, final_x, final_y)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_MOVE_NODE, history_before)
+
+    def resize_node(self, node_id: str, width: float, height: float) -> None:
+        owner = self._owner
+        node = owner._node(node_id)
+        if node is None:
+            return
+        self.set_node_geometry(node_id, float(node.x), float(node.y), width, height)
+
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None:
+            return
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return
+        node = owner._node(node_id)
+        if node is None:
+            return
+        if not is_node_in_scope(workspace, node_id, owner._scene_context.scope_path):
+            return
+        spec = registry.get_spec(node.type_id) if registry is not None else None
+        min_width = 0.0
+        min_height = 0.0
+        if spec is not None:
+            metrics = node_surface_metrics(
+                node,
+                spec,
+                workspace.nodes,
+                show_port_labels=owner._scene_context.graphics_show_port_labels,
+            )
+            min_width = float(metrics.min_width)
+            min_height = float(metrics.min_height)
+        final_x = float(x)
+        final_y = float(y)
+        final_w = max(min_width, float(width))
+        final_h = max(min_height, float(height))
+        if (
+            float(node.x) == final_x
+            and float(node.y) == final_y
+            and node.custom_width == final_w
+            and node.custom_height == final_h
+        ):
+            return
+        history_before = owner._capture_history_snapshot()
+        owner._mutation_boundary().set_node_geometry(node_id, final_x, final_y, final_w, final_h)
+        owner._scene_context.rebuild_models()
+        owner._record_history(ACTION_RESIZE_NODE, history_before)
+
+    def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return False
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return False
+
+        unique_node_ids: list[str] = []
+        seen_node_ids: set[str] = set()
+        for value in node_ids:
+            node_id = str(value).strip()
+            if not node_id or node_id in seen_node_ids or node_id not in workspace.nodes:
+                continue
+            if not is_node_in_scope(workspace, node_id, owner._scene_context.scope_path):
+                continue
+            seen_node_ids.add(node_id)
+            unique_node_ids.append(node_id)
+        if not unique_node_ids:
+            return False
+
+        delta_x = float(dx)
+        delta_y = float(dy)
+        if abs(delta_x) < 0.01 and abs(delta_y) < 0.01:
+            return False
+
+        history_group = owner._scene_context.grouped_history_action(ACTION_MOVE_NODE, workspace)
+        moved_any = False
+        mutations = owner._mutation_boundary()
+        with history_group:
+            for node_id in unique_node_ids:
+                node = workspace.nodes.get(node_id)
+                if node is None:
+                    continue
+                final_x = float(node.x) + delta_x
+                final_y = float(node.y) + delta_y
+                if float(node.x) == final_x and float(node.y) == final_y:
+                    continue
+                mutations.set_node_position(node_id, final_x, final_y)
+                moved_any = True
+
+        if not moved_any:
+            return False
+        owner._scene_context.rebuild_models()
+        return True
+
+    def align_selected_nodes(
+        self,
+        alignment: str,
+        *,
+        snap_to_grid: bool = False,
+        grid_size: float = _SNAP_GRID_SIZE,
+    ) -> bool:
+        owner = self._owner
+        workspace, selected = owner._selected_layout_metrics()
+        if workspace is None:
+            return False
+        updates = build_alignment_position_updates(layout_nodes=selected, alignment=alignment)
+        return owner._apply_layout_updates(
+            workspace,
+            updates,
+            snap_to_grid=snap_to_grid,
+            grid_size=grid_size,
+        )
+
+    def distribute_selected_nodes(
+        self,
+        orientation: str,
+        *,
+        snap_to_grid: bool = False,
+        grid_size: float = _SNAP_GRID_SIZE,
+    ) -> bool:
+        owner = self._owner
+        workspace, selected = owner._selected_layout_metrics()
+        if workspace is None:
+            return False
+        updates = build_distribution_position_updates(layout_nodes=selected, orientation=orientation)
+        return owner._apply_layout_updates(
+            workspace,
+            updates,
+            snap_to_grid=snap_to_grid,
+            grid_size=grid_size,
+        )
+
+
+class _GraphSceneStructureMutations:
+    def __init__(self, owner: GraphSceneMutationHistory) -> None:
+        self._owner = owner
+
+    def wrap_nodes_in_comment_backdrop(self, node_ids: list[Any]) -> str:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return ""
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return ""
+        transactions = owner._authoring_transactions()
+        if transactions is None:
+            return ""
+
+        history_group = owner._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
+        wrapped = None
+        with history_group:
+            wrapped = transactions.wrap_selection_in_comment_backdrop(
+                selected_node_ids=node_ids,
+                scope_path=owner._scene_context.scope_path,
+            )
+        if wrapped is None:
+            return ""
+
+        owner._scope_selection.set_selected_node_ids([wrapped.backdrop_node_id], workspace=workspace)
+        owner._scene_context.rebuild_models()
+        return wrapped.backdrop_node_id
+
+    def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return False
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return False
+        selected_node_ids = owner._selected_node_ids_in_workspace(workspace)
+        if not selected_node_ids:
+            return False
+        return bool(self.wrap_nodes_in_comment_backdrop(selected_node_ids))
+
+    def group_selected_nodes(self) -> bool:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return False
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return False
+        selected_node_ids = owner._selected_node_ids_in_workspace(workspace)
+        if len(selected_node_ids) < 2:
+            return False
+        selection_bounds = owner._scope_selection.bounds_for_node_ids(selected_node_ids)
+        if selection_bounds is None:
+            return False
+        transactions = owner._authoring_transactions()
+        if transactions is None:
+            return False
+
+        history_group = owner._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
+        grouped = None
+        with history_group:
+            grouped = transactions.group_selection_into_subnode(
+                selected_node_ids=selected_node_ids,
+                scope_path=owner._scene_context.scope_path,
+                shell_x=selection_bounds.x(),
+                shell_y=selection_bounds.y(),
+            )
+        if grouped is None:
+            return False
+
+        owner._scope_selection.set_selected_node_ids([grouped.shell_node_id], workspace=workspace)
+        owner._scene_context.rebuild_models()
+        return True
+
+    def ungroup_selected_subnode(self) -> bool:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return False
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return False
+        selected_node_ids = owner._selected_node_ids_in_workspace(workspace)
+        if len(selected_node_ids) != 1:
+            return False
+        shell_node_id = selected_node_ids[0]
+        transactions = owner._authoring_transactions()
+        if transactions is None:
+            return False
+
+        history_group = owner._scene_context.grouped_history_action(ACTION_REMOVE_NODE, workspace)
+        ungrouped = None
+        with history_group:
+            ungrouped = transactions.ungroup_subnode(shell_node_id=shell_node_id)
+        if ungrouped is None:
+            return False
+
+        owner._scope_selection.set_selected_node_ids(list(ungrouped.moved_node_ids), workspace=workspace)
+        owner._scene_context.rebuild_models()
+        return True
+
+
+class _GraphSceneFragmentMutations:
+    def __init__(self, owner: GraphSceneMutationHistory) -> None:
+        self._owner = owner
+
+    def duplicate_selected_subgraph(self) -> bool:
+        owner = self._owner
+        fragment_payload = self.serialize_selected_subgraph_fragment()
+        normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
+        if normalized_fragment is None:
+            return False
+        duplicated_node_ids = owner._insert_fragment(
+            normalized_fragment,
+            action_type=ACTION_ADD_NODE,
+            delta_x=_DUPLICATE_OFFSET_X,
+            delta_y=_DUPLICATE_OFFSET_Y,
+        )
+        if not duplicated_node_ids:
+            return False
+        owner._scope_selection.set_selected_node_ids(duplicated_node_ids)
+        owner._scene_context.rebuild_models()
+        return True
+
+    def serialize_selected_subgraph_fragment(self) -> dict[str, Any] | None:
+        owner = self._owner
+        model = owner._scene_context.model
+        if model is None:
+            return None
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return None
+        selected_node_ids = owner._expanded_selected_node_ids_for_fragment(workspace)
+        if not selected_node_ids:
+            return None
+        return owner._build_subgraph_fragment_payload(workspace, selected_node_ids)
+
+    def fragment_bounds_center(self, fragment_payload: Any) -> tuple[float, float] | None:
+        owner = self._owner
+        normalized = normalize_graph_fragment_payload(fragment_payload)
+        if normalized is None:
+            return None
+        bounds = owner._fragment_bounds(normalized["nodes"])
+        if bounds is None:
+            return None
+        return (bounds.center().x(), bounds.center().y())
+
+    def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center_y: float) -> bool:
+        owner = self._owner
+        normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
+        if normalized_fragment is None:
+            return False
+
+        fragment_bounds = owner._fragment_bounds(normalized_fragment["nodes"])
+        if fragment_bounds is None:
+            return False
+
+        delta_x = float(center_x) - fragment_bounds.center().x()
+        delta_y = float(center_y) - fragment_bounds.center().y()
+        pasted_node_ids = owner._insert_fragment(
+            normalized_fragment,
+            action_type=ACTION_ADD_NODE,
+            delta_x=delta_x,
+            delta_y=delta_y,
+        )
+        if not pasted_node_ids:
+            return False
+
+        owner._scope_selection.set_selected_node_ids(pasted_node_ids)
+        owner._scene_context.rebuild_models()
+        return True
+
+    def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
+        owner = self._owner
+        model = owner._scene_context.model
+        registry = owner._scene_context.registry
+        if model is None or registry is None:
+            return False
+        workspace = model.project.workspaces.get(owner._scene_context.workspace_id)
+        if workspace is None:
+            return False
+
+        requested_edge_ids: list[str] = []
+        seen_edge_ids: set[str] = set()
+        for value in edge_ids:
+            edge_id = str(value).strip()
+            if not edge_id or edge_id in seen_edge_ids:
+                continue
+            seen_edge_ids.add(edge_id)
+            requested_edge_ids.append(edge_id)
+
+        removable_node_ids = owner._removable_node_ids_for_fragment(workspace)
+        if not requested_edge_ids and not removable_node_ids:
+            return False
+
+        mutations = model.validated_mutations(workspace.workspace_id, registry)
+        removed_any = False
+        history_group = owner._scene_context.grouped_history_action(ACTION_DELETE_SELECTED, workspace)
+        with history_group:
+            for edge_id in requested_edge_ids:
+                if edge_id not in workspace.edges:
+                    continue
+                mutations.remove_edge(edge_id)
+                removed_any = True
+            for node_id in reversed(removable_node_ids):
+                if node_id not in workspace.nodes:
+                    continue
+                mutations.remove_node(node_id)
+                removed_any = True
+        if not removed_any:
+            return False
+
+        remaining_selected = [
+            node_id
+            for node_id in owner._scene_context.selected_node_ids
+            if node_id in workspace.nodes
+        ]
+        owner._scope_selection.set_selected_node_ids(remaining_selected, workspace=workspace)
+        owner._scene_context.rebuild_models()
+        return True
+
+
 class GraphSceneMutationHistory:
     def __init__(
         self,
@@ -81,6 +724,10 @@ class GraphSceneMutationHistory:
     ) -> None:
         self._scene_context = scene_context
         self._scope_selection = scope_selection
+        self._property_mutations = _GraphScenePropertyMutations(self)
+        self._geometry_mutations = _GraphSceneGeometryMutations(self)
+        self._structure_mutations = _GraphSceneStructureMutations(self)
+        self._fragment_mutations = _GraphSceneFragmentMutations(self)
 
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
         return self.create_node_from_type(
@@ -393,368 +1040,61 @@ class GraphSceneMutationHistory:
             node.properties["title"] = normalized_title
 
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return
-        workspace = model.project.workspaces[self._scene_context.workspace_id]
-        node = workspace.nodes[node_id]
-        spec = registry.get_spec(node.type_id)
-        if key == "title":
-            normalized_title = self._normalized_title_update(node, value)
-            if normalized_title is None:
-                return
-            history_before = self._capture_history_snapshot()
-            self._apply_title_update(node_id, node, spec, normalized_title)
-            self._scene_context.rebuild_models()
-            self.notify_selected_node_context_updated(node_id)
-            self._record_history(ACTION_RENAME_NODE, history_before)
-            return
-        normalized = registry.normalize_property_value(node.type_id, key, value)
-        current_value = node.properties.get(key, _MISSING)
-        if current_value is not _MISSING and current_value == normalized:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_node_property(node_id, key, normalized)
-        self._scene_context.rebuild_models()
-        self.notify_selected_node_context_updated(node_id)
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._property_mutations.set_node_property(node_id, key, value)
 
     def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            return False
-        spec = registry.get_spec(node.type_id)
-        normalized_updates: dict[str, Any] = {}
-        normalized_title = None
-        for raw_key, raw_value in dict(values or {}).items():
-            key = str(raw_key or "")
-            if not key:
-                continue
-            if key == "title":
-                normalized_title = self._normalized_title_update(node, raw_value)
-                continue
-            try:
-                normalized = registry.normalize_property_value(node.type_id, key, raw_value)
-            except KeyError:
-                continue
-            current_value = node.properties.get(key, _MISSING)
-            if current_value is not _MISSING and current_value == normalized:
-                continue
-            normalized_updates[key] = normalized
-        if not normalized_updates and normalized_title is None:
-            return False
-
-        history_before = self._capture_history_snapshot()
-        if normalized_title is not None and not normalized_updates:
-            self._apply_title_update(node_id, node, spec, normalized_title)
-            self._scene_context.rebuild_models()
-            self.notify_selected_node_context_updated(node_id)
-            self._record_history(ACTION_RENAME_NODE, history_before)
-            return True
-        self._mutation_boundary().set_node_properties(node_id, normalized_updates)
-        if normalized_title is not None:
-            self._apply_title_update(node_id, node, spec, normalized_title)
-        self._scene_context.rebuild_models()
-        self.notify_selected_node_context_updated(node_id)
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
-        return True
+        return self._property_mutations.set_node_properties(node_id, values)
 
     @staticmethod
     def normalize_node_visual_style(visual_style: Any) -> dict[str, Any]:
-        return normalize_visual_style_payload(visual_style)
+        return _GraphScenePropertyMutations.normalize_node_visual_style(visual_style)
 
     def set_node_visual_style(self, node_id: str, visual_style: Any) -> None:
-        model = self._scene_context.model
-        if model is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            return
-        normalized = normalize_visual_style_payload(visual_style)
-        if node.visual_style == normalized:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_node_visual_style(node_id, normalized)
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._property_mutations.set_node_visual_style(node_id, visual_style)
 
     def clear_node_visual_style(self, node_id: str) -> None:
-        self.set_node_visual_style(node_id, {})
+        self._property_mutations.clear_node_visual_style(node_id)
 
     def set_node_title(self, node_id: str, title: str) -> None:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return
-        node = self._node(node_id)
-        if node is None:
-            return
-        spec = registry.get_spec(node.type_id)
-        normalized = self._normalized_title_update(node, title)
-        if normalized is None:
-            return
-        history_before = self._capture_history_snapshot()
-        self._apply_title_update(node_id, node, spec, normalized)
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_RENAME_NODE, history_before)
+        self._property_mutations.set_node_title(node_id, title)
 
     @staticmethod
     def normalize_edge_label(label: Any) -> str:
-        return normalize_edge_label(label)
+        return _GraphScenePropertyMutations.normalize_edge_label(label)
 
     def set_edge_label(self, edge_id: str, label: Any) -> None:
-        model = self._scene_context.model
-        if model is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        edge = workspace.edges.get(edge_id)
-        if edge is None:
-            return
-        normalized = normalize_edge_label(label)
-        if edge.label == normalized:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_edge_label(edge_id, normalized)
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._property_mutations.set_edge_label(edge_id, label)
 
     def clear_edge_label(self, edge_id: str) -> None:
-        self.set_edge_label(edge_id, "")
+        self._property_mutations.clear_edge_label(edge_id)
 
     @staticmethod
     def normalize_edge_visual_style(visual_style: Any) -> dict[str, Any]:
-        return normalize_visual_style_payload(visual_style)
+        return _GraphScenePropertyMutations.normalize_edge_visual_style(visual_style)
 
     def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
-        model = self._scene_context.model
-        if model is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        edge = workspace.edges.get(edge_id)
-        if edge is None:
-            return
-        normalized = normalize_visual_style_payload(visual_style)
-        if edge.visual_style == normalized:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_edge_visual_style(edge_id, normalized)
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._property_mutations.set_edge_visual_style(edge_id, visual_style)
 
     def clear_edge_visual_style(self, edge_id: str) -> None:
-        self.set_edge_visual_style(edge_id, {})
+        self._property_mutations.clear_edge_visual_style(edge_id)
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            return
-        spec = registry.get_spec(node.type_id)
-        port = find_port(
-            node=node,
-            spec=spec,
-            workspace_nodes=workspace.nodes,
-            port_key=key,
-        )
-        if port is None:
-            return
-        normalized_exposed = bool(exposed)
-        current_exposed = bool(port.exposed)
-        if current_exposed == normalized_exposed:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_exposed_port(node_id, key, normalized_exposed)
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
+        self._property_mutations.set_exposed_port(node_id, key, exposed)
 
     def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        node = workspace.nodes.get(node_id)
-        if node is None:
-            return
-        normalized_label = str(label or "").strip()
-
-        if is_subnode_shell_type(node.type_id):
-            pin_node = workspace.nodes.get(str(port_key or "").strip())
-            if pin_node is None or str(pin_node.parent_node_id or "").strip() != str(node.node_id):
-                return
-            current_label = str(pin_node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
-            if not normalized_label or normalized_label == current_label:
-                return
-            history_before = self._capture_history_snapshot()
-            self._mutation_boundary().set_node_property(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
-            self._scene_context.rebuild_models()
-            self.notify_selected_node_context_updated(node.node_id)
-            self._record_history(ACTION_EDIT_PROPERTY, history_before)
-            return
-
-        if is_subnode_pin_type(node.type_id) and str(port_key or "").strip() == SUBNODE_PIN_PORT_KEY:
-            current_label = str(node.properties.get(SUBNODE_PIN_LABEL_PROPERTY, "")).strip()
-            if not normalized_label or normalized_label == current_label:
-                return
-            history_before = self._capture_history_snapshot()
-            self._mutation_boundary().set_node_property(node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
-            self._scene_context.rebuild_models()
-            self.notify_selected_node_context_updated(node.node_id)
-            self._record_history(ACTION_EDIT_PROPERTY, history_before)
-            return
-
-        current_label = node.port_labels.get(port_key, "")
-        if normalized_label == current_label:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_port_label(node_id, port_key, normalized_label)
-        self._scene_context.rebuild_models()
-        self.notify_selected_node_context_updated(node_id)
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._property_mutations.set_node_port_label(node_id, port_key, label)
 
     def move_node(self, node_id: str, x: float, y: float) -> None:
-        model = self._scene_context.model
-        if model is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
-            return
-        node = self._node(node_id)
-        if node is None:
-            return
-        final_x = float(x)
-        final_y = float(y)
-        if float(node.x) == final_x and float(node.y) == final_y:
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_node_position(node_id, final_x, final_y)
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_MOVE_NODE, history_before)
+        self._geometry_mutations.move_node(node_id, x, y)
 
     def resize_node(self, node_id: str, width: float, height: float) -> None:
-        node = self._node(node_id)
-        if node is None:
-            return
-        self.set_node_geometry(node_id, float(node.x), float(node.y), width, height)
+        self._geometry_mutations.resize_node(node_id, width, height)
 
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None:
-            return
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return
-        node = self._node(node_id)
-        if node is None:
-            return
-        if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
-            return
-        spec = registry.get_spec(node.type_id) if registry is not None else None
-        min_width = 0.0
-        min_height = 0.0
-        if spec is not None:
-            metrics = node_surface_metrics(
-                node,
-                spec,
-                workspace.nodes,
-                show_port_labels=self._scene_context.graphics_show_port_labels,
-            )
-            min_width = float(metrics.min_width)
-            min_height = float(metrics.min_height)
-        final_x = float(x)
-        final_y = float(y)
-        final_w = max(min_width, float(width))
-        final_h = max(min_height, float(height))
-        if (
-            float(node.x) == final_x
-            and float(node.y) == final_y
-            and node.custom_width == final_w
-            and node.custom_height == final_h
-        ):
-            return
-        history_before = self._capture_history_snapshot()
-        self._mutation_boundary().set_node_geometry(
-            node_id,
-            final_x,
-            final_y,
-            final_w,
-            final_h,
-        )
-        self._scene_context.rebuild_models()
-        self._record_history(ACTION_RESIZE_NODE, history_before)
+        self._geometry_mutations.set_node_geometry(node_id, x, y, width, height)
 
     def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:
-        model = self._scene_context.model
-        if model is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-
-        unique_node_ids: list[str] = []
-        seen_node_ids: set[str] = set()
-        for value in node_ids:
-            node_id = str(value).strip()
-            if not node_id or node_id in seen_node_ids or node_id not in workspace.nodes:
-                continue
-            if not is_node_in_scope(workspace, node_id, self._scene_context.scope_path):
-                continue
-            seen_node_ids.add(node_id)
-            unique_node_ids.append(node_id)
-        if not unique_node_ids:
-            return False
-
-        delta_x = float(dx)
-        delta_y = float(dy)
-        if abs(delta_x) < 0.01 and abs(delta_y) < 0.01:
-            return False
-
-        history_group = self._scene_context.grouped_history_action(ACTION_MOVE_NODE, workspace)
-
-        moved_any = False
-        mutations = self._mutation_boundary()
-        with history_group:
-            for node_id in unique_node_ids:
-                node = workspace.nodes.get(node_id)
-                if node is None:
-                    continue
-                final_x = float(node.x) + delta_x
-                final_y = float(node.y) + delta_y
-                if float(node.x) == final_x and float(node.y) == final_y:
-                    continue
-                mutations.set_node_position(node_id, final_x, final_y)
-                moved_any = True
-
-        if not moved_any:
-            return False
-        self._scene_context.rebuild_models()
-        return True
+        return self._geometry_mutations.move_nodes_by_delta(node_ids, dx, dy)
 
     def align_selected_nodes(
         self,
@@ -763,16 +1103,8 @@ class GraphSceneMutationHistory:
         snap_to_grid: bool = False,
         grid_size: float = _SNAP_GRID_SIZE,
     ) -> bool:
-        workspace, selected = self._selected_layout_metrics()
-        if workspace is None:
-            return False
-        updates = build_alignment_position_updates(
-            layout_nodes=selected,
-            alignment=alignment,
-        )
-        return self._apply_layout_updates(
-            workspace,
-            updates,
+        return self._geometry_mutations.align_selected_nodes(
+            alignment,
             snap_to_grid=snap_to_grid,
             grid_size=grid_size,
         )
@@ -784,231 +1116,38 @@ class GraphSceneMutationHistory:
         snap_to_grid: bool = False,
         grid_size: float = _SNAP_GRID_SIZE,
     ) -> bool:
-        workspace, selected = self._selected_layout_metrics()
-        if workspace is None:
-            return False
-        updates = build_distribution_position_updates(
-            layout_nodes=selected,
-            orientation=orientation,
-        )
-        return self._apply_layout_updates(
-            workspace,
-            updates,
+        return self._geometry_mutations.distribute_selected_nodes(
+            orientation,
             snap_to_grid=snap_to_grid,
             grid_size=grid_size,
         )
 
     def wrap_nodes_in_comment_backdrop(self, node_ids: list[Any]) -> str:
-        model = self._scene_context.model
-        if model is None:
-            return ""
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return ""
-        transactions = self._authoring_transactions()
-        if transactions is None:
-            return ""
-
-        history_group = self._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
-
-        wrapped = None
-        with history_group:
-            wrapped = transactions.wrap_selection_in_comment_backdrop(
-                selected_node_ids=node_ids,
-                scope_path=self._scene_context.scope_path,
-            )
-        if wrapped is None:
-            return ""
-
-        self._scope_selection.set_selected_node_ids([wrapped.backdrop_node_id], workspace=workspace)
-        self._scene_context.rebuild_models()
-        return wrapped.backdrop_node_id
+        return self._structure_mutations.wrap_nodes_in_comment_backdrop(node_ids)
 
     def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
-        model = self._scene_context.model
-        if model is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
-        if not selected_node_ids:
-            return False
-        return bool(self.wrap_nodes_in_comment_backdrop(selected_node_ids))
+        return self._structure_mutations.wrap_selected_nodes_in_comment_backdrop()
 
     def group_selected_nodes(self) -> bool:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
-        if len(selected_node_ids) < 2:
-            return False
-        selection_bounds = self._scope_selection.bounds_for_node_ids(selected_node_ids)
-        if selection_bounds is None:
-            return False
-        transactions = self._authoring_transactions()
-        if transactions is None:
-            return False
-
-        history_group = self._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
-
-        grouped = None
-        with history_group:
-            grouped = transactions.group_selection_into_subnode(
-                selected_node_ids=selected_node_ids,
-                scope_path=self._scene_context.scope_path,
-                shell_x=selection_bounds.x(),
-                shell_y=selection_bounds.y(),
-            )
-        if grouped is None:
-            return False
-
-        self._scope_selection.set_selected_node_ids([grouped.shell_node_id], workspace=workspace)
-        self._scene_context.rebuild_models()
-        return True
+        return self._structure_mutations.group_selected_nodes()
 
     def ungroup_selected_subnode(self) -> bool:
-        model = self._scene_context.model
-        if model is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-        selected_node_ids = self._selected_node_ids_in_workspace(workspace)
-        if len(selected_node_ids) != 1:
-            return False
-        shell_node_id = selected_node_ids[0]
-        transactions = self._authoring_transactions()
-        if transactions is None:
-            return False
-
-        history_group = self._scene_context.grouped_history_action(ACTION_REMOVE_NODE, workspace)
-
-        ungrouped = None
-        with history_group:
-            ungrouped = transactions.ungroup_subnode(
-                shell_node_id=shell_node_id,
-            )
-        if ungrouped is None:
-            return False
-
-        self._scope_selection.set_selected_node_ids(list(ungrouped.moved_node_ids), workspace=workspace)
-        self._scene_context.rebuild_models()
-        return True
+        return self._structure_mutations.ungroup_selected_subnode()
 
     def duplicate_selected_subgraph(self) -> bool:
-        fragment_payload = self.serialize_selected_subgraph_fragment()
-        normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
-        if normalized_fragment is None:
-            return False
-        duplicated_node_ids = self._insert_fragment(
-            normalized_fragment,
-            action_type=ACTION_ADD_NODE,
-            delta_x=_DUPLICATE_OFFSET_X,
-            delta_y=_DUPLICATE_OFFSET_Y,
-        )
-        if not duplicated_node_ids:
-            return False
-        self._scope_selection.set_selected_node_ids(duplicated_node_ids)
-        self._scene_context.rebuild_models()
-        return True
+        return self._fragment_mutations.duplicate_selected_subgraph()
 
     def serialize_selected_subgraph_fragment(self) -> dict[str, Any] | None:
-        model = self._scene_context.model
-        if model is None:
-            return None
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return None
-        selected_node_ids = self._expanded_selected_node_ids_for_fragment(workspace)
-        if not selected_node_ids:
-            return None
-        return self._build_subgraph_fragment_payload(workspace, selected_node_ids)
+        return self._fragment_mutations.serialize_selected_subgraph_fragment()
 
     def fragment_bounds_center(self, fragment_payload: Any) -> tuple[float, float] | None:
-        normalized = normalize_graph_fragment_payload(fragment_payload)
-        if normalized is None:
-            return None
-        bounds = self._fragment_bounds(normalized["nodes"])
-        if bounds is None:
-            return None
-        return (bounds.center().x(), bounds.center().y())
+        return self._fragment_mutations.fragment_bounds_center(fragment_payload)
 
     def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center_y: float) -> bool:
-        normalized_fragment = normalize_graph_fragment_payload(fragment_payload)
-        if normalized_fragment is None:
-            return False
-
-        fragment_bounds = self._fragment_bounds(normalized_fragment["nodes"])
-        if fragment_bounds is None:
-            return False
-
-        delta_x = float(center_x) - fragment_bounds.center().x()
-        delta_y = float(center_y) - fragment_bounds.center().y()
-        pasted_node_ids = self._insert_fragment(
-            normalized_fragment,
-            action_type=ACTION_ADD_NODE,
-            delta_x=delta_x,
-            delta_y=delta_y,
-        )
-        if not pasted_node_ids:
-            return False
-
-        self._scope_selection.set_selected_node_ids(pasted_node_ids)
-        self._scene_context.rebuild_models()
-        return True
+        return self._fragment_mutations.paste_subgraph_fragment(fragment_payload, center_x, center_y)
 
     def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
-        model = self._scene_context.model
-        registry = self._scene_context.registry
-        if model is None or registry is None:
-            return False
-        workspace = model.project.workspaces.get(self._scene_context.workspace_id)
-        if workspace is None:
-            return False
-
-        requested_edge_ids: list[str] = []
-        seen_edge_ids: set[str] = set()
-        for value in edge_ids:
-            edge_id = str(value).strip()
-            if not edge_id or edge_id in seen_edge_ids:
-                continue
-            seen_edge_ids.add(edge_id)
-            requested_edge_ids.append(edge_id)
-
-        removable_node_ids = self._removable_node_ids_for_fragment(workspace)
-        if not requested_edge_ids and not removable_node_ids:
-            return False
-
-        mutations = model.validated_mutations(workspace.workspace_id, registry)
-        removed_any = False
-        history_group = self._scene_context.grouped_history_action(ACTION_DELETE_SELECTED, workspace)
-        with history_group:
-            for edge_id in requested_edge_ids:
-                if edge_id not in workspace.edges:
-                    continue
-                mutations.remove_edge(edge_id)
-                removed_any = True
-            for node_id in reversed(removable_node_ids):
-                if node_id not in workspace.nodes:
-                    continue
-                mutations.remove_node(node_id)
-                removed_any = True
-        if not removed_any:
-            return False
-
-        remaining_selected = [
-            node_id
-            for node_id in self._scene_context.selected_node_ids
-            if node_id in workspace.nodes
-        ]
-        self._scope_selection.set_selected_node_ids(remaining_selected, workspace=workspace)
-        self._scene_context.rebuild_models()
-        return True
+        return self._fragment_mutations.delete_selected_graph_items(edge_ids)
 
     def _node(self, node_id: str) -> NodeInstance | None:
         return self._scene_context.node(node_id)

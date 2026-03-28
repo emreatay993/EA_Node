@@ -1,42 +1,35 @@
-import QtQml 2.15
+import QtQuick 2.15
 
-QtObject {
+Item {
     id: root
     property var canvasItem: null
+    visible: false
+    width: 0
+    height: 0
+
+    GraphCanvasSurfaceInteractionHost {
+        id: hostInteraction
+        canvasItem: root.canvasItem
+    }
 
     function _sceneSelectionBridge() {
-        var bridge = root.canvasItem ? root.canvasItem._canvasSceneCommandBridgeRef : null;
-        if (bridge && bridge.select_node)
-            return bridge;
-        return null;
+        return hostInteraction.sceneSelectionBridge();
     }
 
     function _pendingActionBridge() {
-        var bridge = root.canvasItem ? root.canvasItem._canvasSceneCommandBridgeRef : null;
-        if (bridge && bridge.set_pending_surface_action && bridge.consume_pending_surface_action)
-            return bridge;
-        return null;
+        return hostInteraction.pendingActionBridge();
     }
 
     function _propertyBridge() {
-        var bridge = root.canvasItem ? root.canvasItem._canvasSceneCommandBridgeRef : null;
-        if (bridge && bridge.set_node_properties)
-            return bridge;
-        return null;
+        return hostInteraction.propertyBridge();
     }
 
     function _cursorBridge() {
-        var bridge = root.canvasItem ? root.canvasItem._canvasShellCommandBridgeRef : null;
-        if (bridge && bridge.set_graph_cursor_shape && bridge.clear_graph_cursor_shape)
-            return bridge;
-        return null;
+        return hostInteraction.cursorBridge();
     }
 
     function _pdfPreviewBridge() {
-        var bridge = root.canvasItem ? root.canvasItem._canvasShellCommandBridgeRef : null;
-        if (bridge && bridge.describe_pdf_preview)
-            return bridge;
-        return null;
+        return hostInteraction.pdfPreviewBridge();
     }
 
     function requestOpenSubnodeScope(nodeId) {
@@ -51,9 +44,7 @@ QtObject {
         var opened = bridge.request_open_subnode_scope(normalized);
         if (!opened)
             return false;
-        root.canvasItem.clearEdgeSelection();
-        root.canvasItem.clearPendingConnection();
-        root.canvasItem._closeContextMenus();
+        hostInteraction.clearCanvasSelectionState();
         return true;
     }
 
@@ -63,10 +54,7 @@ QtObject {
         var normalized = String(nodeId || "").trim();
         if (!normalized)
             return false;
-        root.canvasItem._closeContextMenus();
-        root.canvasItem.cancelWireDrag();
-        root.canvasItem.clearPendingConnection();
-        root.canvasItem.clearEdgeSelection();
+        hostInteraction.resetSurfaceInteractionState();
         var bridge = root.canvasItem._canvasSceneCommandBridgeRef;
         if (bridge && bridge.select_node)
             bridge.select_node(normalized, false);
@@ -110,15 +98,12 @@ QtObject {
         if (!normalized)
             return false;
         var selectionBridge = root._sceneSelectionBridge();
-        var needsSelection = root.canvasItem.selectedNodeIds().indexOf(normalized) < 0;
+        var needsSelection = hostInteraction.selectedNodeIds().indexOf(normalized) < 0;
         if (needsSelection) {
             var pendingBridge = root._pendingActionBridge();
             if (!selectionBridge || !pendingBridge)
                 return false;
-            root.canvasItem._closeContextMenus();
-            root.canvasItem.cancelWireDrag();
-            root.canvasItem.clearPendingConnection();
-            root.canvasItem.clearEdgeSelection();
+            hostInteraction.resetSurfaceInteractionState();
             pendingBridge.set_pending_surface_action(normalized);
             selectionBridge.select_node(normalized, false);
             return false;

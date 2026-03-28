@@ -33,10 +33,12 @@ Item {
             ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
             : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
         : ({})
+    readonly property var canvasViewportController: viewportController
+    readonly property var canvasSceneLifecycle: sceneLifecycle
     readonly property real nodeRenderActivationPaddingPx: 240.0
-    readonly property var nodeRenderActivationSceneRectPayload: root._inflateSceneRectPayload(
+    readonly property var nodeRenderActivationSceneRectPayload: viewportController.inflateSceneRectPayload(
         root.visibleSceneRectPayload,
-        root._scenePaddingForViewportPixels(root.nodeRenderActivationPaddingPx)
+        viewportController.scenePaddingForViewportPixels(root.nodeRenderActivationPaddingPx)
     )
     property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
     readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
@@ -100,6 +102,30 @@ Item {
     GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {
         id: nodeSurfaceBridge
         canvasItem: root
+    }
+
+    GraphCanvasComponents.GraphCanvasViewportController {
+        id: viewportController
+        canvasItem: root
+        shellCommandBridge: root._canvasShellCommandBridgeRef
+        viewStateBridge: root._canvasViewStateBridgeRef
+        viewCommandBridge: root._canvasViewCommandBridgeRef
+        interactionState: interactionState
+        backgroundLayer: backgroundLayer
+        edgeLayer: edgeLayer
+        redrawFlushTimer: viewStateRedrawFlushTimer
+    }
+
+    GraphCanvasComponents.GraphCanvasSceneLifecycle {
+        id: sceneLifecycle
+        canvasItem: root
+        sceneStateBridge: root._canvasSceneStateBridgeRef
+        viewStateBridge: root._canvasViewStateBridgeRef
+        sceneState: sceneState
+        interactionState: interactionState
+        canvasPerformancePolicy: canvasPerformancePolicy
+        viewportController: viewportController
+        edgeLayerItem: edgeLayer
     }
 
     QtObject {
@@ -170,25 +196,19 @@ Item {
     clip: true
 
     function toggleMinimapExpanded() {
-        var nextExpanded = !root.minimapExpanded;
-        var bridge = root._canvasShellCommandBridgeRef;
-        if (bridge && bridge.set_graphics_minimap_expanded) {
-            bridge.set_graphics_minimap_expanded(nextExpanded);
-            return;
-        }
-        root.minimapExpanded = nextExpanded;
+        viewportController.toggleMinimapExpanded();
     }
 
     function beginViewportInteraction() {
-        interactionState.beginViewportInteraction();
+        viewportController.beginViewportInteraction();
     }
 
     function finishViewportInteractionSoon() {
-        interactionState.finishViewportInteractionSoon();
+        viewportController.finishViewportInteractionSoon();
     }
 
     function noteViewportInteraction() {
-        interactionState.noteViewportInteraction();
+        viewportController.noteViewportInteraction();
     }
 
     Timer {
@@ -206,144 +226,39 @@ Item {
     }
 
     function screenToSceneX(screenX) {
-        var view = root._canvasViewStateBridgeRef;
-        return GraphCanvasLogic.screenToSceneX(
-            screenX,
-            (view ? view.center_x : 0.0),
-            root.width,
-            (view ? view.zoom_value : 1.0)
-        );
+        return viewportController.screenToSceneX(screenX);
     }
 
     function screenToSceneY(screenY) {
-        var view = root._canvasViewStateBridgeRef;
-        return GraphCanvasLogic.screenToSceneY(
-            screenY,
-            (view ? view.center_y : 0.0),
-            root.height,
-            (view ? view.zoom_value : 1.0)
-        );
+        return viewportController.screenToSceneY(screenY);
     }
 
     function _wheelDeltaY(eventObj) {
-        return GraphCanvasLogic.wheelDeltaY(eventObj);
+        return viewportController.wheelDeltaY(eventObj);
     }
 
     function applyWheelZoom(eventObj) {
-        var viewCommand = root._canvasViewCommandBridgeRef;
-        if (!viewCommand)
-            return false;
-        var deltaY = _wheelDeltaY(eventObj);
-        if (Math.abs(deltaY) < 0.001)
-            return false;
-        root.noteViewportInteraction();
-
-        var cursorX = Number(eventObj && eventObj.x);
-        var cursorY = Number(eventObj && eventObj.y);
-        var hasCursor = isFinite(cursorX) && isFinite(cursorY);
-        var sceneBeforeX = 0.0;
-        var sceneBeforeY = 0.0;
-        if (hasCursor) {
-            sceneBeforeX = screenToSceneX(cursorX);
-            sceneBeforeY = screenToSceneY(cursorY);
-        }
-
-        var steps = deltaY / 120.0;
-        if (Math.abs(steps) < 0.01)
-            steps = deltaY > 0 ? 1.0 : -1.0;
-        steps = Math.max(-1.0, Math.min(1.0, steps));
-        var factor = Math.pow(1.15, steps);
-        if (hasCursor && viewCommand.adjust_zoom_at_viewport_point) {
-            viewCommand.adjust_zoom_at_viewport_point(factor, cursorX, cursorY);
-            return true;
-        }
-
-        if (viewCommand.adjust_zoom)
-            viewCommand.adjust_zoom(factor);
-
-        if (hasCursor) {
-            var sceneAfterX = screenToSceneX(cursorX);
-            var sceneAfterY = screenToSceneY(cursorY);
-            if (viewCommand.pan_by)
-                viewCommand.pan_by(sceneBeforeX - sceneAfterX, sceneBeforeY - sceneAfterY);
-        }
-        return true;
+        return viewportController.applyWheelZoom(eventObj);
     }
 
     function sceneToScreenX(sceneX) {
-        var view = root._canvasViewStateBridgeRef;
-        return GraphCanvasLogic.sceneToScreenX(
-            sceneX,
-            (view ? view.center_x : 0.0),
-            root.width,
-            (view ? view.zoom_value : 1.0)
-        );
+        return viewportController.sceneToScreenX(sceneX);
     }
 
     function sceneToScreenY(sceneY) {
-        var view = root._canvasViewStateBridgeRef;
-        return GraphCanvasLogic.sceneToScreenY(
-            sceneY,
-            (view ? view.center_y : 0.0),
-            root.height,
-            (view ? view.zoom_value : 1.0)
-        );
+        return viewportController.sceneToScreenY(sceneY);
     }
 
     function _normalizedSceneRectPayload(rectLike) {
-        if (rectLike === undefined || rectLike === null)
-            return null;
-
-        var x = Number(rectLike.x);
-        var y = Number(rectLike.y);
-        var width = Number(rectLike.width);
-        var height = Number(rectLike.height);
-        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
-            return null;
-
-        if (width < 0.0) {
-            x += width;
-            width = Math.abs(width);
-        }
-        if (height < 0.0) {
-            y += height;
-            height = Math.abs(height);
-        }
-
-        return {
-            "x": x,
-            "y": y,
-            "width": width,
-            "height": height
-        };
+        return viewportController.normalizedSceneRectPayload(rectLike);
     }
 
     function _scenePaddingForViewportPixels(paddingPx) {
-        var zoom = root._canvasViewStateBridgeRef ? Number(root._canvasViewStateBridgeRef.zoom_value) : 1.0;
-        if (!isFinite(zoom) || zoom <= 0.0001)
-            zoom = 1.0;
-
-        var padding = Number(paddingPx);
-        if (!isFinite(padding) || padding < 0.0)
-            padding = 0.0;
-        return padding / zoom;
+        return viewportController.scenePaddingForViewportPixels(paddingPx);
     }
 
     function _inflateSceneRectPayload(rectLike, padding) {
-        var normalized = root._normalizedSceneRectPayload(rectLike);
-        if (!normalized)
-            return ({});
-
-        var resolvedPadding = Number(padding);
-        if (!isFinite(resolvedPadding) || resolvedPadding < 0.0)
-            resolvedPadding = 0.0;
-
-        return {
-            "x": normalized.x - resolvedPadding,
-            "y": normalized.y - resolvedPadding,
-            "width": normalized.width + (resolvedPadding * 2.0),
-            "height": normalized.height + (resolvedPadding * 2.0)
-        };
+        return viewportController.inflateSceneRectPayload(rectLike, padding);
     }
 
     function snapToGridEnabled() {
@@ -719,24 +634,15 @@ Item {
     }
 
     function requestEdgeRedraw() {
-        if (edgeLayer && edgeLayer.requestRedraw)
-            edgeLayer.requestRedraw();
+        sceneLifecycle.requestEdgeRedraw();
     }
 
     function requestViewStateRedraw() {
-        if (backgroundLayer && backgroundLayer.markViewStateRedrawDirty)
-            backgroundLayer.markViewStateRedrawDirty();
-        if (edgeLayer && edgeLayer.markViewStateRedrawDirty)
-            edgeLayer.markViewStateRedrawDirty();
-        if (!viewStateRedrawFlushTimer.running)
-            viewStateRedrawFlushTimer.start();
+        viewportController.requestViewStateRedraw();
     }
 
     function flushViewStateRedraw() {
-        if (backgroundLayer && backgroundLayer.flushViewStateRedraw)
-            backgroundLayer.flushViewStateRedraw();
-        if (edgeLayer && edgeLayer.flushViewStateRedraw)
-            edgeLayer.flushViewStateRedraw();
+        viewportController.flushViewStateRedraw();
     }
 
     function _closeContextMenus() {
@@ -865,44 +771,8 @@ Item {
         commandBridge: root._canvasShellCommandBridgeRef
     }
 
-    Connections {
-        target: root._canvasSceneStateBridgeRef
-        ignoreUnknownSignals: true
-        function _handleSceneMutation() {
-            canvasPerformancePolicy.noteStructuralMutation();
-            root.liveDragOffsets = ({});
-            root.liveNodeGeometry = ({});
-            root._clearWireDragState();
-            root._syncEdgePayload();
-        }
-        function onScene_edges_changed() {
-            _handleSceneMutation();
-        }
-        function onScene_nodes_changed() {
-            _handleSceneMutation();
-        }
-        function onEdges_changed() {
-            _handleSceneMutation();
-        }
-        function onNodes_changed() {
-            _handleSceneMutation();
-        }
-    }
-
-    Connections {
-        target: root._canvasViewStateBridgeRef
-        ignoreUnknownSignals: true
-        function onView_state_changed() {
-            root.requestViewStateRedraw();
-        }
-    }
-
     function _resetCanvasSceneState() {
-        canvasPerformancePolicy.clearStructuralMutation();
-        root.liveDragOffsets = ({});
-        root.liveNodeGeometry = ({});
-        interactionState.resetSceneBridgeState();
-        root._syncEdgePayload();
+        sceneLifecycle.resetCanvasSceneState();
     }
 
     onCanvasStateBridgeChanged: root._resetCanvasSceneState()
@@ -910,15 +780,11 @@ Item {
     onSceneBridgeChanged: root._resetCanvasSceneState()
 
     onWidthChanged: {
-        var view = root._canvasViewCommandBridgeRef;
-        if (view && view.set_viewport_size)
-            view.set_viewport_size(width, height);
+        viewportController.updateViewportSize();
     }
 
     onHeightChanged: {
-        var view = root._canvasViewCommandBridgeRef;
-        if (view && view.set_viewport_size)
-            view.set_viewport_size(width, height);
+        viewportController.updateViewportSize();
     }
 
     Component.onDestruction: {

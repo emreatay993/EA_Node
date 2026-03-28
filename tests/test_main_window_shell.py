@@ -476,14 +476,18 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "GraphCanvasComponents.GraphCanvasInteractionState {",
             "GraphCanvasComponents.GraphCanvasSceneState {",
             "GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {",
+            "GraphCanvasComponents.GraphCanvasViewportController {",
+            "GraphCanvasComponents.GraphCanvasSceneLifecycle {",
             "GraphCanvasComponents.GraphCanvasWorldLayer {",
+            "readonly property var canvasViewportController: viewportController",
+            "readonly property var canvasSceneLifecycle: sceneLifecycle",
             "property alias hoveredPort: interactionState.hoveredPort",
             "property alias pendingConnectionPort: interactionState.pendingConnectionPort",
             "property alias interactionActive: interactionState.interactionActive",
             "interactionState.updateLibraryDropPreview(screenX, screenY, payload);",
             "interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);",
-            "var bridge = root._canvasShellCommandBridgeRef",
-            "var view = root._canvasViewStateBridgeRef",
+            "viewportController.applyWheelZoom(eventObj);",
+            "sceneLifecycle.requestEdgeRedraw();",
             "viewBridge: root._canvasViewStateBridgeRef",
             "sceneBridge: root._canvasSceneStateBridgeRef",
             "shellCommandBridge: root._canvasShellCommandBridgeRef",
@@ -491,8 +495,6 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "sceneStateBridge: root._canvasSceneStateBridgeRef",
             "viewStateBridge: root._canvasViewStateBridgeRef",
             "viewCommandBridge: root._canvasViewCommandBridgeRef",
-            "target: root._canvasSceneStateBridgeRef",
-            "target: root._canvasViewStateBridgeRef",
         )
 
         _assert_text_snippets(
@@ -535,10 +537,22 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 'bridge && typeof bridge.selected_node_lookup !== "undefined"',
             ),
             "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeSurfaceBridge.qml": (
+                "GraphCanvasSurfaceInteractionHost {",
                 "function requestOpenSubnodeScope(nodeId) {",
                 "function commitNodeSurfaceProperties(nodeId, properties) {",
                 "function browseNodePropertyPath(nodeId, key, currentPath) {",
-                "var bridge = root.canvasItem ? root.canvasItem._canvasSceneCommandBridgeRef : null;",
+                "return hostInteraction.sceneSelectionBridge();",
+                "hostInteraction.resetSurfaceInteractionState();",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasViewportController.qml": (
+                "function applyWheelZoom(eventObj) {",
+                "function requestViewStateRedraw() {",
+                "function updateViewportSize() {",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasSceneLifecycle.qml": (
+                "function handleSceneMutation() {",
+                "function resetCanvasSceneState() {",
+                "target: root.sceneStateBridge",
             ),
             "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasNodeDelegate.qml": (
                 "GraphComponents.GraphNodeHost {",

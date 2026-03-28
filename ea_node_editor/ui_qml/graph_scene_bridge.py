@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QPointF, QRectF, pyqtProperty, pyqtSignal, pyqtSlot
@@ -51,6 +52,46 @@ def _sync_surface_title(node: NodeInstance, spec: NodeTypeSpec) -> None:
     node.title = _synced_surface_title(node, spec)
 
 
+@dataclass
+class _GraphScenePayloadCache:
+    nodes: list[dict[str, Any]] = field(default_factory=list)
+    backdrop_nodes: list[dict[str, Any]] = field(default_factory=list)
+    minimap_nodes: list[dict[str, Any]] = field(default_factory=list)
+    edges: list[dict[str, Any]] = field(default_factory=list)
+
+    def update(
+        self,
+        *,
+        nodes: list[dict[str, Any]],
+        backdrop_nodes: list[dict[str, Any]],
+        minimap_nodes: list[dict[str, Any]],
+        edges: list[dict[str, Any]],
+    ) -> None:
+        self.nodes = nodes
+        self.backdrop_nodes = backdrop_nodes
+        self.minimap_nodes = minimap_nodes
+        self.edges = edges
+
+
+class _GraphScenePendingSurfaceAction:
+    def __init__(self) -> None:
+        self.node_id = ""
+
+    def set(self, node_id: str) -> bool:
+        normalized = str(node_id or "")
+        if self.node_id == normalized:
+            return False
+        self.node_id = normalized
+        return True
+
+    def consume(self, node_id: str) -> bool:
+        normalized = str(node_id or "")
+        if not normalized or self.node_id != normalized:
+            return False
+        self.node_id = ""
+        return True
+
+
 class _GraphSceneContext:
     def __init__(self, bridge: GraphSceneBridge, payload_builder: GraphScenePayloadBuilder) -> None:
         self._bridge = bridge
@@ -82,7 +123,7 @@ class _GraphSceneContext:
 
     @property
     def backdrop_nodes_payload(self) -> list[dict[str, Any]]:
-        return self._bridge._backdrop_nodes_payload
+        return self._bridge._payload_cache.backdrop_nodes
 
     def require_bound(self) -> tuple[GraphModel, NodeRegistry]:
         if self.model is None or self.registry is None:
@@ -155,10 +196,12 @@ class _GraphSceneContext:
             graph_theme_bridge=self.graph_theme_bridge,
             show_port_labels=self.graphics_show_port_labels,
         )
-        self._bridge._nodes_payload = nodes_payload
-        self._bridge._backdrop_nodes_payload = backdrop_nodes_payload
-        self._bridge._minimap_nodes_payload = minimap_nodes_payload
-        self._bridge._edges_payload = edges_payload
+        self._bridge._payload_cache.update(
+            nodes=nodes_payload,
+            backdrop_nodes=backdrop_nodes_payload,
+            minimap_nodes=minimap_nodes_payload,
+            edges=edges_payload,
+        )
         self._bridge.nodes_changed.emit()
         self._bridge.edges_changed.emit()
 
@@ -249,12 +292,9 @@ class GraphSceneBridge(QObject):
         self._scope_path: ScopePath = ()
         self._selected_node_ids: list[str] = []
         self._selected_node_lookup: dict[str, bool] = {}
-        self._nodes_payload: list[dict[str, Any]] = []
-        self._backdrop_nodes_payload: list[dict[str, Any]] = []
-        self._minimap_nodes_payload: list[dict[str, Any]] = []
-        self._edges_payload: list[dict[str, Any]] = []
+        self._payload_cache = _GraphScenePayloadCache()
         self._graph_theme_bridge: GraphThemeBridge | None = None
-        self._pending_surface_action_node_id: str = ""
+        self._pending_surface_action = _GraphScenePendingSurfaceAction()
 
     def _install_graph_boundary_adapters(self) -> None:
         set_graph_boundary_adapters(
@@ -316,37 +356,35 @@ class GraphSceneBridge(QObject):
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def nodes_model(self) -> list[dict[str, Any]]:
-        return self._nodes_payload
+        return self._payload_cache.nodes
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def backdrop_nodes_model(self) -> list[dict[str, Any]]:
-        return self._backdrop_nodes_payload
+        return self._payload_cache.backdrop_nodes
 
     @pyqtProperty("QVariantList", notify=edges_changed)
     def edges_model(self) -> list[dict[str, Any]]:
-        return self._edges_payload
+        return self._payload_cache.edges
 
     @pyqtProperty(str, notify=pending_surface_action_changed)
     def pending_surface_action_node_id(self) -> str:
-        return self._pending_surface_action_node_id
+        return self._pending_surface_action.node_id
 
     @pyqtSlot(str)
     def set_pending_surface_action(self, node_id: str) -> None:
-        if self._pending_surface_action_node_id != node_id:
-            self._pending_surface_action_node_id = node_id
+        if self._pending_surface_action.set(node_id):
             self.pending_surface_action_changed.emit()
 
     @pyqtSlot(str, result=bool)
     def consume_pending_surface_action(self, node_id: str) -> bool:
-        if self._pending_surface_action_node_id == node_id and node_id:
-            self._pending_surface_action_node_id = ""
+        if self._pending_surface_action.consume(node_id):
             self.pending_surface_action_changed.emit()
             return True
         return False
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def minimap_nodes_model(self) -> list[dict[str, Any]]:
-        return self._minimap_nodes_payload
+        return self._payload_cache.minimap_nodes
 
     @pyqtProperty("QVariantMap", notify=nodes_changed)
     def workspace_scene_bounds_payload(self) -> dict[str, float]:
@@ -378,52 +416,6 @@ class GraphSceneBridge(QObject):
 
     def _workspace_or_none(self) -> WorkspaceData | None:
         return self._scene_context.workspace_or_none()
-
-    def _active_view_state(self, workspace: WorkspaceData):
-        return self._scope_selection.active_view_state(workspace)
-
-    def _normalized_selected_node_ids(
-        self,
-        workspace: WorkspaceData | None,
-        node_ids: list[str],
-    ) -> list[str]:
-        return self._scope_selection.normalized_selected_node_ids(workspace, node_ids)
-
-    def _selected_node_lookup_for_ids(self, node_ids: list[str]) -> dict[str, bool]:
-        return self._scope_selection.selected_node_lookup_for_ids(node_ids)
-
-    def _set_selected_node_ids(
-        self,
-        node_ids: list[str],
-        *,
-        workspace: WorkspaceData | None = None,
-        emit_signals: bool = True,
-    ) -> bool:
-        return self._scope_selection.set_selected_node_ids(
-            node_ids,
-            workspace=workspace,
-            emit_signals=emit_signals,
-        )
-
-    def _apply_scope_path(
-        self,
-        workspace: WorkspaceData,
-        scope_path: ScopePath,
-        *,
-        persist: bool = True,
-        emit_scope_changed: bool = True,
-        emit_selection_changed: bool = True,
-    ) -> bool:
-        return self._scope_selection.apply_scope_path(
-            workspace,
-            scope_path,
-            persist=persist,
-            emit_scope_changed=emit_scope_changed,
-            emit_selection_changed=emit_selection_changed,
-        )
-
-    def _restore_scope_path_from_view(self, workspace: WorkspaceData) -> None:
-        self._scope_selection.restore_scope_path_from_view(workspace)
 
     @pyqtSlot(result=bool)
     def sync_scope_with_active_view(self) -> bool:
@@ -467,9 +459,6 @@ class GraphSceneBridge(QObject):
 
     def _on_graph_theme_changed(self) -> None:
         self._scene_context.rebuild_models()
-
-    def _require_bound(self) -> tuple[GraphModel, NodeRegistry]:
-        return self._scene_context.require_bound()
 
     def set_workspace(self, model: GraphModel, registry: NodeRegistry, workspace_id: str) -> None:
         self._install_graph_boundary_adapters()
@@ -551,25 +540,6 @@ class GraphSceneBridge(QObject):
     def add_subnode_shell_pin(self, shell_node_id: str, pin_type_id: str) -> str:
         return self._mutation_history.add_subnode_shell_pin(shell_node_id, pin_type_id)
 
-    def _create_node_from_type(
-        self,
-        *,
-        type_id: str,
-        x: float,
-        y: float,
-        parent_node_id: str | None,
-        select_node: bool,
-        configure_node=None,
-    ) -> str:
-        return self._mutation_history.create_node_from_type(
-            type_id=type_id,
-            x=x,
-            y=y,
-            parent_node_id=parent_node_id,
-            select_node=select_node,
-            configure_node=configure_node,
-        )
-
     @pyqtSlot(str, str, str, str, result=bool)
     def are_ports_compatible(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> bool:
         return self._mutation_history.are_ports_compatible(
@@ -615,9 +585,6 @@ class GraphSceneBridge(QObject):
 
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
         self._mutation_history.set_node_collapsed(node_id, collapsed)
-
-    def _notify_selected_node_context_updated(self, node_id: str) -> None:
-        self._mutation_history.notify_selected_node_context_updated(node_id)
 
     @pyqtSlot(str, str, str)
     def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
@@ -740,53 +707,6 @@ class GraphSceneBridge(QObject):
 
     def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
         return self._mutation_history.delete_selected_graph_items(edge_ids)
-
-    def _node(self, node_id: str) -> NodeInstance | None:
-        return self._scene_context.node(node_id)
-
-    def _node_or_raise(self, node_id: str) -> NodeInstance:
-        return self._scene_context.node_or_raise(node_id)
-
-    def _find_model_edge_id(
-        self,
-        source_node_id: str,
-        source_port: str,
-        target_node_id: str,
-        target_port: str,
-    ) -> str | None:
-        return self._scene_context.find_model_edge_id(
-            source_node_id,
-            source_port,
-            target_node_id,
-            target_port,
-        )
-
-    def _selected_node_ids_in_workspace(self, workspace: WorkspaceData) -> list[str]:
-        return self._scope_selection.selected_node_ids_in_workspace(workspace)
-
-    def _bounds_for_node_ids(self, node_ids: list[str]) -> QRectF | None:
-        return self._scope_selection.bounds_for_node_ids(node_ids)
-
-    def _rebuild_models(self) -> None:
-        self._scene_context.rebuild_models()
-
-    def _normalize_pdf_panel_pages(self, workspace: WorkspaceData) -> None:
-        self._scene_context.normalize_pdf_panel_pages(workspace)
-
-    def _active_graph_theme(self) -> GraphThemeDefinition:
-        return self._scene_context.active_graph_theme()
-
-    @staticmethod
-    def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
-        return _surface_title_sync_enabled(spec)
-
-    @classmethod
-    def _synced_surface_title(cls, node: NodeInstance, spec: NodeTypeSpec) -> str:
-        return _synced_surface_title(node, spec)
-
-    @classmethod
-    def _sync_surface_title(cls, node: NodeInstance, spec: NodeTypeSpec) -> None:
-        _sync_surface_title(node, spec)
 
 
 __all__ = ["GraphSceneBridge"]

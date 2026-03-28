@@ -1,6 +1,5 @@
 import QtQuick 2.15
 import "GraphNodeSurfaceMetrics.js" as GraphNodeSurfaceMetrics
-import "GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 
 Item {
     id: card
@@ -38,6 +37,23 @@ Item {
         host: card
     }
 
+    GraphNodeHostRenderQuality {
+        id: renderQualityState
+        host: card
+    }
+
+    GraphNodeHostSceneAccess {
+        id: sceneAccess
+        host: card
+    }
+
+    GraphNodeHostInteractionState {
+        id: interactionState
+        host: card
+        surfaceLoader: surfaceLoader
+        headerLayer: headerLayer
+    }
+
     readonly property var nodePalette: typeof graphThemeBridge !== "undefined"
         ? graphThemeBridge.node_palette
         : ({})
@@ -51,27 +67,15 @@ Item {
         && Boolean(selectedNodeLookup[String(nodeData.node_id || "")])
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
-    readonly property var renderQuality: card._normalizedRenderQuality(nodeData ? nodeData.render_quality : null)
+    readonly property var renderQuality: renderQualityState.renderQuality
     // Reduced/proxy surface negotiation is only worthwhile when we are reusing
     // a degraded snapshot; viewport pan/zoom already has a separate world-cache path.
-    readonly property bool reducedQualityRequested: card.snapshotReuseActive
-    readonly property string requestedQualityTier: card.reducedQualityRequested ? "reduced" : "full"
-    readonly property bool proxySurfaceCapable: card.renderQuality.max_performance_strategy === "proxy_surface"
-        && card._supportsRenderQualityTier("proxy")
-    readonly property bool proxySurfaceRequested: card.requestedQualityTier === "reduced" && card.proxySurfaceCapable
-    readonly property string resolvedQualityTier: {
-        if (card.proxySurfaceRequested)
-            return "proxy";
-        if (card.requestedQualityTier === "reduced" && card._supportsRenderQualityTier("reduced"))
-            return "reduced";
-        return "full";
-    }
-    readonly property var surfaceQualityContext: ({
-        "requested_quality_tier": card.requestedQualityTier,
-        "resolved_quality_tier": card.resolvedQualityTier,
-        "render_quality": card.renderQuality,
-        "proxy_surface_requested": card.proxySurfaceRequested
-    })
+    readonly property bool reducedQualityRequested: renderQualityState.reducedQualityRequested
+    readonly property string requestedQualityTier: renderQualityState.requestedQualityTier
+    readonly property bool proxySurfaceCapable: renderQualityState.proxySurfaceCapable
+    readonly property bool proxySurfaceRequested: renderQualityState.proxySurfaceRequested
+    readonly property string resolvedQualityTier: renderQualityState.resolvedQualityTier
+    readonly property var surfaceQualityContext: renderQualityState.surfaceQualityContext
     readonly property bool isFlowchartSurface: surfaceFamily === "flowchart"
     readonly property bool usesCardinalNeutralFlowHandles: !!nodeData
         && GraphNodeSurfaceMetrics.nodeUsesCardinalNeutralFlowHandles(nodeData)
@@ -272,31 +276,11 @@ Item {
     readonly property string surfaceShadowCacheKey: chromeLayout.surfaceShadowCacheKey
 
     function localPortPoint(direction, rowIndex) {
-        if (!card.nodeData)
-            return {"x": 0.0, "y": 0.0};
-        var widthValue = Number(card.width);
-        if (!isFinite(widthValue) || widthValue <= 0.0)
-            widthValue = Number(card.nodeData.width);
-        if (!isFinite(widthValue) || widthValue <= 0.0)
-            widthValue = Number(surfaceMetrics.default_width);
-        var heightValue = Number(card.height);
-        if (!isFinite(heightValue) || heightValue <= 0.0)
-            heightValue = Number(card.nodeData.height);
-        if (!isFinite(heightValue) || heightValue <= 0.0)
-            heightValue = Number(surfaceMetrics.default_height);
-        return GraphNodeSurfaceMetrics.localPortPoint(card.nodeData, direction, rowIndex, widthValue, heightValue);
+        return sceneAccess.localPortPoint(direction, rowIndex);
     }
 
     function portScenePos(direction, rowIndex) {
-        if (!card.nodeData)
-            return {"x": 0.0, "y": 0.0};
-        var point = card.localPortPoint(direction, rowIndex);
-        var nodeX = card._liveGeometryActive ? Number(card._liveX) : Number(card.nodeData.x);
-        var nodeY = card._liveGeometryActive ? Number(card._liveY) : Number(card.nodeData.y);
-        return {
-            "x": nodeX + point.x,
-            "y": nodeY + point.y
-        };
+        return sceneAccess.portScenePos(direction, rowIndex);
     }
 
     function portLabelWidth(labelImplicitWidth, availableWidth) {
@@ -366,9 +350,7 @@ Item {
     }
 
     function browseNodePropertyPath(key, currentPath) {
-        if (!card.nodeData || !card.canvasItem || !card.canvasItem.browseNodePropertyPath)
-            return "";
-        return String(card.canvasItem.browseNodePropertyPath(card.nodeData.node_id, key, currentPath) || "");
+        return sceneAccess.browseNodePropertyPath(key, currentPath);
     }
 
     function _styleString(value) {
@@ -387,180 +369,63 @@ Item {
     }
 
     function _normalizedRenderQuality(renderQualityLike) {
-        var normalized = {
-            "weight_class": "standard",
-            "max_performance_strategy": "generic_fallback",
-            "supported_quality_tiers": ["full"]
-        };
-        if (!renderQualityLike)
-            return normalized;
-
-        var weightClass = String(renderQualityLike.weight_class || "").trim();
-        if (weightClass === "heavy")
-            normalized.weight_class = "heavy";
-
-        var strategy = String(renderQualityLike.max_performance_strategy || "").trim();
-        if (strategy === "proxy_surface")
-            normalized.max_performance_strategy = "proxy_surface";
-
-        var tiers = card._normalizedQualityTierList(renderQualityLike.supported_quality_tiers);
-        if (tiers.length > 0)
-            normalized.supported_quality_tiers = tiers;
-        return normalized;
+        return renderQualityState.normalizedRenderQuality(renderQualityLike);
     }
 
     function _normalizedQualityTierList(value) {
-        if (value === undefined || value === null)
-            return [];
-
-        var rawItems = [];
-        if (typeof value === "string")
-            rawItems = [value];
-        else if (value.length !== undefined)
-            rawItems = value;
-        else
-            rawItems = [value];
-
-        var normalized = [];
-        var seen = {};
-        for (var index = 0; index < rawItems.length; index++) {
-            var tier = String(rawItems[index] || "").trim();
-            if (tier !== "full" && tier !== "reduced" && tier !== "proxy")
-                continue;
-            if (seen[tier])
-                continue;
-            normalized.push(tier);
-            seen[tier] = true;
-        }
-        return normalized;
+        return renderQualityState.normalizedQualityTierList(value);
     }
 
     function _supportsRenderQualityTier(tier) {
-        return card.renderQuality.supported_quality_tiers.indexOf(String(tier || "").trim()) >= 0;
+        return renderQualityState.supportsRenderQualityTier(tier);
     }
 
     function _pointerInCanvas(mouseArea, mouse) {
-        if (!card.canvasItem)
-            return {"x": 0.0, "y": 0.0};
-        return mouseArea.mapToItem(card.canvasItem, mouse.x, mouse.y);
+        return interactionState.pointerInCanvas(mouseArea, mouse);
     }
 
     function _isResizeHandlePoint(localX, localY) {
-        return GraphNodeHostHitTesting.resizeHandleContainsPoint(
-            localX,
-            localY,
-            card.width,
-            card.height,
-            card._resizeHandleSize,
-            card.nodeData ? Boolean(card.nodeData.collapsed) : true
-        );
+        return interactionState.isResizeHandlePoint(localX, localY);
     }
 
     function _pointInRect(localX, localY, rectLike) {
-        return GraphNodeHostHitTesting.pointInRect(localX, localY, rectLike);
+        return interactionState.pointInRect(localX, localY, rectLike);
     }
 
     function _pointInEmbeddedInteractiveRect(localX, localY) {
-        if (GraphNodeHostHitTesting.pointInAnyRect(localX, localY, surfaceLoader.embeddedInteractiveRects))
-            return true;
-        return GraphNodeHostHitTesting.pointInAnyRect(localX, localY, headerLayer.embeddedInteractiveRects);
+        return interactionState.pointInEmbeddedInteractiveRect(localX, localY);
     }
 
     function _surfaceClaimsBodyInteractionAt(localX, localY) {
-        if (GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, surfaceLoader.embeddedInteractiveRects))
-            return true;
-        return GraphNodeHostHitTesting.claimsBodyInteraction(localX, localY, headerLayer.embeddedInteractiveRects);
+        return interactionState.surfaceClaimsBodyInteractionAt(localX, localY);
     }
 
     function requestInlineTitleEditAt(localX, localY) {
-        if (headerLayer.requestTitleEditAt(localX, localY))
-            return true;
-        return surfaceLoader.requestInlineEditAt(localX, localY);
+        return interactionState.requestInlineTitleEditAt(localX, localY);
     }
 
     function requestScopeOpenAt(localX, localY) {
-        return headerLayer.requestScopeOpenAt(localX, localY);
+        return interactionState.requestScopeOpenAt(localX, localY);
     }
 
     function commitInlineTitleEditAt(localX, localY) {
-        if (headerLayer.commitTitleEditFromExternalInteraction(localX, localY))
-            return true;
-        return surfaceLoader.commitInlineEditFromExternalInteraction(localX, localY);
+        return interactionState.commitInlineTitleEditAt(localX, localY);
     }
 
     function currentViewportZoom() {
-        var viewBridge = card.canvasItem ? card.canvasItem._canvasViewStateBridgeRef : null;
-        var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;
-        if (!isFinite(zoom) || zoom <= 0.0001)
-            return 1.0;
-        return zoom;
+        return sceneAccess.currentViewportZoom();
     }
 
     function _normalizedSceneRectPayload(rectLike) {
-        if (rectLike === undefined || rectLike === null)
-            return null;
-
-        var x = Number(rectLike.x);
-        var y = Number(rectLike.y);
-        var width = Number(rectLike.width);
-        var height = Number(rectLike.height);
-        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
-            return null;
-
-        if (width < 0.0) {
-            x += width;
-            width = Math.abs(width);
-        }
-        if (height < 0.0) {
-            y += height;
-            height = Math.abs(height);
-        }
-
-        return {
-            "x": x,
-            "y": y,
-            "width": width,
-            "height": height
-        };
+        return sceneAccess.normalizedSceneRectPayload(rectLike);
     }
 
     function _nodeSceneRect() {
-        if (!card.nodeData)
-            return null;
-
-        var x = card._liveGeometryActive ? Number(card._liveX) : Number(card.nodeData.x);
-        var y = card._liveGeometryActive ? Number(card._liveY) : Number(card.nodeData.y);
-        var width = card._liveGeometryActive ? Number(card._liveWidth) : Number(card.nodeData.width);
-        var height = card._liveGeometryActive ? Number(card._liveHeight) : Number(card.nodeData.height);
-        if (!isFinite(width) || width <= 0.0)
-            width = Number(card.surfaceMetrics.default_width);
-        if (!isFinite(height) || height <= 0.0)
-            height = Number(card.surfaceMetrics.default_height);
-        if (!isFinite(x) || !isFinite(y) || !isFinite(width) || !isFinite(height))
-            return null;
-
-        return {
-            "x": x,
-            "y": y,
-            "width": width,
-            "height": height
-        };
+        return sceneAccess.nodeSceneRect();
     }
 
     function _sceneRectsIntersect(firstRectLike, secondRectLike) {
-        var firstRect = card._normalizedSceneRectPayload(firstRectLike);
-        var secondRect = card._normalizedSceneRectPayload(secondRectLike);
-        if (!firstRect || !secondRect)
-            return true;
-
-        var firstRight = firstRect.x + firstRect.width;
-        var firstBottom = firstRect.y + firstRect.height;
-        var secondRight = secondRect.x + secondRect.width;
-        var secondBottom = secondRect.y + secondRect.height;
-        return firstRect.x < secondRight
-            && firstRight > secondRect.x
-            && firstRect.y < secondBottom
-            && firstBottom > secondRect.y;
+        return sceneAccess.sceneRectsIntersect(firstRectLike, secondRectLike);
     }
 
     HoverHandler {

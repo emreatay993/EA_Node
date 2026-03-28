@@ -33,7 +33,353 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 
 
+class _GraphSceneThemeResolver:
+    @staticmethod
+    def active_graph_theme(graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
+        if graph_theme_bridge is None:
+            return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
+        return resolve_graph_theme(graph_theme_bridge.theme)
+
+
+class _GraphSceneNodePayloadFactory:
+    def build_node_payload(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace: WorkspaceData,
+        port_connection_counts: dict[tuple[str, str], int],
+        graph_theme: GraphThemeDefinition,
+        show_port_labels: bool = True,
+    ) -> dict[str, Any]:
+        surface_metrics = node_surface_metrics(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
+        width, height = node_size(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
+        inline_properties_payload = build_inline_property_items(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_connection_counts=port_connection_counts,
+        )
+        payload = {
+            "node_id": node.node_id,
+            "type_id": node.type_id,
+            "title": node.title,
+            "display_name": spec.display_name,
+            "properties": copy.deepcopy(node.properties),
+            "x": float(node.x),
+            "y": float(node.y),
+            "width": float(width),
+            "height": float(height),
+            "accent": resolve_category_accent(graph_theme, spec.category),
+            "collapsed": bool(node.collapsed),
+            "runtime_behavior": spec.runtime_behavior,
+            "surface_family": spec.surface_family,
+            "surface_variant": spec.surface_variant,
+            "render_quality": spec.render_quality.to_payload(),
+            "surface_metrics": surface_metrics.to_payload(),
+            "visual_style": copy.deepcopy(node.visual_style),
+            "can_enter_scope": is_subnode_shell_type(node.type_id),
+            "ports": self.build_ports_payload(
+                node=node,
+                spec=spec,
+                workspace=workspace,
+                port_connection_counts=port_connection_counts,
+            ),
+            "inline_properties": inline_properties_payload,
+        }
+        if str(spec.surface_family or "").strip() == "viewer":
+            payload["viewer_surface"] = viewer_surface_contract_payload(
+                width=width,
+                height=height,
+                surface_metrics=surface_metrics,
+            )
+        return payload
+
+    def payload_node(self, node, spec: NodeTypeSpec):
+        properties = self.payload_properties(node=node, spec=spec)
+        if properties == node.properties:
+            return node
+        payload_node = node.clone()
+        payload_node.properties = properties
+        return payload_node
+
+    @staticmethod
+    def payload_properties(*, node, spec: NodeTypeSpec) -> dict[str, Any]:
+        properties = copy.deepcopy(node.properties)
+        if str(spec.surface_family or "").strip() != "media":
+            return properties
+        if str(spec.surface_variant or "").strip() != "pdf_panel":
+            return properties
+        resolved_page_number = clamp_pdf_page_number(
+            str(properties.get("source_path", "") or ""),
+            properties.get("page_number"),
+        )
+        if resolved_page_number is not None:
+            properties["page_number"] = resolved_page_number
+        return properties
+
+    def build_minimap_node_payload(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace: WorkspaceData,
+        show_port_labels: bool = True,
+    ) -> dict[str, float | str]:
+        width, height = node_size(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
+        return {
+            "node_id": node.node_id,
+            "x": float(node.x),
+            "y": float(node.y),
+            "width": float(width),
+            "height": float(height),
+        }
+
+    def build_ports_payload(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace: WorkspaceData,
+        port_connection_counts: dict[tuple[str, str], int],
+    ) -> list[dict[str, Any]]:
+        ports_payload: list[dict[str, Any]] = []
+        visible_ports = [
+            port
+            for port in effective_ports(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace.nodes,
+            )
+            if port.exposed
+        ]
+        for port in ordered_ports_for_display(visible_ports):
+            connection_count = port_connection_counts.get((node.node_id, port.key), 0)
+            ports_payload.append(
+                {
+                    "key": port.key,
+                    "label": port.label,
+                    "direction": port.direction,
+                    "kind": port.kind,
+                    "data_type": port.data_type,
+                    "side": port.side,
+                    "exposed": bool(port.exposed),
+                    "allow_multiple_connections": bool(port.allow_multiple_connections),
+                    "connection_count": int(connection_count),
+                    "connected": bool(connection_count),
+                }
+            )
+        return ports_payload
+
+    @staticmethod
+    def is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
+        return str(spec.surface_family or "").strip() == "comment_backdrop"
+
+    @staticmethod
+    def membership_candidate_size(
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace: WorkspaceData,
+        is_comment_backdrop: bool,
+        show_port_labels: bool = True,
+    ) -> tuple[float, float]:
+        if not is_comment_backdrop:
+            return node_size(node, spec, workspace.nodes, show_port_labels=show_port_labels)
+        surface_metrics = node_surface_metrics(
+            node,
+            spec,
+            workspace.nodes,
+            show_port_labels=show_port_labels,
+        )
+        # Backdrop membership keeps the expanded surface envelope so collapsed
+        # backdrops still own and serialize their descendants.
+        width = node.custom_width if node.custom_width is not None else surface_metrics.default_width
+        height = node.custom_height if node.custom_height is not None else surface_metrics.default_height
+        return max(float(surface_metrics.min_width), float(width)), float(height)
+
+
+class _GraphSceneBackdropPartitioner:
+    def __init__(self, node_payload_factory: _GraphSceneNodePayloadFactory) -> None:
+        self._node_payload_factory = node_payload_factory
+
+    def build_payload_models(
+        self,
+        *,
+        workspace: WorkspaceData,
+        registry: NodeRegistry,
+        scope_path: ScopePath,
+        graph_theme: GraphThemeDefinition,
+        show_port_labels: bool = True,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+        visible_node_ids = scope_node_ids(workspace, scope_path)
+        workspace_edges = scope_edges(workspace, scope_path)
+        port_connection_counts = self.port_connection_counts(workspace_edges)
+
+        nodes_payload: list[dict[str, Any]] = []
+        backdrop_nodes_payload: list[dict[str, Any]] = []
+        minimap_nodes_payload: list[dict[str, Any]] = []
+        node_specs: dict[str, NodeTypeSpec] = {}
+        node_payload_by_id: dict[str, dict[str, Any]] = {}
+        minimap_payload_by_id: dict[str, dict[str, float | str]] = {}
+        comment_backdrop_ids: set[str] = set()
+        membership_candidates: list[CommentBackdropCandidate] = []
+
+        for node_id in visible_node_ids:
+            node = workspace.nodes[node_id]
+            spec = registry.get_spec(node.type_id)
+            node_specs[node_id] = spec
+            payload_node = self._node_payload_factory.payload_node(node, spec)
+            node_payload = self._node_payload_factory.build_node_payload(
+                node=payload_node,
+                spec=spec,
+                workspace=workspace,
+                port_connection_counts=port_connection_counts,
+                graph_theme=graph_theme,
+                show_port_labels=show_port_labels,
+            )
+            node_payload_by_id[node_id] = node_payload
+            is_comment_backdrop = self._node_payload_factory.is_comment_backdrop_spec(spec)
+            if is_comment_backdrop:
+                comment_backdrop_ids.add(node_id)
+            membership_width, membership_height = self._node_payload_factory.membership_candidate_size(
+                node=payload_node,
+                spec=spec,
+                workspace=workspace,
+                is_comment_backdrop=is_comment_backdrop,
+                show_port_labels=show_port_labels,
+            )
+            membership_candidates.append(
+                CommentBackdropCandidate(
+                    node_id=node_id,
+                    scope_path=node_scope_path(workspace, node_id),
+                    is_backdrop=is_comment_backdrop,
+                    x=float(node_payload["x"]),
+                    y=float(node_payload["y"]),
+                    width=float(membership_width),
+                    height=float(membership_height),
+                )
+            )
+            minimap_payload_by_id[node_id] = self._node_payload_factory.build_minimap_node_payload(
+                node=payload_node,
+                spec=spec,
+                workspace=workspace,
+                show_port_labels=show_port_labels,
+            )
+
+        membership_by_node_id = compute_comment_backdrop_membership(membership_candidates)
+        collapsed_proxy_backdrop_by_node_id = self.collapsed_proxy_backdrop_by_node_id(
+            visible_node_ids=visible_node_ids,
+            membership_by_node_id=membership_by_node_id,
+            workspace=workspace,
+            comment_backdrop_ids=comment_backdrop_ids,
+        )
+        for node_id in visible_node_ids:
+            if collapsed_proxy_backdrop_by_node_id.get(node_id):
+                continue
+            node_payload = node_payload_by_id[node_id]
+            is_comment_backdrop = node_id in comment_backdrop_ids
+            self.apply_comment_backdrop_membership_payload(
+                node_payload,
+                membership_by_node_id.get(node_id),
+                is_comment_backdrop=is_comment_backdrop,
+            )
+            if is_comment_backdrop:
+                backdrop_nodes_payload.append(node_payload)
+            else:
+                nodes_payload.append(node_payload)
+            minimap_nodes_payload.append(minimap_payload_by_id[node_id])
+
+        edges_payload = build_edge_payload(
+            graph_theme=graph_theme,
+            workspace_edges=workspace_edges,
+            workspace_nodes=workspace.nodes,
+            node_specs=node_specs,
+            collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
+            show_port_labels=show_port_labels,
+        )
+        return nodes_payload, backdrop_nodes_payload, minimap_nodes_payload, edges_payload
+
+    @staticmethod
+    def collapsed_proxy_backdrop_by_node_id(
+        *,
+        visible_node_ids: list[str],
+        membership_by_node_id: dict[str, CommentBackdropMembership],
+        workspace: WorkspaceData,
+        comment_backdrop_ids: set[str],
+    ) -> dict[str, str]:
+        collapsed_backdrop_ids = {
+            node_id
+            for node_id in comment_backdrop_ids
+            if bool(workspace.nodes.get(node_id) is not None and workspace.nodes[node_id].collapsed)
+        }
+        owner_backdrop_by_node_id = {
+            node_id: str(membership.owner_backdrop_id or "")
+            for node_id, membership in membership_by_node_id.items()
+        }
+        proxy_backdrop_by_node_id: dict[str, str] = {}
+        for node_id in visible_node_ids:
+            proxy_backdrop_id = ""
+            owner_backdrop_id = owner_backdrop_by_node_id.get(node_id, "")
+            while owner_backdrop_id:
+                if owner_backdrop_id in collapsed_backdrop_ids:
+                    proxy_backdrop_id = owner_backdrop_id
+                owner_backdrop_id = owner_backdrop_by_node_id.get(owner_backdrop_id, "")
+            proxy_backdrop_by_node_id[node_id] = proxy_backdrop_id
+        return proxy_backdrop_by_node_id
+
+    @staticmethod
+    def apply_comment_backdrop_membership_payload(
+        node_payload: dict[str, Any],
+        membership: CommentBackdropMembership | None,
+        *,
+        is_comment_backdrop: bool,
+    ) -> None:
+        node_payload["owner_backdrop_id"] = str(membership.owner_backdrop_id or "") if membership is not None else ""
+        node_payload["backdrop_depth"] = int(membership.backdrop_depth) if membership is not None else 0
+        if membership is None or not is_comment_backdrop:
+            node_payload["member_node_ids"] = []
+            node_payload["member_backdrop_ids"] = []
+            node_payload["contained_node_ids"] = []
+            node_payload["contained_backdrop_ids"] = []
+            return
+        node_payload["member_node_ids"] = list(membership.member_node_ids)
+        node_payload["member_backdrop_ids"] = list(membership.member_backdrop_ids)
+        node_payload["contained_node_ids"] = list(membership.contained_node_ids)
+        node_payload["contained_backdrop_ids"] = list(membership.contained_backdrop_ids)
+
+    @staticmethod
+    def port_connection_counts(workspace_edges: list[Any]) -> dict[tuple[str, str], int]:
+        counts: dict[tuple[str, str], int] = {}
+        for edge in workspace_edges:
+            source_key = (edge.source_node_id, edge.source_port_key)
+            target_key = (edge.target_node_id, edge.target_port_key)
+            counts[source_key] = counts.get(source_key, 0) + 1
+            counts[target_key] = counts.get(target_key, 0) + 1
+        return counts
+
+
 class GraphScenePayloadBuilder:
+    def __init__(self) -> None:
+        self._theme_resolver = _GraphSceneThemeResolver()
+        self._node_payload_factory = _GraphSceneNodePayloadFactory()
+        self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)
+
     def edge_item(
         self,
         *,
@@ -92,7 +438,7 @@ class GraphScenePayloadBuilder:
             return [], [], [], []
 
         workspace = model.project.workspaces[workspace_id]
-        return self._build_payload_models(
+        return self._backdrop_partitioner.build_payload_models(
             workspace=workspace,
             registry=registry,
             scope_path=scope_path,
@@ -112,339 +458,8 @@ class GraphScenePayloadBuilder:
         del registry
         del workspace
 
-    @staticmethod
-    def active_graph_theme(graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
-        if graph_theme_bridge is None:
-            return resolve_graph_theme(DEFAULT_GRAPH_THEME_ID)
-        return resolve_graph_theme(graph_theme_bridge.theme)
-
-    def _build_payload_models(
-        self,
-        *,
-        workspace: WorkspaceData,
-        registry: NodeRegistry,
-        scope_path: ScopePath,
-        graph_theme: GraphThemeDefinition,
-        show_port_labels: bool = True,
-    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
-        visible_node_ids = scope_node_ids(workspace, scope_path)
-        workspace_edges = scope_edges(workspace, scope_path)
-        port_connection_counts = self._port_connection_counts(workspace_edges)
-
-        nodes_payload: list[dict[str, Any]] = []
-        backdrop_nodes_payload: list[dict[str, Any]] = []
-        minimap_nodes_payload: list[dict[str, Any]] = []
-        node_specs: dict[str, NodeTypeSpec] = {}
-        node_payload_by_id: dict[str, dict[str, Any]] = {}
-        minimap_payload_by_id: dict[str, dict[str, float | str]] = {}
-        comment_backdrop_ids: set[str] = set()
-        membership_candidates: list[CommentBackdropCandidate] = []
-
-        for node_id in visible_node_ids:
-            node = workspace.nodes[node_id]
-            spec = registry.get_spec(node.type_id)
-            node_specs[node_id] = spec
-            payload_node = self._payload_node(node, spec)
-            node_payload = self._build_node_payload(
-                node=payload_node,
-                spec=spec,
-                workspace=workspace,
-                port_connection_counts=port_connection_counts,
-                graph_theme=graph_theme,
-                show_port_labels=show_port_labels,
-            )
-            node_payload_by_id[node_id] = node_payload
-            is_comment_backdrop = self._is_comment_backdrop_spec(spec)
-            if is_comment_backdrop:
-                comment_backdrop_ids.add(node_id)
-            membership_width, membership_height = self._membership_candidate_size(
-                node=payload_node,
-                spec=spec,
-                workspace=workspace,
-                is_comment_backdrop=is_comment_backdrop,
-                show_port_labels=show_port_labels,
-            )
-            membership_candidates.append(
-                CommentBackdropCandidate(
-                    node_id=node_id,
-                    scope_path=node_scope_path(workspace, node_id),
-                    is_backdrop=is_comment_backdrop,
-                    x=float(node_payload["x"]),
-                    y=float(node_payload["y"]),
-                    width=float(membership_width),
-                    height=float(membership_height),
-                )
-            )
-            minimap_payload_by_id[node_id] = (
-                self._build_minimap_node_payload(
-                    node=payload_node,
-                    spec=spec,
-                    workspace=workspace,
-                    show_port_labels=show_port_labels,
-                )
-            )
-
-        membership_by_node_id = compute_comment_backdrop_membership(membership_candidates)
-        collapsed_proxy_backdrop_by_node_id = self._collapsed_proxy_backdrop_by_node_id(
-            visible_node_ids=visible_node_ids,
-            membership_by_node_id=membership_by_node_id,
-            workspace=workspace,
-            comment_backdrop_ids=comment_backdrop_ids,
-        )
-        for node_id in visible_node_ids:
-            if collapsed_proxy_backdrop_by_node_id.get(node_id):
-                continue
-            node_payload = node_payload_by_id[node_id]
-            is_comment_backdrop = node_id in comment_backdrop_ids
-            self._apply_comment_backdrop_membership_payload(
-                node_payload,
-                membership_by_node_id.get(node_id),
-                is_comment_backdrop=is_comment_backdrop,
-            )
-            if is_comment_backdrop:
-                backdrop_nodes_payload.append(node_payload)
-            else:
-                nodes_payload.append(node_payload)
-            minimap_nodes_payload.append(minimap_payload_by_id[node_id])
-
-        edges_payload = build_edge_payload(
-            graph_theme=graph_theme,
-            workspace_edges=workspace_edges,
-            workspace_nodes=workspace.nodes,
-            node_specs=node_specs,
-            collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
-            show_port_labels=show_port_labels,
-        )
-        return nodes_payload, backdrop_nodes_payload, minimap_nodes_payload, edges_payload
-
-    @staticmethod
-    def _is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
-        return str(spec.surface_family or "").strip() == "comment_backdrop"
-
-    @staticmethod
-    def _membership_candidate_size(
-        *,
-        node,
-        spec: NodeTypeSpec,
-        workspace: WorkspaceData,
-        is_comment_backdrop: bool,
-        show_port_labels: bool = True,
-    ) -> tuple[float, float]:
-        if not is_comment_backdrop:
-            return node_size(node, spec, workspace.nodes, show_port_labels=show_port_labels)
-        surface_metrics = node_surface_metrics(
-            node,
-            spec,
-            workspace.nodes,
-            show_port_labels=show_port_labels,
-        )
-        # Backdrop membership has to keep using the expanded surface envelope so
-        # collapsed comment backdrops still own and serialize their descendants.
-        width = node.custom_width if node.custom_width is not None else surface_metrics.default_width
-        height = node.custom_height if node.custom_height is not None else surface_metrics.default_height
-        return max(float(surface_metrics.min_width), float(width)), float(height)
-
-    @staticmethod
-    def _collapsed_proxy_backdrop_by_node_id(
-        *,
-        visible_node_ids: list[str],
-        membership_by_node_id: dict[str, CommentBackdropMembership],
-        workspace: WorkspaceData,
-        comment_backdrop_ids: set[str],
-    ) -> dict[str, str]:
-        collapsed_backdrop_ids = {
-            node_id
-            for node_id in comment_backdrop_ids
-            if bool(workspace.nodes.get(node_id) is not None and workspace.nodes[node_id].collapsed)
-        }
-        owner_backdrop_by_node_id = {
-            node_id: str(membership.owner_backdrop_id or "")
-            for node_id, membership in membership_by_node_id.items()
-        }
-        proxy_backdrop_by_node_id: dict[str, str] = {}
-        for node_id in visible_node_ids:
-            proxy_backdrop_id = ""
-            owner_backdrop_id = owner_backdrop_by_node_id.get(node_id, "")
-            while owner_backdrop_id:
-                if owner_backdrop_id in collapsed_backdrop_ids:
-                    proxy_backdrop_id = owner_backdrop_id
-                owner_backdrop_id = owner_backdrop_by_node_id.get(owner_backdrop_id, "")
-            proxy_backdrop_by_node_id[node_id] = proxy_backdrop_id
-        return proxy_backdrop_by_node_id
-
-    @staticmethod
-    def _apply_comment_backdrop_membership_payload(
-        node_payload: dict[str, Any],
-        membership: CommentBackdropMembership | None,
-        *,
-        is_comment_backdrop: bool,
-    ) -> None:
-        node_payload["owner_backdrop_id"] = str(membership.owner_backdrop_id or "") if membership is not None else ""
-        node_payload["backdrop_depth"] = int(membership.backdrop_depth) if membership is not None else 0
-        if membership is None or not is_comment_backdrop:
-            node_payload["member_node_ids"] = []
-            node_payload["member_backdrop_ids"] = []
-            node_payload["contained_node_ids"] = []
-            node_payload["contained_backdrop_ids"] = []
-            return
-        node_payload["member_node_ids"] = list(membership.member_node_ids)
-        node_payload["member_backdrop_ids"] = list(membership.member_backdrop_ids)
-        node_payload["contained_node_ids"] = list(membership.contained_node_ids)
-        node_payload["contained_backdrop_ids"] = list(membership.contained_backdrop_ids)
-
-    @staticmethod
-    def _port_connection_counts(workspace_edges: list[Any]) -> dict[tuple[str, str], int]:
-        counts: dict[tuple[str, str], int] = {}
-        for edge in workspace_edges:
-            source_key = (edge.source_node_id, edge.source_port_key)
-            target_key = (edge.target_node_id, edge.target_port_key)
-            counts[source_key] = counts.get(source_key, 0) + 1
-            counts[target_key] = counts.get(target_key, 0) + 1
-        return counts
-
-    def _build_node_payload(
-        self,
-        *,
-        node,
-        spec: NodeTypeSpec,
-        workspace: WorkspaceData,
-        port_connection_counts: dict[tuple[str, str], int],
-        graph_theme: GraphThemeDefinition,
-        show_port_labels: bool = True,
-    ) -> dict[str, Any]:
-        surface_metrics = node_surface_metrics(
-            node,
-            spec,
-            workspace.nodes,
-            show_port_labels=show_port_labels,
-        )
-        width, height = node_size(
-            node,
-            spec,
-            workspace.nodes,
-            show_port_labels=show_port_labels,
-        )
-        inline_properties_payload = build_inline_property_items(
-            node=node,
-            spec=spec,
-            workspace_nodes=workspace.nodes,
-            port_connection_counts=port_connection_counts,
-        )
-        payload = {
-            "node_id": node.node_id,
-            "type_id": node.type_id,
-            "title": node.title,
-            "display_name": spec.display_name,
-            "properties": copy.deepcopy(node.properties),
-            "x": float(node.x),
-            "y": float(node.y),
-            "width": float(width),
-            "height": float(height),
-            "accent": resolve_category_accent(graph_theme, spec.category),
-            "collapsed": bool(node.collapsed),
-            "runtime_behavior": spec.runtime_behavior,
-            "surface_family": spec.surface_family,
-            "surface_variant": spec.surface_variant,
-            "render_quality": spec.render_quality.to_payload(),
-            "surface_metrics": surface_metrics.to_payload(),
-            "visual_style": copy.deepcopy(node.visual_style),
-            "can_enter_scope": is_subnode_shell_type(node.type_id),
-            "ports": self._build_ports_payload(
-                node=node,
-                spec=spec,
-                workspace=workspace,
-                port_connection_counts=port_connection_counts,
-            ),
-            "inline_properties": inline_properties_payload,
-        }
-        if str(spec.surface_family or "").strip() == "viewer":
-            payload["viewer_surface"] = viewer_surface_contract_payload(
-                width=width,
-                height=height,
-                surface_metrics=surface_metrics,
-            )
-        return payload
-
-    def _payload_node(self, node, spec: NodeTypeSpec):
-        properties = self._payload_properties(node=node, spec=spec)
-        if properties == node.properties:
-            return node
-        payload_node = node.clone()
-        payload_node.properties = properties
-        return payload_node
-
-    @staticmethod
-    def _payload_properties(*, node, spec: NodeTypeSpec) -> dict[str, Any]:
-        properties = copy.deepcopy(node.properties)
-        if str(spec.surface_family or "").strip() != "media":
-            return properties
-        if str(spec.surface_variant or "").strip() != "pdf_panel":
-            return properties
-        resolved_page_number = clamp_pdf_page_number(
-            str(properties.get("source_path", "") or ""),
-            properties.get("page_number"),
-        )
-        if resolved_page_number is not None:
-            properties["page_number"] = resolved_page_number
-        return properties
-
-    def _build_minimap_node_payload(
-        self,
-        *,
-        node,
-        spec: NodeTypeSpec,
-        workspace: WorkspaceData,
-        show_port_labels: bool = True,
-    ) -> dict[str, float | str]:
-        width, height = node_size(
-            node,
-            spec,
-            workspace.nodes,
-            show_port_labels=show_port_labels,
-        )
-        return {
-            "node_id": node.node_id,
-            "x": float(node.x),
-            "y": float(node.y),
-            "width": float(width),
-            "height": float(height),
-        }
-
-    def _build_ports_payload(
-        self,
-        *,
-        node,
-        spec: NodeTypeSpec,
-        workspace: WorkspaceData,
-        port_connection_counts: dict[tuple[str, str], int],
-    ) -> list[dict[str, Any]]:
-        ports_payload: list[dict[str, Any]] = []
-        visible_ports = [
-            port
-            for port in effective_ports(
-                node=node,
-                spec=spec,
-                workspace_nodes=workspace.nodes,
-            )
-            if port.exposed
-        ]
-        for port in ordered_ports_for_display(visible_ports):
-            connection_count = port_connection_counts.get((node.node_id, port.key), 0)
-            ports_payload.append(
-                {
-                    "key": port.key,
-                    "label": port.label,
-                    "direction": port.direction,
-                    "kind": port.kind,
-                    "data_type": port.data_type,
-                    "side": port.side,
-                    "exposed": bool(port.exposed),
-                    "allow_multiple_connections": bool(port.allow_multiple_connections),
-                    "connection_count": int(connection_count),
-                    "connected": bool(connection_count),
-                }
-            )
-        return ports_payload
+    def active_graph_theme(self, graph_theme_bridge: GraphThemeBridge | None) -> GraphThemeDefinition:
+        return self._theme_resolver.active_graph_theme(graph_theme_bridge)
 
 
 __all__ = ["GraphScenePayloadBuilder"]

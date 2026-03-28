@@ -20,14 +20,32 @@ class PassiveGraphSurfaceHostBoundaryTests(unittest.TestCase):
         layout_text = (
             _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHostLayout.qml"
         ).read_text(encoding="utf-8")
+        render_quality_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHostRenderQuality.qml"
+        ).read_text(encoding="utf-8")
+        scene_access_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHostSceneAccess.qml"
+        ).read_text(encoding="utf-8")
+        interaction_text = (
+            _REPO_ROOT / "ea_node_editor/ui_qml/components/graph/GraphNodeHostInteractionState.qml"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("GraphNodeHostTheme {", host_text)
         self.assertIn("GraphNodeHostLayout {", host_text)
+        self.assertIn("GraphNodeHostRenderQuality {", host_text)
+        self.assertIn("GraphNodeHostSceneAccess {", host_text)
+        self.assertIn("GraphNodeHostInteractionState {", host_text)
         self.assertIn("readonly property color surfaceColor: themeState.surfaceColor", host_text)
         self.assertIn("readonly property bool _useHostChrome: chromeLayout.useHostChrome", host_text)
+        self.assertIn("readonly property var renderQuality: renderQualityState.renderQuality", host_text)
+        self.assertIn("return sceneAccess.localPortPoint(direction, rowIndex);", host_text)
+        self.assertIn("return interactionState.requestInlineTitleEditAt(localX, localY);", host_text)
         self.assertIn("readonly property color surfaceColor:", theme_text)
         self.assertIn("readonly property bool useHostChrome:", layout_text)
         self.assertIn("readonly property string chromeShadowCacheKey:", layout_text)
+        self.assertIn('readonly property string resolvedQualityTier:', render_quality_text)
+        self.assertIn("function localPortPoint(direction, rowIndex) {", scene_access_text)
+        self.assertIn("function pointInEmbeddedInteractiveRect(localX, localY) {", interaction_text)
 
 
 class PassiveGraphSurfaceHostTests(unittest.TestCase):
