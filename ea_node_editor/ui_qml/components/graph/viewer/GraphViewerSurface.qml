@@ -182,6 +182,30 @@ Item {
             return false;
         return !surface.proxySurfaceActive;
     }
+    readonly property bool viewerShowsPlaceholder: !surface.viewerSessionOpen
+    readonly property string viewerSessionIconName: {
+        if (surface.viewerPhase === "opening")
+            return "run";
+        if (surface.viewerPhase === "closing")
+            return "stop";
+        return surface.viewerCanOpen ? "run" : "stop";
+    }
+    readonly property string viewerPlayPauseIconName: surface.viewerPlaying ? "pause" : "run"
+    readonly property string viewerPlaceholderIconName: {
+        if (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated" || surface.viewerPhase === "closing")
+            return "stop";
+        if (surface.viewerPhase === "opening")
+            return "run";
+        return surface.proxySurfaceActive ? "focus" : "run";
+    }
+    readonly property color viewerViewportBorderColor: surface.host
+        ? Qt.alpha(
+            surface.proxySurfaceActive
+                ? surface.host.outlineColor
+                : (surface.liveSurfaceActive ? surface.host.selectedOutlineColor : surface.viewerAccentColor),
+            0.4
+        )
+        : Qt.alpha(surface.viewerAccentColor, 0.4)
     readonly property bool blocksHostInteraction: false
     readonly property var viewerInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [
@@ -217,20 +241,7 @@ Item {
         "interactive_rects": _rectListPayload(viewerInteractiveRects),
         "bridge_binding": viewerBridgeBinding
     })
-    readonly property var viewerBadgeModel: [
-        {
-            "object_name": "graphNodeViewerPhaseBadge",
-            "text": "Phase " + String(surface.viewerPhase || "closed")
-        },
-        {
-            "object_name": "graphNodeViewerCacheBadge",
-            "text": "Cache " + String(surface.viewerCacheState || "empty")
-        },
-        {
-            "object_name": "graphNodeViewerLiveModeBadge",
-            "text": "Mode " + String(surface.viewerLiveMode || "proxy")
-        }
-    ]
+    readonly property var viewerFooterMetaModel: _buildFooterMetaModel()
     implicitHeight: host ? Number(host.surfaceMetrics.body_height || 0) : 0
 
     function _number(value, fallback) {
@@ -292,6 +303,33 @@ Item {
             host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
     }
 
+    function _iconSource(name, size, color) {
+        if (typeof uiIcons === "undefined" || !uiIcons || !uiIcons.has(name))
+            return "";
+        return uiIcons.sourceSized(name, size, color);
+    }
+
+    function _appendFooterMeta(items, objectName, label, value) {
+        var text = String(value || "");
+        if (!text.length)
+            return;
+        items.push({
+            "object_name": objectName,
+            "label": label,
+            "value": text
+        });
+    }
+
+    function _buildFooterMetaModel() {
+        var items = [];
+        if (surface.viewerSessionOpen) {
+            _appendFooterMeta(items, "graphNodeViewerResultMeta", "Result", surface.viewerResultLabel);
+            _appendFooterMeta(items, "graphNodeViewerSelectionMeta", "Selection", surface.viewerSetLabel);
+            _appendFooterMeta(items, "graphNodeViewerStepMeta", "Step", String(surface.viewerStepIndex));
+        }
+        return items;
+    }
+
     function requestSessionToggle() {
         if (!viewerBridgeAvailable || !viewerNodeId.length || viewerSessionBusy)
             return false;
@@ -348,255 +386,554 @@ Item {
         Rectangle {
             anchors.fill: parent
             radius: host ? Math.max(8, Number(host.resolvedCornerRadius || 6) - 1) : 8
-            color: host ? Qt.darker(host.inlineInputBackgroundColor, 1.04) : "#1a202b"
+            color: host ? Qt.darker(host.inlineInputBackgroundColor, 1.05) : "#1a202b"
             border.width: 1
             border.color: host
-                ? (surface.proxySurfaceActive
-                    ? Qt.alpha(host.outlineColor, 0.92)
-                    : Qt.alpha(host.selectedOutlineColor, 0.9))
+                ? Qt.alpha(
+                    surface.proxySurfaceActive
+                        ? host.outlineColor
+                        : (surface.liveSurfaceActive ? host.selectedOutlineColor : surface.viewerAccentColor),
+                    0.82
+                )
                 : "#5da9ff"
         }
 
         Column {
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
+            spacing: 0
 
-            Row {
-                id: quickActionsRow
-                objectName: "graphNodeViewerQuickActions"
-                spacing: 6
+            Item {
+                id: toolbarFrame
+                width: parent.width
+                height: toolbarFlow.implicitHeight + 10
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: sessionButton
-                    objectName: "graphNodeViewerSessionButton"
-                    host: surface.host
-                    text: surface.sessionButtonText
-                    enabled: surface.viewerBridgeAvailable
-                        && surface.viewerNodeId.length > 0
-                        && !surface.viewerSessionBusy
-                    accentColor: surface.viewerCanOpen ? "#67D487" : "#D98B4B"
-                    baseFillColor: Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.96)
-                    baseBorderColor: Qt.alpha(surface.viewerAccentColor, 0.55)
-                    onControlStarted: surface._beginSurfaceControl()
-                    onClicked: surface.requestSessionToggle()
+                Rectangle {
+                    anchors.fill: parent
+                    color: host ? Qt.alpha(host.inlineRowColor, 0.18) : "#1d2431"
+                    border.width: 0
                 }
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: playPauseButton
-                    objectName: "graphNodeViewerPlayPauseButton"
-                    host: surface.host
-                    text: surface.playbackButtonText
-                    enabled: surface.viewerCanControlPlayback
-                    accentColor: surface.viewerPlaying ? "#D98B4B" : "#5DA9FF"
-                    baseFillColor: Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.96)
-                    baseBorderColor: Qt.alpha(surface.viewerPlaying ? "#D98B4B" : "#5DA9FF", 0.45)
-                    onControlStarted: surface._beginSurfaceControl()
-                    onClicked: surface.requestPlayPause()
-                }
+                Flow {
+                    id: toolbarFlow
+                    objectName: "graphNodeViewerQuickActions"
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.top: parent.top
+                    anchors.margins: 6
+                    spacing: 4
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: stepButton
-                    objectName: "graphNodeViewerStepButton"
-                    host: surface.host
-                    text: "Step"
-                    enabled: surface.viewerCanControlPlayback
-                    accentColor: "#7AA8FF"
-                    baseFillColor: Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.96)
-                    baseBorderColor: Qt.alpha("#7AA8FF", 0.5)
-                    onControlStarted: surface._beginSurfaceControl()
-                    onClicked: surface.requestStep()
-                }
+                    GraphSurfaceControls.GraphSurfaceButton {
+                        id: sessionButton
+                        objectName: "graphNodeViewerSessionButton"
+                        host: surface.host
+                        text: surface.sessionButtonText
+                        tooltipText: surface.sessionButtonText
+                        iconName: surface.viewerSessionIconName
+                        iconOnly: true
+                        iconSize: 14
+                        iconSourceResolver: function(name, size, color) {
+                            return surface._iconSource(name, size, color);
+                        }
+                        enabled: surface.viewerBridgeAvailable
+                            && surface.viewerNodeId.length > 0
+                            && !surface.viewerSessionBusy
+                        accentColor: surface.viewerCanOpen ? "#67D487" : "#D98B4B"
+                        foregroundColor: surface.viewerCanOpen ? "#80E89A" : (host ? host.headerTextColor : "#eef3ff")
+                        baseFillColor: surface.viewerCanOpen
+                            ? Qt.alpha("#67D487", 0.14)
+                            : Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
+                        baseBorderColor: surface.viewerCanOpen
+                            ? Qt.alpha("#67D487", 0.52)
+                            : Qt.alpha(surface.viewerAccentColor, 0.42)
+                        chromeRadius: 6
+                        contentHorizontalPadding: 7
+                        contentVerticalPadding: 4
+                        onControlStarted: surface._beginSurfaceControl()
+                        onClicked: surface.requestSessionToggle()
+                    }
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: keepLiveButton
-                    objectName: "graphNodeViewerKeepLiveButton"
-                    host: surface.host
-                    text: surface.viewerKeepLive ? "Pinned" : "Pin"
-                    enabled: surface.viewerCanControlPlayback
-                    accentColor: surface.viewerKeepLive ? "#67D487" : "#A0A8C0"
-                    baseFillColor: surface.viewerKeepLive
-                        ? Qt.alpha("#67D487", 0.22)
-                        : Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.96)
-                    baseBorderColor: surface.viewerKeepLive
-                        ? Qt.alpha("#67D487", 0.75)
-                        : Qt.alpha("#A0A8C0", 0.38)
-                    onControlStarted: surface._beginSurfaceControl()
-                    onClicked: surface.requestKeepLiveToggle()
+                    Item {
+                        width: 1
+                        height: 30
+
+                        Rectangle {
+                            width: 1
+                            height: 20
+                            radius: 0.5
+                            color: host ? Qt.alpha(host.inlineInputBorderColor, 0.45) : "#3b465b"
+                            anchors.centerIn: parent
+                        }
+                    }
+
+                    GraphSurfaceControls.GraphSurfaceButton {
+                        id: playPauseButton
+                        objectName: "graphNodeViewerPlayPauseButton"
+                        host: surface.host
+                        text: surface.playbackButtonText
+                        tooltipText: surface.playbackButtonText
+                        iconName: surface.viewerPlayPauseIconName
+                        iconOnly: true
+                        iconSize: 14
+                        iconSourceResolver: function(name, size, color) {
+                            return surface._iconSource(name, size, color);
+                        }
+                        enabled: surface.viewerCanControlPlayback
+                        accentColor: surface.viewerPlaying ? "#D98B4B" : "#5DA9FF"
+                        foregroundColor: host ? host.headerTextColor : "#eef3ff"
+                        baseFillColor: Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
+                        baseBorderColor: Qt.alpha(surface.viewerPlaying ? "#D98B4B" : "#5DA9FF", 0.42)
+                        chromeRadius: 6
+                        contentHorizontalPadding: 7
+                        contentVerticalPadding: 4
+                        onControlStarted: surface._beginSurfaceControl()
+                        onClicked: surface.requestPlayPause()
+                    }
+
+                    GraphSurfaceControls.GraphSurfaceButton {
+                        id: stepButton
+                        objectName: "graphNodeViewerStepButton"
+                        host: surface.host
+                        text: "Step"
+                        tooltipText: "Step"
+                        iconName: "step"
+                        iconOnly: true
+                        iconSize: 14
+                        iconSourceResolver: function(name, size, color) {
+                            return surface._iconSource(name, size, color);
+                        }
+                        enabled: surface.viewerCanControlPlayback
+                        accentColor: "#7AA8FF"
+                        foregroundColor: host ? host.headerTextColor : "#eef3ff"
+                        baseFillColor: Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
+                        baseBorderColor: Qt.alpha("#7AA8FF", 0.46)
+                        chromeRadius: 6
+                        contentHorizontalPadding: 7
+                        contentVerticalPadding: 4
+                        onControlStarted: surface._beginSurfaceControl()
+                        onClicked: surface.requestStep()
+                    }
+
+                    Item {
+                        width: 1
+                        height: 30
+
+                        Rectangle {
+                            width: 1
+                            height: 20
+                            radius: 0.5
+                            color: host ? Qt.alpha(host.inlineInputBorderColor, 0.45) : "#3b465b"
+                            anchors.centerIn: parent
+                        }
+                    }
+
+                    Rectangle {
+                        id: policyGroup
+                        objectName: "graphNodeViewerPolicyRow"
+                        radius: 6
+                        clip: true
+                        color: host ? Qt.alpha(host.inlineInputBackgroundColor, 0.86) : "#202635"
+                        border.width: 1
+                        border.color: host ? Qt.alpha(host.inlineInputBorderColor, 0.52) : "#465066"
+                        width: policyRow.implicitWidth
+                        height: 30
+                        opacity: surface.viewerCanControlPlayback ? 1.0 : 0.78
+
+                        Row {
+                            id: policyRow
+                            anchors.fill: parent
+                            spacing: 0
+
+                            GraphSurfaceControls.GraphSurfaceButton {
+                                id: focusPolicyChip
+                                objectName: "graphNodeViewerFocusPolicyChip"
+                                host: surface.host
+                                text: "Focus"
+                                tooltipText: "Focus only"
+                                iconName: "focus"
+                                iconSize: 11
+                                iconSourceResolver: function(name, size, color) {
+                                    return surface._iconSource(name, size, color);
+                                }
+                                enabled: surface.viewerCanControlPlayback
+                                accentColor: "#5DA9FF"
+                                foregroundColor: surface.viewerLivePolicy === "focus_only"
+                                    ? (host ? host.headerTextColor : "#eef3ff")
+                                    : (host ? host.inlineDrivenTextColor : "#7a8eae")
+                                baseFillColor: surface.viewerLivePolicy === "focus_only"
+                                    ? Qt.alpha("#5DA9FF", 0.22)
+                                    : "transparent"
+                                baseBorderColor: "transparent"
+                                hoverBorderColor: "transparent"
+                                pressedBorderColor: "transparent"
+                                chromeRadius: 0
+                                idleBorderWidth: 0
+                                hoverBorderWidth: 0
+                                contentHorizontalPadding: 8
+                                contentVerticalPadding: 3
+                                onControlStarted: surface._beginSurfaceControl()
+                                onClicked: surface.requestLivePolicy("focus_only")
+                            }
+
+                            Rectangle {
+                                width: 1
+                                height: parent.height
+                                color: host ? Qt.alpha(host.inlineInputBorderColor, 0.48) : "#465066"
+                            }
+
+                            GraphSurfaceControls.GraphSurfaceButton {
+                                id: keepPolicyChip
+                                objectName: "graphNodeViewerKeepPolicyChip"
+                                host: surface.host
+                                text: "Keep"
+                                tooltipText: "Keep live policy"
+                                iconName: "keep-live"
+                                iconSize: 11
+                                iconSourceResolver: function(name, size, color) {
+                                    return surface._iconSource(name, size, color);
+                                }
+                                enabled: surface.viewerCanControlPlayback
+                                accentColor: "#67D487"
+                                foregroundColor: surface.viewerLivePolicy === "keep_live"
+                                    ? (host ? host.headerTextColor : "#eef3ff")
+                                    : (host ? host.inlineDrivenTextColor : "#7a8eae")
+                                baseFillColor: surface.viewerLivePolicy === "keep_live"
+                                    ? Qt.alpha("#67D487", 0.22)
+                                    : "transparent"
+                                baseBorderColor: "transparent"
+                                hoverBorderColor: "transparent"
+                                pressedBorderColor: "transparent"
+                                chromeRadius: 0
+                                idleBorderWidth: 0
+                                hoverBorderWidth: 0
+                                contentHorizontalPadding: 8
+                                contentVerticalPadding: 3
+                                onControlStarted: surface._beginSurfaceControl()
+                                onClicked: surface.requestLivePolicy("keep_live")
+                            }
+                        }
+                    }
+
+                    GraphSurfaceControls.GraphSurfaceButton {
+                        id: keepLiveButton
+                        objectName: "graphNodeViewerKeepLiveButton"
+                        host: surface.host
+                        text: surface.viewerKeepLive ? "Pinned" : "Pin"
+                        tooltipText: surface.viewerKeepLive ? "Pinned" : "Pin session"
+                        iconName: "pin"
+                        iconOnly: true
+                        iconSize: 14
+                        iconSourceResolver: function(name, size, color) {
+                            return surface._iconSource(name, size, color);
+                        }
+                        enabled: surface.viewerCanControlPlayback
+                        accentColor: surface.viewerKeepLive ? "#67D487" : "#A0A8C0"
+                        foregroundColor: surface.viewerKeepLive
+                            ? "#80E89A"
+                            : (host ? host.headerTextColor : "#eef3ff")
+                        baseFillColor: surface.viewerKeepLive
+                            ? Qt.alpha("#67D487", 0.2)
+                            : Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
+                        baseBorderColor: surface.viewerKeepLive
+                            ? Qt.alpha("#67D487", 0.72)
+                            : Qt.alpha("#A0A8C0", 0.34)
+                        chromeRadius: 6
+                        contentHorizontalPadding: 7
+                        contentVerticalPadding: 4
+                        onControlStarted: surface._beginSurfaceControl()
+                        onClicked: surface.requestKeepLiveToggle()
+                    }
+
+                    Rectangle {
+                        id: moreButton
+                        objectName: "graphNodeViewerMoreButton"
+                        width: 30
+                        height: 30
+                        radius: 6
+                        color: Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.48)
+                        border.width: 1
+                        border.color: Qt.alpha(surface.host ? surface.host.inlineInputBorderColor : "#465066", 0.28)
+
+                        Image {
+                            anchors.centerIn: parent
+                            source: surface._iconSource(
+                                "more",
+                                14,
+                                String(surface.host ? surface.host.inlineDrivenTextColor : "#7a8eae")
+                            )
+                            width: 14
+                            height: 14
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            opacity: 0.66
+                            sourceSize.width: 14
+                            sourceSize.height: 14
+                        }
+                    }
                 }
             }
 
-            Row {
-                id: policyRow
-                objectName: "graphNodeViewerPolicyRow"
-                spacing: 6
+            Rectangle {
+                width: parent.width
+                height: 1
+                color: host ? Qt.alpha(host.inlineInputBorderColor, 0.2) : "#2a3248"
+            }
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: focusPolicyChip
-                    objectName: "graphNodeViewerFocusPolicyChip"
-                    host: surface.host
-                    text: "Focus"
-                    enabled: surface.viewerCanControlPlayback
-                    accentColor: "#5DA9FF"
-                    baseFillColor: surface.viewerLivePolicy === "focus_only"
-                        ? Qt.alpha("#5DA9FF", 0.24)
-                        : Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
-                    baseBorderColor: surface.viewerLivePolicy === "focus_only"
-                        ? Qt.alpha("#5DA9FF", 0.82)
-                        : Qt.alpha("#5DA9FF", 0.3)
-                    onControlStarted: surface._beginSurfaceControl()
-                    onClicked: surface.requestLivePolicy("focus_only")
-                }
+            Rectangle {
+                id: statusStrip
+                objectName: "graphNodeViewerStatusStrip"
+                width: parent.width
+                height: Math.max(24, statusText.implicitHeight + 10)
+                color: "transparent"
+                border.width: 0
 
-                GraphSurfaceControls.GraphSurfaceButton {
-                    id: keepPolicyChip
-                    objectName: "graphNodeViewerKeepPolicyChip"
-                    host: surface.host
-                    text: "Keep"
-                    enabled: surface.viewerCanControlPlayback
-                    accentColor: "#67D487"
-                    baseFillColor: surface.viewerLivePolicy === "keep_live"
-                        ? Qt.alpha("#67D487", 0.24)
-                        : Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
-                    baseBorderColor: surface.viewerLivePolicy === "keep_live"
-                        ? Qt.alpha("#67D487", 0.82)
-                        : Qt.alpha("#67D487", 0.3)
-                    onControlStarted: surface._beginSurfaceControl()
-                    onClicked: surface.requestLivePolicy("keep_live")
-                }
+                Item {
+                    anchors.fill: parent
 
-                Rectangle {
-                    id: modePill
-                    objectName: "graphNodeViewerModePill"
-                    radius: height * 0.5
-                    height: modeLabel.implicitHeight + 8
-                    width: modeLabel.implicitWidth + 18
-                    color: Qt.alpha(surface.viewerAccentColor, 0.22)
-                    border.width: 1
-                    border.color: Qt.alpha(surface.viewerAccentColor, 0.82)
+                    Rectangle {
+                        id: statusDot
+                        objectName: "graphNodeViewerStatusDot"
+                        width: 6
+                        height: 6
+                        radius: 3
+                        anchors.left: parent.left
+                        anchors.leftMargin: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: surface.viewerAccentColor
+                        border.width: 0
+                    }
 
                     Text {
-                        id: modeLabel
-                        objectName: "graphNodeViewerSurfaceModeLabel"
-                        anchors.centerIn: parent
-                        text: surface.viewerModeBadgeText
-                        color: host ? host.headerTextColor : "#eef3ff"
-                        font.pixelSize: 11
+                        id: statusText
+                        objectName: "graphNodeViewerStatusText"
+                        anchors.left: statusDot.right
+                        anchors.leftMargin: 6
+                        anchors.right: modeBadge.left
+                        anchors.rightMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: surface.viewerStatusLabel
+                        color: host ? host.inlineDrivenTextColor : "#b5c0d4"
+                        font.pixelSize: 10
                         font.bold: true
+                        wrapMode: Text.WordWrap
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                    }
+
+                    Rectangle {
+                        id: modeBadge
+                        objectName: "graphNodeViewerModeBadge"
+                        anchors.right: parent.right
+                        anchors.rightMargin: 10
+                        radius: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Qt.alpha(surface.viewerAccentColor, 0.16)
+                        border.width: 1
+                        border.color: Qt.alpha(surface.viewerAccentColor, 0.46)
+                        height: modeLabel.implicitHeight + 6
+                        width: modeLabel.implicitWidth + 12
+
+                        Text {
+                            id: modeLabel
+                            objectName: "graphNodeViewerSurfaceModeLabel"
+                            anchors.centerIn: parent
+                            text: surface.viewerModeBadgeText
+                            color: host ? host.headerTextColor : "#eef3ff"
+                            font.pixelSize: 9
+                            font.bold: true
+                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                        }
                     }
                 }
             }
 
             Item {
-                id: contentPane
+                id: viewportContainer
                 width: parent.width
-                height: Math.max(72, bodyFrame.height - quickActionsRow.height - policyRow.height - 40)
+                height: Math.max(60, bodyFrame.height - toolbarFrame.height - statusStrip.height)
+
+                Rectangle {
+                    id: viewportFrame
+                    objectName: "graphNodeViewerViewport"
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    radius: 6
+                    color: host ? Qt.alpha(host.surfaceColor, 0.12) : "#101724"
+                    border.width: surface.viewerShowsPlaceholder ? 0 : 1
+                    border.color: surface.viewerViewportBorderColor
+                    clip: true
+
+                    Canvas {
+                        id: crosshatchCanvas
+                        anchors.fill: parent
+                        visible: surface.viewerShowsPlaceholder
+                        opacity: 0.08
+
+                        onPaint: {
+                            var ctx = getContext("2d");
+                            ctx.clearRect(0, 0, width, height);
+                            ctx.strokeStyle = host
+                                ? String(host.inlineDrivenTextColor || "#aaa")
+                                : "#aaa";
+                            ctx.lineWidth = 0.5;
+                            var step = 14;
+                            var diag = Math.max(width, height) * 2;
+                            ctx.beginPath();
+                            for (var i = -diag; i < diag; i += step) {
+                                ctx.moveTo(i, 0);
+                                ctx.lineTo(i + height, height);
+                            }
+                            ctx.stroke();
+                        }
+
+                        onWidthChanged: requestPaint()
+                        onHeightChanged: requestPaint()
+                    }
+                }
 
                 Rectangle {
                     objectName: "graphNodeViewerProxyPane"
                     visible: surface.proxySurfaceActive
-                    anchors.fill: parent
-                    radius: 6
+                    anchors.fill: viewportFrame
+                    radius: viewportFrame.radius
                     color: host ? Qt.alpha(host.surfaceColor, 0.16) : "#22304a"
                     border.width: 1
-                    border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.88) : "#4c7bc0"
+                    border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.7) : "#4c7bc0"
                 }
 
                 Rectangle {
                     objectName: "graphNodeViewerLivePane"
                     visible: surface.liveSurfaceActive
-                    anchors.fill: parent
-                    radius: 6
+                    anchors.fill: viewportFrame
+                    radius: viewportFrame.radius
                     color: host ? Qt.alpha(host.selectedOutlineColor, 0.08) : "#11243d"
                     border.width: 1
-                    border.color: host ? Qt.alpha(host.selectedOutlineColor, 0.92) : "#5da9ff"
+                    border.color: host ? Qt.alpha(host.selectedOutlineColor, 0.76) : "#5da9ff"
                 }
 
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 14
-                    spacing: 6
+                Item {
+                    id: viewportInner
+                    anchors.fill: viewportFrame
 
-                    Text {
-                        objectName: "graphNodeViewerSurfaceHeadline"
-                        width: parent.width
-                        text: surface.viewerStatusLabel
-                        color: host ? host.inlineInputTextColor : "#eef3ff"
-                        font.pixelSize: 14
-                        font.bold: true
-                        wrapMode: Text.WordWrap
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                    }
+                    Column {
+                        id: placeholderColumn
+                        anchors.centerIn: parent
+                        width: Math.min(parent.width - 24, 180)
+                        spacing: 8
+                        visible: surface.viewerShowsPlaceholder
 
-                    Text {
-                        objectName: "graphNodeViewerSurfaceHint"
-                        width: parent.width
-                        text: surface.viewerHintText
-                        color: host ? host.inlineDrivenTextColor : "#bdc5d3"
-                        font.pixelSize: 11
-                        wrapMode: Text.WordWrap
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                    }
+                        Image {
+                            id: placeholderIcon
+                            objectName: "graphNodeViewerPlaceholderIcon"
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            source: surface._iconSource(surface.viewerPlaceholderIconName, 24, String(Qt.alpha(surface.viewerAccentColor, 0.35)))
+                            width: 24
+                            height: 24
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
+                            sourceSize.width: 24
+                            sourceSize.height: 24
+                            opacity: 0.5
+                        }
 
-                    Flow {
-                        width: parent.width
-                        spacing: 6
+                        Text {
+                            objectName: "graphNodeViewerSurfaceHeadline"
+                            width: parent.width
+                            text: surface.viewerPhase === "error"
+                                ? surface.viewerStatusLabel
+                                : (surface.viewerPhase === "invalidated"
+                                    ? surface.viewerStatusLabel
+                                    : "Open session to view")
+                            color: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated")
+                                ? (host ? host.inlineInputTextColor : "#eef3ff")
+                                : (host ? Qt.alpha(host.inlineDrivenTextColor, 0.5) : "#4a5578")
+                            font.pixelSize: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated") ? 11 : 10
+                            font.weight: Font.DemiBold
+                            font.capitalization: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated")
+                                ? Font.MixedCase
+                                : Font.AllUppercase
+                            font.letterSpacing: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated") ? 0 : 0.5
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                        }
 
-                        Repeater {
-                            model: surface.viewerBadgeModel
-
-                            Rectangle {
-                                objectName: modelData.object_name
-                                radius: 10
-                                color: Qt.alpha(surface.viewerAccentColor, 0.18)
-                                border.width: 1
-                                border.color: Qt.alpha(surface.viewerAccentColor, 0.58)
-                                height: badgeLabel.implicitHeight + 8
-                                width: badgeLabel.implicitWidth + 12
-
-                                Text {
-                                    id: badgeLabel
-                                    anchors.centerIn: parent
-                                    text: modelData.text
-                                    color: host ? host.headerTextColor : "#eef3ff"
-                                    font.pixelSize: 10
-                                    font.bold: true
-                                    renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                                }
-                            }
+                        Text {
+                            objectName: "graphNodeViewerSurfaceHint"
+                            width: parent.width
+                            visible: surface.viewerPhase === "error"
+                                || surface.viewerPhase === "invalidated"
+                            text: surface.viewerHintText
+                            color: host ? host.inlineDrivenTextColor : "#bdc5d3"
+                            font.pixelSize: 10
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                         }
                     }
 
-                    Text {
-                        visible: surface.viewerResultLabel.length > 0
-                        width: parent.width
-                        text: "Result: " + surface.viewerResultLabel
-                        color: host ? host.inlineLabelColor : "#d5dbea"
-                        font.pixelSize: 10
-                        elide: Text.ElideRight
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                    }
+                    Rectangle {
+                        id: footerFrame
+                        visible: surface.viewerFooterMetaModel.length > 0
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 8
+                        radius: 5
+                        color: host ? Qt.alpha(host.inlineInputBackgroundColor, 0.72) : "#19202d"
+                        border.width: 1
+                        border.color: host ? Qt.alpha(host.inlineInputBorderColor, 0.34) : "#465066"
+                        height: footerFlow.implicitHeight + 8
 
-                    Text {
-                        visible: surface.viewerSetLabel.length > 0
-                        width: parent.width
-                        text: "Selection: " + surface.viewerSetLabel
-                        color: host ? host.inlineLabelColor : "#d5dbea"
-                        font.pixelSize: 10
-                        elide: Text.ElideRight
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
-                    }
+                        Flow {
+                            id: footerFlow
+                            anchors.fill: parent
+                            anchors.leftMargin: 8
+                            anchors.rightMargin: 8
+                            anchors.topMargin: 4
+                            anchors.bottomMargin: 4
+                            spacing: 6
 
-                    Text {
-                        objectName: "graphNodeViewerSurfaceTarget"
-                        width: parent.width
-                        text: "Overlay target: " + surface.overlayTarget + " | Step " + surface.viewerStepIndex
-                        color: host ? host.inlineLabelColor : "#d5dbea"
-                        font.pixelSize: 10
-                        font.bold: true
-                        wrapMode: Text.WordWrap
-                        renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                            Repeater {
+                                model: surface.viewerFooterMetaModel
+
+                                Rectangle {
+                                    objectName: modelData.object_name
+                                    readonly property real maxChipWidth: Math.max(72, footerFlow.width * 0.52)
+                                    radius: 9
+                                    color: Qt.alpha(surface.viewerAccentColor, 0.1)
+                                    border.width: 1
+                                    border.color: Qt.alpha(surface.viewerAccentColor, 0.22)
+                                    height: footerMetaRow.implicitHeight + 6
+                                    width: Math.min(maxChipWidth, footerMetaRow.implicitWidth + 10)
+
+                                    Row {
+                                        id: footerMetaRow
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 5
+                                        anchors.rightMargin: 5
+                                        spacing: 4
+
+                                        Text {
+                                            text: modelData.label
+                                            color: host ? host.inlineDrivenTextColor : "#8ea0bd"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                                        }
+
+                                        Text {
+                                            width: Math.max(20, parent.width - x - 2)
+                                            text: modelData.value
+                                            color: host ? host.inlineLabelColor : "#d5dbea"
+                                            font.pixelSize: 9
+                                            elide: Text.ElideRight
+                                            renderType: host ? host.nodeTextRenderType : Text.CurveRendering
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

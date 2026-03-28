@@ -9,6 +9,8 @@ Button {
     property string iconName: ""
     property int iconSize: 14
     property var iconSourceResolver: null
+    property string tooltipText: ""
+    property bool iconOnly: false
     property bool externalHover: false
     property color accentColor: "#4DA8DA"
     property color foregroundColor: host ? host.headerTextColor : "#f0f2f5"
@@ -40,16 +42,34 @@ Button {
             return "";
         return String(iconSourceResolver(iconName, iconSize, String(resolvedForegroundColor)) || "");
     }
+    readonly property string resolvedTooltipText: {
+        if (tooltipText.length > 0)
+            return tooltipText;
+        if (text.length > 0)
+            return text;
+        if (typeof uiIcons !== "undefined" && uiIcons && iconName.length > 0)
+            return String(uiIcons.label(iconName) || "");
+        return "";
+    }
+    readonly property bool labelVisible: text.length > 0 && (!iconOnly || resolvedIconSource.length === 0)
     readonly property var interactiveRect: SurfaceControlGeometry.rectFromItem(rectItem, host)
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(interactiveRect)
 
     signal controlStarted()
 
     implicitHeight: Math.max(24, contentRow.implicitHeight + contentVerticalPadding * 2)
-    implicitWidth: Math.max(28, contentRow.implicitWidth + contentHorizontalPadding * 2)
+    implicitWidth: Math.max(
+        iconOnly && resolvedIconSource.length > 0
+            ? implicitHeight
+            : 28,
+        contentRow.implicitWidth + contentHorizontalPadding * 2
+    )
     padding: 0
     hoverEnabled: true
     focusPolicy: Qt.NoFocus
+    ToolTip.visible: hovered && resolvedTooltipText.length > 0
+    ToolTip.text: resolvedTooltipText
+    ToolTip.delay: 280
 
     onPressedChanged: {
         if (pressed)
@@ -63,7 +83,7 @@ Button {
         Row {
             id: contentRow
             anchors.centerIn: parent
-            spacing: control.text.length > 0 && iconImage.visible ? 6 : 0
+            spacing: control.labelVisible && iconImage.visible ? 6 : 0
 
             Image {
                 id: iconImage
@@ -79,7 +99,7 @@ Button {
             }
 
             Text {
-                visible: control.text.length > 0
+                visible: control.labelVisible
                 text: control.text
                 color: control.resolvedForegroundColor
                 font.pixelSize: 10

@@ -20,6 +20,11 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtWidgets import QApplication
 
+            from ea_node_editor.ui.icon_registry import (
+                UI_ICON_PROVIDER_ID,
+                UiIconImageProvider,
+                UiIconRegistryBridge,
+            )
             from ea_node_editor.ui.media_preview_provider import (
                 LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
                 LocalMediaPreviewImageProvider,
@@ -267,7 +272,9 @@ class ViewerSurfaceHostTests(unittest.TestCase):
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
+            engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
+            engine.rootContext().setContextProperty("uiIcons", UiIconRegistryBridge())
             engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
             engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
 
@@ -393,20 +400,29 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             session_button = host.findChild(QObject, "graphNodeViewerSessionButton")
             play_button = host.findChild(QObject, "graphNodeViewerPlayPauseButton")
             step_button = host.findChild(QObject, "graphNodeViewerStepButton")
+            focus_chip = host.findChild(QObject, "graphNodeViewerFocusPolicyChip")
             keep_live_button = host.findChild(QObject, "graphNodeViewerKeepLiveButton")
             keep_chip = host.findChild(QObject, "graphNodeViewerKeepPolicyChip")
+            more_button = host.findChild(QObject, "graphNodeViewerMoreButton")
+            status_text = host.findChild(QObject, "graphNodeViewerStatusText")
+            mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
             assert surface is not None
             assert session_button is not None
             assert play_button is not None
             assert step_button is not None
+            assert focus_chip is not None
             assert keep_live_button is not None
             assert keep_chip is not None
+            assert more_button is not None
+            assert status_text is not None
+            assert mode_label is not None
 
             interactions = []
             host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
             pointer_events = host_pointer_events(host)
             window = attach_host_to_window(host, width=640, height=480)
             try:
+                pin_accent_before = keep_live_button.property("accentColor").name().lower()
                 assert surface.property("viewerBridgeAvailable")
                 assert surface.property("viewerPhase") == "open"
                 assert surface.property("viewerPlaybackState") == "paused"
@@ -415,12 +431,19 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert surface.property("viewerLiveMode") == "proxy"
                 assert bool(surface.property("proxySurfaceActive"))
                 assert not bool(surface.property("liveSurfaceActive"))
+                assert not bool(surface.property("viewerShowsPlaceholder"))
+                assert session_button.property("iconName") == "stop"
+                assert play_button.property("iconName") == "run"
+                assert status_text.property("text") == "Proxy viewer ready"
+                assert mode_label.property("text") == "Proxy"
+                assert focus_chip.property("baseFillColor").alphaF() > keep_chip.property("baseFillColor").alphaF()
+                assert len(variant_list(surface.property("viewerInteractiveRects"))) == 6
 
                 mouse_click(window, item_scene_point(play_button))
                 settle_events(5)
                 assert bridge.update_calls[-1]["command"] == "play"
                 assert surface.property("viewerPlaybackState") == "playing"
-                assert play_button.property("text") == "Pause"
+                assert play_button.property("iconName") == "pause"
 
                 mouse_click(window, item_scene_point(step_button))
                 settle_events(5)
@@ -435,6 +458,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     "value": "keep_live",
                 }
                 assert surface.property("viewerLivePolicy") == "keep_live"
+                assert keep_chip.property("baseFillColor").alphaF() > focus_chip.property("baseFillColor").alphaF()
 
                 mouse_click(window, item_scene_point(keep_live_button))
                 settle_events(5)
@@ -444,19 +468,25 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     "value": True,
                 }
                 assert bool(surface.property("viewerKeepLive"))
-                assert keep_live_button.property("text") == "Pinned"
+                assert keep_live_button.property("accentColor").name().lower() == "#67d487"
+                assert keep_live_button.property("accentColor").name().lower() != pin_accent_before
 
                 mouse_click(window, item_scene_point(session_button))
                 settle_events(5)
                 assert bridge.close_calls == [{"node_id": "node_viewer_surface_host"}]
                 assert surface.property("viewerPhase") == "closed"
-                assert session_button.property("text") == "Open"
+                assert bool(surface.property("viewerShowsPlaceholder"))
+                assert session_button.property("iconName") == "run"
+                assert status_text.property("text") == "Ready to open viewer session"
+                assert mode_label.property("text") == "Overlay"
 
                 mouse_click(window, item_scene_point(session_button))
                 settle_events(5)
                 assert bridge.open_calls == [{"node_id": "node_viewer_surface_host"}]
                 assert surface.property("viewerPhase") == "opening"
-                assert session_button.property("text") == "Opening"
+                assert session_button.property("iconName") == "run"
+                assert status_text.property("text") == "Opening viewer session"
+                assert mode_label.property("text") == "Opening"
                 assert len(interactions) >= 6
                 assert all(node_id == "node_viewer_surface_host" for node_id in interactions)
                 assert pointer_events["clicked"] == []
@@ -476,8 +506,14 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
             surface = host.findChild(QObject, "graphNodeViewerSurface")
             session_button = host.findChild(QObject, "graphNodeViewerSessionButton")
+            more_button = host.findChild(QObject, "graphNodeViewerMoreButton")
+            status_text = host.findChild(QObject, "graphNodeViewerStatusText")
+            mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
             assert surface is not None
             assert session_button is not None
+            assert more_button is not None
+            assert status_text is not None
+            assert mode_label is not None
 
             contract = variant_value(surface.property("viewerSurfaceContract"))
             bridge_binding = variant_value(surface.property("viewerBridgeBinding"))
@@ -486,6 +522,9 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             assert not bool(surface.property("viewerBridgeAvailable"))
             assert surface.property("viewerPhase") == "closed"
             assert not bool(session_button.property("enabled"))
+            assert bool(surface.property("viewerShowsPlaceholder"))
+            assert status_text.property("text") == "Viewer bridge unavailable"
+            assert mode_label.property("text") == "Overlay"
             assert contract["bridge_binding"]["phase"] == "closed"
             assert not bool(contract["bridge_binding"]["bridge_available"])
             assert bridge_binding["phase"] == "closed"
@@ -507,12 +546,18 @@ class ViewerSurfaceHostTests(unittest.TestCase):
 
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
             surface = host.findChild(QObject, "graphNodeViewerSurface")
+            status_text = host.findChild(QObject, "graphNodeViewerStatusText")
+            mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
             assert surface is not None
+            assert status_text is not None
+            assert mode_label is not None
 
             window = attach_host_to_window(host, width=640, height=480)
             try:
                 assert bool(surface.property("liveSurfaceActive"))
                 assert not bool(surface.property("proxySurfaceActive"))
+                assert status_text.property("text") == "Live overlay active"
+                assert mode_label.property("text") == "Live"
 
                 bridge._set_state(
                     cache_state="proxy_ready",
@@ -523,6 +568,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert not bool(surface.property("liveSurfaceActive"))
                 assert bool(surface.property("proxySurfaceActive"))
                 assert "focus_only" in str(surface.property("viewerHintText"))
+                assert status_text.property("text") == "Proxy viewer ready"
+                assert mode_label.property("text") == "Proxy"
 
                 bridge._set_state(
                     cache_state="live_ready",
@@ -533,10 +580,132 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(surface.property("liveSurfaceActive"))
                 assert not bool(surface.property("proxySurfaceActive"))
                 assert "Demoted to proxy" not in str(surface.property("viewerHintText"))
+                assert status_text.property("text") == "Live overlay active"
+                assert mode_label.property("text") == "Live"
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()
                 app.processEvents()
+            """,
+        )
+
+    def test_viewer_surface_compact_strip_reports_error_and_invalidated_states(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-error-invalidated",
+            """
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            status_text = host.findChild(QObject, "graphNodeViewerStatusText")
+            mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
+            headline = host.findChild(QObject, "graphNodeViewerSurfaceHeadline")
+            hint = host.findChild(QObject, "graphNodeViewerSurfaceHint")
+            more_button = host.findChild(QObject, "graphNodeViewerMoreButton")
+            assert surface is not None
+            assert status_text is not None
+            assert mode_label is not None
+            assert headline is not None
+            assert hint is not None
+            assert more_button is not None
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                bridge._last_error = "launch failed"
+                bridge.last_error_changed.emit()
+                bridge._set_state(phase="error", last_command="open")
+                settle_events(5)
+                assert bool(surface.property("viewerShowsPlaceholder"))
+                assert status_text.property("text") == "launch failed"
+                assert mode_label.property("text") == "Proxy"
+                assert headline.property("text") == "launch failed"
+                assert hint.property("text") == "launch failed"
+
+                bridge._last_error = ""
+                bridge.last_error_changed.emit()
+                bridge._set_state(
+                    phase="invalidated",
+                    invalidated_reason="edge topology changed",
+                    summary={"invalidated_reason": "edge topology changed"},
+                )
+                settle_events(5)
+                assert bool(surface.property("viewerShowsPlaceholder"))
+                assert status_text.property("text") == "Viewer session invalidated"
+                assert mode_label.property("text") == "Proxy"
+                assert headline.property("text") == "Viewer session invalidated"
+                assert "edge topology changed" in str(hint.property("text"))
+                assert len(variant_list(surface.property("viewerInteractiveRects"))) == 6
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_viewer_surface_claimed_toolbar_points_do_not_leak_to_underlay_mouse_areas(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-underlay-pointer-guard",
+            """
+            import tempfile
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                wrapper_qml_path = Path(temp_dir) / "ViewerSurfaceUnderlayGuard.qml"
+                wrapper_qml_path.write_text(
+                    '''
+                    import QtQuick 2.15
+
+                    Item {
+                        id: root
+                        width: 640
+                        height: 480
+                        property int backgroundPresses: 0
+                        property int backgroundClicks: 0
+                        property int backgroundDoubleClicks: 0
+
+                        MouseArea {
+                            objectName: "viewerSurfaceUnderlayMouseArea"
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton
+                            onPressed: root.backgroundPresses += 1
+                            onClicked: root.backgroundClicks += 1
+                            onDoubleClicked: root.backgroundDoubleClicks += 1
+                        }
+                    }
+                    ''',
+                    encoding="utf-8",
+                )
+
+                wrapper = create_component(wrapper_qml_path, {})
+                host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+                play_button = host.findChild(QObject, "graphNodeViewerPlayPauseButton")
+                assert play_button is not None
+                assert not bool(play_button.property("enabled"))
+
+                window = QQuickWindow()
+                window.resize(640, 480)
+                wrapper.setParentItem(window.contentItem())
+                host.setParentItem(wrapper)
+                window.show()
+                settle_events(5)
+
+                try:
+                    button_point = item_scene_point(play_button)
+
+                    mouse_click(window, button_point)
+                    mouse_double_click(window, button_point)
+                    settle_events(5)
+
+                    assert int(wrapper.property("backgroundPresses")) == 0
+                    assert int(wrapper.property("backgroundClicks")) == 0
+                    assert int(wrapper.property("backgroundDoubleClicks")) == 0
+                finally:
+                    dispose_host_window(host, window)
+                    wrapper.setParentItem(None)
+                    wrapper.deleteLater()
+                    app.processEvents()
+                    engine.deleteLater()
+                    app.processEvents()
             """,
         )
 

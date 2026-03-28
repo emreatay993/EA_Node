@@ -12,7 +12,7 @@ from ea_node_editor.ui.icon_registry import (
 
 class IconRegistryTests(unittest.TestCase):
     def test_known_icons_resolve_to_existing_files(self) -> None:
-        for name in ("crop", "run", "pause", "resume", "stop"):
+        for name in ("crop", "run", "pause", "resume", "stop", "step", "focus", "keep-live", "pin", "more"):
             self.assertIn(name, icon_names())
             self.assertTrue(icon_path(name).is_file(), name)
 

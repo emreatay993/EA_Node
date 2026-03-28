@@ -40,6 +40,30 @@ Item {
         return String(portData && (portData.label || portData.key) || "");
     }
 
+    function _usesExecArrowLabel(portData) {
+        var portKey = String(portData && portData.key || "").trim().toLowerCase();
+        if (portKey !== "exec_in" && portKey !== "exec_out")
+            return false;
+        var normalizedLabel = root._portLabelText(portData).trim().toLowerCase().replace(/\s+/g, "_");
+        return normalizedLabel === "exec_in" || normalizedLabel === "exec_out";
+    }
+
+    function _portDisplayText(portData) {
+        if (root._usesExecArrowLabel(portData))
+            return "\u2192";
+        return root._portLabelText(portData);
+    }
+
+    function _portDisplayColor(portData) {
+        if (root._usesExecArrowLabel(portData))
+            return root.host ? root.host.basePortColor(portData.kind) : "#67D487";
+        return root.host ? root.host.portLabelColor : "#d0d5de";
+    }
+
+    function _portDisplayPixelSize(portData) {
+        return root._usesExecArrowLabel(portData) ? 15 : 10;
+    }
+
     function beginPortLabelEdit(portKey, direction) {
         root.editingPortKey = portKey;
         root.editingPortDirection = direction;
@@ -298,9 +322,10 @@ Item {
                     visible: !inputLabelContainer.isEditing
                     anchors.verticalCenter: parent.verticalCenter
                     width: root.host ? root.host.portLabelWidth(implicitWidth, inputLabelContainer.availableWidth) : 0
-                    text: modelData.label || modelData.key
-                    color: root.host ? root.host.portLabelColor : "#d0d5de"
-                    font.pixelSize: 10
+                    text: root._portDisplayText(modelData)
+                    color: root._portDisplayColor(modelData)
+                    font.pixelSize: root._portDisplayPixelSize(modelData)
+                    font.bold: root._usesExecArrowLabel(modelData)
                     elide: Text.ElideRight
                     renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
 
@@ -630,9 +655,10 @@ Item {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.right: parent.right
                     width: root.host ? root.host.portLabelWidth(implicitWidth, outputLabelContainer.availableWidth) : 0
-                    text: modelData.label || modelData.key
-                    color: root.host ? root.host.portLabelColor : "#d0d5de"
-                    font.pixelSize: 10
+                    text: root._portDisplayText(modelData)
+                    color: root._portDisplayColor(modelData)
+                    font.pixelSize: root._portDisplayPixelSize(modelData)
+                    font.bold: root._usesExecArrowLabel(modelData)
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft
                     renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering

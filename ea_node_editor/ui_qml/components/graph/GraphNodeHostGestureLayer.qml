@@ -29,7 +29,7 @@ Item {
             if (root.host.commitInlineTitleEditAt)
                 root.host.commitInlineTitleEditAt(mouse.x, mouse.y);
             if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
-                mouse.accepted = false;
+                mouse.accepted = true;
                 return;
             }
             if (mouse.button === Qt.RightButton) {
@@ -43,8 +43,10 @@ Item {
         onClicked: function(mouse) {
             if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
                 return;
-            if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
+            if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
+                mouse.accepted = true;
                 return;
+            }
             var additive = Boolean((mouse.modifiers & Qt.ControlModifier) || (mouse.modifiers & Qt.ShiftModifier));
             root.host.nodeClicked(root.host.nodeData.node_id, additive);
         }
@@ -52,8 +54,10 @@ Item {
         onDoubleClicked: function(mouse) {
             if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
                 return;
-            if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y))
+            if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
+                mouse.accepted = true;
                 return;
+            }
             if (root.host.requestInlineTitleEditAt && root.host.requestInlineTitleEditAt(mouse.x, mouse.y)) {
                 mouse.accepted = true;
                 return;
@@ -75,6 +79,10 @@ Item {
         onReleased: function(mouse) {
             if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
                 return;
+            if (root.host._surfaceClaimsBodyInteractionAt(mouse.x, mouse.y)) {
+                mouse.accepted = true;
+                return;
+            }
             root.host.dragFinished(
                 root.host.nodeData.node_id,
                 root.host.x - root.host.worldOffset,

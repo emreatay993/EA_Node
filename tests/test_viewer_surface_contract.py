@@ -59,6 +59,11 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             from PyQt6.QtQml import QQmlComponent, QQmlEngine
             from PyQt6.QtWidgets import QApplication
 
+            from ea_node_editor.ui.icon_registry import (
+                UI_ICON_PROVIDER_ID,
+                UiIconImageProvider,
+                UiIconRegistryBridge,
+            )
             from ea_node_editor.ui.media_preview_provider import (
                 LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
                 LocalMediaPreviewImageProvider,
@@ -128,7 +133,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
 
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
+            engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
             engine.addImageProvider(LOCAL_MEDIA_PREVIEW_PROVIDER_ID, LocalMediaPreviewImageProvider())
+            engine.rootContext().setContextProperty("uiIcons", UiIconRegistryBridge())
             engine.rootContext().setContextProperty("themeBridge", ThemeBridgeStub())
             engine.rootContext().setContextProperty("graphThemeBridge", GraphThemeBridgeStub())
 
@@ -208,9 +215,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                         "standard_port_label_min_width": 0.0,
                     },
                     "viewer_surface": {
-                        "body_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
-                        "proxy_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
-                        "live_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                        "body_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
+                        "proxy_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
+                        "live_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
                         "overlay_target": "body",
                         "proxy_surface_supported": True,
                         "live_surface_supported": True,
@@ -267,9 +274,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             surface_metrics=metrics,
         )
 
-        self.assertEqual(metrics.default_width, 296.0)
+        self.assertEqual(metrics.default_width, 340.0)
         self.assertEqual(metrics.default_height, 236.0)
-        self.assertEqual(metrics.min_width, 220.0)
+        self.assertEqual(metrics.min_width, 320.0)
         self.assertEqual(metrics.min_height, 208.0)
         self.assertEqual(metrics.body_top, 30.0)
         self.assertEqual(metrics.body_height, 176.0)
@@ -281,9 +288,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertEqual(
             contract,
             {
-                "body_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
-                "proxy_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
-                "live_rect": {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+                "body_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
+                "proxy_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
+                "live_rect": {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
                 "overlay_target": "body",
                 "proxy_surface_supported": True,
                 "live_surface_supported": True,
@@ -320,7 +327,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertEqual(payload["viewer_surface"]["overlay_target"], "body")
         self.assertEqual(
             payload["viewer_surface"]["live_rect"],
-            {"x": 14.0, "y": 30.0, "width": 268.0, "height": 176.0},
+            {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
         )
         self.assertEqual(
             payload["render_quality"],
@@ -362,11 +369,11 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             live_rect = loader.property("viewerLiveSurfaceRect")
             assert rect_field(body_rect, "x") == 14.0
             assert rect_field(body_rect, "y") == 30.0
-            assert rect_field(body_rect, "width") == 268.0
+            assert rect_field(body_rect, "width") == 312.0
             assert rect_field(body_rect, "height") == 176.0
             assert rect_field(live_rect, "x") == 14.0
             assert rect_field(live_rect, "y") == 30.0
-            assert rect_field(live_rect, "width") == 268.0
+            assert rect_field(live_rect, "width") == 312.0
             assert rect_field(live_rect, "height") == 176.0
             """,
         )
@@ -447,7 +454,7 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert bridge_binding["last_error"] == "", bridge_binding
             assert len(contract["interactive_rects"]) == 6, contract
             assert len(interactive_rects) == 6, interactive_rects
-            assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
+            assert max(rect["width"] for rect in contract["interactive_rects"]) > 40.0, contract["interactive_rects"]
             assert interactive_rects[0]["height"] >= 24.0, interactive_rects
             """,
         )

@@ -1355,6 +1355,23 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_standard_host_replaces_default_exec_port_labels_with_arrows(self) -> None:
+        self._run_qml_probe(
+            "exec-port-arrow-labels-host",
+            """
+            host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()})
+            input_label = named_child_items(host, "graphNodeInputPortLabel")[0]
+            output_label = named_child_items(host, "graphNodeOutputPortLabel")[0]
+            input_mouse = named_child_items(host, "graphNodeInputPortMouseArea")[0]
+            output_mouse = named_child_items(host, "graphNodeOutputPortMouseArea")[0]
+
+            assert input_label.property("text") == "→"
+            assert output_label.property("text") == "→"
+            assert input_mouse.property("portLabelTooltipText") == "Exec In"
+            assert output_mouse.property("portLabelTooltipText") == "Exec Out"
+            """,
+        )
+
     def test_standard_host_consumes_metric_backed_label_columns_without_overlap(self) -> None:
         self._run_qml_probe(
             "port-label-width-contract-host",
