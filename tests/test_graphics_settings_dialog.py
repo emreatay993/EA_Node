@@ -20,6 +20,10 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         dialog = GraphicsSettingsDialog()
         try:
             self.assertIsInstance(dialog, SectionedSettingsDialog)
+            self.assertEqual(
+                [dialog.section_list.item(index).text() for index in range(dialog.section_list.count())],
+                ["Canvas", "Interaction", "Performance", "Theme", "Layout"],
+            )
             self.assertEqual(dialog.values(), DEFAULT_GRAPHICS_SETTINGS)
             self.assertEqual(dialog.show_port_labels_check.objectName(), "graphicsSettingsShowPortLabelsCheck")
             self.assertTrue(dialog.show_port_labels_check.isChecked())
@@ -113,7 +117,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             }
         )
         try:
-            self.assertEqual(dialog.section_list.count(), 4)
+            self.assertEqual(dialog.section_list.count(), 5)
             self.assertEqual(dialog.theme_combo.count(), 2)
             self.assertEqual(dialog.graph_theme_combo.count(), len(graph_theme_choices()))
             self.assertTrue(dialog.full_fidelity_mode_button.isChecked())

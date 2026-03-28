@@ -54,6 +54,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
     _SECTIONS = [
         ("canvas", "Canvas"),
         ("interaction", "Interaction"),
+        ("performance", "Performance"),
         ("theme", "Theme"),
         ("layout", "Layout"),
     ]
@@ -104,6 +105,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
     def _build_pages(self) -> None:
         self.add_section_page(self._build_canvas_page())
         self.add_section_page(self._build_interaction_page())
+        self.add_section_page(self._build_performance_page())
         self.add_section_page(self._build_theme_page())
         self.add_section_page(self._build_layout_page())
 
@@ -244,7 +246,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         outer.addStretch(1)
         return page
 
-    def _build_theme_page(self) -> QWidget:
+    def _build_performance_page(self) -> QWidget:
         page = QWidget(self)
         outer = QVBoxLayout(page)
         outer.setContentsMargins(4, 4, 4, 4)
@@ -320,6 +322,15 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
             performance_lay.addWidget(option)
         outer.addWidget(performance_card)
+
+        outer.addStretch(1)
+        return page
+
+    def _build_theme_page(self) -> QWidget:
+        page = QWidget(self)
+        outer = QVBoxLayout(page)
+        outer.setContentsMargins(4, 4, 4, 4)
+        outer.setSpacing(12)
 
         # ── Shell Theme section ──
         outer.addWidget(self._make_section_title("Shell Theme", page))
