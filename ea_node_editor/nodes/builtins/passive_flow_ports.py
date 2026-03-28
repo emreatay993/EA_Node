@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ea_node_editor.nodes.types import PortSpec
+from ea_node_editor.nodes.node_specs import PortSpec
 
 CARDINAL_PASSIVE_FLOW_PORTS = (
     PortSpec("top", "neutral", "flow", "flow", side="top", allow_multiple_connections=True),

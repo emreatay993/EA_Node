@@ -6,14 +6,8 @@ import re
 from dataclasses import dataclass
 from typing import Any, Callable
 
-from .types import (
-    NodePlugin,
-    NodeTypeSpec,
-    PluginDescriptor,
-    PluginProvenance,
-    PortSpec,
-    PropertySpec,
-)
+from .node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from .plugin_contracts import NodePlugin, PluginDescriptor, PluginProvenance
 
 
 @dataclass(slots=True)

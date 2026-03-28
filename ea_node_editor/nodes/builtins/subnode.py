@@ -23,7 +23,7 @@ from ea_node_editor.graph.subnode_contract import (
     resolve_subnode_pin_definition,
 )
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port, prop_enum, prop_str
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 
 @node_type(

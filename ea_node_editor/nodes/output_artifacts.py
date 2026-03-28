@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
+from ea_node_editor.nodes.execution_context import ExecutionContext
+from ea_node_editor.nodes.runtime_refs import RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.settings import (

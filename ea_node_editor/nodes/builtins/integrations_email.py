@@ -3,7 +3,8 @@ from __future__ import annotations
 import smtplib
 from email.message import EmailMessage
 
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
 
 def split_recipients(value: str) -> list[str]:

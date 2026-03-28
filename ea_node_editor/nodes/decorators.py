@@ -3,13 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from ea_node_editor.nodes.types import (
-    NodePlugin,
+from ea_node_editor.nodes.node_specs import (
     NodeRenderQualitySpec,
     NodeTypeSpec,
     PortSpec,
     PropertySpec,
 )
+from ea_node_editor.nodes.plugin_contracts import NodePlugin
 
 
 def in_port(

@@ -14,13 +14,13 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
 from ea_node_editor.nodes.builtins.ansys_dpf_node_helpers import require_model_input
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer_adapter import open_dpf_viewer_session_payload
 from ea_node_editor.nodes.decorators import node_type
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import (
     DPF_FIELD_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_VIEW_SESSION_DATA_TYPE,
     NodeRenderQualitySpec,
-    NodeResult,
     PortSpec,
     PropertySpec,
 )

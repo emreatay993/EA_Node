@@ -5,13 +5,8 @@ import traceback
 from typing import Any
 
 from ea_node_editor.nodes.decorators import node_type, in_port, out_port, prop_json, prop_bool
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
-    NodeResult,
-    NodeTypeSpec,
-    PortSpec,
-    PropertySpec,
-)
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
 
 class StartNodePlugin:

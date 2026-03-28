@@ -5,7 +5,8 @@ from pathlib import Path
 
 from ea_node_editor.nodes.builtins.integrations_common import pick_optional_path, pick_path, require_existing_file
 from ea_node_editor.nodes.output_artifacts import write_managed_output
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
 
 def _write_file_payload(path: Path, *, inputs: dict[str, object], as_json: bool) -> None:

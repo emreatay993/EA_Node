@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
 from ea_node_editor.nodes.decorators import node_type, prop_enum, prop_str
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 
 PASSIVE_PLANNING_CATEGORY = "Planning"
 

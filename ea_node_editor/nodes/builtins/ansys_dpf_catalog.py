@@ -13,7 +13,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_compute import (
     DpfTimeScopingNodePlugin,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_viewer import DpfViewerNodePlugin
-from ea_node_editor.nodes.types import NodePlugin, PluginDescriptor
+from ea_node_editor.nodes.plugin_contracts import NodePlugin, PluginDescriptor
 
 
 def _descriptor(factory: Callable[[], NodePlugin]) -> PluginDescriptor:

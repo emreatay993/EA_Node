@@ -66,13 +66,13 @@ from ea_node_editor.nodes.output_artifacts import (
     default_staging_workspace_root,
     persist_artifact_store,
 )
-from ea_node_editor.nodes.types import (
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import (
     DPF_FIELD_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
-    NodeResult,
     PortSpec,
     PropertySpec,
 )

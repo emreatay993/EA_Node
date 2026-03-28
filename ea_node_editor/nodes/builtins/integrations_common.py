@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.nodes.execution_context import ExecutionContext
 
 
 def pick_optional_path(ctx: ExecutionContext, *, input_key: str, property_key: str) -> Path | None:

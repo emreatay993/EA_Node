@@ -15,6 +15,8 @@ from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData, 
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_NODE_CATEGORY
+from ea_node_editor.nodes import execution_context as node_execution_context
+from ea_node_editor.nodes import node_specs, plugin_contracts, runtime_refs, types as node_types
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import (
@@ -232,6 +234,31 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(registry.all_descriptors()[0].provenance, provenance)
         self.assertEqual(registry.create("tests.descriptor").spec().type_id, "tests.descriptor")
         self.assertEqual(factory_calls, 1)
+
+    def test_nodes_types_is_curated_sdk_surface_and_nodes_package_uses_focused_modules(self) -> None:
+        self.assertEqual(node_types.NodeTypeSpec.__module__, "ea_node_editor.nodes.node_specs")
+        self.assertEqual(node_types.PortSpec.__module__, "ea_node_editor.nodes.node_specs")
+        self.assertEqual(node_types.ExecutionContext.__module__, "ea_node_editor.nodes.execution_context")
+        self.assertEqual(node_types.NodeResult.__module__, "ea_node_editor.nodes.execution_context")
+        self.assertEqual(node_types.RuntimeArtifactRef.__module__, "ea_node_editor.nodes.runtime_refs")
+        self.assertEqual(node_types.RuntimeHandleRef.__module__, "ea_node_editor.nodes.runtime_refs")
+        self.assertEqual(node_types.PluginDescriptor.__module__, "ea_node_editor.nodes.plugin_contracts")
+        self.assertEqual(node_types.PluginProvenance.__module__, "ea_node_editor.nodes.plugin_contracts")
+        self.assertIs(node_types.NodeTypeSpec, node_specs.NodeTypeSpec)
+        self.assertIs(node_types.ExecutionContext, node_execution_context.ExecutionContext)
+        self.assertIs(node_types.RuntimeArtifactRef, runtime_refs.RuntimeArtifactRef)
+        self.assertIs(node_types.PluginDescriptor, plugin_contracts.PluginDescriptor)
+
+        nodes_root = Path(__file__).resolve().parents[1] / "ea_node_editor" / "nodes"
+        offenders = []
+        for source_path in nodes_root.rglob("*.py"):
+            if source_path.name == "types.py":
+                continue
+            text = source_path.read_text(encoding="utf-8")
+            if "from ea_node_editor.nodes.types import" in text or "from .types import" in text:
+                offenders.append(str(source_path.relative_to(nodes_root.parent.parent)))
+
+        self.assertEqual(offenders, [])
 
     def test_register_rejects_invalid_enum_default(self) -> None:
         registry = NodeRegistry()

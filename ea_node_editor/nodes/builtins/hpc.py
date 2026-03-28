@@ -8,13 +8,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ea_node_editor.nodes.types import (
-    ExecutionContext,
-    NodeResult,
-    NodeTypeSpec,
-    PortSpec,
-    PropertySpec,
-)
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
 
 def _run_ssh_command(host: str, user: str, command: str, ctx: ExecutionContext) -> str:

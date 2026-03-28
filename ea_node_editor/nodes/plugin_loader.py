@@ -15,7 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodePlugin, NodeTypeSpec, PluginDescriptor, PluginProvenance
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.plugin_contracts import NodePlugin, PluginDescriptor, PluginProvenance
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)

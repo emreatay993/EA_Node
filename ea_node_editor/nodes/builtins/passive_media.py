@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.passive_flow_ports import CARDINAL_PASSIVE_FLOW_PORTS
 from ea_node_editor.nodes.decorators import node_type, prop_enum
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PropertySpec
+from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
+from ea_node_editor.nodes.node_specs import PropertySpec
 
 PASSIVE_MEDIA_CATEGORY = "Media"
 PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID = "passive.media.image_panel"

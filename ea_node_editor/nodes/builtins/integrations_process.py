@@ -15,7 +15,8 @@ from ea_node_editor.nodes.output_artifacts import (
     artifact_store_for_context,
     write_managed_output,
 )
-from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec, PortSpec, PropertySpec
+from ea_node_editor.nodes.execution_context import NodeResult
+from ea_node_editor.nodes.node_specs import NodeTypeSpec, PortSpec, PropertySpec
 
 PROCESS_STREAM_CAPTURE_CHAR_LIMIT = 262_144
 PROCESS_STREAM_QUEUE_SIZE = 256

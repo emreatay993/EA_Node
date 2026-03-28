@@ -17,7 +17,7 @@ from uuid import uuid4
 
 from ea_node_editor.nodes import plugin_loader
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import PluginDescriptor
+from ea_node_editor.nodes.plugin_contracts import PluginDescriptor
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
