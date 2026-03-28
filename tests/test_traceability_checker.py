@@ -177,6 +177,127 @@ PYDPF_VIEWER_V1_QA_MATRIX_TOKENS = (
     "## Remaining Manual Smoke Checks",
     "## Future-Scope Deferrals",
 )
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md"
+)
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P01_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py "
+    "tests/graph_track_b/qml_preference_bindings.py "
+    "tests/main_window_shell/shell_basics_and_search.py --ignore=venv -q"
+)
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P02_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/graph_track_b/qml_preference_bindings.py tests/test_flow_edge_labels.py "
+    "--ignore=venv -q"
+)
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_TEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+)
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-033": (
+            "Crossing style",
+            "graphics.canvas.edge_crossing_style",
+            "none",
+            "gap_break",
+            "global-only",
+        ),
+        "AC-REQ-UI-033-01": (
+            "Crossing style",
+            "Gap break",
+            "app-wide choice",
+            "hit testing",
+            "stored graph data",
+        ),
+    },
+    "docs/specs/requirements/80_PERFORMANCE.md": {
+        "REQ-PERF-009": (
+            "graphics.canvas.edge_crossing_style",
+            "screen space",
+            "previewed and selected edges",
+            "visible-edge order",
+            "max_performance",
+        ),
+        "AC-REQ-PERF-009-01": (
+            "qml_preference_bindings.py",
+            "test_flow_edge_labels.py",
+            "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-026": (
+            "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+            "edge_crossing_style",
+            "manual desktop checks",
+            "desktop-only validation",
+            "traceability gate",
+        ),
+        "AC-REQ-QA-026-01": (
+            GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P01_COMMAND,
+            GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P02_COMMAND,
+            GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_TEST_COMMAND,
+            GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_COMMAND,
+            "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+        ),
+    },
+}
+
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-UI-033": (
+        "graphics_settings_dialog.py",
+        "GraphCanvas.qml",
+        "EdgeLayer.qml",
+        "tests/test_graphics_settings_preferences.py",
+    ),
+    "AC-REQ-UI-033-01": (
+        "tests/test_graphics_settings_dialog.py",
+        "tests/graph_track_b/qml_preference_bindings.py",
+        "tests/main_window_shell/shell_basics_and_search.py",
+    ),
+    "REQ-PERF-009": (
+        "EdgeMath.js",
+        "EdgeLayer.qml",
+        "tests/test_flow_edge_labels.py",
+        "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERF-009-01": (
+        "tests/graph_track_b/qml_preference_bindings.py",
+        "tests/test_flow_edge_labels.py",
+        "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+    ),
+    "REQ-QA-026": (
+        "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-026-01": (
+        GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_TEST_COMMAND,
+        GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_COMMAND,
+        "GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md",
+    ),
+}
+
+GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX_TOKENS = (
+    "Global Gap Break Edge Crossing Variant QA Matrix",
+    "## Locked Scope",
+    "edge_crossing_style",
+    "Crossing style",
+    GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P01_COMMAND,
+    GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P02_COMMAND,
+    GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_TEST_COMMAND,
+    GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_COMMAND,
+    "P01_edge_crossing_preference_pipeline_WRAPUP.md",
+    "P02_gap_break_renderer_adoption_WRAPUP.md",
+    "render-only decoration",
+    "## Remaining Manual Smoke Checks",
+    "## Residual Desktop-Only Validation",
+    "max_performance",
+)
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md"
 )
@@ -699,6 +820,29 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_pydpf_viewer_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = PYDPF_VIEWER_V1_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in PYDPF_VIEWER_V1_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:
+        for (
+            relative_path,
+            requirement_tokens,
+        ) in GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_global_gap_break_edge_crossing_variant_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_global_gap_break_edge_crossing_variant_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_architecture_maintainability_refactor_docs_record_final_scope_tokens(self) -> None:
