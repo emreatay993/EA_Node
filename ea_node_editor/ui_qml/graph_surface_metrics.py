@@ -181,6 +181,17 @@ class _FlowchartBounds:
     center_y: float
 
 
+@dataclass(frozen=True, slots=True)
+class _FlowchartMetricLayoutState:
+    default_width: float
+    default_height: float
+    min_width: float
+    title_top: float
+    body_top: float
+    body_height: float
+    port_top: float
+
+
 def _load_surface_metric_contract() -> dict[str, Any]:
     with _SURFACE_METRIC_CONTRACT_PATH.open("r", encoding="utf-8") as handle:
         data = json.load(handle)
@@ -614,6 +625,44 @@ def _document_bottom_anchor(bounds: _FlowchartBounds) -> tuple[float, float]:
     return target_x, _cubic_bezier_coordinate(p0y, p1y, p2y, p3y, t)
 
 
+def _rectilinear_flowchart_anchor(bounds: _FlowchartBounds, side: str) -> tuple[float, float]:
+    if side == "top":
+        return bounds.center_x, bounds.top
+    if side == "right":
+        return bounds.right, bounds.center_y
+    if side == "bottom":
+        return bounds.center_x, bounds.bottom
+    return bounds.left, bounds.center_y
+
+
+def _input_output_flowchart_anchor(bounds: _FlowchartBounds, side: str) -> tuple[float, float]:
+    slant = min(bounds.width * 0.13, bounds.height * 0.26)
+    if side == "top":
+        return bounds.center_x, bounds.top
+    if side == "right":
+        return bounds.right - (slant * 0.5), bounds.center_y
+    if side == "bottom":
+        return bounds.center_x, bounds.bottom
+    return bounds.left + (slant * 0.5), bounds.center_y
+
+
+def _database_flowchart_anchor(bounds: _FlowchartBounds, side: str) -> tuple[float, float]:
+    return _rectilinear_flowchart_anchor(bounds, side)
+
+
+def _document_flowchart_anchor(bounds: _FlowchartBounds, side: str) -> tuple[float, float]:
+    if side == "bottom":
+        return _document_bottom_anchor(bounds)
+    return _rectilinear_flowchart_anchor(bounds, side)
+
+
+_FLOWCHART_ANCHOR_RESOLVERS = {
+    "database": _database_flowchart_anchor,
+    "document": _document_flowchart_anchor,
+    "input_output": _input_output_flowchart_anchor,
+}
+
+
 def flowchart_anchor_local_point(
     variant: str,
     width: float,
@@ -626,69 +675,8 @@ def flowchart_anchor_local_point(
     if normalized_side not in _CARDINAL_SIDES:
         return bounds.center_x, bounds.center_y
 
-    if normalized_variant in {"start", "end", "process", "predefined_process"}:
-        if normalized_side == "top":
-            return bounds.center_x, bounds.top
-        if normalized_side == "right":
-            return bounds.right, bounds.center_y
-        if normalized_side == "bottom":
-            return bounds.center_x, bounds.bottom
-        return bounds.left, bounds.center_y
-
-    if normalized_variant == "decision":
-        if normalized_side == "top":
-            return bounds.center_x, bounds.top
-        if normalized_side == "right":
-            return bounds.right, bounds.center_y
-        if normalized_side == "bottom":
-            return bounds.center_x, bounds.bottom
-        return bounds.left, bounds.center_y
-
-    if normalized_variant == "connector":
-        if normalized_side == "top":
-            return bounds.center_x, bounds.top
-        if normalized_side == "right":
-            return bounds.right, bounds.center_y
-        if normalized_side == "bottom":
-            return bounds.center_x, bounds.bottom
-        return bounds.left, bounds.center_y
-
-    if normalized_variant == "input_output":
-        slant = min(bounds.width * 0.13, bounds.height * 0.26)
-        if normalized_side == "top":
-            return bounds.center_x, bounds.top
-        if normalized_side == "right":
-            return bounds.right - (slant * 0.5), bounds.center_y
-        if normalized_side == "bottom":
-            return bounds.center_x, bounds.bottom
-        return bounds.left + (slant * 0.5), bounds.center_y
-
-    if normalized_variant == "database":
-        cap = min(bounds.height * 0.13, 15.0)
-        if normalized_side == "top":
-            return bounds.center_x, bounds.top
-        if normalized_side == "right":
-            return bounds.right, bounds.center_y
-        if normalized_side == "bottom":
-            return bounds.center_x, bounds.bottom
-        return bounds.left, bounds.center_y
-
-    if normalized_variant == "document":
-        if normalized_side == "top":
-            return bounds.center_x, bounds.top
-        if normalized_side == "right":
-            return bounds.right, bounds.center_y
-        if normalized_side == "bottom":
-            return _document_bottom_anchor(bounds)
-        return bounds.left, bounds.center_y
-
-    if normalized_side == "top":
-        return bounds.center_x, bounds.top
-    if normalized_side == "right":
-        return bounds.right, bounds.center_y
-    if normalized_side == "bottom":
-        return bounds.center_x, bounds.bottom
-    return bounds.left, bounds.center_y
+    resolver = _FLOWCHART_ANCHOR_RESOLVERS.get(normalized_variant, _rectilinear_flowchart_anchor)
+    return resolver(bounds, normalized_side)
 
 
 def flowchart_anchor_normal(side: str) -> tuple[float, float]:
@@ -934,6 +922,49 @@ def _flowchart_surface_metrics(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
 ) -> GraphNodeSurfaceMetrics:
     layout = _FLOWCHART_VARIANT_LAYOUTS[normalize_flowchart_variant(spec.surface_variant)]
+    layout_state = _resolve_flowchart_metric_layout_state(
+        node,
+        spec,
+        layout,
+        workspace_nodes,
+    )
+    return GraphNodeSurfaceMetrics(
+        default_width=layout_state.default_width,
+        default_height=layout_state.default_height,
+        min_width=layout_state.min_width,
+        min_height=layout.min_height,
+        collapsed_width=FLOWCHART_COLLAPSED_WIDTH,
+        collapsed_height=FLOWCHART_COLLAPSED_HEIGHT,
+        header_height=0.0,
+        header_top_margin=0.0,
+        body_top=layout_state.body_top,
+        body_height=layout_state.body_height,
+        port_top=layout_state.port_top,
+        port_height=FLOWCHART_PORT_HEIGHT,
+        port_center_offset=FLOWCHART_PORT_CENTER_OFFSET,
+        port_side_margin=0.0,
+        port_dot_radius=FLOWCHART_PORT_DOT_RADIUS,
+        resize_handle_size=FLOWCHART_RESIZE_HANDLE_SIZE,
+        title_top=layout_state.title_top,
+        title_height=FLOWCHART_TITLE_HEIGHT,
+        title_left_margin=layout.title_left_margin,
+        title_right_margin=layout.title_right_margin,
+        title_centered=True,
+        body_left_margin=layout.body_left_margin,
+        body_right_margin=layout.body_right_margin,
+        body_bottom_margin=layout.body_bottom_margin,
+        show_header_background=False,
+        show_accent_bar=False,
+        use_host_chrome=False,
+    )
+
+
+def _resolve_flowchart_metric_layout_state(
+    node: NodeInstance,
+    spec: NodeTypeSpec,
+    layout: _FlowchartVariantLayout,
+    workspace_nodes: Mapping[str, NodeInstance] | None,
+) -> _FlowchartMetricLayoutState:
     body_height = standard_inline_body_height(spec)
     port_count = _visible_port_count(node, spec, workspace_nodes)
     base_port_section_top = (
@@ -951,7 +982,7 @@ def _flowchart_surface_metrics(
         default_width = max(default_width, default_height)
         min_width = max(min_width, layout.min_height)
 
-    active_width, active_height = _resolved_dimensions(
+    _active_width, active_height = _resolved_dimensions(
         node,
         default_width=default_width,
         default_height=default_height,
@@ -970,34 +1001,66 @@ def _flowchart_surface_metrics(
         active_height - port_section_top - layout.body_bottom_margin,
     )
     port_top = port_section_top + max(0.0, (available_port_height - port_count * FLOWCHART_PORT_HEIGHT) * 0.5)
+    return _FlowchartMetricLayoutState(
+        default_width=default_width,
+        default_height=default_height,
+        min_width=min_width,
+        body_top=body_top,
+        body_height=body_height,
+        port_top=port_top,
+        title_top=title_top,
+    )
+
+
+def _build_panel_surface_metrics(
+    *,
+    default_width: float,
+    default_height: float,
+    min_width: float,
+    min_height: float,
+    active_height: float,
+    body_top: float,
+    body_height: float,
+    title_top: float,
+    title_height: float,
+    title_left_margin: float,
+    title_right_margin: float,
+    title_centered: bool,
+    body_left_margin: float,
+    body_right_margin: float,
+    body_bottom_margin: float,
+    show_header_background: bool,
+    show_accent_bar: bool,
+    use_host_chrome: bool,
+) -> GraphNodeSurfaceMetrics:
     return GraphNodeSurfaceMetrics(
         default_width=default_width,
         default_height=default_height,
         min_width=min_width,
-        min_height=layout.min_height,
-        collapsed_width=FLOWCHART_COLLAPSED_WIDTH,
-        collapsed_height=FLOWCHART_COLLAPSED_HEIGHT,
+        min_height=min_height,
+        collapsed_width=STANDARD_COLLAPSED_WIDTH,
+        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
         header_height=0.0,
         header_top_margin=0.0,
         body_top=body_top,
         body_height=body_height,
-        port_top=port_top,
-        port_height=FLOWCHART_PORT_HEIGHT,
-        port_center_offset=FLOWCHART_PORT_CENTER_OFFSET,
-        port_side_margin=0.0,
-        port_dot_radius=FLOWCHART_PORT_DOT_RADIUS,
-        resize_handle_size=FLOWCHART_RESIZE_HANDLE_SIZE,
+        port_top=active_height - body_bottom_margin,
+        port_height=0.0,
+        port_center_offset=0.0,
+        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
+        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
+        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
         title_top=title_top,
-        title_height=FLOWCHART_TITLE_HEIGHT,
-        title_left_margin=layout.title_left_margin,
-        title_right_margin=layout.title_right_margin,
-        title_centered=True,
-        body_left_margin=layout.body_left_margin,
-        body_right_margin=layout.body_right_margin,
-        body_bottom_margin=layout.body_bottom_margin,
-        show_header_background=False,
-        show_accent_bar=False,
-        use_host_chrome=False,
+        title_height=title_height,
+        title_left_margin=title_left_margin,
+        title_right_margin=title_right_margin,
+        title_centered=title_centered,
+        body_left_margin=body_left_margin,
+        body_right_margin=body_right_margin,
+        body_bottom_margin=body_bottom_margin,
+        show_header_background=show_header_background,
+        show_accent_bar=show_accent_bar,
+        use_host_chrome=use_host_chrome,
     )
 
 
@@ -1011,23 +1074,14 @@ def _passive_panel_surface_metrics(
         default_height=layout.default_height,
     )
     body_height = max(layout.body_height, active_height - layout.body_top - layout.body_bottom_margin)
-    return GraphNodeSurfaceMetrics(
+    return _build_panel_surface_metrics(
         default_width=layout.default_width,
         default_height=layout.default_height,
         min_width=layout.min_width,
         min_height=layout.min_height,
-        collapsed_width=STANDARD_COLLAPSED_WIDTH,
-        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
-        header_height=0.0,
-        header_top_margin=0.0,
+        active_height=active_height,
         body_top=layout.body_top,
         body_height=body_height,
-        port_top=active_height - layout.body_bottom_margin,
-        port_height=0.0,
-        port_center_offset=0.0,
-        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
-        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
-        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
         title_top=layout.title_top,
         title_height=layout.title_height,
         title_left_margin=layout.title_left_margin,
@@ -1060,23 +1114,14 @@ def _comment_backdrop_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) ->
         default_height=layout.default_height,
     )
     body_height = max(0.0, active_height - layout.body_top - layout.body_bottom_margin)
-    return GraphNodeSurfaceMetrics(
+    return _build_panel_surface_metrics(
         default_width=layout.default_width,
         default_height=layout.default_height,
         min_width=layout.min_width,
         min_height=layout.min_height,
-        collapsed_width=STANDARD_COLLAPSED_WIDTH,
-        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
-        header_height=0.0,
-        header_top_margin=0.0,
+        active_height=active_height,
         body_top=layout.body_top,
         body_height=body_height,
-        port_top=active_height - layout.body_bottom_margin,
-        port_height=0.0,
-        port_center_offset=0.0,
-        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
-        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
-        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
         title_top=layout.title_top,
         title_height=layout.title_height,
         title_left_margin=layout.title_left_margin,
@@ -1101,23 +1146,14 @@ def _media_surface_metrics(node: NodeInstance, spec: NodeTypeSpec) -> GraphNodeS
         default_height=default_height,
     )
     body_height = max(layout.min_body_height, active_height - layout.body_top - layout.body_bottom_margin)
-    return GraphNodeSurfaceMetrics(
+    return _build_panel_surface_metrics(
         default_width=default_width,
         default_height=default_height,
         min_width=layout.min_width,
         min_height=layout.min_height,
-        collapsed_width=STANDARD_COLLAPSED_WIDTH,
-        collapsed_height=STANDARD_COLLAPSED_HEIGHT,
-        header_height=0.0,
-        header_top_margin=0.0,
+        active_height=active_height,
         body_top=layout.body_top,
         body_height=body_height,
-        port_top=active_height - layout.body_bottom_margin,
-        port_height=0.0,
-        port_center_offset=0.0,
-        port_side_margin=PASSIVE_PORT_SIDE_MARGIN,
-        port_dot_radius=PASSIVE_PORT_DOT_RADIUS,
-        resize_handle_size=PASSIVE_SURFACE_RESIZE_HANDLE_SIZE,
         title_top=layout.title_top,
         title_height=layout.title_height,
         title_left_margin=layout.title_left_margin,

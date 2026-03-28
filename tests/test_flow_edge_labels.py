@@ -50,6 +50,18 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         self.scene = GraphSceneBridge()
         self.scene.set_workspace(self.model, self.registry, self.workspace.workspace_id)
 
+    def test_edge_layer_splits_viewport_style_label_and_renderer_helpers(self) -> None:
+        edge_layer_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph" / "EdgeLayer.qml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("id: viewportMath", edge_layer_text)
+        self.assertIn("id: flowStylePolicy", edge_layer_text)
+        self.assertIn("id: edgeRenderer", edge_layer_text)
+        self.assertIn("id: flowLabelPolicy", edge_layer_text)
+        self.assertIn("edgeRenderer.traceGeometry(ctx, geometry)", edge_layer_text)
+        self.assertIn("flowLabelPolicy.flowLabelMode(edge)", edge_layer_text)
+
     def test_flow_edge_payload_normalizes_render_metadata(self) -> None:
         source_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 20.0, 20.0)
         target_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 340.0, 110.0)

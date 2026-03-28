@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QBrush, QColor, QFont
 from PyQt6.QtWidgets import QFrame, QPushButton, QTreeWidgetItem, QVBoxLayout, QWidget
 
+from ea_node_editor.ui.dialogs.passive_style_controls import is_valid_hex_color
 from ea_node_editor.ui.graph_theme import (
     GRAPH_THEME_REGISTRY,
     is_custom_graph_theme_id,
@@ -31,6 +32,21 @@ class GraphThemePreviewMetadata:
     is_active_explicit: bool
     status_text: str
     preview_note: str
+
+
+@dataclass(frozen=True, slots=True)
+class GraphThemeActionState:
+    duplicate_enabled: bool
+    use_selected_enabled: bool
+    rename_enabled: bool
+    delete_enabled: bool
+
+
+@dataclass(frozen=True, slots=True)
+class GraphThemeValidationResult:
+    is_valid: bool
+    invalid_section_name: str = ""
+    invalid_token_name: str = ""
 
 
 class CollapsibleSection(QWidget):
@@ -167,6 +183,72 @@ def resolve_preview_metadata(
     )
 
 
+def resolve_theme_action_state(*, theme_id: object, is_custom: bool) -> GraphThemeActionState:
+    has_selection = bool(str(theme_id or "").strip())
+    return GraphThemeActionState(
+        duplicate_enabled=has_selection,
+        use_selected_enabled=has_selection,
+        rename_enabled=bool(is_custom),
+        delete_enabled=bool(is_custom),
+    )
+
+
+def update_custom_theme_token(
+    *,
+    custom_graph_themes: list[dict[str, object]],
+    theme_id: object,
+    section_name: str,
+    token_name: str,
+    token_value: str,
+) -> bool:
+    index = custom_theme_index(custom_graph_themes, theme_id)
+    if index < 0:
+        return False
+    section_tokens = custom_graph_themes[index].get(section_name)
+    if not isinstance(section_tokens, dict):
+        section_tokens = {}
+        custom_graph_themes[index][section_name] = section_tokens
+    section_tokens[token_name] = token_value
+    return True
+
+
+def resolve_theme_ids_after_delete(
+    *,
+    theme_id: object,
+    explicit_theme_id: object,
+    custom_graph_themes: list[dict[str, object]],
+) -> tuple[str, str]:
+    resolved_explicit_theme_id = resolve_graph_theme_id(explicit_theme_id, custom_themes=custom_graph_themes)
+    if str(explicit_theme_id).strip().lower() == str(theme_id).strip().lower():
+        resolved_explicit_theme_id = resolve_graph_theme_id(
+            resolved_explicit_theme_id,
+            custom_themes=custom_graph_themes,
+        )
+    preview_theme_id = resolve_graph_theme_id(theme_id, custom_themes=custom_graph_themes)
+    return preview_theme_id, resolved_explicit_theme_id
+
+
+def validate_custom_theme_tokens(
+    *,
+    preview_theme_id: object,
+    custom_graph_themes: list[dict[str, object]],
+    token_values_by_section: dict[str, dict[str, str]],
+) -> GraphThemeValidationResult:
+    theme = resolve_graph_theme(preview_theme_id, custom_themes=custom_graph_themes)
+    if not is_custom_graph_theme_id(theme.theme_id):
+        return GraphThemeValidationResult(is_valid=True)
+    for section_name, token_values in token_values_by_section.items():
+        for token_name, token_value in token_values.items():
+            if is_valid_hex_color(token_value):
+                continue
+            return GraphThemeValidationResult(
+                is_valid=False,
+                invalid_section_name=section_name,
+                invalid_token_name=token_name,
+            )
+    return GraphThemeValidationResult(is_valid=True)
+
+
 def custom_theme_index(custom_themes: list[dict[str, object]], theme_id: object) -> int:
     normalized_theme_id = str(theme_id).strip().lower()
     for index, theme in enumerate(custom_themes):
@@ -227,12 +309,18 @@ def _theme_tree_item(
 
 __all__ = [
     "CollapsibleSection",
+    "GraphThemeActionState",
     "GraphThemePreviewMetadata",
+    "GraphThemeValidationResult",
     "build_theme_tree_items",
     "custom_theme_index",
     "h_separator",
     "is_active_explicit_custom_theme",
     "resolve_preview_metadata",
+    "resolve_theme_action_state",
+    "resolve_theme_ids_after_delete",
     "section_item",
     "token_label",
+    "update_custom_theme_token",
+    "validate_custom_theme_tokens",
 ]

@@ -86,6 +86,14 @@ class TrackHPerformanceHarnessTests(unittest.TestCase):
             "ea_node_editor.ui.perf.performance_harness",
         )
 
+    def test_ui_perf_harness_keeps_extracted_interaction_and_baseline_helpers(self) -> None:
+        harness_text = Path(ui_performance_harness.__file__).read_text(encoding="utf-8")
+
+        self.assertIn("class _InteractionBenchmarkSamples:", harness_text)
+        self.assertIn("def _baseline_series_run(", harness_text)
+        self.assertIn("def _baseline_metric_series(", harness_text)
+        self.assertIn("def _baseline_series_payload(", harness_text)
+
     def test_public_telemetry_module_execution_delegates_to_ui_main(self) -> None:
         delegated_main = Mock(return_value=23)
 

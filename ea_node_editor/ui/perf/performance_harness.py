@@ -83,6 +83,83 @@ class _ScenarioProject:
         self.close()
 
 
+@dataclass(slots=True, frozen=True)
+class _InteractionBenchmarkSamples:
+    setup_ms: list[float]
+    warmup_ms: list[float]
+    pan_ms: list[float]
+    zoom_ms: list[float]
+    node_drag_control_ms: list[float]
+    warmup_samples: int
+    performance_mode: str
+    resolved_performance_mode: str
+    scenario: str
+    media_surface_count: int
+
+    def combined_ms(self) -> list[float]:
+        return [pan + zoom for pan, zoom in zip(self.pan_ms, self.zoom_ms, strict=True)]
+
+    def phase_timings_payload(self) -> dict[str, Any]:
+        return {
+            "canvas_setup_ms": {
+                "samples": self.setup_ms,
+                "summary": _metric_summary_ms(self.setup_ms),
+            },
+            "canvas_warmup_ms": {
+                "samples": self.warmup_ms,
+                "summary": _metric_summary_ms(self.warmup_ms),
+            },
+            "pan_interaction_ms": {
+                "samples": self.pan_ms,
+                "summary": _metric_summary_ms(self.pan_ms),
+            },
+            "zoom_interaction_ms": {
+                "samples": self.zoom_ms,
+                "summary": _metric_summary_ms(self.zoom_ms),
+            },
+            "node_drag_control_ms": {
+                "samples": self.node_drag_control_ms,
+                "summary": _metric_summary_ms(self.node_drag_control_ms),
+            },
+        }
+
+    def benchmark_payload(self) -> dict[str, Any]:
+        return {
+            "kind": "graph_canvas_qml",
+            "render_path": _graph_canvas_qml_path().relative_to(_repo_root_path()).as_posix(),
+            "viewport": {
+                "width": _CANVAS_BENCHMARK_WIDTH,
+                "height": _CANVAS_BENCHMARK_HEIGHT,
+            },
+            "theme_id": _CANVAS_THEME_ID,
+            "graph_theme_id": _CANVAS_GRAPH_THEME_ID,
+            "measurement_driver": (
+                "Single warmed GraphCanvas host using begin/note/finish viewport interaction + "
+                "ViewportBridge.centerOn/set_zoom and GraphNodeHost.dragOffsetChanged with "
+                "QQuickWindow.grabWindow()"
+            ),
+            "uses_actual_canvas_render_path": True,
+            "steady_state_canvas_host_reused": True,
+            "warmup_samples": self.warmup_samples,
+            "performance_mode": self.performance_mode,
+            "resolved_graphics_performance_mode": self.resolved_performance_mode,
+            "scenario": self.scenario,
+            "media_surface_count": self.media_surface_count,
+        }
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "setup_ms": self.setup_ms,
+            "warmup_ms": self.warmup_ms,
+            "pan_ms": self.pan_ms,
+            "zoom_ms": self.zoom_ms,
+            "combined_ms": self.combined_ms(),
+            "node_drag_control_ms": self.node_drag_control_ms,
+            "phase_timings_ms": self.phase_timings_payload(),
+            "benchmark": self.benchmark_payload(),
+        }
+
+
 _BASELINE_VARIANCE_THRESHOLDS = {
     "load_p95_ms": {
         "max_cv": 0.25,
@@ -1261,59 +1338,18 @@ def benchmark_pan_zoom_ms(
         if canvas_host is not None:
             canvas_host.close()
 
-    combined = [pan + zoom for pan, zoom in zip(pan_samples_ms, zoom_samples_ms, strict=True)]
-    return {
-        "setup_ms": setup_samples_ms,
-        "warmup_ms": warmup_phase_samples_ms,
-        "pan_ms": pan_samples_ms,
-        "zoom_ms": zoom_samples_ms,
-        "combined_ms": combined,
-        "node_drag_control_ms": node_drag_control_samples_ms,
-        "phase_timings_ms": {
-            "canvas_setup_ms": {
-                "samples": setup_samples_ms,
-                "summary": _metric_summary_ms(setup_samples_ms),
-            },
-            "canvas_warmup_ms": {
-                "samples": warmup_phase_samples_ms,
-                "summary": _metric_summary_ms(warmup_phase_samples_ms),
-            },
-            "pan_interaction_ms": {
-                "samples": pan_samples_ms,
-                "summary": _metric_summary_ms(pan_samples_ms),
-            },
-            "zoom_interaction_ms": {
-                "samples": zoom_samples_ms,
-                "summary": _metric_summary_ms(zoom_samples_ms),
-            },
-            "node_drag_control_ms": {
-                "samples": node_drag_control_samples_ms,
-                "summary": _metric_summary_ms(node_drag_control_samples_ms),
-            },
-        },
-        "benchmark": {
-            "kind": "graph_canvas_qml",
-            "render_path": _graph_canvas_qml_path().relative_to(_repo_root_path()).as_posix(),
-            "viewport": {
-                "width": _CANVAS_BENCHMARK_WIDTH,
-                "height": _CANVAS_BENCHMARK_HEIGHT,
-            },
-            "theme_id": _CANVAS_THEME_ID,
-            "graph_theme_id": _CANVAS_GRAPH_THEME_ID,
-            "measurement_driver": (
-                "Single warmed GraphCanvas host using begin/note/finish viewport interaction + "
-                "ViewportBridge.centerOn/set_zoom and GraphNodeHost.dragOffsetChanged with "
-                "QQuickWindow.grabWindow()"
-            ),
-            "uses_actual_canvas_render_path": True,
-            "steady_state_canvas_host_reused": True,
-            "warmup_samples": warmup_samples,
-            "performance_mode": performance_mode,
-            "resolved_graphics_performance_mode": resolved_performance_mode,
-            "scenario": scenario,
-            "media_surface_count": expected_media_surface_count,
-        },
-    }
+    return _InteractionBenchmarkSamples(
+        setup_ms=setup_samples_ms,
+        warmup_ms=warmup_phase_samples_ms,
+        pan_ms=pan_samples_ms,
+        zoom_ms=zoom_samples_ms,
+        node_drag_control_ms=node_drag_control_samples_ms,
+        warmup_samples=warmup_samples,
+        performance_mode=performance_mode,
+        resolved_performance_mode=resolved_performance_mode,
+        scenario=scenario,
+        media_surface_count=expected_media_surface_count,
+    ).to_payload()
 
 
 def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
@@ -1426,6 +1462,84 @@ def _run_single_benchmark(config: BenchmarkConfig) -> dict[str, Any]:
     }
 
 
+def _baseline_series_run(
+    run_report: dict[str, Any],
+    *,
+    run_index: int,
+    baseline_mode: str,
+    baseline_tag: str,
+) -> dict[str, Any]:
+    metrics = run_report["metrics"]
+    return {
+        "run_id": f"run_{run_index:02d}",
+        "generated_at_utc": run_report["generated_at_utc"],
+        "mode": baseline_mode,
+        "tag": baseline_tag,
+        "performance_mode": str(run_report["config"]["performance_mode"]),
+        "scenario": str(run_report["config"]["scenario"]),
+        "environment": run_report["environment"],
+        "metrics": {
+            "load_p95_ms": float(metrics["project_graph_load_ms"]["summary"]["p95"]),
+            "pan_p95_ms": float(metrics["pan_interaction_ms"]["summary"]["p95"]),
+            "zoom_p95_ms": float(metrics["zoom_interaction_ms"]["summary"]["p95"]),
+            "pan_zoom_p95_ms": float(metrics["pan_zoom_combined_ms"]["summary"]["p95"]),
+            "node_drag_control_p95_ms": float(metrics["node_drag_control_ms"]["summary"]["p95"]),
+        },
+    }
+
+
+def _baseline_metric_series(series_runs: list[dict[str, Any]]) -> dict[str, list[float]]:
+    return {
+        "load_p95_ms": [float(run["metrics"]["load_p95_ms"]) for run in series_runs],
+        "pan_p95_ms": [float(run["metrics"]["pan_p95_ms"]) for run in series_runs],
+        "zoom_p95_ms": [float(run["metrics"]["zoom_p95_ms"]) for run in series_runs],
+        "pan_zoom_p95_ms": [float(run["metrics"]["pan_zoom_p95_ms"]) for run in series_runs],
+        "node_drag_control_p95_ms": [float(run["metrics"]["node_drag_control_p95_ms"]) for run in series_runs],
+    }
+
+
+def _baseline_variance_eval(metric_series: dict[str, list[float]], *, enough_runs: bool) -> dict[str, Any]:
+    return {
+        metric_key: _series_variance_eval(
+            values,
+            _BASELINE_VARIANCE_THRESHOLDS[metric_key],
+            enough_runs=enough_runs,
+        )
+        for metric_key, values in metric_series.items()
+    }
+
+
+def _baseline_series_payload(
+    latest_report: dict[str, Any],
+    *,
+    series_runs: list[dict[str, Any]],
+    baseline_runs: int,
+    baseline_mode: str,
+    baseline_tag: str,
+) -> dict[str, Any]:
+    metric_series = _baseline_metric_series(series_runs)
+    return {
+        "mode": baseline_mode,
+        "tag": baseline_tag,
+        "performance_mode": str(latest_report["config"]["performance_mode"]),
+        "scenario": str(latest_report["config"]["scenario"]),
+        "run_count": baseline_runs,
+        "runs": series_runs,
+        "metric_series": metric_series,
+        "variance_thresholds": _BASELINE_VARIANCE_THRESHOLDS,
+        "variance_eval": _baseline_variance_eval(metric_series, enough_runs=baseline_runs >= 2),
+        "triage_policy": [
+            "If variance check fails, first rerun 3x on the same machine with no background workloads.",
+            "If variance remains high, classify by hardware tier (CPU/GPU/RAM/display) and keep separate baselines.",
+            "Investigate regressions only when thresholds fail on at least two consecutive runs in the same hardware tier.",
+        ],
+        "notes": (
+            "Variance checks are informative when run_count >= 2. "
+            "Single-run captures still provide point-in-time regression evidence."
+        ),
+    }
+
+
 def run_benchmark(
     config: BenchmarkConfig,
     *,
@@ -1449,75 +1563,23 @@ def run_benchmark(
         else:
             run_report = _run_single_benchmark(config)
         full_runs.append(run_report)
-        metrics = run_report["metrics"]
-        load_p95 = float(metrics["project_graph_load_ms"]["summary"]["p95"])
-        pan_p95 = float(metrics["pan_interaction_ms"]["summary"]["p95"])
-        zoom_p95 = float(metrics["zoom_interaction_ms"]["summary"]["p95"])
-        pan_zoom_p95 = float(metrics["pan_zoom_combined_ms"]["summary"]["p95"])
-        node_drag_control_p95 = float(metrics["node_drag_control_ms"]["summary"]["p95"])
         series_runs.append(
-            {
-                "run_id": f"run_{run_index:02d}",
-                "generated_at_utc": run_report["generated_at_utc"],
-                "mode": baseline_mode,
-                "tag": baseline_tag,
-                "performance_mode": str(run_report["config"]["performance_mode"]),
-                "scenario": str(run_report["config"]["scenario"]),
-                "environment": run_report["environment"],
-                "metrics": {
-                    "load_p95_ms": load_p95,
-                    "pan_p95_ms": pan_p95,
-                    "zoom_p95_ms": zoom_p95,
-                    "pan_zoom_p95_ms": pan_zoom_p95,
-                    "node_drag_control_p95_ms": node_drag_control_p95,
-                },
-            }
+            _baseline_series_run(
+                run_report,
+                run_index=run_index,
+                baseline_mode=baseline_mode,
+                baseline_tag=baseline_tag,
+            )
         )
 
     latest_report = dict(full_runs[-1])
-
-    load_p95_series = [float(run["metrics"]["load_p95_ms"]) for run in series_runs]
-    pan_p95_series = [float(run["metrics"]["pan_p95_ms"]) for run in series_runs]
-    zoom_p95_series = [float(run["metrics"]["zoom_p95_ms"]) for run in series_runs]
-    pan_zoom_p95_series = [float(run["metrics"]["pan_zoom_p95_ms"]) for run in series_runs]
-    node_drag_control_p95_series = [float(run["metrics"]["node_drag_control_p95_ms"]) for run in series_runs]
-    enough_runs = baseline_runs >= 2
-    metric_series = {
-        "load_p95_ms": load_p95_series,
-        "pan_p95_ms": pan_p95_series,
-        "zoom_p95_ms": zoom_p95_series,
-        "pan_zoom_p95_ms": pan_zoom_p95_series,
-        "node_drag_control_p95_ms": node_drag_control_p95_series,
-    }
-    variance_eval = {
-        metric_key: _series_variance_eval(
-            values,
-            _BASELINE_VARIANCE_THRESHOLDS[metric_key],
-            enough_runs=enough_runs,
-        )
-        for metric_key, values in metric_series.items()
-    }
-
-    latest_report["baseline_series"] = {
-        "mode": baseline_mode,
-        "tag": baseline_tag,
-        "performance_mode": str(latest_report["config"]["performance_mode"]),
-        "scenario": str(latest_report["config"]["scenario"]),
-        "run_count": baseline_runs,
-        "runs": series_runs,
-        "metric_series": metric_series,
-        "variance_thresholds": _BASELINE_VARIANCE_THRESHOLDS,
-        "variance_eval": variance_eval,
-        "triage_policy": [
-            "If variance check fails, first rerun 3x on the same machine with no background workloads.",
-            "If variance remains high, classify by hardware tier (CPU/GPU/RAM/display) and keep separate baselines.",
-            "Investigate regressions only when thresholds fail on at least two consecutive runs in the same hardware tier.",
-        ],
-        "notes": (
-            "Variance checks are informative when run_count >= 2. "
-            "Single-run captures still provide point-in-time regression evidence."
-        ),
-    }
+    latest_report["baseline_series"] = _baseline_series_payload(
+        latest_report,
+        series_runs=series_runs,
+        baseline_runs=baseline_runs,
+        baseline_mode=baseline_mode,
+        baseline_tag=baseline_tag,
+    )
     return latest_report
 
 

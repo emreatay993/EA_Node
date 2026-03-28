@@ -47,7 +47,11 @@ from ea_node_editor.ui.dialogs.graph_theme_editor_support import (
     h_separator,
     is_active_explicit_custom_theme,
     resolve_preview_metadata,
+    resolve_theme_action_state,
+    resolve_theme_ids_after_delete,
     token_label,
+    update_custom_theme_token,
+    validate_custom_theme_tokens,
 )
 from ea_node_editor.ui.shell.controllers.app_preferences_controller import normalize_graph_theme_settings
 
@@ -439,11 +443,11 @@ class GraphThemeEditorDialog(QDialog):
 
         self.validation_message.setVisible(False)
 
-        has_selection = bool(theme.theme_id)
-        self.duplicate_button.setEnabled(has_selection)
-        self.use_selected_button.setEnabled(has_selection)
-        self.rename_button.setEnabled(is_custom)
-        self.delete_button.setEnabled(is_custom)
+        action_state = resolve_theme_action_state(theme_id=theme.theme_id, is_custom=is_custom)
+        self.duplicate_button.setEnabled(action_state.duplicate_enabled)
+        self.use_selected_button.setEnabled(action_state.use_selected_enabled)
+        self.rename_button.setEnabled(action_state.rename_enabled)
+        self.delete_button.setEnabled(action_state.delete_enabled)
 
     # ------------------------------------------------------------------
     # Theme CRUD
@@ -497,9 +501,11 @@ class GraphThemeEditorDialog(QDialog):
         if choice != QMessageBox.StandardButton.Yes:
             return
         del self._custom_graph_themes[index]
-        if str(self._explicit_theme_id).strip().lower() == str(theme_id).strip().lower():
-            self._explicit_theme_id = resolve_graph_theme_id(self._explicit_theme_id, custom_themes=self._custom_graph_themes)
-        self._preview_theme_id = resolve_graph_theme_id(theme_id, custom_themes=self._custom_graph_themes)
+        self._preview_theme_id, self._explicit_theme_id = resolve_theme_ids_after_delete(
+            theme_id=theme_id,
+            explicit_theme_id=self._explicit_theme_id,
+            custom_graph_themes=self._custom_graph_themes,
+        )
         self._rebuild_theme_tree(selected_theme_id=self._preview_theme_id)
 
     def _use_selected_theme(self) -> None:
@@ -521,25 +527,27 @@ class GraphThemeEditorDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _validate_current_theme_before_save(self) -> bool:
-        theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
-        if not is_custom_graph_theme_id(theme.theme_id):
+        validation = validate_custom_theme_tokens(
+            preview_theme_id=self._preview_theme_id,
+            custom_graph_themes=self._custom_graph_themes,
+            token_values_by_section=self._token_field_values(),
+        )
+        if validation.is_valid:
+            self.validation_message.setVisible(False)
             return True
-        for section_name, _section_title in self._TOKEN_SECTIONS:
-            for token_name, field in self._token_value_fields[section_name].items():
-                if is_valid_hex_color(field.text()):
-                    continue
-                self.validation_message.setVisible(True)
-                QMessageBox.warning(
-                    self,
-                    "Invalid Graph Theme Color",
-                    "Custom theme colors must use #RRGGBB or #AARRGGBB before the theme can be saved.",
-                )
-                field.setStyleSheet(INVALID_LINE_EDIT_STYLE)
-                self._token_swatch_frames[section_name][token_name].setStyleSheet(INVALID_SWATCH_STYLE)
-                field.setFocus(Qt.FocusReason.OtherFocusReason)
-                return False
-        self.validation_message.setVisible(False)
-        return True
+        self.validation_message.setVisible(True)
+        section_name = validation.invalid_section_name
+        token_name = validation.invalid_token_name
+        field = self._token_value_fields[section_name][token_name]
+        field.setStyleSheet(INVALID_LINE_EDIT_STYLE)
+        self._token_swatch_frames[section_name][token_name].setStyleSheet(INVALID_SWATCH_STYLE)
+        QMessageBox.warning(
+            self,
+            "Invalid Graph Theme Color",
+            "Custom theme colors must use #RRGGBB or #AARRGGBB before the theme can be saved.",
+        )
+        field.setFocus(Qt.FocusReason.OtherFocusReason)
+        return False
 
     # ------------------------------------------------------------------
     # Token editing
@@ -563,11 +571,13 @@ class GraphThemeEditorDialog(QDialog):
             return
 
         field.setStyleSheet(DEFAULT_LINE_EDIT_STYLE)
-        section_tokens = self._custom_graph_themes[theme_index].get(section_name)
-        if not isinstance(section_tokens, dict):
-            section_tokens = {}
-            self._custom_graph_themes[theme_index][section_name] = section_tokens
-        section_tokens[token_name] = normalized
+        update_custom_theme_token(
+            custom_graph_themes=self._custom_graph_themes,
+            theme_id=theme_id,
+            section_name=section_name,
+            token_name=token_name,
+            token_value=normalized,
+        )
         swatch.setStyleSheet(swatch_style(normalized))
         self._sync_validation_message()
         self._maybe_live_apply(theme_id)
@@ -594,17 +604,22 @@ class GraphThemeEditorDialog(QDialog):
     def _set_token_swatch(self, section_name: str, token_name: str, token_value: str) -> None:
         self._token_swatch_frames[section_name][token_name].setStyleSheet(swatch_style(token_value))
 
+    def _token_field_values(self) -> dict[str, dict[str, str]]:
+        return {
+            section_name: {
+                token_name: field.text().strip()
+                for token_name, field in fields.items()
+            }
+            for section_name, fields in self._token_value_fields.items()
+        }
+
     def _sync_validation_message(self) -> None:
-        theme = resolve_graph_theme(self._preview_theme_id, custom_themes=self._custom_graph_themes)
-        if not is_custom_graph_theme_id(theme.theme_id):
-            self.validation_message.setVisible(False)
-            return
-        has_invalid_field = any(
-            not is_valid_hex_color(field.text())
-            for fields in self._token_value_fields.values()
-            for field in fields.values()
+        validation = validate_custom_theme_tokens(
+            preview_theme_id=self._preview_theme_id,
+            custom_graph_themes=self._custom_graph_themes,
+            token_values_by_section=self._token_field_values(),
         )
-        self.validation_message.setVisible(has_invalid_field)
+        self.validation_message.setVisible(not validation.is_valid)
 
     def _theme_id_from_item(self, item: QTreeWidgetItem | None) -> str | None:
         if item is None:
