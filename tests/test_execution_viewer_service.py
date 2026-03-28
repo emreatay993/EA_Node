@@ -4,6 +4,9 @@ import json
 import unittest
 from unittest import mock
 
+from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
+    ViewerSessionMaterializationResult,
+)
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
@@ -229,6 +232,64 @@ class ViewerSessionServiceTests(unittest.TestCase):
                 self.fail("Expected rematerialized event")
             self.assertIn("dataset", rematerialized.data_refs)
             self.assertNotEqual(rematerialized.data_refs["dataset"].handle_id, dataset_ref.handle_id)
+
+    def test_materialize_routes_backend_specific_dpf_work_through_backend_helper(self) -> None:
+        self.service.prepare_workspace_context(
+            workspace_id="ws_main",
+            project_path="viewer_backend_demo.sfe",
+        )
+        self.service.open_session(
+            OpenViewerSessionCommand(
+                request_id="viewer_req_open",
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id="session_backend",
+                data_refs={"fields": "fields_source", "model": "model_source"},
+                options={"output_profile": "both"},
+            )
+        )
+        dataset_ref = self.services.register_handle(
+            _FakeDpfObject("dataset_backend"),
+            kind=DPF_VIEWER_DATASET_HANDLE_KIND,
+            owner_scope="cache:tests:viewer_backend",
+        )
+        png_ref = RuntimeArtifactRef.staged(
+            "viewer_backend_png",
+            metadata={"format": "png"},
+        )
+
+        with mock.patch.object(
+            self.service._materialization_backend,
+            "materialize",
+            return_value=ViewerSessionMaterializationResult(
+                data_refs={"dataset": dataset_ref, "png": png_ref},
+                summary={"result_name": "displacement"},
+            ),
+        ) as materialize:
+            materialized = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_backend",
+                    options={"output_profile": "both", "export_formats": ["png"]},
+                )
+            )
+
+        self.assertIsInstance(materialized, ViewerDataMaterializedEvent)
+        if not isinstance(materialized, ViewerDataMaterializedEvent):
+            self.fail("Expected viewer_data_materialized event")
+
+        request = materialize.call_args.args[0]
+        self.assertEqual(request.workspace_id, "ws_main")
+        self.assertEqual(request.node_id, "node_viewer")
+        self.assertEqual(request.session_id, "session_backend")
+        self.assertEqual(request.source_refs, {"fields": "fields_source", "model": "model_source"})
+        self.assertEqual(request.output_profile, "both")
+        self.assertEqual(request.export_formats, ("png",))
+        self.assertEqual(request.project_path, "viewer_backend_demo.sfe")
+        self.assertEqual(materialized.data_refs["dataset"], dataset_ref)
+        self.assertEqual(materialized.data_refs["png"], png_ref)
 
     def test_open_session_demotes_stale_materialized_handles_to_proxy_state(self) -> None:
         calls: list[dict[str, object]] = []

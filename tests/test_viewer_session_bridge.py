@@ -399,20 +399,23 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "proxy")
 
         self.host.scene.set_selected("node_viewer_b")
-        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
-        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "proxy")
-        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer_b")
-        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(
+            [call["node_id"] for call in self.host.execution_client.update_calls[-2:]],
+            ["node_viewer", "node_viewer_b"],
+        )
+        self.assertEqual(self.host.execution_client.update_calls[-2]["options"]["live_mode"], "proxy")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(self.host.execution_client.materialize_calls, [])
         self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "proxy")
         self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "full")
-        self.assertEqual(self.bridge.session_state("node_viewer_b")["cache_state"], "materializing")
+        self.assertEqual(self.bridge.session_state("node_viewer_b")["cache_state"], "live_ready")
 
         self.assertTrue(self.bridge.set_keep_live("node_viewer_b", True))
         self.host.scene.set_selected("node_viewer")
-        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer_b")
-        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["keep_live"], True)
-        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer")
-        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(self.host.execution_client.update_calls[-2]["node_id"], "node_viewer_b")
+        self.assertEqual(self.host.execution_client.update_calls[-2]["options"]["keep_live"], True)
+        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
         self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "full")
         self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "full")
 
@@ -455,14 +458,14 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         demoted_state = self.bridge.session_state("node_viewer_restore")
         self.assertEqual(demoted_state["options"]["live_mode"], "proxy")
         self.assertEqual(demoted_state["summary"]["camera"], {"zoom": 1.2})
-        self.assertEqual(demoted_state["summary"]["demoted_reason"], "focus_only")
+        self.assertNotIn("demoted_reason", demoted_state["summary"])
 
         self.host.scene.set_selected("node_viewer_restore")
         restored_state = self.bridge.session_state("node_viewer_restore")
-        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer_restore")
-        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "full")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer_restore")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
         self.assertEqual(restored_state["options"]["live_mode"], "full")
-        self.assertEqual(restored_state["cache_state"], "materializing")
+        self.assertEqual(restored_state["cache_state"], "live_ready")
         self.assertEqual(restored_state["summary"]["camera"], {"zoom": 1.2})
         self.assertNotIn("demoted_reason", restored_state["summary"])
 

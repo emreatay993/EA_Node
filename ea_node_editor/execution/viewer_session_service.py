@@ -6,11 +6,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from ea_node_editor.execution.dpf_runtime_service import (
-    DPF_FIELDS_CONTAINER_HANDLE_KIND,
-    DPF_MESH_HANDLE_KIND,
-    DPF_MODEL_HANDLE_KIND,
-    DPF_VIEWER_DATASET_HANDLE_KIND,
+from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
+    DpfViewerSessionMaterializationBackend,
+    ViewerSessionMaterializationRequest,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.protocol import (
@@ -25,7 +23,6 @@ from ea_node_editor.execution.protocol import (
     ViewerSessionUpdatedEvent,
 )
 from ea_node_editor.nodes.types import RuntimeArtifactRef, coerce_runtime_handle_ref
-from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.protocol import WorkerEvent, WorkerCommand
@@ -35,12 +32,6 @@ if TYPE_CHECKING:
 _DEFAULT_OUTPUT_PROFILE = "memory"
 _SESSION_ID_PREFIX = "viewer_session_"
 _SESSION_INVALIDATION_REASON_RERUN = "workspace_rerun"
-_FIELDS_REF_OPTION_KEY = "fields_key"
-_MODEL_REF_OPTION_KEY = "model_key"
-_MESH_REF_OPTION_KEY = "mesh_key"
-_FIELDS_REF_KEYS = ("fields", "fields_container", "field_data", "result")
-_MODEL_REF_KEYS = ("model",)
-_MESH_REF_KEYS = ("mesh",)
 _MATERIALIZED_DATA_KEYS = frozenset({"dataset", "preview", "csv", "png", "vtu", "vtm"})
 _MATERIALIZE_TRANSIENT_OPTION_KEYS = frozenset({"temporary_root_parent", "force_recompute"})
 _CLOSE_TRANSIENT_OPTION_KEYS = frozenset({"reason", "release_handles"})
@@ -68,8 +59,7 @@ class _ViewerSessionRecord:
     stale_ref_keys: set[str] = field(default_factory=set)
 
     def has_live_dataset(self) -> bool:
-        runtime_ref = coerce_runtime_handle_ref(self.materialized_refs.get("dataset"))
-        return runtime_ref is not None and runtime_ref.kind == DPF_VIEWER_DATASET_HANDLE_KIND
+        return coerce_runtime_handle_ref(self.materialized_refs.get("dataset")) is not None
 
     def cache_state(self) -> str:
         if self.invalidated_reason:
@@ -117,6 +107,7 @@ class _ViewerSessionRecord:
 class ViewerSessionService:
     def __init__(self, worker_services: WorkerServices) -> None:
         self._worker_services = worker_services
+        self._materialization_backend = DpfViewerSessionMaterializationBackend(worker_services)
         self._sessions: dict[tuple[str, str], _ViewerSessionRecord] = {}
         self._workspace_contexts: dict[str, _ViewerWorkspaceContext] = {}
 
@@ -311,52 +302,31 @@ class ViewerSessionService:
                 f"Viewer session {record.session_id!r} is invalidated: {record.invalidated_reason}.",
             )
 
-        fields_ref = self._lookup_source_ref(record, request_options, _FIELDS_REF_OPTION_KEY, _FIELDS_REF_KEYS)
-        model_ref = self._lookup_source_ref(record, request_options, _MODEL_REF_OPTION_KEY, _MODEL_REF_KEYS)
-        mesh_ref = self._lookup_source_ref(record, request_options, _MESH_REF_OPTION_KEY, _MESH_REF_KEYS)
-        if fields_ref is None or model_ref is None:
-            return self._failure(
-                command,
-                "Viewer session is missing cached fields/model refs required for materialization.",
-            )
-
-        artifact_store: ProjectArtifactStore | None = None
-        if output_profile in {"stored", "both"}:
-            context = self._workspace_contexts.get(record.workspace_id)
-            if context is not None and context.runtime_snapshot_context is not None:
-                artifact_store = context.runtime_snapshot_context.artifact_store
-            else:
-                project_path = context.project_path if context is not None else ""
-                runtime_snapshot = context.runtime_snapshot if context is not None else None
-                project_metadata = runtime_snapshot.metadata if runtime_snapshot is not None else None
-                artifact_store = ProjectArtifactStore.from_project_metadata(
-                    project_path=project_path or None,
-                    project_metadata=project_metadata if isinstance(project_metadata, Mapping) else None,
-                )
+        context = self._workspace_contexts.get(record.workspace_id)
+        backend_request = ViewerSessionMaterializationRequest(
+            workspace_id=record.workspace_id,
+            node_id=record.node_id,
+            session_id=record.session_id,
+            owner_scope=record.owner_scope,
+            source_refs=record.source_refs,
+            session_options=record.options,
+            request_options=request_options,
+            output_profile=output_profile,
+            export_formats=export_formats,
+            project_path=context.project_path if context is not None else "",
+            runtime_snapshot=context.runtime_snapshot if context is not None else None,
+            runtime_snapshot_context=context.runtime_snapshot_context if context is not None else None,
+        )
 
         try:
-            result = self._worker_services.dpf_runtime_service.materialize_viewer_dataset(
-                fields_ref,
-                model=model_ref,
-                mesh=mesh_ref,
-                output_profile=output_profile,
-                artifact_store=artifact_store,
-                artifact_key=self._artifact_key(record, request_options),
-                export_formats=export_formats,
-                temporary_root_parent=request_options.get("temporary_root_parent"),
-                owner_scope=record.owner_scope,
-            )
+            result = self._materialization_backend.materialize(backend_request)
         except Exception as exc:  # noqa: BLE001
             return self._failure(command, str(exc))
 
-        materialized_refs: dict[str, Any] = {}
-        if result.dataset_ref is not None:
-            materialized_refs["dataset"] = result.dataset_ref
-        materialized_refs.update(result.artifacts)
         self._merge_record_refs(
             record,
             source_refs={},
-            materialized_refs=materialized_refs,
+            materialized_refs=result.data_refs,
         )
         record.summary.update(copy.deepcopy(result.summary))
         record.summary["materialized_output_profile"] = output_profile
@@ -395,17 +365,7 @@ class ViewerSessionService:
 
     @staticmethod
     def _is_materialized_ref(key: str, value: Any) -> bool:
-        runtime_ref = coerce_runtime_handle_ref(value)
-        if runtime_ref is not None:
-            return runtime_ref.kind == DPF_VIEWER_DATASET_HANDLE_KIND
-        return isinstance(value, RuntimeArtifactRef) or key in _MATERIALIZED_DATA_KEYS
-
-    @staticmethod
-    def _artifact_key(record: _ViewerSessionRecord, request_options: Mapping[str, Any]) -> str:
-        explicit_key = str(request_options.get("artifact_key", "")).strip()
-        if explicit_key:
-            return explicit_key
-        return f"{record.node_id}_{record.session_id}"
+        return isinstance(value, RuntimeArtifactRef) or str(key) in _MATERIALIZED_DATA_KEYS
 
     @staticmethod
     def _resolve_output_profile(record: _ViewerSessionRecord, request_options: Mapping[str, Any]) -> str:
@@ -580,20 +540,6 @@ class ViewerSessionService:
         if not str(owner_scope).strip():
             return
         self._worker_services.handle_registry.release_owner_scope(owner_scope)
-
-    def _lookup_source_ref(
-        self,
-        record: _ViewerSessionRecord,
-        request_options: Mapping[str, Any],
-        option_key: str,
-        default_keys: Iterable[str],
-    ) -> Any | None:
-        explicit_key = str(request_options.get(option_key, "")).strip()
-        candidate_keys = (explicit_key,) if explicit_key else tuple(default_keys)
-        for key in candidate_keys:
-            if key in record.source_refs:
-                return record.source_refs[key]
-        return None
 
     def _cached_materialization_event(
         self,

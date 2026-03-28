@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict, deque
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +14,7 @@ from ea_node_editor.execution.runtime_snapshot import (
     build_runtime_snapshot,
 )
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
+from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
 _CONTROL_PORT_KINDS = frozenset({"exec", "completed", "failed"})
@@ -198,6 +200,21 @@ class RuntimeArtifactService:
         return self._resolver.resolve_to_path(value)
 
 
+def resolve_runtime_artifact_store(
+    *,
+    project_path: str = "",
+    runtime_snapshot: RuntimeSnapshot | None = None,
+    runtime_context: RuntimeSnapshotContext | None = None,
+) -> ProjectArtifactStore:
+    if runtime_context is not None:
+        return runtime_context.artifact_store
+    project_metadata = runtime_snapshot.metadata if runtime_snapshot is not None else None
+    return ProjectArtifactStore.from_project_metadata(
+        project_path=str(project_path).strip() or None,
+        project_metadata=project_metadata if isinstance(project_metadata, Mapping) else None,
+    )
+
+
 def prepare_runtime(command: StartRunCommand) -> PreparedRuntime:
     from ea_node_editor.nodes.bootstrap import build_default_registry
 
@@ -232,4 +249,5 @@ __all__ = [
     "RuntimeArtifactService",
     "load_runtime_snapshot",
     "prepare_runtime",
+    "resolve_runtime_artifact_store",
 ]
