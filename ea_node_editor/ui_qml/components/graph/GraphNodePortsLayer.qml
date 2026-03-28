@@ -50,7 +50,7 @@ Item {
 
     function _portDisplayText(portData) {
         if (root._usesExecArrowLabel(portData))
-            return "\u2192";
+            return "\u27A1";
         return root._portLabelText(portData);
     }
 
@@ -61,7 +61,11 @@ Item {
     }
 
     function _portDisplayPixelSize(portData) {
-        return root._usesExecArrowLabel(portData) ? 15 : 10;
+        return root._usesExecArrowLabel(portData) ? 18 : 10;
+    }
+
+    function _portDisplayFontWeight(portData) {
+        return root._usesExecArrowLabel(portData) ? Font.Black : Font.Normal;
     }
 
     function beginPortLabelEdit(portKey, direction) {
@@ -326,6 +330,7 @@ Item {
                     color: root._portDisplayColor(modelData)
                     font.pixelSize: root._portDisplayPixelSize(modelData)
                     font.bold: root._usesExecArrowLabel(modelData)
+                    font.weight: root._portDisplayFontWeight(modelData)
                     elide: Text.ElideRight
                     renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
 
@@ -659,6 +664,7 @@ Item {
                     color: root._portDisplayColor(modelData)
                     font.pixelSize: root._portDisplayPixelSize(modelData)
                     font.bold: root._usesExecArrowLabel(modelData)
+                    font.weight: root._portDisplayFontWeight(modelData)
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft
                     renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
