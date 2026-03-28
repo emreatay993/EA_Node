@@ -126,10 +126,12 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         shell_library_bridge = context.contextProperty("shellLibraryBridge")
         self.assertIsInstance(shell_library_bridge, ShellLibraryBridge)
         self.assertIs(shell_library_bridge.shell_window, self.window)
+        self.assertIs(shell_library_bridge.library_source, self.window.shell_library_presenter)
 
         shell_workspace_bridge = context.contextProperty("shellWorkspaceBridge")
         self.assertIsInstance(shell_workspace_bridge, ShellWorkspaceBridge)
         self.assertIs(shell_workspace_bridge.shell_window, self.window)
+        self.assertIs(shell_workspace_bridge.workspace_source, self.window.shell_workspace_presenter)
         self.assertIs(shell_workspace_bridge.scene_bridge, self.window.scene)
         self.assertIs(shell_workspace_bridge.view_bridge, self.window.view)
         self.assertIs(shell_workspace_bridge.console_bridge, self.window.console_panel)
@@ -138,14 +140,32 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         shell_inspector_bridge = context.contextProperty("shellInspectorBridge")
         self.assertIsInstance(shell_inspector_bridge, ShellInspectorBridge)
         self.assertIs(shell_inspector_bridge.shell_window, self.window)
+        self.assertIs(shell_inspector_bridge.inspector_source, self.window.shell_inspector_presenter)
         self.assertIs(shell_inspector_bridge.scene_bridge, self.window.scene)
 
-        graph_canvas_bridge = self.window.graph_canvas_bridge
-        self.assertIsInstance(graph_canvas_bridge, GraphCanvasBridge)
-        self.assertIs(graph_canvas_bridge.parent(), self.window)
-        self.assertIs(graph_canvas_bridge.shell_window, self.window)
-        self.assertIs(graph_canvas_bridge.scene_bridge, self.window.scene)
-        self.assertIs(graph_canvas_bridge.view_bridge, self.window.view)
+        graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
+        self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
+        self.assertIs(graph_canvas_state_bridge.parent(), self.window)
+        self.assertIs(graph_canvas_state_bridge.shell_window, self.window)
+        self.assertIs(graph_canvas_state_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_state_bridge.scene_bridge, self.window.scene)
+        self.assertIs(graph_canvas_state_bridge.view_bridge, self.window.view)
+
+        graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
+        self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
+        self.assertIs(graph_canvas_command_bridge.parent(), self.window)
+        self.assertIs(graph_canvas_command_bridge.shell_window, self.window)
+        self.assertIs(graph_canvas_command_bridge.canvas_source, self.window.graph_canvas_presenter)
+        self.assertIs(graph_canvas_command_bridge.host_source, self.window)
+        self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
+        self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+
+        context_bindings = dict(self.window._shell_qml_context_property_bindings)
+        self.assertIs(context_bindings["shellLibraryBridge"], shell_library_bridge)
+        self.assertIs(context_bindings["shellWorkspaceBridge"], shell_workspace_bridge)
+        self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
+        self.assertIs(context_bindings["graphCanvasStateBridge"], graph_canvas_state_bridge)
+        self.assertIs(context_bindings["graphCanvasCommandBridge"], graph_canvas_command_bridge)
 
     def test_shell_window_keeps_bridge_aliases_in_sync_with_context_bundle(self) -> None:
         bridges = self.window._shell_context_bridges
@@ -153,7 +173,8 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.shell_library_bridge, bridges.shell_library_bridge)
         self.assertIs(self.window.shell_workspace_bridge, bridges.shell_workspace_bridge)
         self.assertIs(self.window.shell_inspector_bridge, bridges.shell_inspector_bridge)
-        self.assertIs(self.window.graph_canvas_bridge, bridges.graph_canvas_bridge)
+        self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
+        self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
 
 
 class MainWindowShellStatusStripQuickToggleTests(SharedMainWindowShellTestBase):

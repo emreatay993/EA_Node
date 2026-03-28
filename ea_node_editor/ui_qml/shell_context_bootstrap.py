@@ -7,10 +7,7 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtQml import QQmlContext
 from PyQt6.QtQuickWidgets import QQuickWidget
 
-from ea_node_editor.ui.shell.context_bridges import (
-    ShellContextBridges,
-    create_shell_context_bridges,
-)
+from ea_node_editor.ui.shell.context_bridges import ShellContextBridges, create_shell_context_bridges
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID
 from ea_node_editor.ui.media_preview_provider import (
     LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
@@ -20,6 +17,10 @@ from ea_node_editor.ui.pdf_preview_provider import (
 )
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
+
+
+ShellContextPropertyBindings = tuple[tuple[str, object], ...]
+
 
 def _register_image_providers(host: "ShellWindow", quick_widget: QQuickWidget) -> None:
     engine = quick_widget.engine()
@@ -36,34 +37,10 @@ def _register_image_providers(host: "ShellWindow", quick_widget: QQuickWidget) -
 
 def _register_context_properties(
     context: QQmlContext,
-    host: "ShellWindow",
-    bridges: ShellContextBridges,
+    context_property_bindings: ShellContextPropertyBindings,
 ) -> None:
-    for name, value in shell_context_property_bindings(host, bridges):
+    for name, value in context_property_bindings:
         context.setContextProperty(name, value)
-
-
-def shell_context_property_bindings(
-    host: "ShellWindow",
-    bridges: ShellContextBridges,
-) -> tuple[tuple[str, object], ...]:
-    return (
-        ("shellLibraryBridge", bridges.shell_library_bridge),
-        ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
-        ("shellInspectorBridge", bridges.shell_inspector_bridge),
-        ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
-        ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
-        ("viewerSessionBridge", host.viewer_session_bridge),
-        ("scriptEditorBridge", host.script_editor),
-        ("scriptHighlighterBridge", host.script_highlighter),
-        ("themeBridge", host.theme_bridge),
-        ("graphThemeBridge", host.graph_theme_bridge),
-        ("uiIcons", host.ui_icons),
-        ("statusEngine", host.status_engine),
-        ("statusJobs", host.status_jobs),
-        ("statusMetrics", host.status_metrics),
-        ("statusNotifications", host.status_notifications),
-    )
 
 
 def _main_shell_qml_path() -> Path:
@@ -86,19 +63,19 @@ def _connect_after_render_callback(host: "ShellWindow", quick_widget: QQuickWidg
 def bootstrap_shell_qml_context(
     host: "ShellWindow",
     quick_widget: QQuickWidget,
-    bridges: ShellContextBridges,
+    context_property_bindings: ShellContextPropertyBindings,
 ) -> None:
     quick_widget.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
     _register_image_providers(host, quick_widget)
-    _register_context_properties(quick_widget.rootContext(), host, bridges)
+    _register_context_properties(quick_widget.rootContext(), context_property_bindings)
     quick_widget.setSource(main_shell_qml_url())
     _connect_after_render_callback(host, quick_widget)
 
 
 __all__ = [
     "ShellContextBridges",
+    "ShellContextPropertyBindings",
     "bootstrap_shell_qml_context",
     "create_shell_context_bridges",
     "main_shell_qml_url",
-    "shell_context_property_bindings",
 ]

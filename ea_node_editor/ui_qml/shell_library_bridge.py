@@ -84,13 +84,15 @@ def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _resolve_library_source(shell_window: "ShellWindow | None") -> _ShellLibrarySource:
+def _resolve_library_source(
+    shell_window: "ShellWindow | None",
+    library_source: _ShellLibrarySource | None,
+) -> _ShellLibrarySource:
+    if library_source is not None:
+        return library_source
     if shell_window is None:
-        raise TypeError("ShellLibraryBridge requires a shell window with a shell library contract.")
-    try:
-        return cast(_ShellLibrarySource, shell_window.shell_library_presenter)
-    except AttributeError:
-        return cast(_ShellLibrarySource, shell_window)
+        raise TypeError("ShellLibraryBridge requires a shell window or explicit library source contract.")
+    return cast(_ShellLibrarySource, shell_window)
 
 
 class ShellLibraryBridge(QObject):
@@ -105,10 +107,11 @@ class ShellLibraryBridge(QObject):
         parent: QObject | None = None,
         *,
         shell_window: "ShellWindow | None" = None,
+        library_source: _ShellLibrarySource | None = None,
     ) -> None:
         super().__init__(parent)
         self._shell_window = shell_window
-        self._library_source = _resolve_library_source(shell_window)
+        self._library_source = _resolve_library_source(shell_window, library_source)
 
         self._library_source.node_library_changed.connect(self.node_library_changed.emit)
         self._library_source.library_pane_reset_requested.connect(self.library_pane_reset_requested.emit)
@@ -119,6 +122,10 @@ class ShellLibraryBridge(QObject):
     @property
     def shell_window(self) -> "ShellWindow | None":
         return self._shell_window
+
+    @property
+    def library_source(self) -> _ShellLibrarySource:
+        return self._library_source
 
     @pyqtProperty("QVariantList", notify=node_library_changed)
     def grouped_node_library_items(self) -> list[dict[str, Any]]:

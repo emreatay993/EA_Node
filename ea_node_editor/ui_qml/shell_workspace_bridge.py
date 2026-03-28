@@ -61,13 +61,15 @@ def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _resolve_workspace_source(shell_window: "ShellWindow | None") -> _ShellWorkspaceSource:
+def _resolve_workspace_source(
+    shell_window: "ShellWindow | None",
+    workspace_source: _ShellWorkspaceSource | None,
+) -> _ShellWorkspaceSource:
+    if workspace_source is not None:
+        return workspace_source
     if shell_window is None:
-        raise TypeError("ShellWorkspaceBridge requires a shell window with a shell workspace contract.")
-    try:
-        return cast(_ShellWorkspaceSource, shell_window.shell_workspace_presenter)
-    except AttributeError:
-        return cast(_ShellWorkspaceSource, shell_window)
+        raise TypeError("ShellWorkspaceBridge requires a shell window or explicit workspace source contract.")
+    return cast(_ShellWorkspaceSource, shell_window)
 
 
 class ShellWorkspaceBridge(QObject):
@@ -85,6 +87,7 @@ class ShellWorkspaceBridge(QObject):
         parent: QObject | None = None,
         *,
         shell_window: "ShellWindow | None" = None,
+        workspace_source: _ShellWorkspaceSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
         console_bridge: "ConsoleModel | None" = None,
@@ -96,7 +99,7 @@ class ShellWorkspaceBridge(QObject):
         self._view_bridge = view_bridge
         self._console_bridge = console_bridge
         self._workspace_tabs_bridge = workspace_tabs_bridge
-        self._workspace_source = _resolve_workspace_source(shell_window)
+        self._workspace_source = _resolve_workspace_source(shell_window, workspace_source)
 
         self._workspace_source.project_meta_changed.connect(self.project_meta_changed.emit)
         self._workspace_source.workspace_state_changed.connect(self.workspace_state_changed.emit)
@@ -114,6 +117,10 @@ class ShellWorkspaceBridge(QObject):
     @property
     def shell_window(self) -> "ShellWindow | None":
         return self._shell_window
+
+    @property
+    def workspace_source(self) -> _ShellWorkspaceSource:
+        return self._workspace_source
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":

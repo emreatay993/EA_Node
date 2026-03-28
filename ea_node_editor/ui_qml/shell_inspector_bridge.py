@@ -50,13 +50,15 @@ def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
 
-def _resolve_inspector_source(shell_window: "ShellWindow | None") -> _ShellInspectorSource:
+def _resolve_inspector_source(
+    shell_window: "ShellWindow | None",
+    inspector_source: _ShellInspectorSource | None,
+) -> _ShellInspectorSource:
+    if inspector_source is not None:
+        return inspector_source
     if shell_window is None:
-        raise TypeError("ShellInspectorBridge requires a shell window with a shell inspector contract.")
-    try:
-        return cast(_ShellInspectorSource, shell_window.shell_inspector_presenter)
-    except AttributeError:
-        return cast(_ShellInspectorSource, shell_window)
+        raise TypeError("ShellInspectorBridge requires a shell window or explicit inspector source contract.")
+    return cast(_ShellInspectorSource, shell_window)
 
 
 class ShellInspectorBridge(QObject):
@@ -69,12 +71,13 @@ class ShellInspectorBridge(QObject):
         parent: QObject | None = None,
         *,
         shell_window: "ShellWindow | None" = None,
+        inspector_source: _ShellInspectorSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
     ) -> None:
         super().__init__(parent)
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
-        self._inspector_source = _resolve_inspector_source(shell_window)
+        self._inspector_source = _resolve_inspector_source(shell_window, inspector_source)
         self._inspector_source_has_state_signal = False
 
         self._inspector_source.selected_node_changed.connect(self._on_selected_node_changed)
@@ -100,6 +103,10 @@ class ShellInspectorBridge(QObject):
     @property
     def shell_window(self) -> "ShellWindow | None":
         return self._shell_window
+
+    @property
+    def inspector_source(self) -> _ShellInspectorSource:
+        return self._inspector_source
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":

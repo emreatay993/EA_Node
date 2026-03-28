@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtQuickWidgets import QQuickWidget
@@ -24,11 +24,8 @@ from ea_node_editor.ui.shell.controllers import (
     RunController,
     WorkspaceLibraryController,
 )
+from ea_node_editor.ui.shell.context_bridges import ShellContextBridges
 from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
-from ea_node_editor.ui.shell.context_bridges import (
-    ShellContextBridges,
-    create_shell_context_bridges,
-)
 from ea_node_editor.ui.shell.presenters import (
     GraphCanvasPresenter,
     ShellInspectorPresenter,
@@ -40,10 +37,16 @@ from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui.shell.state import ShellState
 from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeController
 from ea_node_editor.ui_qml.console_model import ConsoleModel
+from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
+from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
+from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_context_bootstrap import bootstrap_shell_qml_context
+from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
@@ -172,9 +175,11 @@ class ShellContextBridgeDependencies:
     shell_workspace_bridge: ShellWorkspaceBridge
     shell_inspector_bridge: ShellInspectorBridge
     graph_canvas_bridge: GraphCanvasBridge
+    qml_context_property_bindings_factory: Callable[[], tuple[tuple[str, object], ...]]
 
     def attach(self, host: "ShellWindow") -> None:
         host._shell_context_bridges = self._shell_context_bridges
+        host._shell_qml_context_property_bindings_factory = self.qml_context_property_bindings_factory
         host.shell_library_bridge = self.shell_library_bridge
         host.shell_workspace_bridge = self.shell_workspace_bridge
         host.shell_inspector_bridge = self.shell_inspector_bridge
@@ -218,7 +223,7 @@ class ShellWindowDependencyFactory:
         primitives = self.create_primitive_dependencies(state)
         controllers = self.create_controller_dependencies(state)
         presenters = self.create_presenter_dependencies(state)
-        context_bridges = self.create_context_bridge_dependencies(primitives)
+        context_bridges = self.create_context_bridge_dependencies(primitives, presenters)
         return ShellWindowComposition(
             state=state,
             primitives=primitives,
@@ -242,8 +247,9 @@ class ShellWindowDependencyFactory:
     def create_context_bridge_dependencies(
         self,
         primitives: ShellPrimitiveDependencies,
+        presenters: ShellPresenterDependencies,
     ) -> ShellContextBridgeDependencies:
-        return _create_shell_context_bridge_dependencies(self._host, primitives)
+        return _create_shell_context_bridge_dependencies(self._host, primitives, presenters)
 
 
 class ShellWindowBootstrapCoordinator:
@@ -418,13 +424,54 @@ def _create_shell_presenter_dependencies(
 def _create_shell_context_bridge_dependencies(
     host: "ShellWindow",
     primitives: ShellPrimitiveDependencies,
+    presenters: ShellPresenterDependencies,
 ) -> ShellContextBridgeDependencies:
-    shell_context_bridges = create_shell_context_bridges(
+    graph_canvas_state_bridge = GraphCanvasStateBridge(
         host,
-        scene=primitives.scene,
-        view=primitives.view,
-        console_panel=primitives.console_panel,
-        workspace_tabs=primitives.workspace_tabs,
+        shell_window=host,
+        canvas_source=presenters.graph_canvas_presenter,
+        scene_bridge=primitives.scene,
+        view_bridge=primitives.view,
+    )
+    graph_canvas_command_bridge = GraphCanvasCommandBridge(
+        host,
+        shell_window=host,
+        canvas_source=presenters.graph_canvas_presenter,
+        host_source=host,
+        scene_bridge=primitives.scene,
+        view_bridge=primitives.view,
+    )
+    shell_context_bridges = ShellContextBridges(
+        shell_library_bridge=ShellLibraryBridge(
+            host,
+            shell_window=host,
+            library_source=presenters.shell_library_presenter,
+        ),
+        shell_workspace_bridge=ShellWorkspaceBridge(
+            host,
+            shell_window=host,
+            workspace_source=presenters.shell_workspace_presenter,
+            scene_bridge=primitives.scene,
+            view_bridge=primitives.view,
+            console_bridge=primitives.console_panel,
+            workspace_tabs_bridge=primitives.workspace_tabs,
+        ),
+        shell_inspector_bridge=ShellInspectorBridge(
+            host,
+            shell_window=host,
+            inspector_source=presenters.shell_inspector_presenter,
+            scene_bridge=primitives.scene,
+        ),
+        graph_canvas_state_bridge=graph_canvas_state_bridge,
+        graph_canvas_command_bridge=graph_canvas_command_bridge,
+        graph_canvas_bridge=GraphCanvasBridge(
+            host,
+            shell_window=host,
+            scene_bridge=primitives.scene,
+            view_bridge=primitives.view,
+            state_bridge=graph_canvas_state_bridge,
+            command_bridge=graph_canvas_command_bridge,
+        ),
     )
     return ShellContextBridgeDependencies(
         _shell_context_bridges=shell_context_bridges,
@@ -432,6 +479,33 @@ def _create_shell_context_bridge_dependencies(
         shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
         shell_inspector_bridge=shell_context_bridges.shell_inspector_bridge,
         graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
+        qml_context_property_bindings_factory=lambda: _build_shell_context_property_bindings(
+            host,
+            shell_context_bridges,
+        ),
+    )
+
+
+def _build_shell_context_property_bindings(
+    host: "ShellWindow",
+    bridges: ShellContextBridges,
+) -> tuple[tuple[str, object], ...]:
+    return (
+        ("shellLibraryBridge", bridges.shell_library_bridge),
+        ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
+        ("shellInspectorBridge", bridges.shell_inspector_bridge),
+        ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
+        ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
+        ("viewerSessionBridge", host.viewer_session_bridge),
+        ("scriptEditorBridge", host.script_editor),
+        ("scriptHighlighterBridge", host.script_highlighter),
+        ("themeBridge", host.theme_bridge),
+        ("graphThemeBridge", host.graph_theme_bridge),
+        ("uiIcons", host.ui_icons),
+        ("statusEngine", host.status_engine),
+        ("statusJobs", host.status_jobs),
+        ("statusMetrics", host.status_metrics),
+        ("statusNotifications", host.status_notifications),
     )
 
 
@@ -450,7 +524,9 @@ def _run_shell_startup_sequence(host: "ShellWindow") -> None:
 
 def _build_shell_qml_widget(host: "ShellWindow") -> QQuickWidget:
     widget = QQuickWidget(host)
-    bootstrap_shell_qml_context(host, widget, host._shell_context_bridges)
+    context_property_bindings = host._shell_qml_context_property_bindings_factory()
+    host._shell_qml_context_property_bindings = context_property_bindings
+    bootstrap_shell_qml_context(host, widget, context_property_bindings)
     if widget.status() == QQuickWidget.Status.Error:
         formatted_errors = "\n".join(error.toString() for error in widget.errors()).strip()
         message = formatted_errors or "Unknown QML load error."

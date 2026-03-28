@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
 
@@ -10,6 +10,97 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
 
+class _GraphCanvasCommandSource(Protocol):
+    def set_graphics_minimap_expanded(self, expanded: bool) -> None: ...
+
+    def set_graphics_show_port_labels(self, show_port_labels: bool) -> None: ...
+
+    def set_graphics_performance_mode(self, mode: str) -> None: ...
+
+    def request_open_subnode_scope(self, node_id: str) -> bool: ...
+
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str: ...
+
+    def request_drop_node_from_library(
+        self,
+        type_id: str,
+        scene_x: float,
+        scene_y: float,
+        target_mode: str,
+        target_node_id: str,
+        target_port_key: str,
+        target_edge_id: str,
+    ) -> bool: ...
+
+    def request_connect_ports(
+        self,
+        source_node_id: str,
+        source_port_key: str,
+        target_node_id: str,
+        target_port_key: str,
+    ) -> bool: ...
+
+    def request_open_connection_quick_insert(
+        self,
+        node_id: str,
+        port_key: str,
+        cursor_scene_x: float,
+        cursor_scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> bool: ...
+
+    def request_open_canvas_quick_insert(
+        self,
+        scene_x: float,
+        scene_y: float,
+        overlay_x: float,
+        overlay_y: float,
+    ) -> None: ...
+
+    def request_publish_custom_workflow_from_node(self, node_id: str) -> bool: ...
+
+
+class _GraphCanvasHostSource(Protocol):
+    def request_delete_selected_graph_items(self, edge_ids: list[object]) -> bool: ...
+
+    def request_navigate_scope_parent(self) -> bool: ...
+
+    def request_navigate_scope_root(self) -> bool: ...
+
+    def set_graph_cursor_shape(self, cursor_shape: int) -> None: ...
+
+    def clear_graph_cursor_shape(self) -> None: ...
+
+    def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]: ...
+
+    def request_edit_flow_edge_style(self, edge_id: str) -> bool: ...
+
+    def request_edit_flow_edge_label(self, edge_id: str) -> bool: ...
+
+    def request_reset_flow_edge_style(self, edge_id: str) -> bool: ...
+
+    def request_copy_flow_edge_style(self, edge_id: str) -> bool: ...
+
+    def request_paste_flow_edge_style(self, edge_id: str) -> bool: ...
+
+    def request_remove_edge(self, edge_id: str) -> bool: ...
+
+    def request_edit_passive_node_style(self, node_id: str) -> bool: ...
+
+    def request_reset_passive_node_style(self, node_id: str) -> bool: ...
+
+    def request_copy_passive_node_style(self, node_id: str) -> bool: ...
+
+    def request_paste_passive_node_style(self, node_id: str) -> bool: ...
+
+    def request_rename_node(self, node_id: str) -> bool: ...
+
+    def request_ungroup_node(self, node_id: str) -> bool: ...
+
+    def request_remove_node(self, node_id: str) -> bool: ...
+
+
 def _invoke(source: object | None, name: str, *args, default: Any = None) -> Any:
     callback = getattr(source, name, None) if source is not None else None
     if not callable(callback):
@@ -17,21 +108,30 @@ def _invoke(source: object | None, name: str, *args, default: Any = None) -> Any
     return callback(*args)
 
 
-def _invoke_chain(
-    sources: tuple[object | None, ...],
-    name: str,
-    *args,
-    default: Any = None,
-) -> Any:
-    for source in sources:
-        callback = getattr(source, name, None) if source is not None else None
-        if callable(callback):
-            return callback(*args)
-    return default
-
-
 def _copy_dict(value: object) -> dict[str, Any]:
     return dict(value) if isinstance(value, dict) else {}
+
+
+def _resolve_canvas_source(
+    shell_window: "ShellWindow | None",
+    canvas_source: _GraphCanvasCommandSource | None,
+) -> _GraphCanvasCommandSource | None:
+    if canvas_source is not None:
+        return canvas_source
+    if shell_window is None:
+        return None
+    return cast(_GraphCanvasCommandSource, shell_window)
+
+
+def _resolve_host_source(
+    shell_window: "ShellWindow | None",
+    host_source: _GraphCanvasHostSource | None,
+) -> _GraphCanvasHostSource | None:
+    if host_source is not None:
+        return host_source
+    if shell_window is None:
+        return None
+    return cast(_GraphCanvasHostSource, shell_window)
 
 
 class GraphCanvasCommandBridge(QObject):
@@ -40,6 +140,8 @@ class GraphCanvasCommandBridge(QObject):
         parent: QObject | None = None,
         *,
         shell_window: "ShellWindow | None" = None,
+        canvas_source: _GraphCanvasCommandSource | None = None,
+        host_source: _GraphCanvasHostSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
     ) -> None:
@@ -47,11 +149,20 @@ class GraphCanvasCommandBridge(QObject):
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = getattr(shell_window, "graph_canvas_presenter", shell_window)
+        self._canvas_source = _resolve_canvas_source(shell_window, canvas_source)
+        self._host_source = _resolve_host_source(shell_window, host_source)
 
     @property
     def shell_window(self) -> "ShellWindow | None":
         return self._shell_window
+
+    @property
+    def canvas_source(self) -> _GraphCanvasCommandSource | None:
+        return self._canvas_source
+
+    @property
+    def host_source(self) -> _GraphCanvasHostSource | None:
+        return self._host_source
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":
@@ -71,19 +182,11 @@ class GraphCanvasCommandBridge(QObject):
 
     @pyqtSlot(bool)
     def set_graphics_show_port_labels(self, show_port_labels: bool) -> None:
-        _invoke_chain(
-            (self._canvas_source, self._shell_window),
-            "set_graphics_show_port_labels",
-            bool(show_port_labels),
-        )
+        _invoke(self._canvas_source, "set_graphics_show_port_labels", bool(show_port_labels))
 
     @pyqtSlot(str)
     def set_graphics_performance_mode(self, mode: str) -> None:
-        _invoke_chain(
-            (self._canvas_source, self._shell_window),
-            "set_graphics_performance_mode",
-            mode,
-        )
+        _invoke(self._canvas_source, "set_graphics_performance_mode", mode)
 
     @pyqtSlot(float)
     def adjust_zoom(self, factor: float) -> None:
@@ -130,8 +233,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_open_subnode_scope(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._canvas_source, self._shell_window),
+            _invoke(
+                self._canvas_source,
                 "request_open_subnode_scope",
                 node_id,
                 default=False,
@@ -141,8 +244,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, str, str, result=str)
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return str(
-            _invoke_chain(
-                (self._canvas_source, self._shell_window),
+            _invoke(
+                self._canvas_source,
                 "browse_node_property_path",
                 node_id,
                 key,
@@ -173,8 +276,8 @@ class GraphCanvasCommandBridge(QObject):
         target_edge_id: str,
     ) -> bool:
         return bool(
-            _invoke_chain(
-                (self._canvas_source, self._shell_window),
+            _invoke(
+                self._canvas_source,
                 "request_drop_node_from_library",
                 type_id,
                 float(scene_x),
@@ -196,8 +299,8 @@ class GraphCanvasCommandBridge(QObject):
         target_port_key: str,
     ) -> bool:
         return bool(
-            _invoke_chain(
-                (self._canvas_source, self._shell_window),
+            _invoke(
+                self._canvas_source,
                 "request_connect_ports",
                 source_node_id,
                 source_port_key,
@@ -218,8 +321,8 @@ class GraphCanvasCommandBridge(QObject):
         overlay_y: float,
     ) -> bool:
         return bool(
-            _invoke_chain(
-                (self._canvas_source, self._shell_window),
+            _invoke(
+                self._canvas_source,
                 "request_open_connection_quick_insert",
                 node_id,
                 port_key,
@@ -239,8 +342,8 @@ class GraphCanvasCommandBridge(QObject):
         overlay_x: float,
         overlay_y: float,
     ) -> None:
-        _invoke_chain(
-            (self._canvas_source, self._shell_window),
+        _invoke(
+            self._canvas_source,
             "request_open_canvas_quick_insert",
             float(scene_x),
             float(scene_y),
@@ -251,8 +354,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot("QVariantList", result=bool)
     def request_delete_selected_graph_items(self, edge_ids: list) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_delete_selected_graph_items",
                 edge_ids,
                 default=False,
@@ -262,8 +365,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(result=bool)
     def request_navigate_scope_parent(self) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_navigate_scope_parent",
                 default=False,
             )
@@ -272,8 +375,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(result=bool)
     def request_navigate_scope_root(self) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_navigate_scope_root",
                 default=False,
             )
@@ -401,24 +504,17 @@ class GraphCanvasCommandBridge(QObject):
 
     @pyqtSlot(int)
     def set_graph_cursor_shape(self, cursor_shape: int) -> None:
-        _invoke_chain(
-            (self._shell_window,),
-            "set_graph_cursor_shape",
-            int(cursor_shape),
-        )
+        _invoke(self._host_source, "set_graph_cursor_shape", int(cursor_shape))
 
     @pyqtSlot()
     def clear_graph_cursor_shape(self) -> None:
-        _invoke_chain(
-            (self._shell_window,),
-            "clear_graph_cursor_shape",
-        )
+        _invoke(self._host_source, "clear_graph_cursor_shape")
 
     @pyqtSlot(str, "QVariant", result="QVariantMap")
     def describe_pdf_preview(self, source: str, page_number: Any) -> dict[str, Any]:
         return _copy_dict(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "describe_pdf_preview",
                 source,
                 page_number,
@@ -429,8 +525,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_edit_flow_edge_style(self, edge_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_edit_flow_edge_style",
                 edge_id,
                 default=False,
@@ -440,8 +536,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_edit_flow_edge_label(self, edge_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_edit_flow_edge_label",
                 edge_id,
                 default=False,
@@ -451,8 +547,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_reset_flow_edge_style(self, edge_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_reset_flow_edge_style",
                 edge_id,
                 default=False,
@@ -462,8 +558,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_copy_flow_edge_style(self, edge_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_copy_flow_edge_style",
                 edge_id,
                 default=False,
@@ -473,8 +569,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_paste_flow_edge_style(self, edge_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_paste_flow_edge_style",
                 edge_id,
                 default=False,
@@ -484,8 +580,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_remove_edge(self, edge_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_remove_edge",
                 edge_id,
                 default=False,
@@ -495,8 +591,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_publish_custom_workflow_from_node(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._canvas_source, self._shell_window),
+            _invoke(
+                self._canvas_source,
                 "request_publish_custom_workflow_from_node",
                 node_id,
                 default=False,
@@ -506,8 +602,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_edit_passive_node_style(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_edit_passive_node_style",
                 node_id,
                 default=False,
@@ -517,8 +613,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_reset_passive_node_style(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_reset_passive_node_style",
                 node_id,
                 default=False,
@@ -528,8 +624,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_copy_passive_node_style(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_copy_passive_node_style",
                 node_id,
                 default=False,
@@ -539,8 +635,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_paste_passive_node_style(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_paste_passive_node_style",
                 node_id,
                 default=False,
@@ -550,8 +646,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_rename_node(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_rename_node",
                 node_id,
                 default=False,
@@ -561,8 +657,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_ungroup_node(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_ungroup_node",
                 node_id,
                 default=False,
@@ -572,8 +668,8 @@ class GraphCanvasCommandBridge(QObject):
     @pyqtSlot(str, result=bool)
     def request_remove_node(self, node_id: str) -> bool:
         return bool(
-            _invoke_chain(
-                (self._shell_window,),
+            _invoke(
+                self._host_source,
                 "request_remove_node",
                 node_id,
                 default=False,

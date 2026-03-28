@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -8,6 +8,26 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+
+class _SignalLike(Protocol):
+    def connect(self, slot) -> object: ...  # noqa: ANN001
+
+
+class _GraphCanvasStateSource(Protocol):
+    graphics_preferences_changed: _SignalLike
+    snap_to_grid_changed: _SignalLike
+    graphics_minimap_expanded: bool
+    graphics_show_grid: bool
+    graphics_show_minimap: bool
+    graphics_show_port_labels: bool
+    graphics_node_shadow: bool
+    graphics_shadow_strength: int
+    graphics_shadow_softness: int
+    graphics_shadow_offset: int
+    graphics_performance_mode: str
+    snap_to_grid_enabled: bool
+    snap_grid_size: float
 
 
 def _copy_list(value: object) -> list[Any]:
@@ -37,6 +57,17 @@ def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: AN
         signal.connect(slot)
 
 
+def _resolve_canvas_source(
+    shell_window: "ShellWindow | None",
+    canvas_source: _GraphCanvasStateSource | None,
+) -> _GraphCanvasStateSource | None:
+    if canvas_source is not None:
+        return canvas_source
+    if shell_window is None:
+        return None
+    return cast(_GraphCanvasStateSource, shell_window)
+
+
 class GraphCanvasStateBridge(QObject):
     graphics_preferences_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
@@ -50,6 +81,7 @@ class GraphCanvasStateBridge(QObject):
         parent: QObject | None = None,
         *,
         shell_window: "ShellWindow | None" = None,
+        canvas_source: _GraphCanvasStateSource | None = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
     ) -> None:
@@ -57,7 +89,7 @@ class GraphCanvasStateBridge(QObject):
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._canvas_source = getattr(shell_window, "graph_canvas_presenter", shell_window)
+        self._canvas_source = _resolve_canvas_source(shell_window, canvas_source)
 
         _connect_signal(
             self._canvas_source,
@@ -73,6 +105,10 @@ class GraphCanvasStateBridge(QObject):
     @property
     def shell_window(self) -> "ShellWindow | None":
         return self._shell_window
+
+    @property
+    def canvas_source(self) -> _GraphCanvasStateSource | None:
+        return self._canvas_source
 
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":
