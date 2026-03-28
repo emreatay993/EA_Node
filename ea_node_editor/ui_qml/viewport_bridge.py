@@ -231,6 +231,21 @@ class ViewportBridge(QObject):
             normalized.center().y(),
         )
 
+    @pyqtSlot(float, float, float, float, result=bool)
+    @pyqtSlot(float, float, float, float, float, result=bool)
+    def frame_scene_rect_payload(
+        self,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        padding_px: float = FRAME_PADDING_PX,
+    ) -> bool:
+        return self.frame_scene_rect(
+            QRectF(float(x), float(y), float(width), float(height)),
+            padding_px=float(padding_px),
+        )
+
     @pyqtSlot(float, float)
     def set_viewport_size(self, width: float, height: float) -> None:
         w = max(1, int(round(width)))

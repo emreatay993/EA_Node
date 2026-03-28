@@ -115,5 +115,16 @@ class ViewportBridgeTrackBTests(unittest.TestCase):
         self.assertAlmostEqual(scene_before.y(), scene_after.y(), places=6)
         self.assertEqual(view.visible_scene_rect_payload_cached, view.visible_scene_rect_payload)
 
+    def test_frame_scene_rect_payload_slot_normalizes_negative_dimensions(self) -> None:
+        view = ViewportBridge()
+        view.set_viewport_size(1280.0, 720.0)
+
+        changed = view.frame_scene_rect_payload(600.0, 300.0, -500.0, -250.0, 40.0)
+
+        self.assertTrue(changed)
+        self.assertAlmostEqual(view.zoom, 2.4, places=6)
+        self.assertAlmostEqual(view.center_x, 350.0, places=6)
+        self.assertAlmostEqual(view.center_y, 175.0, places=6)
+
 
 __all__ = ["ViewportBridgeTrackBTests"]

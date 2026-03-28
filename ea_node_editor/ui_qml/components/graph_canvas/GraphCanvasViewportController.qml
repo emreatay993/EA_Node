@@ -186,6 +186,40 @@ QtObject {
         };
     }
 
+    function frameSceneRectPayload(rectLike, paddingPx) {
+        var normalized = root.normalizedSceneRectPayload(rectLike);
+        var viewCommand = root.viewCommandBridge;
+        if (!normalized || !viewCommand || !viewCommand.frame_scene_rect_payload)
+            return false;
+
+        var resolvedPadding = Number(paddingPx);
+        if (!isFinite(resolvedPadding) || resolvedPadding < 0.0)
+            resolvedPadding = 0.0;
+        return viewCommand.frame_scene_rect_payload(
+            normalized.x,
+            normalized.y,
+            normalized.width,
+            normalized.height,
+            resolvedPadding
+        );
+    }
+
+    function frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx) {
+        var sceneX1 = root.screenToSceneX(screenX1);
+        var sceneY1 = root.screenToSceneY(screenY1);
+        var sceneX2 = root.screenToSceneX(screenX2);
+        var sceneY2 = root.screenToSceneY(screenY2);
+        return root.frameSceneRectPayload(
+            {
+                "x": sceneX1,
+                "y": sceneY1,
+                "width": sceneX2 - sceneX1,
+                "height": sceneY2 - sceneY1
+            },
+            paddingPx
+        );
+    }
+
     function requestViewStateRedraw() {
         if (root.backgroundLayer && root.backgroundLayer.markViewStateRedrawDirty)
             root.backgroundLayer.markViewStateRedrawDirty();

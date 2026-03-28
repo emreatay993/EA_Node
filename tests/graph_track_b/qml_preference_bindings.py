@@ -6,6 +6,10 @@ import subprocess
 import sys
 import unittest
 
+from PyQt6.QtCore import QPoint
+from PyQt6.QtQuick import QQuickWindow
+from PyQt6.QtTest import QTest
+
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from tests.graph_track_b.scene_and_model import (
@@ -399,6 +403,47 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertAlmostEqual(float(self.view.zoom_value), 1.15, places=6)
         self.assertAlmostEqual(scene_before_x, scene_after_x, places=6)
         self.assertAlmostEqual(scene_before_y, scene_after_y, places=6)
+
+    def test_graph_canvas_right_hold_box_zoom_frames_viewport_rect(self) -> None:
+        window = QQuickWindow()
+        window.resize(1280, 720)
+        self.canvas.setParentItem(window.contentItem())
+        window.show()
+        self.app.processEvents()
+
+        start = QPoint(200, 120)
+        end = QPoint(700, 370)
+
+        try:
+            QTest.mousePress(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, start)
+            QTest.mouseMove(window, end)
+            self.app.processEvents()
+
+            wait_for_condition_or_raise(
+                lambda: bool(self.canvas.property("interactionActive")),
+                timeout_ms=500,
+                app=self.app,
+                timeout_message="Timed out waiting for graph canvas box-zoom drag to arm.",
+            )
+
+            QTest.mouseRelease(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, end)
+            self.app.processEvents()
+
+            self.assertAlmostEqual(float(self.view.zoom_value), 2.464, places=3)
+            self.assertAlmostEqual(float(self.view.center_x), -190.0, places=3)
+            self.assertAlmostEqual(float(self.view.center_y), -115.0, places=3)
+
+            wait_for_condition_or_raise(
+                lambda: not bool(self.canvas.property("interactionActive")),
+                timeout_ms=500,
+                app=self.app,
+                timeout_message="Timed out waiting for graph canvas box-zoom interaction to settle.",
+            )
+        finally:
+            self.canvas.setParentItem(None)
+            window.close()
+            window.deleteLater()
+            self.app.processEvents()
 
     def test_graph_canvas_performance_policy_resolves_max_performance_idle_without_visual_degradation(self) -> None:
         policy = self.canvas.findChild(QObject, "graphCanvasPerformancePolicy")

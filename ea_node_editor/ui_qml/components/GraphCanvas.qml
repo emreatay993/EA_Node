@@ -75,6 +75,8 @@ Item {
         && !root.transientDegradedWindowActive
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
+    readonly property real boxZoomDragThreshold: 4
+    readonly property real boxZoomPaddingPx: 24
     readonly property real worldSize: 12000
     readonly property real worldOffset: worldSize / 2
     readonly property real minimapExpandedWidth: 238
@@ -262,6 +264,10 @@ Item {
 
     function _inflateSceneRectPayload(rectLike, padding) {
         return viewportController.inflateSceneRectPayload(rectLike, padding);
+    }
+
+    function frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx) {
+        return viewportController.frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx);
     }
 
     function snapToGridEnabled() {
@@ -766,6 +772,8 @@ Item {
         sceneCommandBridge: root._canvasSceneCommandBridgeRef
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
+        boxZoomDragThreshold: root.boxZoomDragThreshold
+        boxZoomPaddingPx: root.boxZoomPaddingPx
     }
 
     GraphCanvasComponents.GraphCanvasContextMenus {
