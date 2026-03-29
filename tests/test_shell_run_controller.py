@@ -357,11 +357,14 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.app.processEvents()
         self.assertFalse(workspace.nodes[parent_id].collapsed)
         self.assertEqual(self.window.scene.selected_node_id(), child_id)
+        self.assertEqual(self.window.run_state.failed_node_id, child_id)
+        self.assertEqual(self.window.run_state.failed_workspace_id, workspace_id)
         critical.assert_called_once()
 
     def test_run_failed_event_centers_failed_node_and_reports_exception_details(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         failed_node_id = self.window.scene.add_node_from_type("core.python_script", x=860.0, y=640.0)
+        self.window.scene.set_node_title(failed_node_id, "Exploding Script")
         node_item = self.window.scene.node_item(failed_node_id)
         self.assertIsNotNone(node_item)
         if node_item is None:
@@ -388,6 +391,10 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertAlmostEqual(self.window.view.center_x, expected_center.x(), delta=8.0)
         self.assertAlmostEqual(self.window.view.center_y, expected_center.y(), delta=8.0)
         self.assertEqual(self.window.scene.selected_node_id(), failed_node_id)
+        self.assertEqual(self.window.run_state.failed_node_id, failed_node_id)
+        self.assertEqual(self.window.run_state.failed_workspace_id, workspace_id)
+        self.assertEqual(self.window.run_state.failed_node_title, "Exploding Script")
+        self.assertGreaterEqual(self.window.run_state.failure_focus_revision, 1)
 
         errors_text = self.window.console_panel.errors_text
         self.assertIn("RuntimeError: boom", errors_text)
@@ -395,10 +402,39 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(self.window.run_state.active_run_id, "")
         self.assertEqual(self.window.run_state.active_run_workspace_id, "")
         self.assertEqual(self.window.run_state.engine_state_value, "error")
+        self.assertIn('Execution halted at "Exploding Script".', self.window.graph_hint_message)
+        graph_canvas = self._graph_canvas_item()
+        failed_lookup = graph_canvas.property("failedNodeLookup")
+        self.assertEqual(dict(failed_lookup), {failed_node_id: True})
+        self.assertEqual(graph_canvas.property("failedNodeTitle"), "Exploding Script")
+        self.assertGreaterEqual(int(graph_canvas.property("failedNodeRevision")), 1)
         critical.assert_called_once()
         critical_args = critical.call_args.args
         self.assertEqual(critical_args[1], "Workflow Error")
         self.assertEqual(critical_args[2], "RuntimeError: boom")
+
+    def test_new_run_clears_failed_node_highlight_before_start(self) -> None:
+        execution_client = _ViewerExecutionClientStub()
+        self.window.execution_client = execution_client
+
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        failed_node_id = self.window.scene.add_node_from_type("core.logger", x=240.0, y=180.0)
+        self.window.scene.set_node_title(failed_node_id, "Previous Failure")
+
+        with patch.object(QMessageBox, "critical"):
+            self.window._focus_failed_node(workspace_id, failed_node_id, "boom")
+        self.app.processEvents()
+
+        self.assertEqual(self.window.run_state.failed_node_id, failed_node_id)
+        graph_canvas = self._graph_canvas_item()
+        self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {failed_node_id: True})
+
+        self.window._run_workflow()
+        self.app.processEvents()
+
+        self.assertEqual(self.window.run_state.failed_node_id, "")
+        self.assertEqual(self.window.run_state.failed_workspace_id, "")
+        self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {})
 
 
 class _SubprocessShellWindowTest(unittest.TestCase):

@@ -33,6 +33,15 @@ Item {
             ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
             : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
         : ({})
+    readonly property var failedNodeLookup: root._canvasStateBridgeRef
+        ? root._canvasStateBridgeRef.failed_node_lookup
+        : ({})
+    readonly property int failedNodeRevision: root._canvasStateBridgeRef
+        ? Number(root._canvasStateBridgeRef.failed_node_revision)
+        : 0
+    readonly property string failedNodeTitle: root._canvasStateBridgeRef
+        ? String(root._canvasStateBridgeRef.failed_node_title || "")
+        : ""
     readonly property var canvasViewportController: viewportController
     readonly property var canvasSceneLifecycle: sceneLifecycle
     readonly property real nodeRenderActivationPaddingPx: 240.0

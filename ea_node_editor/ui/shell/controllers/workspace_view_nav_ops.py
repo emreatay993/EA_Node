@@ -431,6 +431,19 @@ class WorkspaceViewNavOps:
             return False
         return self._controller.center_on_selection()
 
+    def _failed_node_title(self, workspace_id: str, node_id: str) -> str:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_workspace_id or not normalized_node_id:
+            return ""
+        workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
+        if workspace is None:
+            return ""
+        node = workspace.nodes.get(normalized_node_id)
+        if node is None:
+            return ""
+        return str(node.title or "").strip()
+
     def create_view(self) -> None:
         from PyQt6.QtWidgets import QInputDialog
 
@@ -480,6 +493,19 @@ class WorkspaceViewNavOps:
                 break
         if focused_node_id:
             self._controller.center_on_node(focused_node_id)
+        failure_workspace_id = str(self._host.workspace_manager.active_workspace_id() or "").strip()
+        failure_node_id = str(focused_node_id or node_id or "").strip()
+        failure_node_title = self._failed_node_title(failure_workspace_id, failure_node_id)
+        if failure_node_id:
+            self._host.set_run_failure_focus(
+                failure_workspace_id,
+                failure_node_id,
+                node_title=failure_node_title,
+            )
+            if failure_node_title:
+                self._host.show_graph_hint(f'Execution halted at "{failure_node_title}".', 4800)
+            else:
+                self._host.show_graph_hint("Execution halted at the failed node.", 4800)
         if error:
             QMessageBox.critical(self._host, "Workflow Error", error)
 

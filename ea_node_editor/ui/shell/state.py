@@ -54,6 +54,10 @@ class ShellRunState:
     active_run_id: str = ""
     active_run_workspace_id: str = ""
     engine_state_value: Literal["ready", "running", "paused", "error"] = "ready"
+    failed_node_id: str = ""
+    failed_workspace_id: str = ""
+    failed_node_title: str = ""
+    failure_focus_revision: int = 0
 
 
 @dataclass(slots=True)

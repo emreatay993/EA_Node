@@ -15,6 +15,8 @@ Item {
     readonly property bool isCommentBackdropNode: host
         ? String(host.surfaceFamily || "") === "comment_backdrop"
         : false
+    readonly property real _headerBadgeReserveWidth: (root.host && root.host.canEnterScope ? 56 : 0)
+        + (root.host && root.host.isFailedNode ? 70 : 0)
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || "")
         : ""
@@ -137,7 +139,7 @@ Item {
         anchors.left: parent.left
         anchors.leftMargin: root.host ? root.host._titleLeftMargin : 0
         anchors.right: parent.right
-        anchors.rightMargin: root.host ? root.host._titleRightMargin + (root.host.canEnterScope ? 56 : 0) : 0
+        anchors.rightMargin: root.host ? root.host._titleRightMargin + root._headerBadgeReserveWidth : 0
         y: root.host ? root.host._titleTop : 0
         height: root.host ? root.host._titleHeight : 0
         text: root.displayTitle
@@ -211,6 +213,31 @@ Item {
         host: root.host
         targetItem: titleEditor
         enabled: root.sharedHeaderTitleEditable && titleEditor.visible
+    }
+
+    Rectangle {
+        id: failureBadge
+        objectName: "graphNodeFailureBadge"
+        visible: root.host ? root.host.isFailedNode : false
+        anchors.right: openBadge.visible ? openBadge.left : parent.right
+        anchors.rightMargin: openBadge.visible ? 6 : 8
+        y: root.host ? root.host._titleTop + Math.max(0, (root.host._titleHeight - height) * 0.5) : 0
+        width: 62
+        height: 18
+        radius: 9
+        color: root.host ? root.host.failureBadgeFillColor : "#421617"
+        border.color: root.host ? root.host.failureBadgeBorderColor : "#FF8C74"
+
+        Text {
+            id: failureBadgeText
+            objectName: "graphNodeFailureBadgeText"
+            anchors.centerIn: parent
+            text: "HALTED"
+            color: root.host ? root.host.failureBadgeTextColor : "#FFE5DE"
+            font.pixelSize: 9
+            font.bold: true
+            renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+        }
     }
 
     Rectangle {

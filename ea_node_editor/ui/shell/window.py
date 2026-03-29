@@ -143,6 +143,7 @@ class ShellWindow(QMainWindow):
     graph_search_changed = pyqtSignal()
     connection_quick_insert_changed = pyqtSignal()
     graph_hint_changed = pyqtSignal()
+    run_failure_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
 
@@ -810,6 +811,40 @@ class ShellWindow(QMainWindow):
     def clear_graph_hint(self) -> None:
         self.shell_library_presenter.clear_graph_hint()
 
+    def set_run_failure_focus(
+        self,
+        workspace_id: str,
+        node_id: str,
+        *,
+        node_title: str = "",
+    ) -> None:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        normalized_node_id = str(node_id or "").strip()
+        normalized_node_title = str(node_title or "").strip()
+        state = self.run_state
+        if (
+            state.failed_workspace_id == normalized_workspace_id
+            and state.failed_node_id == normalized_node_id
+            and state.failed_node_title == normalized_node_title
+        ):
+            state.failure_focus_revision += 1
+            self.run_failure_changed.emit()
+            return
+        state.failed_workspace_id = normalized_workspace_id
+        state.failed_node_id = normalized_node_id
+        state.failed_node_title = normalized_node_title
+        state.failure_focus_revision += 1
+        self.run_failure_changed.emit()
+
+    def clear_run_failure_focus(self) -> None:
+        state = self.run_state
+        if not (state.failed_workspace_id or state.failed_node_id or state.failed_node_title):
+            return
+        state.failed_workspace_id = ""
+        state.failed_node_id = ""
+        state.failed_node_title = ""
+        self.run_failure_changed.emit()
+
     def _apply_graph_cursor(self, cursor_shape: Qt.CursorShape) -> None:
         self.shell_host_presenter.apply_graph_cursor(cursor_shape)
 
@@ -1346,6 +1381,7 @@ class ShellWindow(QMainWindow):
 
     def _new_project(self):
         self.project_session_controller.new_project()
+        self.clear_run_failure_focus()
         self._reset_viewer_session_bridge(reason="project_close")
         return None
 
@@ -1354,12 +1390,14 @@ class ShellWindow(QMainWindow):
         before_project_object_id = id(self.model.project)
         self.project_session_controller.open_project()
         if self.project_path != before_project_path or id(self.model.project) != before_project_object_id:
+            self.clear_run_failure_focus()
             self._reset_viewer_session_bridge(reason="project_close")
         return None
 
     def _open_project_path(self, path):
         opened = bool(self.project_session_controller.open_project_path(path))
         if opened:
+            self.clear_run_failure_focus()
             self._reset_viewer_session_bridge(reason="project_close")
         return opened
 
@@ -1699,6 +1737,7 @@ class ShellWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: ANN001
         self.autosave_timer.stop()
         try:
+            self.clear_run_failure_focus()
             self._reset_viewer_session_bridge(reason="project_close")
             self.project_session_controller.close_session()
         finally:

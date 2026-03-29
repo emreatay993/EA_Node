@@ -63,8 +63,12 @@ Item {
     readonly property var selectedNodeLookup: canvasItem && canvasItem.sceneBridge
         ? canvasItem.sceneBridge.selected_node_lookup
         : ({})
+    readonly property var failedNodeLookup: canvasItem ? canvasItem.failedNodeLookup : ({})
     readonly property bool isSelected: !!nodeData
         && Boolean(selectedNodeLookup[String(nodeData.node_id || "")])
+    readonly property bool isFailedNode: !!nodeData
+        && Boolean(failedNodeLookup[String(nodeData.node_id || "")])
+    readonly property int failurePulseRevision: canvasItem ? Number(canvasItem.failedNodeRevision || 0) : 0
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var renderQuality: renderQualityState.renderQuality
@@ -132,6 +136,11 @@ Item {
     readonly property color portInteractiveRingFillColor: themeState.portInteractiveRingFillColor
     readonly property color portInteractiveRingBorderColor: themeState.portInteractiveRingBorderColor
     readonly property color flowchartConnectedPortFillColor: themeState.flowchartConnectedPortFillColor
+    readonly property color failureOutlineColor: themeState.failureOutlineColor
+    readonly property color failureGlowColor: themeState.failureGlowColor
+    readonly property color failureBadgeFillColor: themeState.failureBadgeFillColor
+    readonly property color failureBadgeBorderColor: themeState.failureBadgeBorderColor
+    readonly property color failureBadgeTextColor: themeState.failureBadgeTextColor
     readonly property real flowchartRestPortDiameter: themeState.flowchartRestPortDiameter
     readonly property real flowchartConnectedPortDiameter: themeState.flowchartConnectedPortDiameter
     readonly property real flowchartSelectedPortDiameter: themeState.flowchartSelectedPortDiameter
@@ -461,6 +470,7 @@ Item {
         || card._resizeHandleContainsMouse
         || card._resizeInteractionActive
     readonly property bool _forceRenderActive: card.isSelected
+        || card.isFailedNode
         || card.hoverActive
         || card._hoveredPortOnNode
         || card._previewPortOnNode
@@ -483,7 +493,7 @@ Item {
     layer.smooth: card.effectiveTextureCacheActive
     layer.mipmap: card.effectiveTextureCacheActive
 
-    z: card.isSelected ? 30 : 20
+    z: card.isFailedNode ? 32 : (card.isSelected ? 30 : 20)
     x: (card._liveGeometryActive ? card._liveX : (card.nodeData ? card.nodeData.x : 0.0)) + card.worldOffset
     y: (card._liveGeometryActive ? card._liveY : (card.nodeData ? card.nodeData.y : 0.0)) + card.worldOffset
     transform: Translate {

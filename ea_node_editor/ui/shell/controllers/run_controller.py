@@ -29,6 +29,8 @@ class _RunControllerHostProtocol(Protocol):
 
     def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None: ...
 
+    def clear_run_failure_focus(self) -> None: ...
+
 
 class RunController:
     def __init__(self, host: _RunControllerHostProtocol) -> None:
@@ -50,6 +52,7 @@ class RunController:
                 )
             return
 
+        self._host.clear_run_failure_focus()
         workspace_id = self._host.workspace_manager.active_workspace_id()
         runtime_snapshot = build_runtime_snapshot(
             self._host.model.project,
@@ -118,6 +121,9 @@ class RunController:
             run_scoped_event_types=self._host._RUN_SCOPED_EVENT_TYPES,
         ):
             return
+
+        if event_type == "run_started":
+            self._host.clear_run_failure_focus()
 
         if event_type in {"run_started", "node_started", "node_completed"}:
             self.set_run_ui_state("running", "Running", 1, 0, 0, 0)

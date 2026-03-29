@@ -76,6 +76,7 @@ class GraphCanvasStateBridge(QObject):
     scene_nodes_changed = pyqtSignal()
     scene_edges_changed = pyqtSignal()
     scene_selection_changed = pyqtSignal()
+    failure_highlight_changed = pyqtSignal()
     view_state_changed = pyqtSignal()
 
     def __init__(
@@ -102,6 +103,8 @@ class GraphCanvasStateBridge(QObject):
         _connect_signal(scene_bridge, "nodes_changed", self.scene_nodes_changed.emit)
         _connect_signal(scene_bridge, "edges_changed", self.scene_edges_changed.emit)
         _connect_signal(scene_bridge, "selection_changed", self.scene_selection_changed.emit)
+        _connect_signal(scene_bridge, "workspace_changed", self.failure_highlight_changed.emit)
+        _connect_signal(shell_window, "run_failure_changed", self.failure_highlight_changed.emit)
         _connect_signal(view_bridge, "view_state_changed", self.view_state_changed.emit)
 
     @property
@@ -222,6 +225,42 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty("QVariantMap", notify=scene_selection_changed)
     def selected_node_lookup(self) -> dict[str, bool]:
         return _copy_dict(_source_attr(self._scene_bridge, "selected_node_lookup", {}))
+
+    @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
+    def failed_node_lookup(self) -> dict[str, bool]:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return {}
+        run_state = getattr(shell_window, "run_state", None)
+        workspace_manager = getattr(shell_window, "workspace_manager", None)
+        if run_state is None or workspace_manager is None:
+            return {}
+        failed_node_id = str(getattr(run_state, "failed_node_id", "") or "").strip()
+        failed_workspace_id = str(getattr(run_state, "failed_workspace_id", "") or "").strip()
+        active_workspace_id = str(workspace_manager.active_workspace_id() or "").strip()
+        if not failed_node_id or failed_workspace_id != active_workspace_id:
+            return {}
+        return {failed_node_id: True}
+
+    @pyqtProperty(int, notify=failure_highlight_changed)
+    def failed_node_revision(self) -> int:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return 0
+        run_state = getattr(shell_window, "run_state", None)
+        if run_state is None:
+            return 0
+        return int(getattr(run_state, "failure_focus_revision", 0))
+
+    @pyqtProperty(str, notify=failure_highlight_changed)
+    def failed_node_title(self) -> str:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return ""
+        run_state = getattr(shell_window, "run_state", None)
+        if run_state is None:
+            return ""
+        return str(getattr(run_state, "failed_node_title", "") or "")
 
     @pyqtSlot(str, str, result=bool)
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
