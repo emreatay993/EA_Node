@@ -87,95 +87,264 @@ PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS = (
     "Process Run",
 )
 
-PYDPF_VIEWER_V1_QA_MATRIX = REPO_ROOT / "docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md"
-PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND = (
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND = (
     "./venv/Scripts/python.exe -m pytest "
-    "tests/test_dpf_viewer_node.py tests/test_dpf_node_catalog.py "
-    "tests/test_viewer_session_bridge.py tests/test_viewer_surface_host.py "
-    "tests/test_packaging_configuration.py tests/test_traceability_checker.py "
+    "tests/test_execution_viewer_protocol.py tests/test_execution_client.py "
+    "tests/test_execution_viewer_service.py tests/test_execution_worker.py "
+    "tests/test_dpf_viewer_node.py --ignore=venv -q"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_SERVICE_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_execution_viewer_service.py tests/test_execution_worker.py "
+    "tests/test_dpf_viewer_node.py --ignore=venv -q"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_MATERIALIZATION_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_dpf_runtime_service.py tests/test_dpf_materialization.py "
     "--ignore=venv -q"
 )
-PYDPF_VIEWER_V1_TRACEABILITY_COMMAND = "./venv/Scripts/python.exe scripts/check_traceability.py"
-PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND = (
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P03_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_host_service.py "
+    "--ignore=venv -q"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P04_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_embedded_viewer_overlay_manager.py tests/test_viewer_host_service.py "
+    "tests/test_dpf_viewer_widget_binder.py --ignore=venv -q"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_BRIDGE_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_viewer_session_bridge.py tests/test_shell_run_controller.py "
+    "tests/test_project_session_controller_unit.py tests/test_shell_project_session_controller.py "
+    "--ignore=venv -q"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_SURFACE_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_viewer_surface_contract.py tests/test_viewer_surface_host.py "
+    "--ignore=venv -q"
+)
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND = (
     "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
 )
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
 
-PYDPF_VIEWER_V1_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/10_ARCHITECTURE.md": {
         "REQ-ARCH-016": (
-            "RuntimeHandleRef",
-            "DpfRuntimeService",
-            "ViewerSessionBridge",
+            "registry-driven",
+            "backend_id",
+            "ViewerHostService",
+            "ViewerWidgetBinderRegistry",
             "EmbeddedViewerOverlayManager",
+        ),
+        "AC-REQ-ARCH-016-01": (
+            "worker-side DPF authority",
+            "backend and binder seams",
+            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
         ),
     },
     "docs/specs/requirements/20_UI_UX.md": {
-        "REQ-UI-032": ("dpf.viewer", "viewerSessionBridge", "focus_only", "keep_live"),
-    },
-    "docs/specs/requirements/40_NODE_SDK.md": {
-        "REQ-NODE-025": ("dpf.viewer", 'surface_family="viewer"', "output_mode", "viewer_live_policy"),
+        "REQ-UI-032": (
+            "viewerSessionBridge",
+            "ViewerHostService",
+            "backend_id",
+            "transport_revision",
+            "rerun_required",
+        ),
+        "AC-REQ-UI-032-01": ("focus_only", "keep_live", "rerun_required", "widget cleanup and rebinding"),
     },
     "docs/specs/requirements/45_NODE_EXECUTION_MODEL.md": {
-        "REQ-NODE-026": ("session-owned", "proxy", "live", "worker viewer session service"),
-    },
-    "docs/specs/requirements/50_EXECUTION_ENGINE.md": {
-        "REQ-EXEC-013": ("viewer-session", "runtime handle refs", "typed viewer protocol", "worker-local"),
-    },
-    "docs/specs/requirements/60_PERSISTENCE.md": {
-        "REQ-PERSIST-020": ("tests/ansys_dpf_core/example_outputs/", ".rst", ".rth", "serialized project artifacts"),
-    },
-    "docs/specs/requirements/70_INTEGRATIONS.md": {
-        "REQ-INT-008": (
-            "ansys-dpf-core",
-            "pyvista",
-            "pyvistaqt",
-            "vtk",
-            "dpf.result_file",
-            "dpf.mesh_extract",
-            "dpf.viewer",
+        "REQ-NODE-026": ("session-owned", "output_mode=memory", "temp transport bundle", "rerun-required"),
+        "AC-REQ-NODE-026-01": (
+            "output_mode=memory",
+            "rerun-required reopen blocking",
+            "post-rerun restoration",
         ),
     },
-    "docs/specs/requirements/80_PERFORMANCE.md": {
-        "REQ-PERF-008": ("PYDPF_VIEWER_V1_QA_MATRIX.md", "large-model", "Windows packaged-build", ".rst"),
+    "docs/specs/requirements/50_EXECUTION_ENGINE.md": {
+        "REQ-EXEC-013": (
+            "ViewerBackendRegistry",
+            "ViewerSessionService",
+            "backend_id",
+            "transport_revision",
+            "live_open_status",
+            "live_open_blocker",
+        ),
+        "AC-REQ-EXEC-013-01": (
+            "temp-bundle reuse and cleanup",
+            "rerun-required blocker projection",
+            "queue-safe viewer payloads",
+        ),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-020": (".sfe", "temp transport bundles", "transport revisions", "serialized project artifacts"),
+        "AC-REQ-PERSIST-020-01": (
+            "rerun-required projection",
+            "temp bundles",
+            "dene3.sfe",
+            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-008": ("ansys-dpf-core", "pyvistaqt", "dpf.viewer", "dpf_embedded"),
+        "AC-REQ-INT-008-01": ("viewer-backend", "binder", "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md"),
     },
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
-        "REQ-QA-023": ("PYDPF_VIEWER_V1", "dpf.viewer", "packaging configuration", "traceability"),
-        "REQ-QA-024": ("PYDPF_VIEWER_V1_QA_MATRIX.md", ".rst", ".rth", "traceability gate"),
-        "AC-REQ-QA-023-01": (PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND, "PYDPF_VIEWER_V1_QA_MATRIX.md"),
+        "REQ-QA-023": (
+            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK",
+            "ViewerHostService",
+            "rerun-required reopen behavior",
+            "traceability coverage",
+        ),
+        "REQ-QA-024": (
+            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+            "dene3.sfe",
+            "desktop-only validation",
+            "traceability gate",
+        ),
+        "AC-REQ-QA-023-01": (
+            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
+            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
+        ),
         "AC-REQ-QA-024-01": (
-            PYDPF_VIEWER_V1_TRACEABILITY_COMMAND,
-            PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND,
-            "PYDPF_VIEWER_V1_QA_MATRIX.md",
+            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
+            CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
+            "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
         ),
     },
 }
 
-PYDPF_VIEWER_V1_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
-    "REQ-ARCH-016": ("runtime_value_codec.py", "viewer_session_service.py", "viewer_session_bridge.py"),
-    "REQ-NODE-025": ("ansys_dpf.py", "ansys_dpf_common.py", "test_dpf_viewer_node.py"),
-    "REQ-INT-008": ("pyproject.toml", "ea_node_editor.spec", "test_packaging_configuration.py"),
-    "REQ-QA-024": ("PYDPF_VIEWER_V1_QA_MATRIX.md", "tests/test_traceability_checker.py", "scripts/check_traceability.py"),
-    "AC-REQ-QA-023-01": (PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND, "PYDPF_VIEWER_V1_QA_MATRIX.md"),
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-ARCH-016": (
+        "viewer_backend.py",
+        "viewer_session_backend.py",
+        "viewer_host_service.py",
+        "viewer_widget_binder.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "AC-REQ-ARCH-016-01": (
+        "test_execution_viewer_protocol.py",
+        "test_viewer_host_service.py",
+        "test_dpf_viewer_widget_binder.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "REQ-UI-032": (
+        "viewer_session_bridge.py",
+        "viewer_host_service.py",
+        "dpf_viewer_widget_binder.py",
+        "GraphViewerSurface.qml",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-032-01": (
+        "test_viewer_surface_contract.py",
+        "test_viewer_surface_host.py",
+        "test_dpf_viewer_widget_binder.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "REQ-NODE-026": (
+        "viewer_session_service.py",
+        "project_session_services.py",
+        "run_controller.py",
+        "GraphViewerSurface.qml",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "AC-REQ-NODE-026-01": (
+        "test_execution_worker.py",
+        "test_shell_run_controller.py",
+        "test_project_session_controller_unit.py",
+        "test_shell_project_session_controller.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "REQ-EXEC-013": (
+        "viewer_backend.py",
+        "materialization.py",
+        "viewer_session_backend.py",
+        "test_execution_viewer_protocol.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "AC-REQ-EXEC-013-01": (
+        "test_execution_viewer_service.py",
+        "test_execution_worker.py",
+        "test_dpf_materialization.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "REQ-PERSIST-020": (
+        "project_session_services.py",
+        "viewer_session_backend.py",
+        "fixture_paths.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERSIST-020-01": (
+        "test_project_session_controller_unit.py",
+        "test_shell_project_session_controller.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "REQ-INT-008": (
+        "ansys_dpf.py",
+        "ansys_dpf_viewer_adapter.py",
+        "dpf_viewer_widget_binder.py",
+        "ea_node_editor.spec",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-008-01": (
+        "test_dpf_compute_nodes.py",
+        "test_dpf_viewer_widget_binder.py",
+        "test_packaging_configuration.py",
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
+    "REQ-QA-023": (
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+        "test_execution_viewer_protocol.py",
+        "test_dpf_materialization.py",
+        "test_viewer_host_service.py",
+        "test_shell_project_session_controller.py",
+    ),
+    "REQ-QA-024": (
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-023-01": (
+        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND,
+        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P04_COMMAND,
+        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_BRIDGE_COMMAND,
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
+    ),
     "AC-REQ-QA-024-01": (
-        PYDPF_VIEWER_V1_TRACEABILITY_COMMAND,
-        PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND,
+        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
+        CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
+        "CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md",
     ),
 }
 
-PYDPF_VIEWER_V1_QA_MATRIX_TOKENS = (
-    "PYDPF Viewer V1 QA Matrix",
+CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX_TOKENS = (
+    "Cross-Process Viewer Backend Framework QA Matrix",
     "## Locked Scope",
-    "dpf.viewer",
-    "tests/ansys_dpf_core/fixture_paths.py",
-    "static_analysis_1_bolted_joint/file.rst",
-    "modal_analysis_1_bolted_joint/file.rst",
-    "steady_state_thermal_analysis_1_bolted_joint/file.rth",
-    PYDPF_VIEWER_V1_FINAL_REGRESSION_COMMAND,
-    PYDPF_VIEWER_V1_TRACEABILITY_COMMAND,
-    PYDPF_VIEWER_V1_TRACEABILITY_TEST_COMMAND,
-    ".\\scripts\\build_windows_package.ps1 -PackageProfile viewer -Clean -SkipSmoke",
-    "## Remaining Manual Smoke Checks",
-    "## Future-Scope Deferrals",
+    "backend_id",
+    "ViewerHostService",
+    "ViewerWidgetBinderRegistry",
+    "dpf_embedded",
+    "output_mode=memory",
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P01_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_SERVICE_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_MATERIALIZATION_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P03_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P04_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_BRIDGE_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P05_SURFACE_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_TEST_COMMAND,
+    CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_COMMAND,
+    "dene3.sfe",
+    "rerun-required blocker",
+    "transport_revision",
+    "## Residual Desktop-Only Validation",
 )
 GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md"
@@ -802,24 +971,31 @@ class TraceabilityCheckerTests(unittest.TestCase):
         for token in PROJECT_MANAGED_FILES_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
-    def test_pydpf_viewer_docs_record_closeout_scope_tokens(self) -> None:
-        for relative_path, requirement_tokens in PYDPF_VIEWER_V1_REQUIREMENT_TOKENS.items():
+    def test_cross_process_viewer_backend_framework_docs_record_closeout_scope_tokens(self) -> None:
+        for (
+            relative_path,
+            requirement_tokens,
+        ) in CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_REQUIREMENT_TOKENS.items():
             path = REPO_ROOT / relative_path
             for requirement_id, tokens in requirement_tokens.items():
                 body = requirement_line(path, requirement_id)
                 for token in tokens:
                     self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
 
-    def test_pydpf_viewer_traceability_rows_reference_packet_artifacts(self) -> None:
+    def test_cross_process_viewer_backend_framework_traceability_rows_reference_packet_artifacts(
+        self,
+    ) -> None:
         traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
-        for row_id, tokens in PYDPF_VIEWER_V1_TRACEABILITY_ROW_TOKENS.items():
+        for row_id, tokens in CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_TRACEABILITY_ROW_TOKENS.items():
             row_text = traceability_row(traceability_path, row_id)
             for token in tokens:
                 self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
 
-    def test_pydpf_viewer_qa_matrix_records_commands_and_manual_checks(self) -> None:
-        text = PYDPF_VIEWER_V1_QA_MATRIX.read_text(encoding="utf-8-sig")
-        for token in PYDPF_VIEWER_V1_QA_MATRIX_TOKENS:
+    def test_cross_process_viewer_backend_framework_qa_matrix_records_commands_and_manual_checks(
+        self,
+    ) -> None:
+        text = CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:
