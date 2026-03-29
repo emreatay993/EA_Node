@@ -51,6 +51,54 @@ Item {
     readonly property string viewerLivePolicy: String(viewerSessionState.live_policy || "focus_only")
     readonly property bool viewerKeepLive: Boolean(viewerSessionState.keep_live)
     readonly property string viewerCacheState: String(viewerSessionState.cache_state || "empty")
+    readonly property string viewerBackendId: String(
+        viewerSessionState.backend_id
+        || viewerSummary.backend_id
+        || viewerOptions.backend_id
+        || ""
+    )
+    readonly property var viewerTransport: viewerSessionState.transport
+        ? viewerSessionState.transport
+        : ({})
+    readonly property string viewerTransportKind: String(viewerTransport.kind || "")
+    readonly property int viewerTransportRevision: Math.max(
+        0,
+        Math.floor(
+            _number(
+                viewerSessionState.transport_revision !== undefined
+                    ? viewerSessionState.transport_revision
+                    : (
+                        viewerSummary.transport_revision !== undefined
+                            ? viewerSummary.transport_revision
+                            : viewerOptions.transport_revision
+                    ),
+                0
+            )
+        )
+    )
+    readonly property string viewerLiveOpenStatus: String(
+        viewerSessionState.live_open_status
+        || viewerSummary.live_open_status
+        || viewerOptions.live_open_status
+        || ""
+    )
+    readonly property var viewerLiveOpenBlocker: viewerSessionState.live_open_blocker
+        ? viewerSessionState.live_open_blocker
+        : (
+            viewerSummary.live_open_blocker
+            ? viewerSummary.live_open_blocker
+            : (viewerOptions.live_open_blocker ? viewerOptions.live_open_blocker : ({}))
+        )
+    readonly property string viewerTransportReleaseReason: String(
+        viewerSummary.live_transport_release_reason
+        || viewerOptions.live_transport_release_reason
+        || ""
+    )
+    readonly property bool viewerRunRequired: viewerPhase === "blocked"
+        || viewerLiveOpenStatus === "blocked"
+        || Boolean(viewerSummary.rerun_required)
+        || Boolean(viewerOptions.rerun_required)
+        || Boolean(viewerLiveOpenBlocker.rerun_required)
     readonly property string viewerLiveMode: {
         var liveMode = String(surface.viewerOptions.live_mode || surface.viewerSessionState.live_mode || "");
         if (liveMode.length > 0)
@@ -90,19 +138,18 @@ Item {
     readonly property bool viewerSessionBusy: viewerPhase === "opening" || viewerPhase === "closing"
     readonly property bool viewerCanOpen: viewerBridgeAvailable
         && viewerNodeId.length > 0
+        && !viewerRunRequired
         && (viewerPhase === "closed" || viewerPhase === "invalidated" || viewerPhase === "error")
     readonly property bool viewerCanClose: viewerBridgeAvailable
         && viewerNodeId.length > 0
-        && !viewerCanOpen
-        && viewerPhase !== "closed"
-        && viewerPhase !== "invalidated"
+        && viewerSessionOpen
     readonly property bool viewerCanControlPlayback: viewerBridgeAvailable && viewerSessionOpen
     readonly property bool viewerPlaying: viewerPlaybackState === "playing"
     readonly property string sessionButtonText: viewerPhase === "opening"
         ? "Opening"
         : (viewerPhase === "closing"
             ? "Closing"
-            : (viewerCanOpen ? "Open" : "Close"))
+            : (viewerRunRequired ? "Blocked" : (viewerCanOpen ? "Open" : "Close")))
     readonly property string playbackButtonText: viewerPlaying ? "Pause" : "Play"
     readonly property string viewerStatusLabel: {
         if (!surface.viewerBridgeAvailable)
@@ -111,17 +158,41 @@ Item {
             return "Opening viewer session";
         if (surface.viewerPhase === "closing")
             return "Closing viewer session";
+        if (surface.viewerRunRequired)
+            return "Rerun required before live open";
         if (surface.viewerPhase === "invalidated")
             return "Viewer session invalidated";
         if (surface.viewerPhase === "error")
             return surface.viewerLastError.length > 0 ? surface.viewerLastError : "Viewer session failed";
-        if (surface.viewerSessionOpen && surface.viewerLiveMode === "full")
+        if (
+            surface.viewerSessionOpen
+            && surface.viewerLiveMode === "full"
+            && surface.viewerLiveOpenStatus === "ready"
+        ) {
             return "Live overlay active";
+        }
         if (surface.viewerSessionOpen)
             return "Proxy viewer ready";
         return "Ready to open viewer session";
     }
     readonly property string viewerHintText: {
+        if (surface.viewerRunRequired) {
+            var blockerReason = String(surface.viewerLiveOpenBlocker.reason || "");
+            var transportReleaseDetail = "";
+            if (surface.viewerTransportReleaseReason === "project_reload")
+                transportReleaseDetail = "Project reload cleared the live transport.";
+            else if (surface.viewerTransportReleaseReason === "workspace_rerun")
+                transportReleaseDetail = "The last workspace run replaced the live transport.";
+            else if (surface.viewerTransportReleaseReason === "worker_reset")
+                transportReleaseDetail = "The execution worker reset cleared the live transport.";
+            if (blockerReason.length > 0 && transportReleaseDetail.length > 0)
+                return blockerReason + " " + transportReleaseDetail;
+            if (blockerReason.length > 0)
+                return blockerReason;
+            if (transportReleaseDetail.length > 0)
+                return transportReleaseDetail;
+            return "The saved viewer summary is available, but rerun is required before the live viewer can reopen.";
+        }
         if (surface.viewerPhase === "invalidated") {
             if (surface.viewerInvalidatedReason.length > 0)
                 return "Invalidated: " + surface.viewerInvalidatedReason;
@@ -147,19 +218,31 @@ Item {
             return "Opening";
         if (surface.viewerPhase === "closing")
             return "Closing";
-        if (surface.viewerSessionOpen && surface.viewerLiveMode === "full")
+        if (surface.viewerRunRequired)
+            return "Blocked";
+        if (
+            surface.viewerSessionOpen
+            && surface.viewerLiveMode === "full"
+            && surface.viewerLiveOpenStatus === "ready"
+        ) {
             return "Live";
+        }
         if (surface.proxySurfaceActive)
             return "Proxy";
         return "Overlay";
     }
     readonly property color viewerAccentColor: {
-        if (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated")
+        if (surface.viewerRunRequired || surface.viewerPhase === "error" || surface.viewerPhase === "invalidated")
             return "#D94F4F";
         if (surface.viewerPhase === "opening" || surface.viewerPhase === "closing")
             return "#D98B4B";
-        if (surface.viewerSessionOpen && surface.viewerLiveMode === "full")
+        if (
+            surface.viewerSessionOpen
+            && surface.viewerLiveMode === "full"
+            && surface.viewerLiveOpenStatus === "ready"
+        ) {
             return "#67D487";
+        }
         return "#5DA9FF";
     }
     readonly property bool proxySurfaceActive: {
@@ -167,8 +250,12 @@ Item {
             return false;
         if (surface.viewerPhase === "opening" || surface.viewerPhase === "closing")
             return true;
-        if (surface.viewerSessionOpen)
-            return surface.viewerLiveMode !== "full";
+        if (surface.viewerRunRequired)
+            return true;
+        if (surface.viewerSessionOpen) {
+            return surface.viewerLiveMode !== "full"
+                || surface.viewerLiveOpenStatus.length > 0 && surface.viewerLiveOpenStatus !== "ready";
+        }
         if (surface.viewerPhase === "invalidated" || surface.viewerPhase === "error")
             return true;
         return surface.proxySurfaceRequested;
@@ -176,13 +263,11 @@ Item {
     readonly property bool liveSurfaceActive: {
         if (!surface.liveSurfaceSupported)
             return false;
-        if (surface.viewerSessionOpen)
-            return surface.viewerLiveMode === "full";
-        if (surface.viewerPhase === "opening" || surface.viewerPhase === "closing")
-            return false;
-        return !surface.proxySurfaceActive;
+        return surface.viewerSessionOpen
+            && surface.viewerLiveMode === "full"
+            && surface.viewerLiveOpenStatus === "ready";
     }
-    readonly property bool viewerShowsPlaceholder: !surface.viewerSessionOpen
+    readonly property bool viewerShowsPlaceholder: !surface.viewerSessionOpen || surface.viewerRunRequired
     readonly property string viewerSessionIconName: {
         if (surface.viewerPhase === "opening")
             return "run";
@@ -192,8 +277,14 @@ Item {
     }
     readonly property string viewerPlayPauseIconName: surface.viewerPlaying ? "pause" : "run"
     readonly property string viewerPlaceholderIconName: {
-        if (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated" || surface.viewerPhase === "closing")
+        if (
+            surface.viewerRunRequired
+            || surface.viewerPhase === "error"
+            || surface.viewerPhase === "invalidated"
+            || surface.viewerPhase === "closing"
+        ) {
             return "stop";
+        }
         if (surface.viewerPhase === "opening")
             return "run";
         return surface.proxySurfaceActive ? "focus" : "run";
@@ -229,7 +320,14 @@ Item {
         "keep_live": viewerKeepLive,
         "cache_state": viewerCacheState,
         "live_mode": viewerLiveMode,
-        "last_error": viewerLastError
+        "last_error": viewerLastError,
+        "backend_id": viewerBackendId,
+        "transport": viewerTransport,
+        "transport_kind": viewerTransportKind,
+        "transport_revision": viewerTransportRevision,
+        "live_open_status": viewerLiveOpenStatus,
+        "live_open_blocker": viewerLiveOpenBlocker,
+        "run_required": viewerRunRequired
     })
     readonly property var viewerSurfaceContract: ({
         "body_rect": _rectPayload(surfaceBodyRect),
@@ -322,16 +420,20 @@ Item {
 
     function _buildFooterMetaModel() {
         var items = [];
-        if (surface.viewerSessionOpen) {
+        if (surface.viewerSessionOpen || surface.viewerRunRequired) {
             _appendFooterMeta(items, "graphNodeViewerResultMeta", "Result", surface.viewerResultLabel);
             _appendFooterMeta(items, "graphNodeViewerSelectionMeta", "Selection", surface.viewerSetLabel);
             _appendFooterMeta(items, "graphNodeViewerStepMeta", "Step", String(surface.viewerStepIndex));
         }
+        if (surface.viewerRunRequired)
+            _appendFooterMeta(items, "graphNodeViewerStatusMeta", "Status", "Rerun required");
         return items;
     }
 
     function requestSessionToggle() {
         if (!viewerBridgeAvailable || !viewerNodeId.length || viewerSessionBusy)
+            return false;
+        if (viewerRunRequired)
             return false;
         if (viewerCanOpen) {
             if (!viewerSessionBridgeRef.open)
@@ -437,6 +539,7 @@ Item {
                         enabled: surface.viewerBridgeAvailable
                             && surface.viewerNodeId.length > 0
                             && !surface.viewerSessionBusy
+                            && !surface.viewerRunRequired
                         accentColor: surface.viewerCanOpen ? "#67D487" : "#D98B4B"
                         foregroundColor: surface.viewerCanOpen ? "#80E89A" : (host ? host.headerTextColor : "#eef3ff")
                         baseFillColor: surface.viewerCanOpen
@@ -841,18 +944,34 @@ Item {
                             width: parent.width
                             text: surface.viewerPhase === "error"
                                 ? surface.viewerStatusLabel
-                                : (surface.viewerPhase === "invalidated"
+                                : (surface.viewerRunRequired || surface.viewerPhase === "invalidated"
                                     ? surface.viewerStatusLabel
                                     : "Open session to view")
-                            color: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated")
+                            color: (
+                                surface.viewerRunRequired
+                                || surface.viewerPhase === "error"
+                                || surface.viewerPhase === "invalidated"
+                            )
                                 ? (host ? host.inlineInputTextColor : "#eef3ff")
                                 : (host ? Qt.alpha(host.inlineDrivenTextColor, 0.5) : "#4a5578")
-                            font.pixelSize: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated") ? 11 : 10
+                            font.pixelSize: (
+                                surface.viewerRunRequired
+                                || surface.viewerPhase === "error"
+                                || surface.viewerPhase === "invalidated"
+                            ) ? 11 : 10
                             font.weight: Font.DemiBold
-                            font.capitalization: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated")
+                            font.capitalization: (
+                                surface.viewerRunRequired
+                                || surface.viewerPhase === "error"
+                                || surface.viewerPhase === "invalidated"
+                            )
                                 ? Font.MixedCase
                                 : Font.AllUppercase
-                            font.letterSpacing: (surface.viewerPhase === "error" || surface.viewerPhase === "invalidated") ? 0 : 0.5
+                            font.letterSpacing: (
+                                surface.viewerRunRequired
+                                || surface.viewerPhase === "error"
+                                || surface.viewerPhase === "invalidated"
+                            ) ? 0 : 0.5
                             horizontalAlignment: Text.AlignHCenter
                             wrapMode: Text.WordWrap
                             renderType: host ? host.nodeTextRenderType : Text.CurveRendering
@@ -861,7 +980,8 @@ Item {
                         Text {
                             objectName: "graphNodeViewerSurfaceHint"
                             width: parent.width
-                            visible: surface.viewerPhase === "error"
+                            visible: surface.viewerRunRequired
+                                || surface.viewerPhase === "error"
                                 || surface.viewerPhase === "invalidated"
                             text: surface.viewerHintText
                             color: host ? host.inlineDrivenTextColor : "#bdc5d3"

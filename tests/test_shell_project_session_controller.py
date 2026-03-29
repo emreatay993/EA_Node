@@ -7,11 +7,13 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 from PyQt6.QtCore import QEvent, QUrl
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.persistence.artifact_refs import (
     format_managed_artifact_ref,
@@ -24,6 +26,87 @@ from tests.main_window_shell.base import MainWindowShellTestBase
 
 _SCENARIO_ARG = "--scenario"
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _ViewerExecutionClientStub:
+    def __init__(self) -> None:
+        self.open_calls: list[dict[str, Any]] = []
+        self._request_counter = 0
+
+    def _next_request_id(self) -> str:
+        self._request_counter += 1
+        return f"viewer_open_{self._request_counter}"
+
+    def open_viewer_session(
+        self,
+        *,
+        workspace_id: str,
+        node_id: str,
+        session_id: str = "",
+        backend_id: str = "",
+        data_refs: dict[str, Any] | None = None,
+        camera_state: dict[str, Any] | None = None,
+        playback_state: dict[str, Any] | None = None,
+        summary: dict[str, Any] | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> str:
+        request_id = self._next_request_id()
+        self.open_calls.append(
+            {
+                "request_id": request_id,
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "session_id": session_id,
+                "backend_id": backend_id,
+                "data_refs": dict(data_refs or {}),
+                "camera_state": dict(camera_state or {}),
+                "playback_state": dict(playback_state or {}),
+                "summary": dict(summary or {}),
+                "options": dict(options or {}),
+            }
+        )
+        return request_id
+
+    def shutdown(self) -> None:
+        return None
+
+
+def _viewer_opened_event(
+    *,
+    request_id: str,
+    workspace_id: str,
+    node_id: str,
+    session_id: str,
+    **overrides: Any,
+) -> dict[str, Any]:
+    summary = {
+        "cache_state": "live_ready",
+        "result_name": "Displacement",
+        "set_label": "Set 4",
+    }
+    summary.update(dict(overrides.pop("summary", {})))
+    options = {
+        "session_state": "open",
+        "cache_state": summary["cache_state"],
+        "live_policy": "focus_only",
+        "keep_live": False,
+        "playback_state": "paused",
+        "step_index": 4,
+        "live_mode": "full",
+    }
+    options.update(dict(overrides.pop("options", {})))
+    payload = {
+        "type": "viewer_session_opened",
+        "request_id": request_id,
+        "workspace_id": workspace_id,
+        "node_id": node_id,
+        "session_id": session_id,
+        "data_refs": dict(overrides.pop("data_refs", {})),
+        "summary": summary,
+        "options": options,
+    }
+    payload.update(overrides)
+    return payload
 
 
 def _run_named_scenario(name: str) -> int:
@@ -129,6 +212,69 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             return
         autosave_doc = json.loads(self._autosave_path.read_text(encoding="utf-8"))
         self.assertEqual(autosave_doc, window.serializer.to_document(window.model.project))
+
+    def test_saved_project_reopen_seeds_run_required_viewer_projection_without_persisting_live_transport(self) -> None:
+        self.window.execution_client = _ViewerExecutionClientStub()
+        bridge = self.window.viewer_session_bridge
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=80.0, y=60.0)
+        session_id = bridge.open(
+            node_id,
+            {
+                "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "camera_state": {"zoom": 1.5},
+                "playback_state": {"state": "paused", "step_index": 4},
+                "summary": {
+                    "result_name": "Displacement",
+                    "set_label": "Set 4",
+                },
+                "options": {"live_mode": "full"},
+            },
+        )
+        open_call = self.window.execution_client.open_calls[-1]
+        bundle_path = Path(self._temp_dir.name) / "viewer_bundle" / "bundle.vtp"
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=session_id,
+                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                transport_revision=9,
+                live_open_status="ready",
+                transport={
+                    "kind": "bundle",
+                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "bundle_path": str(bundle_path),
+                },
+                camera_state={"zoom": 1.5},
+                data_refs={"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+            )
+        )
+        self.app.processEvents()
+
+        project_path = Path(self._temp_dir.name) / "projects" / "viewer_projection_restore.sfe"
+        project_path.parent.mkdir(parents=True, exist_ok=True)
+        self.window.serializer.save_document(str(project_path), self.window.serializer.to_document(self.window.model.project))
+        saved_text = project_path.read_text(encoding="utf-8")
+        self.assertNotIn(str(bundle_path), saved_text)
+        self.assertNotIn("bundle_path", saved_text)
+        self.assertTrue(self.window._open_project_path(str(project_path)))
+        self.app.processEvents()
+
+        reopened_state = bridge.session_state(node_id)
+        self.assertEqual(reopened_state["phase"], "blocked")
+        self.assertEqual(reopened_state["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(reopened_state["transport_revision"], 9)
+        self.assertEqual(reopened_state["live_open_status"], "blocked")
+        self.assertTrue(reopened_state["live_open_blocker"]["rerun_required"])
+        self.assertEqual(reopened_state["summary"]["live_transport_release_reason"], "project_reload")
+        self.assertEqual(
+            reopened_state["transport"],
+            {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID},
+        )
+        self.assertEqual(reopened_state["data_refs"], {})
 
     def test_session_restore_recovers_workspace_order_active_workspace_and_view_camera(self) -> None:
         first_workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -713,6 +859,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_autosave_tick_writes_snapshot_and_keeps_valid_project_doc(self) -> None:
         self._run_scenario("test_autosave_tick_writes_snapshot_and_keeps_valid_project_doc")
+
+    def test_saved_project_reopen_seeds_run_required_viewer_projection_without_persisting_live_transport(self) -> None:
+        self._run_scenario("test_saved_project_reopen_seeds_run_required_viewer_projection_without_persisting_live_transport")
 
     def test_session_restore_recovers_unsaved_temp_staged_refs_without_autosave(self) -> None:
         self._run_scenario("test_session_restore_recovers_unsaved_temp_staged_refs_without_autosave")

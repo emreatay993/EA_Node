@@ -63,7 +63,10 @@ class _ViewerExecutionClientStub:
         workspace_id: str,
         node_id: str,
         session_id: str = "",
+        backend_id: str = "",
         data_refs: dict | None = None,
+        camera_state: dict | None = None,
+        playback_state: dict | None = None,
         summary: dict | None = None,
         options: dict | None = None,
     ) -> str:
@@ -74,7 +77,10 @@ class _ViewerExecutionClientStub:
                 "workspace_id": workspace_id,
                 "node_id": node_id,
                 "session_id": session_id,
+                "backend_id": backend_id,
                 "data_refs": dict(data_refs or {}),
+                "camera_state": dict(camera_state or {}),
+                "playback_state": dict(playback_state or {}),
                 "summary": dict(summary or {}),
                 "options": dict(options or {}),
             }
@@ -87,7 +93,9 @@ class _ViewerExecutionClientStub:
         workspace_id: str,
         node_id: str,
         session_id: str,
-        data_refs: dict | None = None,
+        backend_id: str = "",
+        camera_state: dict | None = None,
+        playback_state: dict | None = None,
         summary: dict | None = None,
         options: dict | None = None,
     ) -> str:
@@ -98,7 +106,9 @@ class _ViewerExecutionClientStub:
                 "workspace_id": workspace_id,
                 "node_id": node_id,
                 "session_id": session_id,
-                "data_refs": dict(data_refs or {}),
+                "backend_id": backend_id,
+                "camera_state": dict(camera_state or {}),
+                "playback_state": dict(playback_state or {}),
                 "summary": dict(summary or {}),
                 "options": dict(options or {}),
             }
@@ -129,8 +139,15 @@ class _ViewerExecutionClientStub:
         return None
 
 
-def _viewer_opened_event(*, request_id: str, workspace_id: str, node_id: str, session_id: str) -> dict:
-    return {
+def _viewer_opened_event(
+    *,
+    request_id: str,
+    workspace_id: str,
+    node_id: str,
+    session_id: str,
+    **overrides,
+) -> dict:
+    payload = {
         "type": "viewer_session_opened",
         "request_id": request_id,
         "workspace_id": workspace_id,
@@ -150,6 +167,8 @@ def _viewer_opened_event(*, request_id: str, workspace_id: str, node_id: str, se
             "live_mode": "proxy",
         },
     }
+    payload.update(overrides)
+    return payload
 
 
 class ShellRunControllerTests(MainWindowShellTestBase):
@@ -164,7 +183,13 @@ class ShellRunControllerTests(MainWindowShellTestBase):
 
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=40.0)
-        session_id = bridge.open(node_id, {"summary": {"result_name": "displacement"}})
+        session_id = bridge.open(
+            node_id,
+            {
+                "data_refs": {"fields": "fields_ref"},
+                "summary": {"result_name": "displacement"},
+            },
+        )
         open_call = execution_client.open_calls[-1]
         self.window.execution_event.emit(
             _viewer_opened_event(
@@ -180,8 +205,9 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.app.processEvents()
 
         state = bridge.session_state(node_id)
-        self.assertEqual(state["phase"], "invalidated")
-        self.assertEqual(state["invalidated_reason"], "workspace_rerun")
+        self.assertEqual(state["phase"], "blocked")
+        self.assertEqual(state["live_open_status"], "blocked")
+        self.assertTrue(state["live_open_blocker"]["rerun_required"])
         self.assertEqual(state["summary"]["run_id"], "run_live")
         self.assertEqual(self.window.run_state.active_run_id, "run_live")
         self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
@@ -193,7 +219,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         bridge = self.window.viewer_session_bridge
         workspace_id = self.window.workspace_manager.active_workspace_id()
         node_id = self.window.scene.add_node_from_type("core.logger", x=160.0, y=80.0)
-        session_id = bridge.open(node_id)
+        session_id = bridge.open(node_id, {"data_refs": {"fields": "fields_ref"}})
         open_call = execution_client.open_calls[-1]
         self.window.execution_event.emit(
             _viewer_opened_event(
@@ -223,8 +249,10 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.app.processEvents()
 
         state = bridge.session_state(node_id)
-        self.assertEqual(state["phase"], "invalidated")
-        self.assertEqual(state["invalidated_reason"], "worker_reset")
+        self.assertEqual(state["phase"], "blocked")
+        self.assertEqual(state["live_open_status"], "blocked")
+        self.assertTrue(state["live_open_blocker"]["rerun_required"])
+        self.assertEqual(state["summary"]["live_transport_release_reason"], "worker_reset")
         self.assertEqual(self.window.run_state.active_run_id, "")
         critical.assert_called_once()
 

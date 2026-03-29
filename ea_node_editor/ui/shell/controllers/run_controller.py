@@ -207,6 +207,14 @@ class RunController:
         viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
         if viewer_session_bridge is None:
             return
+        project_workspace_run_required = getattr(viewer_session_bridge, "project_workspace_run_required", None)
+        if callable(project_workspace_run_required):
+            project_workspace_run_required(
+                workspace_id,
+                reason="workspace_rerun",
+                run_id=run_id,
+            )
+            return
         invalidate_workspace_sessions = getattr(viewer_session_bridge, "invalidate_workspace_sessions", None)
         if not callable(invalidate_workspace_sessions):
             return
@@ -219,6 +227,10 @@ class RunController:
     def _invalidate_viewer_sessions_for_worker_reset(self) -> None:
         viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
         if viewer_session_bridge is None:
+            return
+        project_all_run_required = getattr(viewer_session_bridge, "project_all_run_required", None)
+        if callable(project_all_run_required):
+            project_all_run_required(reason="worker_reset")
             return
         invalidate_all_sessions = getattr(viewer_session_bridge, "invalidate_all_sessions", None)
         if not callable(invalidate_all_sessions):

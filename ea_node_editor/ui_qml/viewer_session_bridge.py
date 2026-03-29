@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
+
 if TYPE_CHECKING:
+    from ea_node_editor.graph.model import ProjectData
+    from ea_node_editor.nodes.registry import NodeRegistry
     from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
@@ -16,10 +22,24 @@ _LIVE_MODE_PROXY = "proxy"
 _LIVE_POLICY_FOCUS_ONLY = "focus_only"
 _LIVE_POLICY_KEEP_LIVE = "keep_live"
 _OPEN_SESSION_PHASES = frozenset({"open", "opening"})
+_VIEWER_EVENT_TYPES = frozenset(
+    {
+        "viewer_session_opened",
+        "viewer_session_updated",
+        "viewer_data_materialized",
+        "viewer_session_closed",
+        "viewer_session_failed",
+    }
+)
+_RUN_REQUIRED_BLOCKER = {
+    "code": "rerun_required",
+    "reason": "Live viewer transport is unavailable and requires rerun.",
+    "rerun_required": True,
+}
 
 
 @dataclass(slots=True)
-class _ViewerSessionState:
+class _ViewerSessionProjection:
     workspace_id: str
     node_id: str
     session_id: str
@@ -29,13 +49,18 @@ class _ViewerSessionState:
     last_error: str = ""
     playback_state: str = "paused"
     step_index: int = 0
-    live_policy: str = "focus_only"
+    live_policy: str = _LIVE_POLICY_FOCUS_ONLY
     keep_live: bool = False
     cache_state: str = "empty"
     invalidated_reason: str = ""
-    demoted_reason: str = ""
     close_reason: str = ""
+    backend_id: str = ""
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
     data_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
     pending_summary: dict[str, Any] = field(default_factory=dict)
@@ -45,19 +70,46 @@ class _ViewerSessionState:
     def payload(self) -> dict[str, Any]:
         summary = copy.deepcopy(self.summary)
         summary.update(copy.deepcopy(self.pending_summary))
-        if self.demoted_reason:
-            summary.setdefault("demoted_reason", self.demoted_reason)
         options = copy.deepcopy(self.options)
         options.update(copy.deepcopy(self.pending_options))
         live_policy = _normalize_live_policy(options.get("live_policy", self.live_policy))
         keep_live = bool(options.get("keep_live", self.keep_live))
-        playback_state = str(options.get("playback_state", self.playback_state)).strip() or "paused"
+        playback_state = _string(options.get("playback_state", self.playback_state)) or "paused"
         step_index = _coerce_step_index(options.get("step_index"), default=self.step_index)
+        live_mode = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_PROXY))
+
+        summary["cache_state"] = self.cache_state
+        if self.backend_id:
+            summary["backend_id"] = self.backend_id
+        if self.transport_revision > 0:
+            summary["transport_revision"] = int(self.transport_revision)
+        if self.live_open_status:
+            summary["live_open_status"] = self.live_open_status
+        if self.live_open_blocker:
+            summary["live_open_blocker"] = copy.deepcopy(self.live_open_blocker)
+        if self.invalidated_reason:
+            summary["invalidated_reason"] = self.invalidated_reason
+        if self.close_reason:
+            summary["close_reason"] = self.close_reason
+        if self.camera_state:
+            summary.setdefault("camera_state", copy.deepcopy(self.camera_state))
+            summary.setdefault("camera", copy.deepcopy(self.camera_state))
+
         options["live_policy"] = live_policy
         options["keep_live"] = keep_live
         options["playback_state"] = playback_state
         options["step_index"] = step_index
-        options["live_mode"] = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_PROXY))
+        options["live_mode"] = live_mode
+        options["cache_state"] = self.cache_state
+        if self.backend_id:
+            options["backend_id"] = self.backend_id
+        if self.transport_revision > 0:
+            options["transport_revision"] = int(self.transport_revision)
+        if self.live_open_status:
+            options["live_open_status"] = self.live_open_status
+        if self.live_open_blocker:
+            options["live_open_blocker"] = copy.deepcopy(self.live_open_blocker)
+
         return {
             "workspace_id": self.workspace_id,
             "node_id": self.node_id,
@@ -73,27 +125,37 @@ class _ViewerSessionState:
             "cache_state": self.cache_state,
             "invalidated_reason": self.invalidated_reason,
             "close_reason": self.close_reason,
+            "backend_id": self.backend_id,
+            "transport_revision": int(self.transport_revision),
+            "live_open_status": self.live_open_status,
+            "live_open_blocker": copy.deepcopy(self.live_open_blocker),
             "data_refs": copy.deepcopy(self.data_refs),
+            "transport": copy.deepcopy(self.transport),
+            "camera_state": copy.deepcopy(self.camera_state),
             "summary": summary,
             "options": options,
         }
 
 
 def _copy_mapping(value: Any) -> dict[str, Any]:
-    if not isinstance(value, dict):
+    if not isinstance(value, Mapping):
         return {}
     return {str(key): copy.deepcopy(item) for key, item in value.items()}
 
 
+def _string(value: Any) -> str:
+    return str(value or "").strip()
+
+
 def _normalize_live_policy(value: Any) -> str:
-    normalized = str(value or _LIVE_POLICY_FOCUS_ONLY).strip().lower()
+    normalized = _string(value).lower() or _LIVE_POLICY_FOCUS_ONLY
     if normalized not in {_LIVE_POLICY_FOCUS_ONLY, _LIVE_POLICY_KEEP_LIVE}:
         return _LIVE_POLICY_FOCUS_ONLY
     return normalized
 
 
 def _normalize_live_mode(value: Any) -> str:
-    normalized = str(value or _LIVE_MODE_PROXY).strip().lower()
+    normalized = _string(value).lower() or _LIVE_MODE_PROXY
     if normalized not in {_LIVE_MODE_PROXY, _LIVE_MODE_FULL}:
         return _LIVE_MODE_PROXY
     return normalized
@@ -104,6 +166,36 @@ def _coerce_step_index(value: Any, *, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _normalize_playback_payload(
+    value: Any,
+    *,
+    fallback_state: str = "paused",
+    fallback_step_index: int = 0,
+) -> dict[str, Any]:
+    payload = _copy_mapping(value)
+    state = _string(payload.get("state") or payload.get("playback_state")) or fallback_state
+    step_index = _coerce_step_index(
+        payload.get("step_index", payload.get("frame_index")),
+        default=fallback_step_index,
+    )
+    return {
+        "state": state,
+        "step_index": step_index,
+    }
+
+
+def _projection_safe_transport(value: Any) -> dict[str, Any]:
+    transport = _copy_mapping(value)
+    projection: dict[str, Any] = {}
+    kind = _string(transport.get("kind"))
+    if kind:
+        projection["kind"] = kind
+    backend_id = _string(transport.get("backend_id"))
+    if backend_id:
+        projection["backend_id"] = backend_id
+    return projection
 
 
 class ViewerSessionBridge(QObject):
@@ -121,8 +213,8 @@ class ViewerSessionBridge(QObject):
         super().__init__(parent)
         self._shell_window = shell_window
         self._scene_bridge = scene_bridge
-        self._sessions: dict[tuple[str, str], _ViewerSessionState] = {}
-        self._workspace_edge_topologies: dict[str, tuple[tuple[str, str, str, str], ...] | None] = {}
+        self._sessions: dict[tuple[str, str], _ViewerSessionProjection] = {}
+        self._pending_reset_seed: dict[tuple[str, str], _ViewerSessionProjection] | None = None
         self._last_error = ""
         self._policy_sync_in_progress = False
 
@@ -135,17 +227,6 @@ class ViewerSessionBridge(QObject):
             scene_bridge.selection_changed.connect(self._on_selection_changed)
             scene_bridge.nodes_changed.connect(self._on_nodes_changed)
             scene_bridge.edges_changed.connect(self._on_edges_changed)
-            workspace_id = self._current_workspace_id()
-            if workspace_id:
-                self._workspace_edge_topologies[workspace_id] = self._workspace_edge_topology(workspace_id)
-
-    @property
-    def shell_window(self) -> "ShellWindow | None":
-        return self._shell_window
-
-    @property
-    def scene_bridge(self) -> "GraphSceneBridge | None":
-        return self._scene_bridge
 
     @pyqtProperty(str, notify=active_workspace_changed)
     def active_workspace_id(self) -> str:
@@ -175,7 +256,7 @@ class ViewerSessionBridge(QObject):
     @pyqtSlot(str, "QVariantMap", result="QVariantMap")
     def session_state(self, node_id: str, payload: Any = None) -> dict[str, Any]:
         workspace_id = self._workspace_id_from_payload(payload)
-        normalized_node_id = str(node_id).strip()
+        normalized_node_id = _string(node_id)
         if not workspace_id or not normalized_node_id:
             return {}
         state = self._sessions.get((workspace_id, normalized_node_id))
@@ -185,30 +266,36 @@ class ViewerSessionBridge(QObject):
     @pyqtSlot(str, "QVariantMap", result=str)
     def open(self, node_id: str, payload: Any = None) -> str:
         workspace_id = self._workspace_id_from_payload(payload)
-        normalized_node_id = str(node_id).strip()
+        normalized_node_id = _string(node_id)
         if not workspace_id or not normalized_node_id:
             return ""
 
-        state = self._ensure_session_state(workspace_id, normalized_node_id)
         payload_map = _copy_mapping(payload)
         data_refs = _copy_mapping(payload_map.get("data_refs"))
+        if not data_refs:
+            return ""
+
+        state = self._ensure_session_state(workspace_id, normalized_node_id)
         summary = _copy_mapping(payload_map.get("summary"))
         option_updates = _copy_mapping(payload_map.get("options"))
+        backend_id = self._resolve_backend_id(state, payload_map)
+        camera_state = _copy_mapping(payload_map.get("camera_state"))
+        playback = _normalize_playback_payload(
+            payload_map.get("playback_state") or option_updates,
+            fallback_state=state.playback_state,
+            fallback_step_index=state.step_index,
+        )
 
         state.phase = "opening"
         state.invalidated_reason = ""
-        state.demoted_reason = ""
         state.close_reason = ""
         state.last_error = ""
         state.last_command = "open"
         self._clear_pending_projection(state)
-        state.summary.pop("invalidated_reason", None)
-        state.summary.pop("demoted_reason", None)
-        state.summary.pop("close_reason", None)
-        if data_refs:
-            state.data_refs = copy.deepcopy(data_refs)
 
         request_options = self._request_options(state, option_updates)
+        request_options["playback_state"] = playback["state"]
+        request_options["step_index"] = playback["step_index"]
         request_options["live_mode"] = self._desired_live_mode_map(workspace_id).get(
             (workspace_id, normalized_node_id),
             _LIVE_MODE_PROXY,
@@ -218,22 +305,28 @@ class ViewerSessionBridge(QObject):
             workspace_id=workspace_id,
             node_id=normalized_node_id,
             session_id=state.session_id,
+            backend_id=backend_id,
             data_refs=data_refs,
             summary=summary,
+            camera_state=camera_state,
+            playback_state=playback,
             options=request_options,
         )
         if not request_id:
             state.phase = "error"
-            state.last_command = "open"
             self.sessions_changed.emit()
             return ""
 
         state.request_id = request_id
+        state.backend_id = backend_id or state.backend_id
         self._merge_pending_projection(
             state,
             summary=summary,
             options=request_options,
         )
+        state.camera_state = camera_state or state.camera_state
+        state.playback_state = playback["state"]
+        state.step_index = playback["step_index"]
         self.sessions_changed.emit()
         return state.session_id
 
@@ -248,13 +341,12 @@ class ViewerSessionBridge(QObject):
         option_updates = _copy_mapping(payload_map.get("options"))
         if "reason" not in option_updates:
             option_updates["reason"] = "user_close"
-        request_options = self._request_options(state, option_updates)
         request_id = self._send_execution_command(
             "close_viewer_session",
             workspace_id=state.workspace_id,
             node_id=state.node_id,
             session_id=state.session_id,
-            options=request_options,
+            options=option_updates,
         )
         if not request_id:
             state.phase = "error"
@@ -265,7 +357,7 @@ class ViewerSessionBridge(QObject):
         state.request_id = request_id
         state.last_command = "close"
         state.phase = "closing"
-        state.close_reason = str(option_updates.get("reason", "")).strip()
+        state.close_reason = _string(option_updates.get("reason"))
         self.sessions_changed.emit()
         self._sync_live_policy(state.workspace_id)
         return True
@@ -310,12 +402,11 @@ class ViewerSessionBridge(QObject):
     @pyqtSlot(str, str, result=bool)
     @pyqtSlot(str, str, "QVariantMap", result=bool)
     def set_live_policy(self, node_id: str, live_policy: str, payload: Any = None) -> bool:
-        normalized_policy = str(live_policy).strip() or "focus_only"
         return self._update_session_command(
             node_id,
             payload,
             command_name="set_live_policy",
-            option_updates={"live_policy": normalized_policy},
+            option_updates={"live_policy": str(live_policy or "").strip() or _LIVE_POLICY_FOCUS_ONLY},
         )
 
     @pyqtSlot(str, bool, result=bool)
@@ -328,6 +419,46 @@ class ViewerSessionBridge(QObject):
             option_updates={"keep_live": bool(keep_live)},
         )
 
+    def project_loaded(
+        self,
+        project: "ProjectData | None",
+        registry: "NodeRegistry | None",
+        *,
+        reseed_on_next_reset: bool = False,
+    ) -> None:
+        next_sessions = self._build_project_projection(project, registry)
+        self._sessions = next_sessions
+        self._pending_reset_seed = copy.deepcopy(next_sessions) if reseed_on_next_reset else None
+        self.sessions_changed.emit()
+
+    def project_workspace_run_required(
+        self,
+        workspace_id: str,
+        *,
+        reason: str,
+        run_id: str = "",
+    ) -> None:
+        normalized_workspace_id = _string(workspace_id)
+        normalized_reason = _string(reason)
+        if not normalized_workspace_id or not normalized_reason:
+            return
+        changed = False
+        for state in self._sessions.values():
+            if state.workspace_id != normalized_workspace_id:
+                continue
+            self._project_run_required_state(state, reason=normalized_reason, run_id=run_id)
+            changed = True
+        if changed:
+            self.sessions_changed.emit()
+
+    def project_all_run_required(self, *, reason: str) -> None:
+        normalized_reason = _string(reason)
+        if not normalized_reason or not self._sessions:
+            return
+        for state in self._sessions.values():
+            self._project_run_required_state(state, reason=normalized_reason)
+        self.sessions_changed.emit()
+
     def invalidate_workspace_sessions(
         self,
         workspace_id: str,
@@ -335,44 +466,149 @@ class ViewerSessionBridge(QObject):
         reason: str,
         run_id: str = "",
     ) -> None:
-        normalized_workspace_id = str(workspace_id).strip()
-        normalized_reason = str(reason).strip()
-        if not normalized_workspace_id or not normalized_reason:
-            return
-        changed = False
-        for state in self._sessions.values():
-            if state.workspace_id != normalized_workspace_id:
-                continue
-            self._invalidate_state(state, normalized_reason)
-            if run_id:
-                state.summary["run_id"] = run_id
-            changed = True
-        if changed:
-            self.sessions_changed.emit()
+        self.project_workspace_run_required(workspace_id, reason=reason, run_id=run_id)
 
     def invalidate_all_sessions(self, *, reason: str) -> None:
-        normalized_reason = str(reason).strip()
-        if not normalized_reason or not self._sessions:
-            return
-        for state in self._sessions.values():
-            self._invalidate_state(state, normalized_reason)
-        self.sessions_changed.emit()
+        self.project_all_run_required(reason=reason)
 
     def reset_all_sessions(self, *, reason: str = "") -> None:
         if reason:
             self._set_last_error("")
-        if not self._sessions:
-            return
+        pending_seed = copy.deepcopy(self._pending_reset_seed) if self._pending_reset_seed is not None else None
+        self._pending_reset_seed = None
         self._sessions.clear()
+        if pending_seed is not None and _string(reason) == "project_close":
+            self._sessions = pending_seed
         self.sessions_changed.emit()
 
-    def _active_session(self, node_id: str, payload: Any = None) -> _ViewerSessionState | None:
+    def _build_project_projection(
+        self,
+        project: "ProjectData | None",
+        registry: "NodeRegistry | None",
+    ) -> dict[tuple[str, str], _ViewerSessionProjection]:
+        if project is None:
+            return {}
+        next_sessions: dict[tuple[str, str], _ViewerSessionProjection] = {}
+        previous_sessions = copy.deepcopy(self._sessions)
+        workspaces = getattr(project, "workspaces", {})
+        if not isinstance(workspaces, dict):
+            return {}
+        for workspace_id, workspace in workspaces.items():
+            nodes = getattr(workspace, "nodes", {})
+            if not isinstance(nodes, dict):
+                continue
+            for node_id, node in nodes.items():
+                if not self._is_viewer_node(node, registry):
+                    continue
+                session_key = (str(workspace_id), str(node_id))
+                baseline = previous_sessions.get(session_key)
+                state = baseline or _ViewerSessionProjection(
+                    workspace_id=str(workspace_id),
+                    node_id=str(node_id),
+                    session_id=self._build_session_id(str(workspace_id), str(node_id)),
+                )
+                state.workspace_id = str(workspace_id)
+                state.node_id = str(node_id)
+                state.session_id = self._build_session_id(state.workspace_id, state.node_id)
+                state.request_id = ""
+                state.last_error = ""
+                state.invalidated_reason = ""
+                state.close_reason = ""
+                self._clear_pending_projection(state)
+                if not state.backend_id:
+                    state.backend_id = self._default_backend_id_for_node(node)
+                self._project_run_required_state(
+                    state,
+                    reason="project_reload",
+                    run_id="",
+                )
+                next_sessions[session_key] = state
+        return next_sessions
+
+    @staticmethod
+    def _is_viewer_node(node: Any, registry: "NodeRegistry | None") -> bool:
+        type_id = _string(getattr(node, "type_id", ""))
+        if type_id == DPF_VIEWER_NODE_TYPE_ID:
+            return True
+        if registry is None:
+            return False
+        spec_or_none = getattr(registry, "spec_or_none", None)
+        if not callable(spec_or_none):
+            return False
+        spec = spec_or_none(type_id)
+        if spec is None:
+            return False
+        return _string(getattr(spec, "surface_family", "")) == "viewer"
+
+    @staticmethod
+    def _default_backend_id_for_node(node: Any) -> str:
+        if _string(getattr(node, "type_id", "")) == DPF_VIEWER_NODE_TYPE_ID:
+            return DPF_EXECUTION_VIEWER_BACKEND_ID
+        return ""
+
+    def _project_run_required_state(
+        self,
+        state: _ViewerSessionProjection,
+        *,
+        reason: str,
+        run_id: str = "",
+    ) -> None:
+        blocker = copy.deepcopy(_RUN_REQUIRED_BLOCKER)
+        state.phase = "blocked"
+        state.request_id = ""
+        state.last_command = "run_required"
+        state.last_error = ""
+        state.cache_state = "proxy_ready" if self._has_proxy_projection(state) else "empty"
+        state.data_refs.clear()
+        state.transport = _projection_safe_transport(state.transport)
+        state.live_open_status = "blocked"
+        state.live_open_blocker = blocker
+        state.summary.pop("invalidated_reason", None)
+        state.summary["cache_state"] = state.cache_state
+        state.summary["live_open_status"] = "blocked"
+        state.summary["live_open_blocker"] = copy.deepcopy(blocker)
+        state.summary["rerun_required"] = True
+        if state.backend_id:
+            state.summary["backend_id"] = state.backend_id
+        if state.transport_revision > 0:
+            state.summary["transport_revision"] = int(state.transport_revision)
+        if reason:
+            state.summary["live_transport_release_reason"] = reason
+        if run_id:
+            state.summary["run_id"] = run_id
+        state.options["cache_state"] = state.cache_state
+        state.options["live_mode"] = _LIVE_MODE_PROXY
+        state.options["live_open_status"] = "blocked"
+        state.options["live_open_blocker"] = copy.deepcopy(blocker)
+        state.options["rerun_required"] = True
+        state.options["playback_state"] = state.playback_state
+        state.options["step_index"] = int(state.step_index)
+        state.options["live_policy"] = _normalize_live_policy(state.options.get("live_policy", state.live_policy))
+        state.options["keep_live"] = bool(state.options.get("keep_live", state.keep_live))
+        if state.backend_id:
+            state.options["backend_id"] = state.backend_id
+        if state.transport_revision > 0:
+            state.options["transport_revision"] = int(state.transport_revision)
+
+    @staticmethod
+    def _has_proxy_projection(state: _ViewerSessionProjection) -> bool:
+        return any(
+            (
+                bool(state.summary),
+                bool(state.options),
+                bool(state.camera_state),
+                state.transport_revision > 0,
+                bool(state.backend_id),
+            )
+        )
+
+    def _active_session(self, node_id: str, payload: Any = None) -> _ViewerSessionProjection | None:
         workspace_id = self._workspace_id_from_payload(payload)
-        normalized_node_id = str(node_id).strip()
+        normalized_node_id = _string(node_id)
         if not workspace_id or not normalized_node_id:
             return None
         state = self._sessions.get((workspace_id, normalized_node_id))
-        if state is None or state.phase in {"closed", "invalidated"}:
+        if state is None or state.phase in {"closed", "blocked", "error"}:
             return None
         return state
 
@@ -392,13 +628,22 @@ class ViewerSessionBridge(QObject):
         summary = _copy_mapping(payload_map.get("summary"))
         merged_option_updates = dict(option_updates)
         merged_option_updates.update(_copy_mapping(payload_map.get("options")))
-
+        backend_id = self._resolve_backend_id(state, payload_map)
+        camera_state = _copy_mapping(payload_map.get("camera_state")) or copy.deepcopy(state.camera_state)
+        playback = _normalize_playback_payload(
+            payload_map.get("playback_state") or merged_option_updates,
+            fallback_state=state.playback_state,
+            fallback_step_index=state.step_index,
+        )
         request_options = self._request_options(state, merged_option_updates)
         request_id = self._send_execution_command(
             "update_viewer_session",
             workspace_id=state.workspace_id,
             node_id=state.node_id,
             session_id=state.session_id,
+            backend_id=backend_id,
+            camera_state=camera_state,
+            playback_state=playback,
             summary=summary,
             options=request_options,
         )
@@ -411,6 +656,10 @@ class ViewerSessionBridge(QObject):
         state.phase = "open"
         state.request_id = request_id
         state.last_command = command_name
+        state.backend_id = backend_id or state.backend_id
+        state.camera_state = camera_state
+        state.playback_state = playback["state"]
+        state.step_index = playback["step_index"]
         self._merge_pending_projection(
             state,
             summary=summary,
@@ -420,27 +669,27 @@ class ViewerSessionBridge(QObject):
         self._sync_live_policy(state.workspace_id)
         return True
 
-    def _merge_session_options(self, state: _ViewerSessionState, options: dict[str, Any]) -> None:
-        state.options.update(copy.deepcopy(options))
-        state.live_policy = _normalize_live_policy(state.options.get("live_policy", state.live_policy))
-        state.keep_live = bool(state.options.get("keep_live", state.keep_live))
-        playback_state = str(state.options.get("playback_state", state.playback_state)).strip()
-        state.playback_state = playback_state or "paused"
-        if "step_index" in state.options:
-            try:
-                state.step_index = int(state.options.get("step_index", state.step_index))
-            except (TypeError, ValueError):
-                pass
+    def _resolve_backend_id(self, state: _ViewerSessionProjection, payload_map: Mapping[str, Any]) -> str:
+        payload_backend_id = _string(payload_map.get("backend_id"))
+        if payload_backend_id:
+            return payload_backend_id
+        options = _copy_mapping(payload_map.get("options"))
+        summary = _copy_mapping(payload_map.get("summary"))
+        return (
+            _string(options.get("backend_id"))
+            or _string(summary.get("backend_id"))
+            or state.backend_id
+        )
 
     @staticmethod
-    def _clear_pending_projection(state: _ViewerSessionState) -> None:
+    def _clear_pending_projection(state: _ViewerSessionProjection) -> None:
         state.pending_summary.clear()
         state.pending_options.clear()
         state.pending_materialization = False
 
     @staticmethod
     def _merge_pending_projection(
-        state: _ViewerSessionState,
+        state: _ViewerSessionProjection,
         *,
         summary: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
@@ -454,24 +703,23 @@ class ViewerSessionBridge(QObject):
             state.pending_materialization = pending_materialization
 
     @staticmethod
-    def _effective_options(state: _ViewerSessionState) -> dict[str, Any]:
+    def _effective_options(state: _ViewerSessionProjection) -> dict[str, Any]:
         options = copy.deepcopy(state.options)
         options.update(copy.deepcopy(state.pending_options))
         return options
 
-    def _effective_step_index(self, state: _ViewerSessionState) -> int:
+    def _effective_step_index(self, state: _ViewerSessionProjection) -> int:
         return _coerce_step_index(
             self._effective_options(state).get("step_index"),
             default=state.step_index,
         )
 
-    def _request_options(self, state: _ViewerSessionState, option_updates: dict[str, Any]) -> dict[str, Any]:
+    def _request_options(self, state: _ViewerSessionProjection, option_updates: dict[str, Any]) -> dict[str, Any]:
         options = self._effective_options(state)
         options.update(copy.deepcopy(option_updates))
         options["live_policy"] = _normalize_live_policy(options.get("live_policy", state.live_policy))
         options["keep_live"] = bool(options.get("keep_live", state.keep_live))
-        playback_state = str(options.get("playback_state", state.playback_state)).strip()
-        options["playback_state"] = playback_state or "paused"
+        options["playback_state"] = _string(options.get("playback_state", state.playback_state)) or "paused"
         options["step_index"] = _coerce_step_index(
             options.get("step_index"),
             default=self._effective_step_index(state),
@@ -481,11 +729,11 @@ class ViewerSessionBridge(QObject):
 
     def _materialize_options(
         self,
-        state: _ViewerSessionState,
+        state: _ViewerSessionProjection,
         option_updates: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         options = self._request_options(state, option_updates or {})
-        output_profile = str(options.get("output_profile", "memory")).strip() or "memory"
+        output_profile = _string(options.get("output_profile")) or "memory"
         options["output_profile"] = output_profile
         options["live_mode"] = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_FULL))
         return options
@@ -505,11 +753,11 @@ class ViewerSessionBridge(QObject):
             self._set_last_error(str(exc))
             return ""
         self._set_last_error("")
-        return str(request_id or "")
+        return _string(request_id)
 
     def _send_materialize_command(
         self,
-        state: _ViewerSessionState,
+        state: _ViewerSessionProjection,
         *,
         option_updates: dict[str, Any] | None = None,
     ) -> bool:
@@ -519,6 +767,7 @@ class ViewerSessionBridge(QObject):
             workspace_id=state.workspace_id,
             node_id=state.node_id,
             session_id=state.session_id,
+            backend_id=state.backend_id,
             options=request_options,
         )
         if not request_id:
@@ -534,12 +783,12 @@ class ViewerSessionBridge(QObject):
         )
         return True
 
-    def _ensure_session_state(self, workspace_id: str, node_id: str) -> _ViewerSessionState:
+    def _ensure_session_state(self, workspace_id: str, node_id: str) -> _ViewerSessionProjection:
         session_key = (workspace_id, node_id)
         state = self._sessions.get(session_key)
         if state is not None:
             return state
-        state = _ViewerSessionState(
+        state = _ViewerSessionProjection(
             workspace_id=workspace_id,
             node_id=node_id,
             session_id=self._build_session_id(workspace_id, node_id),
@@ -554,140 +803,146 @@ class ViewerSessionBridge(QObject):
 
     def _workspace_id_from_payload(self, payload: Any) -> str:
         payload_map = _copy_mapping(payload)
-        workspace_id = str(payload_map.get("workspace_id", "")).strip()
+        workspace_id = _string(payload_map.get("workspace_id"))
         if workspace_id:
             return workspace_id
         return self._current_workspace_id()
 
     def _current_workspace_id(self) -> str:
         if self._scene_bridge is not None:
-            workspace_id = str(getattr(self._scene_bridge, "workspace_id", "")).strip()
+            workspace_id = _string(getattr(self._scene_bridge, "workspace_id", ""))
             if workspace_id:
                 return workspace_id
         workspace_manager = getattr(self._shell_window, "workspace_manager", None)
-        if workspace_manager is None:
-            return ""
         active_workspace_id = getattr(workspace_manager, "active_workspace_id", None)
         if not callable(active_workspace_id):
             return ""
         try:
-            return str(active_workspace_id()).strip()
+            return _string(active_workspace_id())
         except Exception:  # noqa: BLE001
             return ""
 
     def _handle_execution_event(self, event: dict[str, Any]) -> None:
-        event_type = str(event.get("type", "")).strip()
-        if event_type not in {
-            "viewer_session_opened",
-            "viewer_session_updated",
-            "viewer_session_closed",
-            "viewer_data_materialized",
-            "viewer_session_failed",
-        }:
+        event_type = _string(event.get("type"))
+        if event_type not in _VIEWER_EVENT_TYPES:
             return
 
-        workspace_id = str(event.get("workspace_id", "")).strip()
-        node_id = str(event.get("node_id", "")).strip()
+        workspace_id = _string(event.get("workspace_id"))
+        node_id = _string(event.get("node_id"))
         if not workspace_id or not node_id:
             return
 
         state = self._ensure_session_state(workspace_id, node_id)
-        state.session_id = str(event.get("session_id", state.session_id)).strip() or state.session_id
-        state.request_id = str(event.get("request_id", state.request_id)).strip()
+        state.session_id = _string(event.get("session_id")) or state.session_id
+        state.request_id = _string(event.get("request_id")) or state.request_id
 
         if event_type == "viewer_session_failed":
             self._clear_pending_projection(state)
             state.phase = "error"
-            state.last_command = str(event.get("command", "")).strip()
-            state.last_error = str(event.get("error", "")).strip()
+            state.last_command = _string(event.get("command"))
+            state.last_error = _string(event.get("error"))
             self._set_last_error(state.last_error)
             self.sessions_changed.emit()
             return
 
         self._set_last_error("")
         self._clear_pending_projection(state)
+        self._apply_authoritative_projection(state, event)
         state.last_error = ""
-        state.data_refs = _copy_mapping(event.get("data_refs", state.data_refs))
-        state.summary = _copy_mapping(event.get("summary", state.summary))
-        state.options = _copy_mapping(event.get("options", state.options))
-        self._merge_session_options(state, {})
-        state.cache_state = str(
-            state.summary.get(
-                "cache_state",
-                state.options.get("cache_state", state.cache_state or "empty"),
-            )
-        ).strip() or "empty"
-        state.invalidated_reason = str(state.summary.get("invalidated_reason", "")).strip()
-        event_demoted_reason = str(state.summary.get("demoted_reason", "")).strip()
-        if event_demoted_reason:
-            state.demoted_reason = event_demoted_reason
-        elif _normalize_live_mode(state.options.get("live_mode")) == _LIVE_MODE_FULL:
-            state.demoted_reason = ""
-            state.summary.pop("demoted_reason", None)
-        state.close_reason = str(
-            state.summary.get("close_reason", state.options.get("reason", state.close_reason))
-        ).strip()
-
         if event_type == "viewer_session_closed":
             state.phase = "closed"
             state.data_refs.clear()
-            state.demoted_reason = ""
-            state.summary.pop("demoted_reason", None)
-        elif state.invalidated_reason:
-            state.phase = "invalidated"
-            state.demoted_reason = ""
-            state.summary.pop("demoted_reason", None)
+            state.transport = _projection_safe_transport(state.transport)
         else:
             state.phase = "open"
         self.sessions_changed.emit()
         self._sync_live_policy(workspace_id)
 
+    def _apply_authoritative_projection(
+        self,
+        state: _ViewerSessionProjection,
+        event: Mapping[str, Any],
+    ) -> None:
+        summary = _copy_mapping(event.get("summary"))
+        options = _copy_mapping(event.get("options"))
+        playback = _normalize_playback_payload(
+            event.get("playback_state") or options,
+            fallback_state=state.playback_state,
+            fallback_step_index=state.step_index,
+        )
+        camera_state = _copy_mapping(event.get("camera_state"))
+        if not camera_state:
+            camera_state = _copy_mapping(summary.get("camera_state") or summary.get("camera"))
+        state.backend_id = (
+            _string(event.get("backend_id"))
+            or _string(options.get("backend_id"))
+            or _string(summary.get("backend_id"))
+            or state.backend_id
+        )
+        state.transport_revision = _coerce_step_index(
+            event.get(
+                "transport_revision",
+                options.get("transport_revision", summary.get("transport_revision", state.transport_revision)),
+            ),
+            default=state.transport_revision,
+        )
+        state.live_open_status = (
+            _string(event.get("live_open_status"))
+            or _string(options.get("live_open_status"))
+            or _string(summary.get("live_open_status"))
+            or state.live_open_status
+        )
+        state.live_open_blocker = (
+            _copy_mapping(event.get("live_open_blocker"))
+            or _copy_mapping(options.get("live_open_blocker"))
+            or _copy_mapping(summary.get("live_open_blocker"))
+        )
+        state.data_refs = _copy_mapping(event.get("data_refs"))
+        state.transport = _copy_mapping(event.get("transport"))
+        state.camera_state = camera_state
+        state.summary = summary
+        state.options = options
+        state.playback_state = playback["state"]
+        state.step_index = playback["step_index"]
+        state.live_policy = _normalize_live_policy(options.get("live_policy", state.live_policy))
+        state.keep_live = bool(options.get("keep_live", state.keep_live))
+        state.cache_state = (
+            _string(summary.get("cache_state"))
+            or _string(options.get("cache_state"))
+            or state.cache_state
+            or "empty"
+        )
+        state.invalidated_reason = _string(summary.get("invalidated_reason"))
+        state.close_reason = _string(summary.get("close_reason") or options.get("reason"))
+
     def _on_workspace_changed(self, _workspace_id: str) -> None:
-        workspace_id = self._current_workspace_id()
-        if workspace_id:
-            self._workspace_edge_topologies[workspace_id] = self._workspace_edge_topology(workspace_id)
         self.active_workspace_changed.emit()
         self.sessions_changed.emit()
-        self._sync_live_policy(workspace_id)
+        self._sync_live_policy(self._current_workspace_id())
 
     def _on_selection_changed(self) -> None:
         self._sync_live_policy(self._current_workspace_id())
 
     def _on_nodes_changed(self) -> None:
-        self._handle_graph_mutation(demote_existing=False)
-
-    def _on_edges_changed(self) -> None:
-        workspace_id = self._current_workspace_id()
-        if not workspace_id:
-            return
-        current_topology = self._workspace_edge_topology(workspace_id)
-        previous_topology = self._workspace_edge_topologies.get(workspace_id)
-        self._workspace_edge_topologies[workspace_id] = current_topology
-        if previous_topology is None:
-            self._sync_live_policy(workspace_id)
-            return
-        self._handle_graph_mutation(demote_existing=current_topology != previous_topology)
-
-    def _handle_graph_mutation(self, *, demote_existing: bool) -> None:
         workspace_id = self._current_workspace_id()
         if not workspace_id:
             return
         workspace_node_ids = self._workspace_node_ids(workspace_id)
-        changed = False
-        for state in self._sessions.values():
-            if state.workspace_id != workspace_id:
-                continue
-            if state.phase in {"closed", "invalidated"}:
-                continue
-            if workspace_node_ids is not None and state.node_id not in workspace_node_ids:
-                self._invalidate_state(state, "graph_mutation")
-                changed = True
-                continue
-            if demote_existing and self._demote_state_to_proxy(state, reason="graph_mutation"):
-                changed = True
-        if changed:
+        if workspace_node_ids is None:
+            return
+        removed_keys = [
+            key
+            for key, state in self._sessions.items()
+            if state.workspace_id == workspace_id and state.node_id not in workspace_node_ids
+        ]
+        if removed_keys:
+            for key in removed_keys:
+                self._sessions.pop(key, None)
             self.sessions_changed.emit()
         self._sync_live_policy(workspace_id)
+
+    def _on_edges_changed(self) -> None:
+        self._sync_live_policy(self._current_workspace_id())
 
     def _workspace_node_ids(self, workspace_id: str) -> set[str] | None:
         shell_window = self._shell_window
@@ -706,68 +961,7 @@ class ViewerSessionBridge(QObject):
             return None
         return {str(node_id) for node_id in nodes}
 
-    def _workspace_edge_topology(self, workspace_id: str) -> tuple[tuple[str, str, str, str], ...] | None:
-        shell_window = self._shell_window
-        if shell_window is None:
-            return None
-        model = getattr(shell_window, "model", None)
-        project = getattr(model, "project", None)
-        workspaces = getattr(project, "workspaces", None)
-        if not isinstance(workspaces, dict):
-            return None
-        workspace = workspaces.get(workspace_id)
-        if workspace is None:
-            return None
-        edges = getattr(workspace, "edges", None)
-        if not isinstance(edges, dict):
-            return None
-        return tuple(
-            sorted(
-                (
-                    str(edge.source_node_id),
-                    str(edge.source_port_key),
-                    str(edge.target_node_id),
-                    str(edge.target_port_key),
-                )
-                for edge in edges.values()
-                if edge is not None
-            )
-        )
-
-    @staticmethod
-    def _demote_state_to_proxy(state: _ViewerSessionState, *, reason: str) -> bool:
-        options_before = copy.deepcopy(state.options)
-        cache_before = state.cache_state
-        demoted_before = state.demoted_reason
-        state.pending_options.pop("live_mode", None)
-        state.pending_materialization = False
-        if state.options.get("live_mode") != "proxy":
-            state.options["live_mode"] = "proxy"
-        if state.cache_state == "live_ready":
-            state.cache_state = "proxy_ready"
-        state.summary.pop("demoted_reason", None)
-        state.demoted_reason = str(reason).strip()
-        return (
-            state.options != options_before
-            or state.cache_state != cache_before
-            or state.demoted_reason != demoted_before
-        )
-
-    @staticmethod
-    def _invalidate_state(state: _ViewerSessionState, reason: str) -> None:
-        state.phase = "invalidated"
-        state.invalidated_reason = reason
-        state.demoted_reason = ""
-        state.cache_state = "invalidated"
-        state.data_refs.clear()
-        state.close_reason = ""
-        state.pending_summary.clear()
-        state.pending_options.clear()
-        state.pending_materialization = False
-        state.options["live_mode"] = "proxy"
-        state.summary["invalidated_reason"] = reason
-
-    def _workspace_open_states(self, workspace_id: str) -> list[_ViewerSessionState]:
+    def _workspace_open_states(self, workspace_id: str) -> list[_ViewerSessionProjection]:
         states = [
             state
             for state in self._sessions.values()
@@ -820,7 +1014,7 @@ class ViewerSessionBridge(QObject):
         return desired_modes
 
     def _sync_live_policy(self, workspace_id: str) -> None:
-        normalized_workspace_id = str(workspace_id).strip()
+        normalized_workspace_id = _string(workspace_id)
         if not normalized_workspace_id or self._policy_sync_in_progress:
             return
         desired_modes = self._desired_live_mode_map(normalized_workspace_id)
@@ -841,7 +1035,7 @@ class ViewerSessionBridge(QObject):
         if changed:
             self.sessions_changed.emit()
 
-    def _apply_desired_live_mode(self, state: _ViewerSessionState, desired_mode: str) -> bool:
+    def _apply_desired_live_mode(self, state: _ViewerSessionProjection, desired_mode: str) -> bool:
         normalized_desired_mode = _normalize_live_mode(desired_mode)
         current_live_mode = _normalize_live_mode(self._effective_options(state).get("live_mode"))
 
@@ -854,6 +1048,12 @@ class ViewerSessionBridge(QObject):
                 workspace_id=state.workspace_id,
                 node_id=state.node_id,
                 session_id=state.session_id,
+                backend_id=state.backend_id,
+                camera_state=state.camera_state,
+                playback_state={
+                    "state": state.playback_state,
+                    "step_index": int(state.step_index),
+                },
                 options=request_options,
             )
             if not request_id:
@@ -865,6 +1065,8 @@ class ViewerSessionBridge(QObject):
             self._merge_pending_projection(state, options={"live_mode": _LIVE_MODE_PROXY})
             return True
 
+        if _string(state.live_open_status).lower() != "ready":
+            return False
         if state.cache_state == "live_ready":
             if current_live_mode == _LIVE_MODE_FULL:
                 return False
@@ -874,6 +1076,12 @@ class ViewerSessionBridge(QObject):
                 workspace_id=state.workspace_id,
                 node_id=state.node_id,
                 session_id=state.session_id,
+                backend_id=state.backend_id,
+                camera_state=state.camera_state,
+                playback_state={
+                    "state": state.playback_state,
+                    "step_index": int(state.step_index),
+                },
                 options=request_options,
             )
             if not request_id:
@@ -894,7 +1102,7 @@ class ViewerSessionBridge(QObject):
         return materialize_requested or state.phase == "error"
 
     def _set_last_error(self, value: str) -> None:
-        normalized = str(value).strip()
+        normalized = _string(value)
         if normalized == self._last_error:
             return
         self._last_error = normalized

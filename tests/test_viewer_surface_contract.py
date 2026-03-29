@@ -403,13 +403,25 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                             "live_policy": "focus_only",
                             "keep_live": False,
                             "cache_state": "proxy_ready",
+                            "backend_id": "backend.viewer",
+                            "transport_revision": 7,
+                            "live_open_status": "ready",
+                            "live_open_blocker": {},
                             "invalidated_reason": "",
                             "close_reason": "",
                             "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+                            "transport": {
+                                "kind": "bundle",
+                                "backend_id": "backend.viewer",
+                                "bundle_path": "C:/temp/viewer_bundle",
+                            },
                             "summary": {
                                 "result_name": "Displacement",
                                 "set_label": "Set 2",
                                 "cache_state": "proxy_ready",
+                                "backend_id": "backend.viewer",
+                                "transport_revision": 7,
+                                "live_open_status": "ready",
                             },
                             "options": {
                                 "live_mode": "proxy",
@@ -417,6 +429,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                                 "step_index": 2,
                                 "live_policy": "focus_only",
                                 "keep_live": False,
+                                "backend_id": "backend.viewer",
+                                "transport_revision": 7,
+                                "live_open_status": "ready",
                             },
                         }
                     ]
@@ -452,6 +467,12 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert bridge_binding["cache_state"] == "proxy_ready", bridge_binding
             assert bridge_binding["live_mode"] == "proxy", bridge_binding
             assert bridge_binding["last_error"] == "", bridge_binding
+            assert bridge_binding["backend_id"] == "backend.viewer", bridge_binding
+            assert bridge_binding["transport_kind"] == "bundle", bridge_binding
+            assert bridge_binding["transport_revision"] == 7, bridge_binding
+            assert bridge_binding["live_open_status"] == "ready", bridge_binding
+            assert bridge_binding["live_open_blocker"] == {}, bridge_binding
+            assert not bool(bridge_binding["run_required"]), bridge_binding
             assert len(contract["interactive_rects"]) == 6, contract
             assert len(interactive_rects) == 6, interactive_rects
             assert max(rect["width"] for rect in contract["interactive_rects"]) > 40.0, contract["interactive_rects"]

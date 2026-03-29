@@ -50,9 +50,52 @@ class _SceneStub:
 class _WorkspaceLibraryControllerStub:
     def __init__(self) -> None:
         self.save_active_view_state_calls = 0
+        self.refresh_workspace_tabs_calls = 0
+        self.switch_workspace_calls: list[str] = []
 
     def save_active_view_state(self) -> None:
         self.save_active_view_state_calls += 1
+
+    def refresh_workspace_tabs(self) -> None:
+        self.refresh_workspace_tabs_calls += 1
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        self.switch_workspace_calls.append(str(workspace_id))
+
+
+class _RuntimeHistoryStub:
+    def __init__(self) -> None:
+        self.clear_all_calls = 0
+
+    def clear_all(self) -> None:
+        self.clear_all_calls += 1
+
+
+class _SignalStub:
+    def __init__(self) -> None:
+        self.emit_calls: list[tuple[object, ...]] = []
+
+    def emit(self, *args) -> None:  # noqa: ANN002
+        self.emit_calls.append(tuple(args))
+
+
+class _ViewerSessionBridgeStub:
+    def __init__(self) -> None:
+        self.project_loaded_calls: list[dict] = []
+
+    def project_loaded(self, project, registry, *, reseed_on_next_reset: bool = False) -> None:  # noqa: ANN001
+        self.project_loaded_calls.append(
+            {
+                "project": project,
+                "registry": registry,
+                "reseed_on_next_reset": bool(reseed_on_next_reset),
+            }
+        )
+
+
+class _RegistryStub:
+    def normalize_properties(self, _type_id: str, properties: dict, *, include_defaults: bool = False) -> dict:
+        return copy.deepcopy(properties)
 
 
 class _SerializerStub:
@@ -89,6 +132,7 @@ class _ProjectHostStub:
     def __init__(self, base_path: Path | None = None) -> None:
         self.project_session_state = ShellProjectSessionState()
         self.model = GraphModel()
+        self.registry = _RegistryStub()
         self.script_editor = _ScriptEditorStub()
         self.action_toggle_script_editor = _ActionToggleStub()
         self.scene = _SceneStub()
@@ -96,6 +140,11 @@ class _ProjectHostStub:
         self.session_store = _SessionStoreStub(base_path or Path.cwd())
         self.serializer = _SerializerStub()
         self.workspace_library_controller = _WorkspaceLibraryControllerStub()
+        self.runtime_history = _RuntimeHistoryStub()
+        self.viewer_session_bridge = _ViewerSessionBridgeStub()
+        self.library_pane_reset_requested = _SignalStub()
+        self.node_library_changed = _SignalStub()
+        self.project_meta_changed = _SignalStub()
         self.refresh_calls = 0
 
     def _refresh_recent_projects_menu(self) -> None:
@@ -231,6 +280,41 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         show_project_files_dialog.assert_called_once_with(snapshot=snapshot, allow_repair=True)
         repair_project_file_issue.assert_called_once_with(issue)
         prompt_recover_autosave.assert_called_once_with(recovered_project)
+
+    def test_document_service_seeds_viewer_projection_when_installing_project(self) -> None:
+        host = _ProjectHostStub()
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        project = GraphModel().project
+
+        controller._document_service._install_project(  # noqa: SLF001
+            project,
+            project_path="example.sfe",
+            reseed_viewer_projection_on_next_reset=True,
+        )
+
+        self.assertEqual(len(host.viewer_session_bridge.project_loaded_calls), 1)
+        call = host.viewer_session_bridge.project_loaded_calls[0]
+        self.assertIs(call["project"], host.model.project)
+        self.assertIs(call["registry"], host.registry)
+        self.assertTrue(call["reseed_on_next_reset"])
+        self.assertEqual(host.runtime_history.clear_all_calls, 1)
+        self.assertEqual(len(host.library_pane_reset_requested.emit_calls), 1)
+        self.assertEqual(len(host.node_library_changed.emit_calls), 1)
+
+    def test_new_project_seeds_viewer_projection_for_pending_reset_restore(self) -> None:
+        host = _ProjectHostStub()
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+        controller.new_project()
+
+        self.assertEqual(len(host.viewer_session_bridge.project_loaded_calls), 1)
+        call = host.viewer_session_bridge.project_loaded_calls[0]
+        self.assertIs(call["project"], host.model.project)
+        self.assertTrue(call["reseed_on_next_reset"])
+        self.assertEqual(host.runtime_history.clear_all_calls, 1)
+        self.assertEqual(host.workspace_library_controller.refresh_workspace_tabs_calls, 1)
+        self.assertEqual(len(host.workspace_library_controller.switch_workspace_calls), 1)
+        self.assertEqual(len(host.project_meta_changed.emit_calls), 1)
 
     def test_restore_script_editor_state_requires_selected_node_for_visibility(self) -> None:
         host = _ProjectHostStub()

@@ -116,8 +116,22 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     live_mode="proxy",
                     session_id="session::node_viewer_surface_host",
                     last_command="open",
+                    backend_id="backend.viewer",
+                    transport_revision=7,
+                    live_open_status="ready",
+                    live_open_blocker=None,
+                    transport=None,
+                    invalidated_reason="",
                     close_reason="",
                 ):
+                    if live_open_blocker is None:
+                        live_open_blocker = {}
+                    if transport is None:
+                        transport = {
+                            "kind": "bundle",
+                            "backend_id": backend_id,
+                            "bundle_path": "C:/temp/viewer_bundle",
+                        }
                     return {
                         "workspace_id": "ws_main",
                         "node_id": "node_viewer_surface_host",
@@ -131,13 +145,22 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                         "live_policy": live_policy,
                         "keep_live": keep_live,
                         "cache_state": cache_state,
-                        "invalidated_reason": "",
+                        "backend_id": backend_id,
+                        "transport_revision": transport_revision,
+                        "live_open_status": live_open_status,
+                        "live_open_blocker": dict(live_open_blocker),
+                        "invalidated_reason": invalidated_reason,
                         "close_reason": close_reason,
                         "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+                        "transport": dict(transport),
                         "summary": {
                             "result_name": "Displacement",
                             "set_label": "Set 4",
                             "cache_state": cache_state,
+                            "backend_id": backend_id,
+                            "transport_revision": transport_revision,
+                            "live_open_status": live_open_status,
+                            "live_open_blocker": dict(live_open_blocker),
                         },
                         "options": {
                             "live_mode": live_mode,
@@ -145,6 +168,10 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                             "step_index": step_index,
                             "live_policy": live_policy,
                             "keep_live": keep_live,
+                            "backend_id": backend_id,
+                            "transport_revision": transport_revision,
+                            "live_open_status": live_open_status,
+                            "live_open_blocker": dict(live_open_blocker),
                         },
                     }
 
@@ -589,21 +616,23 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
-    def test_viewer_surface_compact_strip_reports_error_and_invalidated_states(self) -> None:
+    def test_viewer_surface_compact_strip_reports_error_and_run_required_states(self) -> None:
         self._run_qml_probe(
-            "viewer-surface-host-error-invalidated",
+            "viewer-surface-host-error-run-required",
             """
             bridge = ViewerSessionBridgeStub()
             engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
 
             host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
             surface = host.findChild(QObject, "graphNodeViewerSurface")
+            session_button = host.findChild(QObject, "graphNodeViewerSessionButton")
             status_text = host.findChild(QObject, "graphNodeViewerStatusText")
             mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
             headline = host.findChild(QObject, "graphNodeViewerSurfaceHeadline")
             hint = host.findChild(QObject, "graphNodeViewerSurfaceHint")
             more_button = host.findChild(QObject, "graphNodeViewerMoreButton")
             assert surface is not None
+            assert session_button is not None
             assert status_text is not None
             assert mode_label is not None
             assert headline is not None
@@ -625,16 +654,33 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 bridge._last_error = ""
                 bridge.last_error_changed.emit()
                 bridge._set_state(
-                    phase="invalidated",
-                    invalidated_reason="edge topology changed",
-                    summary={"invalidated_reason": "edge topology changed"},
+                    phase="blocked",
+                    cache_state="proxy_ready",
+                    live_mode="proxy",
+                    live_open_status="blocked",
+                    live_open_blocker={
+                        "code": "rerun_required",
+                        "reason": "Live viewer transport is unavailable and requires rerun.",
+                        "rerun_required": True,
+                    },
+                    transport={"kind": "bundle", "backend_id": "backend.viewer"},
+                    summary={
+                        "result_name": "Displacement",
+                        "set_label": "Set 4",
+                        "rerun_required": True,
+                        "live_transport_release_reason": "project_reload",
+                    },
+                    options={"rerun_required": True},
                 )
                 settle_events(5)
                 assert bool(surface.property("viewerShowsPlaceholder"))
-                assert status_text.property("text") == "Viewer session invalidated"
-                assert mode_label.property("text") == "Proxy"
-                assert headline.property("text") == "Viewer session invalidated"
-                assert "edge topology changed" in str(hint.property("text"))
+                assert not bool(session_button.property("enabled"))
+                assert status_text.property("text") == "Rerun required before live open"
+                assert mode_label.property("text") == "Blocked"
+                assert headline.property("text") == "Rerun required before live open"
+                assert "requires rerun" in str(hint.property("text"))
+                footer_meta = variant_list(surface.property("viewerFooterMetaModel"))
+                assert any(item["label"] == "Status" and item["value"] == "Rerun required" for item in footer_meta)
                 assert len(variant_list(surface.property("viewerInteractiveRects"))) == 6
             finally:
                 dispose_host_window(host, window)

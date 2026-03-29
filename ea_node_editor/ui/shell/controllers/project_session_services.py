@@ -600,6 +600,19 @@ class ProjectDocumentIOService:
         self._host.script_editor.set_visible(visible)
         self._host.action_toggle_script_editor.setChecked(visible)
 
+    def _project_viewer_bridge_loaded(self, *, reseed_on_next_reset: bool) -> None:
+        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
+        if viewer_session_bridge is None:
+            return
+        project_loaded = getattr(viewer_session_bridge, "project_loaded", None)
+        if not callable(project_loaded):
+            return
+        project_loaded(
+            self._host.model.project,
+            getattr(self._host, "registry", None),
+            reseed_on_next_reset=reseed_on_next_reset,
+        )
+
     def show_workflow_settings_dialog(self) -> None:
         from ea_node_editor.ui.dialogs.workflow_settings_dialog import WorkflowSettingsDialog
 
@@ -626,18 +639,31 @@ class ProjectDocumentIOService:
                 self._host.script_editor.set_node(workspace.nodes.get(node_id))
             self._host.script_editor.focus_editor()
 
-    def _install_project(self, project: ProjectData, *, project_path: str) -> None:
+    def _install_project(
+        self,
+        project: ProjectData,
+        *,
+        project_path: str,
+        reseed_viewer_projection_on_next_reset: bool = False,
+    ) -> None:
         normalize_project_for_registry(project, self._host.registry)
         self._host.model = GraphModel(project)
         self._host.workspace_manager = WorkspaceManager(self._host.model)
         self._host.runtime_history.clear_all()
         self._host.project_path = project_path
+        self._project_viewer_bridge_loaded(
+            reseed_on_next_reset=reseed_viewer_projection_on_next_reset,
+        )
         self._host.library_pane_reset_requested.emit()
         self._host.node_library_changed.emit()
 
     def _finalize_loaded_project(self, project: ProjectData, *, project_path: str) -> None:
         resolved_path = Path(project_path)
-        self._install_project(project, project_path=str(resolved_path))
+        self._install_project(
+            project,
+            project_path=str(resolved_path),
+            reseed_viewer_projection_on_next_reset=True,
+        )
         self.ensure_project_metadata_defaults()
         try:
             self._session._session_state.last_manual_save_ts = resolved_path.stat().st_mtime
@@ -890,7 +916,11 @@ class ProjectDocumentIOService:
 
     def new_project(self) -> None:
         project = ProjectData(project_id="proj_local", name="untitled")
-        self._install_project(project, project_path="")
+        self._install_project(
+            project,
+            project_path="",
+            reseed_viewer_projection_on_next_reset=True,
+        )
         self.ensure_project_metadata_defaults()
         self._session._session_state.last_manual_save_ts = 0.0
         self._session.discard_autosave_snapshot()
