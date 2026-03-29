@@ -16,6 +16,7 @@ pytest.importorskip("pyvista")
 from ansys_dpf_core.fixture_paths import STATIC_ANALYSIS_RST
 from ea_node_editor.execution.dpf_runtime_service import DPF_VIEWER_DATASET_HANDLE_KIND
 from ea_node_editor.execution.protocol import CloseViewerSessionCommand, OpenViewerSessionCommand
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.ansys_dpf import (
@@ -91,15 +92,19 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(session_payload["workspace_id"], "ws_dpf_viewer")
         self.assertEqual(session_payload["node_id"], "node_viewer_packet_p13")
         self.assertTrue(session_payload["session_id"].startswith("viewer_session_"))
+        self.assertEqual(session_payload["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
         self.assertEqual(session_payload["summary"]["result_name"], "displacement")
         self.assertEqual(session_payload["summary"]["set_id"], 2)
         self.assertEqual(session_payload["summary"]["set_label"], "Set 2")
         self.assertEqual(session_payload["summary"]["cache_state"], "live_ready")
+        self.assertEqual(session_payload["live_open_status"], "ready")
         self.assertEqual(session_payload["options"]["output_profile"], "both")
         self.assertEqual(session_payload["options"]["live_policy"], "focus_only")
         self.assertFalse(session_payload["options"]["keep_live"])
         self.assertEqual(session_payload["options"]["live_mode"], "proxy")
         self.assertEqual(session_payload["options"]["session_state"], "open")
+        self.assertGreaterEqual(int(session_payload["transport_revision"]), 1)
+        self.assertEqual(session_payload["transport"]["kind"], "dpf_handle_refs")
         self.assertEqual(session_payload["data_refs"]["dataset"].kind, DPF_VIEWER_DATASET_HANDLE_KIND)
 
     def test_viewer_node_reopen_restores_result_summary_and_keep_live_policy(self) -> None:
@@ -139,6 +144,9 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertTrue(reopened.options["keep_live"])
         self.assertEqual(reopened.options["live_mode"], "proxy")
         self.assertEqual(reopened.summary["cache_state"], "proxy_ready")
+        self.assertEqual(reopened.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(reopened.live_open_status, "blocked")
+        self.assertEqual(reopened.live_open_blocker["code"], "transport_not_ready")
 
 
 if __name__ == "__main__":

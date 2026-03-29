@@ -56,10 +56,20 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_existing",
+                backend_id="dpf_embedded",
                 data_refs={
                     "dataset": shared_handle,
                     "preview": preview_artifact,
                 },
+                transport={
+                    "kind": "dpf_handle_refs",
+                    "version": 1,
+                    "data_refs": {"dataset": shared_handle},
+                },
+                transport_revision=3,
+                live_open_status="ready",
+                camera_state={"position": [1.0, 2.0, 3.0]},
+                playback_state={"state": "paused", "step_index": 1},
                 summary={"result_name": "displacement", "set_ids": [1, 2]},
                 options={"live_mode": "proxy", "focus_only": True},
             ),
@@ -68,7 +78,18 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_existing",
+                backend_id="dpf_embedded",
                 data_refs={"dataset": shared_handle},
+                transport={
+                    "kind": "dpf_handle_refs",
+                    "version": 1,
+                    "data_refs": {"dataset": shared_handle},
+                },
+                transport_revision=4,
+                live_open_status="blocked",
+                live_open_blocker={"code": "transport_not_ready"},
+                camera_state={"position": [1.0, 2.0, 3.0]},
+                playback_state={"state": "playing", "step_index": 2},
                 summary={"camera": {"position": [1.0, 2.0, 3.0]}},
                 options={"selection": {"set_ids": [2]}},
             ),
@@ -109,6 +130,12 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                             "metadata": {"array_names": ["U"]},
                         },
                     )
+                    self.assertEqual(payload["backend_id"], "dpf_embedded")
+                    self.assertIn("transport", payload)
+                    self.assertIn("transport_revision", payload)
+                    self.assertIn("live_open_status", payload)
+                    self.assertIn("camera_state", payload)
+                    self.assertIn("playback_state", payload)
 
                 restored = dict_to_command(payload)
                 self.assertIsInstance(restored, type(command))
@@ -119,6 +146,11 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
 
                 if isinstance(restored, (OpenViewerSessionCommand, UpdateViewerSessionCommand)):
                     self.assertIsInstance(restored.data_refs["dataset"], RuntimeHandleRef)
+                    self.assertEqual(restored.backend_id, "dpf_embedded")
+                    self.assertEqual(restored.transport_revision, command.transport_revision)
+                    self.assertEqual(restored.live_open_status, command.live_open_status)
+                    self.assertEqual(restored.camera_state, command.camera_state)
+                    self.assertEqual(restored.playback_state, command.playback_state)
                 if isinstance(restored, OpenViewerSessionCommand):
                     self.assertIsInstance(restored.data_refs["preview"], RuntimeArtifactRef)
 
@@ -141,7 +173,17 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
+                backend_id="dpf_embedded",
                 data_refs={"dataset": dataset_ref},
+                transport={
+                    "kind": "dpf_handle_refs",
+                    "version": 1,
+                    "data_refs": {"dataset": dataset_ref},
+                },
+                transport_revision=1,
+                live_open_status="ready",
+                camera_state={"position": [0.0, 0.0, 1.0]},
+                playback_state={"state": "paused", "step_index": 0},
                 summary={"dataset_type": "UnstructuredGrid", "array_names": ["U"]},
                 options={"live_mode": "proxy"},
             ),
@@ -150,7 +192,17 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
+                backend_id="dpf_embedded",
                 data_refs={"dataset": dataset_ref},
+                transport={
+                    "kind": "dpf_handle_refs",
+                    "version": 1,
+                    "data_refs": {"dataset": dataset_ref},
+                },
+                transport_revision=2,
+                live_open_status="ready",
+                camera_state={"zoom": 1.25},
+                playback_state={"state": "playing", "step_index": 1},
                 summary={"camera": {"zoom": 1.25}},
                 options={"selection": {"set_ids": [1]}},
             ),
@@ -159,6 +211,11 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
+                backend_id="dpf_embedded",
+                transport_revision=2,
+                live_open_status="blocked",
+                live_open_blocker={"code": "session_closed"},
+                playback_state={"state": "paused", "step_index": 1},
                 summary={"reason": "node_removed"},
                 options={"release_handles": True},
             ),
@@ -167,10 +224,20 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id="session_live",
+                backend_id="dpf_embedded",
                 data_refs={
                     "dataset": dataset_ref,
                     "png": staged_png,
                 },
+                transport={
+                    "kind": "dpf_handle_refs",
+                    "version": 1,
+                    "data_refs": {"dataset": dataset_ref, "png": staged_png},
+                },
+                transport_revision=3,
+                live_open_status="ready",
+                camera_state={"zoom": 1.25},
+                playback_state={"state": "playing", "step_index": 2},
                 summary={"output_profile": "both", "field_count": 2},
                 options={"export_formats": ["png"]},
             ),
@@ -197,8 +264,17 @@ class ViewerExecutionProtocolTests(unittest.TestCase):
 
                 if isinstance(restored, (ViewerSessionOpenedEvent, ViewerSessionUpdatedEvent, ViewerDataMaterializedEvent)):
                     self.assertIsInstance(restored.data_refs["dataset"], RuntimeHandleRef)
+                    self.assertEqual(restored.backend_id, "dpf_embedded")
+                    self.assertEqual(restored.transport_revision, event.transport_revision)
+                    self.assertEqual(restored.live_open_status, event.live_open_status)
+                    self.assertEqual(restored.camera_state, event.camera_state)
+                    self.assertEqual(restored.playback_state, event.playback_state)
                 if isinstance(restored, ViewerDataMaterializedEvent):
                     self.assertIsInstance(restored.data_refs["png"], RuntimeArtifactRef)
+                if isinstance(restored, ViewerSessionClosedEvent):
+                    self.assertEqual(restored.backend_id, "dpf_embedded")
+                    self.assertEqual(restored.live_open_status, "blocked")
+                    self.assertEqual(restored.live_open_blocker, {"code": "session_closed"})
 
     def test_protocol_error_event_round_trips_request_correlation(self) -> None:
         event = ProtocolErrorEvent(

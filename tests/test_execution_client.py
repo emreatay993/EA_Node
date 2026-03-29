@@ -274,6 +274,7 @@ class ProcessExecutionClientTests(unittest.TestCase):
             "ws_main",
             "node_viewer",
             session_id="session_existing",
+            backend_id="dpf_embedded",
             data_refs={
                 "dataset": RuntimeHandleRef(
                     handle_id="viewer_dataset_live",
@@ -283,6 +284,14 @@ class ProcessExecutionClientTests(unittest.TestCase):
                 ),
                 "preview": RuntimeArtifactRef.staged("viewer_preview_png"),
             },
+            transport={
+                "kind": "dpf_handle_refs",
+                "version": 1,
+            },
+            transport_revision=5,
+            live_open_status="ready",
+            camera_state={"position": [1.0, 2.0, 3.0]},
+            playback_state={"state": "paused", "step_index": 1},
             summary={"result_name": "displacement", "set_ids": [1, 2]},
             options={"live_mode": "proxy"},
         )
@@ -294,6 +303,12 @@ class ProcessExecutionClientTests(unittest.TestCase):
         self.assertEqual(payload["workspace_id"], "ws_main")
         self.assertEqual(payload["node_id"], "node_viewer")
         self.assertEqual(payload["session_id"], "session_existing")
+        self.assertEqual(payload["backend_id"], "dpf_embedded")
+        self.assertEqual(payload["transport"], {"kind": "dpf_handle_refs", "version": 1})
+        self.assertEqual(payload["transport_revision"], 5)
+        self.assertEqual(payload["live_open_status"], "ready")
+        self.assertEqual(payload["camera_state"], {"position": [1.0, 2.0, 3.0]})
+        self.assertEqual(payload["playback_state"], {"state": "paused", "step_index": 1})
         self.assertEqual(
             payload["data_refs"]["dataset"],
             {

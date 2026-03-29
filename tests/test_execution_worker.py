@@ -754,6 +754,10 @@ class ExecutionWorkerTests(unittest.TestCase):
                         collected=collected_events,
                     )
                     self.assertIsNotNone(opened)
+                    if opened is None:
+                        self.fail("Expected viewer_session_opened event")
+                    self.assertEqual(opened["backend_id"], "dpf_embedded")
+                    self.assertEqual(opened["live_open_status"], "blocked")
 
                     command_queue.put(
                         command_to_dict(
@@ -810,6 +814,8 @@ class ExecutionWorkerTests(unittest.TestCase):
                         collected=collected_events,
                     )
                     self.assertIsNotNone(materialized)
+                    if materialized is None:
+                        self.fail("Expected viewer_data_materialized event")
                     self.assertEqual(len(materialize_calls), 1)
                     self.assertEqual(materialize_calls[0]["output_profile"], "both")
                     self.assertEqual(materialize_calls[0]["artifact_key"], "node_viewer_session_worker")
@@ -823,6 +829,10 @@ class ExecutionWorkerTests(unittest.TestCase):
                     )
                     self.assertIn("dataset", materialized["data_refs"])
                     self.assertIn("png", materialized["data_refs"])
+                    self.assertEqual(materialized["backend_id"], "dpf_embedded")
+                    self.assertEqual(materialized["transport"]["kind"], "dpf_handle_refs")
+                    self.assertGreaterEqual(int(materialized["transport_revision"]), 1)
+                    self.assertEqual(materialized["live_open_status"], "ready")
 
                     opened_index = next(
                         index

@@ -10,6 +10,7 @@ from ea_node_editor.execution.protocol import (
     UpdateViewerSessionCommand,
     ViewerSessionFailedEvent,
 )
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_OUTPUT_MODE_BOTH,
     DPF_OUTPUT_MODE_MEMORY,
@@ -28,7 +29,14 @@ def viewer_event_payload(event: object) -> dict[str, Any]:
         "workspace_id": str(getattr(event, "workspace_id", "")).strip(),
         "node_id": str(getattr(event, "node_id", "")).strip(),
         "session_id": str(getattr(event, "session_id", "")).strip(),
+        "backend_id": str(getattr(event, "backend_id", "")).strip(),
         "data_refs": copy.deepcopy(getattr(event, "data_refs", {})),
+        "transport": copy.deepcopy(getattr(event, "transport", {})),
+        "transport_revision": int(getattr(event, "transport_revision", 0) or 0),
+        "live_open_status": str(getattr(event, "live_open_status", "")).strip(),
+        "live_open_blocker": copy.deepcopy(getattr(event, "live_open_blocker", {})),
+        "camera_state": copy.deepcopy(getattr(event, "camera_state", {})),
+        "playback_state": copy.deepcopy(getattr(event, "playback_state", {})),
         "summary": copy.deepcopy(getattr(event, "summary", {})),
         "options": copy.deepcopy(getattr(event, "options", {})),
     }
@@ -84,17 +92,24 @@ def open_dpf_viewer_session_payload(
         "playback_state": "paused",
         "step_index": int(summary.get("step_index", 0)),
     }
+    playback_state = {
+        "state": "paused",
+        "step_index": int(summary.get("step_index", 0)),
+    }
     try:
         opened = session_service.open_session(
             OpenViewerSessionCommand(
                 workspace_id=ctx.workspace_id,
                 node_id=ctx.node_id,
                 session_id=session_id,
+                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
                 data_refs={
                     "fields": wrapped_fields_ref,
                     "model": model_ref,
                     **({"mesh": mesh_ref} if mesh_ref is not None else {}),
                 },
+                camera_state={},
+                playback_state=playback_state,
                 summary=summary,
                 options=options,
             )
@@ -114,6 +129,7 @@ def open_dpf_viewer_session_payload(
                     workspace_id=ctx.workspace_id,
                     node_id=ctx.node_id,
                     session_id=session_id,
+                    backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
                     options={
                         "output_profile": materialize_output_mode,
                         "live_mode": "proxy",
@@ -129,6 +145,8 @@ def open_dpf_viewer_session_payload(
                         workspace_id=ctx.workspace_id,
                         node_id=ctx.node_id,
                         session_id=session_id,
+                        backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                        playback_state=playback_state,
                         options={"output_profile": output_mode},
                     )
                 )

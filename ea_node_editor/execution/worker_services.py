@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from ea_node_editor.execution.dpf_runtime import create_dpf_runtime_service
 from ea_node_editor.execution.handle_registry import HandleRegistry
+from ea_node_editor.execution.viewer_backend import ViewerBackendRegistry
+from ea_node_editor.execution.viewer_backend_dpf import DpfExecutionViewerBackend
 from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
 
 if TYPE_CHECKING:
@@ -18,10 +20,12 @@ if TYPE_CHECKING:
 class WorkerServices:
     handle_registry: HandleRegistry = field(default_factory=HandleRegistry)
     _dpf_runtime_service: DpfRuntimeService | None = field(default=None, init=False, repr=False)
+    _viewer_backend_registry: ViewerBackendRegistry | None = field(default=None, init=False, repr=False)
     _viewer_session_service: ViewerSessionService | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_dpf_runtime_service", None)
+        object.__setattr__(self, "_viewer_backend_registry", None)
         object.__setattr__(self, "_viewer_session_service", None)
 
     @property
@@ -33,6 +37,14 @@ class WorkerServices:
         if self._dpf_runtime_service is None:
             self._dpf_runtime_service = create_dpf_runtime_service(self)
         return self._dpf_runtime_service
+
+    @property
+    def viewer_backend_registry(self) -> ViewerBackendRegistry:
+        if self._viewer_backend_registry is None:
+            registry = ViewerBackendRegistry()
+            registry.register(DpfExecutionViewerBackend(self))
+            self._viewer_backend_registry = registry
+        return self._viewer_backend_registry
 
     @property
     def viewer_session_service(self) -> ViewerSessionService:

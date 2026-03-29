@@ -25,6 +25,7 @@ from ea_node_editor.execution.protocol import (
     ViewerSessionUpdatedEvent,
     event_to_dict,
 )
+from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.types import RuntimeArtifactRef
 
@@ -137,8 +138,11 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertIsInstance(opened, ViewerSessionOpenedEvent)
             self.assertEqual(opened.session_id, "session_live")
             self.assertEqual(opened.data_refs, {})
+            self.assertEqual(opened.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)
             self.assertTrue(opened.summary["has_source_data"])
             self.assertEqual(opened.options["live_mode"], "proxy")
+            self.assertEqual(opened.live_open_status, "blocked")
+            self.assertEqual(opened.live_open_blocker["code"], "transport_not_ready")
 
             self.services.cleanup_run("run_viewer_service")
             with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
@@ -184,6 +188,11 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertNotEqual(calls[0]["model_ref"].owner_scope, "run:run_viewer_service")  # type: ignore[index]
 
             dataset_ref = materialized.data_refs["dataset"]
+            self.assertEqual(materialized.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)
+            self.assertEqual(materialized.transport["kind"], "dpf_handle_refs")
+            self.assertEqual(materialized.transport["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+            self.assertGreaterEqual(materialized.transport_revision, 1)
+            self.assertEqual(materialized.live_open_status, "ready")
             self.assertEqual(dataset_ref.kind, DPF_VIEWER_DATASET_HANDLE_KIND)
             self.assertEqual(dataset_ref.owner_scope, "cache:viewer_session:ws_main:session_live")
             self.assertEqual(materialized.data_refs["png"].artifact_id, "viewer_preview_png")
@@ -218,6 +227,8 @@ class ViewerSessionServiceTests(unittest.TestCase):
             )
 
             self.assertEqual(reopened.options["live_mode"], "proxy")
+            self.assertEqual(reopened.live_open_status, "blocked")
+            self.assertEqual(reopened.live_open_blocker["code"], "transport_not_ready")
             rematerialized = self.service.materialize_data(
                 MaterializeViewerDataCommand(
                     request_id="viewer_req_rematerialize",

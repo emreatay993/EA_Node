@@ -96,7 +96,14 @@ class OpenViewerSessionCommand:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
     data_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
@@ -108,7 +115,14 @@ class UpdateViewerSessionCommand:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
     data_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
@@ -130,6 +144,7 @@ class MaterializeViewerDataCommand:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
     options: dict[str, Any] = field(default_factory=dict)
 
 
@@ -236,7 +251,14 @@ class ViewerSessionOpenedEvent:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
     data_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
@@ -248,7 +270,14 @@ class ViewerSessionUpdatedEvent:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
     data_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
@@ -260,6 +289,13 @@ class ViewerSessionClosedEvent:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
@@ -271,7 +307,14 @@ class ViewerDataMaterializedEvent:
     workspace_id: str = ""
     node_id: str = ""
     session_id: str = ""
+    backend_id: str = ""
     data_refs: dict[str, Any] = field(default_factory=dict)
+    transport: dict[str, Any] = field(default_factory=dict)
+    transport_revision: int = 0
+    live_open_status: str = ""
+    live_open_blocker: dict[str, Any] = field(default_factory=dict)
+    camera_state: dict[str, Any] = field(default_factory=dict)
+    playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
 
@@ -348,6 +391,13 @@ def _deserialize_viewer_mapping(value: Any) -> dict[str, Any]:
     return dict(payload) if isinstance(payload, Mapping) else {}
 
 
+def _deserialize_viewer_int(value: Any, *, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
     if isinstance(command, (OpenViewerSessionCommand, UpdateViewerSessionCommand)):
         return {
@@ -356,7 +406,14 @@ def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
             "workspace_id": command.workspace_id,
             "node_id": command.node_id,
             "session_id": command.session_id,
+            "backend_id": command.backend_id,
             "data_refs": _serialize_viewer_mapping(command.data_refs, field_name="data_refs"),
+            "transport": _serialize_viewer_mapping(command.transport, field_name="transport"),
+            "transport_revision": int(command.transport_revision),
+            "live_open_status": str(command.live_open_status),
+            "live_open_blocker": _serialize_viewer_mapping(command.live_open_blocker, field_name="live_open_blocker"),
+            "camera_state": _serialize_viewer_mapping(command.camera_state, field_name="camera_state"),
+            "playback_state": _serialize_viewer_mapping(command.playback_state, field_name="playback_state"),
             "summary": _serialize_viewer_mapping(command.summary, field_name="summary"),
             "options": _serialize_viewer_mapping(command.options, field_name="options"),
         }
@@ -376,6 +433,7 @@ def command_to_dict(command: WorkerCommand) -> dict[str, Any]:
             "workspace_id": command.workspace_id,
             "node_id": command.node_id,
             "session_id": command.session_id,
+            "backend_id": command.backend_id,
             "options": _serialize_viewer_mapping(command.options, field_name="options"),
         }
     return _serialize_dataclass_payload(command)
@@ -389,7 +447,14 @@ def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
             "workspace_id": event.workspace_id,
             "node_id": event.node_id,
             "session_id": event.session_id,
+            "backend_id": event.backend_id,
             "data_refs": _serialize_viewer_mapping(event.data_refs, field_name="data_refs"),
+            "transport": _serialize_viewer_mapping(event.transport, field_name="transport"),
+            "transport_revision": int(event.transport_revision),
+            "live_open_status": str(event.live_open_status),
+            "live_open_blocker": _serialize_viewer_mapping(event.live_open_blocker, field_name="live_open_blocker"),
+            "camera_state": _serialize_viewer_mapping(event.camera_state, field_name="camera_state"),
+            "playback_state": _serialize_viewer_mapping(event.playback_state, field_name="playback_state"),
             "summary": _serialize_viewer_mapping(event.summary, field_name="summary"),
             "options": _serialize_viewer_mapping(event.options, field_name="options"),
         }
@@ -400,6 +465,13 @@ def event_to_dict(event: WorkerEvent) -> dict[str, Any]:
             "workspace_id": event.workspace_id,
             "node_id": event.node_id,
             "session_id": event.session_id,
+            "backend_id": event.backend_id,
+            "transport": _serialize_viewer_mapping(event.transport, field_name="transport"),
+            "transport_revision": int(event.transport_revision),
+            "live_open_status": str(event.live_open_status),
+            "live_open_blocker": _serialize_viewer_mapping(event.live_open_blocker, field_name="live_open_blocker"),
+            "camera_state": _serialize_viewer_mapping(event.camera_state, field_name="camera_state"),
+            "playback_state": _serialize_viewer_mapping(event.playback_state, field_name="playback_state"),
             "summary": _serialize_viewer_mapping(event.summary, field_name="summary"),
             "options": _serialize_viewer_mapping(event.options, field_name="options"),
         }
@@ -463,7 +535,14 @@ def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
             data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            transport=_deserialize_viewer_mapping(payload.get("transport")),
+            transport_revision=_deserialize_viewer_int(payload.get("transport_revision")),
+            live_open_status=str(payload.get("live_open_status", "")),
+            live_open_blocker=_deserialize_viewer_mapping(payload.get("live_open_blocker")),
+            camera_state=_deserialize_viewer_mapping(payload.get("camera_state")),
+            playback_state=_deserialize_viewer_mapping(payload.get("playback_state")),
             summary=_deserialize_viewer_mapping(payload.get("summary")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
@@ -473,7 +552,14 @@ def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
             data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            transport=_deserialize_viewer_mapping(payload.get("transport")),
+            transport_revision=_deserialize_viewer_int(payload.get("transport_revision")),
+            live_open_status=str(payload.get("live_open_status", "")),
+            live_open_blocker=_deserialize_viewer_mapping(payload.get("live_open_blocker")),
+            camera_state=_deserialize_viewer_mapping(payload.get("camera_state")),
+            playback_state=_deserialize_viewer_mapping(payload.get("playback_state")),
             summary=_deserialize_viewer_mapping(payload.get("summary")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
@@ -491,6 +577,7 @@ def dict_to_command(payload: dict[str, Any]) -> WorkerCommand:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
     raise ValueError(f"Unknown command type: {command_type!r}")
@@ -567,7 +654,14 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
             data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            transport=_deserialize_viewer_mapping(payload.get("transport")),
+            transport_revision=_deserialize_viewer_int(payload.get("transport_revision")),
+            live_open_status=str(payload.get("live_open_status", "")),
+            live_open_blocker=_deserialize_viewer_mapping(payload.get("live_open_blocker")),
+            camera_state=_deserialize_viewer_mapping(payload.get("camera_state")),
+            playback_state=_deserialize_viewer_mapping(payload.get("playback_state")),
             summary=_deserialize_viewer_mapping(payload.get("summary")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
@@ -577,7 +671,14 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
             data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            transport=_deserialize_viewer_mapping(payload.get("transport")),
+            transport_revision=_deserialize_viewer_int(payload.get("transport_revision")),
+            live_open_status=str(payload.get("live_open_status", "")),
+            live_open_blocker=_deserialize_viewer_mapping(payload.get("live_open_blocker")),
+            camera_state=_deserialize_viewer_mapping(payload.get("camera_state")),
+            playback_state=_deserialize_viewer_mapping(payload.get("playback_state")),
             summary=_deserialize_viewer_mapping(payload.get("summary")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
@@ -587,6 +688,13 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
+            transport=_deserialize_viewer_mapping(payload.get("transport")),
+            transport_revision=_deserialize_viewer_int(payload.get("transport_revision")),
+            live_open_status=str(payload.get("live_open_status", "")),
+            live_open_blocker=_deserialize_viewer_mapping(payload.get("live_open_blocker")),
+            camera_state=_deserialize_viewer_mapping(payload.get("camera_state")),
+            playback_state=_deserialize_viewer_mapping(payload.get("playback_state")),
             summary=_deserialize_viewer_mapping(payload.get("summary")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
@@ -596,7 +704,14 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             session_id=str(payload.get("session_id", "")),
+            backend_id=str(payload.get("backend_id", "")),
             data_refs=_deserialize_viewer_mapping(payload.get("data_refs")),
+            transport=_deserialize_viewer_mapping(payload.get("transport")),
+            transport_revision=_deserialize_viewer_int(payload.get("transport_revision")),
+            live_open_status=str(payload.get("live_open_status", "")),
+            live_open_blocker=_deserialize_viewer_mapping(payload.get("live_open_blocker")),
+            camera_state=_deserialize_viewer_mapping(payload.get("camera_state")),
+            playback_state=_deserialize_viewer_mapping(payload.get("playback_state")),
             summary=_deserialize_viewer_mapping(payload.get("summary")),
             options=_deserialize_viewer_mapping(payload.get("options")),
         )
