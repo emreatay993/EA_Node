@@ -16,20 +16,16 @@
 ## Target Subsystems
 
 - `ea_node_editor/execution/viewer_session_service.py`
-- `ea_node_editor/execution/worker_runtime.py`
-- `ea_node_editor/execution/dpf_runtime/base.py`
 - `ea_node_editor/execution/dpf_runtime/materialization.py`
-- `ea_node_editor/execution/dpf_runtime/operations.py`
 - `ea_node_editor/execution/dpf_runtime/viewer_session_backend.py`
-- `ea_node_editor/nodes/builtins/ansys_dpf_viewer_adapter.py`
 - `tests/test_execution_viewer_service.py`
 - `tests/test_execution_worker.py`
-- `tests/test_dpf_runtime_service.py`
 - `tests/test_dpf_materialization.py`
 - `tests/test_dpf_viewer_node.py`
 
 ## Conservative Write Scope
 
+- `docs/specs/work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P02_dpf_transport_bundle_materialization.md`
 - `ea_node_editor/execution/viewer_session_service.py`
 - `ea_node_editor/execution/worker_runtime.py`
 - `ea_node_editor/execution/dpf_runtime/base.py`
@@ -84,15 +80,10 @@
 
 - `docs/specs/work_packets/cross_process_viewer_backend_framework/P02_dpf_transport_bundle_materialization_WRAPUP.md`
 - `ea_node_editor/execution/viewer_session_service.py`
-- `ea_node_editor/execution/worker_runtime.py`
-- `ea_node_editor/execution/dpf_runtime/base.py`
 - `ea_node_editor/execution/dpf_runtime/materialization.py`
-- `ea_node_editor/execution/dpf_runtime/operations.py`
 - `ea_node_editor/execution/dpf_runtime/viewer_session_backend.py`
-- `ea_node_editor/nodes/builtins/ansys_dpf_viewer_adapter.py`
 - `tests/test_execution_viewer_service.py`
 - `tests/test_execution_worker.py`
-- `tests/test_dpf_runtime_service.py`
 - `tests/test_dpf_materialization.py`
 - `tests/test_dpf_viewer_node.py`
 
