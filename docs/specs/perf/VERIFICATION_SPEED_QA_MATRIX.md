@@ -1,6 +1,6 @@
 # Verification Speed QA Matrix
 
-- Updated: `2026-03-20`
+- Updated: `2026-03-29`
 - Packet set: `VERIFICATION_SPEED` (`P01` through `P05`)
 - Scope: published developer-facing verification workflow after the dedicated
   shell-isolation phase rollout, explicit max-parallel worker policy, and
@@ -75,6 +75,11 @@
 - `scripts/run_verification.py` applies `QT_QPA_PLATFORM=offscreen` to its
   child verification commands, so the top-level runner invocations do not need
   extra environment variables.
+- `scripts/run_verification.py` now preflights the project venv's direct
+  `pytest` dependencies before phase execution. If a partial install leaves
+  `iniconfig`, `exceptiongroup`, or another direct dependency missing, the
+  runner installs the missing package into `venv` and retries before it hands
+  off to the manifest-owned pytest command.
 - `pytest-xdist` is declared in `pyproject.toml` and `requirements.txt`, and it
   is installed in the project venv as of `2026-03-18`. On this machine,
   `resolve_max_parallel_workers()` resolves `12` via

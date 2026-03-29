@@ -305,6 +305,12 @@ Use the repo-owned runner for the default day-to-day loop. It keeps the
 shell-backed suites on a dedicated fresh-process shell-isolation phase in
 `full` mode.
 
+If the project venv has a partial `pytest` install and early startup fails
+with `ModuleNotFoundError` for a direct `pytest` dependency such as
+`iniconfig` or `exceptiongroup`, run any `scripts/run_verification.py` mode
+once. The runner now repairs the missing package in `venv` before launching
+the requested phase.
+
 Inspect or run the full workflow with:
 
 ```powershell
@@ -334,6 +340,10 @@ with `.\`.
   count as `psutil.cpu_count(logical=True)`, else `os.cpu_count()`, else `1`,
   then passes `-n <resolved_count> --dist load`. If `pytest-xdist` is
   unavailable, it falls back to serial pytest and prints the runner notice.
+- The repo-owned runner also preflights the project venv's direct `pytest`
+  dependencies before phase execution. If a package such as `iniconfig` or
+  `exceptiongroup` is missing, it installs the missing dependency into `venv`
+  and retries automatically.
 - Direct `.\venv\Scripts\python.exe -m pytest` runs now auto-enable xdist only
   for the safe non-GUI path. Broad invocations default to the same
   `not gui and not slow` slice, and focused GUI, slow, or shell-backed targets

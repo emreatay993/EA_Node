@@ -49,6 +49,11 @@ Create a quick regression pass before doing larger changes:
 .\venv\Scripts\python.exe .\scripts\run_verification.py --mode fast
 ```
 
+If the project venv has a partial `pytest` install and startup dies with
+`ModuleNotFoundError` for a direct dependency such as `iniconfig` or
+`exceptiongroup`, rerun one of the `scripts/run_verification.py` modes. The
+runner now repairs the missing package in `venv` before invoking `pytest`.
+
 Before merge, inspect or run the full workflow:
 
 ```powershell
@@ -72,6 +77,10 @@ Before merge, inspect or run the full workflow:
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
   commands.
+- The runner also preflights the project venv's direct `pytest` dependencies.
+  If a package such as `iniconfig` or `exceptiongroup` is missing, it installs
+  the missing dependency into `venv` and retries automatically before phase
+  execution.
 - Direct `.\venv\Scripts\python.exe -m pytest` now auto-parallelizes only the
   safe non-GUI path. Broad invocations default to the `not gui and not slow`
   slice, while focused GUI, slow, and shell-backed targets stay off that

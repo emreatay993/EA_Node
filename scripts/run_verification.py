@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -20,6 +21,41 @@ except ModuleNotFoundError:
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOCAL_VENV_PYTHON = REPO_ROOT / "venv" / "Scripts" / "python.exe"
+_MODULE_AVAILABLE_PROBE = (
+    "import importlib, sys; "
+    "importlib.import_module(sys.argv[1])"
+)
+_PYTEST_STARTUP_PROBE_ARGS = (
+    "-m",
+    "pytest",
+    "--collect-only",
+    "-q",
+    "tests/test_run_verification.py",
+    "--ignore=venv",
+)
+_MISSING_MODULE_PATTERN = re.compile(r"No module named ['\"]([^'\"]+)['\"]")
+_PIP_CHECK_MISSING_REQUIREMENT_PATTERN = re.compile(
+    r"^(?P<dist>[A-Za-z0-9_.-]+)\s+\S+\s+requires\s+(?P<requirement>.+), which is not installed\.$"
+)
+_PIP_CHECK_INCOMPATIBLE_REQUIREMENT_PATTERN = re.compile(
+    r"^(?P<dist>[A-Za-z0-9_.-]+)\s+\S+\s+has requirement\s+"
+    r"(?P<requirement>.+), but you have .+\.$"
+)
+_PYTEST_CORE_DISTS = frozenset({"pytest", "pytest-xdist"})
+_PYTEST_STACK_REPAIR_PACKAGES = {
+    "_pytest": "pytest",
+    "pytest": "pytest",
+    "colorama": "colorama",
+    "coverage": "coverage[toml]",
+    "execnet": "execnet>=2.1",
+    "exceptiongroup": "exceptiongroup",
+    "iniconfig": "iniconfig",
+    "packaging": "packaging",
+    "pluggy": "pluggy",
+    "pygments": "pygments",
+    "tomli": "tomli",
+    "typing_extensions": "typing-extensions",
+}
 
 
 @dataclass(frozen=True)
@@ -52,8 +88,187 @@ def resolve_python() -> tuple[str, str]:
     return sys.executable, sys.executable
 
 
-def pytest_xdist_available() -> bool:
-    return importlib.util.find_spec("xdist") is not None
+def python_module_available(python_exec: str, module_name: str) -> bool:
+    completed = subprocess.run(
+        [python_exec, "-c", _MODULE_AVAILABLE_PROBE, module_name],
+        cwd=REPO_ROOT,
+        check=False,
+    )
+    return completed.returncode == 0
+
+
+def pytest_xdist_available(python_exec: str) -> bool:
+    return python_module_available(python_exec, "xdist.newhooks")
+
+
+def probe_pytest_startup(python_exec: str) -> tuple[bool, str]:
+    completed = subprocess.run(
+        [python_exec, *_PYTEST_STARTUP_PROBE_ARGS],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0:
+        return True, ""
+
+    return (
+        False,
+        "\n".join(
+            part.strip()
+            for part in (completed.stderr, completed.stdout)
+            if part and part.strip()
+        ).strip(),
+    )
+
+
+def missing_module_from_output(failure_output: str) -> str | None:
+    match = _MISSING_MODULE_PATTERN.search(failure_output)
+    return None if match is None else match.group(1)
+
+
+def pytest_related_unmet_requirements(
+    python_exec: str, *, include_plugins: bool = True
+) -> tuple[str, ...]:
+    completed = subprocess.run(
+        [python_exec, "-m", "pip", "--disable-pip-version-check", "check"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode == 0:
+        return ()
+
+    requirements: list[str] = []
+    lines = [
+        part.strip()
+        for part in (completed.stdout, completed.stderr)
+        if part and part.strip()
+    ]
+    for output in lines:
+        for line in output.splitlines():
+            stripped = line.strip()
+            match = _PIP_CHECK_MISSING_REQUIREMENT_PATTERN.match(stripped)
+            if match is None:
+                match = _PIP_CHECK_INCOMPATIBLE_REQUIREMENT_PATTERN.match(stripped)
+            if match is None:
+                continue
+            dist_name = match.group("dist").lower()
+            is_relevant = (
+                dist_name.startswith("pytest")
+                if include_plugins
+                else dist_name in _PYTEST_CORE_DISTS
+            )
+            if not is_relevant:
+                continue
+            requirement = match.group("requirement").strip()
+            if requirement not in requirements:
+                requirements.append(requirement)
+    return tuple(requirements)
+
+
+def install_python_packages(python_exec: str, *packages: str) -> int:
+    completed = subprocess.run(
+        [
+            python_exec,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            *packages,
+        ],
+        cwd=REPO_ROOT,
+        check=False,
+    )
+    return completed.returncode
+
+
+def ensure_pytest_stack_ready(python_exec: str) -> bool:
+    attempted_repairs: set[str] = set()
+    repaired = False
+    max_attempts = len(_PYTEST_STACK_REPAIR_PACKAGES) + 1
+
+    for _ in range(max_attempts):
+        core_unmet_requirements = tuple(
+            requirement
+            for requirement in pytest_related_unmet_requirements(
+                python_exec, include_plugins=False
+            )
+            if requirement not in attempted_repairs
+        )
+        if core_unmet_requirements:
+            print(
+                "NOTE: pip check found broken core pytest requirements in the project "
+                "venv. Installing "
+                + ", ".join(f"'{requirement}'" for requirement in core_unmet_requirements)
+                + " and retrying."
+            )
+            install_return_code = install_python_packages(python_exec, *core_unmet_requirements)
+            if install_return_code != 0:
+                raise RuntimeError(
+                    "Automatic pytest-stack repair failed while installing core pip-check "
+                    f"requirements (exit code {install_return_code})."
+                )
+            attempted_repairs.update(core_unmet_requirements)
+            repaired = True
+            continue
+
+        startup_ok, failure_output = probe_pytest_startup(python_exec)
+        if startup_ok:
+            return repaired
+
+        missing_module = missing_module_from_output(failure_output)
+        package_name = None if missing_module is None else _PYTEST_STACK_REPAIR_PACKAGES.get(
+            missing_module
+        )
+        if package_name is not None and package_name not in attempted_repairs:
+            print(
+                "NOTE: pytest startup failed because "
+                f"'{missing_module}' is missing in the project venv. "
+                f"Installing '{package_name}' and retrying."
+            )
+            install_return_code = install_python_packages(python_exec, package_name)
+            if install_return_code != 0:
+                raise RuntimeError(
+                    f"Automatic pytest-stack repair failed while installing '{package_name}' "
+                    f"(exit code {install_return_code})."
+                )
+            attempted_repairs.add(package_name)
+            repaired = True
+            continue
+
+        unmet_requirements = tuple(
+            requirement
+            for requirement in pytest_related_unmet_requirements(
+                python_exec, include_plugins=True
+            )
+            if requirement not in attempted_repairs
+        )
+        if unmet_requirements:
+            print(
+                "NOTE: pip check found broken pytest-related requirements in the project "
+                "venv. Installing "
+                + ", ".join(f"'{requirement}'" for requirement in unmet_requirements)
+                + " and retrying."
+            )
+            install_return_code = install_python_packages(python_exec, *unmet_requirements)
+            if install_return_code != 0:
+                raise RuntimeError(
+                    "Automatic pytest-stack repair failed while installing pip-check "
+                    f"requirements (exit code {install_return_code})."
+                )
+            attempted_repairs.update(unmet_requirements)
+            repaired = True
+            continue
+
+        raise RuntimeError(
+            "pytest is not startup-ready in the project venv after the automatic repair "
+            "attempt.\n"
+            f"{failure_output}"
+        )
+
+    raise RuntimeError("pytest remains unavailable in the project venv after repair attempts.")
 
 
 def resolve_max_parallel_workers() -> int:
@@ -126,7 +341,7 @@ def build_shell_isolation_phase_command(
 
 def build_commands(mode: str) -> list[CommandSpec]:
     python_exec, python_display = resolve_python()
-    xdist_available = pytest_xdist_available()
+    xdist_available = pytest_xdist_available(python_exec)
     worker_count = resolve_max_parallel_workers()
     notices = {
         "fast": "pytest-xdist is unavailable; falling back to serial pytest for fast mode.",
@@ -220,6 +435,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
+    python_exec, _python_display = resolve_python()
+    if not args.dry_run:
+        try:
+            ensure_pytest_stack_ready(python_exec)
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
     commands = build_commands(args.mode)
     for command in commands:
         print(f"[{command.phase}]")
