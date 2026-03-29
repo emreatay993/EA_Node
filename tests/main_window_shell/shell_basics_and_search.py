@@ -5,6 +5,7 @@ import json
 from unittest.mock import patch
 
 from PyQt6.QtGui import QColor
+from PyQt6.QtQml import QJSValue
 from PyQt6.QtQuick import QQuickItem
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
@@ -35,6 +36,40 @@ def _named_child_items(root: QObject, object_name: str) -> list[QQuickItem]:
 
     _visit(root)
     return matches
+
+
+def _active_tab_label(strip: QObject) -> tuple[QQuickItem, QObject]:
+    slots = strip.property("tabSlots")
+    if isinstance(slots, QJSValue):
+        slots = slots.toVariant()
+    slot_items = [slot for slot in (slots or []) if isinstance(slot, QQuickItem)]
+    if not slot_items:
+        raise AssertionError("Expected at least one tab slot.")
+
+    for slot in slot_items:
+        button = next(
+            (
+                child
+                for child in slot.children()
+                if isinstance(child, QQuickItem) and child.property("active") is not None
+            ),
+            None,
+        )
+        if button is None or not bool(button.property("active")):
+            continue
+        label = next(
+            (
+                child
+                for child in button.children()
+                if child.metaObject().className() == "QQuickText" and str(child.property("text") or "").strip()
+            ),
+            None,
+        )
+        if label is None:
+            raise AssertionError("Expected an active tab label text item.")
+        return button, label
+
+    raise AssertionError("Expected at least one active tab button.")
 
 
 class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
@@ -284,6 +319,21 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
             _color_name(graph_hint_overlay.property("color"), include_alpha=True),
             _alpha_color_name(palette["panel_bg"], 0.8),
         )
+
+    def test_qml_active_workspace_and_view_tab_labels_use_selected_theme_foreground(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        view_controls_strip = root_object.findChild(QObject, "viewControlsStrip")
+        workspace_controls_strip = root_object.findChild(QObject, "workspaceControlsStrip")
+        self.assertIsNotNone(view_controls_strip)
+        self.assertIsNotNone(workspace_controls_strip)
+
+        palette = self.window.theme_bridge.palette
+        for strip in (view_controls_strip, workspace_controls_strip):
+            button, label = _active_tab_label(strip)
+            self.assertTrue(bool(button.property("active")))
+            self.assertEqual(_color_name(label.property("color")), palette["tab_selected_fg"])
+            self.assertTrue(label.property("font").bold())
 
     def test_qml_canvas_surfaces_start_on_active_theme_palette(self) -> None:
         graph_canvas = self._graph_canvas_item()

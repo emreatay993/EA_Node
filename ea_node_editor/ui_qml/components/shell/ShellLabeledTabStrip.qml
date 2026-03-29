@@ -295,11 +295,11 @@ RowLayout {
                         Text {
                             anchors.centerIn: parent
                             text: root.tabLabelForItem(tabButton.itemData)
-                            color: active
+                            color: tabButton.active
                                 ? root.themePalette.tab_selected_fg
                                 : root.themePalette.tab_fg
                             font.pixelSize: root.tabFontSize
-                            font.bold: active
+                            font.bold: tabButton.active
                         }
 
                         MouseArea {
