@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 ComboBox {
     id: control
     property var pane
+    property string placeholderText: ""
     implicitHeight: 34
     editable: true
     leftPadding: 8
@@ -69,5 +70,20 @@ ComboBox {
             currentIndex: control.highlightedIndex
             ScrollIndicator.vertical: ScrollIndicator { }
         }
+    }
+
+    Text {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: control.leftPadding
+        anchors.rightMargin: control.rightPadding
+        text: control.placeholderText
+        color: control.pane.themePalette.muted_fg
+        font.pixelSize: control.font.pixelSize
+        elide: Text.ElideRight
+        visible: control.editable
+            && !String(control.editText || "").length
+            && String(control.placeholderText || "").length > 0
     }
 }

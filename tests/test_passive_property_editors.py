@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
@@ -31,6 +32,27 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
             node=node,
             spec=spec,
             subnode_pin_type_ids=set(),
+        )
+        return {str(item["key"]): item for item in items}
+
+    def _property_items_for_node(
+        self,
+        node_id: str,
+        *,
+        project_path: str | None = None,
+        dpf_named_selection_provider=None,
+    ) -> dict[str, dict[str, object]]:
+        workspace = self.model.project.workspaces[self.workspace_id]
+        node = workspace.nodes[node_id]
+        spec = self.registry.get_spec(node.type_id)
+        items = build_selected_node_property_items(
+            node=node,
+            spec=spec,
+            subnode_pin_type_ids=set(),
+            workspace_nodes=workspace.nodes,
+            workspace_edges=workspace.edges,
+            project_path=project_path,
+            dpf_named_selection_provider=dpf_named_selection_provider,
         )
         return {str(item["key"]): item for item in items}
 
@@ -86,6 +108,83 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
         self.assertEqual(database_items["body"]["editor_mode"], "textarea")
         self.assertEqual(database_items["body"]["value"], "Database")
         self.assertTrue(WorkspaceViewNavOps._property_is_content_searchable(decision_body))
+
+    def test_dpf_mesh_scoping_named_selection_uses_editable_combo_with_upstream_options(self) -> None:
+        result_file_id = self.scene.add_node_from_type("dpf.result_file", 0.0, 0.0)
+        model_id = self.scene.add_node_from_type("dpf.model", 320.0, 0.0)
+        scoping_id = self.scene.add_node_from_type("dpf.scoping.mesh", 640.0, 0.0)
+
+        self.scene.set_node_property(result_file_id, "path", "C:/tmp/demo.rst")
+        self.scene.add_edge(result_file_id, "result_file", model_id, "result_file")
+        self.scene.add_edge(model_id, "model", scoping_id, "model")
+
+        requested_paths: list[str] = []
+
+        def named_selection_provider(result_path: str) -> tuple[str, ...]:
+            requested_paths.append(result_path)
+            return ("BOLT_NODES", "FACE_A")
+
+        items = self._property_items_for_node(
+            scoping_id,
+            dpf_named_selection_provider=named_selection_provider,
+        )
+
+        self.assertEqual(requested_paths, ["C:\\tmp\\demo.rst"])
+        self.assertEqual(items["named_selection"]["editor_mode"], "editable_combo")
+        self.assertEqual(items["named_selection"]["enum_values"], ["BOLT_NODES", "FACE_A"])
+        self.assertEqual(items["named_selection"].get("placeholder_text"), "")
+
+    def test_dpf_mesh_scoping_named_selection_shows_empty_state_when_upstream_model_has_none(self) -> None:
+        model_id = self.scene.add_node_from_type("dpf.model", 320.0, 0.0)
+        scoping_id = self.scene.add_node_from_type("dpf.scoping.mesh", 640.0, 0.0)
+
+        self.scene.set_node_property(model_id, "path", "C:/tmp/demo.rst")
+        self.scene.add_edge(model_id, "model", scoping_id, "model")
+
+        items = self._property_items_for_node(
+            scoping_id,
+            dpf_named_selection_provider=lambda result_path: (),
+        )
+
+        self.assertEqual(items["named_selection"]["editor_mode"], "editable_combo")
+        self.assertEqual(items["named_selection"]["enum_values"], [])
+        self.assertEqual(items["named_selection"].get("placeholder_text"), "No named selections found")
+
+    def test_dpf_mesh_scoping_named_selection_resolves_relative_model_path_against_project(self) -> None:
+        model_id = self.scene.add_node_from_type("dpf.model", 320.0, 0.0)
+        scoping_id = self.scene.add_node_from_type("dpf.scoping.mesh", 640.0, 0.0)
+
+        self.scene.set_node_property(model_id, "path", "results/demo.rst")
+        self.scene.add_edge(model_id, "model", scoping_id, "model")
+
+        requested_paths: list[str] = []
+
+        def named_selection_provider(result_path: str) -> tuple[str, ...]:
+            requested_paths.append(result_path)
+            return ("BOLT_NODES",)
+
+        project_path = str(Path("C:/workflows/project.json"))
+        items = self._property_items_for_node(
+            scoping_id,
+            project_path=project_path,
+            dpf_named_selection_provider=named_selection_provider,
+        )
+
+        self.assertEqual(
+            requested_paths,
+            [str(Path("C:/workflows/results/demo.rst").resolve(strict=False))],
+        )
+        self.assertEqual(items["named_selection"]["editor_mode"], "editable_combo")
+        self.assertEqual(items["named_selection"]["enum_values"], ["BOLT_NODES"])
+
+    def test_dpf_mesh_scoping_non_named_selection_mode_keeps_manual_text_editor(self) -> None:
+        scoping_id = self.scene.add_node_from_type("dpf.scoping.mesh", 640.0, 0.0)
+        self.scene.set_node_property(scoping_id, "selection_mode", "node_ids")
+
+        items = self._property_items_for_node(scoping_id)
+
+        self.assertEqual(items["named_selection"]["editor_mode"], "text")
+        self.assertEqual(items["named_selection"]["enum_values"], [])
 
 
 if __name__ == "__main__":

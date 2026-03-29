@@ -171,6 +171,53 @@ Column {
         }
     }
 
+    InspectorEditableComboBox {
+        id: editableComboEditor
+        pane: propertyEditor.pane
+        width: parent.width
+        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "editable_combo"
+        enabled: !propertyEditor.overriddenByInput
+        placeholderText: String(
+            propertyEditor.propertyItem && propertyEditor.propertyItem.placeholder_text
+                ? propertyEditor.propertyItem.placeholder_text
+                : ""
+        )
+        model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
+            ? propertyEditor.propertyItem.enum_values
+            : []
+        currentIndex: {
+            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
+                ? propertyEditor.propertyItem.enum_values
+                : []
+            var value = String(propertyEditor.propertyItem && propertyEditor.propertyItem.value || "")
+            return values.indexOf(value)
+        }
+        onActivated: {
+            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
+                ? propertyEditor.propertyItem.enum_values
+                : []
+            if (!propertyEditor.pane.inspectorBridgeRef || currentIndex < 0 || currentIndex >= values.length)
+                return
+            propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
+                propertyEditor.propertyKey,
+                String(values[currentIndex])
+            )
+        }
+        onAccepted: {
+            if (propertyEditor.pane.inspectorBridgeRef)
+                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, editText)
+        }
+        onActiveFocusChanged: {
+            if (!activeFocus && propertyEditor.pane.inspectorBridgeRef)
+                propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(propertyEditor.propertyKey, editText)
+        }
+        Component.onCompleted: editText = propertyEditor.propertyValueText
+        onVisibleChanged: {
+            if (visible && !activeFocus)
+                editText = propertyEditor.propertyValueText
+        }
+    }
+
     Column {
         id: textareaEditorGroup
         width: parent.width

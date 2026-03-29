@@ -1053,6 +1053,7 @@ class ShellInspectorPresenter(QObject):
             spec=spec,
             subnode_pin_type_ids=self._host._SUBNODE_PIN_TYPE_IDS,
             workspace_nodes=workspace.nodes,
+            workspace_edges=workspace.edges,
             port_connection_counts=port_connection_counts,
             file_issues_by_key=collect_node_file_issues(
                 node=node,
@@ -1060,6 +1061,7 @@ class ShellInspectorPresenter(QObject):
                 project_path=str(self._host.project_path or "").strip() or None,
                 project_metadata=dict(metadata) if isinstance(metadata, dict) else None,
             ),
+            project_path=str(self._host.project_path or "").strip() or None,
         )
 
     @property
