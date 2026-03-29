@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.execution.dpf_runtime.viewer_session_backend import (
@@ -188,15 +189,33 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertNotEqual(calls[0]["model_ref"].owner_scope, "run:run_viewer_service")  # type: ignore[index]
 
             dataset_ref = materialized.data_refs["dataset"]
+            transport_manifest_path = Path(materialized.transport["manifest_path"])
+            transport_entry_path = Path(materialized.transport["entry_path"])
             self.assertEqual(materialized.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)
-            self.assertEqual(materialized.transport["kind"], "dpf_handle_refs")
+            self.assertEqual(materialized.transport["kind"], "dpf_transport_bundle")
             self.assertEqual(materialized.transport["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+            self.assertTrue(transport_manifest_path.is_file())
+            self.assertTrue(transport_entry_path.is_file())
             self.assertGreaterEqual(materialized.transport_revision, 1)
             self.assertEqual(materialized.live_open_status, "ready")
             self.assertEqual(dataset_ref.kind, DPF_VIEWER_DATASET_HANDLE_KIND)
             self.assertEqual(dataset_ref.owner_scope, "cache:viewer_session:ws_main:session_live")
             self.assertEqual(materialized.data_refs["png"].artifact_id, "viewer_preview_png")
             self.assertEqual(materialized.options["live_mode"], "full")
+            rematerialized_cached = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize_cached",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_live",
+                    options={"output_profile": "both", "export_formats": ["png"]},
+                )
+            )
+            self.assertIsInstance(rematerialized_cached, ViewerDataMaterializedEvent)
+            if not isinstance(rematerialized_cached, ViewerDataMaterializedEvent):
+                self.fail("Expected cached viewer_data_materialized event")
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(rematerialized_cached.transport_revision, materialized.transport_revision)
             payload = event_to_dict(materialized)
             encoded_payload = json.dumps(payload, sort_keys=True)
             self.assertNotIn("RAW<fields_run>", encoded_payload)
@@ -216,6 +235,8 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertEqual(closed.options["session_state"], "closed")
             with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
                 self.services.resolve_handle(dataset_ref)
+            self.assertFalse(transport_manifest_path.exists())
+            self.assertFalse(transport_entry_path.exists())
 
             reopened = self.service.open_session(
                 OpenViewerSessionCommand(
@@ -228,7 +249,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
 
             self.assertEqual(reopened.options["live_mode"], "proxy")
             self.assertEqual(reopened.live_open_status, "blocked")
-            self.assertEqual(reopened.live_open_blocker["code"], "transport_not_ready")
+            self.assertEqual(reopened.live_open_blocker["code"], "rerun_required")
             rematerialized = self.service.materialize_data(
                 MaterializeViewerDataCommand(
                     request_id="viewer_req_rematerialize",
@@ -274,6 +295,13 @@ class ViewerSessionServiceTests(unittest.TestCase):
             "materialize",
             return_value=ViewerSessionMaterializationResult(
                 data_refs={"dataset": dataset_ref, "png": png_ref},
+                transport={
+                    "kind": "dpf_transport_bundle",
+                    "manifest_path": str(Path(__file__).resolve()),
+                    "entry_path": str(Path(__file__).resolve()),
+                },
+                transport_revision=3,
+                live_open_status="ready",
                 summary={"result_name": "displacement"},
             ),
         ) as materialize:
@@ -301,6 +329,8 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertEqual(request.project_path, "viewer_backend_demo.sfe")
         self.assertEqual(materialized.data_refs["dataset"], dataset_ref)
         self.assertEqual(materialized.data_refs["png"], png_ref)
+        self.assertEqual(materialized.transport_revision, 3)
+        self.assertEqual(materialized.live_open_status, "ready")
 
     def test_open_session_demotes_stale_materialized_handles_to_proxy_state(self) -> None:
         calls: list[dict[str, object]] = []

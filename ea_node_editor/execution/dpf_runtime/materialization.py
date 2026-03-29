@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import tempfile
 from collections.abc import Iterable
@@ -18,6 +19,69 @@ from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
 
 
 class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
+    def export_viewer_transport_bundle(
+        self,
+        value: Any,
+        *,
+        model: Any,
+        bundle_root: str | Path,
+        mesh: Any | None = None,
+        workspace_id: str = "",
+        session_id: str = "",
+        transport_revision: int = 0,
+    ) -> dict[str, Any]:
+        fields_ref, fields_container = self._resolve_fields_container_handle_and_object(value)
+        _, resolved_model = self._resolve_model_handle_and_object(model)
+        resolved_mesh = self._resolve_mesh_object(mesh, model=resolved_model)
+
+        root_path = Path(bundle_root).expanduser().resolve()
+        self._clear_output_path(root_path)
+        root_path.mkdir(parents=True, exist_ok=True)
+
+        dataset_dir = root_path / "dataset"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        vtu_files = self._write_vtu_bundle(fields_container, resolved_mesh, dataset_dir)
+        vtm_files = self._write_vtm_bundle(dataset_dir)
+        listed_files = sorted(
+            [f"dataset/{name}" for name in vtu_files]
+            + [f"dataset/{name}" for name in vtm_files]
+        )
+        entry_file = f"dataset/{DEFAULT_VTM_FILENAME}"
+        entry_path = root_path / entry_file
+        manifest_path = root_path / "transport_manifest.json"
+        metadata = {
+            **self._build_fields_container_metadata(
+                fields_container,
+                result_name=str(fields_ref.metadata.get("result_name", "")).strip(),
+            ),
+            **self._build_mesh_metadata(resolved_mesh),
+            "source_handle_id": fields_ref.handle_id,
+        }
+        manifest_payload = {
+            "schema": "ea.dpf.viewer_transport_bundle.v1",
+            "workspace_id": str(workspace_id).strip(),
+            "session_id": str(session_id).strip(),
+            "transport_revision": int(transport_revision),
+            "entry_file": entry_file,
+            "files": listed_files,
+            "metadata": metadata,
+        }
+        manifest_path.write_text(
+            json.dumps(manifest_payload, ensure_ascii=True, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        return {
+            "kind": "dpf_transport_bundle",
+            "version": 1,
+            "schema": "ea.dpf.viewer_transport_bundle.v1",
+            "manifest_path": str(manifest_path),
+            "bundle_root": str(root_path),
+            "entry_file": entry_file,
+            "entry_path": str(entry_path),
+            "files": listed_files,
+            "metadata": metadata,
+        }
+
     def export_field_artifacts(
         self,
         value: Any,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
@@ -30,9 +31,15 @@ if TYPE_CHECKING:
 _DEFAULT_OUTPUT_PROFILE = "memory"
 _SESSION_ID_PREFIX = "viewer_session_"
 _SESSION_INVALIDATION_REASON_RERUN = "workspace_rerun"
+_SESSION_INVALIDATION_REASON_PROJECT_REPLACED = "project_replaced"
 _MATERIALIZED_DATA_KEYS = frozenset({"dataset", "preview", "csv", "png", "vtu", "vtm"})
 _MATERIALIZE_TRANSIENT_OPTION_KEYS = frozenset({"temporary_root_parent", "force_recompute"})
 _CLOSE_TRANSIENT_OPTION_KEYS = frozenset({"reason", "release_handles"})
+_TRANSPORT_RERUN_REQUIRED_BLOCKER = {
+    "code": "rerun_required",
+    "reason": "Live viewer transport is unavailable and requires rerun.",
+    "rerun_required": True,
+}
 
 
 def _copy_mapping(value: Any) -> dict[str, Any]:
@@ -79,6 +86,7 @@ class _ViewerSessionRecord:
     options: dict[str, Any] = field(default_factory=dict)
     session_state: str = "open"
     invalidated_reason: str = ""
+    rerun_required: bool = False
     stale_ref_keys: set[str] = field(default_factory=set)
 
     def has_live_dataset(self) -> bool:
@@ -89,6 +97,8 @@ class _ViewerSessionRecord:
             return "invalidated"
         if self.session_state == "closed":
             return "closed"
+        if self.transport:
+            return "live_ready"
         if self.has_live_dataset():
             return "live_ready"
         if self.source_refs or self.materialized_refs:
@@ -108,6 +118,8 @@ class _ViewerSessionRecord:
         summary["live_open_status"] = self.live_open_status
         if self.invalidated_reason:
             summary["invalidated_reason"] = self.invalidated_reason
+        if self.rerun_required:
+            summary["rerun_required"] = True
         if self.live_open_blocker:
             summary["live_open_blocker"] = copy.deepcopy(self.live_open_blocker)
         if self.camera_state:
@@ -129,12 +141,14 @@ class _ViewerSessionRecord:
     def public_options(self) -> dict[str, Any]:
         options = copy.deepcopy(self.options)
         requested_live_mode = str(options.get("live_mode", "")).strip() or "proxy"
-        options["live_mode"] = requested_live_mode if self.has_live_dataset() and not self.invalidated_reason else "proxy"
+        live_ready = self.live_open_status == "ready" and not self.invalidated_reason
+        options["live_mode"] = requested_live_mode if live_ready else "proxy"
         options["session_state"] = self.session_state
         options["cache_state"] = self.cache_state()
         options["backend_id"] = self.backend_id
         options["transport_revision"] = self.transport_revision
         options["live_open_status"] = self.live_open_status
+        options["rerun_required"] = self.rerun_required
         if self.live_open_blocker:
             options["live_open_blocker"] = copy.deepcopy(self.live_open_blocker)
         playback_state = copy.deepcopy(self.playback_state)
@@ -162,13 +176,26 @@ class ViewerSessionService:
         invalidate_existing: bool = False,
     ) -> None:
         normalized_workspace_id = self._normalize_required_string("workspace_id", workspace_id)
+        normalized_project_path = str(project_path).strip()
+        previous_context = self._workspace_contexts.get(normalized_workspace_id)
+        if (
+            previous_context is not None
+            and not invalidate_existing
+            and previous_context.project_path
+            and normalized_project_path
+            and previous_context.project_path != normalized_project_path
+        ):
+            self.invalidate_workspace(
+                normalized_workspace_id,
+                reason=_SESSION_INVALIDATION_REASON_PROJECT_REPLACED,
+            )
         if invalidate_existing:
             self.invalidate_workspace(
                 normalized_workspace_id,
                 reason=_SESSION_INVALIDATION_REASON_RERUN,
             )
         self._workspace_contexts[normalized_workspace_id] = _ViewerWorkspaceContext(
-            project_path=str(project_path).strip(),
+            project_path=normalized_project_path,
             runtime_snapshot=runtime_snapshot,
             runtime_snapshot_context=runtime_snapshot_context,
         )
@@ -180,26 +207,35 @@ class ViewerSessionService:
         for session_key, record in self._sessions.items():
             if session_key[0] != normalized_workspace_id:
                 continue
+            self._release_live_transport(
+                record,
+                reason=normalized_reason,
+                mark_rerun_required=True,
+            )
             self._release_owner_scope(record.owner_scope)
             record.source_refs.clear()
             record.materialized_refs.clear()
-            self._set_transport_state(
-                record,
-                transport={},
-                transport_revision=record.transport_revision + 1 if record.transport else record.transport_revision,
-            )
             record.session_state = "invalidated"
             record.invalidated_reason = normalized_reason
+            record.rerun_required = True
             record.stale_ref_keys.clear()
             self._refresh_public_contract(record)
             invalidated_count += 1
         return invalidated_count
 
     def reset(self) -> None:
-        released_owner_scopes = {
-            record.owner_scope
-            for record in self._sessions.values()
-        }
+        for record in self._sessions.values():
+            self._release_live_transport(
+                record,
+                reason="worker_reset",
+                mark_rerun_required=False,
+            )
+        if hasattr(self._materialization_backend, "reset"):
+            try:
+                self._materialization_backend.reset()
+            except Exception:  # noqa: BLE001
+                pass
+        released_owner_scopes = {record.owner_scope for record in self._sessions.values()}
         for owner_scope in released_owner_scopes:
             self._release_owner_scope(owner_scope)
         self._sessions.clear()
@@ -320,8 +356,17 @@ class ViewerSessionService:
             return record
 
         self._sanitize_record(record)
-        if bool(command.options.get("release_handles", False)):
+        release_handles = bool(command.options.get("release_handles", False))
+        if release_handles:
             self._release_materialized_handles(record)
+        else:
+            self._release_live_dataset_ref(record)
+
+        self._release_live_transport(
+            record,
+            reason="session_closed",
+            mark_rerun_required=True,
+        )
 
         reason = str(command.options.get("reason", "")).strip()
         if reason:
@@ -333,7 +378,7 @@ class ViewerSessionService:
         if reason:
             event_options["reason"] = reason
         if "release_handles" in command.options:
-            event_options["release_handles"] = bool(command.options.get("release_handles", False))
+            event_options["release_handles"] = release_handles
         return ViewerSessionClosedEvent(
             request_id=command.request_id,
             workspace_id=record.workspace_id,
@@ -423,13 +468,6 @@ class ViewerSessionService:
         result_playback_state = _copy_mapping(getattr(result, "playback_state", {}))
         result_live_open_status = str(getattr(result, "live_open_status", "")).strip()
         result_live_open_blocker = _copy_mapping(getattr(result, "live_open_blocker", {}))
-        if not result_transport and result.data_refs:
-            result_transport = {
-                "kind": "legacy_data_refs",
-                "version": 1,
-                "backend_id": result_backend_id,
-                "data_refs": copy.deepcopy(result.data_refs),
-            }
         record.backend_id = result_backend_id
         self._set_transport_state(
             record,
@@ -446,6 +484,7 @@ class ViewerSessionService:
         record.summary.update(copy.deepcopy(result.summary))
         record.summary["materialized_output_profile"] = output_profile
         record.invalidated_reason = ""
+        record.rerun_required = False
         record.session_state = "open"
         self._refresh_public_contract(
             record,
@@ -542,6 +581,18 @@ class ViewerSessionService:
         record.source_refs, stale_source = self._sanitize_ref_map(record.source_refs)
         record.materialized_refs, stale_materialized = self._sanitize_ref_map(record.materialized_refs)
         record.stale_ref_keys = stale_source | stale_materialized
+        if record.transport and not record.materialized_refs:
+            self._release_live_transport(
+                record,
+                reason="stale_materialized_refs",
+                mark_rerun_required=bool(record.source_refs),
+            )
+        elif record.transport and not self._is_transport_live(record.transport):
+            self._release_live_transport(
+                record,
+                reason="transport_missing",
+                mark_rerun_required=True,
+            )
         self._refresh_transport_refs(record)
         self._refresh_public_contract(record)
 
@@ -634,6 +685,10 @@ class ViewerSessionService:
                 transport=transport,
                 transport_revision=transport_revision,
             )
+            if transport:
+                record.rerun_required = False
+        elif data_refs:
+            record.rerun_required = False
         self._refresh_public_contract(
             record,
             live_open_status=live_open_status,
@@ -692,12 +747,10 @@ class ViewerSessionService:
                 "code": "session_closed",
                 "reason": str(record.summary.get("close_reason", "session_closed")).strip() or "session_closed",
             }
-        if record.transport:
-            transport_refs = _copy_mapping(record.transport.get("data_refs"))
-            if "data_refs" not in record.transport:
-                return "ready", {}
-            if "dataset" in transport_refs:
-                return "ready", {}
+        if self._is_transport_live(record.transport):
+            return "ready", {}
+        if record.rerun_required:
+            return "blocked", copy.deepcopy(_TRANSPORT_RERUN_REQUIRED_BLOCKER)
         if record.source_refs or record.materialized_refs:
             return "blocked", {
                 "code": "transport_not_ready",
@@ -726,7 +779,11 @@ class ViewerSessionService:
         record.live_open_blocker = normalized_blocker
 
     def _refresh_transport_refs(self, record: _ViewerSessionRecord) -> None:
-        if not record.transport or "data_refs" not in record.transport:
+        if not record.transport:
+            return
+        if str(record.transport.get("kind", "")).strip() not in {"dpf_handle_refs", "legacy_data_refs"}:
+            return
+        if "data_refs" not in record.transport:
             return
         updated_transport = _copy_mapping(record.transport)
         updated_transport["data_refs"] = record.public_data_refs()
@@ -777,6 +834,59 @@ class ViewerSessionService:
                 self._release_session_handle(previous, owner_scope=record.owner_scope)
             record.materialized_refs[str(key)] = value
 
+    def _release_live_dataset_ref(self, record: _ViewerSessionRecord) -> None:
+        dataset_ref = record.materialized_refs.pop("dataset", None)
+        self._release_session_handle(dataset_ref, owner_scope=record.owner_scope)
+        self._refresh_transport_refs(record)
+
+    def _release_live_transport(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        reason: str,
+        mark_rerun_required: bool,
+    ) -> None:
+        had_transport = bool(record.transport)
+        backend_id = str(record.backend_id).strip() or DPF_EXECUTION_VIEWER_BACKEND_ID
+        try:
+            backend = self._backend_registry.resolve(backend_id)
+        except LookupError:
+            backend = None
+        if backend is not None and hasattr(backend, "release_session_transport"):
+            try:
+                backend.release_session_transport(
+                    workspace_id=record.workspace_id,
+                    session_id=record.session_id,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+        self._set_transport_state(
+            record,
+            transport={},
+            transport_revision=record.transport_revision + 1 if had_transport else record.transport_revision,
+        )
+        if str(reason).strip():
+            record.summary["live_transport_release_reason"] = str(reason).strip()
+        if mark_rerun_required and (had_transport or record.source_refs or record.materialized_refs):
+            record.rerun_required = True
+
+    @staticmethod
+    def _is_transport_live(transport: Mapping[str, Any]) -> bool:
+        if not transport:
+            return False
+        kind = str(transport.get("kind", "")).strip()
+        if kind == "dpf_transport_bundle":
+            manifest_path = str(transport.get("manifest_path", "")).strip()
+            entry_path = str(transport.get("entry_path", "")).strip()
+            if not manifest_path or not entry_path:
+                return False
+            return Path(manifest_path).is_file() and Path(entry_path).is_file()
+        if kind in {"dpf_handle_refs", "legacy_data_refs"}:
+            transport_refs = _copy_mapping(transport.get("data_refs"))
+            return "dataset" in transport_refs
+        return True
+
     def _release_materialized_handles(self, record: _ViewerSessionRecord) -> None:
         retained_refs: dict[str, Any] = {}
         for key, value in record.materialized_refs.items():
@@ -810,6 +920,9 @@ class ViewerSessionService:
         output_profile: str,
         export_formats: tuple[str, ...],
     ) -> ViewerDataMaterializedEvent | None:
+        if record.rerun_required or not self._is_transport_live(record.transport):
+            return None
+
         cached_refs: dict[str, Any] = {}
         if output_profile in {"memory", "both"}:
             dataset_ref = record.materialized_refs.get("dataset")

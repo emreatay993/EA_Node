@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 DPF_EXECUTION_VIEWER_BACKEND_ID = "dpf_embedded"
-DPF_EXECUTION_VIEWER_TRANSPORT_KIND = "dpf_handle_refs"
+DPF_EXECUTION_VIEWER_TRANSPORT_KIND = "dpf_transport_bundle"
 
 
 class DpfExecutionViewerBackend:
@@ -46,28 +46,35 @@ class DpfExecutionViewerBackend:
                 runtime_snapshot_context=request.runtime_snapshot_context,
             )
         )
-        transport = {
-            "kind": DPF_EXECUTION_VIEWER_TRANSPORT_KIND,
-            "version": 1,
-            "backend_id": self.backend_id,
-            "data_refs": copy.deepcopy(result.data_refs),
-        }
-        has_live_dataset = "dataset" in result.data_refs
-        live_open_status = "ready" if has_live_dataset else "blocked"
-        live_open_blocker = {}
-        if not has_live_dataset:
-            live_open_blocker = {
-                "code": "transport_not_ready",
-                "reason": "Live viewer transport is not materialized.",
-            }
+        transport = copy.deepcopy(result.transport)
+        if transport:
+            transport["kind"] = DPF_EXECUTION_VIEWER_TRANSPORT_KIND
+            transport["backend_id"] = self.backend_id
+        live_open_status = str(result.live_open_status).strip() or "blocked"
+        live_open_blocker = copy.deepcopy(result.live_open_blocker)
         return ViewerBackendMaterializationResult(
             backend_id=self.backend_id,
             data_refs=copy.deepcopy(result.data_refs),
             transport=transport,
+            transport_revision=int(result.transport_revision),
             live_open_status=live_open_status,
             live_open_blocker=live_open_blocker,
             summary=copy.deepcopy(result.summary),
         )
+
+    def release_session_transport(self, *, workspace_id: str, session_id: str) -> None:
+        self._materialization_backend.release_session_transport(
+            workspace_id=workspace_id,
+            session_id=session_id,
+        )
+
+    def release_workspace_transport(self, *, workspace_id: str) -> None:
+        self._materialization_backend.release_workspace_transport(
+            workspace_id=workspace_id,
+        )
+
+    def reset(self) -> None:
+        self._materialization_backend.reset()
 
 
 __all__ = [

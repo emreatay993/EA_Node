@@ -104,7 +104,9 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(session_payload["options"]["live_mode"], "proxy")
         self.assertEqual(session_payload["options"]["session_state"], "open")
         self.assertGreaterEqual(int(session_payload["transport_revision"]), 1)
-        self.assertEqual(session_payload["transport"]["kind"], "dpf_handle_refs")
+        self.assertEqual(session_payload["transport"]["kind"], "dpf_transport_bundle")
+        self.assertIn("manifest_path", session_payload["transport"])
+        self.assertIn("entry_path", session_payload["transport"])
         self.assertEqual(session_payload["data_refs"]["dataset"].kind, DPF_VIEWER_DATASET_HANDLE_KIND)
 
     def test_viewer_node_reopen_restores_result_summary_and_keep_live_policy(self) -> None:
@@ -146,7 +148,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(reopened.summary["cache_state"], "proxy_ready")
         self.assertEqual(reopened.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)
         self.assertEqual(reopened.live_open_status, "blocked")
-        self.assertEqual(reopened.live_open_blocker["code"], "transport_not_ready")
+        self.assertEqual(reopened.live_open_blocker["code"], "rerun_required")
 
 
 if __name__ == "__main__":

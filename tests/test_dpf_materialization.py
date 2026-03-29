@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import tempfile
 import unittest
@@ -141,6 +142,44 @@ class DpfMaterializationTests(unittest.TestCase):
             self.assertGreater(png_path.stat().st_size, 0)
             self.assertIn(artifacts["csv"].artifact_id, store.metadata["staged"])
             self.assertIn(artifacts["png"].artifact_id, store.metadata["staged"])
+
+    def test_export_viewer_transport_bundle_writes_manifest_and_entry_file(self) -> None:
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+
+        model_ref = service.load_model(STATIC_ANALYSIS_RST)
+        fields_ref = service.extract_result_fields(
+            model=model_ref,
+            result_name="displacement",
+            set_ids=[1],
+            run_id="run_transport_bundle",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            transport = service.export_viewer_transport_bundle(
+                fields_ref,
+                model=model_ref,
+                bundle_root=Path(temp_dir) / "session_transport",
+                workspace_id="ws_bundle",
+                session_id="session_bundle",
+                transport_revision=2,
+            )
+
+            self.assertEqual(transport["kind"], "dpf_transport_bundle")
+            self.assertEqual(transport["version"], 1)
+            self.assertEqual(transport["schema"], "ea.dpf.viewer_transport_bundle.v1")
+            manifest_path = Path(transport["manifest_path"])
+            entry_path = Path(transport["entry_path"])
+            self.assertTrue(manifest_path.is_file())
+            self.assertTrue(entry_path.is_file())
+            self.assertTrue(any(path.endswith("dataset/dataset.vtm") for path in transport["files"]))
+            self.assertEqual(transport["entry_file"], "dataset/dataset.vtm")
+
+            manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest_payload["transport_revision"], 2)
+            self.assertEqual(manifest_payload["workspace_id"], "ws_bundle")
+            self.assertEqual(manifest_payload["session_id"], "session_bundle")
+            self.assertEqual(manifest_payload["entry_file"], "dataset/dataset.vtm")
 
 
 if __name__ == "__main__":

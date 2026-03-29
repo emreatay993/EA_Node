@@ -830,7 +830,9 @@ class ExecutionWorkerTests(unittest.TestCase):
                     self.assertIn("dataset", materialized["data_refs"])
                     self.assertIn("png", materialized["data_refs"])
                     self.assertEqual(materialized["backend_id"], "dpf_embedded")
-                    self.assertEqual(materialized["transport"]["kind"], "dpf_handle_refs")
+                    self.assertEqual(materialized["transport"]["kind"], "dpf_transport_bundle")
+                    self.assertTrue(Path(materialized["transport"]["manifest_path"]).is_file())
+                    self.assertTrue(Path(materialized["transport"]["entry_path"]).is_file())
                     self.assertGreaterEqual(int(materialized["transport_revision"]), 1)
                     self.assertEqual(materialized["live_open_status"], "ready")
 

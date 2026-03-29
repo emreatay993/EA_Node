@@ -53,6 +53,12 @@ def worker_main(
             continue
 
         if isinstance(command, ShutdownCommand):
+            should_reset = services.handle_registry.active_handle_count > 0
+            viewer_service = services._viewer_session_service
+            if viewer_service is not None and bool(getattr(viewer_service, "_sessions", {})):
+                should_reset = True
+            if should_reset:
+                services.reset()
             break
         if isinstance(command, StartRunCommand):
             try:
