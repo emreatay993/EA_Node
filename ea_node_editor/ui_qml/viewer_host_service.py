@@ -15,6 +15,7 @@ from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetBindRequest,
     ViewerWidgetBinder,
     ViewerWidgetBinderRegistry,
+    ViewerWidgetNoBind,
     ViewerWidgetReleaseRequest,
 )
 
@@ -173,6 +174,7 @@ class ViewerHostService(QObject):
         self._last_error = ""
         self._sync_queued = False
 
+        self._register_builtin_binders()
         self._connect_signals()
         self._schedule_sync()
 
@@ -195,6 +197,18 @@ class ViewerHostService(QObject):
     def register_binder(self, backend_id: str, binder: ViewerWidgetBinder) -> None:
         self._binder_registry.register(backend_id, binder)
         self._schedule_sync()
+
+    def _register_builtin_binders(self) -> None:
+        try:
+            from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
+        except Exception:
+            return
+        if self._binder_registry.lookup(DpfViewerWidgetBinder.backend_id) is not None:
+            return
+        self._binder_registry.register(
+            DpfViewerWidgetBinder.backend_id,
+            DpfViewerWidgetBinder(),
+        )
 
     def set_overlay_manager(self, overlay_manager: EmbeddedViewerOverlayManager | None) -> None:
         if self._overlay_manager is overlay_manager:
@@ -288,11 +302,36 @@ class ViewerHostService(QObject):
                         current_widget=current_widget,
                     )
                 )
+            except ViewerWidgetNoBind:
+                self._bound_overlays.pop(key, None)
+                self._release_widget(
+                    snapshot=snapshot,
+                    binder=binder,
+                    container=container,
+                    widget=current_widget,
+                    reason="no_bind",
+                )
+                continue
             except Exception as exc:  # noqa: BLE001
+                self._bound_overlays.pop(key, None)
+                self._release_widget(
+                    snapshot=snapshot,
+                    binder=binder,
+                    container=container,
+                    widget=current_widget,
+                    reason="bind_error",
+                )
                 errors.append(str(exc))
                 continue
             if widget is None:
-                errors.append(f"Binder '{snapshot.backend_id}' did not return a widget.")
+                self._bound_overlays.pop(key, None)
+                self._release_widget(
+                    snapshot=snapshot,
+                    binder=binder,
+                    container=container,
+                    widget=current_widget,
+                    reason="no_bind",
+                )
                 continue
             overlay_manager.attach_overlay_widget(
                 snapshot.node_id,
@@ -322,9 +361,29 @@ class ViewerHostService(QObject):
         if overlay_manager is not None:
             container = overlay_manager.overlay_container(bound.snapshot.node_id, workspace_id=bound.snapshot.workspace_id)
             widget = overlay_manager.overlay_widget(bound.snapshot.node_id, workspace_id=bound.snapshot.workspace_id)
+        self._release_widget(
+            snapshot=bound.snapshot,
+            binder=bound.binder,
+            container=container,
+            widget=widget,
+            reason=reason,
+        )
+
+    def _release_widget(
+        self,
+        *,
+        snapshot: _ViewerHostSessionSnapshot,
+        binder: ViewerWidgetBinder,
+        container,
+        widget,
+        reason: str,
+    ) -> None:  # noqa: ANN001
+        overlay_manager = self._overlay_manager
+        if widget is None:
+            return
         try:
-            bound.binder.release_widget(
-                bound.snapshot.release_request(
+            binder.release_widget(
+                snapshot.release_request(
                     container=container,
                     widget=widget,
                     reason=reason,
@@ -332,6 +391,14 @@ class ViewerHostService(QObject):
             )
         except Exception as exc:  # noqa: BLE001
             self._set_last_error(str(exc))
+        finally:
+            if overlay_manager is None:
+                return
+            if overlay_manager.overlay_widget(snapshot.node_id, workspace_id=snapshot.workspace_id) is widget:
+                overlay_manager.detach_overlay_widget(
+                    snapshot.node_id,
+                    workspace_id=snapshot.workspace_id,
+                )
 
     def _snapshot_from_projected_state(
         self,

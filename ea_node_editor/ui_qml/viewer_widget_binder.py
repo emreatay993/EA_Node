@@ -7,6 +7,10 @@ from typing import Any, Protocol
 from PyQt6.QtWidgets import QWidget
 
 
+class ViewerWidgetNoBind(RuntimeError):
+    """Signal that the host should leave the overlay container unbound."""
+
+
 @dataclass(slots=True, frozen=True)
 class ViewerWidgetBindRequest:
     workspace_id: str
@@ -82,5 +86,6 @@ __all__ = [
     "ViewerWidgetBindRequest",
     "ViewerWidgetBinder",
     "ViewerWidgetBinderRegistry",
+    "ViewerWidgetNoBind",
     "ViewerWidgetReleaseRequest",
 ]

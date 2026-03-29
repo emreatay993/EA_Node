@@ -6,6 +6,8 @@ from typing import Any
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
+from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
+from ea_node_editor.ui_qml.viewer_widget_binder import ViewerWidgetNoBind
 from tests.main_window_shell.base import MainWindowShellTestBase
 
 
@@ -87,8 +89,14 @@ class _FakeBinderWidget(QWidget):
 
 
 class _RecordingBinder:
-    def __init__(self, *, reuse_current_widget: bool = True) -> None:
+    def __init__(
+        self,
+        *,
+        reuse_current_widget: bool = True,
+        no_bind_predicate=None,  # noqa: ANN001
+    ) -> None:
         self.reuse_current_widget = reuse_current_widget
+        self.no_bind_predicate = no_bind_predicate
         self.bind_calls: list[dict[str, Any]] = []
         self.release_calls: list[dict[str, Any]] = []
         self.widgets: list[_FakeBinderWidget] = []
@@ -107,6 +115,8 @@ class _RecordingBinder:
                 "options": dict(request.options),
             }
         )
+        if callable(self.no_bind_predicate) and self.no_bind_predicate(request):
+            raise ViewerWidgetNoBind("tests requested no bind")
         if self.reuse_current_widget and isinstance(request.current_widget, _FakeBinderWidget):
             return request.current_widget
         widget = _FakeBinderWidget(request.container)
@@ -163,9 +173,10 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         live_mode: str = "full",
         cache_state: str = "live_ready",
         live_open_status: str = "ready",
+        transport: dict[str, Any] | None = None,
     ) -> None:
         resolved_session_id = session_id or f"session::{node_id}"
-        transport = {
+        resolved_transport = transport or {
             "kind": "tests_transport_bundle",
             "backend_id": backend_id,
             "manifest_path": f"C:/temp/{resolved_session_id}/manifest.json",
@@ -189,7 +200,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                         "handle_id": f"dataset::{node_id}::{transport_revision}",
                     }
                 },
-                "transport": transport,
+                "transport": resolved_transport,
                 "transport_revision": transport_revision,
                 "live_open_status": live_open_status,
                 "live_open_blocker": {} if live_open_status == "ready" else {"code": "tests_blocked"},
@@ -269,6 +280,12 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.host_service.active_overlay_count, 0)
         self.assertEqual(binder.widgets[0].close_calls, 1)
 
+    def test_host_service_registers_builtin_dpf_binder(self) -> None:
+        self.assertIsInstance(
+            self.host_service.binder_registry.lookup(DpfViewerWidgetBinder.backend_id),
+            DpfViewerWidgetBinder,
+        )
+
     def test_focus_only_projection_keeps_one_bound_overlay_until_keep_live_enabled(self) -> None:
         binder = _RecordingBinder()
         self.host_service.register_binder("tests.viewer_backend", binder)
@@ -339,6 +356,40 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertIn("tests.unknown_backend", self.host_service.last_error)
         self.assertEqual(self.host_service.active_overlay_count, 0)
+
+    def test_missing_transport_no_bind_cleans_up_existing_overlay_widget(self) -> None:
+        binder = _RecordingBinder(
+            no_bind_predicate=lambda request: not request.transport.get("manifest_path") or not request.transport.get("entry_path")
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            transport_revision=1,
+        )
+        initial_widget = self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(initial_widget)
+        self.assertEqual(self.host_service.active_overlay_count, 1)
+
+        self._emit_viewer_event(
+            event_type="viewer_session_updated",
+            node_id=node_id,
+            transport_revision=2,
+            transport={
+                "kind": "tests_transport_bundle",
+                "backend_id": "tests.viewer_backend",
+                "manifest_path": "",
+                "entry_path": "",
+            },
+        )
+
+        self.assertEqual(len(binder.release_calls), 1)
+        self.assertEqual(binder.release_calls[-1]["reason"], "no_bind")
+        self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.host_service.active_overlay_count, 0)
+        self.assertEqual(self.host_service.last_error, "")
 
 
 if __name__ == "__main__":
