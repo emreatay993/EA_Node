@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 import shutil
 import tempfile
 from collections.abc import Mapping
@@ -217,12 +216,13 @@ class DpfViewerSessionMaterializationBackend:
                 session_id=request.session_id,
                 transport_revision=next_revision,
             )
-        except Exception:  # noqa: BLE001
-            transport = self._write_fallback_transport_bundle(
+        except Exception as exc:  # noqa: BLE001
+            transport = self._build_blocked_transport_bundle(
                 request=request,
                 bundle_root=bundle_root,
                 transport_revision=next_revision,
                 source_signature=source_signature,
+                error=exc,
             )
         transport["transport_revision"] = int(next_revision)
         transport["source_signature"] = source_signature
@@ -268,46 +268,33 @@ class DpfViewerSessionMaterializationBackend:
         return Path(manifest_path).is_file() and Path(entry_path).is_file()
 
     @staticmethod
-    def _write_fallback_transport_bundle(
+    def _build_blocked_transport_bundle(
         *,
         request: ViewerSessionMaterializationRequest,
         bundle_root: Path,
         transport_revision: int,
         source_signature: str,
+        error: Exception,
     ) -> dict[str, Any]:
-        bundle_root.mkdir(parents=True, exist_ok=True)
-        dataset_dir = bundle_root / "dataset"
-        dataset_dir.mkdir(parents=True, exist_ok=True)
-        entry_file = "dataset/dataset.vtm"
-        entry_path = bundle_root / entry_file
-        entry_path.write_text("fallback transport bundle", encoding="utf-8")
-        manifest_path = bundle_root / "transport_manifest.json"
-        manifest_payload = {
-            "schema": "ea.dpf.viewer_transport_bundle.v1",
-            "workspace_id": str(request.workspace_id).strip(),
-            "session_id": str(request.session_id).strip(),
-            "transport_revision": int(transport_revision),
-            "entry_file": entry_file,
-            "files": [entry_file],
-            "metadata": {
-                "mode": "fallback",
-                "source_signature": source_signature,
-            },
-        }
-        manifest_path.write_text(
-            json.dumps(manifest_payload, ensure_ascii=True, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+        error_message = str(error).strip() or type(error).__name__
         return {
             "kind": "dpf_transport_bundle",
             "version": 1,
             "schema": "ea.dpf.viewer_transport_bundle.v1",
-            "manifest_path": str(manifest_path),
             "bundle_root": str(bundle_root),
-            "entry_file": entry_file,
-            "entry_path": str(entry_path),
-            "files": [entry_file],
-            "metadata": manifest_payload["metadata"],
+            "manifest_path": "",
+            "entry_file": "",
+            "entry_path": "",
+            "files": [],
+            "metadata": {
+                "workspace_id": str(request.workspace_id).strip(),
+                "session_id": str(request.session_id).strip(),
+                "transport_revision": int(transport_revision),
+                "source_signature": source_signature,
+                "transport_state": "blocked",
+                "export_error": error_message,
+            },
+            "status": "blocked",
         }
 
     @staticmethod

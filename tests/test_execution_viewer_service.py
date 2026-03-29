@@ -106,12 +106,72 @@ class ViewerSessionServiceTests(unittest.TestCase):
 
         return _materialize
 
+    @staticmethod
+    def _fake_export_transport_bundle(
+        _value,  # noqa: ANN001
+        *,
+        model,  # noqa: ANN001
+        bundle_root,
+        mesh=None,  # noqa: ANN001
+        workspace_id: str = "",
+        session_id: str = "",
+        transport_revision: int = 0,
+    ) -> dict[str, object]:
+        root_path = Path(bundle_root)
+        dataset_dir = root_path / "dataset"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        entry_file = "dataset/dataset.vtm"
+        entry_path = root_path / entry_file
+        entry_path.write_text("fake transport bundle", encoding="utf-8")
+        manifest_path = root_path / "transport_manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema": "ea.dpf.viewer_transport_bundle.v1",
+                    "workspace_id": workspace_id,
+                    "session_id": session_id,
+                    "transport_revision": transport_revision,
+                    "entry_file": entry_file,
+                    "files": [entry_file],
+                    "metadata": {
+                        "model": repr(model),
+                        "has_mesh": mesh is not None,
+                    },
+                },
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "kind": "dpf_transport_bundle",
+            "version": 1,
+            "schema": "ea.dpf.viewer_transport_bundle.v1",
+            "manifest_path": str(manifest_path),
+            "bundle_root": str(root_path),
+            "entry_file": entry_file,
+            "entry_path": str(entry_path),
+            "files": [entry_file],
+            "metadata": {
+                "model": repr(model),
+                "has_mesh": mesh is not None,
+            },
+        }
+
     def test_open_update_materialize_close_and_reopen_session_with_run_scoped_handles(self) -> None:
         calls: list[dict[str, object]] = []
-        with mock.patch.object(
-            self.services.dpf_runtime_service,
-            "materialize_viewer_dataset",
-            side_effect=self._fake_materialize(calls),
+        with (
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "materialize_viewer_dataset",
+                side_effect=self._fake_materialize(calls),
+            ),
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "export_viewer_transport_bundle",
+                side_effect=self._fake_export_transport_bundle,
+            ),
         ):
             fields_ref = self.services.register_handle(
                 _FakeDpfObject("fields_run"),
@@ -332,12 +392,91 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertEqual(materialized.transport_revision, 3)
         self.assertEqual(materialized.live_open_status, "ready")
 
+    def test_materialize_marks_rerun_required_when_transport_bundle_export_fails(self) -> None:
+        calls: list[dict[str, object]] = []
+        fields_ref = self.services.register_handle(
+            _FakeDpfObject("fields_blocked"),
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            owner_scope="cache:tests:viewer_fields_blocked",
+        )
+        model_ref = self.services.register_handle(
+            _FakeDpfObject("model_blocked"),
+            kind=DPF_MODEL_HANDLE_KIND,
+            owner_scope="cache:tests:viewer_model_blocked",
+        )
+
+        self.service.open_session(
+            OpenViewerSessionCommand(
+                request_id="viewer_req_open",
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id="session_blocked_transport",
+                data_refs={"fields": fields_ref, "model": model_ref},
+                options={"live_mode": "full"},
+            )
+        )
+
+        with (
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "materialize_viewer_dataset",
+                side_effect=self._fake_materialize(calls),
+            ),
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "export_viewer_transport_bundle",
+                side_effect=RuntimeError("bundle export failed"),
+            ),
+        ):
+            materialized = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_blocked_transport",
+                    options={"output_profile": "memory"},
+                )
+            )
+
+            self.assertIsInstance(materialized, ViewerDataMaterializedEvent)
+            if not isinstance(materialized, ViewerDataMaterializedEvent):
+                self.fail("Expected viewer_data_materialized event")
+
+            self.assertEqual(materialized.transport["kind"], "dpf_transport_bundle")
+            self.assertFalse(materialized.transport.get("manifest_path"))
+            self.assertFalse(materialized.transport.get("entry_path"))
+            self.assertEqual(materialized.live_open_status, "blocked")
+            self.assertEqual(materialized.live_open_blocker["code"], "rerun_required")
+            self.assertEqual(materialized.summary["cache_state"], "proxy_ready")
+            self.assertEqual(materialized.options["cache_state"], "proxy_ready")
+            self.assertTrue(materialized.options["rerun_required"])
+
+            rematerialized = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize_retry",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_blocked_transport",
+                    options={"output_profile": "memory"},
+                )
+            )
+
+        self.assertIsInstance(rematerialized, ViewerDataMaterializedEvent)
+        self.assertEqual(len(calls), 2)
+
     def test_open_session_demotes_stale_materialized_handles_to_proxy_state(self) -> None:
         calls: list[dict[str, object]] = []
-        with mock.patch.object(
-            self.services.dpf_runtime_service,
-            "materialize_viewer_dataset",
-            side_effect=self._fake_materialize(calls),
+        with (
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "materialize_viewer_dataset",
+                side_effect=self._fake_materialize(calls),
+            ),
+            mock.patch.object(
+                self.services.dpf_runtime_service,
+                "export_viewer_transport_bundle",
+                side_effect=self._fake_export_transport_bundle,
+            ),
         ):
             fields_ref = self.services.register_handle(
                 _FakeDpfObject("fields_cached"),

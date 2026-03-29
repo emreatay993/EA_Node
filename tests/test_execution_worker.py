@@ -318,6 +318,59 @@ class ExecutionWorkerTests(unittest.TestCase):
 
         return _materialize
 
+    @staticmethod
+    def _fake_viewer_transport_bundle(
+        _value,  # noqa: ANN001
+        *,
+        model,  # noqa: ANN001
+        bundle_root,
+        mesh=None,  # noqa: ANN001
+        workspace_id: str = "",
+        session_id: str = "",
+        transport_revision: int = 0,
+    ) -> dict[str, object]:
+        root_path = Path(bundle_root)
+        dataset_dir = root_path / "dataset"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        entry_file = "dataset/dataset.vtm"
+        entry_path = root_path / entry_file
+        entry_path.write_text("worker fake transport bundle", encoding="utf-8")
+        manifest_path = root_path / "transport_manifest.json"
+        manifest_path.write_text(
+            json.dumps(
+                {
+                    "schema": "ea.dpf.viewer_transport_bundle.v1",
+                    "workspace_id": workspace_id,
+                    "session_id": session_id,
+                    "transport_revision": transport_revision,
+                    "entry_file": entry_file,
+                    "files": [entry_file],
+                    "metadata": {
+                        "model": repr(model),
+                        "has_mesh": mesh is not None,
+                    },
+                },
+                ensure_ascii=True,
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        return {
+            "kind": "dpf_transport_bundle",
+            "version": 1,
+            "schema": "ea.dpf.viewer_transport_bundle.v1",
+            "manifest_path": str(manifest_path),
+            "bundle_root": str(root_path),
+            "entry_file": entry_file,
+            "entry_path": str(entry_path),
+            "files": [entry_file],
+            "metadata": {
+                "model": repr(model),
+                "has_mesh": mesh is not None,
+            },
+        }
+
     def test_run_workflow_completes(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
@@ -695,10 +748,17 @@ class ExecutionWorkerTests(unittest.TestCase):
         runtime_snapshot = self._runtime_snapshot(model, registry=registry)
 
         with mock.patch("ea_node_editor.nodes.bootstrap.build_default_registry", return_value=registry):
-            with mock.patch.object(
-                worker_services.dpf_runtime_service,
-                "materialize_viewer_dataset",
-                side_effect=self._fake_viewer_materialize(worker_services, materialize_calls),
+            with (
+                mock.patch.object(
+                    worker_services.dpf_runtime_service,
+                    "materialize_viewer_dataset",
+                    side_effect=self._fake_viewer_materialize(worker_services, materialize_calls),
+                ),
+                mock.patch.object(
+                    worker_services.dpf_runtime_service,
+                    "export_viewer_transport_bundle",
+                    side_effect=self._fake_viewer_transport_bundle,
+                ),
             ):
                 thread = threading.Thread(
                     target=worker_main,

@@ -19,6 +19,7 @@ from ea_node_editor.execution.protocol import (
     ViewerSessionOpenedEvent,
     ViewerSessionUpdatedEvent,
 )
+from ea_node_editor.execution.dpf_runtime.viewer_session_backend import ViewerSessionMaterializationRequest
 from ea_node_editor.execution.viewer_backend import ViewerBackendMaterializationRequest
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.nodes.types import RuntimeArtifactRef, coerce_runtime_handle_ref
@@ -53,6 +54,22 @@ def _coerce_int(value: Any, *, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _transport_is_live(transport: Mapping[str, Any]) -> bool:
+    if not transport:
+        return False
+    kind = str(transport.get("kind", "")).strip()
+    if kind == "dpf_transport_bundle":
+        manifest_path = str(transport.get("manifest_path", "")).strip()
+        entry_path = str(transport.get("entry_path", "")).strip()
+        if not manifest_path or not entry_path:
+            return False
+        return Path(manifest_path).is_file() and Path(entry_path).is_file()
+    if kind in {"dpf_handle_refs", "legacy_data_refs"}:
+        transport_refs = _copy_mapping(transport.get("data_refs"))
+        return "dataset" in transport_refs
+    return True
 
 
 @dataclass(slots=True)
@@ -97,11 +114,9 @@ class _ViewerSessionRecord:
             return "invalidated"
         if self.session_state == "closed":
             return "closed"
-        if self.transport:
+        if _transport_is_live(self.transport):
             return "live_ready"
-        if self.has_live_dataset():
-            return "live_ready"
-        if self.source_refs or self.materialized_refs:
+        if self.source_refs or self.materialized_refs or self.transport or self.rerun_required:
             return "proxy_ready"
         return "empty"
 
@@ -162,7 +177,8 @@ class ViewerSessionService:
     def __init__(self, worker_services: WorkerServices) -> None:
         self._worker_services = worker_services
         self._backend_registry = worker_services.viewer_backend_registry
-        self._materialization_backend = self._backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
+        dpf_backend = self._backend_registry.resolve(DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self._materialization_backend = getattr(dpf_backend, "_materialization_backend", dpf_backend)
         self._sessions: dict[tuple[str, str], _ViewerSessionRecord] = {}
         self._workspace_contexts: dict[str, _ViewerWorkspaceContext] = {}
 
@@ -434,40 +450,30 @@ class ViewerSessionService:
 
         context = self._workspace_contexts.get(record.workspace_id)
         backend_id = str(command.backend_id).strip() or record.backend_id or DPF_EXECUTION_VIEWER_BACKEND_ID
-        backend = self._backend_registry.resolve(backend_id)
-        backend_request = ViewerBackendMaterializationRequest(
-            workspace_id=record.workspace_id,
-            node_id=record.node_id,
-            session_id=record.session_id,
-            owner_scope=record.owner_scope,
-            source_refs=record.source_refs,
-            session_summary=record.summary,
-            session_options=record.options,
-            request_options=request_options,
-            output_profile=output_profile,
-            export_formats=export_formats,
-            project_path=context.project_path if context is not None else "",
-            runtime_snapshot=context.runtime_snapshot if context is not None else None,
-            runtime_snapshot_context=context.runtime_snapshot_context if context is not None else None,
-        )
-
         try:
-            result = backend.materialize(backend_request)
+            result_payload = self._materialize_backend_result(
+                record,
+                backend_id=backend_id,
+                request_options=request_options,
+                output_profile=output_profile,
+                export_formats=export_formats,
+                context=context,
+            )
         except Exception as exc:  # noqa: BLE001
             return self._failure(command, str(exc))
 
         self._merge_record_refs(
             record,
             source_refs={},
-            materialized_refs=result.data_refs,
+            materialized_refs=result_payload["data_refs"],
         )
-        result_backend_id = str(getattr(result, "backend_id", "")).strip() or backend_id
-        result_transport = _copy_mapping(getattr(result, "transport", {}))
-        result_transport_revision = _coerce_int(getattr(result, "transport_revision", 0))
-        result_camera_state = _copy_mapping(getattr(result, "camera_state", {}))
-        result_playback_state = _copy_mapping(getattr(result, "playback_state", {}))
-        result_live_open_status = str(getattr(result, "live_open_status", "")).strip()
-        result_live_open_blocker = _copy_mapping(getattr(result, "live_open_blocker", {}))
+        result_backend_id = str(result_payload["backend_id"]).strip() or backend_id
+        result_transport = _copy_mapping(result_payload["transport"])
+        result_transport_revision = _coerce_int(result_payload["transport_revision"])
+        result_camera_state = _copy_mapping(result_payload["camera_state"])
+        result_playback_state = _copy_mapping(result_payload["playback_state"])
+        result_live_open_status = str(result_payload["live_open_status"]).strip()
+        result_live_open_blocker = _copy_mapping(result_payload["live_open_blocker"])
         record.backend_id = result_backend_id
         self._set_transport_state(
             record,
@@ -481,10 +487,12 @@ class ViewerSessionService:
                 result_playback_state,
                 fallback=record.playback_state,
             )
-        record.summary.update(copy.deepcopy(result.summary))
+        record.summary.update(copy.deepcopy(result_payload["summary"]))
         record.summary["materialized_output_profile"] = output_profile
         record.invalidated_reason = ""
-        record.rerun_required = False
+        record.rerun_required = bool(result_live_open_blocker.get("rerun_required", False))
+        if not record.rerun_required and result_transport and not _transport_is_live(result_transport):
+            record.rerun_required = True
         record.session_state = "open"
         self._refresh_public_contract(
             record,
@@ -507,6 +515,78 @@ class ViewerSessionService:
             summary=record.public_summary(),
             options=record.public_options(),
         )
+
+    def _materialize_backend_result(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        backend_id: str,
+        request_options: Mapping[str, Any],
+        output_profile: str,
+        export_formats: tuple[str, ...],
+        context: _ViewerWorkspaceContext | None,
+    ) -> dict[str, Any]:
+        if backend_id == DPF_EXECUTION_VIEWER_BACKEND_ID:
+            result = self._materialization_backend.materialize(
+                ViewerSessionMaterializationRequest(
+                    workspace_id=record.workspace_id,
+                    node_id=record.node_id,
+                    session_id=record.session_id,
+                    owner_scope=record.owner_scope,
+                    source_refs=record.source_refs,
+                    session_options=record.options,
+                    request_options=request_options,
+                    output_profile=output_profile,
+                    export_formats=export_formats,
+                    project_path=context.project_path if context is not None else "",
+                    runtime_snapshot=context.runtime_snapshot if context is not None else None,
+                    runtime_snapshot_context=context.runtime_snapshot_context if context is not None else None,
+                )
+            )
+            transport = _copy_mapping(getattr(result, "transport", {}))
+            if transport:
+                transport["backend_id"] = DPF_EXECUTION_VIEWER_BACKEND_ID
+            return {
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "data_refs": copy.deepcopy(getattr(result, "data_refs", {})),
+                "transport": transport,
+                "transport_revision": _coerce_int(getattr(result, "transport_revision", 0)),
+                "camera_state": _copy_mapping(getattr(result, "camera_state", {})),
+                "playback_state": _copy_mapping(getattr(result, "playback_state", {})),
+                "live_open_status": str(getattr(result, "live_open_status", "")).strip(),
+                "live_open_blocker": _copy_mapping(getattr(result, "live_open_blocker", {})),
+                "summary": _copy_mapping(getattr(result, "summary", {})),
+            }
+
+        backend = self._backend_registry.resolve(backend_id)
+        result = backend.materialize(
+            ViewerBackendMaterializationRequest(
+                workspace_id=record.workspace_id,
+                node_id=record.node_id,
+                session_id=record.session_id,
+                owner_scope=record.owner_scope,
+                source_refs=record.source_refs,
+                session_summary=record.summary,
+                session_options=record.options,
+                request_options=request_options,
+                output_profile=output_profile,
+                export_formats=export_formats,
+                project_path=context.project_path if context is not None else "",
+                runtime_snapshot=context.runtime_snapshot if context is not None else None,
+                runtime_snapshot_context=context.runtime_snapshot_context if context is not None else None,
+            )
+        )
+        return {
+            "backend_id": str(getattr(result, "backend_id", "")).strip() or backend_id,
+            "data_refs": copy.deepcopy(getattr(result, "data_refs", {})),
+            "transport": _copy_mapping(getattr(result, "transport", {})),
+            "transport_revision": _coerce_int(getattr(result, "transport_revision", 0)),
+            "camera_state": _copy_mapping(getattr(result, "camera_state", {})),
+            "playback_state": _copy_mapping(getattr(result, "playback_state", {})),
+            "live_open_status": str(getattr(result, "live_open_status", "")).strip(),
+            "live_open_blocker": _copy_mapping(getattr(result, "live_open_blocker", {})),
+            "summary": _copy_mapping(getattr(result, "summary", {})),
+        }
 
     @staticmethod
     def _next_session_id() -> str:
@@ -679,14 +759,17 @@ class ViewerSessionService:
                 record.options,
                 fallback=record.playback_state,
             )
-        if transport or _coerce_int(transport_revision) > 0:
+        normalized_transport = _copy_mapping(transport)
+        if normalized_transport or _coerce_int(transport_revision) > 0:
             self._set_transport_state(
                 record,
-                transport=transport,
+                transport=normalized_transport,
                 transport_revision=transport_revision,
             )
-            if transport:
-                record.rerun_required = False
+            if normalized_transport:
+                record.rerun_required = bool(_copy_mapping(live_open_blocker).get("rerun_required", False))
+                if not _transport_is_live(normalized_transport):
+                    record.rerun_required = True
         elif data_refs:
             record.rerun_required = False
         self._refresh_public_contract(
@@ -771,7 +854,10 @@ class ViewerSessionService:
         default_status, default_blocker = self._default_live_open_state(record)
         normalized_status = str(live_open_status).strip() or default_status
         normalized_blocker = _copy_mapping(live_open_blocker if live_open_blocker is not None else default_blocker)
-        if normalized_status == "ready":
+        if normalized_status == "ready" and default_status != "ready":
+            normalized_status = default_status
+            normalized_blocker = copy.deepcopy(default_blocker)
+        elif normalized_status == "ready":
             normalized_blocker = {}
         elif not normalized_blocker:
             normalized_blocker = copy.deepcopy(default_blocker)
@@ -852,9 +938,12 @@ class ViewerSessionService:
             backend = self._backend_registry.resolve(backend_id)
         except LookupError:
             backend = None
-        if backend is not None and hasattr(backend, "release_session_transport"):
+        release_target = backend
+        if release_target is None or not hasattr(release_target, "release_session_transport"):
+            release_target = self._materialization_backend if backend_id == DPF_EXECUTION_VIEWER_BACKEND_ID else None
+        if release_target is not None and hasattr(release_target, "release_session_transport"):
             try:
-                backend.release_session_transport(
+                release_target.release_session_transport(
                     workspace_id=record.workspace_id,
                     session_id=record.session_id,
                 )
@@ -873,19 +962,7 @@ class ViewerSessionService:
 
     @staticmethod
     def _is_transport_live(transport: Mapping[str, Any]) -> bool:
-        if not transport:
-            return False
-        kind = str(transport.get("kind", "")).strip()
-        if kind == "dpf_transport_bundle":
-            manifest_path = str(transport.get("manifest_path", "")).strip()
-            entry_path = str(transport.get("entry_path", "")).strip()
-            if not manifest_path or not entry_path:
-                return False
-            return Path(manifest_path).is_file() and Path(entry_path).is_file()
-        if kind in {"dpf_handle_refs", "legacy_data_refs"}:
-            transport_refs = _copy_mapping(transport.get("data_refs"))
-            return "dataset" in transport_refs
-        return True
+        return _transport_is_live(transport)
 
     def _release_materialized_handles(self, record: _ViewerSessionRecord) -> None:
         retained_refs: dict[str, Any] = {}
