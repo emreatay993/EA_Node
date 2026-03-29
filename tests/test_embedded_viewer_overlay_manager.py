@@ -180,6 +180,40 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertIsNone(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertEqual(widget.close_calls, 1)
 
+    def test_detach_overlay_widget_keeps_active_container_ready_for_clean_rebind(self) -> None:
+        node_id = self._add_viewer_node()
+        first_widget = self._activate_overlay(node_id)
+
+        container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(container)
+        self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), first_widget)
+
+        self.manager.detach_overlay_widget(node_id, workspace_id=self.workspace_id)
+        self.app.processEvents()
+
+        self.assertEqual(first_widget.close_calls, 1)
+        self.assertIsNone(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        rebound_container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        self.assertIs(rebound_container, container)
+        self.assertFalse(rebound_container.isVisible())
+
+        second_widget = _FakeOverlayWidget()
+        self.assertTrue(
+            self.manager.attach_overlay_widget(
+                node_id,
+                second_widget,
+                workspace_id=self.workspace_id,
+            )
+        )
+        self.app.processEvents()
+
+        self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), second_widget)
+        self.assertIs(self.manager.overlay_container(node_id, workspace_id=self.workspace_id), container)
+        self.assertTrue(container.isVisible())
+        self.assertTrue(second_widget.isVisible())
+        self._assert_rect_close(container, node_id)
+        self.assertEqual(second_widget.geometry(), container.rect())
+
 
 if __name__ == "__main__":
     unittest.main()
