@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -13,10 +13,8 @@ from PyQt6.QtWidgets import QWidget
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
     from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
-    from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
     from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 
-InteractorFactory = Callable[[QWidget], QWidget]
 _OverlayKey = tuple[str, str]
 
 
@@ -66,10 +64,11 @@ def _aligned_rect(rect: QRectF) -> QRect:
     )
 
 
-def _default_qt_interactor_factory(parent: QWidget) -> QWidget:
-    from pyvistaqt import QtInteractor
-
-    return QtInteractor(parent)
+@dataclass(slots=True, frozen=True)
+class EmbeddedViewerOverlaySpec:
+    workspace_id: str
+    node_id: str
+    session_id: str = ""
 
 
 @dataclass(slots=True)
@@ -78,7 +77,7 @@ class _OverlayRecord:
     node_id: str
     session_id: str
     container: QWidget
-    interactor_widget: QWidget
+    overlay_widget: QWidget | None = None
 
 
 class EmbeddedViewerOverlayManager(QObject):
@@ -88,20 +87,16 @@ class EmbeddedViewerOverlayManager(QObject):
         *,
         quick_widget: QQuickWidget,
         shell_window: "ShellWindow | None" = None,
-        viewer_session_bridge: "ViewerSessionBridge | None" = None,
         scene_bridge: "GraphSceneBridge | None" = None,
         view_bridge: "ViewportBridge | None" = None,
-        interactor_factory: InteractorFactory | None = None,
     ) -> None:
         super().__init__(parent or quick_widget)
         self._quick_widget = quick_widget
         self._shell_window = shell_window
-        self._viewer_session_bridge = viewer_session_bridge
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
-        self._interactor_factory: InteractorFactory = interactor_factory or _default_qt_interactor_factory
+        self._desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
         self._overlay_records: dict[_OverlayKey, _OverlayRecord] = {}
-        self._focus_only_active_key: _OverlayKey | None = None
         self._last_error = ""
         self._sync_queued = False
 
@@ -117,9 +112,25 @@ class EmbeddedViewerOverlayManager(QObject):
     def last_error(self) -> str:
         return self._last_error
 
-    def set_interactor_factory(self, factory: InteractorFactory) -> None:
-        self._interactor_factory = factory
-        self._clear_records()
+    def set_active_overlays(self, overlays: Iterable[EmbeddedViewerOverlaySpec]) -> None:
+        desired_overlays: dict[_OverlayKey, EmbeddedViewerOverlaySpec] = {}
+        for overlay in overlays:
+            workspace_id = _string(getattr(overlay, "workspace_id", ""))
+            node_id = _string(getattr(overlay, "node_id", ""))
+            if not workspace_id or not node_id:
+                continue
+            desired_overlays[(workspace_id, node_id)] = EmbeddedViewerOverlaySpec(
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=_string(getattr(overlay, "session_id", "")),
+            )
+
+        removed_keys = [key for key in self._overlay_records if key not in desired_overlays]
+        self._desired_overlays = desired_overlays
+        for key, overlay in desired_overlays.items():
+            self._ensure_record(key=key, session_id=overlay.session_id)
+        for key in removed_keys:
+            self._teardown_record(key)
         self._schedule_sync()
 
     def overlay_widget(self, node_id: str, *, workspace_id: str = "") -> QWidget | None:
@@ -127,7 +138,7 @@ class EmbeddedViewerOverlayManager(QObject):
         record = self._overlay_records.get((resolved_workspace_id, _string(node_id)))
         if record is None:
             return None
-        return record.interactor_widget
+        return record.overlay_widget
 
     def overlay_container(self, node_id: str, *, workspace_id: str = "") -> QWidget | None:
         resolved_workspace_id = _string(workspace_id) or self._active_workspace_id()
@@ -135,6 +146,52 @@ class EmbeddedViewerOverlayManager(QObject):
         if record is None:
             return None
         return record.container
+
+    def attach_overlay_widget(self, node_id: str, widget: QWidget, *, workspace_id: str = "") -> bool:
+        resolved_workspace_id = _string(workspace_id) or self._active_workspace_id()
+        normalized_node_id = _string(node_id)
+        if not resolved_workspace_id or not normalized_node_id:
+            self._last_error = "workspace_id and node_id are required to attach an overlay widget."
+            return False
+        record = self._overlay_records.get((resolved_workspace_id, normalized_node_id))
+        if record is None:
+            record = self._ensure_record(
+                key=(resolved_workspace_id, normalized_node_id),
+                session_id="",
+            )
+        if record is None:
+            self._last_error = "Unable to create overlay container."
+            return False
+        if record.overlay_widget is widget:
+            self._last_error = ""
+            self._schedule_sync()
+            return True
+        if record.overlay_widget is not None:
+            self._teardown_widget(record.overlay_widget)
+        if widget.parent() is not record.container:
+            widget.setParent(record.container)
+        if not widget.objectName():
+            widget.setObjectName(f"embeddedViewerWidget::{resolved_workspace_id}::{normalized_node_id}")
+        record.overlay_widget = widget
+        widget.setGeometry(record.container.rect())
+        if record.container.width() > 0 and record.container.height() > 0 and self._quick_widget.isVisible():
+            record.container.show()
+            widget.show()
+            record.container.raise_()
+            widget.raise_()
+        self._last_error = ""
+        self._schedule_sync()
+        return True
+
+    def detach_overlay_widget(self, node_id: str, *, workspace_id: str = "") -> None:
+        resolved_workspace_id = _string(workspace_id) or self._active_workspace_id()
+        record = self._overlay_records.get((resolved_workspace_id, _string(node_id)))
+        if record is None or record.overlay_widget is None:
+            return
+        widget = record.overlay_widget
+        record.overlay_widget = None
+        self._teardown_widget(widget)
+        self._schedule_sync()
 
     def eventFilter(self, watched: QObject | None, event: QEvent | None) -> bool:
         if watched is self._quick_widget and event is not None:
@@ -157,10 +214,7 @@ class EmbeddedViewerOverlayManager(QObject):
 
     def _connect_signals(self) -> None:
         self._connect_signal(self._quick_widget, "statusChanged", self._on_quick_widget_status_changed)
-        self._connect_signal(self._viewer_session_bridge, "sessions_changed", self._schedule_sync)
-        self._connect_signal(self._viewer_session_bridge, "active_workspace_changed", self._schedule_sync)
         self._connect_signal(self._scene_bridge, "nodes_changed", self._schedule_sync)
-        self._connect_signal(self._scene_bridge, "selection_changed", self._schedule_sync)
         self._connect_signal(self._scene_bridge, "workspace_changed", self._schedule_sync)
         self._connect_signal(self._view_bridge, "view_state_changed", self._schedule_sync)
 
@@ -185,10 +239,6 @@ class EmbeddedViewerOverlayManager(QObject):
         self.sync()
 
     def _active_workspace_id(self) -> str:
-        if self._viewer_session_bridge is not None:
-            workspace_id = _string(getattr(self._viewer_session_bridge, "active_workspace_id", ""))
-            if workspace_id:
-                return workspace_id
         if self._scene_bridge is not None:
             return _string(getattr(self._scene_bridge, "workspace_id", ""))
         return ""
@@ -198,26 +248,19 @@ class EmbeddedViewerOverlayManager(QObject):
         root_item = self._root_item()
         graph_canvas_item = self._graph_canvas_item(root_item)
         if root_item is None or graph_canvas_item is None:
-            self._clear_records()
+            self._hide_all_records()
             return
 
-        active_sessions = self._active_live_sessions()
-        if not active_sessions:
+        if not self._desired_overlays:
             self._clear_records()
             return
 
         node_payloads = self._node_payloads_by_id()
-        active_keys = self._active_overlay_keys(active_sessions)
-        managed_keys = {key for key, _state in active_sessions}
-
-        for key, state in active_sessions:
+        managed_keys = set(self._desired_overlays)
+        for key, overlay in self._desired_overlays.items():
             node_payload = node_payloads.get(key[1])
             if node_payload is None or _bool(node_payload.get("collapsed")):
                 self._teardown_record(key)
-                continue
-
-            if key not in active_keys:
-                self._hide_record(key)
                 continue
 
             geometry = self._overlay_geometry(
@@ -231,7 +274,7 @@ class EmbeddedViewerOverlayManager(QObject):
 
             record = self._ensure_record(
                 key=key,
-                session_id=_string(state.get("session_id", "")),
+                session_id=overlay.session_id,
             )
             if record is None:
                 continue
@@ -261,59 +304,6 @@ class EmbeddedViewerOverlayManager(QObject):
             if node_id:
                 payloads[node_id] = payload_map
         return payloads
-
-    def _active_live_sessions(self) -> list[tuple[_OverlayKey, dict[str, Any]]]:
-        sessions_model = getattr(self._viewer_session_bridge, "sessions_model", [])
-        if not isinstance(sessions_model, list):
-            return []
-        sessions: list[tuple[_OverlayKey, dict[str, Any]]] = []
-        for item in sessions_model:
-            state = _mapping(item)
-            if _string(state.get("phase")) != "open":
-                continue
-            if _string(state.get("cache_state")) != "live_ready":
-                continue
-            options = _mapping(state.get("options"))
-            live_mode = _string(options.get("live_mode", state.get("live_mode", "")))
-            if live_mode != "full":
-                continue
-            workspace_id = _string(state.get("workspace_id"))
-            node_id = _string(state.get("node_id"))
-            if not workspace_id or not node_id:
-                continue
-            sessions.append(((workspace_id, node_id), state))
-        return sessions
-
-    def _active_overlay_keys(
-        self,
-        sessions: list[tuple[_OverlayKey, dict[str, Any]]],
-    ) -> set[_OverlayKey]:
-        selected_lookup = _mapping(getattr(self._scene_bridge, "selected_node_lookup", {}))
-        keep_live_keys: list[_OverlayKey] = []
-        focus_only_candidates: list[_OverlayKey] = []
-        for key, state in sessions:
-            live_policy = _string(state.get("live_policy"))
-            keep_live = _bool(state.get("keep_live"))
-            if keep_live or live_policy == "keep_live":
-                keep_live_keys.append(key)
-            else:
-                focus_only_candidates.append(key)
-
-        chosen_focus_key: _OverlayKey | None = None
-        for key in focus_only_candidates:
-            if _bool(selected_lookup.get(key[1])):
-                chosen_focus_key = key
-                break
-        if chosen_focus_key is None and self._focus_only_active_key in focus_only_candidates:
-            chosen_focus_key = self._focus_only_active_key
-        if chosen_focus_key is None and focus_only_candidates:
-            chosen_focus_key = focus_only_candidates[0]
-        self._focus_only_active_key = chosen_focus_key
-
-        active_keys = set(keep_live_keys)
-        if chosen_focus_key is not None:
-            active_keys.add(chosen_focus_key)
-        return active_keys
 
     def _overlay_geometry(
         self,
@@ -391,25 +381,11 @@ class EmbeddedViewerOverlayManager(QObject):
         container = QWidget(self._quick_widget)
         container.setObjectName(f"embeddedViewerOverlay::{key[0]}::{key[1]}")
         container.hide()
-        try:
-            interactor_widget = self._interactor_factory(container)
-        except Exception as exc:  # noqa: BLE001
-            self._last_error = _string(exc)
-            container.deleteLater()
-            return None
-
-        if interactor_widget.parent() is not container:
-            interactor_widget.setParent(container)
-        interactor_widget.setObjectName(
-            interactor_widget.objectName() or f"embeddedViewerInteractor::{key[0]}::{key[1]}"
-        )
-        interactor_widget.hide()
         record = _OverlayRecord(
             workspace_id=key[0],
             node_id=key[1],
             session_id=session_id,
             container=container,
-            interactor_widget=interactor_widget,
         )
         self._overlay_records[key] = record
         self._last_error = ""
@@ -418,17 +394,22 @@ class EmbeddedViewerOverlayManager(QObject):
     @staticmethod
     def _show_record(record: _OverlayRecord, geometry: QRect) -> None:
         record.container.setGeometry(geometry)
-        record.interactor_widget.setGeometry(record.container.rect())
+        widget = record.overlay_widget
+        if widget is None:
+            record.container.hide()
+            return
+        widget.setGeometry(record.container.rect())
         record.container.show()
-        record.interactor_widget.show()
+        widget.show()
         record.container.raise_()
-        record.interactor_widget.raise_()
+        widget.raise_()
 
     def _hide_record(self, key: _OverlayKey) -> None:
         record = self._overlay_records.get(key)
         if record is None:
             return
-        record.interactor_widget.hide()
+        if record.overlay_widget is not None:
+            record.overlay_widget.hide()
         record.container.hide()
 
     def _hide_all_records(self) -> None:
@@ -439,14 +420,19 @@ class EmbeddedViewerOverlayManager(QObject):
         record = self._overlay_records.pop(key, None)
         if record is None:
             return
-        record.interactor_widget.close()
+        if record.overlay_widget is not None:
+            self._teardown_widget(record.overlay_widget)
         record.container.close()
-        record.interactor_widget.deleteLater()
         record.container.deleteLater()
+
+    @staticmethod
+    def _teardown_widget(widget: QWidget) -> None:
+        widget.close()
+        widget.deleteLater()
 
     def _clear_records(self) -> None:
         for key in list(self._overlay_records):
             self._teardown_record(key)
 
 
-__all__ = ["EmbeddedViewerOverlayManager"]
+__all__ = ["EmbeddedViewerOverlayManager", "EmbeddedViewerOverlaySpec"]

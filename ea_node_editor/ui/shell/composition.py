@@ -502,6 +502,7 @@ def _build_shell_context_property_bindings(
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
         ("viewerSessionBridge", host.viewer_session_bridge),
+        ("viewerHostService", host.viewer_host_service),
         ("scriptEditorBridge", host.script_editor),
         ("scriptHighlighterBridge", host.script_highlighter),
         ("themeBridge", host.theme_bridge),

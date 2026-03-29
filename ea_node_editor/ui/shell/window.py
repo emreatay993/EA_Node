@@ -101,6 +101,7 @@ from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommand
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
+from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
@@ -216,6 +217,21 @@ class ShellWindow(QMainWindow):
         return bridge
 
     @property
+    def viewer_host_service(self) -> ViewerHostService:
+        service = getattr(self, "_viewer_host_service", None)
+        if service is None:
+            service = ViewerHostService(
+                self,
+                shell_window=self,
+                viewer_session_bridge=self.viewer_session_bridge,
+            )
+            existing_manager = getattr(self, "_embedded_viewer_overlay_manager", None)
+            if isinstance(existing_manager, EmbeddedViewerOverlayManager):
+                service.set_overlay_manager(existing_manager)
+            self._viewer_host_service = service
+        return service
+
+    @property
     def embedded_viewer_overlay_manager(self) -> EmbeddedViewerOverlayManager | None:
         return self._ensure_embedded_viewer_overlay_manager()
 
@@ -232,19 +248,27 @@ class ShellWindow(QMainWindow):
 
         manager = getattr(self, "_embedded_viewer_overlay_manager", None)
         if manager is not None and manager.quick_widget is resolved_quick_widget:
+            host_service = getattr(self, "_viewer_host_service", None)
+            if host_service is not None:
+                host_service.set_overlay_manager(manager)
             return manager
         if manager is not None:
+            host_service = getattr(self, "_viewer_host_service", None)
+            if host_service is not None:
+                host_service.set_overlay_manager(None)
             manager.deleteLater()
 
         manager = EmbeddedViewerOverlayManager(
             resolved_quick_widget,
             quick_widget=resolved_quick_widget,
             shell_window=self,
-            viewer_session_bridge=self.viewer_session_bridge,
             scene_bridge=self.scene,
             view_bridge=self.view,
         )
         self._embedded_viewer_overlay_manager = manager
+        host_service = getattr(self, "_viewer_host_service", None)
+        if host_service is not None:
+            host_service.set_overlay_manager(manager)
         return manager
 
     def setCentralWidget(self, widget) -> None:  # noqa: ANN001, N802
@@ -252,6 +276,9 @@ class ShellWindow(QMainWindow):
         if isinstance(existing_quick_widget, QQuickWidget) and widget is not existing_quick_widget:
             manager = getattr(self, "_embedded_viewer_overlay_manager", None)
             if manager is not None:
+                host_service = getattr(self, "_viewer_host_service", None)
+                if host_service is not None:
+                    host_service.set_overlay_manager(None)
                 manager.deleteLater()
                 self._embedded_viewer_overlay_manager = None
         super().setCentralWidget(widget)
@@ -414,6 +441,9 @@ class ShellWindow(QMainWindow):
         return ProcessExecutionClient()
 
     def _reset_viewer_session_bridge(self, *, reason: str) -> None:
+        host_service = getattr(self, "_viewer_host_service", None)
+        if host_service is not None:
+            host_service.reset(reason=reason)
         bridge = getattr(self, "_viewer_session_bridge", None)
         if bridge is None:
             return

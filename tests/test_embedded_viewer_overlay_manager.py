@@ -3,11 +3,12 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
-from PyQt6.QtCore import QObject, QPointF
+from PyQt6.QtCore import QPointF
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
+from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlaySpec
 from tests.main_window_shell.base import MainWindowShellTestBase
 
 
@@ -42,7 +43,7 @@ def _viewer_overlay_spec() -> NodeTypeSpec:
     )
 
 
-class _FakeInteractorWidget(QWidget):
+class _FakeOverlayWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.close_calls = 0
@@ -52,26 +53,12 @@ class _FakeInteractorWidget(QWidget):
         super().closeEvent(event)
 
 
-class _FakeInteractorFactory:
-    def __init__(self) -> None:
-        self.create_calls = 0
-        self.widgets: list[_FakeInteractorWidget] = []
-
-    def __call__(self, parent: QWidget) -> _FakeInteractorWidget:
-        self.create_calls += 1
-        widget = _FakeInteractorWidget(parent)
-        self.widgets.append(widget)
-        return widget
-
-
 class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
     def setUp(self) -> None:
         super().setUp()
         self.window.registry.register(lambda: _ViewerOverlayPlugin(_viewer_overlay_spec()))
         self.manager = self.window.embedded_viewer_overlay_manager
         self.assertIsNotNone(self.manager)
-        self.factory = _FakeInteractorFactory()
-        self.manager.set_interactor_factory(self.factory)
         self.workspace_id = self.window.workspace_manager.active_workspace_id()
 
     def _graph_canvas_quick_item(self) -> QQuickItem:
@@ -98,62 +85,26 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
                 return dict(payload)
         self.fail(f"Missing node payload for {node_id}")
 
-    def _emit_viewer_event(
-        self,
-        *,
-        event_type: str,
-        node_id: str,
-        session_id: str = "",
-        keep_live: bool = False,
-        live_policy: str = "focus_only",
-        live_mode: str = "full",
-    ) -> None:
-        resolved_session_id = session_id or f"session::{node_id}"
-        cache_state = "live_ready" if live_mode == "full" else "proxy_ready"
-        self.window.execution_event.emit(
-            {
-                "type": event_type,
-                "request_id": f"req::{event_type}::{node_id}",
-                "workspace_id": self.workspace_id,
-                "node_id": node_id,
-                "session_id": resolved_session_id,
-                "data_refs": {},
-                "summary": {
-                    "cache_state": cache_state,
-                },
-                "options": {
-                    "session_state": "open",
-                    "cache_state": cache_state,
-                    "live_policy": live_policy,
-                    "keep_live": keep_live,
-                    "playback_state": "paused",
-                    "live_mode": live_mode,
-                },
-            }
+    def _activate_overlay(self, node_id: str, *, session_id: str = "") -> _FakeOverlayWidget:
+        widget = _FakeOverlayWidget()
+        self.manager.set_active_overlays(
+            (
+                EmbeddedViewerOverlaySpec(
+                    workspace_id=self.workspace_id,
+                    node_id=node_id,
+                    session_id=session_id or f"session::{node_id}",
+                ),
+            )
+        )
+        self.assertTrue(
+            self.manager.attach_overlay_widget(
+                node_id,
+                widget,
+                workspace_id=self.workspace_id,
+            )
         )
         self.app.processEvents()
-
-    def _close_viewer_session(self, *, node_id: str, session_id: str = "") -> None:
-        resolved_session_id = session_id or f"session::{node_id}"
-        self.window.execution_event.emit(
-            {
-                "type": "viewer_session_closed",
-                "request_id": f"req::close::{node_id}",
-                "workspace_id": self.workspace_id,
-                "node_id": node_id,
-                "session_id": resolved_session_id,
-                "data_refs": {},
-                "summary": {
-                    "cache_state": "empty",
-                    "close_reason": "test_close",
-                },
-                "options": {
-                    "reason": "test_close",
-                    "live_mode": "proxy",
-                },
-            }
-        )
-        self.app.processEvents()
+        return widget
 
     def _expected_overlay_rect(self, node_id: str):
         payload = self._node_payload(node_id)
@@ -185,13 +136,11 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
 
     def test_live_overlay_geometry_tracks_pan_zoom_and_node_move_resize(self) -> None:
         node_id = self._add_viewer_node()
-        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        widget = self._activate_overlay(node_id)
 
         container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
-        widget = self.manager.overlay_widget(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(container)
-        self.assertIsNotNone(widget)
-        self.assertEqual(self.factory.create_calls, 1)
+        self.assertIs(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id), widget)
         self.assertTrue(container.isVisible())
         self.assertTrue(widget.isVisible())
         self._assert_rect_close(container, node_id)
@@ -199,87 +148,37 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
 
         self.window.view.set_view_state(1.35, 90.0, 40.0)
         self.app.processEvents()
-        self.assertEqual(self.factory.create_calls, 1)
         self._assert_rect_close(container, node_id)
 
         self.window.scene.move_node(node_id, 280.0, 170.0)
         self.window.scene.resize_node(node_id, 420.0, 320.0)
         self.app.processEvents()
-        self.assertEqual(self.factory.create_calls, 1)
         self._assert_rect_close(container, node_id)
         self.assertEqual(widget.geometry(), container.rect())
 
-    def test_offscreen_culling_hides_overlay_reuses_widget_and_tears_down_on_close(self) -> None:
+    def test_offscreen_culling_hides_overlay_reuses_widget_and_tears_down_when_deactivated(self) -> None:
         node_id = self._add_viewer_node(x=120.0, y=80.0)
-        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+        widget = self._activate_overlay(node_id)
 
         container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
-        widget = self.manager.overlay_widget(node_id, workspace_id=self.workspace_id)
         self.assertIsNotNone(container)
-        self.assertIsNotNone(widget)
         self.assertTrue(container.isVisible())
 
         self.window.view.set_view_state(1.0, 6000.0, 6000.0)
         self.app.processEvents()
         self.assertFalse(container.isVisible())
         self.assertFalse(widget.isVisible())
-        self.assertEqual(self.factory.create_calls, 1)
 
         self.window.view.set_view_state(1.0, 0.0, 0.0)
         self.app.processEvents()
         self.assertTrue(container.isVisible())
         self.assertTrue(widget.isVisible())
-        self.assertEqual(self.factory.create_calls, 1)
 
-        self._close_viewer_session(node_id=node_id)
+        self.manager.set_active_overlays(())
         self.app.processEvents()
         self.assertIsNone(self.manager.overlay_container(node_id, workspace_id=self.workspace_id))
         self.assertIsNone(self.manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertEqual(widget.close_calls, 1)
-
-    def test_focus_only_sessions_show_one_live_overlay_until_keep_live_is_enabled(self) -> None:
-        first_node_id = self._add_viewer_node(x=120.0, y=80.0)
-        second_node_id = self._add_viewer_node(x=240.0, y=200.0)
-        self.window.view.set_view_state(1.0, 200.0, 140.0)
-        self.app.processEvents()
-
-        self.window.scene.select_node(first_node_id, False)
-        self.app.processEvents()
-        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=first_node_id)
-        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=second_node_id)
-
-        first_container = self.manager.overlay_container(first_node_id, workspace_id=self.workspace_id)
-        second_container = self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id)
-        self.assertIsNotNone(first_container)
-        self.assertTrue(first_container.isVisible())
-        self.assertIsNone(second_container)
-
-        self.window.scene.select_node(second_node_id, False)
-        self.app.processEvents()
-        self.assertIsNone(self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id))
-
-        # Under the P13 bridge contract, refocusing a proxy-demoted viewer requests
-        # rematerialization before the overlay becomes live again.
-        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=second_node_id)
-        second_container = self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id)
-        self.assertIsNotNone(second_container)
-        self.assertFalse(first_container.isVisible())
-        self.assertTrue(second_container.isVisible())
-
-        self._emit_viewer_event(
-            event_type="viewer_session_updated",
-            node_id=first_node_id,
-            keep_live=True,
-            live_policy="keep_live",
-        )
-        self.app.processEvents()
-
-        first_container = self.manager.overlay_container(first_node_id, workspace_id=self.workspace_id)
-        second_container = self.manager.overlay_container(second_node_id, workspace_id=self.workspace_id)
-        self.assertIsNotNone(first_container)
-        self.assertIsNotNone(second_container)
-        self.assertTrue(first_container.isVisible())
-        self.assertTrue(second_container.isVisible())
 
 
 if __name__ == "__main__":
