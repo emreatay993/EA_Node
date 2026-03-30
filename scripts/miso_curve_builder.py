@@ -715,7 +715,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.paste_temperatures_button.clicked.connect(self._paste_temperatures_from_clipboard)
         layout.addWidget(self.paste_temperatures_button)
 
-        self.temperature_table = ClipboardTableWidget(1, MIN_TEMPERATURE_ROWS, self)
+        self.temperature_table = ClipboardTableWidget(MIN_TEMPERATURE_ROWS, 1, self)
         self.temperature_table.setHorizontalHeaderLabels(["Temperature (C)"])
         self.temperature_table.verticalHeader().setVisible(False)
         self.temperature_table.setSelectionBehavior(SELECT_ROWS)
@@ -763,7 +763,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.curve_type_combo.addItem("Engineering", "engineering")
         self.curve_type_combo.addItem("True", "true")
         self.curve_type_combo.setToolTip(curve_type_label.toolTip())
-        self.curve_type_combo.currentIndexChanged.connect(self._recompute_selected_temperature)
+        self.curve_type_combo.currentIndexChanged.connect(self._trigger_recompute)
         controls_layout.addWidget(self.curve_type_combo, 0, 1)
 
         modulus_mode_label = QLabel("Elastic Modulus Mode")
@@ -796,7 +796,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.manual_modulus_edit = QLineEdit(self)
         self.manual_modulus_edit.setPlaceholderText("Example: 210000")
         self.manual_modulus_edit.setToolTip(manual_modulus_label.toolTip())
-        self.manual_modulus_edit.textChanged.connect(self._recompute_selected_temperature)
+        self.manual_modulus_edit.textChanged.connect(self._trigger_recompute)
         controls_layout.addWidget(self.manual_modulus_edit, 1, 1)
 
         inferred_modulus_label = QLabel("Inferred E (MPa)")
@@ -826,7 +826,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.paste_curve_button.clicked.connect(self._paste_curve_from_clipboard)
         layout.addWidget(self.paste_curve_button)
 
-        self.curve_table = ClipboardTableWidget(2, MIN_CURVE_ROWS, self)
+        self.curve_table = ClipboardTableWidget(MIN_CURVE_ROWS, 2, self)
         self.curve_table.setHorizontalHeaderLabels(["Stress (MPa)", "Strain (%)"])
         self.curve_table.verticalHeader().setVisible(False)
         self.curve_table.setSelectionBehavior(SELECT_ITEMS)
@@ -916,7 +916,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         button_row.addStretch(1)
         result_layout.addLayout(button_row)
 
-        self.result_table = ClipboardTableWidget(2, 0, self)
+        self.result_table = ClipboardTableWidget(0, 2, self)
         self.result_table.setHorizontalHeaderLabels(["Plastic Strain (m/m)", "Stress (MPa)"])
         self.result_table.verticalHeader().setVisible(False)
         self.result_table.setEditTriggers(NO_EDIT_TRIGGERS)
@@ -937,8 +937,10 @@ class MisoCurveBuilderWindow(QMainWindow):
         layout.addWidget(result_group, 1)
         return panel
 
-    def _set_status(self, message: str) -> None:
-        self.status_box.append(message)
+    def _set_status(self, message: object) -> None:
+        if message is None:
+            return
+        self.status_box.append(str(message))
         cursor = self.status_box.textCursor()
         cursor.movePosition(cursor.MoveOperation.End)
         self.status_box.setTextCursor(cursor)
@@ -966,7 +968,10 @@ class MisoCurveBuilderWindow(QMainWindow):
             manual_modulus_mpa=manual_modulus,
         )
 
-    def _handle_modulus_mode_change(self) -> None:
+    def _trigger_recompute(self, *_args) -> None:
+        self._recompute_selected_temperature()
+
+    def _handle_modulus_mode_change(self, *_args) -> None:
         is_manual = self.modulus_mode_combo.currentData() == "manual"
         self.manual_modulus_edit.setEnabled(is_manual)
         self._recompute_selected_temperature()
