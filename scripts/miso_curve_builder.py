@@ -581,16 +581,39 @@ class CurvePlotWidget(QWidget):
         self._points = list(points)
         self.update()
 
+    def _nice_ticks(self, val_min: float, val_max: float, count: int = 5) -> list[float]:
+        span = val_max - val_min
+        if span <= 0.0:
+            return [val_min]
+        raw_step = span / count
+        mag = 10.0 ** math.floor(math.log10(raw_step))
+        normalized = raw_step / mag
+        if normalized < 1.5:
+            step = mag
+        elif normalized < 3.5:
+            step = 2.0 * mag
+        elif normalized < 7.5:
+            step = 5.0 * mag
+        else:
+            step = 10.0 * mag
+        first = math.ceil(val_min / step) * step
+        ticks: list[float] = []
+        v = first
+        while v <= val_max + step * 0.01:
+            ticks.append(round(v, 12))
+            v += step
+        return ticks
+
     def paintEvent(self, event):  # noqa: N802 - Qt naming
         del event
         painter = QPainter(self)
         painter.setRenderHint(RENDER_HINT.Antialiasing, True)
         painter.fillRect(self.rect(), QColor("#f7f9fc"))
 
-        margin_left = 56
+        margin_left = 72
         margin_right = 18
         margin_top = 16
-        margin_bottom = 36
+        margin_bottom = 48
         plot_rect = self.rect().adjusted(margin_left, margin_top, -margin_right, -margin_bottom)
         painter.setPen(QPen(QColor("#b8c2cc"), 1))
         painter.drawRect(plot_rect)
@@ -614,35 +637,66 @@ class CurvePlotWidget(QWidget):
         if math.isclose(y_min, y_max):
             y_max = y_min + 1.0
 
-        def map_point(point: tuple[float, float]) -> QPointF:
-            x_value, y_value = point
-            x_ratio = (x_value - x_min) / (x_max - x_min)
-            y_ratio = (y_value - y_min) / (y_max - y_min)
-            x_pixel = plot_rect.left() + x_ratio * plot_rect.width()
-            y_pixel = plot_rect.bottom() - y_ratio * plot_rect.height()
-            return QPointF(x_pixel, y_pixel)
+        x_ticks = self._nice_ticks(x_min, x_max, 5)
+        y_ticks = self._nice_ticks(y_min, y_max, 5)
 
-        painter.setPen(QPen(QColor("#1f5aa6"), 2))
-        previous_point = None
-        for point in self._points:
-            if previous_point is not None:
-                current_point = map_point(point)
-                painter.drawLine(previous_point, current_point)
-                previous_point = current_point
-            else:
-                previous_point = map_point(point)
+        def map_x(val: float) -> float:
+            return plot_rect.left() + (val - x_min) / (x_max - x_min) * plot_rect.width()
 
+        def map_y(val: float) -> float:
+            return plot_rect.bottom() - (val - y_min) / (y_max - y_min) * plot_rect.height()
+
+        # Gridlines
+        painter.setPen(QPen(QColor("#e2e8f0"), 1))
+        for x_tick in x_ticks:
+            px = int(map_x(x_tick))
+            painter.drawLine(px, plot_rect.top(), px, plot_rect.bottom())
+        for y_tick in y_ticks:
+            py = int(map_y(y_tick))
+            painter.drawLine(plot_rect.left(), py, plot_rect.right(), py)
+
+        # Tick labels
+        small_font = painter.font()
+        small_font.setPointSize(8)
+        painter.setFont(small_font)
+        painter.setPen(QColor("#4a5568"))
+        for x_tick in x_ticks:
+            px = int(map_x(x_tick))
+            label = format_number(x_tick, 4)
+            painter.drawText(px - 24, plot_rect.bottom() + 4, 48, 14, int(ALIGNMENT.AlignCenter), label)
+        for y_tick in y_ticks:
+            py = int(map_y(y_tick))
+            label = format_number(y_tick, 4)
+            painter.drawText(plot_rect.left() - 68, py - 7, 64, 14, int(ALIGNMENT.AlignCenter), label)
+
+        # Axis labels
+        axis_font = painter.font()
+        axis_font.setPointSize(9)
+        painter.setFont(axis_font)
         painter.setPen(QColor("#2d3748"))
         painter.drawText(
             plot_rect.left(),
-            self.height() - 10,
-            f"Strain (%)  {format_number(x_min, 6)} to {format_number(x_max, 6)}",
+            self.height() - 14,
+            plot_rect.width(),
+            14,
+            int(ALIGNMENT.AlignCenter),
+            "Strain (%)",
         )
         painter.save()
-        painter.translate(16, plot_rect.bottom())
+        painter.translate(12, plot_rect.top() + plot_rect.height() // 2)
         painter.rotate(-90)
-        painter.drawText(0, 0, f"Stress (MPa)  {format_number(y_min, 6)} to {format_number(y_max, 6)}")
+        painter.drawText(-40, -7, 80, 14, int(ALIGNMENT.AlignCenter), "Stress (MPa)")
         painter.restore()
+
+        # Curve
+        painter.setPen(QPen(QColor("#1f5aa6"), 2))
+        previous_point = None
+        for point in self._points:
+            mapped = QPointF(map_x(point[0]), map_y(point[1]))
+            if previous_point is not None:
+                painter.drawLine(previous_point, mapped)
+            previous_point = mapped
+
         painter.end()
 
 
