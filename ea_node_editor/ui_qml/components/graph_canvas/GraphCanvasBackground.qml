@@ -91,6 +91,8 @@ Item {
         root._syncCommittedViewState();
         root._ensureGridCache(Boolean(forceRebuild));
         root._redrawRequestCount += 1;
+        if (gridCanvas)
+            gridCanvas.requestPaint();
     }
 
     function markViewStateRedrawDirty() {
@@ -235,12 +237,5 @@ Item {
                 drawLineGrid(ctx, minorStep, majorStep);
         }
 
-        Connections {
-            target: root
-
-            function onRedrawRequestCountChanged() {
-                gridCanvas.requestPaint();
-            }
-        }
     }
 }

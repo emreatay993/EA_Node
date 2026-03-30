@@ -1615,7 +1615,7 @@ Item {
         acceptedButtons: Qt.LeftButton | Qt.RightButton
         propagateComposedEvents: true
 
-        onPressed: {
+        onPressed: function(mouse) {
             var edgeId = root.edgeAtScreen(mouse.x, mouse.y);
             if (!edgeId) {
                 mouse.accepted = false;

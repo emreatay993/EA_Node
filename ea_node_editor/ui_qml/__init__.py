@@ -1,3 +1,21 @@
+from __future__ import annotations
+
+import os
+import sys
+
+
+def _configure_qquick_controls_runtime() -> None:
+    if sys.platform != "win32":
+        return
+    if os.environ.get("QT_QUICK_CONTROLS_STYLE"):
+        return
+    # PyQt6 6.11 on Windows can miss the Windows Quick Controls style runtime DLL.
+    # Pin a built-in style for all QML bridge imports unless the caller explicitly overrides it.
+    os.environ["QT_QUICK_CONTROLS_STYLE"] = "Basic"
+
+
+_configure_qquick_controls_runtime()
+
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge

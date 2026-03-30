@@ -5,7 +5,6 @@ import "SurfaceControlGeometry.js" as SurfaceControlGeometry
 Item {
     id: root
     property Item host: null
-    property bool enabled: true
     property string propertyKey: ""
     property string committedText: ""
     property string fieldObjectName: "graphSurfacePathEditorField"

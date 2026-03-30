@@ -5,7 +5,6 @@ Item {
     id: root
     property Item host: null
     property Item targetItem: null
-    property bool enabled: true
     readonly property var interactiveRect: enabled
         ? SurfaceControlGeometry.rectFromItem(targetItem, host)
         : null

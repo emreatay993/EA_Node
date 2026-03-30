@@ -85,7 +85,7 @@ Item {
             marqueeMode = "";
         }
 
-        onPressed: {
+        onPressed: function(mouse) {
             if (!root.canvasItem)
                 return;
             root.canvasItem.forceActiveFocus();
@@ -110,7 +110,7 @@ Item {
             }
         }
 
-        onPositionChanged: {
+        onPositionChanged: function(mouse) {
             if (!selecting)
                 return;
             currentX = mouse.x;
@@ -126,7 +126,7 @@ Item {
             }
         }
 
-        onReleased: {
+        onReleased: function(mouse) {
             var zoomGestureActive = marqueeMode === "zoom";
             if (!selecting) {
                 resetGestureState();

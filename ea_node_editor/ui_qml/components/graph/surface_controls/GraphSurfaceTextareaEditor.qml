@@ -8,7 +8,6 @@ Item {
     property Item host: null
     property alias fieldFont: textareaField.font
     property bool showActionButtons: true
-    property bool enabled: true
     property string propertyKey: ""
     property string committedText: ""
     property string fieldObjectName: "graphSurfaceTextareaField"

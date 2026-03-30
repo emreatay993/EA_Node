@@ -165,14 +165,6 @@ ShellCollapsibleSidePane {
     onVisiblePortItemsChanged: syncSelectedPortSelection()
     onShowPortSectionChanged: syncSelectedPortSelection()
 
-    Connections {
-        target: root.inspectorBridgeRef
-
-        function onInspectorStateChanged() {
-            root.syncSelectedPortSelection()
-        }
-    }
-
     contentData: [
         Rectangle {
             objectName: "inspectorContentSurface"
