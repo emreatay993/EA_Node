@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 try:
-    from PyQt6.QtCore import QSignalBlocker, Qt, pyqtSignal
+    from PyQt6.QtCore import QPointF, QSignalBlocker, Qt, pyqtSignal
     from PyQt6.QtGui import QColor, QKeySequence, QPainter, QPen
     from PyQt6.QtWidgets import (
         QApplication,
@@ -35,7 +35,7 @@ try:
 
     QT_API = "PyQt6"
 except ImportError:  # pragma: no cover - runtime fallback for user machines
-    from PyQt5.QtCore import QSignalBlocker, Qt, pyqtSignal
+    from PyQt5.QtCore import QPointF, QSignalBlocker, Qt, pyqtSignal
     from PyQt5.QtGui import QColor, QKeySequence, QPainter, QPen
     from PyQt5.QtWidgets import (
         QApplication,
@@ -574,21 +574,23 @@ class CurvePlotWidget(QWidget):
         if math.isclose(y_min, y_max):
             y_max = y_min + 1.0
 
-        def map_point(point: tuple[float, float]) -> tuple[float, float]:
+        def map_point(point: tuple[float, float]) -> QPointF:
             x_value, y_value = point
             x_ratio = (x_value - x_min) / (x_max - x_min)
             y_ratio = (y_value - y_min) / (y_max - y_min)
             x_pixel = plot_rect.left() + x_ratio * plot_rect.width()
             y_pixel = plot_rect.bottom() - y_ratio * plot_rect.height()
-            return x_pixel, y_pixel
+            return QPointF(x_pixel, y_pixel)
 
         painter.setPen(QPen(QColor("#1f5aa6"), 2))
         previous_point = None
         for point in self._points:
-            x_pixel, y_pixel = map_point(point)
             if previous_point is not None:
-                painter.drawLine(previous_point[0], previous_point[1], x_pixel, y_pixel)
-            previous_point = (x_pixel, y_pixel)
+                current_point = map_point(point)
+                painter.drawLine(previous_point, current_point)
+                previous_point = current_point
+            else:
+                previous_point = map_point(point)
 
         painter.setPen(QColor("#2d3748"))
         painter.drawText(
