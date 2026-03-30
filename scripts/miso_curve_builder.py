@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import math
 import re
-import statistics
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -146,6 +145,29 @@ class MisoPoint:
     stress_mpa: float
 
 
+@dataclass(frozen=True)
+class ElasticFitResult:
+    modulus_mpa: float
+    intercept_mpa: float
+    r_squared: float
+    rmse_mpa: float
+    point_count: int
+    strain_min: float
+    strain_max: float
+    stress_min_mpa: float
+    stress_max_mpa: float
+    max_secant_deviation: float
+    points: tuple[TrueCurvePoint, ...]
+
+    @property
+    def strain_span(self) -> float:
+        return self.strain_max - self.strain_min
+
+    @property
+    def intercept_ratio(self) -> float:
+        return abs(self.intercept_mpa) / max(abs(self.stress_max_mpa), 1.0)
+
+
 @dataclass
 class ComputationResult:
     miso_rows: list[MisoPoint]
@@ -153,6 +175,7 @@ class ComputationResult:
     modulus_mpa: float
     modulus_origin: str
     parse_summary: str
+    elastic_fit: ElasticFitResult | None = None
 
 
 class CurveValidationError(ValueError):
@@ -345,6 +368,24 @@ def linear_regression_slope(points: Sequence[TrueCurvePoint]) -> float:
     return (count * sum_xy - sum_x * sum_y) / denominator
 
 
+def linear_regression_fit(points: Sequence[TrueCurvePoint]) -> tuple[float, float, float, float]:
+    slope = linear_regression_slope(points)
+    x_values = [point.strain_true for point in points]
+    y_values = [point.stress_true for point in points]
+    count = float(len(points))
+    intercept = (sum(y_values) - slope * sum(x_values)) / count
+    residuals = [y - (slope * x + intercept) for x, y in zip(x_values, y_values)]
+    ss_res = sum(residual * residual for residual in residuals)
+    mean_y = sum(y_values) / count
+    ss_tot = sum((y - mean_y) * (y - mean_y) for y in y_values)
+    if ss_tot <= 1e-18:
+        r_squared = 1.0
+    else:
+        r_squared = max(0.0, 1.0 - ss_res / ss_tot)
+    rmse = math.sqrt(ss_res / count)
+    return slope, intercept, r_squared, rmse
+
+
 def convert_to_true_curve(rows: Sequence[RawCurveRow], curve_type: str) -> list[TrueCurvePoint]:
     points: list[TrueCurvePoint] = []
     for row in rows:
@@ -374,7 +415,62 @@ def convert_to_true_curve(rows: Sequence[RawCurveRow], curve_type: str) -> list[
     return sorted(points, key=lambda point: (point.strain_true, point.stress_true))
 
 
-def infer_elastic_modulus(points: Sequence[TrueCurvePoint]) -> float:
+def build_elastic_fit(points: Sequence[TrueCurvePoint]) -> ElasticFitResult:
+    if len(points) < 2:
+        raise CurveValidationError("Elastic modulus inference requires at least two points.")
+    slope, intercept, r_squared, rmse = linear_regression_fit(points)
+    if slope <= 0.0:
+        raise CurveValidationError("Inferred elastic modulus must be positive.")
+    secant_slopes: list[float] = []
+    for point_a, point_b in zip(points, points[1:]):
+        delta_strain = point_b.strain_true - point_a.strain_true
+        if delta_strain <= 0.0:
+            raise CurveValidationError("Elastic modulus inference requires increasing strain values.")
+        secant_slope = (point_b.stress_true - point_a.stress_true) / delta_strain
+        if secant_slope <= 0.0:
+            raise CurveValidationError("Elastic modulus inference requires increasing stress values.")
+        secant_slopes.append(secant_slope)
+    max_secant_deviation = 0.0
+    if secant_slopes:
+        max_secant_deviation = max(abs(secant_slope - slope) / slope for secant_slope in secant_slopes)
+    stresses = [point.stress_true for point in points]
+    strains = [point.strain_true for point in points]
+    return ElasticFitResult(
+        modulus_mpa=slope,
+        intercept_mpa=intercept,
+        r_squared=r_squared,
+        rmse_mpa=rmse,
+        point_count=len(points),
+        strain_min=min(strains),
+        strain_max=max(strains),
+        stress_min_mpa=min(stresses),
+        stress_max_mpa=max(stresses),
+        max_secant_deviation=max_secant_deviation,
+        points=tuple(points),
+    )
+
+
+def fit_summary_text(fit: ElasticFitResult) -> str:
+    return (
+        f"{fit.point_count} pts, "
+        f"{format_number(fit.strain_min * 100.0, 5)}% to {format_number(fit.strain_max * 100.0, 5)}% true strain, "
+        f"R^2 = {format_number(fit.r_squared, 6)}, "
+        f"intercept = {format_number(fit.intercept_mpa, 6)} MPa"
+    )
+
+
+def _fit_preference_key(fit: ElasticFitResult) -> tuple[float, ...]:
+    return (
+        float(fit.point_count),
+        fit.strain_span,
+        fit.stress_max_mpa,
+        fit.r_squared,
+        -fit.intercept_ratio,
+        -fit.max_secant_deviation,
+    )
+
+
+def infer_elastic_modulus(points: Sequence[TrueCurvePoint]) -> ElasticFitResult:
     distinct_points: list[TrueCurvePoint] = []
     for point in points:
         if distinct_points and math.isclose(
@@ -387,40 +483,65 @@ def infer_elastic_modulus(points: Sequence[TrueCurvePoint]) -> float:
         distinct_points.append(point)
     if len(distinct_points) < 2:
         raise CurveValidationError("Elastic modulus inference requires two distinct strain values.")
+    candidate_points = [point for point in distinct_points if point.strain_true <= 0.01]
+    if len(candidate_points) < 2:
+        candidate_points = distinct_points[: min(len(distinct_points), 12)]
+    else:
+        candidate_points = candidate_points[:12]
+    if len(candidate_points) == 2:
+        return build_elastic_fit(candidate_points)
 
-    prefix_points = [distinct_points[0]]
-    kept_slopes: list[float] = []
-    for point_a, point_b in zip(distinct_points, distinct_points[1:]):
-        delta_strain = point_b.strain_true - point_a.strain_true
-        if delta_strain <= 0.0:
-            continue
-        slope = (point_b.stress_true - point_a.stress_true) / delta_strain
-        if slope <= 0.0:
-            if kept_slopes:
-                break
-            continue
-        if point_b.strain_true > 0.005 and kept_slopes:
-            break
-        if not kept_slopes:
-            kept_slopes.append(slope)
-            prefix_points.append(point_b)
-            continue
-        running_median = statistics.median(kept_slopes)
-        lower_bound = running_median * 0.85
-        upper_bound = running_median * 1.15
-        if lower_bound <= slope <= upper_bound and point_b.strain_true <= 0.005:
-            kept_slopes.append(slope)
-            prefix_points.append(point_b)
-        else:
-            break
+    candidate_fits: list[ElasticFitResult] = []
+    for start_index in range(len(candidate_points) - 1):
+        for end_index in range(start_index + 1, len(candidate_points)):
+            window = candidate_points[start_index : end_index + 1]
+            try:
+                fit = build_elastic_fit(window)
+            except CurveValidationError:
+                continue
+            if fit.modulus_mpa <= 0.0:
+                continue
+            candidate_fits.append(fit)
+    if not candidate_fits:
+        raise CurveValidationError("Elastic modulus inference requires a monotonic elastic segment.")
 
-    if len(prefix_points) < 2:
-        prefix_points = distinct_points[:2]
+    threshold_steps = (
+        (4, 0.9995, 0.08, 0.015),
+        (3, 0.9980, 0.12, 0.030),
+        (3, 0.9950, 0.20, 0.050),
+    )
+    for min_points, min_r_squared, max_secant_deviation, max_intercept_ratio in threshold_steps:
+        qualified = [
+            fit
+            for fit in candidate_fits
+            if fit.point_count >= min_points
+            and fit.r_squared >= min_r_squared
+            and fit.max_secant_deviation <= max_secant_deviation
+            and fit.intercept_ratio <= max_intercept_ratio
+        ]
+        if qualified:
+            return max(qualified, key=_fit_preference_key)
 
-    modulus = linear_regression_slope(prefix_points)
-    if modulus <= 0.0:
-        raise CurveValidationError("Inferred elastic modulus must be positive.")
-    return modulus
+    fallback = max(
+        candidate_fits,
+        key=lambda fit: (
+            fit.r_squared,
+            float(fit.point_count),
+            fit.strain_span,
+            -fit.intercept_ratio,
+            -fit.max_secant_deviation,
+        ),
+    )
+    if (
+        fallback.point_count < 3
+        or fallback.r_squared < 0.99
+        or fallback.max_secant_deviation > 0.25
+        or fallback.intercept_ratio > 0.08
+    ):
+        raise CurveValidationError(
+            "Elastic modulus inference could not find a stable elastic window. Use Manual E or fit a cleaner elastic selection."
+        )
+    return fallback
 
 
 def interpolate_stress_at_plastic_strain(candidate_a: MisoPoint, candidate_b: MisoPoint, target: float) -> float:
@@ -510,13 +631,15 @@ def compute_miso_from_rows(rows: Sequence[RawCurveRow], settings: ConversionSett
     if parsed_rows.accepted_count < 2:
         raise CurveValidationError("Paste at least two valid stress-strain rows.")
     true_curve = convert_to_true_curve(parsed_rows.rows, settings.curve_type)
+    elastic_fit = None
     if settings.modulus_mode == "manual":
         if settings.manual_modulus_mpa is None or settings.manual_modulus_mpa <= 0.0:
             raise CurveValidationError("Enter a positive elastic modulus in MPa.")
         modulus_mpa = settings.manual_modulus_mpa
         modulus_origin = "Manual"
     else:
-        modulus_mpa = infer_elastic_modulus(true_curve)
+        elastic_fit = infer_elastic_modulus(true_curve)
+        modulus_mpa = elastic_fit.modulus_mpa
         modulus_origin = "Inferred"
     miso_rows = build_miso_rows(true_curve, modulus_mpa, settings.proof_offset_plastic_strain)
     summary_parts = [f"Accepted {parsed_rows.accepted_count} curve rows"]
@@ -534,6 +657,7 @@ def compute_miso_from_rows(rows: Sequence[RawCurveRow], settings: ConversionSett
         modulus_mpa=modulus_mpa,
         modulus_origin=modulus_origin,
         parse_summary=", ".join(summary_parts) + ".",
+        elastic_fit=elastic_fit,
     )
 
 
@@ -575,10 +699,16 @@ class CurvePlotWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._points: list[tuple[float, float]] = []
+        self._highlight_points: list[tuple[float, float]] = []
         self.setMinimumHeight(220)
 
-    def set_points(self, points: Iterable[tuple[float, float]]) -> None:
+    def set_points(
+        self,
+        points: Iterable[tuple[float, float]],
+        highlight_points: Iterable[tuple[float, float]] = (),
+    ) -> None:
         self._points = list(points)
+        self._highlight_points = list(highlight_points)
         self.update()
 
     def _nice_ticks(self, val_min: float, val_max: float, count: int = 5) -> list[float]:
@@ -696,6 +826,17 @@ class CurvePlotWidget(QWidget):
             if previous_point is not None:
                 painter.drawLine(previous_point, mapped)
             previous_point = mapped
+        painter.setPen(QPen(QColor("#1f5aa6"), 1))
+        painter.setBrush(QColor("#1f5aa6"))
+        for point in self._points:
+            mapped = QPointF(map_x(point[0]), map_y(point[1]))
+            painter.drawEllipse(mapped, 2.5, 2.5)
+        if self._highlight_points:
+            painter.setPen(QPen(QColor("#d97706"), 1))
+            painter.setBrush(QColor("#f59e0b"))
+            for point in self._highlight_points:
+                mapped = QPointF(map_x(point[0]), map_y(point[1]))
+                painter.drawEllipse(mapped, 4.0, 4.0)
 
         painter.end()
 
@@ -1061,6 +1202,30 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.inferred_modulus_value.setReadOnly(True)
         self.inferred_modulus_value.setToolTip(inferred_modulus_label.toolTip())
         controls_layout.addWidget(self.inferred_modulus_value, 2, 3)
+        fit_summary_label = QLabel("Inference Fit")
+        fit_summary_label.setToolTip(
+            tooltip_html(
+                "Elastic Fit Diagnostics",
+                "Summarizes the elastic window used for automatic modulus inference.",
+                "Includes the fitted point count, true-strain span, linearity score, and intercept.",
+            )
+        )
+        controls_layout.addWidget(fit_summary_label, 3, 0)
+        self.inference_fit_value = QLineEdit(self)
+        self.inference_fit_value.setReadOnly(True)
+        self.inference_fit_value.setToolTip(fit_summary_label.toolTip())
+        controls_layout.addWidget(self.inference_fit_value, 3, 1, 1, 3)
+        self.fit_selection_button = QPushButton("Fit Selected Rows to Manual E")
+        self.fit_selection_button.setToolTip(
+            tooltip_html(
+                "Fit Selected Rows",
+                "Uses the currently selected stress-strain rows to fit Young's modulus,",
+                "writes that value into the manual E field, and switches the active mode to Manual.",
+                "Use this when the automatic fit chose the wrong elastic region and you want to lock E from a known-good selection.",
+            )
+        )
+        self.fit_selection_button.clicked.connect(self._fit_selected_rows_to_manual_modulus)
+        controls_layout.addWidget(self.fit_selection_button, 4, 0, 1, 4)
         layout.addLayout(controls_layout)
 
         self.paste_curve_button = QPushButton("Paste Curve")
@@ -1408,6 +1573,42 @@ class MisoCurveBuilderWindow(QMainWindow):
             rows.append(row_values)
         self._copy_text_to_clipboard("\n".join("\t".join(row) for row in rows))
 
+    def _fit_selected_rows_to_manual_modulus(self) -> None:
+        selected_row_indexes = sorted({item.row() for item in self.curve_table.selectedItems()})
+        if len(selected_row_indexes) < 2:
+            QMessageBox.information(
+                self,
+                "Fit Selected Rows",
+                "Select at least two stress-strain rows before fitting Young's modulus.",
+            )
+            return
+        selected_rows: list[RawCurveRow] = []
+        for row_index in selected_row_indexes:
+            stress_item = self.curve_table.item(row_index, 0)
+            strain_item = self.curve_table.item(row_index, 1)
+            selected_rows.append(
+                RawCurveRow(
+                    stress_text=stress_item.text().strip() if stress_item else "",
+                    strain_text=strain_item.text().strip() if strain_item else "",
+                )
+            )
+        parsed_rows = parse_curve_rows(selected_rows)
+        if parsed_rows.accepted_count < 2:
+            QMessageBox.warning(
+                self,
+                "Fit Selected Rows",
+                "The selected rows do not contain at least two valid stress-strain pairs.",
+            )
+            return
+        try:
+            fit = infer_elastic_modulus(convert_to_true_curve(parsed_rows.rows, self.curve_type_combo.currentData()))
+        except CurveValidationError as exc:
+            QMessageBox.warning(self, "Fit Selected Rows", str(exc))
+            return
+        self.manual_modulus_edit.setText(format_number(fit.modulus_mpa, 12))
+        self.modulus_mode_combo.setCurrentIndex(self.modulus_mode_combo.findData("manual"))
+        self._set_status(f"Locked manual E from selected rows. {fit_summary_text(fit)}.")
+
     def _copy_result_table(self) -> None:
         if not self._current_result_rows:
             QMessageBox.information(self, "No Result", "No computed MISO data is available to copy.")
@@ -1658,7 +1859,8 @@ class MisoCurveBuilderWindow(QMainWindow):
         self._current_result_rows = []
         self._current_result_temperature = None
         self.inferred_modulus_value.clear()
-        self.plot_widget.set_points([])
+        self.inference_fit_value.clear()
+        self.plot_widget.set_points([], [])
         self._display_result_rows([])
 
     def _recompute_selected_temperature(self, extra_status: str | None = None) -> None:
@@ -1695,9 +1897,17 @@ class MisoCurveBuilderWindow(QMainWindow):
         self._current_result_temperature = dataset.temperature_c
         if result.modulus_origin == "Inferred":
             self.inferred_modulus_value.setText(format_number(result.modulus_mpa, 12))
+            fit = result.elastic_fit
+            self.inference_fit_value.setText(fit_summary_text(fit) if fit is not None else "")
         else:
             self.inferred_modulus_value.clear()
-        self.plot_widget.set_points(result.displayed_curve)
+            self.inference_fit_value.clear()
+        highlighted_curve = []
+        if result.elastic_fit is not None:
+            highlighted_curve = [
+                (point.input_strain_percent, point.input_stress_mpa) for point in result.elastic_fit.points
+            ]
+        self.plot_widget.set_points(result.displayed_curve, highlighted_curve)
         self._display_result_rows(result.miso_rows)
 
         status_parts = [
@@ -1705,6 +1915,8 @@ class MisoCurveBuilderWindow(QMainWindow):
             f"Yield rule = {proof_offset_label(settings.proof_offset_mode)} proof.",
             f"{result.modulus_origin} E = {format_number(result.modulus_mpa, 12)} MPa.",
         ]
+        if result.elastic_fit is not None:
+            status_parts.append(f"Elastic fit: {fit_summary_text(result.elastic_fit)}.")
         if extra_status:
             status_parts.insert(0, extra_status)
         self._set_status(" ".join(status_parts))
