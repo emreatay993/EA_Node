@@ -101,6 +101,7 @@ class RawCurveRow:
 class TemperatureCurveData:
     temperature_c: float
     raw_rows: list[RawCurveRow] = field(default_factory=list)
+    manual_modulus_text: str = ""
 
 
 @dataclass
@@ -789,8 +790,9 @@ class MisoCurveBuilderWindow(QMainWindow):
         manual_modulus_label.setToolTip(
             tooltip_html(
                 "Manual Elastic Modulus",
-                "Enter Young's modulus in MPa when Elastic Modulus Mode is set to Manual.",
+                "Enter Young's modulus in MPa for the currently selected temperature when Elastic Modulus Mode is set to Manual.",
                 "The script computes plastic strain as eps_plastic = eps_true - sigma_true / E.",
+                "When you switch temperatures, this field shows and stores that temperature's own modulus.",
                 "Use a positive value such as 210000 for many steels.",
             )
         )
@@ -956,21 +958,25 @@ class MisoCurveBuilderWindow(QMainWindow):
     def _copy_text_to_clipboard(self, text: str) -> None:
         QApplication.clipboard().setText(text)
 
-    def _current_settings(self) -> ConversionSettings:
-        modulus_text = self.manual_modulus_edit.text().strip()
+    def _parse_manual_modulus_text(self, modulus_text: str) -> float | None:
         manual_modulus = None
         if modulus_text:
             try:
                 manual_modulus = parse_localized_float(modulus_text)
             except ValueError:
                 manual_modulus = None
+        return manual_modulus
+
+    def _settings_for_dataset(self, dataset: TemperatureCurveData | None) -> ConversionSettings:
+        modulus_text = dataset.manual_modulus_text.strip() if dataset is not None else ""
         return ConversionSettings(
             curve_type=self.curve_type_combo.currentData(),
             modulus_mode=self.modulus_mode_combo.currentData(),
-            manual_modulus_mpa=manual_modulus,
+            manual_modulus_mpa=self._parse_manual_modulus_text(modulus_text),
         )
 
     def _trigger_recompute(self, *_args) -> None:
+        self._save_current_manual_modulus_to_dataset()
         self._recompute_selected_temperature()
 
     def _handle_modulus_mode_change(self, *_args) -> None:
@@ -1080,6 +1086,14 @@ class MisoCurveBuilderWindow(QMainWindow):
         self._save_current_curve_to_dataset()
         self._recompute_selected_temperature()
 
+    def _save_current_manual_modulus_to_dataset(self) -> None:
+        if self.current_temperature_key is None:
+            return
+        dataset = self.temperature_datasets.get(self.current_temperature_key)
+        if dataset is None:
+            return
+        dataset.manual_modulus_text = self.manual_modulus_edit.text().strip()
+
     def _save_current_curve_to_dataset(self) -> None:
         if self.current_temperature_key is None:
             return
@@ -1095,6 +1109,12 @@ class MisoCurveBuilderWindow(QMainWindow):
             if stress_text or strain_text:
                 rows.append(RawCurveRow(stress_text=stress_text, strain_text=strain_text))
         dataset.raw_rows = rows
+
+    def _load_manual_modulus_for_temperature(self, key: str | None) -> None:
+        dataset = self.temperature_datasets.get(key) if key else None
+        modulus_text = dataset.manual_modulus_text if dataset is not None else ""
+        with QSignalBlocker(self.manual_modulus_edit):
+            self.manual_modulus_edit.setText(modulus_text)
 
     def _load_curve_for_temperature(self, key: str | None) -> None:
         self._loading_curve_table = True
@@ -1112,9 +1132,11 @@ class MisoCurveBuilderWindow(QMainWindow):
                     self.curve_table.setItem(row_index, 0, QTableWidgetItem(row.stress_text))
                     self.curve_table.setItem(row_index, 1, QTableWidgetItem(row.strain_text))
         self._loading_curve_table = False
+        self._load_manual_modulus_for_temperature(key)
 
     def _sync_temperatures_from_table(self, status_message: str) -> None:
         self._save_current_curve_to_dataset()
+        self._save_current_manual_modulus_to_dataset()
         raw_values = []
         for row_index in range(self.temperature_table.rowCount()):
             item = self.temperature_table.item(row_index, 0)
@@ -1184,6 +1206,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         if new_key == self.current_temperature_key:
             return
         self._save_current_curve_to_dataset()
+        self._save_current_manual_modulus_to_dataset()
         self.current_temperature_key = new_key
         self._load_curve_for_temperature(new_key)
         self._recompute_selected_temperature()
@@ -1224,7 +1247,8 @@ class MisoCurveBuilderWindow(QMainWindow):
                 self._set_status(extra_status)
             return
         self._save_current_curve_to_dataset()
-        settings = self._current_settings()
+        self._save_current_manual_modulus_to_dataset()
+        settings = self._settings_for_dataset(dataset)
         try:
             result = compute_miso_from_rows(dataset.raw_rows, settings)
         except CurveValidationError as exc:
@@ -1250,7 +1274,7 @@ class MisoCurveBuilderWindow(QMainWindow):
 
     def _collect_result_rows_for_temperature(self, key: str) -> list[MisoPoint]:
         dataset = self.temperature_datasets[key]
-        result = compute_miso_from_rows(dataset.raw_rows, self._current_settings())
+        result = compute_miso_from_rows(dataset.raw_rows, self._settings_for_dataset(dataset))
         return result.miso_rows
 
     def _write_sheet(self, workbook: Workbook, title: str, rows: Sequence[MisoPoint], used_names: set[str]) -> None:
