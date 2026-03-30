@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import re
 import statistics
@@ -89,6 +90,8 @@ KEY_BACKSPACE = KEY_ENUM.Key_Backspace
 MIN_TEMPERATURE_ROWS = 8
 MIN_CURVE_ROWS = 18
 TEMPERATURE_KEY_DIGITS = 9
+PROJECT_FILE_VERSION = 1
+DEFAULT_PROOF_OFFSET_MODE = "proof_0p2"
 
 
 @dataclass
@@ -109,6 +112,8 @@ class ConversionSettings:
     curve_type: str
     modulus_mode: str
     manual_modulus_mpa: float | None
+    proof_offset_mode: str
+    proof_offset_plastic_strain: float
 
 
 @dataclass
@@ -154,6 +159,10 @@ class CurveValidationError(ValueError):
     pass
 
 
+class ProjectFileError(ValueError):
+    pass
+
+
 def parse_localized_float(text: str) -> float:
     token = text.strip().replace("\u00a0", "").replace(" ", "")
     if not token:
@@ -177,6 +186,18 @@ def format_number(value: float, digits: int = 12) -> str:
 def tooltip_html(title: str, *lines: str) -> str:
     body = "<br>".join(lines)
     return f"<b>{title}</b><br>{body}"
+
+
+def proof_offset_value(mode: str) -> float:
+    if mode == "proof_0p02":
+        return 0.0002
+    return 0.002
+
+
+def proof_offset_label(mode: str) -> str:
+    if mode == "proof_0p02":
+        return "0.02%"
+    return "0.2%"
 
 
 def sanitize_sheet_name(name: str, used_names: set[str]) -> str:
@@ -402,15 +423,19 @@ def infer_elastic_modulus(points: Sequence[TrueCurvePoint]) -> float:
     return modulus
 
 
-def interpolate_stress_at_zero(candidate_a: MisoPoint, candidate_b: MisoPoint) -> float:
+def interpolate_stress_at_plastic_strain(candidate_a: MisoPoint, candidate_b: MisoPoint, target: float) -> float:
     delta_strain = candidate_b.plastic_strain - candidate_a.plastic_strain
     if abs(delta_strain) < 1e-18:
-        raise CurveValidationError("Plastic strain zero crossing could not be interpolated.")
-    factor = -candidate_a.plastic_strain / delta_strain
+        raise CurveValidationError("Plastic strain proof point could not be interpolated.")
+    factor = (target - candidate_a.plastic_strain) / delta_strain
     return candidate_a.stress_mpa + factor * (candidate_b.stress_mpa - candidate_a.stress_mpa)
 
 
-def build_miso_rows(points: Sequence[TrueCurvePoint], modulus_mpa: float) -> list[MisoPoint]:
+def build_miso_rows(
+    points: Sequence[TrueCurvePoint],
+    modulus_mpa: float,
+    proof_offset_plastic_strain: float,
+) -> list[MisoPoint]:
     if modulus_mpa <= 0.0:
         raise CurveValidationError("Elastic modulus must be positive.")
     candidates = [
@@ -421,47 +446,61 @@ def build_miso_rows(points: Sequence[TrueCurvePoint], modulus_mpa: float) -> lis
         for point in points
     ]
     tolerance = 1e-6
+    target_plastic_strain = proof_offset_plastic_strain
     positive_index = next(
-        (index for index, candidate in enumerate(candidates) if candidate.plastic_strain > tolerance),
+        (
+            index
+            for index, candidate in enumerate(candidates)
+            if candidate.plastic_strain > target_plastic_strain + tolerance
+        ),
         None,
     )
     if positive_index is None:
         raise CurveValidationError(
-            "No plastic strain zero crossing was found. Check the curve type or elastic modulus."
+            "No proof-stress crossing was found. Check the curve type, proof setting, or elastic modulus."
         )
     if positive_index == 0:
         raise CurveValidationError(
-            "Plastic strain is already positive at the first row. Check the curve type or elastic modulus."
+            "Plastic strain is already above the selected proof offset at the first row. Check the curve type or elastic modulus."
         )
 
     leading_candidates = candidates[:positive_index]
     last_nonpositive = leading_candidates[-1]
-    if abs(last_nonpositive.plastic_strain) <= tolerance:
+    if abs(last_nonpositive.plastic_strain - target_plastic_strain) <= tolerance:
         zero_row = MisoPoint(plastic_strain=0.0, stress_mpa=last_nonpositive.stress_mpa)
     else:
         previous_negative = next(
-            (candidate for candidate in reversed(leading_candidates) if candidate.plastic_strain < -tolerance),
+            (
+                candidate
+                for candidate in reversed(leading_candidates)
+                if candidate.plastic_strain < target_plastic_strain - tolerance
+            ),
             None,
         )
         if previous_negative is None:
             raise CurveValidationError(
-                "No plastic strain zero crossing was found. Check the curve type or elastic modulus."
+                "No proof-stress crossing was found. Check the curve type, proof setting, or elastic modulus."
             )
         zero_row = MisoPoint(
             plastic_strain=0.0,
-            stress_mpa=interpolate_stress_at_zero(previous_negative, candidates[positive_index]),
+            stress_mpa=interpolate_stress_at_plastic_strain(
+                previous_negative,
+                candidates[positive_index],
+                target_plastic_strain,
+            ),
         )
 
     miso_rows = [zero_row]
     last_plastic_strain = zero_row.plastic_strain
     last_stress = zero_row.stress_mpa
     for candidate in candidates[positive_index:]:
-        if candidate.plastic_strain <= last_plastic_strain + tolerance:
+        adjusted_plastic_strain = candidate.plastic_strain - target_plastic_strain
+        if adjusted_plastic_strain <= last_plastic_strain + tolerance:
             continue
         if candidate.stress_mpa < last_stress - 1e-9:
             continue
-        miso_rows.append(candidate)
-        last_plastic_strain = candidate.plastic_strain
+        miso_rows.append(MisoPoint(plastic_strain=adjusted_plastic_strain, stress_mpa=candidate.stress_mpa))
+        last_plastic_strain = adjusted_plastic_strain
         last_stress = candidate.stress_mpa
     return miso_rows
 
@@ -479,7 +518,7 @@ def compute_miso_from_rows(rows: Sequence[RawCurveRow], settings: ConversionSett
     else:
         modulus_mpa = infer_elastic_modulus(true_curve)
         modulus_origin = "Inferred"
-    miso_rows = build_miso_rows(true_curve, modulus_mpa)
+    miso_rows = build_miso_rows(true_curve, modulus_mpa, settings.proof_offset_plastic_strain)
     summary_parts = [f"Accepted {parsed_rows.accepted_count} curve rows"]
     if parsed_rows.header_skipped:
         summary_parts.append("skipped 1 header row")
@@ -613,16 +652,23 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.temperature_datasets: dict[str, TemperatureCurveData] = {}
         self.temperature_order: list[str] = []
         self.current_temperature_key: str | None = None
+        self.current_project_path: Path | None = None
         self._syncing_temperature_table = False
         self._loading_curve_table = False
         self._current_result_rows: list[MisoPoint] = []
         self._current_result_temperature: float | None = None
 
-        self.setWindowTitle(f"MISO Curve Builder ({QT_API})")
+        self._update_window_title()
         self.resize(1380, 820)
         self._build_ui()
         self._set_status("Ready. Paste temperatures on the left, select one, then paste stress-strain data.")
         self._recompute_selected_temperature()
+
+    def _update_window_title(self) -> None:
+        title = f"MISO Curve Builder ({QT_API})"
+        if self.current_project_path is not None:
+            title = f"{title} - {self.current_project_path.name}"
+        self.setWindowTitle(title)
 
     def _build_ui(self) -> None:
         central_widget = QWidget(self)
@@ -649,11 +695,37 @@ class MisoCurveBuilderWindow(QMainWindow):
                 "1. Paste one-column temperature data in Celsius on the left.",
                 "2. Click a temperature row to make it active.",
                 "3. Paste two-column stress-strain data for that temperature in MPa and percent strain.",
-                "4. Choose whether the input curve is engineering or true, and whether E is manual or inferred.",
-                "5. Copy the resulting plastic-strain/stress table or export it to Excel.",
+                "4. Choose whether the input curve is engineering or true, whether E is manual or inferred, and which proof-stress offset defines yield.",
+                "5. Save the work as a project file if you want to resume later.",
+                "6. Copy the resulting plastic-strain/stress table or export it to Excel.",
             )
         )
         root_layout.addWidget(guidance_label)
+
+        project_actions = QHBoxLayout()
+        self.open_project_button = QPushButton("Open Project")
+        self.open_project_button.setToolTip(
+            tooltip_html(
+                "Open Project",
+                "Loads a saved project file and restores temperatures, raw curves, per-temperature manual moduli, the proof-stress selection, and the active conversion settings.",
+                "Use this when you want to resume previous work or inspect an old setup.",
+            )
+        )
+        self.open_project_button.clicked.connect(self._open_project)
+        project_actions.addWidget(self.open_project_button)
+
+        self.save_project_button = QPushButton("Save Project")
+        self.save_project_button.setToolTip(
+            tooltip_html(
+                "Save Project",
+                "Writes the current temperatures, raw curve tables, per-temperature manual moduli, proof-stress selection, and active settings into a project file.",
+                "If this session has not been saved before, you will be prompted for a project filename.",
+            )
+        )
+        self.save_project_button.clicked.connect(self._save_project)
+        project_actions.addWidget(self.save_project_button)
+        project_actions.addStretch(1)
+        root_layout.addLayout(project_actions)
 
         splitter = QSplitter()
         splitter.setToolTip(
@@ -786,6 +858,24 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.modulus_mode_combo.currentIndexChanged.connect(self._handle_modulus_mode_change)
         controls_layout.addWidget(self.modulus_mode_combo, 0, 3)
 
+        proof_offset_label_widget = QLabel("Proof Stress")
+        proof_offset_label_widget.setToolTip(
+            tooltip_html(
+                "Proof-Stress Yield Definition",
+                "Controls how the script identifies yield strength before shifting the MISO curve to start at output plastic strain zero.",
+                "0.2% proof means yield is taken where computed plastic strain reaches 0.002.",
+                "0.02% proof means yield is taken where computed plastic strain reaches 0.0002.",
+            )
+        )
+        controls_layout.addWidget(proof_offset_label_widget, 1, 0)
+        self.proof_offset_combo = QComboBox(self)
+        self.proof_offset_combo.addItem("0.2% proof (ep = 0.002)", "proof_0p2")
+        self.proof_offset_combo.addItem("0.02% proof (ep = 0.0002)", "proof_0p02")
+        self.proof_offset_combo.setCurrentIndex(self.proof_offset_combo.findData(DEFAULT_PROOF_OFFSET_MODE))
+        self.proof_offset_combo.setToolTip(proof_offset_label_widget.toolTip())
+        self.proof_offset_combo.currentIndexChanged.connect(self._trigger_recompute)
+        controls_layout.addWidget(self.proof_offset_combo, 1, 1)
+
         manual_modulus_label = QLabel("E (MPa)")
         manual_modulus_label.setToolTip(
             tooltip_html(
@@ -796,12 +886,12 @@ class MisoCurveBuilderWindow(QMainWindow):
                 "Use a positive value such as 210000 for many steels.",
             )
         )
-        controls_layout.addWidget(manual_modulus_label, 1, 0)
+        controls_layout.addWidget(manual_modulus_label, 2, 0)
         self.manual_modulus_edit = QLineEdit(self)
         self.manual_modulus_edit.setPlaceholderText("Example: 210000")
         self.manual_modulus_edit.setToolTip(manual_modulus_label.toolTip())
         self.manual_modulus_edit.textChanged.connect(self._trigger_recompute)
-        controls_layout.addWidget(self.manual_modulus_edit, 1, 1)
+        controls_layout.addWidget(self.manual_modulus_edit, 2, 1)
 
         inferred_modulus_label = QLabel("Inferred E (MPa)")
         inferred_modulus_label.setToolTip(
@@ -811,11 +901,11 @@ class MisoCurveBuilderWindow(QMainWindow):
                 "The estimate is based on early secant slopes and a line fit over the accepted elastic prefix.",
             )
         )
-        controls_layout.addWidget(inferred_modulus_label, 1, 2)
+        controls_layout.addWidget(inferred_modulus_label, 2, 2)
         self.inferred_modulus_value = QLineEdit(self)
         self.inferred_modulus_value.setReadOnly(True)
         self.inferred_modulus_value.setToolTip(inferred_modulus_label.toolTip())
-        controls_layout.addWidget(self.inferred_modulus_value, 1, 3)
+        controls_layout.addWidget(self.inferred_modulus_value, 2, 3)
         layout.addLayout(controls_layout)
 
         self.paste_curve_button = QPushButton("Paste Curve")
@@ -882,7 +972,7 @@ class MisoCurveBuilderWindow(QMainWindow):
                 "Multilinear Isotropic Hardening Output",
                 "Shows the converted ANSYS-ready table for the active temperature.",
                 "The output columns are Plastic Strain (m/m) and Stress (MPa).",
-                "The first row is anchored at plastic strain zero using the detected or interpolated yield point.",
+                "The first row is anchored at output plastic strain zero using the selected proof-stress yield point.",
             )
         )
         result_layout = QVBoxLayout(result_group)
@@ -958,6 +1048,145 @@ class MisoCurveBuilderWindow(QMainWindow):
     def _copy_text_to_clipboard(self, text: str) -> None:
         QApplication.clipboard().setText(text)
 
+    def _project_payload(self) -> dict:
+        self._save_current_curve_to_dataset()
+        self._save_current_manual_modulus_to_dataset()
+        return {
+            "version": PROJECT_FILE_VERSION,
+            "curve_type": self.curve_type_combo.currentData(),
+            "modulus_mode": self.modulus_mode_combo.currentData(),
+            "proof_offset_mode": self.proof_offset_combo.currentData(),
+            "current_temperature_key": self.current_temperature_key,
+            "temperatures": [
+                {
+                    "temperature_c": self.temperature_datasets[key].temperature_c,
+                    "manual_modulus_text": self.temperature_datasets[key].manual_modulus_text,
+                    "raw_rows": [
+                        {
+                            "stress_text": row.stress_text,
+                            "strain_text": row.strain_text,
+                        }
+                        for row in self.temperature_datasets[key].raw_rows
+                    ],
+                }
+                for key in self.temperature_order
+            ],
+        }
+
+    def _save_project_to_path(self, path: Path) -> None:
+        payload = self._project_payload()
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def _load_project_from_path(self, path: Path) -> None:
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except OSError as exc:
+            raise ProjectFileError(f"Could not read project file: {exc}") from exc
+        except json.JSONDecodeError as exc:
+            raise ProjectFileError(f"Project file is not valid JSON: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise ProjectFileError("Project file root must be a JSON object.")
+
+        temperatures_payload = payload.get("temperatures")
+        if not isinstance(temperatures_payload, list):
+            raise ProjectFileError("Project file is missing a valid temperatures list.")
+
+        curve_type = payload.get("curve_type", "engineering")
+        modulus_mode = payload.get("modulus_mode", "manual")
+        proof_offset_mode = payload.get("proof_offset_mode", DEFAULT_PROOF_OFFSET_MODE)
+        if curve_type not in {"engineering", "true"}:
+            raise ProjectFileError("Project file contains an unsupported curve type.")
+        if modulus_mode not in {"manual", "infer"}:
+            raise ProjectFileError("Project file contains an unsupported modulus mode.")
+        if proof_offset_mode not in {"proof_0p2", "proof_0p02"}:
+            raise ProjectFileError("Project file contains an unsupported proof-stress option.")
+
+        datasets: dict[str, TemperatureCurveData] = {}
+        order: list[str] = []
+        for entry in temperatures_payload:
+            if not isinstance(entry, dict):
+                raise ProjectFileError("Each saved temperature entry must be a JSON object.")
+            try:
+                temperature_c = float(entry["temperature_c"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ProjectFileError("A saved temperature entry is missing a valid temperature value.") from exc
+            key = temperature_key(temperature_c)
+            if key in datasets:
+                raise ProjectFileError("Project file contains duplicate temperatures.")
+            raw_rows_payload = entry.get("raw_rows", [])
+            if not isinstance(raw_rows_payload, list):
+                raise ProjectFileError("Saved raw_rows must be a list.")
+            raw_rows = [
+                RawCurveRow(
+                    stress_text=str(row.get("stress_text", "")),
+                    strain_text=str(row.get("strain_text", "")),
+                )
+                for row in raw_rows_payload
+                if isinstance(row, dict)
+            ]
+            datasets[key] = TemperatureCurveData(
+                temperature_c=temperature_c,
+                raw_rows=raw_rows,
+                manual_modulus_text=str(entry.get("manual_modulus_text", "")),
+            )
+            order.append(key)
+
+        requested_key = payload.get("current_temperature_key")
+        current_key = requested_key if requested_key in datasets else (order[0] if order else None)
+
+        with QSignalBlocker(self.curve_type_combo):
+            self.curve_type_combo.setCurrentIndex(self.curve_type_combo.findData(curve_type))
+        with QSignalBlocker(self.modulus_mode_combo):
+            self.modulus_mode_combo.setCurrentIndex(self.modulus_mode_combo.findData(modulus_mode))
+        with QSignalBlocker(self.proof_offset_combo):
+            self.proof_offset_combo.setCurrentIndex(self.proof_offset_combo.findData(proof_offset_mode))
+
+        self.temperature_datasets = datasets
+        self.temperature_order = order
+        self.current_temperature_key = current_key
+        self.current_project_path = path
+        self._update_window_title()
+        self._refresh_temperature_table()
+        self._load_curve_for_temperature(current_key)
+        self.manual_modulus_edit.setEnabled(self.modulus_mode_combo.currentData() == "manual")
+        self._recompute_selected_temperature(extra_status=f"Loaded project from {path}.")
+
+    def _save_project(self) -> None:
+        target_path = self.current_project_path
+        if target_path is None:
+            path_text, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Project",
+                str(Path.cwd() / "miso_project.miso.json"),
+                "MISO Project (*.miso.json);;JSON Files (*.json)",
+            )
+            if not path_text:
+                return
+            target_path = Path(path_text)
+        try:
+            self._save_project_to_path(target_path)
+        except OSError as exc:
+            QMessageBox.critical(self, "Save Project Failed", f"Could not save project:\n\n{exc}")
+            return
+        self.current_project_path = target_path
+        self._update_window_title()
+        self._set_status(f"Saved project to {target_path}.")
+
+    def _open_project(self) -> None:
+        path_text, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Project",
+            str(Path.cwd()),
+            "MISO Project (*.miso.json *.json);;JSON Files (*.json)",
+        )
+        if not path_text:
+            return
+        try:
+            self._load_project_from_path(Path(path_text))
+        except ProjectFileError as exc:
+            QMessageBox.critical(self, "Open Project Failed", str(exc))
+
     def _parse_manual_modulus_text(self, modulus_text: str) -> float | None:
         manual_modulus = None
         if modulus_text:
@@ -969,10 +1198,13 @@ class MisoCurveBuilderWindow(QMainWindow):
 
     def _settings_for_dataset(self, dataset: TemperatureCurveData | None) -> ConversionSettings:
         modulus_text = dataset.manual_modulus_text.strip() if dataset is not None else ""
+        proof_mode = self.proof_offset_combo.currentData() or DEFAULT_PROOF_OFFSET_MODE
         return ConversionSettings(
             curve_type=self.curve_type_combo.currentData(),
             modulus_mode=self.modulus_mode_combo.currentData(),
             manual_modulus_mpa=self._parse_manual_modulus_text(modulus_text),
+            proof_offset_mode=proof_mode,
+            proof_offset_plastic_strain=proof_offset_value(proof_mode),
         )
 
     def _trigger_recompute(self, *_args) -> None:
@@ -1134,6 +1366,25 @@ class MisoCurveBuilderWindow(QMainWindow):
         self._loading_curve_table = False
         self._load_manual_modulus_for_temperature(key)
 
+    def _refresh_temperature_table(self) -> None:
+        self._syncing_temperature_table = True
+        with QSignalBlocker(self.temperature_table):
+            row_count = max(MIN_TEMPERATURE_ROWS, len(self.temperature_order))
+            self.temperature_table.setRowCount(row_count)
+            for row_index in range(row_count):
+                self.temperature_table.takeItem(row_index, 0)
+            for row_index, key in enumerate(self.temperature_order):
+                self.temperature_table.setItem(
+                    row_index,
+                    0,
+                    QTableWidgetItem(format_number(self.temperature_datasets[key].temperature_c, 9)),
+                )
+            if self.current_temperature_key is not None and self.current_temperature_key in self.temperature_order:
+                self.temperature_table.selectRow(self.temperature_order.index(self.current_temperature_key))
+            else:
+                self.temperature_table.clearSelection()
+        self._syncing_temperature_table = False
+
     def _sync_temperatures_from_table(self, status_message: str) -> None:
         self._save_current_curve_to_dataset()
         self._save_current_manual_modulus_to_dataset()
@@ -1168,24 +1419,7 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.temperature_order = new_order
         self.current_temperature_key = current_key
 
-        self._syncing_temperature_table = True
-        with QSignalBlocker(self.temperature_table):
-            row_count = max(MIN_TEMPERATURE_ROWS, len(new_order))
-            self.temperature_table.setRowCount(row_count)
-            for row_index in range(row_count):
-                self.temperature_table.takeItem(row_index, 0)
-            for row_index, key in enumerate(new_order):
-                self.temperature_table.setItem(
-                    row_index,
-                    0,
-                    QTableWidgetItem(format_number(self.temperature_datasets[key].temperature_c, 9)),
-                )
-            if current_key is not None:
-                self.temperature_table.selectRow(new_order.index(current_key))
-            else:
-                self.temperature_table.clearSelection()
-        self._syncing_temperature_table = False
-
+        self._refresh_temperature_table()
         self._load_curve_for_temperature(current_key)
         self._recompute_selected_temperature(
             extra_status=(
@@ -1267,7 +1501,11 @@ class MisoCurveBuilderWindow(QMainWindow):
         self.plot_widget.set_points(result.displayed_curve)
         self._display_result_rows(result.miso_rows)
 
-        status_parts = [result.parse_summary, f"{result.modulus_origin} E = {format_number(result.modulus_mpa, 12)} MPa."]
+        status_parts = [
+            result.parse_summary,
+            f"Yield rule = {proof_offset_label(settings.proof_offset_mode)} proof.",
+            f"{result.modulus_origin} E = {format_number(result.modulus_mpa, 12)} MPa.",
+        ]
         if extra_status:
             status_parts.insert(0, extra_status)
         self._set_status(" ".join(status_parts))
