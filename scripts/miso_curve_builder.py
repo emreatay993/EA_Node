@@ -581,16 +581,39 @@ class CurvePlotWidget(QWidget):
         self._points = list(points)
         self.update()
 
+    def _nice_ticks(self, val_min: float, val_max: float, count: int = 5) -> list[float]:
+        span = val_max - val_min
+        if span <= 0.0:
+            return [val_min]
+        raw_step = span / count
+        mag = 10.0 ** math.floor(math.log10(raw_step))
+        normalized = raw_step / mag
+        if normalized < 1.5:
+            step = mag
+        elif normalized < 3.5:
+            step = 2.0 * mag
+        elif normalized < 7.5:
+            step = 5.0 * mag
+        else:
+            step = 10.0 * mag
+        first = math.ceil(val_min / step) * step
+        ticks: list[float] = []
+        v = first
+        while v <= val_max + step * 0.01:
+            ticks.append(round(v, 12))
+            v += step
+        return ticks
+
     def paintEvent(self, event):  # noqa: N802 - Qt naming
         del event
         painter = QPainter(self)
         painter.setRenderHint(RENDER_HINT.Antialiasing, True)
         painter.fillRect(self.rect(), QColor("#f7f9fc"))
 
-        margin_left = 56
+        margin_left = 72
         margin_right = 18
         margin_top = 16
-        margin_bottom = 36
+        margin_bottom = 48
         plot_rect = self.rect().adjusted(margin_left, margin_top, -margin_right, -margin_bottom)
         painter.setPen(QPen(QColor("#b8c2cc"), 1))
         painter.drawRect(plot_rect)
@@ -614,35 +637,66 @@ class CurvePlotWidget(QWidget):
         if math.isclose(y_min, y_max):
             y_max = y_min + 1.0
 
-        def map_point(point: tuple[float, float]) -> QPointF:
-            x_value, y_value = point
-            x_ratio = (x_value - x_min) / (x_max - x_min)
-            y_ratio = (y_value - y_min) / (y_max - y_min)
-            x_pixel = plot_rect.left() + x_ratio * plot_rect.width()
-            y_pixel = plot_rect.bottom() - y_ratio * plot_rect.height()
-            return QPointF(x_pixel, y_pixel)
+        x_ticks = self._nice_ticks(x_min, x_max, 5)
+        y_ticks = self._nice_ticks(y_min, y_max, 5)
 
-        painter.setPen(QPen(QColor("#1f5aa6"), 2))
-        previous_point = None
-        for point in self._points:
-            if previous_point is not None:
-                current_point = map_point(point)
-                painter.drawLine(previous_point, current_point)
-                previous_point = current_point
-            else:
-                previous_point = map_point(point)
+        def map_x(val: float) -> float:
+            return plot_rect.left() + (val - x_min) / (x_max - x_min) * plot_rect.width()
 
+        def map_y(val: float) -> float:
+            return plot_rect.bottom() - (val - y_min) / (y_max - y_min) * plot_rect.height()
+
+        # Gridlines
+        painter.setPen(QPen(QColor("#e2e8f0"), 1))
+        for x_tick in x_ticks:
+            px = int(map_x(x_tick))
+            painter.drawLine(px, plot_rect.top(), px, plot_rect.bottom())
+        for y_tick in y_ticks:
+            py = int(map_y(y_tick))
+            painter.drawLine(plot_rect.left(), py, plot_rect.right(), py)
+
+        # Tick labels
+        small_font = painter.font()
+        small_font.setPointSize(8)
+        painter.setFont(small_font)
+        painter.setPen(QColor("#4a5568"))
+        for x_tick in x_ticks:
+            px = int(map_x(x_tick))
+            label = format_number(x_tick, 4)
+            painter.drawText(px - 24, plot_rect.bottom() + 4, 48, 14, int(ALIGNMENT.AlignCenter), label)
+        for y_tick in y_ticks:
+            py = int(map_y(y_tick))
+            label = format_number(y_tick, 4)
+            painter.drawText(plot_rect.left() - 68, py - 7, 64, 14, int(ALIGNMENT.AlignCenter), label)
+
+        # Axis labels
+        axis_font = painter.font()
+        axis_font.setPointSize(9)
+        painter.setFont(axis_font)
         painter.setPen(QColor("#2d3748"))
         painter.drawText(
             plot_rect.left(),
-            self.height() - 10,
-            f"Strain (%)  {format_number(x_min, 6)} to {format_number(x_max, 6)}",
+            self.height() - 14,
+            plot_rect.width(),
+            14,
+            int(ALIGNMENT.AlignCenter),
+            "Strain (%)",
         )
         painter.save()
-        painter.translate(16, plot_rect.bottom())
+        painter.translate(12, plot_rect.top() + plot_rect.height() // 2)
         painter.rotate(-90)
-        painter.drawText(0, 0, f"Stress (MPa)  {format_number(y_min, 6)} to {format_number(y_max, 6)}")
+        painter.drawText(-40, -7, 80, 14, int(ALIGNMENT.AlignCenter), "Stress (MPa)")
         painter.restore()
+
+        # Curve
+        painter.setPen(QPen(QColor("#1f5aa6"), 2))
+        previous_point = None
+        for point in self._points:
+            mapped = QPointF(map_x(point[0]), map_y(point[1]))
+            if previous_point is not None:
+                painter.drawLine(previous_point, mapped)
+            previous_point = mapped
+
         painter.end()
 
 
@@ -657,6 +711,8 @@ class MisoCurveBuilderWindow(QMainWindow):
         self._loading_curve_table = False
         self._current_result_rows: list[MisoPoint] = []
         self._current_result_temperature: float | None = None
+        self._temperature_status: dict[str, str] = {}
+        self._step_num_labels: list[QLabel] = []
 
         self._update_window_title()
         self.resize(1380, 820)
@@ -669,6 +725,93 @@ class MisoCurveBuilderWindow(QMainWindow):
         if self.current_project_path is not None:
             title = f"{title} - {self.current_project_path.name}"
         self.setWindowTitle(title)
+
+    def _build_step_banner(self) -> QWidget:
+        banner = QWidget()
+        layout = QHBoxLayout(banner)
+        layout.setContentsMargins(6, 6, 6, 6)
+        layout.setSpacing(0)
+        steps = [
+            "Add Temperatures",
+            "Select Temperature",
+            "Paste Curve",
+            "Configure Settings",
+            "Copy / Export",
+        ]
+        self._step_num_labels = []
+        for i, text in enumerate(steps):
+            num_label = QLabel(str(i + 1))
+            num_label.setFixedSize(22, 22)
+            num_label.setAlignment(ALIGNMENT.AlignCenter)
+            num_label.setStyleSheet(
+                "background: #e5e7eb; color: #6b7280; border-radius: 11px; font-weight: bold;"
+            )
+            self._step_num_labels.append(num_label)
+            text_label = QLabel(text)
+            text_label.setStyleSheet("font-size: 11px; color: #374151;")
+            step_container = QWidget()
+            step_inner = QHBoxLayout(step_container)
+            step_inner.setContentsMargins(4, 0, 4, 0)
+            step_inner.setSpacing(5)
+            step_inner.addWidget(num_label)
+            step_inner.addWidget(text_label)
+            layout.addWidget(step_container)
+            if i < len(steps) - 1:
+                arrow = QLabel("→")
+                arrow.setStyleSheet("color: #9ca3af; padding: 0 4px;")
+                layout.addWidget(arrow)
+        layout.addStretch(1)
+        banner.setStyleSheet(
+            "background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;"
+        )
+        return banner
+
+    def _refresh_step_banner(self) -> None:
+        if not self._step_num_labels:
+            return
+        if not self.temperature_order:
+            active = 0
+        elif self.current_temperature_key is None:
+            active = 1
+        else:
+            dataset = self.temperature_datasets.get(self.current_temperature_key)
+            has_rows = bool(dataset and dataset.raw_rows)
+            if not has_rows:
+                active = 2
+            else:
+                status = self._temperature_status.get(self.current_temperature_key, "")
+                active = 4 if status == "ok" else 3
+        active_style = (
+            "background: #3b82f6; color: white; border-radius: 11px; font-weight: bold;"
+        )
+        done_style = (
+            "background: #10b981; color: white; border-radius: 11px; font-weight: bold;"
+        )
+        pending_style = (
+            "background: #e5e7eb; color: #6b7280; border-radius: 11px; font-weight: bold;"
+        )
+        for i, label in enumerate(self._step_num_labels):
+            if i < active:
+                label.setStyleSheet(done_style)
+            elif i == active:
+                label.setStyleSheet(active_style)
+            else:
+                label.setStyleSheet(pending_style)
+
+    def _update_temperature_row_color(self, key: str) -> None:
+        if key not in self.temperature_order:
+            return
+        row_index = self.temperature_order.index(key)
+        item = self.temperature_table.item(row_index, 0)
+        if item is None:
+            return
+        status = self._temperature_status.get(key, "")
+        if status == "ok":
+            item.setBackground(QColor("#d1fae5"))
+        elif status == "error":
+            item.setBackground(QColor("#fee2e2"))
+        else:
+            item.setBackground(QColor("#ffffff"))
 
     def _build_ui(self) -> None:
         central_widget = QWidget(self)
@@ -701,6 +844,7 @@ class MisoCurveBuilderWindow(QMainWindow):
             )
         )
         root_layout.addWidget(guidance_label)
+        root_layout.addWidget(self._build_step_banner())
 
         project_actions = QHBoxLayout()
         self.open_project_button = QPushButton("Open Project")
@@ -789,6 +933,17 @@ class MisoCurveBuilderWindow(QMainWindow):
         )
         self.paste_temperatures_button.clicked.connect(self._paste_temperatures_from_clipboard)
         layout.addWidget(self.paste_temperatures_button)
+
+        self.delete_temperature_button = QPushButton("Delete Selected")
+        self.delete_temperature_button.setToolTip(
+            tooltip_html(
+                "Delete Selected Temperature",
+                "Removes the currently selected temperature and its associated curve data from the project.",
+                "This action cannot be undone within the session.",
+            )
+        )
+        self.delete_temperature_button.clicked.connect(self._delete_selected_temperature)
+        layout.addWidget(self.delete_temperature_button)
 
         self.temperature_table = ClipboardTableWidget(MIN_TEMPERATURE_ROWS, 1, self)
         self.temperature_table.setHorizontalHeaderLabels(["Temperature (C)"])
@@ -919,6 +1074,17 @@ class MisoCurveBuilderWindow(QMainWindow):
         )
         self.paste_curve_button.clicked.connect(self._paste_curve_from_clipboard)
         layout.addWidget(self.paste_curve_button)
+
+        self.clear_curve_button = QPushButton("Clear Curve")
+        self.clear_curve_button.setToolTip(
+            tooltip_html(
+                "Clear Curve",
+                "Removes all stress-strain rows for the currently selected temperature.",
+                "The temperature itself is kept; only the curve data is cleared.",
+            )
+        )
+        self.clear_curve_button.clicked.connect(self._clear_current_curve)
+        layout.addWidget(self.clear_curve_button)
 
         self.curve_table = ClipboardTableWidget(MIN_CURVE_ROWS, 2, self)
         self.curve_table.setHorizontalHeaderLabels(["Stress (MPa)", "Strain (%)"])
@@ -1256,6 +1422,33 @@ class MisoCurveBuilderWindow(QMainWindow):
         self._copy_text_to_clipboard(tsv)
         self._set_status("Copied the selected temperature result table to the clipboard.")
 
+    def _delete_selected_temperature(self) -> None:
+        key = self.current_temperature_key
+        if key is None:
+            QMessageBox.warning(self, "Delete Temperature", "No temperature is selected.")
+            return
+        dataset = self.temperature_datasets.get(key)
+        label = format_temperature_label(dataset.temperature_c) if dataset else key
+        self.temperature_datasets.pop(key, None)
+        if key in self.temperature_order:
+            self.temperature_order.remove(key)
+        self._temperature_status.pop(key, None)
+        new_key = self.temperature_order[0] if self.temperature_order else None
+        self.current_temperature_key = new_key
+        self._refresh_temperature_table()
+        self._load_curve_for_temperature(new_key)
+        self._recompute_selected_temperature(extra_status=f"Deleted temperature {label}.")
+
+    def _clear_current_curve(self) -> None:
+        if self.current_temperature_key is None:
+            QMessageBox.warning(self, "Clear Curve", "No temperature is selected.")
+            return
+        dataset = self.temperature_datasets.get(self.current_temperature_key)
+        if dataset:
+            dataset.raw_rows = []
+        self._load_curve_for_temperature(self.current_temperature_key)
+        self._recompute_selected_temperature(extra_status="Cleared curve for selected temperature.")
+
     def _paste_temperatures_from_clipboard(self) -> None:
         clipboard_text = QApplication.clipboard().text()
         parsed = parse_numeric_clipboard(clipboard_text, expected_columns=1)
@@ -1379,6 +1572,7 @@ class MisoCurveBuilderWindow(QMainWindow):
                     0,
                     QTableWidgetItem(format_number(self.temperature_datasets[key].temperature_c, 9)),
                 )
+                self._update_temperature_row_color(key)
             if self.current_temperature_key is not None and self.current_temperature_key in self.temperature_order:
                 self.temperature_table.selectRow(self.temperature_order.index(self.current_temperature_key))
             else:
@@ -1473,12 +1667,14 @@ class MisoCurveBuilderWindow(QMainWindow):
             self._clear_result_display()
             if extra_status:
                 self._set_status(extra_status)
+            self._refresh_step_banner()
             return
         dataset = self.temperature_datasets.get(self.current_temperature_key)
         if dataset is None:
             self._clear_result_display()
             if extra_status:
                 self._set_status(extra_status)
+            self._refresh_step_banner()
             return
         self._save_current_curve_to_dataset()
         self._save_current_manual_modulus_to_dataset()
@@ -1486,10 +1682,13 @@ class MisoCurveBuilderWindow(QMainWindow):
         try:
             result = compute_miso_from_rows(dataset.raw_rows, settings)
         except CurveValidationError as exc:
+            self._temperature_status[self.current_temperature_key] = "error"
+            self._update_temperature_row_color(self.current_temperature_key)
             self._clear_result_display()
             self._show_validation_error(str(exc))
             if extra_status:
                 self._set_status(extra_status)
+            self._refresh_step_banner()
             return
 
         self._current_result_rows = result.miso_rows
@@ -1509,6 +1708,9 @@ class MisoCurveBuilderWindow(QMainWindow):
         if extra_status:
             status_parts.insert(0, extra_status)
         self._set_status(" ".join(status_parts))
+        self._temperature_status[self.current_temperature_key] = "ok"
+        self._update_temperature_row_color(self.current_temperature_key)
+        self._refresh_step_banner()
 
     def _collect_result_rows_for_temperature(self, key: str) -> list[MisoPoint]:
         dataset = self.temperature_datasets[key]
