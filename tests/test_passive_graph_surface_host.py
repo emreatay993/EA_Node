@@ -1696,6 +1696,153 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_graph_node_host_node_execution_visualization_states_drive_timer_priority_and_cache_keys(self) -> None:
+        self._run_qml_probe(
+            "host-node-execution-visualization",
+            """
+            from PyQt6.QtCore import pyqtProperty, pyqtSignal
+            from PyQt6.QtTest import QTest
+
+            class ExecutionSceneBridge(QObject):
+                selected_node_lookup_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self._selected_node_lookup = {}
+
+                @pyqtProperty("QVariantMap", notify=selected_node_lookup_changed)
+                def selected_node_lookup(self):
+                    return dict(self._selected_node_lookup)
+
+            class ExecutionCanvasItem(QQuickItem):
+                failed_node_lookup_changed = pyqtSignal()
+                failed_node_revision_changed = pyqtSignal()
+                running_node_lookup_changed = pyqtSignal()
+                completed_node_lookup_changed = pyqtSignal()
+                node_execution_revision_changed = pyqtSignal()
+
+                def __init__(self):
+                    super().__init__()
+                    self._scene_bridge = ExecutionSceneBridge()
+                    self._failed_node_lookup = {}
+                    self._failed_node_revision = 0
+                    self._running_node_lookup = {"node_surface_host_test": True}
+                    self._completed_node_lookup = {}
+                    self._node_execution_revision = 1
+
+                @pyqtProperty(QObject, constant=True)
+                def sceneBridge(self):
+                    return self._scene_bridge
+
+                @pyqtProperty("QVariantMap", notify=failed_node_lookup_changed)
+                def failedNodeLookup(self):
+                    return dict(self._failed_node_lookup)
+
+                @pyqtProperty(int, notify=failed_node_revision_changed)
+                def failedNodeRevision(self):
+                    return int(self._failed_node_revision)
+
+                @pyqtProperty("QVariantMap", notify=running_node_lookup_changed)
+                def runningNodeLookup(self):
+                    return dict(self._running_node_lookup)
+
+                @pyqtProperty("QVariantMap", notify=completed_node_lookup_changed)
+                def completedNodeLookup(self):
+                    return dict(self._completed_node_lookup)
+
+                @pyqtProperty(int, notify=node_execution_revision_changed)
+                def nodeExecutionRevision(self):
+                    return int(self._node_execution_revision)
+
+                def set_running(self, node_id):
+                    self._running_node_lookup = {str(node_id): True}
+                    self._completed_node_lookup = {}
+                    self._node_execution_revision += 1
+                    self.running_node_lookup_changed.emit()
+                    self.completed_node_lookup_changed.emit()
+                    self.node_execution_revision_changed.emit()
+
+                def set_completed(self, node_id):
+                    self._running_node_lookup = {}
+                    self._completed_node_lookup = {str(node_id): True}
+                    self._node_execution_revision += 1
+                    self.running_node_lookup_changed.emit()
+                    self.completed_node_lookup_changed.emit()
+                    self.node_execution_revision_changed.emit()
+
+                def set_failed(self, node_id):
+                    self._failed_node_lookup = {str(node_id): True}
+                    self._failed_node_revision += 1
+                    self.failed_node_lookup_changed.emit()
+                    self.failed_node_revision_changed.emit()
+
+            canvas_item = ExecutionCanvasItem()
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": node_payload(),
+                    "canvasItem": canvas_item,
+                    "showShadow": True,
+                },
+            )
+            background_layer = host.findChild(QObject, "graphNodeChromeBackgroundLayer")
+            running_halo = host.findChild(QObject, "graphNodeRunningHalo")
+            running_pulse_halo = host.findChild(QObject, "graphNodeRunningPulseHalo")
+            completed_flash_halo = host.findChild(QObject, "graphNodeCompletedFlashHalo")
+            elapsed_timer = host.findChild(QObject, "graphNodeElapsedTimer")
+
+            assert background_layer is not None
+            assert running_halo is not None
+            assert running_pulse_halo is not None
+            assert completed_flash_halo is not None
+            assert elapsed_timer is not None
+
+            app.processEvents()
+            assert bool(host.property("isRunningNode"))
+            assert not bool(host.property("isCompletedNode"))
+            assert bool(host.property("renderActive"))
+            assert int(host.property("z")) == 31
+            assert str(background_layer.property("effectiveBorderState")) == "running"
+            assert bool(running_halo.property("visible"))
+            assert bool(running_pulse_halo.property("visible"))
+            assert bool(elapsed_timer.property("visible"))
+            running_key = str(background_layer.property("cacheKey") or "")
+            assert "|running|" in running_key
+
+            QTest.qWait(160)
+            app.processEvents()
+            assert str(elapsed_timer.property("text") or "") != "0.0s"
+
+            canvas_item.set_completed("node_surface_host_test")
+            app.processEvents()
+            QTest.qWait(80)
+            app.processEvents()
+
+            assert not bool(host.property("isRunningNode"))
+            assert bool(host.property("isCompletedNode"))
+            assert bool(host.property("renderActive"))
+            assert int(host.property("z")) == 29
+            assert str(background_layer.property("effectiveBorderState")) == "completed"
+            assert not bool(running_halo.property("visible"))
+            assert not bool(running_pulse_halo.property("visible"))
+            assert not bool(elapsed_timer.property("visible"))
+            assert float(background_layer.property("completedFlashProgress")) > 0.0
+            completed_key = str(background_layer.property("cacheKey") or "")
+            assert completed_key != running_key
+            assert "|completed|" in completed_key
+
+            canvas_item.set_failed("node_surface_host_test")
+            app.processEvents()
+
+            assert bool(host.property("isFailedNode"))
+            assert str(background_layer.property("effectiveBorderState")) == "failed"
+            assert not bool(running_halo.property("visible"))
+            assert not bool(running_pulse_halo.property("visible"))
+            assert not bool(completed_flash_halo.property("visible"))
+            assert "|failed|" in str(background_layer.property("cacheKey") or "")
+            """,
+        )
+
     def test_flowchart_host_shadow_visibility_follows_global_shadow_preference(self) -> None:
         self._run_qml_probe(
             "flowchart-host-shadow-visibility",

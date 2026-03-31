@@ -6,15 +6,48 @@ Item {
     objectName: "graphNodeChromeBackgroundLayer"
     property Item host: null
     property real failurePulseProgress: 0.0
+    property real runningPulseProgress: 0.0
+    property real completedFlashProgress: 0.0
     readonly property bool cacheActive: !!root.host && root.host.chromeShadowCacheActive
     readonly property string cacheKey: root.host ? root.host.chromeShadowCacheKey : ""
     readonly property bool chromeCacheActive: root.host ? root.host.chromeCacheActive : false
     readonly property bool shadowCacheActive: root.host ? root.host.shadowCacheActive : false
+    readonly property real effectiveBorderWidth: !root.host
+        ? 0.0
+        : (root.host.isFailedNode
+            ? Math.max(root.host.resolvedBorderWidth, 2.4)
+            : ((root.host.isRunningNode || root.host.isCompletedNode)
+                ? Math.max(root.host.resolvedBorderWidth, 2.0)
+                : root.host.resolvedBorderWidth))
+    readonly property color effectiveOutlineColor: !root.host
+        ? "transparent"
+        : (root.host.isFailedNode
+            ? root.host.failureOutlineColor
+            : (root.host.isRunningNode
+                ? root.host.runningOutlineColor
+                : (root.host.isCompletedNode
+                    ? root.host.completedOutlineColor
+                    : (root.host.isSelected
+                        ? root.host.selectedOutlineColor
+                        : root.host.outlineColor))))
+    readonly property string effectiveBorderState: !root.host
+        ? "idle"
+        : (root.host.isFailedNode
+            ? "failed"
+            : (root.host.isRunningNode
+                ? "running"
+                : (root.host.isCompletedNode
+                    ? "completed"
+                    : (root.host.isSelected ? "selected" : "idle"))))
     z: 0
 
     onHostChanged: {
         if (!root.host || !root.host.isFailedNode)
             root.failurePulseProgress = 0.0;
+        if (!root.host || !root.host.isRunningNode)
+            root.runningPulseProgress = 0.0;
+        if (!root.host || !root.host.isCompletedNode)
+            root.completedFlashProgress = 0.0;
     }
 
     SequentialAnimation {
@@ -41,6 +74,68 @@ Item {
         }
     }
 
+    SequentialAnimation {
+        id: runningPulseAnimation
+        loops: Animation.Infinite
+        running: root.host ? (root.host.isRunningNode && !root.host.isFailedNode) : false
+
+        NumberAnimation {
+            target: root
+            property: "runningPulseProgress"
+            from: 0.0
+            to: 1.0
+            duration: 1400
+            easing.type: Easing.InOutSine
+        }
+
+        NumberAnimation {
+            target: root
+            property: "runningPulseProgress"
+            from: 1.0
+            to: 0.0
+            duration: 1400
+            easing.type: Easing.InOutSine
+        }
+
+        onRunningChanged: {
+            if (!running)
+                root.runningPulseProgress = 0.0;
+        }
+    }
+
+    SequentialAnimation {
+        id: completedFlashAnimation
+        loops: 1
+        running: false
+
+        NumberAnimation {
+            target: root
+            property: "completedFlashProgress"
+            from: 0.0
+            to: 1.0
+            duration: 300
+            easing.type: Easing.OutCubic
+        }
+
+        PauseAnimation {
+            duration: 600
+        }
+
+        NumberAnimation {
+            target: root
+            property: "completedFlashProgress"
+            from: 1.0
+            to: 0.0
+            duration: 500
+            easing.type: Easing.InCubic
+        }
+
+        onStopped: {
+            if (!running)
+                root.completedFlashProgress = 0.0;
+        }
+    }
+
     Connections {
         target: root.host
 
@@ -49,6 +144,21 @@ Item {
                 return;
             root.failurePulseProgress = 0.0;
             failurePulseAnimation.restart();
+        }
+
+        function onIsCompletedNodeChanged() {
+            if (!root.host || root.host.isFailedNode) {
+                completedFlashAnimation.stop();
+                root.completedFlashProgress = 0.0;
+                return;
+            }
+            if (!root.host.isCompletedNode) {
+                completedFlashAnimation.stop();
+                root.completedFlashProgress = 0.0;
+                return;
+            }
+            root.completedFlashProgress = 0.0;
+            completedFlashAnimation.restart();
         }
     }
 
@@ -100,20 +210,66 @@ Item {
     }
 
     Rectangle {
+        id: runningHalo
+        objectName: "graphNodeRunningHalo"
+        visible: root.host ? (root.host.isRunningNode && !root.host.isFailedNode) : false
+        anchors.fill: parent
+        anchors.margins: -6
+        z: 1
+        color: root.host ? Qt.alpha(root.host.runningGlowColor, 0.06) : "transparent"
+        border.width: 2
+        border.color: root.host
+            ? Qt.alpha(root.host.runningOutlineColor, 0.5 + (root.runningPulseProgress * 0.4))
+            : "transparent"
+        radius: root.host ? root.host.resolvedCornerRadius + 6 : 0
+        opacity: 0.6 + (root.runningPulseProgress * 0.4)
+    }
+
+    Rectangle {
+        id: runningPulseHalo
+        objectName: "graphNodeRunningPulseHalo"
+        visible: root.host ? (root.host.isRunningNode && !root.host.isFailedNode) : false
+        anchors.fill: parent
+        anchors.margins: -9
+        z: 2
+        color: "transparent"
+        border.width: 1.5
+        border.color: root.host
+            ? Qt.alpha(root.host.runningGlowColor, Math.max(0.0, 0.5 * root.runningPulseProgress))
+            : "transparent"
+        radius: root.host ? root.host.resolvedCornerRadius + 9 : 0
+        opacity: root.runningPulseProgress * 0.6
+        scale: 1.0 + (root.runningPulseProgress * 0.06)
+        transformOrigin: Item.Center
+    }
+
+    Rectangle {
+        id: completedFlashHalo
+        objectName: "graphNodeCompletedFlashHalo"
+        visible: root.completedFlashProgress > 0.01 && (root.host ? !root.host.isFailedNode : true)
+        anchors.fill: parent
+        anchors.margins: -6
+        z: 1
+        color: "transparent"
+        border.width: 2
+        border.color: root.host
+            ? Qt.alpha(root.host.completedGlowColor, root.completedFlashProgress * 0.7)
+            : "transparent"
+        radius: root.host ? root.host.resolvedCornerRadius + 6 : 0
+        opacity: root.completedFlashProgress
+        scale: 1.0 + ((1.0 - root.completedFlashProgress) * 0.04)
+        transformOrigin: Item.Center
+    }
+
+    Rectangle {
         id: cardChrome
         objectName: "graphNodeChrome"
         anchors.fill: parent
         z: 3
         visible: root.host ? root.host._useHostChrome : false
         color: root.host ? root.host.surfaceColor : "transparent"
-        border.width: root.host
-            ? (root.host.isFailedNode ? Math.max(root.host.resolvedBorderWidth, 2.4) : root.host.resolvedBorderWidth)
-            : 0
-        border.color: root.host
-            ? (root.host.isFailedNode
-                ? root.host.failureOutlineColor
-                : (root.host.isSelected ? root.host.selectedOutlineColor : root.host.outlineColor))
-            : "transparent"
+        border.width: root.effectiveBorderWidth
+        border.color: root.effectiveOutlineColor
         radius: root.host ? root.host.resolvedCornerRadius : 0
         layer.enabled: root.chromeCacheActive
     }

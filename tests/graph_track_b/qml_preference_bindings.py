@@ -6,7 +6,7 @@ import subprocess
 import sys
 import unittest
 
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, pyqtProperty, pyqtSignal
 from PyQt6.QtQuick import QQuickWindow
 from PyQt6.QtTest import QTest
 
@@ -418,6 +418,309 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         )
 
         self.assertTrue(bool(node_card.property("_tooltipOnlyPortLabelsActive")))
+
+    def test_node_execution_visualization_graph_canvas_host_chrome_follows_bridge_state_priority(self) -> None:
+        node_id = "node_execution_visualization"
+        node_payload = {
+            "node_id": node_id,
+            "type_id": "core.logger",
+            "title": "Logger",
+            "x": 120.0,
+            "y": 140.0,
+            "width": 210.0,
+            "height": 88.0,
+            "accent": "#2F89FF",
+            "collapsed": False,
+            "selected": False,
+            "can_enter_scope": False,
+            "surface_family": "standard",
+            "surface_variant": "",
+            "ports": [
+                {
+                    "key": "exec_in",
+                    "label": "Exec In",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "exec_out",
+                    "label": "Exec Out",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+            ],
+            "inline_properties": [],
+            "surface_metrics": {
+                "default_width": 210.0,
+                "default_height": 88.0,
+                "min_width": 120.0,
+                "min_height": 50.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_top": 30.0,
+                "body_height": 30.0,
+                "port_top": 60.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+            },
+        }
+
+        class CanvasStateBridgeStub(QObject):
+            graphics_preferences_changed = pyqtSignal()
+            scene_nodes_changed = pyqtSignal()
+            failure_highlight_changed = pyqtSignal()
+            node_execution_state_changed = pyqtSignal()
+
+            def __init__(
+                self,
+                preference_bridge: _GraphCanvasPreferenceBridge,
+                view_bridge: ViewportBridge,
+            ) -> None:
+                super().__init__()
+                self._preference_bridge = preference_bridge
+                self._view_bridge = view_bridge
+                self._nodes_model = [dict(node_payload)]
+                self._running_node_lookup: dict[str, bool] = {}
+                self._completed_node_lookup: dict[str, bool] = {}
+                self._failed_node_lookup: dict[str, bool] = {}
+                self._failed_node_revision = 0
+                self._node_execution_revision = 0
+                self._preference_bridge.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+
+            @pyqtProperty(QObject, constant=True)
+            def viewport_bridge(self) -> ViewportBridge:
+                return self._view_bridge
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_minimap_expanded(self) -> bool:
+                return bool(self._preference_bridge.graphics_minimap_expanded)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_grid(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_grid)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_grid_style(self) -> str:
+                return str(self._preference_bridge.graphics_grid_style)
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_edge_crossing_style(self) -> str:
+                return str(self._preference_bridge.graphics_edge_crossing_style)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_minimap(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_minimap)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_port_labels(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_port_labels)
+
+            @pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_node_shadow(self) -> bool:
+                return True
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_strength(self) -> int:
+                return 70
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_softness(self) -> int:
+                return 50
+
+            @pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_offset(self) -> int:
+                return 4
+
+            @pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_performance_mode(self) -> str:
+                return "full_fidelity"
+
+            @pyqtProperty("QVariantList", notify=scene_nodes_changed)
+            def nodes_model(self) -> list[dict[str, object]]:
+                return list(self._nodes_model)
+
+            @pyqtProperty("QVariantList", constant=True)
+            def backdrop_nodes_model(self) -> list[dict[str, object]]:
+                return []
+
+            @pyqtProperty("QVariantList", constant=True)
+            def edges_model(self) -> list[dict[str, object]]:
+                return []
+
+            @pyqtProperty("QVariantMap", constant=True)
+            def selected_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @pyqtProperty("QVariantMap", constant=True)
+            def workspace_scene_bounds_payload(self) -> dict[str, float]:
+                return {}
+
+            @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
+            def failed_node_lookup(self) -> dict[str, bool]:
+                return dict(self._failed_node_lookup)
+
+            @pyqtProperty(int, notify=failure_highlight_changed)
+            def failed_node_revision(self) -> int:
+                return int(self._failed_node_revision)
+
+            @pyqtProperty(str, notify=failure_highlight_changed)
+            def failed_node_title(self) -> str:
+                return "Logger" if self._failed_node_lookup else ""
+
+            @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def running_node_lookup(self) -> dict[str, bool]:
+                return dict(self._running_node_lookup)
+
+            @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def completed_node_lookup(self) -> dict[str, bool]:
+                return dict(self._completed_node_lookup)
+
+            @pyqtProperty(int, notify=node_execution_state_changed)
+            def node_execution_revision(self) -> int:
+                return int(self._node_execution_revision)
+
+            def set_running_node_state(self, tracked_node_id: str) -> None:
+                self._running_node_lookup = {str(tracked_node_id): True}
+                self._completed_node_lookup = {}
+                self._node_execution_revision += 1
+                self.node_execution_state_changed.emit()
+
+            def set_completed_node_state(self, tracked_node_id: str) -> None:
+                self._running_node_lookup = {}
+                self._completed_node_lookup = {str(tracked_node_id): True}
+                self._node_execution_revision += 1
+                self.node_execution_state_changed.emit()
+
+            def set_failed_node_state(self, tracked_node_id: str) -> None:
+                self._failed_node_lookup = {str(tracked_node_id): True}
+                self._failed_node_revision += 1
+                self.failure_highlight_changed.emit()
+
+        self.canvas.deleteLater()
+        self.app.processEvents()
+
+        canvas_state_bridge = CanvasStateBridgeStub(self.bridge, self.view)
+        canvas_command_bridge = GraphCanvasCommandBridge(
+            shell_window=self.bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        self.canvas = self._create_canvas(
+            {
+                "canvasStateBridge": canvas_state_bridge,
+                "canvasCommandBridge": canvas_command_bridge,
+                "width": 1280.0,
+                "height": 720.0,
+            }
+        )
+
+        wait_for_condition_or_raise(
+            lambda: len(_named_child_items(self.canvas, "graphNodeCard")) == 1,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas execution-visualization node host to appear.",
+        )
+        node_card = _named_child_items(self.canvas, "graphNodeCard")[0]
+        background_layer = node_card.findChild(QObject, "graphNodeChromeBackgroundLayer")
+        running_halo = node_card.findChild(QObject, "graphNodeRunningHalo")
+        running_pulse_halo = node_card.findChild(QObject, "graphNodeRunningPulseHalo")
+        completed_flash_halo = node_card.findChild(QObject, "graphNodeCompletedFlashHalo")
+        elapsed_timer = node_card.findChild(QObject, "graphNodeElapsedTimer")
+        self.assertIsNotNone(background_layer)
+        self.assertIsNotNone(running_halo)
+        self.assertIsNotNone(running_pulse_halo)
+        self.assertIsNotNone(completed_flash_halo)
+        self.assertIsNotNone(elapsed_timer)
+
+        self.assertEqual(str(background_layer.property("effectiveBorderState")), "idle")
+        self.assertEqual(dict(self.canvas.property("runningNodeLookup")), {})
+        self.assertEqual(dict(self.canvas.property("completedNodeLookup")), {})
+        self.assertFalse(bool(elapsed_timer.property("visible")))
+
+        idle_key = str(background_layer.property("cacheKey") or "")
+
+        canvas_state_bridge.set_running_node_state(node_id)
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isRunningNode"))
+            and str(background_layer.property("effectiveBorderState")) == "running"
+            and bool(elapsed_timer.property("visible")),
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for running execution chrome on graph canvas host.",
+        )
+
+        self.assertTrue(bool(node_card.property("renderActive")))
+        self.assertEqual(int(node_card.property("z")), 31)
+        self.assertEqual(dict(self.canvas.property("runningNodeLookup")), {node_id: True})
+        self.assertEqual(
+            _color_name(background_layer.property("effectiveOutlineColor")),
+            _color_name(node_card.property("runningOutlineColor")),
+        )
+        self.assertTrue(bool(running_halo.property("visible")))
+        self.assertTrue(bool(running_pulse_halo.property("visible")))
+
+        running_key = str(background_layer.property("cacheKey") or "")
+        self.assertNotEqual(running_key, idle_key)
+        self.assertIn("|running|", running_key)
+
+        QTest.qWait(160)
+        self.app.processEvents()
+        self.assertNotEqual(str(elapsed_timer.property("text") or ""), "0.0s")
+
+        canvas_state_bridge.set_completed_node_state(node_id)
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isCompletedNode"))
+            and not bool(node_card.property("isRunningNode"))
+            and str(background_layer.property("effectiveBorderState")) == "completed"
+            and not bool(elapsed_timer.property("visible")),
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for completed execution chrome on graph canvas host.",
+        )
+
+        self.assertEqual(int(node_card.property("z")), 29)
+        self.assertEqual(dict(self.canvas.property("runningNodeLookup")), {})
+        self.assertEqual(dict(self.canvas.property("completedNodeLookup")), {node_id: True})
+        self.assertEqual(
+            _color_name(background_layer.property("effectiveOutlineColor")),
+            _color_name(node_card.property("completedOutlineColor")),
+        )
+        self.assertFalse(bool(running_halo.property("visible")))
+        self.assertFalse(bool(running_pulse_halo.property("visible")))
+
+        QTest.qWait(80)
+        self.app.processEvents()
+        self.assertGreater(float(background_layer.property("completedFlashProgress")), 0.0)
+
+        completed_key = str(background_layer.property("cacheKey") or "")
+        self.assertNotEqual(completed_key, running_key)
+        self.assertIn("|completed|", completed_key)
+
+        canvas_state_bridge.set_failed_node_state(node_id)
+        wait_for_condition_or_raise(
+            lambda: str(background_layer.property("effectiveBorderState")) == "failed",
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for failure priority to override execution chrome.",
+        )
+
+        self.assertEqual(dict(self.canvas.property("failedNodeLookup")), {node_id: True})
+        self.assertEqual(
+            _color_name(background_layer.property("effectiveOutlineColor")),
+            _color_name(node_card.property("failureOutlineColor")),
+        )
+        self.assertFalse(bool(running_halo.property("visible")))
+        self.assertFalse(bool(running_pulse_halo.property("visible")))
+        self.assertFalse(bool(completed_flash_halo.property("visible")))
+        self.assertIn("|failed|", str(background_layer.property("cacheKey") or ""))
 
     def test_toggle_minimap_expanded_routes_through_bridge_slot(self) -> None:
         self.assertEqual(self.bridge.minimap_update_history, [])

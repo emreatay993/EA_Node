@@ -69,6 +69,10 @@ QtObject {
     readonly property color failureBadgeFillColor: "#421617"
     readonly property color failureBadgeBorderColor: "#FF8C74"
     readonly property color failureBadgeTextColor: "#FFE5DE"
+    readonly property color runningOutlineColor: "#4A9EFF"
+    readonly property color runningGlowColor: "#6EC6FF"
+    readonly property color completedOutlineColor: "#4ADE80"
+    readonly property color completedGlowColor: "#86EFAC"
 
     readonly property color surfaceColor: host && host.isPassiveNode
         ? (root.passiveFillOverride || (host.isFlowchartSurface ? root.flowchartDefaultFillColor : root.themeSurfaceColor))

@@ -64,11 +64,18 @@ Item {
         ? canvasItem.sceneBridge.selected_node_lookup
         : ({})
     readonly property var failedNodeLookup: canvasItem ? canvasItem.failedNodeLookup : ({})
+    readonly property var runningNodeLookup: canvasItem ? canvasItem.runningNodeLookup : ({})
+    readonly property var completedNodeLookup: canvasItem ? canvasItem.completedNodeLookup : ({})
     readonly property bool isSelected: !!nodeData
         && Boolean(selectedNodeLookup[String(nodeData.node_id || "")])
     readonly property bool isFailedNode: !!nodeData
         && Boolean(failedNodeLookup[String(nodeData.node_id || "")])
+    readonly property bool isRunningNode: !!nodeData
+        && Boolean(runningNodeLookup[String(nodeData.node_id || "")])
+    readonly property bool isCompletedNode: !!nodeData
+        && Boolean(completedNodeLookup[String(nodeData.node_id || "")])
     readonly property int failurePulseRevision: canvasItem ? Number(canvasItem.failedNodeRevision || 0) : 0
+    readonly property int executionPulseRevision: canvasItem ? Number(canvasItem.nodeExecutionRevision || 0) : 0
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var renderQuality: renderQualityState.renderQuality
@@ -141,6 +148,10 @@ Item {
     readonly property color failureBadgeFillColor: themeState.failureBadgeFillColor
     readonly property color failureBadgeBorderColor: themeState.failureBadgeBorderColor
     readonly property color failureBadgeTextColor: themeState.failureBadgeTextColor
+    readonly property color runningOutlineColor: themeState.runningOutlineColor
+    readonly property color runningGlowColor: themeState.runningGlowColor
+    readonly property color completedOutlineColor: themeState.completedOutlineColor
+    readonly property color completedGlowColor: themeState.completedGlowColor
     readonly property real flowchartRestPortDiameter: themeState.flowchartRestPortDiameter
     readonly property real flowchartConnectedPortDiameter: themeState.flowchartConnectedPortDiameter
     readonly property real flowchartSelectedPortDiameter: themeState.flowchartSelectedPortDiameter
@@ -281,7 +292,13 @@ Item {
     readonly property bool shadowCacheActive: chromeLayout.shadowCacheActive
     readonly property bool surfaceShadowCacheActive: chromeLayout.surfaceShadowCacheActive
     readonly property bool chromeShadowCacheActive: chromeLayout.chromeShadowCacheActive
-    readonly property string chromeShadowCacheKey: chromeLayout.chromeShadowCacheKey
+    readonly property string chromeShadowCacheKey: [
+        chromeLayout.chromeShadowCacheKey,
+        card.isFailedNode ? "failed" : (card.isRunningNode ? "running" : (card.isCompletedNode ? "completed" : "idle")),
+        String(card.failureOutlineColor),
+        String(card.runningOutlineColor),
+        String(card.completedOutlineColor)
+    ].join("|")
     readonly property string surfaceShadowCacheKey: chromeLayout.surfaceShadowCacheKey
 
     function localPortPoint(direction, rowIndex) {
@@ -437,6 +454,17 @@ Item {
         return sceneAccess.sceneRectsIntersect(firstRectLike, secondRectLike);
     }
 
+    function formatExecutionElapsed(elapsedMilliseconds) {
+        var elapsedSeconds = Math.max(0.0, Number(elapsedMilliseconds) / 1000.0);
+        if (!isFinite(elapsedSeconds))
+            elapsedSeconds = 0.0;
+        if (elapsedSeconds < 60.0)
+            return elapsedSeconds.toFixed(1) + "s";
+        var minutes = Math.floor(elapsedSeconds / 60.0);
+        var seconds = Math.floor(elapsedSeconds % 60.0);
+        return minutes + "m " + (seconds < 10 ? "0" : "") + seconds + "s";
+    }
+
     HoverHandler {
         id: cardHoverHandler
     }
@@ -471,6 +499,8 @@ Item {
         || card._resizeInteractionActive
     readonly property bool _forceRenderActive: card.isSelected
         || card.isFailedNode
+        || card.isRunningNode
+        || card.isCompletedNode
         || card.hoverActive
         || card._hoveredPortOnNode
         || card._previewPortOnNode
@@ -493,7 +523,7 @@ Item {
     layer.smooth: card.effectiveTextureCacheActive
     layer.mipmap: card.effectiveTextureCacheActive
 
-    z: card.isFailedNode ? 32 : (card.isSelected ? 30 : 20)
+    z: card.isFailedNode ? 32 : (card.isRunningNode ? 31 : (card.isSelected ? 30 : (card.isCompletedNode ? 29 : 20)))
     x: (card._liveGeometryActive ? card._liveX : (card.nodeData ? card.nodeData.x : 0.0)) + card.worldOffset
     y: (card._liveGeometryActive ? card._liveY : (card.nodeData ? card.nodeData.y : 0.0)) + card.worldOffset
     transform: Translate {
@@ -506,6 +536,67 @@ Item {
     GraphNodeChromeBackground {
         anchors.fill: parent
         host: card
+    }
+
+    Text {
+        id: elapsedTimerLabel
+        objectName: "graphNodeElapsedTimer"
+        visible: card.isRunningNode
+        anchors.top: parent.bottom
+        anchors.topMargin: 4
+        anchors.horizontalCenter: parent.horizontalCenter
+        z: 4
+        font.pixelSize: 10
+        font.bold: true
+        color: card.runningOutlineColor
+        opacity: 0.88
+        renderType: card.nodeTextRenderType
+        text: card.formatExecutionElapsed(elapsedMilliseconds)
+
+        property double elapsedMilliseconds: 0.0
+        property double startedAtMs: 0.0
+
+        function _updateElapsed() {
+            if (startedAtMs <= 0.0) {
+                elapsedMilliseconds = 0.0;
+                return;
+            }
+            elapsedMilliseconds = Math.max(0.0, Date.now() - startedAtMs);
+        }
+
+        function _syncRunningState() {
+            if (!card.isRunningNode) {
+                startedAtMs = 0.0;
+                elapsedMilliseconds = 0.0;
+                return;
+            }
+            if (startedAtMs <= 0.0)
+                startedAtMs = Date.now();
+            _updateElapsed();
+        }
+
+        Timer {
+            id: elapsedTimerTicker
+            interval: 100
+            repeat: true
+            running: elapsedTimerLabel.visible
+            onTriggered: elapsedTimerLabel._updateElapsed()
+        }
+
+        Connections {
+            target: card
+
+            function onIsRunningNodeChanged() {
+                elapsedTimerLabel._syncRunningState();
+            }
+        }
+
+        onVisibleChanged: {
+            if (visible)
+                _syncRunningState();
+        }
+
+        Component.onCompleted: _syncRunningState()
     }
 
     // Keep body interactions below the loaded surface so local surface controls can own pointer input.
