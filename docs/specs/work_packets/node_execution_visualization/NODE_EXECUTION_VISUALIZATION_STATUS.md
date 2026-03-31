@@ -1,0 +1,14 @@
+# NODE_EXECUTION_VISUALIZATION Status Ledger
+
+- Updated: `2026-03-31`
+- Integration base: `main`
+- Published packet window: `P00` through `P04`
+- Execution note: every non-bootstrap packet runs sequentially in its own wave; later waves stay blocked until the current wave reaches a terminal result.
+
+| Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
+|---|---|---|---|---|---|---|---|
+| P00 Bootstrap | `codex/node-execution-visualization/p00-bootstrap` | PASS | `LOCAL_ONLY_NOT_COMMITTED` | planner: `@' ... NODE_EXECUTION_VISUALIZATION_P00_FILE_GATE_PASS ... '@ \| .\venv\Scripts\python.exe -`; planner review gate: `@' ... NODE_EXECUTION_VISUALIZATION_P00_STATUS_PASS ... '@ \| .\venv\Scripts\python.exe -` | PASS (`NODE_EXECUTION_VISUALIZATION_P00_FILE_GATE_PASS`; `NODE_EXECUTION_VISUALIZATION_P00_STATUS_PASS`) | `.gitignore`, `docs/specs/INDEX.md`, `docs/specs/work_packets/node_execution_visualization/*` | Bootstrap docs are materialized locally only in this thread; later packet waves still await a fresh execution thread and substantive packet commits |
+| P01 Run State Execution Projection | `codex/node-execution-visualization/p01-run-state-execution-projection` | PENDING | `-` | `-` | `-` | `docs/specs/work_packets/node_execution_visualization/P01_run_state_execution_projection_WRAPUP.md` | Backend run-state and bridge projection work has not started |
+| P02 Graph Canvas Execution Bindings | `codex/node-execution-visualization/p02-graph-canvas-execution-bindings` | PENDING | `-` | `-` | `-` | `docs/specs/work_packets/node_execution_visualization/P02_graph_canvas_execution_bindings_WRAPUP.md` | Canvas-level QML property threading is blocked on the P01 bridge contract |
+| P03 Node Chrome Execution Highlights | `codex/node-execution-visualization/p03-node-chrome-execution-highlights` | PENDING | `-` | `-` | `-` | `docs/specs/work_packets/node_execution_visualization/P03_node_chrome_execution_highlights_WRAPUP.md` | Node-host visuals, timer, and end-to-end highlight proof are blocked on the earlier bridge/canvas packets |
+| P04 Verification Docs Traceability Closeout | `codex/node-execution-visualization/p04-verification-docs-traceability-closeout` | PENDING | `-` | `-` | `-` | `docs/specs/work_packets/node_execution_visualization/P04_verification_docs_traceability_closeout_WRAPUP.md`, `docs/specs/perf/NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md` | Docs, QA evidence, and traceability updates are intentionally deferred until implementation packets land |
