@@ -31,6 +31,8 @@ _VIEWER_EVENT_TYPES = frozenset(
         "viewer_session_failed",
     }
 )
+_NODE_COMPLETED_EVENT_TYPE = "node_completed"
+_RUNTIME_VIEWER_OUTPUT_KEY = "session"
 _RUN_REQUIRED_BLOCKER = {
     "code": "rerun_required",
     "reason": "Live viewer transport is unavailable and requires rerun.",
@@ -270,21 +272,45 @@ class ViewerSessionBridge(QObject):
         if not workspace_id or not normalized_node_id:
             return ""
 
+        existing_state = self._sessions.get((workspace_id, normalized_node_id))
         payload_map = _copy_mapping(payload)
         data_refs = _copy_mapping(payload_map.get("data_refs"))
-        if not data_refs:
+        transport = _copy_mapping(payload_map.get("transport"))
+        if existing_state is not None:
+            if not data_refs:
+                data_refs = copy.deepcopy(existing_state.data_refs)
+            if not transport:
+                transport = copy.deepcopy(existing_state.transport)
+        if existing_state is None and not data_refs and not transport:
             return ""
 
-        state = self._ensure_session_state(workspace_id, normalized_node_id)
+        state = existing_state or self._ensure_session_state(workspace_id, normalized_node_id)
         summary = _copy_mapping(payload_map.get("summary"))
+        if not summary and existing_state is not None:
+            summary = copy.deepcopy(existing_state.summary)
+        summary.pop("close_reason", None)
+        summary.pop("invalidated_reason", None)
         option_updates = _copy_mapping(payload_map.get("options"))
+        if existing_state is not None:
+            option_updates.pop("reason", None)
+            option_updates.pop("release_handles", None)
         backend_id = self._resolve_backend_id(state, payload_map)
         camera_state = _copy_mapping(payload_map.get("camera_state"))
+        if not camera_state and existing_state is not None:
+            camera_state = copy.deepcopy(existing_state.camera_state)
         playback = _normalize_playback_payload(
             payload_map.get("playback_state") or option_updates,
             fallback_state=state.playback_state,
             fallback_step_index=state.step_index,
         )
+        transport_revision = _coerce_step_index(
+            payload_map.get("transport_revision"),
+            default=state.transport_revision,
+        )
+        live_open_status = _string(payload_map.get("live_open_status")) or state.live_open_status
+        live_open_blocker = _copy_mapping(payload_map.get("live_open_blocker"))
+        if not live_open_blocker:
+            live_open_blocker = copy.deepcopy(state.live_open_blocker)
 
         state.phase = "opening"
         state.invalidated_reason = ""
@@ -294,6 +320,8 @@ class ViewerSessionBridge(QObject):
         self._clear_pending_projection(state)
 
         request_options = self._request_options(state, option_updates)
+        request_options.pop("reason", None)
+        request_options.pop("release_handles", None)
         request_options["playback_state"] = playback["state"]
         request_options["step_index"] = playback["step_index"]
         request_options["live_mode"] = self._desired_live_mode_map(workspace_id).get(
@@ -307,6 +335,10 @@ class ViewerSessionBridge(QObject):
             session_id=state.session_id,
             backend_id=backend_id,
             data_refs=data_refs,
+            transport=transport,
+            transport_revision=transport_revision,
+            live_open_status=live_open_status,
+            live_open_blocker=live_open_blocker,
             summary=summary,
             camera_state=camera_state,
             playback_state=playback,
@@ -824,6 +856,9 @@ class ViewerSessionBridge(QObject):
 
     def _handle_execution_event(self, event: dict[str, Any]) -> None:
         event_type = _string(event.get("type"))
+        if event_type == _NODE_COMPLETED_EVENT_TYPE:
+            if self._seed_runtime_projection_from_node_completed(event):
+                return
         if event_type not in _VIEWER_EVENT_TYPES:
             return
 
@@ -857,6 +892,36 @@ class ViewerSessionBridge(QObject):
             state.phase = "open"
         self.sessions_changed.emit()
         self._sync_live_policy(workspace_id)
+
+    def _seed_runtime_projection_from_node_completed(
+        self,
+        event: Mapping[str, Any],
+    ) -> bool:
+        outputs = _copy_mapping(event.get("outputs"))
+        runtime_payload = _copy_mapping(outputs.get(_RUNTIME_VIEWER_OUTPUT_KEY))
+        if not runtime_payload:
+            return False
+
+        workspace_id = _string(runtime_payload.get("workspace_id")) or _string(event.get("workspace_id"))
+        node_id = _string(runtime_payload.get("node_id")) or _string(event.get("node_id"))
+        session_id = _string(runtime_payload.get("session_id"))
+        if not workspace_id or not node_id or not session_id:
+            return False
+
+        state = self._ensure_session_state(workspace_id, node_id)
+        state.session_id = session_id
+        state.request_id = ""
+        state.last_command = "run_projection"
+        state.invalidated_reason = ""
+        state.close_reason = ""
+        state.last_error = ""
+
+        self._set_last_error("")
+        self._clear_pending_projection(state)
+        self._apply_authoritative_projection(state, runtime_payload)
+        state.phase = "closed"
+        self.sessions_changed.emit()
+        return True
 
     def _apply_authoritative_projection(
         self,

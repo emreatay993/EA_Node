@@ -59,6 +59,10 @@ class _ViewerExecutionClientStub:
         session_id: str = "",
         backend_id: str = "",
         data_refs: dict[str, Any] | None = None,
+        transport: dict[str, Any] | None = None,
+        transport_revision: int = 0,
+        live_open_status: str = "",
+        live_open_blocker: dict[str, Any] | None = None,
         camera_state: dict[str, Any] | None = None,
         playback_state: dict[str, Any] | None = None,
         summary: dict[str, Any] | None = None,
@@ -73,6 +77,10 @@ class _ViewerExecutionClientStub:
                 "session_id": session_id,
                 "backend_id": backend_id,
                 "data_refs": dict(data_refs or {}),
+                "transport": dict(transport or {}),
+                "transport_revision": int(transport_revision),
+                "live_open_status": str(live_open_status),
+                "live_open_blocker": dict(live_open_blocker or {}),
                 "camera_state": dict(camera_state or {}),
                 "playback_state": dict(playback_state or {}),
                 "summary": dict(summary or {}),
@@ -597,6 +605,72 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(blocked_state["summary"]["live_transport_release_reason"], "workspace_rerun")
         self.assertTrue(blocked_state["options"]["rerun_required"])
         self.assertEqual(blocked_state["transport"], {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID})
+
+    def test_node_completed_runtime_session_payload_reseeds_closed_state_and_cached_open(self) -> None:
+        self.host.scene.set_selected("node_viewer")
+        runtime_session_payload = _viewer_opened_event(
+            request_id="run_node_viewer",
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id="viewer_session_runtime_seeded",
+            backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+            summary={"cache_state": "live_ready", "result_name": "displacement"},
+            options={"live_mode": "proxy"},
+            data_refs={"dataset": {"kind": "mock_dataset"}},
+            transport_revision=7,
+            live_open_status="ready",
+            transport={
+                "kind": "bundle",
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "bundle_path": "C:/temp/viewer_bundle",
+            },
+        )
+
+        self.host.execution_event.emit(
+            {
+                "type": "node_completed",
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "outputs": {"session": runtime_session_payload},
+            }
+        )
+
+        seeded_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(seeded_state["phase"], "closed")
+        self.assertEqual(seeded_state["session_id"], "viewer_session_runtime_seeded")
+        self.assertEqual(seeded_state["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(seeded_state["cache_state"], "live_ready")
+        self.assertEqual(seeded_state["live_open_status"], "ready")
+        self.assertEqual(seeded_state["data_refs"], {"dataset": {"kind": "mock_dataset"}})
+        self.assertEqual(
+            seeded_state["transport"],
+            {
+                "kind": "bundle",
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "bundle_path": "C:/temp/viewer_bundle",
+            },
+        )
+
+        reopened_session_id = self.bridge.open("node_viewer")
+        self.assertEqual(reopened_session_id, "viewer_session_runtime_seeded")
+        self.assertEqual(len(self.host.execution_client.open_calls), 1)
+        open_call = self.host.execution_client.open_calls[-1]
+        self.assertEqual(open_call["workspace_id"], "ws_main")
+        self.assertEqual(open_call["node_id"], "node_viewer")
+        self.assertEqual(open_call["session_id"], "viewer_session_runtime_seeded")
+        self.assertEqual(open_call["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(open_call["data_refs"], {"dataset": {"kind": "mock_dataset"}})
+        self.assertEqual(
+            open_call["transport"],
+            {
+                "kind": "bundle",
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "bundle_path": "C:/temp/viewer_bundle",
+            },
+        )
+        self.assertEqual(open_call["transport_revision"], 7)
+        self.assertEqual(open_call["live_open_status"], "ready")
+        self.assertEqual(open_call["options"]["live_mode"], "full")
 
 
 class ViewerSessionBridgeShellIntegrationTests(MainWindowShellTestBase):
