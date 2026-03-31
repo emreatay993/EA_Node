@@ -31,6 +31,12 @@ class _RunControllerHostProtocol(Protocol):
 
     def clear_run_failure_focus(self) -> None: ...
 
+    def mark_node_execution_running(self, workspace_id: str, node_id: str) -> None: ...
+
+    def mark_node_execution_completed(self, workspace_id: str, node_id: str) -> None: ...
+
+    def clear_node_execution_visualization_state(self) -> None: ...
+
 
 class RunController:
     def __init__(self, host: _RunControllerHostProtocol) -> None:
@@ -123,7 +129,21 @@ class RunController:
             return
 
         if event_type == "run_started":
+            workspace_id = self._event_workspace_id(event)
+            if workspace_id:
+                self._state.active_run_workspace_id = workspace_id
+            self._host.clear_node_execution_visualization_state()
             self._host.clear_run_failure_focus()
+        elif event_type == "node_started":
+            self._host.mark_node_execution_running(
+                self._event_workspace_id(event),
+                str(event.get("node_id", "")),
+            )
+        elif event_type == "node_completed":
+            self._host.mark_node_execution_completed(
+                self._event_workspace_id(event),
+                str(event.get("node_id", "")),
+            )
 
         if event_type in {"run_started", "node_started", "node_completed"}:
             self.set_run_ui_state("running", "Running", 1, 0, 0, 0)
@@ -135,6 +155,7 @@ class RunController:
                 self._host.console_panel.error_count,
             )
         elif event_type == "run_completed":
+            self._host.clear_node_execution_visualization_state()
             self.set_run_ui_state("ready", "Completed", 0, 0, 1, 0, clear_run=True)
         elif event_type == "run_failed":
             self.set_run_ui_state("error", "Failed", 0, 0, 0, 1)
@@ -150,10 +171,12 @@ class RunController:
                 event.get("error", ""),
             )
             if bool(event.get("fatal", False)):
+                self._host.clear_node_execution_visualization_state()
                 self._invalidate_viewer_sessions_for_worker_reset()
             self.clear_active_run()
             self.update_run_actions()
         elif event_type == "run_stopped":
+            self._host.clear_node_execution_visualization_state()
             self.set_run_ui_state("ready", "Stopped", 0, 0, 0, 0, clear_run=True)
         elif event_type == "run_state":
             state = event.get("state", "ready")
@@ -163,6 +186,7 @@ class RunController:
             elif state == "running":
                 self.set_run_ui_state("running", "Running", 1, 0, 0, 0)
             elif transition == "stop":
+                self._host.clear_node_execution_visualization_state()
                 self.set_run_ui_state("ready", "Stopped", 0, 0, 0, 0, clear_run=True)
             elif state == "error":
                 self.set_run_ui_state("error", "Failed", 0, 0, 0, 1)
@@ -202,6 +226,12 @@ class RunController:
         self._host.action_pause.setText(pause_label)
         if hasattr(self._host.action_pause, "setIcon"):
             self._host.action_pause.setIcon(qicon("resume" if pause_label == "Resume" else "pause"))
+
+    def _event_workspace_id(self, event: dict[str, Any]) -> str:
+        workspace_id = str(event.get("workspace_id", "") or "").strip()
+        if workspace_id:
+            return workspace_id
+        return str(self._state.active_run_workspace_id or "").strip()
 
     def _invalidate_viewer_sessions_for_rerun(self, *, workspace_id: str, run_id: str) -> None:
         viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)

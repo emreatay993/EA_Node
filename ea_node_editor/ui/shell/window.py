@@ -145,6 +145,7 @@ class ShellWindow(QMainWindow):
     connection_quick_insert_changed = pyqtSignal()
     graph_hint_changed = pyqtSignal()
     run_failure_changed = pyqtSignal()
+    node_execution_state_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
 
@@ -840,6 +841,83 @@ class ShellWindow(QMainWindow):
     @pyqtSlot()
     def clear_graph_hint(self) -> None:
         self.shell_library_presenter.clear_graph_hint()
+
+    def _normalize_node_execution_workspace_id(self, workspace_id: str) -> str:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if normalized_workspace_id:
+            return normalized_workspace_id
+        state = self.run_state
+        for candidate in (
+            state.active_run_workspace_id,
+            state.node_execution_workspace_id,
+        ):
+            normalized_candidate = str(candidate or "").strip()
+            if normalized_candidate:
+                return normalized_candidate
+        return ""
+
+    def _commit_node_execution_state_change(self) -> None:
+        self.run_state.node_execution_revision += 1
+        self.node_execution_state_changed.emit()
+
+    def mark_node_execution_running(self, workspace_id: str, node_id: str) -> None:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return
+        normalized_workspace_id = self._normalize_node_execution_workspace_id(workspace_id)
+        if not normalized_workspace_id:
+            return
+        state = self.run_state
+        changed = False
+        if state.node_execution_workspace_id != normalized_workspace_id:
+            state.node_execution_workspace_id = normalized_workspace_id
+            state.running_node_ids.clear()
+            state.completed_node_ids.clear()
+            changed = True
+        if normalized_node_id in state.completed_node_ids:
+            state.completed_node_ids.discard(normalized_node_id)
+            changed = True
+        if normalized_node_id not in state.running_node_ids:
+            state.running_node_ids.add(normalized_node_id)
+            changed = True
+        if changed:
+            self._commit_node_execution_state_change()
+
+    def mark_node_execution_completed(self, workspace_id: str, node_id: str) -> None:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return
+        normalized_workspace_id = self._normalize_node_execution_workspace_id(workspace_id)
+        if not normalized_workspace_id:
+            return
+        state = self.run_state
+        changed = False
+        if state.node_execution_workspace_id != normalized_workspace_id:
+            state.node_execution_workspace_id = normalized_workspace_id
+            state.running_node_ids.clear()
+            state.completed_node_ids.clear()
+            changed = True
+        if normalized_node_id in state.running_node_ids:
+            state.running_node_ids.discard(normalized_node_id)
+            changed = True
+        if normalized_node_id not in state.completed_node_ids:
+            state.completed_node_ids.add(normalized_node_id)
+            changed = True
+        if changed:
+            self._commit_node_execution_state_change()
+
+    def clear_node_execution_visualization_state(self) -> None:
+        state = self.run_state
+        if not (
+            state.node_execution_workspace_id
+            or state.running_node_ids
+            or state.completed_node_ids
+        ):
+            return
+        state.node_execution_workspace_id = ""
+        state.running_node_ids.clear()
+        state.completed_node_ids.clear()
+        self._commit_node_execution_state_change()
 
     def set_run_failure_focus(
         self,

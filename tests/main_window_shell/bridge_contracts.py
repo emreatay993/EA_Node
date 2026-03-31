@@ -11,6 +11,7 @@ from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal
 from PyQt6.QtQuick import QQuickItem
 
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
+from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui.shell.runtime_clipboard import build_graph_fragment_payload, serialize_graph_fragment_payload
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
@@ -329,9 +330,19 @@ class _ScopeSceneBridgeStub(QObject):
     scope_changed = pyqtSignal()
 
 
+class _ActiveWorkspaceManagerStub:
+    def __init__(self, workspace_id: str) -> None:
+        self._workspace_id = str(workspace_id)
+
+    def active_workspace_id(self) -> str:
+        return self._workspace_id
+
+
 class _GraphCanvasShellHostStub(QObject):
     graphics_preferences_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
+    run_failure_changed = pyqtSignal()
+    node_execution_state_changed = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -348,6 +359,8 @@ class _GraphCanvasShellHostStub(QObject):
         self.graphics_performance_mode = "full_fidelity"
         self.snap_to_grid_enabled = True
         self.snap_grid_size = 24.0
+        self.run_state = ShellRunState()
+        self.workspace_manager = _ActiveWorkspaceManagerStub("ws-1")
         self._return_values = {
             "request_open_subnode_scope": True,
             "browse_node_property_path": "C:/temp/from-canvas-bridge.txt",
@@ -544,6 +557,7 @@ class _GraphCanvasParentStub(QObject):
 
 
 class _GraphCanvasSceneBridgeStub(QObject):
+    workspace_changed = pyqtSignal(str)
     nodes_changed = pyqtSignal()
     edges_changed = pyqtSignal()
     selection_changed = pyqtSignal()
@@ -551,6 +565,7 @@ class _GraphCanvasSceneBridgeStub(QObject):
     def __init__(self) -> None:
         super().__init__()
         self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.workspace_id = "ws-1"
         self.nodes_model = [{"node_id": "node-1", "selected": True}]
         self.backdrop_nodes_model = [{"node_id": "backdrop-1", "selected": False}]
         self.minimap_nodes_model = [{"node_id": "node-1", "x": 10.0, "y": 15.0}]
@@ -1046,6 +1061,42 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("are_data_types_compatible", ("text", "text")),
             ],
         )
+
+    def test_graphics_state_node_execution_bridge_filters_lookup_to_scene_workspace_and_re_emits(self) -> None:
+        host = _GraphCanvasShellHostStub()
+        scene = _GraphCanvasSceneBridgeStub()
+        bridge = GraphCanvasStateBridge(
+            host,
+            shell_window=host,
+            canvas_source=host,
+            scene_bridge=scene,
+            view_bridge=_GraphCanvasViewBridgeStub(),
+        )
+        seen = {"node_execution_state_changed": 0}
+        bridge.node_execution_state_changed.connect(
+            lambda: seen.__setitem__(
+                "node_execution_state_changed",
+                seen["node_execution_state_changed"] + 1,
+            )
+        )
+
+        host.run_state.node_execution_workspace_id = "ws-1"
+        host.run_state.running_node_ids.add("node_running")
+        host.run_state.completed_node_ids.add("node_completed")
+        host.run_state.node_execution_revision = 8
+        host.node_execution_state_changed.emit()
+
+        self.assertEqual(bridge.running_node_lookup, {"node_running": True})
+        self.assertEqual(bridge.completed_node_lookup, {"node_completed": True})
+        self.assertEqual(bridge.node_execution_revision, 8)
+
+        scene.workspace_id = "ws-2"
+        scene.workspace_changed.emit("ws-2")
+
+        self.assertEqual(bridge.running_node_lookup, {})
+        self.assertEqual(bridge.completed_node_lookup, {})
+        self.assertEqual(bridge.node_execution_revision, 8)
+        self.assertEqual(seen["node_execution_state_changed"], 2)
 
     def test_command_bridge_routes_canvas_commands_to_explicit_canvas_host_scene_and_view_sources(self) -> None:
         host = _GraphCanvasShellHostStub()
@@ -1688,6 +1739,34 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertTrue(graph_canvas_state_bridge.graphics_show_port_labels)
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertTrue(persisted["graphics"]["canvas"]["show_port_labels"])
+
+    def test_main_window_node_execution_bridge_shell_helpers_drive_bridge_lookup_contract(self) -> None:
+        bridge = self.window.graph_canvas_state_bridge
+        workspace_id = self.window.scene.workspace_id
+
+        self.assertTrue(workspace_id)
+        self.assertEqual(bridge.running_node_lookup, {})
+        self.assertEqual(bridge.completed_node_lookup, {})
+
+        self.window.mark_node_execution_running(workspace_id, "node_exec")
+        self.app.processEvents()
+
+        first_revision = bridge.node_execution_revision
+        self.assertEqual(bridge.running_node_lookup, {"node_exec": True})
+        self.assertEqual(bridge.completed_node_lookup, {})
+
+        self.window.mark_node_execution_completed(workspace_id, "node_exec")
+        self.app.processEvents()
+
+        self.assertGreater(bridge.node_execution_revision, first_revision)
+        self.assertEqual(bridge.running_node_lookup, {})
+        self.assertEqual(bridge.completed_node_lookup, {"node_exec": True})
+
+        self.window.clear_node_execution_visualization_state()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_lookup, {})
+        self.assertEqual(bridge.completed_node_lookup, {})
 
 
 class SharedUiSupportBoundaryTests(unittest.TestCase):

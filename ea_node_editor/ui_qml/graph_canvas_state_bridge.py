@@ -77,6 +77,7 @@ class GraphCanvasStateBridge(QObject):
     scene_edges_changed = pyqtSignal()
     scene_selection_changed = pyqtSignal()
     failure_highlight_changed = pyqtSignal()
+    node_execution_state_changed = pyqtSignal()
     view_state_changed = pyqtSignal()
 
     def __init__(
@@ -104,7 +105,9 @@ class GraphCanvasStateBridge(QObject):
         _connect_signal(scene_bridge, "edges_changed", self.scene_edges_changed.emit)
         _connect_signal(scene_bridge, "selection_changed", self.scene_selection_changed.emit)
         _connect_signal(scene_bridge, "workspace_changed", self.failure_highlight_changed.emit)
+        _connect_signal(scene_bridge, "workspace_changed", self.node_execution_state_changed.emit)
         _connect_signal(shell_window, "run_failure_changed", self.failure_highlight_changed.emit)
+        _connect_signal(shell_window, "node_execution_state_changed", self.node_execution_state_changed.emit)
         _connect_signal(view_bridge, "view_state_changed", self.view_state_changed.emit)
 
     @property
@@ -261,6 +264,57 @@ class GraphCanvasStateBridge(QObject):
         if run_state is None:
             return ""
         return str(getattr(run_state, "failed_node_title", "") or "")
+
+    def _active_workspace_id(self) -> str:
+        workspace_id = str(_source_attr(self._scene_bridge, "workspace_id", "") or "").strip()
+        if workspace_id:
+            return workspace_id
+        shell_window = self._shell_window
+        if shell_window is None:
+            return ""
+        workspace_manager = getattr(shell_window, "workspace_manager", None)
+        if workspace_manager is None:
+            return ""
+        return str(workspace_manager.active_workspace_id() or "").strip()
+
+    def _node_execution_lookup(self, attribute_name: str) -> dict[str, bool]:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return {}
+        run_state = getattr(shell_window, "run_state", None)
+        if run_state is None:
+            return {}
+        active_workspace_id = self._active_workspace_id()
+        execution_workspace_id = str(getattr(run_state, "node_execution_workspace_id", "") or "").strip()
+        if not active_workspace_id or execution_workspace_id != active_workspace_id:
+            return {}
+        node_ids = getattr(run_state, attribute_name, ())
+        if not isinstance(node_ids, (set, frozenset, list, tuple)):
+            return {}
+        lookup: dict[str, bool] = {}
+        for node_id in node_ids:
+            normalized_node_id = str(node_id or "").strip()
+            if normalized_node_id:
+                lookup[normalized_node_id] = True
+        return lookup
+
+    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+    def running_node_lookup(self) -> dict[str, bool]:
+        return self._node_execution_lookup("running_node_ids")
+
+    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+    def completed_node_lookup(self) -> dict[str, bool]:
+        return self._node_execution_lookup("completed_node_ids")
+
+    @pyqtProperty(int, notify=node_execution_state_changed)
+    def node_execution_revision(self) -> int:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return 0
+        run_state = getattr(shell_window, "run_state", None)
+        if run_state is None:
+            return 0
+        return int(getattr(run_state, "node_execution_revision", 0))
 
     @pyqtSlot(str, str, result=bool)
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:

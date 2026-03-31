@@ -53,6 +53,10 @@ class ShellLibraryFilterState:
 class ShellRunState:
     active_run_id: str = ""
     active_run_workspace_id: str = ""
+    node_execution_workspace_id: str = ""
+    running_node_ids: set[str] = field(default_factory=set)
+    completed_node_ids: set[str] = field(default_factory=set)
+    node_execution_revision: int = 0
     engine_state_value: Literal["ready", "running", "paused", "error"] = "ready"
     failed_node_id: str = ""
     failed_workspace_id: str = ""

@@ -127,6 +127,13 @@ class _RunHostStub:
         self._notifications = (0, 0)
         self._engine_status = ("ready", "")
         self._job_counters = (0, 0, 0, 0)
+        self._failure_clear_count = 0
+
+    def _normalize_node_execution_workspace_id(self, workspace_id: str) -> str:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if normalized_workspace_id:
+            return normalized_workspace_id
+        return str(self.run_state.active_run_workspace_id or self.run_state.node_execution_workspace_id or "").strip()
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
         self._notifications = (warnings, errors)
@@ -136,6 +143,64 @@ class _RunHostStub:
 
     def update_job_counters(self, running: int, queued: int, done: int, failed: int) -> None:
         self._job_counters = (running, queued, done, failed)
+
+    def clear_run_failure_focus(self) -> None:
+        self._failure_clear_count += 1
+
+    def mark_node_execution_running(self, workspace_id: str, node_id: str) -> None:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return
+        normalized_workspace_id = self._normalize_node_execution_workspace_id(workspace_id)
+        if not normalized_workspace_id:
+            return
+        state = self.run_state
+        changed = False
+        if state.node_execution_workspace_id != normalized_workspace_id:
+            state.node_execution_workspace_id = normalized_workspace_id
+            state.running_node_ids.clear()
+            state.completed_node_ids.clear()
+            changed = True
+        if normalized_node_id in state.completed_node_ids:
+            state.completed_node_ids.discard(normalized_node_id)
+            changed = True
+        if normalized_node_id not in state.running_node_ids:
+            state.running_node_ids.add(normalized_node_id)
+            changed = True
+        if changed:
+            state.node_execution_revision += 1
+
+    def mark_node_execution_completed(self, workspace_id: str, node_id: str) -> None:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return
+        normalized_workspace_id = self._normalize_node_execution_workspace_id(workspace_id)
+        if not normalized_workspace_id:
+            return
+        state = self.run_state
+        changed = False
+        if state.node_execution_workspace_id != normalized_workspace_id:
+            state.node_execution_workspace_id = normalized_workspace_id
+            state.running_node_ids.clear()
+            state.completed_node_ids.clear()
+            changed = True
+        if normalized_node_id in state.running_node_ids:
+            state.running_node_ids.discard(normalized_node_id)
+            changed = True
+        if normalized_node_id not in state.completed_node_ids:
+            state.completed_node_ids.add(normalized_node_id)
+            changed = True
+        if changed:
+            state.node_execution_revision += 1
+
+    def clear_node_execution_visualization_state(self) -> None:
+        state = self.run_state
+        if not (state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids):
+            return
+        state.node_execution_workspace_id = ""
+        state.running_node_ids.clear()
+        state.completed_node_ids.clear()
+        state.node_execution_revision += 1
 
 
 class RunControllerUnitTests(unittest.TestCase):
@@ -258,6 +323,149 @@ class RunControllerUnitTests(unittest.TestCase):
 
         self.assertEqual(host.console_panel.logs, [("error", "bad payload")])
         self.assertEqual(host._notifications, (0, 1))
+
+    def test_node_execution_bridge_run_events_project_running_and_completed_nodes(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.node_execution_workspace_id = workspace_id
+        host.run_state.running_node_ids.add("node_stale")
+        host.run_state.node_execution_revision = 4
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.handle_execution_event(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host._failure_clear_count, 1)
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.node_execution_revision, 5)
+
+        controller.handle_execution_event(
+            {
+                "type": "node_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_1",
+            }
+        )
+
+        self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
+        self.assertEqual(host.run_state.running_node_ids, {"node_1"})
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.node_execution_revision, 6)
+
+        controller.handle_execution_event(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_1",
+            }
+        )
+
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
+        self.assertEqual(host.run_state.node_execution_revision, 7)
+        self.assertEqual(host._engine_status, ("running", "Running"))
+
+    def test_node_execution_bridge_nonfatal_run_failed_preserves_last_execution_context(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.node_execution_workspace_id = workspace_id
+        host.run_state.completed_node_ids.add("node_1")
+        host.run_state.node_execution_revision = 2
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.handle_execution_event(
+            {
+                "type": "run_failed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_1",
+                "error": "boom",
+                "traceback": "traceback: line 1",
+                "fatal": False,
+            }
+        )
+
+        self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
+        self.assertEqual(host.run_state.node_execution_revision, 2)
+        self.assertEqual(host.run_state.active_run_id, "")
+
+    def test_node_execution_bridge_terminal_events_clear_execution_state(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.node_execution_workspace_id = workspace_id
+        host.run_state.running_node_ids.add("node_1")
+        host.run_state.node_execution_revision = 1
+
+        controller.handle_execution_event(
+            {
+                "type": "run_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.node_execution_workspace_id, "")
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.node_execution_revision, 2)
+
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.node_execution_workspace_id = workspace_id
+        host.run_state.completed_node_ids.add("node_2")
+
+        controller.handle_execution_event(
+            {
+                "type": "run_stopped",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.node_execution_workspace_id, "")
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.node_execution_revision, 3)
+
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.node_execution_workspace_id = workspace_id
+        host.run_state.running_node_ids.add("node_3")
+
+        controller.handle_execution_event(
+            {
+                "type": "run_failed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_3",
+                "error": "fatal boom",
+                "traceback": "traceback: line 9",
+                "fatal": True,
+            }
+        )
+
+        self.assertEqual(host.run_state.node_execution_workspace_id, "")
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.node_execution_revision, 4)
 
 
 if __name__ == "__main__":
