@@ -31,6 +31,13 @@ Item {
     }
     readonly property var viewerSummary: viewerSessionState.summary ? viewerSessionState.summary : ({})
     readonly property var viewerOptions: viewerSessionState.options ? viewerSessionState.options : ({})
+    readonly property var viewerDataRefs: viewerSessionState.data_refs ? viewerSessionState.data_refs : ({})
+    readonly property var viewerPreviewRefPayload: viewerDataRefs.png
+        ? viewerDataRefs.png
+        : (viewerDataRefs.preview ? viewerDataRefs.preview : null)
+    readonly property string viewerPreviewSourceRef: _artifactSource(viewerPreviewRefPayload)
+    readonly property string viewerPreviewImageSource: _previewImageSource(viewerPreviewSourceRef)
+    readonly property bool viewerPreviewAvailable: viewerPreviewImageSource.length > 0
     readonly property bool proxySurfaceSupported: viewerPayload.proxy_surface_supported === undefined
         ? true
         : Boolean(viewerPayload.proxy_surface_supported)
@@ -38,9 +45,22 @@ Item {
         ? true
         : Boolean(viewerPayload.live_surface_supported)
     readonly property string overlayTarget: String(viewerPayload.overlay_target || "body")
-    readonly property rect surfaceBodyRect: _resolvedRect(viewerPayload.body_rect, _defaultBodyRect())
-    readonly property rect proxySurfaceRect: _resolvedRect(viewerPayload.proxy_rect, surfaceBodyRect)
-    readonly property rect liveSurfaceRect: _resolvedRect(viewerPayload.live_rect, surfaceBodyRect)
+    readonly property bool liveGeometryRectSizingActive: host ? Boolean(host._liveGeometryActive) : false
+    readonly property rect surfaceBodyRect: _resolvedRect(
+        viewerPayload.body_rect,
+        _defaultBodyRect(),
+        liveGeometryRectSizingActive
+    )
+    readonly property rect proxySurfaceRect: _resolvedRect(
+        viewerPayload.proxy_rect,
+        surfaceBodyRect,
+        liveGeometryRectSizingActive
+    )
+    readonly property rect liveSurfaceRect: _resolvedRect(
+        viewerPayload.live_rect,
+        surfaceBodyRect,
+        liveGeometryRectSizingActive
+    )
     readonly property bool proxySurfaceRequested: host
         ? Boolean(host.proxySurfaceRequested || String(host.resolvedQualityTier || "") === "proxy")
         : false
@@ -353,28 +373,39 @@ Item {
         var metrics = host.surfaceMetrics;
         var x = Math.max(0.0, _number(metrics.body_left_margin, 0.0));
         var y = Math.max(0.0, _number(metrics.body_top, 0.0));
+        var portCount = host.nodeData && host.nodeData.ports && host.nodeData.ports.length !== undefined
+            ? host.nodeData.ports.length
+            : 0;
+        var portReserve = Math.max(0.0, portCount * _number(metrics.port_height, 0.0));
+        var bodyBottomMargin = Math.max(0.0, _number(metrics.body_bottom_margin, 0.0));
+        var minimumBodyHeight = Math.max(
+            0.0,
+            _number(host.surfaceMetrics.min_height, 0.0) - y - portReserve - bodyBottomMargin
+        );
+        var availableBodyHeight = Math.max(
+            0.0,
+            _number(host.height, 0.0) - y - portReserve - bodyBottomMargin
+        );
         var width = Math.max(
             0.0,
             _number(host.width, 0.0)
             - x
             - Math.max(0.0, _number(metrics.body_right_margin, 0.0))
         );
-        var height = Math.max(
-            0.0,
-            Math.min(
-                Math.max(0.0, _number(metrics.body_height, 0.0)),
-                Math.max(0.0, _number(host.height, 0.0) - y)
-            )
-        );
+        var height = Math.max(minimumBodyHeight, availableBodyHeight);
         return Qt.rect(x, y, width, height);
     }
 
-    function _resolvedRect(value, fallbackRect) {
+    function _resolvedRect(value, fallbackRect, preferFallbackSize) {
         var fallback = fallbackRect || Qt.rect(0.0, 0.0, 0.0, 0.0);
         var x = Math.max(0.0, _number(value && value.x, fallback.x));
         var y = Math.max(0.0, _number(value && value.y, fallback.y));
-        var width = Math.max(0.0, _number(value && value.width, fallback.width));
-        var height = Math.max(0.0, _number(value && value.height, fallback.height));
+        var width = preferFallbackSize
+            ? Math.max(0.0, fallback.width)
+            : Math.max(0.0, _number(value && value.width, fallback.width));
+        var height = preferFallbackSize
+            ? Math.max(0.0, fallback.height)
+            : Math.max(0.0, _number(value && value.height, fallback.height));
         return Qt.rect(x, y, width, height);
     }
 
@@ -399,6 +430,32 @@ Item {
     function _beginSurfaceControl() {
         if (host && host.nodeData)
             host.surfaceControlInteractionStarted(String(host.nodeData.node_id || ""));
+        _focusViewerSession();
+    }
+
+    function _focusViewerSession() {
+        if (!viewerBridgeAvailable || !viewerNodeId.length || !viewerSessionBridgeRef.focus_session)
+            return false;
+        return Boolean(viewerSessionBridgeRef.focus_session(viewerNodeId));
+    }
+
+    function _artifactSource(value) {
+        if (value === undefined || value === null)
+            return "";
+        if (typeof value === "string")
+            return String(value);
+        if (value.ref !== undefined && value.ref !== null)
+            return String(value.ref);
+        if (value.source !== undefined && value.source !== null)
+            return String(value.source);
+        return "";
+    }
+
+    function _previewImageSource(sourceRef) {
+        var normalized = String(sourceRef || "");
+        if (!normalized.length)
+            return "";
+        return "image://local-media-preview/preview?source=" + encodeURIComponent(normalized);
     }
 
     function _iconSource(name, size, color) {
@@ -865,6 +922,12 @@ Item {
                     border.color: surface.viewerViewportBorderColor
                     clip: true
 
+                    TapHandler {
+                        objectName: "graphNodeViewerViewportTapHandler"
+                        acceptedButtons: Qt.LeftButton
+                        onTapped: surface._beginSurfaceControl()
+                    }
+
                     Canvas {
                         id: crosshatchCanvas
                         anchors.fill: parent
@@ -894,6 +957,7 @@ Item {
                 }
 
                 Rectangle {
+                    id: proxyPane
                     objectName: "graphNodeViewerProxyPane"
                     visible: surface.proxySurfaceActive
                     anchors.fill: viewportFrame
@@ -901,6 +965,20 @@ Item {
                     color: host ? Qt.alpha(host.surfaceColor, 0.16) : "#22304a"
                     border.width: 1
                     border.color: host ? Qt.alpha(host.scopeBadgeBorderColor, 0.7) : "#4c7bc0"
+
+                    Image {
+                        id: proxyPreviewImage
+                        objectName: "graphNodeViewerProxyImage"
+                        visible: surface.viewerPreviewAvailable
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        source: surface.viewerPreviewImageSource
+                        fillMode: Image.PreserveAspectFit
+                        asynchronous: true
+                        cache: false
+                        smooth: true
+                        mipmap: true
+                    }
                 }
 
                 Rectangle {

@@ -740,6 +740,8 @@ Item {
 
         onEdgeClicked: function(edgeId, additive) {
             root.forceActiveFocus();
+            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
+                viewerSessionBridge.clear_viewer_focus();
             root._closeContextMenus();
             root.clearPendingConnection();
             if (additive)
@@ -748,6 +750,8 @@ Item {
                 root.setExclusiveEdgeSelection(edgeId);
         }
         onEdgeContextRequested: function(edgeId, screenX, screenY) {
+            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
+                viewerSessionBridge.clear_viewer_focus();
             root._openEdgeContext(edgeId, screenX, screenY);
         }
     }

@@ -1,0 +1,2 @@
+[console_scripts]
+corex-node-editor = ea_node_editor.bootstrap:main

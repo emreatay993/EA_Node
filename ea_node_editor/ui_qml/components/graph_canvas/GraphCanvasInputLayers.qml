@@ -89,6 +89,8 @@ Item {
             if (!root.canvasItem)
                 return;
             root.canvasItem.forceActiveFocus();
+            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
+                viewerSessionBridge.clear_viewer_focus();
             startX = mouse.x;
             startY = mouse.y;
             currentX = mouse.x;

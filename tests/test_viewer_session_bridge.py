@@ -453,7 +453,11 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         )
         self.assertEqual(self.host.execution_client.update_calls[-2]["options"]["live_mode"], "proxy")
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
-        self.assertEqual(self.host.execution_client.materialize_calls, [])
+        self.assertEqual(len(self.host.execution_client.materialize_calls), 1)
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer_b")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "proxy")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["output_profile"], "stored")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["export_formats"], ["png"])
         self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "proxy")
         self.assertEqual(self.bridge.session_state("node_viewer_b")["options"]["live_mode"], "full")
         self.assertEqual(self.bridge.session_state("node_viewer_b")["cache_state"], "live_ready")
@@ -517,6 +521,73 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(restored_state["cache_state"], "live_ready")
         self.assertEqual(restored_state["summary"]["camera"], {"zoom": 1.2})
         self.assertNotIn("demoted_reason", restored_state["summary"])
+
+    def test_explicit_viewer_blur_demotes_to_proxy_and_requests_png_snapshot(self) -> None:
+        self.host.scene.set_selected("node_viewer")
+        session_id = self.bridge.open("node_viewer", {"data_refs": {"fields": "fields_ref"}})
+        open_call = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id=session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "full"},
+                data_refs={"dataset": {"kind": "mock_dataset"}},
+            )
+        )
+
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "proxy")
+        self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "proxy")
+
+        demoted_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+            data_refs={"dataset": {"kind": "mock_dataset"}},
+        )
+        demoted_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted_event)
+
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["node_id"], "node_viewer")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "proxy")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["output_profile"], "stored")
+        self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["export_formats"], ["png"])
+
+        materialized_event = _viewer_opened_event(
+            request_id=self.host.execution_client.materialize_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy", "output_profile": "stored", "export_formats": ["png"]},
+            data_refs={
+                "dataset": {"kind": "mock_dataset"},
+                "png": {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact://viewer_proxy_png",
+                    "artifact_id": "viewer_proxy_png",
+                    "scope": "managed",
+                },
+            },
+        )
+        materialized_event["type"] = "viewer_data_materialized"
+        self.host.execution_event.emit(materialized_event)
+
+        proxy_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(proxy_state["options"]["live_mode"], "proxy")
+        self.assertIn("png", proxy_state["data_refs"])
+
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
+        self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
 
     def test_project_loaded_seeds_viewer_nodes_as_run_required_projection(self) -> None:
         self.host.model.project.workspaces["ws_main"].nodes = {

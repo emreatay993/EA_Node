@@ -55,6 +55,8 @@ Item {
         if (!normalized)
             return false;
         hostInteraction.resetSurfaceInteractionState();
+        if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
+            viewerSessionBridge.clear_viewer_focus();
         var bridge = root.canvasItem._canvasSceneCommandBridgeRef;
         if (bridge && bridge.select_node)
             bridge.select_node(normalized, false);

@@ -101,6 +101,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     self.open_calls = []
                     self.update_calls = []
                     self.close_calls = []
+                    self.focus_calls = []
+                    self.clear_focus_calls = 0
                     self._last_error = ""
                     self._state = self._build_state()
 
@@ -121,6 +123,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     live_open_status="ready",
                     live_open_blocker=None,
                     transport=None,
+                    data_refs=None,
                     invalidated_reason="",
                     close_reason="",
                 ):
@@ -131,6 +134,16 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                             "kind": "bundle",
                             "backend_id": backend_id,
                             "bundle_path": "C:/temp/viewer_bundle",
+                        }
+                    if data_refs is None:
+                        data_refs = {
+                            "fields": {"kind": "handle_ref", "handle_id": "handle::fields"},
+                            "png": {
+                                "__ea_runtime_value__": "artifact_ref",
+                                "ref": "artifact://viewer_proxy_png",
+                                "artifact_id": "viewer_proxy_png",
+                                "scope": "managed",
+                            },
                         }
                     return {
                         "workspace_id": "ws_main",
@@ -151,7 +164,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                         "live_open_blocker": dict(live_open_blocker),
                         "invalidated_reason": invalidated_reason,
                         "close_reason": close_reason,
-                        "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+                        "data_refs": dict(data_refs),
                         "transport": dict(transport),
                         "summary": {
                             "result_name": "Displacement",
@@ -297,6 +310,16 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     )
                     return True
 
+                @pyqtSlot(str, result=bool)
+                def focus_session(self, node_id):
+                    self.focus_calls.append(str(node_id))
+                    return True
+
+                @pyqtSlot(result=bool)
+                def clear_viewer_focus(self):
+                    self.clear_focus_calls += 1
+                    return True
+
             app = QApplication.instance() or QApplication([])
             engine = QQmlEngine()
             engine.addImageProvider(UI_ICON_PROVIDER_ID, UiIconImageProvider())
@@ -431,6 +454,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             keep_live_button = host.findChild(QObject, "graphNodeViewerKeepLiveButton")
             keep_chip = host.findChild(QObject, "graphNodeViewerKeepPolicyChip")
             more_button = host.findChild(QObject, "graphNodeViewerMoreButton")
+            proxy_image = host.findChild(QObject, "graphNodeViewerProxyImage")
             status_text = host.findChild(QObject, "graphNodeViewerStatusText")
             mode_label = host.findChild(QObject, "graphNodeViewerSurfaceModeLabel")
             assert surface is not None
@@ -441,6 +465,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             assert keep_live_button is not None
             assert keep_chip is not None
             assert more_button is not None
+            assert proxy_image is not None
             assert status_text is not None
             assert mode_label is not None
 
@@ -465,10 +490,15 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert mode_label.property("text") == "Proxy"
                 assert focus_chip.property("baseFillColor").alphaF() > keep_chip.property("baseFillColor").alphaF()
                 assert len(variant_list(surface.property("viewerInteractiveRects"))) == 6
+                assert bool(proxy_image.property("visible"))
+                proxy_image_source = proxy_image.property("source")
+                proxy_image_source_text = proxy_image_source.toString() if hasattr(proxy_image_source, "toString") else str(proxy_image_source)
+                assert proxy_image_source_text.startswith("image://local-media-preview/preview?source=")
 
                 mouse_click(window, item_scene_point(play_button))
                 settle_events(5)
                 assert bridge.update_calls[-1]["command"] == "play"
+                assert bridge.focus_calls[-1] == "node_viewer_surface_host"
                 assert surface.property("viewerPlaybackState") == "playing"
                 assert play_button.property("iconName") == "pause"
 

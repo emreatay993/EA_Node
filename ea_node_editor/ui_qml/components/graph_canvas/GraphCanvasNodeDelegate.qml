@@ -45,6 +45,8 @@ GraphComponents.GraphNodeHost {
             return;
         var bridge = canvasItem._canvasSceneCommandBridgeRef;
         canvasItem.forceActiveFocus();
+        if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
+            viewerSessionBridge.clear_viewer_focus();
         canvasItem._closeContextMenus();
         canvasItem.clearPendingConnection();
         if (!bridge || !bridge.select_node)

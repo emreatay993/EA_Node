@@ -68,6 +68,7 @@ class _ViewerSessionProjection:
     pending_summary: dict[str, Any] = field(default_factory=dict)
     pending_options: dict[str, Any] = field(default_factory=dict)
     pending_materialization: bool = False
+    pending_proxy_snapshot_refresh: bool = False
 
     def payload(self) -> dict[str, Any]:
         summary = copy.deepcopy(self.summary)
@@ -217,6 +218,7 @@ class ViewerSessionBridge(QObject):
         self._scene_bridge = scene_bridge
         self._sessions: dict[tuple[str, str], _ViewerSessionProjection] = {}
         self._pending_reset_seed: dict[tuple[str, str], _ViewerSessionProjection] | None = None
+        self._focused_viewer_node_by_workspace: dict[str, str] = {}
         self._last_error = ""
         self._policy_sync_in_progress = False
 
@@ -390,6 +392,7 @@ class ViewerSessionBridge(QObject):
         state.last_command = "close"
         state.phase = "closing"
         state.close_reason = _string(option_updates.get("reason"))
+        self._clear_focused_viewer_node_if_matches(state.workspace_id, state.node_id)
         self.sessions_changed.emit()
         self._sync_live_policy(state.workspace_id)
         return True
@@ -451,6 +454,31 @@ class ViewerSessionBridge(QObject):
             option_updates={"keep_live": bool(keep_live)},
         )
 
+    @pyqtSlot(str, result=bool)
+    @pyqtSlot(str, "QVariantMap", result=bool)
+    def focus_session(self, node_id: str, payload: Any = None) -> bool:
+        workspace_id = self._workspace_id_from_payload(payload)
+        normalized_node_id = _string(node_id)
+        if not workspace_id or not normalized_node_id:
+            return False
+        changed = self._set_focused_viewer_node(workspace_id, normalized_node_id)
+        self._sync_live_policy(workspace_id)
+        if changed:
+            self.sessions_changed.emit()
+        return True
+
+    @pyqtSlot(result=bool)
+    @pyqtSlot("QVariantMap", result=bool)
+    def clear_viewer_focus(self, payload: Any = None) -> bool:
+        workspace_id = self._workspace_id_from_payload(payload)
+        if not workspace_id:
+            return False
+        changed = self._set_focused_viewer_node(workspace_id, "")
+        self._sync_live_policy(workspace_id)
+        if changed:
+            self.sessions_changed.emit()
+        return True
+
     def project_loaded(
         self,
         project: "ProjectData | None",
@@ -460,6 +488,7 @@ class ViewerSessionBridge(QObject):
     ) -> None:
         next_sessions = self._build_project_projection(project, registry)
         self._sessions = next_sessions
+        self._focused_viewer_node_by_workspace.clear()
         self._pending_reset_seed = copy.deepcopy(next_sessions) if reseed_on_next_reset else None
         self.sessions_changed.emit()
 
@@ -509,6 +538,7 @@ class ViewerSessionBridge(QObject):
         pending_seed = copy.deepcopy(self._pending_reset_seed) if self._pending_reset_seed is not None else None
         self._pending_reset_seed = None
         self._sessions.clear()
+        self._focused_viewer_node_by_workspace.clear()
         if pending_seed is not None and _string(reason) == "project_close":
             self._sessions = pending_seed
         self.sessions_changed.emit()
@@ -764,10 +794,18 @@ class ViewerSessionBridge(QObject):
         state: _ViewerSessionProjection,
         option_updates: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        options = self._request_options(state, option_updates or {})
-        output_profile = _string(options.get("output_profile")) or "memory"
+        normalized_updates = copy.deepcopy(option_updates or {})
+        requested_live_mode = _normalize_live_mode(
+            normalized_updates.get("live_mode", self._effective_options(state).get("live_mode", _LIVE_MODE_FULL))
+        )
+        options = self._request_options(state, normalized_updates)
+        if requested_live_mode == _LIVE_MODE_FULL and "output_profile" not in normalized_updates:
+            output_profile = "memory"
+            options.pop("export_formats", None)
+        else:
+            output_profile = _string(options.get("output_profile")) or "memory"
         options["output_profile"] = output_profile
-        options["live_mode"] = _normalize_live_mode(options.get("live_mode", _LIVE_MODE_FULL))
+        options["live_mode"] = requested_live_mode
         return options
 
     def _send_execution_command(self, method_name: str, **kwargs: Any) -> str:
@@ -888,6 +926,7 @@ class ViewerSessionBridge(QObject):
             state.phase = "closed"
             state.data_refs.clear()
             state.transport = _projection_safe_transport(state.transport)
+            self._clear_focused_viewer_node_if_matches(workspace_id, node_id)
         else:
             state.phase = "open"
         self.sessions_changed.emit()
@@ -986,7 +1025,13 @@ class ViewerSessionBridge(QObject):
         self._sync_live_policy(self._current_workspace_id())
 
     def _on_selection_changed(self) -> None:
-        self._sync_live_policy(self._current_workspace_id())
+        workspace_id = self._current_workspace_id()
+        if workspace_id in self._focused_viewer_node_by_workspace:
+            selected_lookup = _copy_mapping(getattr(self._scene_bridge, "selected_node_lookup", {}))
+            focused_node_id = self._focused_viewer_node_id(workspace_id)
+            if focused_node_id and not bool(selected_lookup.get(focused_node_id, False)):
+                self._focused_viewer_node_by_workspace[workspace_id] = ""
+        self._sync_live_policy(workspace_id)
 
     def _on_nodes_changed(self) -> None:
         workspace_id = self._current_workspace_id()
@@ -1004,6 +1049,7 @@ class ViewerSessionBridge(QObject):
             for key in removed_keys:
                 self._sessions.pop(key, None)
             self.sessions_changed.emit()
+        self._prune_focused_viewer_node(workspace_id, workspace_node_ids)
         self._sync_live_policy(workspace_id)
 
     def _on_edges_changed(self) -> None:
@@ -1035,6 +1081,44 @@ class ViewerSessionBridge(QObject):
         states.sort(key=lambda state: state.node_id)
         return states
 
+    def _focused_viewer_node_id(self, workspace_id: str) -> str:
+        return _string(self._focused_viewer_node_by_workspace.get(_string(workspace_id), ""))
+
+    def _set_focused_viewer_node(self, workspace_id: str, node_id: str) -> bool:
+        normalized_workspace_id = _string(workspace_id)
+        if not normalized_workspace_id:
+            return False
+        normalized_node_id = _string(node_id)
+        current_node_id = self._focused_viewer_node_by_workspace.get(normalized_workspace_id)
+        if current_node_id == normalized_node_id:
+            return False
+        self._focused_viewer_node_by_workspace[normalized_workspace_id] = normalized_node_id
+        return True
+
+    def _clear_focused_viewer_node_if_matches(self, workspace_id: str, node_id: str) -> bool:
+        normalized_workspace_id = _string(workspace_id)
+        normalized_node_id = _string(node_id)
+        if not normalized_workspace_id or not normalized_node_id:
+            return False
+        if self._focused_viewer_node_by_workspace.get(normalized_workspace_id) != normalized_node_id:
+            return False
+        self._focused_viewer_node_by_workspace[normalized_workspace_id] = ""
+        return True
+
+    def _prune_focused_viewer_node(self, workspace_id: str, available_node_ids: set[str]) -> bool:
+        normalized_workspace_id = _string(workspace_id)
+        if not normalized_workspace_id or normalized_workspace_id not in self._focused_viewer_node_by_workspace:
+            return False
+        focused_node_id = self._focused_viewer_node_id(normalized_workspace_id)
+        if not focused_node_id or focused_node_id in available_node_ids:
+            return False
+        self._focused_viewer_node_by_workspace[normalized_workspace_id] = ""
+        return True
+
+    @staticmethod
+    def _has_proxy_preview(state: _ViewerSessionProjection) -> bool:
+        return bool(state.data_refs.get("png") or state.data_refs.get("preview"))
+
     def _desired_live_mode_map(self, workspace_id: str) -> dict[tuple[str, str], str]:
         desired_modes: dict[tuple[str, str], str] = {}
         if not workspace_id:
@@ -1055,13 +1139,21 @@ class ViewerSessionBridge(QObject):
             else:
                 focus_only_keys.append(key)
 
-        selected_lookup = _copy_mapping(getattr(self._scene_bridge, "selected_node_lookup", {}))
+        focus_entry_present = workspace_id in self._focused_viewer_node_by_workspace
+        focused_node_id = self._focused_viewer_node_id(workspace_id)
         chosen_focus_key: tuple[str, str] | None = None
-        for key in focus_only_keys:
-            if bool(selected_lookup.get(key[1], False)):
-                chosen_focus_key = key
-                break
-        if chosen_focus_key is None:
+        if focused_node_id:
+            for key in focus_only_keys:
+                if key[1] == focused_node_id:
+                    chosen_focus_key = key
+                    break
+        if chosen_focus_key is None and not focus_entry_present:
+            selected_lookup = _copy_mapping(getattr(self._scene_bridge, "selected_node_lookup", {}))
+            for key in focus_only_keys:
+                if bool(selected_lookup.get(key[1], False)):
+                    chosen_focus_key = key
+                    break
+        if chosen_focus_key is None and not focus_entry_present:
             for state in states:
                 key = (state.workspace_id, state.node_id)
                 if key not in focus_only_keys:
@@ -1105,31 +1197,46 @@ class ViewerSessionBridge(QObject):
         current_live_mode = _normalize_live_mode(self._effective_options(state).get("live_mode"))
 
         if normalized_desired_mode == _LIVE_MODE_PROXY:
-            if current_live_mode == _LIVE_MODE_PROXY:
-                return False
-            request_options = self._request_options(state, {"live_mode": _LIVE_MODE_PROXY})
-            request_id = self._send_execution_command(
-                "update_viewer_session",
-                workspace_id=state.workspace_id,
-                node_id=state.node_id,
-                session_id=state.session_id,
-                backend_id=state.backend_id,
-                camera_state=state.camera_state,
-                playback_state={
-                    "state": state.playback_state,
-                    "step_index": int(state.step_index),
-                },
-                options=request_options,
-            )
-            if not request_id:
-                state.phase = "error"
+            if current_live_mode != _LIVE_MODE_PROXY:
+                request_options = self._request_options(state, {"live_mode": _LIVE_MODE_PROXY})
+                request_id = self._send_execution_command(
+                    "update_viewer_session",
+                    workspace_id=state.workspace_id,
+                    node_id=state.node_id,
+                    session_id=state.session_id,
+                    backend_id=state.backend_id,
+                    camera_state=state.camera_state,
+                    playback_state={
+                        "state": state.playback_state,
+                        "step_index": int(state.step_index),
+                    },
+                    options=request_options,
+                )
+                if not request_id:
+                    state.phase = "error"
+                    state.last_command = "set_live_mode"
+                    return True
+                state.request_id = request_id
                 state.last_command = "set_live_mode"
+                state.pending_proxy_snapshot_refresh = True
+                self._merge_pending_projection(state, options={"live_mode": _LIVE_MODE_PROXY})
                 return True
-            state.request_id = request_id
-            state.last_command = "set_live_mode"
-            self._merge_pending_projection(state, options={"live_mode": _LIVE_MODE_PROXY})
-            return True
+            if state.pending_materialization:
+                return False
+            if not (state.pending_proxy_snapshot_refresh or not self._has_proxy_preview(state)):
+                return False
+            materialize_requested = self._send_materialize_command(
+                state,
+                option_updates={
+                    "live_mode": _LIVE_MODE_PROXY,
+                    "output_profile": "stored",
+                    "export_formats": ["png"],
+                },
+            )
+            state.pending_proxy_snapshot_refresh = False
+            return materialize_requested or state.phase == "error"
 
+        state.pending_proxy_snapshot_refresh = False
         if _string(state.live_open_status).lower() != "ready":
             return False
         if state.cache_state == "live_ready":
