@@ -28,4 +28,4 @@ Too soon for manual testing.
 
 ## Ready for Integration
 
-Yes: packet-owned run-state projection, active-workspace bridge filtering, and regression anchors are implemented and verified for `P01`.
+- Yes: packet-owned run-state projection, active-workspace bridge filtering, and regression anchors are implemented and verified for `P01`.
