@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import os
+import shutil
 import stat
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -26,9 +28,25 @@ def _write_unix_text(path: Path, text: str) -> None:
         handle.write(text)
 
 
+def _rmtree_with_retry(path: Path, *, attempts: int = 80, delay_seconds: float = 0.05) -> None:
+    last_error: OSError | None = None
+    for _ in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except PermissionError as exc:
+            last_error = exc
+            time.sleep(delay_seconds)
+    if last_error is not None:
+        raise last_error
+
+
 class RunScriptTests(unittest.TestCase):
     def test_run_script_launches_repo_main_with_local_venv_interpreter(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = tempfile.mkdtemp()
+        try:
             temp_path = Path(temp_dir)
             repo_root = temp_path / "repo"
             scripts_dir = repo_root / "scripts"
@@ -70,6 +88,8 @@ class RunScriptTests(unittest.TestCase):
             record_lines = record_path.read_text(encoding="utf-8").splitlines()
             self.assertEqual(record_lines[0], _bash_path(repo_root))
             self.assertEqual(record_lines[1:], ["main.py", "--example-flag", "value"])
+        finally:
+            _rmtree_with_retry(Path(temp_dir))
 
 
 if __name__ == "__main__":

@@ -3,10 +3,10 @@ from __future__ import annotations
 import queue
 import unittest
 
+from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from tests.passive_property_editor_fixtures import (
     PASSIVE_EDITOR_FIXTURE_TYPE_ID,
@@ -42,12 +42,16 @@ class InspectorReflectionTests(unittest.TestCase):
         self.scene.set_node_property(logger_id, "message", "live inspector message")
 
         event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
+        runtime_snapshot = build_runtime_snapshot(
+            self.model.project,
+            workspace_id=self.workspace_id,
+            registry=build_default_registry(),
+        )
         run_workflow(
             {
                 "run_id": "run_inspector_reflection",
                 "workspace_id": self.workspace_id,
-                "project_doc": serializer.to_document(self.model.project),
+                "runtime_snapshot": runtime_snapshot,
                 "trigger": {},
             },
             event_queue,

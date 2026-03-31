@@ -218,21 +218,7 @@ class IntegrationNodesTrackFTests(unittest.TestCase):
 
 class IntegrationFlowSmokeTests(unittest.TestCase):
     def _run_model(self, model: GraphModel, workspace_id: str) -> list[dict]:
-        event_queue: queue.Queue = queue.Queue()
-        serializer = JsonProjectSerializer(build_default_registry())
-        run_workflow(
-            {
-                "run_id": "run_smoke",
-                "workspace_id": workspace_id,
-                "project_doc": serializer.to_document(model.project),
-                "trigger": {},
-            },
-            event_queue,
-        )
-        events: list[dict] = []
-        while not event_queue.empty():
-            events.append(event_queue.get())
-        return events
+        return self._run_model_with_runtime_snapshot(model, workspace_id)
 
     def _run_model_with_runtime_snapshot(
         self,

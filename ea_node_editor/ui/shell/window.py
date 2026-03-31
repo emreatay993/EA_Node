@@ -1843,13 +1843,20 @@ class ShellWindow(QMainWindow):
             QTimer.singleShot(0, self._process_deferred_autosave_recovery)
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
-        self.autosave_timer.stop()
+        autosave_timer = getattr(self, "autosave_timer", None)
+        if autosave_timer is not None:
+            autosave_timer.stop()
         try:
-            self.clear_run_failure_focus()
+            if hasattr(self, "run_state"):
+                self.clear_run_failure_focus()
             self._reset_viewer_session_bridge(reason="project_close")
-            self.project_session_controller.close_session()
+            project_session_controller = getattr(self, "project_session_controller", None)
+            if project_session_controller is not None:
+                project_session_controller.close_session()
         finally:
-            self.execution_client.shutdown()
+            execution_client = getattr(self, "execution_client", None)
+            if execution_client is not None:
+                execution_client.shutdown()
             super().closeEvent(event)
 
     def update_engine_status(

@@ -237,4 +237,11 @@ ShellCollapsibleSidePane {
             }
         }
     ]
+
+    Connections {
+        target: root.inspectorBridgeRef
+        function onInspectorStateChanged() {
+            root.syncSelectedPortSelection()
+        }
+    }
 }

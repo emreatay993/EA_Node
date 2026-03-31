@@ -158,6 +158,14 @@ class _ScopeFocusHostStub:
         workspace_id = self.model.active_workspace.workspace_id
         self.workspace_manager = _WorkspaceManagerStub(workspace_id)
         self.scene = _ScopeFocusSceneStub()
+        self.run_failure_focus_calls: list[tuple[str, str, str]] = []
+        self.graph_hints: list[tuple[str, int]] = []
+
+    def set_run_failure_focus(self, workspace_id: str, node_id: str, *, node_title: str = "") -> None:
+        self.run_failure_focus_calls.append((workspace_id, node_id, node_title))
+
+    def show_graph_hint(self, message: str, timeout_ms: int) -> None:
+        self.graph_hints.append((message, timeout_ms))
 
 
 class _PinPropertySceneStub:
