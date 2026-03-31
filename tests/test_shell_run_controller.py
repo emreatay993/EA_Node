@@ -353,6 +353,83 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertFalse(bool(running_halo.property("visible")))
         self.assertFalse(bool(completed_flash_halo.property("visible")))
 
+    def test_nonfatal_run_failed_hides_elapsed_timer_for_failed_running_node(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=220.0, y=140.0)
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        wait_for_condition_or_raise(
+            lambda: _graph_node_card(graph_canvas, node_id) is not None,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for graph node card to appear.",
+        )
+        node_card = _graph_node_card(graph_canvas, node_id)
+        self.assertIsNotNone(node_card)
+        if node_card is None:
+            self.fail("Expected graph node card to exist")
+
+        background_layer = node_card.findChild(QObject, "graphNodeChromeBackgroundLayer")
+        elapsed_timer = node_card.findChild(QObject, "graphNodeElapsedTimer")
+        self.assertIsNotNone(background_layer)
+        self.assertIsNotNone(elapsed_timer)
+
+        self.window.execution_event.emit(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "node_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isRunningNode")) and bool(elapsed_timer.property("visible")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for running-node elapsed timer to appear.",
+        )
+
+        QTest.qWait(160)
+        self.app.processEvents()
+        self.assertNotEqual(str(elapsed_timer.property("text") or ""), "0.0s")
+
+        with patch.object(QMessageBox, "critical"):
+            self.window.execution_event.emit(
+                {
+                    "type": "run_failed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": node_id,
+                    "error": "boom",
+                    "traceback": "traceback: line 1",
+                    "fatal": False,
+                }
+            )
+            self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isFailedNode"))
+            and str(background_layer.property("effectiveBorderState")) == "failed"
+            and not bool(elapsed_timer.property("visible")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for failed-node timer cleanup.",
+        )
+        self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {node_id: True})
+
     def test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace(self) -> None:
         execution_client = _ViewerExecutionClientStub()
         self.window.execution_client = execution_client

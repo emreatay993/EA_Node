@@ -541,7 +541,7 @@ Item {
     Text {
         id: elapsedTimerLabel
         objectName: "graphNodeElapsedTimer"
-        visible: card.isRunningNode
+        visible: card.isRunningNode && !card.isFailedNode
         anchors.top: parent.bottom
         anchors.topMargin: 4
         anchors.horizontalCenter: parent.horizontalCenter
@@ -565,7 +565,7 @@ Item {
         }
 
         function _syncRunningState() {
-            if (!card.isRunningNode) {
+            if (!visible) {
                 startedAtMs = 0.0;
                 elapsedMilliseconds = 0.0;
                 return;
@@ -587,6 +587,10 @@ Item {
             target: card
 
             function onIsRunningNodeChanged() {
+                elapsedTimerLabel._syncRunningState();
+            }
+
+            function onIsFailedNodeChanged() {
                 elapsedTimerLabel._syncRunningState();
             }
         }
