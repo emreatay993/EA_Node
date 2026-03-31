@@ -505,6 +505,26 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             present_snippets=present_snippets,
         )
 
+    def test_node_execution_canvas_properties_bind_only_to_state_bridge_execution_contract(self) -> None:
+        relative_path = "ea_node_editor/ui_qml/components/GraphCanvas.qml"
+        qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+        present_snippets = (
+            "readonly property var runningNodeLookup: root._canvasStateBridgeRef",
+            "root._canvasStateBridgeRef.running_node_lookup",
+            "readonly property var completedNodeLookup: root._canvasStateBridgeRef",
+            "root._canvasStateBridgeRef.completed_node_lookup",
+            "readonly property int nodeExecutionRevision: root._canvasStateBridgeRef",
+            "root._canvasStateBridgeRef.node_execution_revision",
+        )
+
+        _assert_text_snippets(
+            self,
+            label=relative_path,
+            text=qml_text,
+            present_snippets=present_snippets,
+        )
+
     def test_graph_canvas_interaction_state_helper_owns_extracted_canvas_state(self) -> None:
         relative_path = "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml"
         helper_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
@@ -707,6 +727,57 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         self.assertEqual(results_by_id[first_node_id]["instance_label"], "ID 1")
         self.assertEqual(results_by_id[second_node_id]["instance_number"], 2)
         self.assertEqual(results_by_id[second_node_id]["instance_label"], "ID 2")
+
+
+class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
+    def test_node_execution_canvas_properties_follow_graph_canvas_state_bridge(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        bridge = self.window.graph_canvas_state_bridge
+        workspace_id = self.window.scene.workspace_id
+
+        self.assertTrue(workspace_id)
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), bridge.running_node_lookup)
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), bridge.completed_node_lookup)
+        self.assertEqual(
+            int(graph_canvas.property("nodeExecutionRevision")),
+            bridge.node_execution_revision,
+        )
+
+        self.window.mark_node_execution_running(workspace_id, "node_exec")
+        self.app.processEvents()
+
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), {"node_exec": True})
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), bridge.running_node_lookup)
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), {})
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), bridge.completed_node_lookup)
+        self.assertEqual(
+            int(graph_canvas.property("nodeExecutionRevision")),
+            bridge.node_execution_revision,
+        )
+
+        self.window.mark_node_execution_completed(workspace_id, "node_exec")
+        self.app.processEvents()
+
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), {})
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), bridge.running_node_lookup)
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), {"node_exec": True})
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), bridge.completed_node_lookup)
+        self.assertEqual(
+            int(graph_canvas.property("nodeExecutionRevision")),
+            bridge.node_execution_revision,
+        )
+
+        self.window.clear_node_execution_visualization_state()
+        self.app.processEvents()
+
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), {})
+        self.assertEqual(graph_canvas.property("runningNodeLookup"), bridge.running_node_lookup)
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), {})
+        self.assertEqual(graph_canvas.property("completedNodeLookup"), bridge.completed_node_lookup)
+        self.assertEqual(
+            int(graph_canvas.property("nodeExecutionRevision")),
+            bridge.node_execution_revision,
+        )
 
 
 class MainWindowShellGraphCanvasHostTests(unittest.TestCase):
