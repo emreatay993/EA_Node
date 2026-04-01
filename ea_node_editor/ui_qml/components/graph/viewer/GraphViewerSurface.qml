@@ -56,11 +56,7 @@ Item {
         surfaceBodyRect,
         liveGeometryRectSizingActive
     )
-    readonly property rect liveSurfaceRect: _resolvedRect(
-        viewerPayload.live_rect,
-        surfaceBodyRect,
-        liveGeometryRectSizingActive
-    )
+    readonly property rect liveSurfaceRect: _resolvedLiveRect()
     readonly property bool proxySurfaceRequested: host
         ? Boolean(host.proxySurfaceRequested || String(host.resolvedQualityTier || "") === "proxy")
         : false
@@ -407,6 +403,30 @@ Item {
             ? Math.max(0.0, fallback.height)
             : Math.max(0.0, _number(value && value.height, fallback.height));
         return Qt.rect(x, y, width, height);
+    }
+
+    function _resolvedLiveRect() {
+        var fallback = _resolvedRect(
+            viewerPayload.live_rect,
+            surfaceBodyRect,
+            liveGeometryRectSizingActive
+        );
+        var viewportWidth = _number(viewportFrame ? viewportFrame.width : NaN, NaN);
+        var viewportHeight = _number(viewportFrame ? viewportFrame.height : NaN, NaN);
+        if (!isFinite(viewportWidth) || !isFinite(viewportHeight) || viewportWidth <= 0.0 || viewportHeight <= 0.0)
+            return fallback;
+        var viewportX = _number(bodyFrame ? bodyFrame.x : fallback.x, fallback.x)
+            + _number(viewportContainer ? viewportContainer.x : 0.0, 0.0)
+            + _number(viewportFrame ? viewportFrame.x : 0.0, 0.0);
+        var viewportY = _number(bodyFrame ? bodyFrame.y : fallback.y, fallback.y)
+            + _number(viewportContainer ? viewportContainer.y : 0.0, 0.0)
+            + _number(viewportFrame ? viewportFrame.y : 0.0, 0.0);
+        return Qt.rect(
+            Math.max(0.0, viewportX),
+            Math.max(0.0, viewportY),
+            Math.max(0.0, viewportWidth),
+            Math.max(0.0, viewportHeight)
+        );
     }
 
     function _rectPayload(rectLike) {

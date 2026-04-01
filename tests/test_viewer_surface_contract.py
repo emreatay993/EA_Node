@@ -342,6 +342,8 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self._run_qml_probe(
             "viewer-surface-loader-contract",
             """
+            from PyQt6.QtCore import QPointF
+
             host = create_component(
                 graph_node_host_qml_path,
                 {
@@ -351,8 +353,10 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             )
             loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             surface = host.findChild(QObject, "graphNodeViewerSurface")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
             assert loader is not None
             assert surface is not None
+            assert viewport is not None
 
             assert host.property("surfaceFamily") == "viewer"
             assert loader.property("loadedSurfaceKey") == "viewer"
@@ -371,10 +375,17 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             assert rect_field(body_rect, "y") == 30.0
             assert rect_field(body_rect, "width") == 312.0
             assert rect_field(body_rect, "height") == 176.0
-            assert rect_field(live_rect, "x") == 14.0
-            assert rect_field(live_rect, "y") == 30.0
-            assert rect_field(live_rect, "width") == 312.0
-            assert rect_field(live_rect, "height") == 176.0
+            top_left = viewport.mapToItem(surface, QPointF(0.0, 0.0))
+            bottom_right = viewport.mapToItem(
+                surface,
+                QPointF(float(viewport.property("width")), float(viewport.property("height"))),
+            )
+            assert abs(rect_field(live_rect, "x") - float(top_left.x())) < 0.1
+            assert abs(rect_field(live_rect, "y") - float(top_left.y())) < 0.1
+            assert abs(rect_field(live_rect, "width") - (float(bottom_right.x()) - float(top_left.x()))) < 0.1
+            assert abs(rect_field(live_rect, "height") - (float(bottom_right.y()) - float(top_left.y()))) < 0.1
+            assert rect_field(live_rect, "y") > rect_field(body_rect, "y")
+            assert rect_field(live_rect, "height") < rect_field(body_rect, "height")
             """,
         )
 

@@ -88,8 +88,9 @@ class _OverlayRecord:
     container: QWidget
     overlay_widget: QWidget | None = None
     node_card_item: QQuickItem | None = None
-    viewer_frame_item: QQuickItem | None = None
+    viewer_geometry_item: QQuickItem | None = None
     updates_suspended: bool = False
+    geometry_retry_budget: int = 0
 
 
 class EmbeddedViewerOverlayManager(QObject):
@@ -187,6 +188,8 @@ class EmbeddedViewerOverlayManager(QObject):
         if not widget.objectName():
             widget.setObjectName(f"embeddedViewerWidget::{resolved_workspace_id}::{normalized_node_id}")
         record.overlay_widget = widget
+        record.viewer_geometry_item = None
+        record.geometry_retry_budget = 3
         widget.setGeometry(record.container.rect())
         if record.container.width() > 0 and record.container.height() > 0 and self._quick_widget.isVisible():
             record.container.show()
@@ -303,6 +306,12 @@ class EmbeddedViewerOverlayManager(QObject):
             if record is None:
                 continue
             node_card_item, viewer_viewport_item = self._overlay_items(record, graph_canvas_item)
+            if viewer_viewport_item is None or viewer_viewport_item.objectName() != "graphNodeViewerViewport":
+                if record.overlay_widget is not None and record.geometry_retry_budget > 0:
+                    record.geometry_retry_budget -= 1
+                    self._schedule_sync()
+            else:
+                record.geometry_retry_budget = 0
             if node_card_item is not None:
                 self._observe_overlay_geometry_item(node_card_item)
             if viewer_viewport_item is not None:
@@ -375,17 +384,32 @@ class EmbeddedViewerOverlayManager(QObject):
                 return item
         return None
 
-    def _viewer_body_frame_item(self, node_card_item: QQuickItem | None) -> QQuickItem | None:
+    def _viewer_geometry_item(self, node_card_item: QQuickItem | None) -> QQuickItem | None:
         if not isinstance(node_card_item, QQuickItem):
             return None
+        body_frame_item: QQuickItem | None = None
         for item in self._walk_items(node_card_item):
-            if item.objectName() == "graphNodeViewerBodyFrame":
+            object_name = item.objectName()
+            if object_name == "graphNodeViewerViewport":
                 return item
-        return None
+            if object_name == "graphNodeViewerBodyFrame" and body_frame_item is None:
+                body_frame_item = item
+        return body_frame_item
 
     @staticmethod
     def _is_alive_item(item: QQuickItem | None) -> bool:
         return isinstance(item, QQuickItem) and not sip.isdeleted(item)
+
+    @staticmethod
+    def _is_descendant_item(item: QQuickItem | None, ancestor: QQuickItem | None) -> bool:
+        if not isinstance(item, QQuickItem) or not isinstance(ancestor, QQuickItem):
+            return False
+        current: QQuickItem | None = item
+        while isinstance(current, QQuickItem):
+            if current is ancestor:
+                return True
+            current = current.parentItem()
+        return False
 
     def _overlay_items(
         self,
@@ -393,15 +417,33 @@ class EmbeddedViewerOverlayManager(QObject):
         graph_canvas_item: QQuickItem,
     ) -> tuple[QQuickItem | None, QQuickItem | None]:
         node_card_item = record.node_card_item if self._is_alive_item(record.node_card_item) else None
+        if node_card_item is not None:
+            node_data = _mapping(node_card_item.property("nodeData"))
+            if (
+                node_card_item.objectName() != "graphNodeCard"
+                or _string(node_data.get("node_id")) != record.node_id
+                or not self._is_descendant_item(node_card_item, graph_canvas_item)
+            ):
+                node_card_item = None
         if node_card_item is None:
             node_card_item = self._node_card_item(graph_canvas_item, record.node_id)
             record.node_card_item = node_card_item
-            record.viewer_frame_item = None
-        viewer_frame_item = record.viewer_frame_item if self._is_alive_item(record.viewer_frame_item) else None
-        if viewer_frame_item is None:
-            viewer_frame_item = self._viewer_body_frame_item(node_card_item)
-            record.viewer_frame_item = viewer_frame_item
-        return node_card_item, viewer_frame_item
+            record.viewer_geometry_item = None
+        viewer_geometry_item = (
+            record.viewer_geometry_item if self._is_alive_item(record.viewer_geometry_item) else None
+        )
+        if viewer_geometry_item is not None and (
+            node_card_item is None
+            or viewer_geometry_item.objectName() not in {"graphNodeViewerViewport", "graphNodeViewerBodyFrame"}
+            or not self._is_descendant_item(viewer_geometry_item, node_card_item)
+        ):
+            viewer_geometry_item = None
+        if viewer_geometry_item is None or viewer_geometry_item.objectName() != "graphNodeViewerViewport":
+            preferred_geometry_item = self._viewer_geometry_item(node_card_item)
+            if preferred_geometry_item is not None:
+                viewer_geometry_item = preferred_geometry_item
+            record.viewer_geometry_item = viewer_geometry_item
+        return node_card_item, viewer_geometry_item
 
     def _overlay_live_preview_active(
         self,
@@ -452,8 +494,6 @@ class EmbeddedViewerOverlayManager(QObject):
             node_payload=node_payload,
             scene_geometry=scene_geometry,
         )
-        if scene_geometry["has_live_preview"]:
-            return scene_rect
         if viewer_viewport_item is not None:
             viewport_rect = self._overlay_geometry_from_viewport_item(
                 root_item=root_item,
@@ -525,7 +565,10 @@ class EmbeddedViewerOverlayManager(QObject):
         )
         if not rect.intersects(canvas_rect):
             return None
-        return _aligned_rect(rect)
+        clipped_rect = rect.intersected(canvas_rect)
+        if clipped_rect.width() <= 0.0 or clipped_rect.height() <= 0.0:
+            return None
+        return _aligned_rect(clipped_rect)
 
     def _node_scene_geometry(
         self,

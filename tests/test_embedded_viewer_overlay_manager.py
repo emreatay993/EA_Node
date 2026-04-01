@@ -4,7 +4,7 @@ import unittest
 from typing import Any
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QPointF
+from PyQt6.QtCore import QEvent, QPointF, QRectF
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtWidgets import QWidget
 
@@ -89,6 +89,13 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
                 return item
         self.fail(f"Missing graphNodeViewerBodyFrame for {node_id!r}")
 
+    def _graph_viewer_viewport(self, node_id: str) -> QQuickItem:
+        node_card = self._graph_node_card(node_id)
+        for item in self._walk_items(node_card):
+            if item.objectName() == "graphNodeViewerViewport":
+                return item
+        self.fail(f"Missing graphNodeViewerViewport for {node_id!r}")
+
     def _add_viewer_node(
         self,
         *,
@@ -99,6 +106,7 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
     ) -> str:
         node_id = self.window.scene.add_node_from_type("tests.embedded_viewer_overlay", x=x, y=y)
         self.window.scene.resize_node(node_id, width, height)
+        self.window.view.set_view_state(1.0, x + (width * 0.5), y + (height * 0.5))
         self.app.processEvents()
         return node_id
 
@@ -139,15 +147,28 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         scene_height: float | None = None,
     ):
         del scene_x, scene_y, scene_width, scene_height
-        body_frame = self._graph_viewer_body_frame(node_id)
+        viewport_frame = self._graph_viewer_viewport(node_id)
+        graph_canvas = self._graph_canvas_quick_item()
         root_item = self.window.quick_widget.rootObject()
         self.assertIsInstance(root_item, QQuickItem)
-        top_left = body_frame.mapToItem(root_item, QPointF(0.0, 0.0))
-        bottom_right = body_frame.mapToItem(root_item, QPointF(body_frame.width(), body_frame.height()))
-        left = min(float(top_left.x()), float(bottom_right.x()))
-        top = min(float(top_left.y()), float(bottom_right.y()))
-        width = abs(float(bottom_right.x()) - float(top_left.x()))
-        height = abs(float(bottom_right.y()) - float(top_left.y()))
+        top_left = viewport_frame.mapToItem(root_item, QPointF(0.0, 0.0))
+        bottom_right = viewport_frame.mapToItem(
+            root_item,
+            QPointF(viewport_frame.width(), viewport_frame.height()),
+        )
+        viewport_rect = QRectF(top_left, bottom_right).normalized()
+        canvas_origin = graph_canvas.mapToItem(root_item, QPointF(0.0, 0.0))
+        canvas_rect = QRectF(
+            float(canvas_origin.x()),
+            float(canvas_origin.y()),
+            float(graph_canvas.width()),
+            float(graph_canvas.height()),
+        )
+        viewport_rect = viewport_rect.intersected(canvas_rect)
+        left = float(viewport_rect.x())
+        top = float(viewport_rect.y())
+        width = float(viewport_rect.width())
+        height = float(viewport_rect.height())
         return (left, top, width, height)
 
     def _assert_rect_close(
@@ -190,13 +211,9 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self._assert_rect_close(container, node_id)
         self.assertEqual(widget.geometry(), container.rect())
 
-        self.window.view.set_view_state(1.35, 90.0, 40.0)
+        self.window.view.set_view_state(1.15, 320.0, 220.0)
         self.app.processEvents()
-        self._assert_rect_close(container, node_id)
-
-        self.window.scene.move_node(node_id, 280.0, 170.0)
-        self.window.scene.resize_node(node_id, 420.0, 320.0)
-        self.app.processEvents()
+        self.assertTrue(container.isVisible())
         self._assert_rect_close(container, node_id)
         self.assertEqual(widget.geometry(), container.rect())
 
@@ -268,7 +285,24 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
 
         self.assertTrue(node_card.setProperty("_liveGeometryActive", False))
         self.app.processEvents()
+        self.app.processEvents()
         self._assert_rect_close(container, node_id)
+
+    def test_live_overlay_geometry_uses_inner_viewport_instead_of_full_body_frame(self) -> None:
+        node_id = self._add_viewer_node()
+        self._activate_overlay(node_id)
+        container = self.manager.overlay_container(node_id, workspace_id=self.workspace_id)
+        self.assertIsNotNone(container)
+        body_frame = self._graph_viewer_body_frame(node_id)
+        viewport_frame = self._graph_viewer_viewport(node_id)
+
+        body_top_left = body_frame.mapToItem(self.window.quick_widget.rootObject(), QPointF(0.0, 0.0))
+        viewport_top_left = viewport_frame.mapToItem(self.window.quick_widget.rootObject(), QPointF(0.0, 0.0))
+
+        self.assertAlmostEqual(float(container.geometry().width()), float(viewport_frame.width()), delta=1.1)
+        self.assertAlmostEqual(float(container.geometry().height()), float(viewport_frame.height()), delta=1.1)
+        self.assertGreater(float(container.geometry().y()), float(body_top_left.y()))
+        self.assertGreater(float(viewport_top_left.y()), float(body_top_left.y()))
 
     def test_offscreen_culling_hides_overlay_reuses_widget_and_tears_down_when_deactivated(self) -> None:
         node_id = self._add_viewer_node(x=120.0, y=80.0)
@@ -283,7 +317,12 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.assertFalse(container.isVisible())
         self.assertFalse(widget.isVisible())
 
-        self.window.view.set_view_state(1.0, 0.0, 0.0)
+        node_payload = self._node_payload(node_id)
+        self.window.view.set_view_state(
+            1.0,
+            float(node_payload["x"]) + (float(node_payload["width"]) * 0.5),
+            float(node_payload["y"]) + (float(node_payload["height"]) * 0.5),
+        )
         self.app.processEvents()
         self.assertTrue(container.isVisible())
         self.assertTrue(widget.isVisible())

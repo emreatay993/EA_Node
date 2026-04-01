@@ -627,6 +627,35 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_surface_contract_live_rect_tracks_inner_viewport_frame(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-live-rect-viewport",
+            """
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            body_frame = host.findChild(QObject, "graphNodeViewerBodyFrame")
+            viewport = host.findChild(QObject, "graphNodeViewerViewport")
+            assert surface is not None
+            assert body_frame is not None
+            assert viewport is not None
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                contract = variant_value(surface.property("viewerSurfaceContract"))
+                live_rect = contract["live_rect"]
+                assert abs(float(live_rect["width"]) - float(viewport.property("width"))) <= 0.5
+                assert abs(float(live_rect["height"]) - float(viewport.property("height"))) <= 0.5
+                assert float(live_rect["y"]) > float(body_frame.property("y"))
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_viewer_surface_reflects_proxy_demotion_and_live_restoration(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-proxy-restore",
