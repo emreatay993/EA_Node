@@ -80,6 +80,7 @@ class DpfMaterializationTests(unittest.TestCase):
             self.assertGreater(png_path.stat().st_size, 0)
             self.assertEqual(len(list(vtu_path.glob("*.vtu"))), 2)
             self.assertTrue((vtm_path / "dataset.vtm").exists())
+            self.assertEqual(both_result.artifacts["png"].metadata.get("absolute_path"), str(png_path))
 
             csv_entry = store.metadata["staged"][both_result.artifacts["csv"].artifact_id]
             self.assertTrue(csv_entry["relative_path"].startswith(".staging/artifacts/dpf/static_displacement"))

@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
 
@@ -56,6 +57,11 @@ class ViewerWidgetBinder(Protocol):
         ...
 
 
+class ViewerWidgetPreviewCapture(Protocol):
+    def capture_preview_image(self, widget: QWidget | None) -> QImage | None:
+        ...
+
+
 class ViewerWidgetBinderRegistry:
     def __init__(self) -> None:
         self._binders: dict[str, ViewerWidgetBinder] = {}
@@ -87,5 +93,6 @@ __all__ = [
     "ViewerWidgetBinder",
     "ViewerWidgetBinderRegistry",
     "ViewerWidgetNoBind",
+    "ViewerWidgetPreviewCapture",
     "ViewerWidgetReleaseRequest",
 ]

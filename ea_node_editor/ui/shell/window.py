@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from PyQt6.QtCore import QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCursor
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
@@ -170,10 +170,12 @@ class ShellWindow(QMainWindow):
 
     def __init__(self, composition: ShellWindowComposition | None = None, *, _defer_bootstrap: bool = False) -> None:
         super().__init__()
+        self._viewer_window_active = True
         if _defer_bootstrap:
             return
         resolved_composition = composition or build_shell_window_composition(self)
         bootstrap_shell_window(self, resolved_composition)
+        self._connect_application_state_signal()
 
     @property
     def workflow_library_controller(self):
@@ -1837,7 +1839,46 @@ class ShellWindow(QMainWindow):
     def _open_logs(self) -> None:
         return
 
+    def _handle_window_deactivate(self) -> None:
+        if not getattr(self, "_viewer_window_active", True):
+            return
+        self._viewer_window_active = False
+        bridge = getattr(self, "_viewer_session_bridge", None)
+        clear_focus = getattr(bridge, "clear_viewer_focus", None)
+        if not callable(clear_focus):
+            return
+        try:
+            clear_focus()
+        except Exception:  # noqa: BLE001
+            return
+
+    def _connect_application_state_signal(self) -> None:
+        app = QApplication.instance()
+        signal = getattr(app, "applicationStateChanged", None) if app is not None else None
+        if signal is not None and hasattr(signal, "connect"):
+            signal.connect(self._handle_application_state_changed)
+
+    def _handle_application_state_changed(self, state) -> None:  # noqa: ANN001
+        if state == Qt.ApplicationState.ApplicationActive:
+            self._viewer_window_active = True
+            return
+        self._handle_window_deactivate()
+
+    def event(self, event):  # noqa: ANN001
+        if event is not None and event.type() == QEvent.Type.WindowDeactivate:
+            self._handle_window_deactivate()
+        return super().event(event)
+
+    def changeEvent(self, event) -> None:  # noqa: ANN001
+        if event is not None and event.type() == QEvent.Type.ActivationChange:
+            if self.isActiveWindow():
+                self._viewer_window_active = True
+            else:
+                self._handle_window_deactivate()
+        super().changeEvent(event)
+
     def showEvent(self, event) -> None:  # noqa: ANN001
+        self._viewer_window_active = True
         super().showEvent(event)
         if self._autosave_recovery_deferred:
             QTimer.singleShot(0, self._process_deferred_autosave_recovery)

@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtGui import QImage
+from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
     EmbeddedViewerOverlayManager,
@@ -223,6 +225,59 @@ class ViewerHostService(QObject):
             self._set_last_error(str(exc))
             return {}
 
+    def capture_overlay_preview_image(self, node_id: str, *, workspace_id: str = "") -> QImage:
+        normalized_workspace_id = _string(workspace_id)
+        if not normalized_workspace_id and self._viewer_session_bridge is not None:
+            normalized_workspace_id = _string(
+                getattr(self._viewer_session_bridge, "active_workspace_id", "")
+            )
+        normalized_node_id = _string(node_id)
+        if not normalized_workspace_id or not normalized_node_id:
+            return QImage()
+
+        bound = self._bound_overlays.get((normalized_workspace_id, normalized_node_id))
+        overlay_manager = self._overlay_manager
+        if bound is None or overlay_manager is None:
+            return QImage()
+        widget = overlay_manager.overlay_widget(
+            normalized_node_id,
+            workspace_id=normalized_workspace_id,
+        )
+        if not isinstance(widget, QWidget):
+            return QImage()
+
+        capture = getattr(bound.binder, "capture_preview_image", None)
+        if callable(capture):
+            try:
+                captured = capture(widget)
+            except Exception as exc:  # noqa: BLE001
+                self._set_last_error(str(exc))
+            else:
+                if isinstance(captured, QImage) and not captured.isNull():
+                    return captured.copy()
+
+        grab_framebuffer = getattr(widget, "grabFramebuffer", None)
+        if callable(grab_framebuffer):
+            try:
+                captured = grab_framebuffer()
+            except Exception as exc:  # noqa: BLE001
+                self._set_last_error(str(exc))
+                return QImage()
+            if isinstance(captured, QImage) and not captured.isNull():
+                return captured.copy()
+
+        try:
+            pixmap = widget.grab()
+        except Exception as exc:  # noqa: BLE001
+            self._set_last_error(str(exc))
+            return QImage()
+        if pixmap.isNull():
+            return QImage()
+        image = pixmap.toImage()
+        if image.isNull():
+            return QImage()
+        return image.copy()
+
     def register_binder(self, backend_id: str, binder: ViewerWidgetBinder) -> None:
         self._binder_registry.register(backend_id, binder)
         self._schedule_sync()
@@ -410,6 +465,16 @@ class ViewerHostService(QObject):
         overlay_manager = self._overlay_manager
         if widget is None:
             return
+        if overlay_manager is not None and overlay_manager.overlay_widget(snapshot.node_id, workspace_id=snapshot.workspace_id) is widget:
+            if container is not None:
+                try:
+                    container.hide()
+                except Exception:  # noqa: BLE001
+                    pass
+            try:
+                widget.hide()
+            except Exception:  # noqa: BLE001
+                pass
         try:
             binder.release_widget(
                 snapshot.release_request(
@@ -451,7 +516,9 @@ class ViewerHostService(QObject):
             live_open_blocker = _mapping(summary.get("live_open_blocker"))
         if not live_open_blocker and authoritative is not None:
             live_open_blocker = copy.deepcopy(authoritative.live_open_blocker)
-        camera_state = _mapping(summary.get("camera_state") or summary.get("camera"))
+        camera_state = _mapping(projected_state.get("camera_state"))
+        if not camera_state:
+            camera_state = _mapping(summary.get("camera_state") or summary.get("camera"))
         if not camera_state and authoritative is not None:
             camera_state = copy.deepcopy(authoritative.camera_state)
         playback_state = _playback_state_from_projection(

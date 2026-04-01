@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
@@ -116,6 +117,24 @@ class DpfViewerWidgetBinder:
         if not self._is_reusable_interactor(widget):
             return {}
         return extract_camera_state(widget)
+
+    def capture_preview_image(self, widget: QWidget | None) -> QImage | None:
+        if not self._is_reusable_interactor(widget):
+            return QImage()
+        render = getattr(widget, "render", None)
+        if callable(render):
+            try:
+                render()
+            except Exception:  # noqa: BLE001
+                return QImage()
+        screenshot = getattr(widget, "screenshot", None)
+        if not callable(screenshot):
+            return QImage()
+        try:
+            captured = screenshot(return_img=True)
+        except Exception:  # noqa: BLE001
+            return QImage()
+        return self._qimage_from_screenshot(captured)
 
     def _resolve_interactor(
         self,
@@ -250,6 +269,52 @@ class DpfViewerWidgetBinder:
     @staticmethod
     def _mark_backend(widget: QWidget) -> None:
         widget.setProperty(_BACKEND_PROPERTY, DpfViewerWidgetBinder.backend_id)
+
+    @staticmethod
+    def _qimage_from_screenshot(value: Any) -> QImage:
+        if isinstance(value, QImage):
+            return value.copy()
+
+        shape = getattr(value, "shape", None)
+        if not isinstance(shape, (tuple, list)) or len(shape) < 2:
+            return QImage()
+
+        try:
+            height = int(shape[0])
+            width = int(shape[1])
+            channels = int(shape[2]) if len(shape) >= 3 else 1
+        except (TypeError, ValueError):
+            return QImage()
+
+        if width <= 0 or height <= 0:
+            return QImage()
+
+        tobytes = getattr(value, "tobytes", None)
+        if not callable(tobytes):
+            return QImage()
+        try:
+            payload = tobytes()
+        except Exception:  # noqa: BLE001
+            return QImage()
+
+        if channels == 4:
+            image_format = QImage.Format.Format_RGBA8888
+            bytes_per_line = width * 4
+        elif channels == 3:
+            image_format = QImage.Format.Format_RGB888
+            bytes_per_line = width * 3
+        elif channels == 1:
+            image_format = QImage.Format.Format_Grayscale8
+            bytes_per_line = width
+        else:
+            return QImage()
+
+        if len(payload) < bytes_per_line * height:
+            return QImage()
+        image = QImage(payload, width, height, bytes_per_line, image_format)
+        if image.isNull():
+            return QImage()
+        return image.copy()
 
     @staticmethod
     def _is_reusable_interactor(widget: QWidget | None) -> bool:
