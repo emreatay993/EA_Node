@@ -252,12 +252,14 @@ class EmbeddedViewerOverlayManager(QObject):
             return
         self._sync_queued = False
         self.sync()
-        self._schedule_sync()
 
     @pyqtSlot()
     def _run_queued_sync(self) -> None:
+        if self._syncing:
+            self._schedule_sync()
+            return
         self._sync_queued = False
-        self._sync_immediately()
+        self.sync()
 
     def _active_workspace_id(self) -> str:
         if self._scene_bridge is not None:
@@ -680,7 +682,20 @@ class EmbeddedViewerOverlayManager(QObject):
         if bool(item.property("ea.overlayGeometryObserved")):
             return
         item.setProperty("ea.overlayGeometryObserved", True)
-        for signal_name in ("xChanged", "yChanged", "widthChanged", "heightChanged", "visibleChanged"):
+        for signal_name in (
+            "xChanged",
+            "yChanged",
+            "widthChanged",
+            "heightChanged",
+            "visibleChanged",
+            "liveDragDxChanged",
+            "liveDragDyChanged",
+            "_liveGeometryActiveChanged",
+            "_liveXChanged",
+            "_liveYChanged",
+            "_liveWidthChanged",
+            "_liveHeightChanged",
+        ):
             self._connect_signal(item, signal_name, self._schedule_sync)
 
     def _ensure_graph_canvas_observed(self, root_item: QQuickItem | None) -> QQuickItem | None:

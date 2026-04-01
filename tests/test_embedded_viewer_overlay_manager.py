@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 from PyQt6.QtCore import QEvent, QPointF
 from PyQt6.QtQuick import QQuickItem
@@ -333,6 +334,15 @@ class EmbeddedViewerOverlayManagerTests(MainWindowShellTestBase):
         self.manager.eventFilter(self.window.quick_widget, QEvent(QEvent.Type.Paint))
         self.assertFalse(self.manager._sync_queued)
         self.manager.eventFilter(self.window.quick_widget, QEvent(QEvent.Type.UpdateRequest))
+        self.assertFalse(self.manager._sync_queued)
+
+    def test_run_queued_sync_does_not_requeue_without_new_work(self) -> None:
+        self.manager._sync_queued = True
+
+        with patch.object(self.manager, "sync") as sync_mock:
+            self.manager._run_queued_sync()
+
+        sync_mock.assert_called_once_with()
         self.assertFalse(self.manager._sync_queued)
 
 

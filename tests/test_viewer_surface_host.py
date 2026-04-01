@@ -556,6 +556,44 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_surface_blurs_live_session_on_drag_and_resize_press(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-blur-on-drag-start",
+            """
+            from PyQt6.QtCore import Qt
+            from PyQt6.QtTest import QTest
+
+            bridge = ViewerSessionBridgeStub()
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            drag_area = host.findChild(QObject, "graphNodeDragArea")
+            resize_areas = named_child_items(host, "graphNodeResizeDragArea")
+            assert drag_area is not None
+            assert len(resize_areas) >= 1
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                header_point = host_scene_point(host, 18.0, 12.0)
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
+                settle_events(3)
+                assert bridge.clear_focus_calls == 1
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, header_point)
+                settle_events(3)
+
+                resize_point = item_scene_point(resize_areas[0])
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, resize_point)
+                settle_events(3)
+                assert bridge.clear_focus_calls == 2
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, resize_point)
+                settle_events(3)
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
     def test_viewer_surface_defaults_to_closed_bridge_contract_without_context_property(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-default-contract",
