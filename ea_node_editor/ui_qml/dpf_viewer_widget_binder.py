@@ -10,6 +10,7 @@ from typing import Any
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.execution.viewer_camera_state import apply_camera_state, extract_camera_state
 from ea_node_editor.ui_qml.viewer_widget_binder import (
     ViewerWidgetBindRequest,
     ViewerWidgetNoBind,
@@ -39,69 +40,6 @@ def _coerce_int(value: Any, *, default: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
-
-
-def _coerce_float(value: Any) -> float | None:
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
-
-
-def _vector3(value: Any) -> tuple[float, float, float] | None:
-    if not isinstance(value, (list, tuple)) or len(value) != 3:
-        return None
-    components = [_coerce_float(item) for item in value]
-    if any(component is None for component in components):
-        return None
-    return (float(components[0]), float(components[1]), float(components[2]))
-
-
-def _camera_position_payload(camera_state: Mapping[str, Any]) -> Any:
-    explicit = camera_state.get("camera_position")
-    if explicit is not None:
-        return explicit
-    position = _vector3(camera_state.get("position"))
-    focal_point = _vector3(camera_state.get("focal_point"))
-    view_up = _vector3(camera_state.get("viewup", camera_state.get("view_up")))
-    if position is not None and focal_point is not None and view_up is not None:
-        return [position, focal_point, view_up]
-    if position is not None:
-        return position
-    return None
-
-
-def _assign_camera_vector(camera: Any, *, attribute: str, setter: str, value: tuple[float, float, float]) -> bool:
-    if hasattr(camera, attribute):
-        setattr(camera, attribute, value)
-        return True
-    method = getattr(camera, setter, None)
-    if callable(method):
-        method(*value)
-        return True
-    return False
-
-
-def _assign_camera_scalar(camera: Any, *, attribute: str, setter: str, value: float) -> bool:
-    if hasattr(camera, attribute):
-        setattr(camera, attribute, value)
-        return True
-    method = getattr(camera, setter, None)
-    if callable(method):
-        method(value)
-        return True
-    return False
-
-
-def _assign_camera_bool(camera: Any, *, attribute: str, setter: str, value: bool) -> bool:
-    if hasattr(camera, attribute):
-        setattr(camera, attribute, value)
-        return True
-    method = getattr(camera, setter, None)
-    if callable(method):
-        method(value)
-        return True
-    return False
 
 
 def _preferred_scalars_name(dataset: Any, metadata: Mapping[str, Any]) -> str | None:
@@ -174,6 +112,11 @@ class DpfViewerWidgetBinder:
             step_index=0,
         )
 
+    def capture_camera_state(self, widget: QWidget | None) -> dict[str, Any]:
+        if not self._is_reusable_interactor(widget):
+            return {}
+        return extract_camera_state(widget)
+
     def _resolve_interactor(
         self,
         *,
@@ -214,7 +157,7 @@ class DpfViewerWidgetBinder:
             reset_camera=False,
             render=False,
         )
-        self._apply_camera_state(interactor, request.camera_state)
+        apply_camera_state(interactor, request.camera_state)
         self._set_widget_properties(
             interactor,
             session_id=request.session_id,
@@ -332,76 +275,6 @@ class DpfViewerWidgetBinder:
         widget.setProperty(_MANIFEST_PATH_PROPERTY, manifest_path)
         widget.setProperty(_ENTRY_PATH_PROPERTY, entry_path)
         widget.setProperty(_STEP_INDEX_PROPERTY, int(step_index))
-
-    @staticmethod
-    def _apply_camera_state(interactor: QWidget, camera_state: Mapping[str, Any]) -> None:
-        camera_payload = _mapping(camera_state)
-        if not camera_payload:
-            reset_camera = getattr(interactor, "reset_camera", None)
-            if callable(reset_camera):
-                reset_camera()
-            return
-
-        camera_applied = False
-        camera_position = _camera_position_payload(camera_payload)
-        if camera_position is not None and hasattr(interactor, "camera_position"):
-            setattr(interactor, "camera_position", camera_position)
-            camera_applied = True
-
-        camera = getattr(interactor, "camera", None)
-        if camera is not None:
-            position = _vector3(camera_payload.get("position"))
-            if position is not None and camera_position is None:
-                camera_applied = _assign_camera_vector(
-                    camera,
-                    attribute="position",
-                    setter="SetPosition",
-                    value=position,
-                ) or camera_applied
-            focal_point = _vector3(camera_payload.get("focal_point"))
-            if focal_point is not None:
-                camera_applied = _assign_camera_vector(
-                    camera,
-                    attribute="focal_point",
-                    setter="SetFocalPoint",
-                    value=focal_point,
-                ) or camera_applied
-            view_up = _vector3(camera_payload.get("viewup", camera_payload.get("view_up")))
-            if view_up is not None:
-                camera_applied = _assign_camera_vector(
-                    camera,
-                    attribute="up",
-                    setter="SetViewUp",
-                    value=view_up,
-                ) or camera_applied
-
-            zoom_value = _coerce_float(camera_payload.get("zoom"))
-            zoom = getattr(camera, "zoom", None)
-            if zoom_value is not None and callable(zoom):
-                zoom(zoom_value)
-                camera_applied = True
-
-            if "parallel_projection" in camera_payload:
-                camera_applied = _assign_camera_bool(
-                    camera,
-                    attribute="parallel_projection",
-                    setter="SetParallelProjection",
-                    value=bool(camera_payload.get("parallel_projection")),
-                ) or camera_applied
-            parallel_scale = _coerce_float(camera_payload.get("parallel_scale"))
-            if parallel_scale is not None:
-                camera_applied = _assign_camera_scalar(
-                    camera,
-                    attribute="parallel_scale",
-                    setter="SetParallelScale",
-                    value=parallel_scale,
-                ) or camera_applied
-
-        if camera_applied:
-            return
-        reset_camera = getattr(interactor, "reset_camera", None)
-        if callable(reset_camera):
-            reset_camera()
 
     @staticmethod
     def _create_interactor(container: QWidget | None) -> QWidget:

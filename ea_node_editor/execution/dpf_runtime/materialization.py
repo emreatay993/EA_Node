@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 import shutil
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from ea_node_editor.execution.viewer_camera_state import apply_camera_state
 from ea_node_editor.execution.dpf_runtime.base import DpfRuntimeBase
 from ea_node_editor.execution.dpf_runtime.contracts import (
     DEFAULT_VTM_FILENAME,
@@ -91,6 +92,7 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
         artifact_key: str,
         export_formats: Iterable[str],
         mesh: Any | None = None,
+        camera_state: Mapping[str, Any] | None = None,
         temporary_root_parent: str | Path | None = None,
     ) -> dict[str, RuntimeArtifactRef]:
         fields_ref, fields_container = self._resolve_fields_container_handle_and_object(value)
@@ -121,7 +123,12 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
                 entry_metadata["entry_file"] = output_path.name
             elif export_format == "png":
                 output_path.parent.mkdir(parents=True, exist_ok=True)
-                self._write_png_export(fields_container, resolved_mesh, output_path)
+                self._write_png_export(
+                    fields_container,
+                    resolved_mesh,
+                    output_path,
+                    camera_state=camera_state,
+                )
                 entry_metadata["entry_file"] = output_path.name
             elif export_format == "vtu":
                 output_path.mkdir(parents=True, exist_ok=True)
@@ -161,6 +168,7 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
         artifact_store: ProjectArtifactStore | None = None,
         artifact_key: str = "",
         export_formats: Iterable[str] = (),
+        camera_state: Mapping[str, Any] | None = None,
         temporary_root_parent: str | Path | None = None,
         run_id: str = "",
         owner_scope: str = "",
@@ -206,6 +214,7 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
                 artifact_key=artifact_key,
                 export_formats=export_formats,
                 mesh=mesh,
+                camera_state=camera_state,
                 temporary_root_parent=temporary_root_parent,
             )
 
@@ -230,7 +239,14 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
         operator.inputs.field_or_fields_container(fields_container)
         operator.run()
 
-    def _write_png_export(self, fields_container: Any, mesh: Any, output_path: Path) -> None:
+    def _write_png_export(
+        self,
+        fields_container: Any,
+        mesh: Any,
+        output_path: Path,
+        *,
+        camera_state: Mapping[str, Any] | None = None,
+    ) -> None:
         pyvista = self._pyvista_module()
         dataset = self._build_viewer_dataset(fields_container, mesh)
         preview_dataset = self._preview_dataset(dataset)
@@ -238,7 +254,8 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
         try:
             array_name = self._preferred_array_name(preview_dataset)
             plotter.add_mesh(preview_dataset, scalars=array_name)
-            plotter.view_isometric()
+            if not apply_camera_state(plotter, camera_state or {}):
+                plotter.view_isometric()
             plotter.show(screenshot=str(output_path), auto_close=False)
         finally:
             plotter.close()

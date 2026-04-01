@@ -94,11 +94,14 @@ class _RecordingBinder:
         *,
         reuse_current_widget: bool = True,
         no_bind_predicate=None,  # noqa: ANN001
+        captured_camera_state: dict[str, Any] | None = None,
     ) -> None:
         self.reuse_current_widget = reuse_current_widget
         self.no_bind_predicate = no_bind_predicate
+        self.captured_camera_state = dict(captured_camera_state or {})
         self.bind_calls: list[dict[str, Any]] = []
         self.release_calls: list[dict[str, Any]] = []
+        self.capture_calls: list[QWidget] = []
         self.widgets: list[_FakeBinderWidget] = []
 
     def bind_widget(self, request) -> QWidget | None:  # noqa: ANN001
@@ -135,6 +138,10 @@ class _RecordingBinder:
                 "widget": request.widget,
             }
         )
+
+    def capture_camera_state(self, widget: QWidget) -> dict[str, Any]:
+        self.capture_calls.append(widget)
+        return dict(self.captured_camera_state)
 
 
 class ViewerHostServiceTests(MainWindowShellTestBase):
@@ -390,6 +397,31 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
         self.assertEqual(self.host_service.active_overlay_count, 0)
         self.assertEqual(self.host_service.last_error, "")
+
+    def test_capture_overlay_camera_state_delegates_to_bound_binder(self) -> None:
+        binder = _RecordingBinder(
+            captured_camera_state={
+                "position": [3.0, 4.0, 5.0],
+                "focal_point": [0.0, 0.0, 0.0],
+                "viewup": [0.0, 1.0, 0.0],
+            }
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        captured = self.host_service.capture_overlay_camera_state(
+            node_id,
+            workspace_id=self.workspace_id,
+        )
+
+        self.assertEqual(captured, binder.captured_camera_state)
+        self.assertEqual(len(binder.capture_calls), 1)
+        self.assertIs(
+            binder.capture_calls[0],
+            self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
+        )
 
 
 if __name__ == "__main__":

@@ -43,6 +43,7 @@ class ViewerSessionMaterializationRequest:
     session_options: Mapping[str, Any]
     request_options: Mapping[str, Any]
     output_profile: str
+    camera_state: Mapping[str, Any] = field(default_factory=dict)
     export_formats: tuple[str, ...] = ()
     project_path: str = ""
     runtime_snapshot: RuntimeSnapshot | None = None
@@ -104,6 +105,7 @@ class DpfViewerSessionMaterializationBackend:
             model=model_ref,
             mesh=mesh_ref,
             output_profile=request.output_profile,
+            camera_state=request.camera_state,
             artifact_store=artifact_store,
             artifact_key=self._artifact_key(request),
             export_formats=request.export_formats,

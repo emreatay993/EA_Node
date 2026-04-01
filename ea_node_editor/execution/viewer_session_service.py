@@ -537,6 +537,7 @@ class ViewerSessionService:
                     session_options=record.options,
                     request_options=request_options,
                     output_profile=output_profile,
+                    camera_state=record.camera_state,
                     export_formats=export_formats,
                     project_path=context.project_path if context is not None else "",
                     runtime_snapshot=context.runtime_snapshot if context is not None else None,

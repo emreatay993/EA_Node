@@ -22,6 +22,7 @@ class _FakeCamera:
         self.up = None
         self.parallel_projection = None
         self.parallel_scale = None
+        self.view_angle = None
         self.zoom_calls: list[float] = []
 
     def zoom(self, value: float) -> None:
@@ -151,7 +152,9 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
                     "position": [1.0, 2.0, 3.0],
                     "focal_point": [0.0, 0.0, 0.0],
                     "viewup": [0.0, 1.0, 0.0],
-                    "zoom": 1.5,
+                    "view_angle": 22.5,
+                    "parallel_projection": True,
+                    "parallel_scale": 3.25,
                 },
             )
             widget = binder.bind_widget(request)
@@ -169,7 +172,10 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
                 (0.0, 1.0, 0.0),
             ],
         )
-        self.assertEqual(widget.camera.zoom_calls, [1.5])
+        self.assertEqual(widget.camera.view_angle, 22.5)
+        self.assertTrue(widget.camera.parallel_projection)
+        self.assertEqual(widget.camera.parallel_scale, 3.25)
+        self.assertEqual(widget.camera.zoom_calls, [])
         self.assertEqual(widget.reset_camera_calls, 0)
         self.assertEqual(widget.render_calls, 1)
         self.assertEqual(widget.property("ea.viewer.backend_id"), DpfViewerWidgetBinder.backend_id)
@@ -272,6 +278,41 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
         self.assertEqual(widget.property("ea.viewer.transport_revision"), 0)
         self.assertEqual(widget.property("ea.viewer.manifest_path"), "")
         self.assertEqual(widget.property("ea.viewer.entry_path"), "")
+
+    def test_capture_camera_state_reads_live_interactor_camera(self) -> None:
+        binder = DpfViewerWidgetBinder(
+            interactor_factory=lambda parent: _FakeInteractor(parent),
+            dataset_loader=lambda _path: _FakeMesh("stress"),
+        )
+        widget = _FakeInteractor()
+        widget.camera_position = [
+            (4.0, 5.0, 6.0),
+            (1.0, 1.5, 2.0),
+            (0.0, 0.0, 1.0),
+        ]
+        widget.setProperty("ea.viewer.backend_id", DpfViewerWidgetBinder.backend_id)
+        widget.camera.parallel_projection = True
+        widget.camera.parallel_scale = 2.5
+        widget.camera.view_angle = 18.0
+
+        captured = binder.capture_camera_state(widget)
+
+        self.assertEqual(
+            captured,
+            {
+                "position": [4.0, 5.0, 6.0],
+                "focal_point": [1.0, 1.5, 2.0],
+                "viewup": [0.0, 0.0, 1.0],
+                "camera_position": [
+                    [4.0, 5.0, 6.0],
+                    [1.0, 1.5, 2.0],
+                    [0.0, 0.0, 1.0],
+                ],
+                "parallel_projection": True,
+                "parallel_scale": 2.5,
+                "view_angle": 18.0,
+            },
+        )
 
 
 if __name__ == "__main__":

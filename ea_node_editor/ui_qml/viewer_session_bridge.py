@@ -853,6 +853,28 @@ class ViewerSessionBridge(QObject):
         )
         return True
 
+    def _capture_live_overlay_camera_state(
+        self,
+        state: _ViewerSessionProjection,
+    ) -> dict[str, Any]:
+        shell_window = self._shell_window
+        host_service = getattr(shell_window, "viewer_host_service", None)
+        capture = getattr(host_service, "capture_overlay_camera_state", None)
+        if not callable(capture):
+            return copy.deepcopy(state.camera_state)
+        try:
+            captured = _copy_mapping(
+                capture(
+                    state.node_id,
+                    workspace_id=state.workspace_id,
+                )
+            )
+        except Exception:  # noqa: BLE001
+            return copy.deepcopy(state.camera_state)
+        if captured:
+            return captured
+        return copy.deepcopy(state.camera_state)
+
     def _ensure_session_state(self, workspace_id: str, node_id: str) -> _ViewerSessionProjection:
         session_key = (workspace_id, node_id)
         state = self._sessions.get(session_key)
@@ -977,6 +999,8 @@ class ViewerSessionBridge(QObject):
         camera_state = _copy_mapping(event.get("camera_state"))
         if not camera_state:
             camera_state = _copy_mapping(summary.get("camera_state") or summary.get("camera"))
+        if not camera_state:
+            camera_state = copy.deepcopy(state.camera_state)
         state.backend_id = (
             _string(event.get("backend_id"))
             or _string(options.get("backend_id"))
@@ -1198,6 +1222,7 @@ class ViewerSessionBridge(QObject):
 
         if normalized_desired_mode == _LIVE_MODE_PROXY:
             if current_live_mode != _LIVE_MODE_PROXY:
+                captured_camera_state = self._capture_live_overlay_camera_state(state)
                 request_options = self._request_options(state, {"live_mode": _LIVE_MODE_PROXY})
                 request_id = self._send_execution_command(
                     "update_viewer_session",
@@ -1205,7 +1230,7 @@ class ViewerSessionBridge(QObject):
                     node_id=state.node_id,
                     session_id=state.session_id,
                     backend_id=state.backend_id,
-                    camera_state=state.camera_state,
+                    camera_state=captured_camera_state,
                     playback_state={
                         "state": state.playback_state,
                         "step_index": int(state.step_index),
@@ -1218,6 +1243,7 @@ class ViewerSessionBridge(QObject):
                     return True
                 state.request_id = request_id
                 state.last_command = "set_live_mode"
+                state.camera_state = captured_camera_state
                 state.pending_proxy_snapshot_refresh = True
                 self._merge_pending_projection(state, options={"live_mode": _LIVE_MODE_PROXY})
                 return True

@@ -194,6 +194,35 @@ class ViewerHostService(QObject):
     def last_error(self) -> str:
         return self._last_error
 
+    def capture_overlay_camera_state(self, node_id: str, *, workspace_id: str = "") -> dict[str, Any]:
+        normalized_workspace_id = _string(workspace_id)
+        if not normalized_workspace_id and self._viewer_session_bridge is not None:
+            normalized_workspace_id = _string(
+                getattr(self._viewer_session_bridge, "active_workspace_id", "")
+            )
+        normalized_node_id = _string(node_id)
+        if not normalized_workspace_id or not normalized_node_id:
+            return {}
+
+        bound = self._bound_overlays.get((normalized_workspace_id, normalized_node_id))
+        overlay_manager = self._overlay_manager
+        if bound is None or overlay_manager is None:
+            return {}
+        widget = overlay_manager.overlay_widget(
+            normalized_node_id,
+            workspace_id=normalized_workspace_id,
+        )
+        if widget is None:
+            return {}
+        capture = getattr(bound.binder, "capture_camera_state", None)
+        if not callable(capture):
+            return {}
+        try:
+            return _mapping(capture(widget))
+        except Exception as exc:  # noqa: BLE001
+            self._set_last_error(str(exc))
+            return {}
+
     def register_binder(self, backend_id: str, binder: ViewerWidgetBinder) -> None:
         self._binder_registry.register(backend_id, binder)
         self._schedule_sync()

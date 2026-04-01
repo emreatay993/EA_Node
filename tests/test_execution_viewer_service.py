@@ -51,6 +51,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
             model,  # noqa: ANN001
             mesh=None,  # noqa: ANN001
             output_profile: str,
+            camera_state=None,  # noqa: ANN001
             artifact_store=None,  # noqa: ANN001
             artifact_key: str = "",
             export_formats=(),  # noqa: ANN001
@@ -67,6 +68,7 @@ class ViewerSessionServiceTests(unittest.TestCase):
                     "mesh_ref": mesh,
                     "artifact_key": artifact_key,
                     "output_profile": output_profile,
+                    "camera_state": dict(camera_state or {}),
                     "export_formats": tuple(export_formats),
                     "artifact_store_present": artifact_store is not None,
                     "temporary_root_parent": temporary_root_parent,
@@ -385,12 +387,64 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.assertEqual(request.session_id, "session_backend")
         self.assertEqual(request.source_refs, {"fields": "fields_source", "model": "model_source"})
         self.assertEqual(request.output_profile, "both")
+        self.assertEqual(request.camera_state, {})
         self.assertEqual(request.export_formats, ("png",))
         self.assertEqual(request.project_path, "viewer_backend_demo.sfe")
         self.assertEqual(materialized.data_refs["dataset"], dataset_ref)
         self.assertEqual(materialized.data_refs["png"], png_ref)
         self.assertEqual(materialized.transport_revision, 3)
         self.assertEqual(materialized.live_open_status, "ready")
+
+    def test_materialize_passes_record_camera_state_into_backend_request(self) -> None:
+        self.service.open_session(
+            OpenViewerSessionCommand(
+                request_id="viewer_req_open_camera",
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id="session_camera",
+                data_refs={"fields": "fields_source", "model": "model_source"},
+                summary={"camera": {"position": [1.0, 2.0, 3.0]}},
+            )
+        )
+        self.service.update_session(
+            UpdateViewerSessionCommand(
+                request_id="viewer_req_update_camera",
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id="session_camera",
+                camera_state={
+                    "position": [9.0, 8.0, 7.0],
+                    "focal_point": [0.0, 0.0, 0.0],
+                    "viewup": [0.0, 1.0, 0.0],
+                },
+            )
+        )
+
+        with mock.patch.object(
+            self.service._materialization_backend,
+            "materialize",
+            return_value=ViewerSessionMaterializationResult(),
+        ) as materialize:
+            materialized = self.service.materialize_data(
+                MaterializeViewerDataCommand(
+                    request_id="viewer_req_materialize_camera",
+                    workspace_id="ws_main",
+                    node_id="node_viewer",
+                    session_id="session_camera",
+                    options={"output_profile": "stored", "export_formats": ["png"]},
+                )
+            )
+
+        self.assertIsInstance(materialized, ViewerDataMaterializedEvent)
+        request = materialize.call_args.args[0]
+        self.assertEqual(
+            request.camera_state,
+            {
+                "position": [9.0, 8.0, 7.0],
+                "focal_point": [0.0, 0.0, 0.0],
+                "viewup": [0.0, 1.0, 0.0],
+            },
+        )
 
     def test_materialize_marks_rerun_required_when_transport_bundle_export_fails(self) -> None:
         calls: list[dict[str, object]] = []

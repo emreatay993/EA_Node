@@ -214,6 +214,8 @@ class _HostStub(QObject):
         self.scene = _SceneStub()
         self.workspace_manager = _WorkspaceManagerStub(self.scene)
         self.execution_client = _ViewerExecutionClientStub()
+        self.captured_camera_state: dict[str, Any] = {}
+        self.capture_camera_calls: list[dict[str, str]] = []
         self.model = _ModelState(
             project=_ProjectState(
                 workspaces={
@@ -228,6 +230,19 @@ class _HostStub(QObject):
                 }
             )
         )
+
+    def capture_overlay_camera_state(self, node_id: str, *, workspace_id: str = "") -> dict[str, Any]:
+        self.capture_camera_calls.append(
+            {
+                "workspace_id": str(workspace_id),
+                "node_id": str(node_id),
+            }
+        )
+        return dict(self.captured_camera_state)
+
+    @property
+    def viewer_host_service(self):  # noqa: ANN201
+        return self
 
 
 def _viewer_opened_event(
@@ -524,6 +539,12 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
     def test_explicit_viewer_blur_demotes_to_proxy_and_requests_png_snapshot(self) -> None:
         self.host.scene.set_selected("node_viewer")
+        self.host.captured_camera_state = {
+            "position": [9.0, 8.0, 7.0],
+            "focal_point": [1.0, 2.0, 3.0],
+            "viewup": [0.0, 1.0, 0.0],
+            "view_angle": 24.0,
+        }
         session_id = self.bridge.open("node_viewer", {"data_refs": {"fields": "fields_ref"}})
         open_call = self.host.execution_client.open_calls[-1]
         self.host.execution_event.emit(
@@ -532,7 +553,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
                 workspace_id="ws_main",
                 node_id="node_viewer",
                 session_id=session_id,
-                summary={"cache_state": "live_ready"},
+                summary={"cache_state": "live_ready", "camera": {"zoom": 1.1}},
                 options={"live_mode": "full"},
                 data_refs={"dataset": {"kind": "mock_dataset"}},
             )
@@ -540,8 +561,17 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
         self.assertTrue(self.bridge.focus_session("node_viewer"))
         self.assertTrue(self.bridge.clear_viewer_focus())
+        self.assertEqual(
+            self.host.capture_camera_calls[-1],
+            {"workspace_id": "ws_main", "node_id": "node_viewer"},
+        )
         self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "proxy")
+        self.assertEqual(
+            self.host.execution_client.update_calls[-1]["camera_state"],
+            self.host.captured_camera_state,
+        )
+        self.assertEqual(self.bridge.session_state("node_viewer")["camera_state"], self.host.captured_camera_state)
         self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "proxy")
 
         demoted_event = _viewer_opened_event(
@@ -549,9 +579,10 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             workspace_id="ws_main",
             node_id="node_viewer",
             session_id=session_id,
-            summary={"cache_state": "live_ready"},
+            summary={"cache_state": "live_ready", "camera": dict(self.host.captured_camera_state)},
             options={"live_mode": "proxy"},
             data_refs={"dataset": {"kind": "mock_dataset"}},
+            camera_state=dict(self.host.captured_camera_state),
         )
         demoted_event["type"] = "viewer_session_updated"
         self.host.execution_event.emit(demoted_event)
@@ -584,6 +615,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         proxy_state = self.bridge.session_state("node_viewer")
         self.assertEqual(proxy_state["options"]["live_mode"], "proxy")
         self.assertIn("png", proxy_state["data_refs"])
+        self.assertEqual(proxy_state["camera_state"], self.host.captured_camera_state)
 
         self.assertTrue(self.bridge.focus_session("node_viewer"))
         self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
