@@ -1,19 +1,10 @@
 ## Implementation Summary
-Packet: P03
-Branch Label: codex/architecture-followup-refactor/p03-qml-bridge-cleanup-finalization
-Commit Owner: worker
-Commit SHA: 31e06aa96225e01ec75074598409aeab3b162850
-Changed Files:
-- `ea_node_editor/ui/shell/composition.py`
-- `ea_node_editor/ui_qml/MainShell.qml`
-- `ea_node_editor/ui_qml/components/GraphCanvas.qml`
-- `tests/main_window_shell/bridge_contracts.py`
-- `tests/main_window_shell/bridge_qml_boundaries.py`
-- `tests/test_main_window_shell.py`
-- `tests/test_graph_surface_input_contract.py`
-- `docs/specs/work_packets/architecture_followup_refactor/P03_qml_bridge_cleanup_finalization_WRAPUP.md`
-Artifacts Produced:
-- `docs/specs/work_packets/architecture_followup_refactor/P03_qml_bridge_cleanup_finalization_WRAPUP.md`
+- Packet: P03
+- Branch Label: codex/architecture-followup-refactor/p03-qml-bridge-cleanup-finalization
+- Commit Owner: worker
+- Commit SHA: 31e06aa96225e01ec75074598409aeab3b162850
+- Changed Files: docs/specs/work_packets/architecture_followup_refactor/P03_qml_bridge_cleanup_finalization_WRAPUP.md, ea_node_editor/ui/shell/composition.py, ea_node_editor/ui_qml/MainShell.qml, ea_node_editor/ui_qml/components/GraphCanvas.qml, tests/main_window_shell/bridge_contracts.py, tests/main_window_shell/bridge_qml_boundaries.py, tests/test_graph_surface_input_contract.py, tests/test_main_window_shell.py
+- Artifacts Produced: docs/specs/work_packets/architecture_followup_refactor/P03_qml_bridge_cleanup_finalization_WRAPUP.md
 
 Retired the packet-owned `graphCanvasBridge` wrapper from shell QML bootstrap and packet-owned QML bindings by exporting an explicit `graphCanvasViewBridge`, wiring `MainShell.qml` and `GraphCanvas.qml` to focused state/command/view surfaces, and keeping only a narrow compatibility fallback for non-shell callers that still pass legacy viewport-backed bridges directly.
 
