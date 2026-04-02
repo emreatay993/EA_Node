@@ -7,6 +7,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
+import pytest
 from PyQt6.QtCore import QObject
 
 from ea_node_editor.ui.shell.runtime_clipboard import (
@@ -36,10 +37,10 @@ _SHELL_TEST_MODULES = (
     "tests.main_window_shell.passive_image_nodes",
     "tests.main_window_shell.passive_pdf_nodes",
     "tests.main_window_shell.view_library_inspector",
-    "tests.main_window_shell.bridge_contracts",
-    "tests.main_window_shell.bridge_qml_boundaries",
     "tests.main_window_shell.shell_runtime_contracts",
 )
+
+pytestmark = pytest.mark.xdist_group("p03_main_window_shell")
 
 
 def _load_shell_test_modules() -> None:
@@ -141,6 +142,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "shellInspectorBridge",
             "graphCanvasStateBridge",
             "graphCanvasCommandBridge",
+            "graphCanvasViewBridge",
             "viewerSessionBridge",
             "viewerHostService",
         )
@@ -196,6 +198,10 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
 
+        graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
+        self.assertIs(graph_canvas_view_bridge, self.window.view)
+        self.assertIs(graph_canvas_view_bridge.parent(), self.window)
+
         viewer_session_bridge = context.contextProperty("viewerSessionBridge")
         self.assertIsInstance(viewer_session_bridge, ViewerSessionBridge)
         self.assertIs(viewer_session_bridge.parent(), self.window)
@@ -215,6 +221,7 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
         self.assertIs(context_bindings["graphCanvasStateBridge"], graph_canvas_state_bridge)
         self.assertIs(context_bindings["graphCanvasCommandBridge"], graph_canvas_command_bridge)
+        self.assertIs(context_bindings["graphCanvasViewBridge"], graph_canvas_view_bridge)
         self.assertIs(context_bindings["viewerSessionBridge"], viewer_session_bridge)
         self.assertIs(context_bindings["viewerHostService"], viewer_host_service)
 
@@ -237,10 +244,11 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
 
 
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
-    def test_qml_context_registers_only_state_and_command_canvas_bridges(self) -> None:
+    def test_qml_context_registers_only_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
+        graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
 
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
@@ -256,6 +264,8 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+        self.assertIs(graph_canvas_view_bridge, self.window.view)
+        self.assertIs(graph_canvas_view_bridge.parent(), self.window)
 
         self.assertIsNone(context.contextProperty("graphCanvasBridge"))
 
@@ -409,7 +419,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         present_snippets = (
             "readonly property var canvasStateBridgeRef: graphCanvasStateBridge",
             "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
-            "readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef",
+            "readonly property var canvasViewBridgeRef: graphCanvasViewBridge",
             "WorkspaceCenterPane {",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
@@ -442,6 +452,8 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var mainWindowBridge",
             "property var sceneBridge: root.canvasStateBridgeRef",
             "property var viewBridge: root.canvasStateBridgeRef",
+            "readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef",
+            "readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef",
             "mainWindowBridge.graphics_minimap_expanded",
             "mainWindowBridge.graphics_show_grid",
             "mainWindowBridge.graphics_show_minimap",
@@ -488,10 +500,13 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         present_snippets = (
             "property var canvasStateBridge: null",
             "property var canvasCommandBridge: null",
+            'property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined"',
             "readonly property var canvasStateBridgeRef",
             "readonly property var canvasCommandBridgeRef",
+            "readonly property var canvasViewBridgeRef",
             "readonly property var _canvasStateBridgeRef",
             "readonly property var _canvasSceneStateBridgeRef",
+            "readonly property var _legacyCanvasViewBridgeRef",
             "readonly property var _canvasViewStateBridgeRef",
             "readonly property var _canvasShellCommandBridgeRef",
             "readonly property var _canvasSceneCommandBridgeRef",
@@ -661,14 +676,18 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         context = self.window.quick_widget.rootContext()
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
+        graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
         canvas_state_bridge = graph_canvas.property("canvasStateBridge")
         canvas_command_bridge = graph_canvas.property("canvasCommandBridge")
+        canvas_view_bridge = graph_canvas.property("canvasViewBridge")
         canvas_state_bridge_ref = graph_canvas.property("canvasStateBridgeRef")
         canvas_command_bridge_ref = graph_canvas.property("canvasCommandBridgeRef")
+        canvas_view_bridge_ref = graph_canvas.property("canvasViewBridgeRef")
 
         self.assertIsNone(context.contextProperty("graphCanvasBridge"))
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIsInstance(graph_canvas_command_bridge, GraphCanvasCommandBridge)
+        self.assertIs(graph_canvas_view_bridge, self.window.view)
         self.assertIs(self.window.graph_canvas_state_bridge, graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, graph_canvas_command_bridge)
         self.assertEqual(graph_canvas.objectName(), "graphCanvas")
@@ -676,10 +695,12 @@ class _MainWindowShellGraphCanvasHostDirectTests(MainWindowShellTestBase):
         self.assertIs(canvas_state_bridge, graph_canvas_state_bridge)
         self.assertIsInstance(canvas_command_bridge, GraphCanvasCommandBridge)
         self.assertIs(canvas_command_bridge, graph_canvas_command_bridge)
+        self.assertIs(canvas_view_bridge, graph_canvas_view_bridge)
         self.assertIsInstance(canvas_state_bridge_ref, GraphCanvasStateBridge)
         self.assertIs(canvas_state_bridge_ref, graph_canvas_state_bridge)
         self.assertIsInstance(canvas_command_bridge_ref, GraphCanvasCommandBridge)
         self.assertIs(canvas_command_bridge_ref, graph_canvas_command_bridge)
+        self.assertIs(canvas_view_bridge_ref, graph_canvas_view_bridge)
         self.assertIsNone(graph_canvas.property("canvasBridge"))
         self.assertIsNone(graph_canvas.property("canvasBridgeRef"))
         self.assertEqual(
@@ -842,17 +863,23 @@ class MainWindowShellHostFacadeDelegationTests(SharedMainWindowShellTestBase):
 
 def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
     suite = unittest.TestSuite()
-    suite.addTests(loader.loadTestsFromTestCase(FrameRateSamplerTests))
-    suite.addTests(loader.loadTestsFromTestCase(ShellLibraryBridgeTests))
-    suite.addTests(loader.loadTestsFromTestCase(ShellInspectorBridgeTests))
-    suite.addTests(loader.loadTestsFromTestCase(ShellWorkspaceBridgeTests))
-    suite.addTests(loader.loadTestsFromTestCase(ShellLibraryBridgeQmlBoundaryTests))
-    suite.addTests(loader.loadTestsFromTestCase(ShellInspectorBridgeQmlBoundaryTests))
-    suite.addTests(loader.loadTestsFromTestCase(ShellWorkspaceBridgeQmlBoundaryTests))
-    suite.addTests(loader.loadTestsFromTestCase(GraphCanvasQmlBoundaryTests))
-    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellPassiveImageNodesTests))
-    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellPassivePdfNodesTests))
-    suite.addTests(loader.loadTestsFromTestCase(MainWindowShellGraphCanvasHostTests))
+    explicit_case_names = (
+        "FrameRateSamplerTests",
+        "ShellLibraryBridgeTests",
+        "ShellInspectorBridgeTests",
+        "ShellWorkspaceBridgeTests",
+        "ShellLibraryBridgeQmlBoundaryTests",
+        "ShellInspectorBridgeQmlBoundaryTests",
+        "ShellWorkspaceBridgeQmlBoundaryTests",
+        "GraphCanvasQmlBoundaryTests",
+        "MainWindowShellPassiveImageNodesTests",
+        "MainWindowShellPassivePdfNodesTests",
+        "MainWindowShellGraphCanvasHostTests",
+    )
+    for case_name in explicit_case_names:
+        candidate = globals().get(case_name)
+        if isinstance(candidate, type):
+            suite.addTests(loader.loadTestsFromTestCase(candidate))
 
     shell_classes: list[type[SharedMainWindowShellTestBase]] = []
     for candidate in globals().values():

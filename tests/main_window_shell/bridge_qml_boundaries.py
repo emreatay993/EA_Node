@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
+import pytest
+
 from tests.main_window_shell.bridge_contracts import _REPO_ROOT
+
+pytestmark = pytest.mark.xdist_group("p03_bridge_contracts")
 
 
 class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
@@ -300,7 +304,7 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
         present_snippets = (
             "readonly property var canvasStateBridgeRef: graphCanvasStateBridge",
             "readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge",
-            "readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef",
+            "readonly property var canvasViewBridgeRef: graphCanvasViewBridge",
             "WorkspaceCenterPane {",
             "graphCanvasStateBridgeRef: root.canvasStateBridgeRef",
             "graphCanvasCommandBridgeRef: root.canvasCommandBridgeRef",
@@ -367,6 +371,8 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "property var mainWindowBridge",
             "property var sceneBridge: root.canvasStateBridgeRef",
             "property var viewBridge: root.canvasStateBridgeRef",
+            "readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef",
+            "readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef",
             "mainWindowBridge.graphics_minimap_expanded",
             "mainWindowBridge.graphics_show_grid",
             "mainWindowBridge.graphics_show_minimap",
@@ -413,10 +419,13 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         present_snippets = (
             "property var canvasStateBridge: null",
             "property var canvasCommandBridge: null",
+            'property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined"',
             "readonly property var canvasStateBridgeRef",
             "readonly property var canvasCommandBridgeRef",
+            "readonly property var canvasViewBridgeRef",
             "readonly property var _canvasStateBridgeRef",
             "readonly property var _canvasSceneStateBridgeRef",
+            "readonly property var _legacyCanvasViewBridgeRef",
             "readonly property var _canvasViewStateBridgeRef",
             "readonly property var _canvasShellCommandBridgeRef",
             "readonly property var _canvasSceneCommandBridgeRef",

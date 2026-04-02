@@ -10,20 +10,25 @@ Item {
     objectName: "graphCanvas"
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
+    property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined"
+        ? graphCanvasViewBridge
+        : null
     readonly property var canvasStateBridgeRef: root.canvasStateBridge || null
     readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null
+    readonly property var canvasViewBridgeRef: root.canvasViewBridge || null
     readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
     readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
-    readonly property var _canvasViewStateBridgeRef: root.canvasStateBridgeRef
+    readonly property var _legacyCanvasViewBridgeRef: root.canvasStateBridgeRef
         && root.canvasStateBridgeRef.viewport_bridge
         ? root.canvasStateBridgeRef.viewport_bridge
-        : null
+        : (root.canvasCommandBridgeRef
+            && root.canvasCommandBridgeRef.viewport_bridge
+            ? root.canvasCommandBridgeRef.viewport_bridge
+            : null)
+    readonly property var _canvasViewStateBridgeRef: root.canvasViewBridgeRef || root._legacyCanvasViewBridgeRef
     readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
     readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
-    readonly property var _canvasViewCommandBridgeRef: root.canvasCommandBridgeRef
-        && root.canvasCommandBridgeRef.viewport_bridge
-        ? root.canvasCommandBridgeRef.viewport_bridge
-        : null
+    readonly property var _canvasViewCommandBridgeRef: root._canvasViewStateBridgeRef
     readonly property var sceneBridge: root._canvasSceneStateBridgeRef
     readonly property var viewBridge: root._canvasViewStateBridgeRef
     property var overlayHostItem: null
@@ -815,6 +820,7 @@ Item {
 
     onCanvasStateBridgeChanged: root._resetCanvasSceneState()
     onCanvasCommandBridgeChanged: root._resetCanvasSceneState()
+    onCanvasViewBridgeChanged: root._resetCanvasSceneState()
     onSceneBridgeChanged: root._resetCanvasSceneState()
 
     onWidthChanged: {

@@ -557,6 +557,7 @@ def _build_shell_context_property_bindings(
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
+        ("graphCanvasViewBridge", primitives.view),
         ("viewerSessionBridge", runtime.viewer_session_bridge),
         ("viewerHostService", runtime.viewer_host_service),
         ("scriptEditorBridge", primitives.script_editor),

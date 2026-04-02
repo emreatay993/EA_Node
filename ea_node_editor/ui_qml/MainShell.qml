@@ -10,7 +10,7 @@ Rectangle {
     color: themePalette.app_bg
     readonly property var canvasStateBridgeRef: graphCanvasStateBridge
     readonly property var canvasCommandBridgeRef: graphCanvasCommandBridge
-    readonly property var canvasViewBridgeRef: root.canvasStateBridgeRef
+    readonly property var canvasViewBridgeRef: graphCanvasViewBridge
 
     LibraryWorkflowContextPopup {
         id: libraryWorkflowContextPopup

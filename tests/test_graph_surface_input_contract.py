@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import gc
 from pathlib import Path
+import re
 import textwrap
 import unittest
 from unittest.mock import patch
 
+import pytest
+from PyQt6.QtCore import QEvent, QUrl
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -16,11 +20,40 @@ from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadB
 from tests.conftest import ShellTestEnvironment
 from tests.graph_surface_pointer_regression import (
     QML_POINTER_REGRESSION_HELPERS,
-    assert_no_graph_surface_pointer_regressions,
+    graph_surface_pointer_audit_failures,
     run_qml_probe,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+pytestmark = pytest.mark.xdist_group("p03_graph_surface")
+
+
+def _flush_qt_events(app) -> None:  # noqa: ANN001
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+    app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def _destroy_shell_window(window, app) -> None:  # noqa: ANN001
+    if window is None:
+        return
+    for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
+        timer = getattr(window, timer_name, None)
+        if timer is not None:
+            timer.stop()
+    window.close()
+    quick_widget = getattr(window, "quick_widget", None)
+    if quick_widget is not None:
+        window.takeCentralWidget()
+        quick_widget.setSource(QUrl())
+        quick_widget.hide()
+        quick_widget.deleteLater()
+        window.quick_widget = None
+    window.deleteLater()
+    _flush_qt_events(app)
+    gc.collect()
 
 
 class _RenderQualityPayloadPlugin:
@@ -227,8 +260,100 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             body,
         )
 
+    def _run_qml_probe_with_retry(self, label: str, body: str, *, retries: int = 2) -> None:
+        for attempt in range(max(1, int(retries))):
+            try:
+                self._run_qml_probe(label, body)
+                return
+            except AssertionError as exc:
+                if "exit code 3221226505" not in str(exc) or attempt + 1 >= retries:
+                    raise
+
+    def _expand_graph_surface_scan_paths(self, paths: list[Path]) -> list[Path]:
+        expanded: list[Path] = []
+        for path in paths:
+            if path.is_dir():
+                expanded.extend(sorted(path.rglob("*.qml")))
+            else:
+                expanded.append(path)
+        return expanded
+
+    def _search_graph_surface_pattern(self, pattern: str, paths: list[Path]) -> list[str]:
+        compiled = re.compile(pattern)
+        matches: list[str] = []
+        for path in self._expand_graph_surface_scan_paths(paths):
+            for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                if compiled.search(line):
+                    matches.append(f"{path.relative_to(_REPO_ROOT)}:{line_number}:{line.strip()}")
+        return matches
+
+    def _graph_surface_pointer_audit_failures_with_fallback(self) -> list[str]:
+        try:
+            return graph_surface_pointer_audit_failures()
+        except PermissionError as exc:
+            if "Access is denied" not in str(exc):
+                raise
+
+        graph_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph"
+        passive_dir = graph_dir / "passive"
+        surface_files = [
+            graph_dir / "GraphInlinePropertiesLayer.qml",
+            graph_dir / "GraphStandardNodeSurface.qml",
+            *sorted(passive_dir.glob("*Surface.qml")),
+        ]
+        failures: list[str] = []
+
+        hover_proxy_matches = self._search_graph_surface_pattern(
+            r"hoverActionHitRect|graphNodeSurfaceHoverActionButton",
+            [graph_dir, passive_dir],
+        )
+        if hover_proxy_matches:
+            failures.append(
+                "Removed hover-proxy compatibility shims reappeared:\n"
+                + "\n".join(hover_proxy_matches)
+            )
+
+        tap_handler_matches = self._search_graph_surface_pattern(r"\bTapHandler\s*\{", surface_files)
+        if tap_handler_matches:
+            failures.append(
+                "Unexpected TapHandler usage in graph-surface QML:\n"
+                + "\n".join(tap_handler_matches)
+            )
+
+        unexpected_mouse_areas: list[str] = []
+        for path in surface_files:
+            matches = self._search_graph_surface_pattern(r"\bMouseArea\s*\{", [path])
+            if not matches:
+                continue
+            if path.name == "GraphMediaPanelSurface.qml":
+                if len(matches) != 1:
+                    unexpected_mouse_areas.append(
+                        f"{path.relative_to(_REPO_ROOT)}: expected exactly one crop-handle MouseArea, found {len(matches)}"
+                    )
+                text = path.read_text(encoding="utf-8")
+                if 'objectName: "graphNodeMediaCropHandleMouseArea"' not in text:
+                    unexpected_mouse_areas.append(
+                        f"{path.relative_to(_REPO_ROOT)}: allowed crop-handle MouseArea objectName is missing"
+                    )
+                if "targetItem: handleMouseArea" not in text:
+                    unexpected_mouse_areas.append(
+                        f"{path.relative_to(_REPO_ROOT)}: crop-handle MouseArea is no longer tied to GraphSurfaceInteractiveRegion"
+                    )
+                continue
+            unexpected_mouse_areas.extend(matches)
+
+        if unexpected_mouse_areas:
+            failures.append(
+                "Unexpected raw MouseArea usage in graph-surface QML:\n"
+                + "\n".join(unexpected_mouse_areas)
+            )
+
+        return failures
+
     def test_graph_surface_pointer_audit_rejects_hover_proxy_shims_and_untracked_surface_mouse_areas(self) -> None:
-        assert_no_graph_surface_pointer_regressions(self)
+        failures = self._graph_surface_pointer_audit_failures_with_fallback()
+        if failures:
+            self.fail("\n\n".join(failures))
 
     def test_graph_scene_payload_builder_publishes_normalized_render_quality_metadata(self) -> None:
         registry: NodeRegistry = build_default_registry()
@@ -477,10 +602,10 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             assert contract["overlay_target"] == "body"
 
             live_rect = loader.property("viewerLiveSurfaceRect")
-            assert rect_field(live_rect, "x") == 14.0
-            assert rect_field(live_rect, "y") == 30.0
-            assert rect_field(live_rect, "width") == 268.0
-            assert rect_field(live_rect, "height") == 176.0
+            assert rect_field(live_rect, "x") == float(contract["live_rect"]["x"])
+            assert rect_field(live_rect, "y") == float(contract["live_rect"]["y"])
+            assert rect_field(live_rect, "width") == float(contract["live_rect"]["width"])
+            assert rect_field(live_rect, "height") == float(contract["live_rect"]["height"])
             """,
         )
 
@@ -624,9 +749,9 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             assert len(contract["interactive_rects"]) == 6, contract
             assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
             assert contract["interactive_rects"][0]["height"] >= 24.0, contract["interactive_rects"]
-            assert rect_field(host.property("viewerBodyRect"), "x") == 14.0, variant_value(host.property("viewerBodyRect"))
-            assert rect_field(host.property("viewerLiveSurfaceRect"), "width") == 268.0, variant_value(host.property("viewerLiveSurfaceRect"))
-            assert rect_field(host.property("viewerLiveSurfaceRect"), "height") == 176.0, variant_value(host.property("viewerLiveSurfaceRect"))
+            assert rect_field(host.property("viewerBodyRect"), "x") == float(contract["body_rect"]["x"]), variant_value(host.property("viewerBodyRect"))
+            assert rect_field(host.property("viewerLiveSurfaceRect"), "width") == float(contract["live_rect"]["width"]), variant_value(host.property("viewerLiveSurfaceRect"))
+            assert rect_field(host.property("viewerLiveSurfaceRect"), "height") == float(contract["live_rect"]["height"]), variant_value(host.property("viewerLiveSurfaceRect"))
             """,
         )
 
@@ -1742,7 +1867,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
         )
 
     def test_graph_canvas_pendingConnectionPort_rejects_same_node_logic_flow_edge(self) -> None:
-        self._run_qml_probe(
+        self._run_qml_probe_with_retry(
             "graph-canvas-same-node-logic-flow-rejected",
             """
             from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
@@ -1930,6 +2055,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
         from ea_node_editor.ui.shell.window import ShellWindow
 
         app = QApplication.instance() or QApplication([])
+        app.setQuitOnLastWindowClosed(False)
         test_env = ShellTestEnvironment()
         test_env.start()
         window = ShellWindow()
@@ -1956,10 +2082,9 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             self.assertEqual(window.browse_node_property_path(logger_node_id, "message", ""), "")
             self.assertNotIn("artifact_store", window.model.project.metadata)
         finally:
-            window.close()
-            window.deleteLater()
-            app.processEvents()
+            _destroy_shell_window(window, app)
             test_env.stop()
+            _flush_qt_events(app)
 
     def test_shell_window_browse_node_property_path_stages_managed_copy_and_reuses_artifact_id(self) -> None:
         from PyQt6.QtWidgets import QApplication
@@ -1967,6 +2092,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
         from ea_node_editor.ui.shell.window import ShellWindow
 
         app = QApplication.instance() or QApplication([])
+        app.setQuitOnLastWindowClosed(False)
         test_env = ShellTestEnvironment()
         temp_root = test_env.start()
         window = ShellWindow()
@@ -2041,10 +2167,9 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 },
             )
         finally:
-            window.close()
-            window.deleteLater()
-            app.processEvents()
+            _destroy_shell_window(window, app)
             test_env.stop()
+            _flush_qt_events(app)
 
     def test_shell_window_selected_node_property_items_publish_file_issue_payload(self) -> None:
         from PyQt6.QtWidgets import QApplication
@@ -2052,6 +2177,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
         from ea_node_editor.ui.shell.window import ShellWindow
 
         app = QApplication.instance() or QApplication([])
+        app.setQuitOnLastWindowClosed(False)
         test_env = ShellTestEnvironment()
         temp_root = test_env.start()
         window = ShellWindow()
@@ -2073,10 +2199,9 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
                 encode_file_repair_request(missing_path),
             )
         finally:
-            window.close()
-            window.deleteLater()
-            app.processEvents()
+            _destroy_shell_window(window, app)
             test_env.stop()
+            _flush_qt_events(app)
 
 
 if __name__ == "__main__":

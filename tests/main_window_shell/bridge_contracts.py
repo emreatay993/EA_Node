@@ -7,6 +7,7 @@ import sys
 import unittest
 from pathlib import Path
 
+import pytest
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal
 from PyQt6.QtQuick import QQuickItem
 
@@ -27,6 +28,8 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _PASSIVE_IMAGE_DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_IMAGE_NODES_DIRECT"
 _PASSIVE_PDF_DIRECT_ENV = "EA_NODE_EDITOR_PASSIVE_PDF_NODES_DIRECT"
 _GRAPH_CANVAS_HOST_DIRECT_ENV = "EA_NODE_EDITOR_GRAPH_CANVAS_HOST_DIRECT"
+
+pytestmark = pytest.mark.xdist_group("p03_bridge_contracts")
 
 
 def _named_child_items(root: QObject, object_name: str) -> list[QQuickItem]:
@@ -776,7 +779,7 @@ class ShellLibraryBridgeTests(unittest.TestCase):
         self.assertEqual(presenter.calls, [("set_library_query", ("from presenter",))])
         self.assertEqual(host.calls, [])
 
-    def test_bridge_does_not_discover_shell_library_presenter_from_host(self) -> None:
+    def test_bridge_wraps_shell_window_and_routes_through_host_library_presenter_when_present(self) -> None:
         host = _ShellLibraryHostStub()
         presenter = _ShellLibraryHostStub()
         presenter.graph_search_query = "presenter search"
@@ -784,11 +787,11 @@ class ShellLibraryBridgeTests(unittest.TestCase):
 
         bridge = ShellLibraryBridge(shell_window=host)
 
-        self.assertIs(bridge.library_source, host)
-        self.assertEqual(bridge.graph_search_query, host.graph_search_query)
+        self.assertIsNot(bridge.library_source, presenter)
+        self.assertEqual(bridge.graph_search_query, presenter.graph_search_query)
         bridge.set_library_query("host contract")
-        self.assertEqual(host.calls, [("set_library_query", ("host contract",))])
-        self.assertEqual(presenter.calls, [])
+        self.assertEqual(presenter.calls, [("set_library_query", ("host contract",))])
+        self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_signals(self) -> None:
         host = _ShellLibraryHostStub()
@@ -903,7 +906,7 @@ class ShellInspectorBridgeTests(unittest.TestCase):
         self.assertEqual(presenter.calls, [("set_selected_node_property", ("message", "updated"))])
         self.assertEqual(host.calls, [])
 
-    def test_bridge_does_not_discover_shell_inspector_presenter_from_host(self) -> None:
+    def test_bridge_wraps_shell_window_and_routes_through_host_inspector_presenter_when_present(self) -> None:
         host = _ShellInspectorHostStub()
         presenter = _ShellInspectorHostStub()
         presenter.selected_node_title = "Presenter Node"
@@ -911,11 +914,11 @@ class ShellInspectorBridgeTests(unittest.TestCase):
 
         bridge = ShellInspectorBridge(shell_window=host)
 
-        self.assertIs(bridge.inspector_source, host)
-        self.assertEqual(bridge.selected_node_title, host.selected_node_title)
+        self.assertIsNot(bridge.inspector_source, presenter)
+        self.assertEqual(bridge.selected_node_title, presenter.selected_node_title)
         bridge.set_selected_node_property("message", "host update")
-        self.assertEqual(host.calls, [("set_selected_node_property", ("message", "host update"))])
-        self.assertEqual(presenter.calls, [])
+        self.assertEqual(presenter.calls, [("set_selected_node_property", ("message", "host update"))])
+        self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_shell_state_signals(self) -> None:
         host = _ShellInspectorHostStub()
@@ -1691,10 +1694,11 @@ class GraphCanvasBridgeTests(unittest.TestCase):
 
 
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
-    def test_qml_context_registers_only_state_and_command_canvas_bridges(self) -> None:
+    def test_qml_context_registers_only_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
         graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
         graph_canvas_command_bridge = context.contextProperty("graphCanvasCommandBridge")
+        graph_canvas_view_bridge = context.contextProperty("graphCanvasViewBridge")
 
         self.assertIsInstance(graph_canvas_state_bridge, GraphCanvasStateBridge)
         self.assertIs(graph_canvas_state_bridge.parent(), self.window)
@@ -1710,6 +1714,8 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.host_source, self.window.graph_canvas_host_presenter)
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
+        self.assertIs(graph_canvas_view_bridge, self.window.view)
+        self.assertIs(graph_canvas_view_bridge.parent(), self.window)
 
         viewer_session_bridge = context.contextProperty("viewerSessionBridge")
         self.assertIsInstance(viewer_session_bridge, ViewerSessionBridge)
@@ -1728,17 +1734,19 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
 
     def test_shell_window_keeps_split_canvas_bridge_aliases_in_sync_with_context_bundle(self) -> None:
         bridges = self.window._shell_context_bridges
+        context_bindings = dict(self.window._shell_qml_context_property_bindings)
 
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
         self.assertIs(
             self.window.viewer_session_bridge,
-            dict(self.window._shell_qml_context_property_bindings)["viewerSessionBridge"],
+            context_bindings["viewerSessionBridge"],
         )
         self.assertIs(
             self.window.viewer_host_service,
-            dict(self.window._shell_qml_context_property_bindings)["viewerHostService"],
+            context_bindings["viewerHostService"],
         )
+        self.assertIs(context_bindings["graphCanvasViewBridge"], self.window.view)
 
     def test_shell_window_and_split_graph_canvas_bridges_share_persisted_port_label_preference_path(self) -> None:
         graph_canvas_state_bridge = self.window.graph_canvas_state_bridge
@@ -1939,7 +1947,7 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
         self.assertEqual(presenter.calls, [("request_run_workflow", ())])
         self.assertEqual(host.calls, [])
 
-    def test_bridge_does_not_discover_shell_workspace_presenter_from_host(self) -> None:
+    def test_bridge_wraps_shell_window_and_routes_through_host_workspace_presenter_when_present(self) -> None:
         host = _ShellWorkspaceHostStub()
         presenter = _ShellWorkspaceHostStub()
         presenter.project_display_name = "Presenter Packet"
@@ -1955,11 +1963,11 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
             workspace_tabs_bridge=tabs_bridge,
         )
 
-        self.assertIs(bridge.workspace_source, host)
-        self.assertEqual(bridge.project_display_name, host.project_display_name)
+        self.assertIsNot(bridge.workspace_source, presenter)
+        self.assertEqual(bridge.project_display_name, presenter.project_display_name)
         bridge.request_run_workflow()
-        self.assertEqual(host.calls, [("request_run_workflow", ())])
-        self.assertEqual(presenter.calls, [])
+        self.assertEqual(presenter.calls, [("request_run_workflow", ())])
+        self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_workspace_and_console_signals(self) -> None:
         host = _ShellWorkspaceHostStub()
