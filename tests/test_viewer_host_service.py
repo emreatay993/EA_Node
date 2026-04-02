@@ -458,15 +458,15 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         )
 
     def test_snapshot_from_projected_state_prefers_projected_camera_state_during_pending_transition(self) -> None:
-        self.host_service._authoritative_sessions[("ws_main", "node_viewer")] = self.host_service._snapshot_from_projected_state(
+        snapshot = self.host_service._snapshot_from_projected_state(
             {
                 "workspace_id": "ws_main",
                 "node_id": "node_viewer",
                 "session_id": "session::node_viewer",
                 "phase": "open",
-                "cache_state": "live_ready",
+                "cache_state": "proxy_ready",
                 "camera_state": {"position": [0.0, 0.0, 5.0]},
-                "summary": {"cache_state": "live_ready"},
+                "summary": {"cache_state": "proxy_ready"},
                 "options": {
                     "backend_id": "tests.viewer_backend",
                     "live_mode": "proxy",
@@ -477,28 +477,37 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
                 },
                 "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
                 "data_refs": {},
-            }
-        )
-
-        snapshot = self.host_service._snapshot_from_projected_state(
-            {
-                "workspace_id": "ws_main",
-                "node_id": "node_viewer",
-                "session_id": "session::node_viewer",
-                "phase": "open",
-                "cache_state": "live_ready",
-                "camera_state": {"position": [9.0, 8.0, 7.0], "view_angle": 24.0},
-                "summary": {"cache_state": "live_ready"},
-                "options": {
-                    "backend_id": "tests.viewer_backend",
-                    "live_mode": "full",
-                    "live_open_status": "ready",
-                    "transport_revision": 1,
+                "session_model": {
+                    "workspace_id": "ws_main",
+                    "node_id": "node_viewer",
+                    "session_id": "session::node_viewer",
+                    "phase": "open",
                     "playback_state": "paused",
                     "step_index": 0,
+                    "playback": {"state": "paused", "step_index": 0},
+                    "live_policy": "focus_only",
+                    "keep_live": False,
+                    "cache_state": "live_ready",
+                    "invalidated_reason": "",
+                    "close_reason": "",
+                    "backend_id": "tests.viewer_backend",
+                    "transport_revision": 1,
+                    "live_mode": "full",
+                    "live_open_status": "ready",
+                    "live_open_blocker": {},
+                    "data_refs": {},
+                    "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
+                    "camera_state": {"position": [9.0, 8.0, 7.0], "view_angle": 24.0},
+                    "summary": {"cache_state": "live_ready"},
+                    "options": {
+                        "backend_id": "tests.viewer_backend",
+                        "live_mode": "full",
+                        "live_open_status": "ready",
+                        "transport_revision": 1,
+                        "playback_state": "paused",
+                        "step_index": 0,
+                    },
                 },
-                "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
-                "data_refs": {},
             }
         )
 

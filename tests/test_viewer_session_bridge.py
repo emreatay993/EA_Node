@@ -408,6 +408,8 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(opening_state["playback_state"], "paused")
         self.assertEqual(opening_state["step_index"], 3)
         self.assertEqual(opening_state["backend_id"], "backend.custom")
+        self.assertEqual(opening_state["session_model"]["phase"], "opening")
+        self.assertEqual(opening_state["session_model"]["live_mode"], "full")
 
         self.host.execution_event.emit(
             _viewer_opened_event(
@@ -438,6 +440,9 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(opened_state["live_open_status"], "ready")
         self.assertEqual(opened_state["transport"]["bundle_path"], "C:/temp/viewer_bundle")
         self.assertEqual(opened_state["camera_state"], {"zoom": 2.0})
+        self.assertEqual(opened_state["session_model"]["phase"], "open")
+        self.assertEqual(opened_state["session_model"]["transport_revision"], 7)
+        self.assertEqual(opened_state["session_model"]["summary"]["result_name"], "displacement")
 
         self.assertTrue(self.bridge.play("node_viewer"))
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["playback_state"], "playing")
@@ -480,6 +485,8 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         closed_state = self.bridge.session_state("node_viewer")
         self.assertEqual(closed_state["phase"], "closed")
         self.assertEqual(closed_state["close_reason"], "user_close")
+        self.assertEqual(closed_state["session_model"]["phase"], "closed")
+        self.assertEqual(closed_state["session_model"]["close_reason"], "user_close")
 
     def test_node_mutation_keeps_live_session_and_prunes_removed_node_projection(self) -> None:
         self.host.scene.set_selected("node_viewer")

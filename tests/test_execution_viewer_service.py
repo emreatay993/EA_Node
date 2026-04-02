@@ -206,6 +206,9 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertEqual(opened.options["live_mode"], "proxy")
             self.assertEqual(opened.live_open_status, "blocked")
             self.assertEqual(opened.live_open_blocker["code"], "transport_not_ready")
+            self.assertEqual(opened.summary["session_model"]["phase"], "open")
+            self.assertEqual(opened.summary["session_model"]["live_mode"], "proxy")
+            self.assertEqual(opened.summary["session_model"]["summary"]["result_name"], "displacement")
 
             self.services.cleanup_run("run_viewer_service")
             with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
@@ -264,6 +267,9 @@ class ViewerSessionServiceTests(unittest.TestCase):
             self.assertEqual(dataset_ref.owner_scope, "cache:viewer_session:ws_main:session_live")
             self.assertEqual(materialized.data_refs["png"].artifact_id, "viewer_preview_png")
             self.assertEqual(materialized.options["live_mode"], "full")
+            self.assertEqual(materialized.summary["session_model"]["phase"], "open")
+            self.assertEqual(materialized.summary["session_model"]["live_mode"], "full")
+            self.assertEqual(materialized.summary["session_model"]["transport_revision"], materialized.transport_revision)
             rematerialized_cached = self.service.materialize_data(
                 MaterializeViewerDataCommand(
                     request_id="viewer_req_materialize_cached",
@@ -295,6 +301,8 @@ class ViewerSessionServiceTests(unittest.TestCase):
 
             self.assertEqual(closed.summary["close_reason"], "node_hidden")
             self.assertEqual(closed.options["session_state"], "closed")
+            self.assertEqual(closed.summary["session_model"]["phase"], "closed")
+            self.assertEqual(closed.summary["session_model"]["close_reason"], "node_hidden")
             with self.assertRaisesRegex(StaleHandleError, "stale or unknown"):
                 self.services.resolve_handle(dataset_ref)
             self.assertFalse(transport_manifest_path.exists())

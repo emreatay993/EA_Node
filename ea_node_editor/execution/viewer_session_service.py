@@ -41,6 +41,10 @@ _TRANSPORT_RERUN_REQUIRED_BLOCKER = {
     "reason": "Live viewer transport is unavailable and requires rerun.",
     "rerun_required": True,
 }
+VIEWER_SESSION_MODEL_KEY = "session_model"
+_VALID_VIEWER_SESSION_PHASES = frozenset(
+    {"open", "opening", "closing", "closed", "blocked", "invalidated", "error"}
+)
 
 
 def _copy_mapping(value: Any) -> dict[str, Any]:
@@ -70,6 +74,124 @@ def _transport_is_live(transport: Mapping[str, Any]) -> bool:
         transport_refs = _copy_mapping(transport.get("data_refs"))
         return "dataset" in transport_refs
     return True
+
+
+def build_viewer_session_model(
+    *,
+    workspace_id: str,
+    node_id: str,
+    session_id: str,
+    phase: str,
+    request_id: str = "",
+    last_command: str = "",
+    last_error: str = "",
+    playback_state: Mapping[str, Any] | None = None,
+    live_policy: str = "focus_only",
+    keep_live: bool = False,
+    cache_state: str = "empty",
+    invalidated_reason: str = "",
+    close_reason: str = "",
+    backend_id: str = "",
+    transport_revision: int = 0,
+    live_mode: str = "proxy",
+    live_open_status: str = "",
+    live_open_blocker: Mapping[str, Any] | None = None,
+    data_refs: Mapping[str, Any] | None = None,
+    transport: Mapping[str, Any] | None = None,
+    camera_state: Mapping[str, Any] | None = None,
+    summary: Mapping[str, Any] | None = None,
+    options: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_phase = str(phase).strip().lower() or "closed"
+    if normalized_phase not in _VALID_VIEWER_SESSION_PHASES:
+        normalized_phase = "closed"
+    normalized_playback = _copy_mapping(playback_state)
+    normalized_playback = {
+        "state": str(normalized_playback.get("state", "paused")).strip() or "paused",
+        "step_index": _coerce_int(normalized_playback.get("step_index"), default=0),
+    }
+    normalized_live_policy = str(live_policy).strip().lower() or "focus_only"
+    if normalized_live_policy not in {"focus_only", "keep_live"}:
+        normalized_live_policy = "focus_only"
+    normalized_live_mode = str(live_mode).strip().lower() or "proxy"
+    if normalized_live_mode not in {"proxy", "full"}:
+        normalized_live_mode = "proxy"
+
+    normalized_summary = _copy_mapping(summary)
+    normalized_summary.pop(VIEWER_SESSION_MODEL_KEY, None)
+    normalized_options = _copy_mapping(options)
+    normalized_options.pop(VIEWER_SESSION_MODEL_KEY, None)
+    normalized_live_open_blocker = _copy_mapping(live_open_blocker)
+    normalized_data_refs = _copy_mapping(data_refs)
+    normalized_transport = _copy_mapping(transport)
+    normalized_camera_state = _copy_mapping(camera_state)
+    normalized_cache_state = str(cache_state).strip() or "empty"
+    normalized_backend_id = str(backend_id).strip()
+    normalized_transport_revision = _coerce_int(transport_revision)
+    normalized_live_open_status = str(live_open_status).strip()
+    normalized_invalidated_reason = str(invalidated_reason).strip()
+    normalized_close_reason = str(close_reason).strip()
+
+    normalized_summary["cache_state"] = normalized_cache_state
+    if normalized_backend_id:
+        normalized_summary["backend_id"] = normalized_backend_id
+    if normalized_transport_revision > 0:
+        normalized_summary["transport_revision"] = normalized_transport_revision
+    if normalized_live_open_status:
+        normalized_summary["live_open_status"] = normalized_live_open_status
+    if normalized_live_open_blocker:
+        normalized_summary["live_open_blocker"] = copy.deepcopy(normalized_live_open_blocker)
+    if normalized_invalidated_reason:
+        normalized_summary["invalidated_reason"] = normalized_invalidated_reason
+    if normalized_close_reason:
+        normalized_summary["close_reason"] = normalized_close_reason
+    if normalized_camera_state:
+        normalized_summary.setdefault("camera_state", copy.deepcopy(normalized_camera_state))
+        normalized_summary.setdefault("camera", copy.deepcopy(normalized_camera_state))
+
+    normalized_options["live_policy"] = normalized_live_policy
+    normalized_options["keep_live"] = bool(keep_live)
+    normalized_options["playback_state"] = normalized_playback["state"]
+    normalized_options["step_index"] = normalized_playback["step_index"]
+    normalized_options["playback"] = copy.deepcopy(normalized_playback)
+    normalized_options["live_mode"] = normalized_live_mode
+    normalized_options["cache_state"] = normalized_cache_state
+    if normalized_backend_id:
+        normalized_options["backend_id"] = normalized_backend_id
+    if normalized_transport_revision > 0:
+        normalized_options["transport_revision"] = normalized_transport_revision
+    if normalized_live_open_status:
+        normalized_options["live_open_status"] = normalized_live_open_status
+    if normalized_live_open_blocker:
+        normalized_options["live_open_blocker"] = copy.deepcopy(normalized_live_open_blocker)
+
+    return {
+        "workspace_id": str(workspace_id).strip(),
+        "node_id": str(node_id).strip(),
+        "session_id": str(session_id).strip(),
+        "phase": normalized_phase,
+        "request_id": str(request_id).strip(),
+        "last_command": str(last_command).strip(),
+        "last_error": str(last_error).strip(),
+        "playback_state": normalized_playback["state"],
+        "step_index": normalized_playback["step_index"],
+        "playback": copy.deepcopy(normalized_playback),
+        "live_policy": normalized_live_policy,
+        "keep_live": bool(keep_live),
+        "cache_state": normalized_cache_state,
+        "invalidated_reason": normalized_invalidated_reason,
+        "close_reason": normalized_close_reason,
+        "backend_id": normalized_backend_id,
+        "transport_revision": normalized_transport_revision,
+        "live_mode": normalized_live_mode,
+        "live_open_status": normalized_live_open_status,
+        "live_open_blocker": copy.deepcopy(normalized_live_open_blocker),
+        "data_refs": copy.deepcopy(normalized_data_refs),
+        "transport": copy.deepcopy(normalized_transport),
+        "camera_state": copy.deepcopy(normalized_camera_state),
+        "summary": normalized_summary,
+        "options": normalized_options,
+    }
 
 
 @dataclass(slots=True)
@@ -172,6 +294,50 @@ class _ViewerSessionRecord:
         options["playback"] = playback_state
         return options
 
+    def public_phase(self) -> str:
+        if self.session_state == "closed":
+            return "closed"
+        if self.invalidated_reason:
+            if self.rerun_required or self.live_open_status == "blocked":
+                return "blocked"
+            return "invalidated"
+        if self.rerun_required and self.live_open_status == "blocked":
+            return "blocked"
+        return "open"
+
+    def public_projection(
+        self,
+        *,
+        summary: Mapping[str, Any] | None = None,
+        options: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        resolved_summary = _copy_mapping(summary) if summary is not None else self.public_summary()
+        resolved_options = _copy_mapping(options) if options is not None else self.public_options()
+        return build_viewer_session_model(
+            workspace_id=self.workspace_id,
+            node_id=self.node_id,
+            session_id=self.session_id,
+            phase=self.public_phase(),
+            playback_state=self.playback_state,
+            live_policy=str(resolved_options.get("live_policy", self.options.get("live_policy", "focus_only"))),
+            keep_live=bool(resolved_options.get("keep_live", self.options.get("keep_live", False))),
+            cache_state=self.cache_state(),
+            invalidated_reason=self.invalidated_reason,
+            close_reason=str(
+                resolved_summary.get("close_reason") or self.summary.get("close_reason", "")
+            ).strip(),
+            backend_id=self.backend_id,
+            transport_revision=self.transport_revision,
+            live_mode=str(resolved_options.get("live_mode", self.options.get("live_mode", "proxy"))),
+            live_open_status=self.live_open_status,
+            live_open_blocker=self.live_open_blocker,
+            data_refs=self.public_data_refs(),
+            transport=self.transport,
+            camera_state=self.camera_state,
+            summary=resolved_summary,
+            options=resolved_options,
+        )
+
 
 class ViewerSessionService:
     def __init__(self, worker_services: WorkerServices) -> None:
@@ -181,6 +347,21 @@ class ViewerSessionService:
         self._materialization_backend = getattr(dpf_backend, "_materialization_backend", dpf_backend)
         self._sessions: dict[tuple[str, str], _ViewerSessionRecord] = {}
         self._workspace_contexts: dict[str, _ViewerWorkspaceContext] = {}
+
+    def _public_event_contract(
+        self,
+        record: _ViewerSessionRecord,
+        *,
+        summary: Mapping[str, Any] | None = None,
+        options: Mapping[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        public_summary = _copy_mapping(summary) if summary is not None else record.public_summary()
+        public_options = _copy_mapping(options) if options is not None else record.public_options()
+        public_summary[VIEWER_SESSION_MODEL_KEY] = record.public_projection(
+            summary=public_summary,
+            options=public_options,
+        )
+        return public_summary, public_options
 
     def prepare_workspace_context(
         self,
@@ -309,6 +490,7 @@ class ViewerSessionService:
             record.invalidated_reason = ""
         record.session_state = "open"
         self._refresh_public_contract(record)
+        public_summary, public_options = self._public_event_contract(record)
         return ViewerSessionOpenedEvent(
             request_id=command.request_id,
             workspace_id=workspace_id,
@@ -322,8 +504,8 @@ class ViewerSessionService:
             live_open_blocker=copy.deepcopy(record.live_open_blocker),
             camera_state=copy.deepcopy(record.camera_state),
             playback_state=copy.deepcopy(record.playback_state),
-            summary=record.public_summary(),
-            options=record.public_options(),
+            summary=public_summary,
+            options=public_options,
         )
 
     def update_session(self, command: UpdateViewerSessionCommand) -> ViewerSessionUpdatedEvent | ViewerSessionFailedEvent:
@@ -349,6 +531,7 @@ class ViewerSessionService:
             record.invalidated_reason = ""
         record.session_state = "open"
         self._refresh_public_contract(record)
+        public_summary, public_options = self._public_event_contract(record)
         return ViewerSessionUpdatedEvent(
             request_id=command.request_id,
             workspace_id=record.workspace_id,
@@ -362,8 +545,8 @@ class ViewerSessionService:
             live_open_blocker=copy.deepcopy(record.live_open_blocker),
             camera_state=copy.deepcopy(record.camera_state),
             playback_state=copy.deepcopy(record.playback_state),
-            summary=record.public_summary(),
-            options=record.public_options(),
+            summary=public_summary,
+            options=public_options,
         )
 
     def close_session(self, command: CloseViewerSessionCommand) -> ViewerSessionClosedEvent | ViewerSessionFailedEvent:
@@ -395,6 +578,10 @@ class ViewerSessionService:
             event_options["reason"] = reason
         if "release_handles" in command.options:
             event_options["release_handles"] = release_handles
+        public_summary, public_options = self._public_event_contract(
+            record,
+            options=event_options,
+        )
         return ViewerSessionClosedEvent(
             request_id=command.request_id,
             workspace_id=record.workspace_id,
@@ -407,8 +594,8 @@ class ViewerSessionService:
             live_open_blocker=copy.deepcopy(record.live_open_blocker),
             camera_state=copy.deepcopy(record.camera_state),
             playback_state=copy.deepcopy(record.playback_state),
-            summary=record.public_summary(),
-            options=event_options,
+            summary=public_summary,
+            options=public_options,
         )
 
     def materialize_data(
@@ -499,6 +686,7 @@ class ViewerSessionService:
             live_open_status=result_live_open_status,
             live_open_blocker=result_live_open_blocker,
         )
+        public_summary, public_options = self._public_event_contract(record)
         return ViewerDataMaterializedEvent(
             request_id=command.request_id,
             workspace_id=record.workspace_id,
@@ -512,8 +700,8 @@ class ViewerSessionService:
             live_open_blocker=copy.deepcopy(record.live_open_blocker),
             camera_state=copy.deepcopy(record.camera_state),
             playback_state=copy.deepcopy(record.playback_state),
-            summary=record.public_summary(),
-            options=record.public_options(),
+            summary=public_summary,
+            options=public_options,
         )
 
     def _materialize_backend_result(
@@ -1035,6 +1223,7 @@ class ViewerSessionService:
         summary = record.public_summary()
         summary["materialized_output_profile"] = output_profile
         self._refresh_public_contract(record)
+        public_summary, public_options = self._public_event_contract(record, summary=summary)
         return ViewerDataMaterializedEvent(
             request_id=command.request_id,
             workspace_id=record.workspace_id,
@@ -1048,11 +1237,13 @@ class ViewerSessionService:
             live_open_blocker=copy.deepcopy(record.live_open_blocker),
             camera_state=copy.deepcopy(record.camera_state),
             playback_state=copy.deepcopy(record.playback_state),
-            summary=summary,
-            options=record.public_options(),
+            summary=public_summary,
+            options=public_options,
         )
 
 
 __all__ = [
+    "VIEWER_SESSION_MODEL_KEY",
+    "build_viewer_session_model",
     "ViewerSessionService",
 ]

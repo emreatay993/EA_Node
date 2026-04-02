@@ -29,9 +29,12 @@ Item {
         }
         return ({});
     }
-    readonly property var viewerSummary: viewerSessionState.summary ? viewerSessionState.summary : ({})
-    readonly property var viewerOptions: viewerSessionState.options ? viewerSessionState.options : ({})
-    readonly property var viewerDataRefs: viewerSessionState.data_refs ? viewerSessionState.data_refs : ({})
+    readonly property var viewerSessionModel: viewerSessionState.session_model
+        ? viewerSessionState.session_model
+        : viewerSessionState
+    readonly property var viewerSummary: viewerSessionModel.summary ? viewerSessionModel.summary : ({})
+    readonly property var viewerOptions: viewerSessionModel.options ? viewerSessionModel.options : ({})
+    readonly property var viewerDataRefs: viewerSessionModel.data_refs ? viewerSessionModel.data_refs : ({})
     readonly property var viewerPreviewRefPayload: viewerDataRefs.png
         ? viewerDataRefs.png
         : (viewerDataRefs.preview ? viewerDataRefs.preview : null)
@@ -60,29 +63,29 @@ Item {
     readonly property bool proxySurfaceRequested: host
         ? Boolean(host.proxySurfaceRequested || String(host.resolvedQualityTier || "") === "proxy")
         : false
-    readonly property string viewerSessionId: String(viewerSessionState.session_id || "")
-    readonly property string viewerPhase: String(viewerSessionState.phase || "closed")
-    readonly property string viewerPlaybackState: String(viewerSessionState.playback_state || "paused")
-    readonly property int viewerStepIndex: Math.max(0, Math.floor(_number(viewerSessionState.step_index, 0)))
-    readonly property string viewerLivePolicy: String(viewerSessionState.live_policy || "focus_only")
-    readonly property bool viewerKeepLive: Boolean(viewerSessionState.keep_live)
-    readonly property string viewerCacheState: String(viewerSessionState.cache_state || "empty")
+    readonly property string viewerSessionId: String(viewerSessionModel.session_id || "")
+    readonly property string viewerPhase: String(viewerSessionModel.phase || "closed")
+    readonly property string viewerPlaybackState: String(viewerSessionModel.playback_state || "paused")
+    readonly property int viewerStepIndex: Math.max(0, Math.floor(_number(viewerSessionModel.step_index, 0)))
+    readonly property string viewerLivePolicy: String(viewerSessionModel.live_policy || "focus_only")
+    readonly property bool viewerKeepLive: Boolean(viewerSessionModel.keep_live)
+    readonly property string viewerCacheState: String(viewerSessionModel.cache_state || "empty")
     readonly property string viewerBackendId: String(
-        viewerSessionState.backend_id
+        viewerSessionModel.backend_id
         || viewerSummary.backend_id
         || viewerOptions.backend_id
         || ""
     )
-    readonly property var viewerTransport: viewerSessionState.transport
-        ? viewerSessionState.transport
+    readonly property var viewerTransport: viewerSessionModel.transport
+        ? viewerSessionModel.transport
         : ({})
     readonly property string viewerTransportKind: String(viewerTransport.kind || "")
     readonly property int viewerTransportRevision: Math.max(
         0,
         Math.floor(
-            _number(
-                viewerSessionState.transport_revision !== undefined
-                    ? viewerSessionState.transport_revision
+                _number(
+                viewerSessionModel.transport_revision !== undefined
+                    ? viewerSessionModel.transport_revision
                     : (
                         viewerSummary.transport_revision !== undefined
                             ? viewerSummary.transport_revision
@@ -93,17 +96,17 @@ Item {
         )
     )
     readonly property string viewerLiveOpenStatus: String(
-        viewerSessionState.live_open_status
+        viewerSessionModel.live_open_status
         || viewerSummary.live_open_status
         || viewerOptions.live_open_status
         || ""
     )
-    readonly property var viewerLiveOpenBlocker: viewerSessionState.live_open_blocker
-        ? viewerSessionState.live_open_blocker
+    readonly property var viewerLiveOpenBlocker: viewerSessionModel.live_open_blocker
+        ? viewerSessionModel.live_open_blocker
         : (
             viewerSummary.live_open_blocker
-            ? viewerSummary.live_open_blocker
-            : (viewerOptions.live_open_blocker ? viewerOptions.live_open_blocker : ({}))
+                ? viewerSummary.live_open_blocker
+                : (viewerOptions.live_open_blocker ? viewerOptions.live_open_blocker : ({}))
         )
     readonly property string viewerTransportReleaseReason: String(
         viewerSummary.live_transport_release_reason
@@ -116,7 +119,7 @@ Item {
         || Boolean(viewerOptions.rerun_required)
         || Boolean(viewerLiveOpenBlocker.rerun_required)
     readonly property string viewerLiveMode: {
-        var liveMode = String(surface.viewerOptions.live_mode || surface.viewerSessionState.live_mode || "");
+        var liveMode = String(surface.viewerSessionModel.live_mode || surface.viewerOptions.live_mode || "");
         if (liveMode.length > 0)
             return liveMode;
         if (surface.viewerPhase === "open")
@@ -126,7 +129,7 @@ Item {
         return surface.proxySurfaceRequested ? "proxy" : "reserved";
     }
     readonly property string viewerLastError: {
-        var sessionError = String(surface.viewerSessionState.last_error || "");
+        var sessionError = String(surface.viewerSessionModel.last_error || "");
         if (sessionError.length > 0)
             return sessionError;
         if (surface.viewerBridgeAvailable)
@@ -140,12 +143,12 @@ Item {
     )
     readonly property string viewerSetLabel: String(viewerSummary.set_label || viewerSummary.time_label || "")
     readonly property string viewerInvalidatedReason: String(
-        viewerSessionState.invalidated_reason
+        viewerSessionModel.invalidated_reason
         || viewerSummary.invalidated_reason
         || ""
     )
     readonly property string viewerCloseReason: String(
-        viewerSessionState.close_reason
+        viewerSessionModel.close_reason
         || viewerSummary.close_reason
         || ""
     )

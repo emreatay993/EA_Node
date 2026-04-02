@@ -9,6 +9,7 @@ from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
+from ea_node_editor.execution.viewer_session_service import VIEWER_SESSION_MODEL_KEY
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
     EmbeddedViewerOverlayManager,
     EmbeddedViewerOverlaySpec,
@@ -26,17 +27,6 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
 _OverlayKey = tuple[str, str]
-_VIEWER_EVENT_TYPES = frozenset(
-    {
-        "viewer_session_opened",
-        "viewer_session_updated",
-        "viewer_data_materialized",
-        "viewer_session_closed",
-        "viewer_session_failed",
-    }
-)
-
-
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
@@ -77,6 +67,11 @@ def _playback_state_from_projection(
         "state": playback_state or "paused",
         "step_index": step_index,
     }
+
+
+def _projected_session_model(projected_state: Mapping[str, Any]) -> dict[str, Any]:
+    session_model = _mapping(projected_state.get(VIEWER_SESSION_MODEL_KEY))
+    return session_model if session_model else _mapping(projected_state)
 
 
 @dataclass(slots=True, frozen=True)
@@ -167,11 +162,9 @@ class ViewerHostService(QObject):
         overlay_manager: EmbeddedViewerOverlayManager | None = None,
     ) -> None:
         super().__init__(parent)
-        self._shell_window = shell_window
         self._viewer_session_bridge = viewer_session_bridge
         self._overlay_manager = overlay_manager
         self._binder_registry = ViewerWidgetBinderRegistry()
-        self._authoritative_sessions: dict[_OverlayKey, _ViewerHostSessionSnapshot] = {}
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
         self._last_error = ""
         self._sync_queued = False
@@ -305,7 +298,6 @@ class ViewerHostService(QObject):
         self._schedule_sync()
 
     def reset(self, *, reason: str = "") -> None:
-        self._authoritative_sessions.clear()
         self._release_all_bindings(reason=reason or "reset")
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
@@ -316,7 +308,6 @@ class ViewerHostService(QObject):
     def _connect_signals(self) -> None:
         self._connect_signal(self._viewer_session_bridge, "sessions_changed", self._schedule_sync)
         self._connect_signal(self._viewer_session_bridge, "active_workspace_changed", self._schedule_sync)
-        self._connect_signal(self._shell_window, "execution_event", self._handle_execution_event)
 
     @staticmethod
     def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
@@ -498,60 +489,55 @@ class ViewerHostService(QObject):
         self,
         projected_state: Mapping[str, Any],
     ) -> _ViewerHostSessionSnapshot | None:
-        workspace_id = _string(projected_state.get("workspace_id"))
-        node_id = _string(projected_state.get("node_id"))
+        session_model = _projected_session_model(projected_state)
+        workspace_id = _string(session_model.get("workspace_id"))
+        node_id = _string(session_model.get("node_id"))
         if not workspace_id or not node_id:
             return None
-        key = (workspace_id, node_id)
-        authoritative = self._authoritative_sessions.get(key)
-        summary = copy.deepcopy(authoritative.summary) if authoritative is not None else {}
-        summary.update(_mapping(projected_state.get("summary")))
-        options = copy.deepcopy(authoritative.options) if authoritative is not None else {}
-        options.update(_mapping(projected_state.get("options")))
-        data_refs = copy.deepcopy(authoritative.data_refs) if authoritative is not None else {}
-        data_refs.update(_mapping(projected_state.get("data_refs")))
-        transport = copy.deepcopy(authoritative.transport) if authoritative is not None else {}
-        live_open_blocker = _mapping(options.get("live_open_blocker"))
-        if not live_open_blocker:
-            live_open_blocker = _mapping(summary.get("live_open_blocker"))
-        if not live_open_blocker and authoritative is not None:
-            live_open_blocker = copy.deepcopy(authoritative.live_open_blocker)
-        camera_state = _mapping(projected_state.get("camera_state"))
+        summary = _mapping(session_model.get("summary"))
+        options = _mapping(session_model.get("options"))
+        data_refs = _mapping(session_model.get("data_refs"))
+        transport = _mapping(session_model.get("transport"))
+        live_open_blocker = (
+            _mapping(session_model.get("live_open_blocker"))
+            or _mapping(options.get("live_open_blocker"))
+            or _mapping(summary.get("live_open_blocker"))
+        )
+        camera_state = _mapping(session_model.get("camera_state"))
         if not camera_state:
             camera_state = _mapping(summary.get("camera_state") or summary.get("camera"))
-        if not camera_state and authoritative is not None:
-            camera_state = copy.deepcopy(authoritative.camera_state)
-        playback_state = _playback_state_from_projection(
-            projected_state,
-            options,
-            authoritative.playback_state if authoritative is not None else {},
-        )
+        playback_state = _mapping(session_model.get("playback"))
+        if not playback_state:
+            playback_state = _playback_state_from_projection(session_model, options, {})
         backend_id = _string(
-            options.get("backend_id")
+            session_model.get("backend_id")
+            or options.get("backend_id")
             or summary.get("backend_id")
             or transport.get("backend_id")
-            or (authoritative.backend_id if authoritative is not None else "")
         )
         if not backend_id:
             return None
-        session_id = _string(projected_state.get("session_id") or (authoritative.session_id if authoritative is not None else ""))
+        session_id = _string(session_model.get("session_id"))
         transport_revision = _coerce_int(
-            options.get("transport_revision", summary.get("transport_revision", authoritative.transport_revision if authoritative is not None else 0)),
+            session_model.get(
+                "transport_revision",
+                options.get("transport_revision", summary.get("transport_revision", 0)),
+            ),
             default=0,
         )
         live_open_status = _string(
-            options.get("live_open_status")
+            session_model.get("live_open_status")
+            or options.get("live_open_status")
             or summary.get("live_open_status")
-            or (authoritative.live_open_status if authoritative is not None else "")
         )
         return _ViewerHostSessionSnapshot(
             workspace_id=workspace_id,
             node_id=node_id,
             session_id=session_id,
             backend_id=backend_id,
-            phase=_string(projected_state.get("phase")),
-            cache_state=_string(projected_state.get("cache_state") or summary.get("cache_state") or options.get("cache_state")),
-            live_mode=_string(options.get("live_mode")),
+            phase=_string(session_model.get("phase")),
+            cache_state=_string(session_model.get("cache_state") or summary.get("cache_state") or options.get("cache_state")),
+            live_mode=_string(session_model.get("live_mode") or options.get("live_mode")),
             transport_revision=transport_revision,
             live_open_status=live_open_status,
             live_open_blocker=live_open_blocker,
@@ -563,61 +549,24 @@ class ViewerHostService(QObject):
             options=options,
         )
 
-    def _handle_execution_event(self, event: dict[str, Any]) -> None:
-        event_type = _string(event.get("type"))
-        if event_type not in _VIEWER_EVENT_TYPES:
-            return
-        workspace_id = _string(event.get("workspace_id"))
-        node_id = _string(event.get("node_id"))
-        if not workspace_id or not node_id:
-            return
-        key = (workspace_id, node_id)
-        if event_type in {"viewer_session_closed", "viewer_session_failed"}:
-            self._authoritative_sessions.pop(key, None)
-            if event_type == "viewer_session_failed":
-                self._set_last_error(_string(event.get("error")))
-            self._schedule_sync()
-            return
-
-        summary = _mapping(event.get("summary"))
-        options = _mapping(event.get("options"))
-        authoritative = _ViewerHostSessionSnapshot(
-            workspace_id=workspace_id,
-            node_id=node_id,
-            session_id=_string(event.get("session_id")),
-            backend_id=_string(event.get("backend_id") or options.get("backend_id") or summary.get("backend_id")),
-            phase="open",
-            cache_state=_string(summary.get("cache_state") or options.get("cache_state")),
-            live_mode=_string(options.get("live_mode")),
-            transport_revision=_coerce_int(event.get("transport_revision"), default=0),
-            live_open_status=_string(event.get("live_open_status")),
-            live_open_blocker=_mapping(event.get("live_open_blocker")),
-            data_refs=_mapping(event.get("data_refs")),
-            transport=_mapping(event.get("transport")),
-            camera_state=_mapping(event.get("camera_state")),
-            playback_state=_mapping(event.get("playback_state")),
-            summary=summary,
-            options=options,
-        )
-        self._authoritative_sessions[key] = authoritative
-        self._schedule_sync()
-
     @staticmethod
     def _should_host_overlay(projected_state: Mapping[str, Any]) -> bool:
-        if _string(projected_state.get("phase")) != "open":
+        session_model = _projected_session_model(projected_state)
+        if _string(session_model.get("phase")) != "open":
             return False
-        options = _mapping(projected_state.get("options"))
-        live_mode = _string(options.get("live_mode", projected_state.get("live_mode")))
+        options = _mapping(session_model.get("options"))
+        live_mode = _string(session_model.get("live_mode") or options.get("live_mode"))
         if live_mode != "full":
             return False
         live_open_status = _string(
-            options.get("live_open_status")
-            or _mapping(projected_state.get("summary")).get("live_open_status")
+            session_model.get("live_open_status")
+            or options.get("live_open_status")
+            or _mapping(session_model.get("summary")).get("live_open_status")
         )
         cache_state = _string(
-            projected_state.get("cache_state")
+            session_model.get("cache_state")
             or options.get("cache_state")
-            or _mapping(projected_state.get("summary")).get("cache_state")
+            or _mapping(session_model.get("summary")).get("cache_state")
         )
         return live_open_status == "ready" or cache_state == "live_ready"
 

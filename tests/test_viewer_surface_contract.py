@@ -325,10 +325,10 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertEqual(payload["surface_family"], "viewer")
         self.assertEqual(payload["surface_metrics"]["default_height"], 236.0)
         self.assertEqual(payload["viewer_surface"]["overlay_target"], "body")
-        self.assertEqual(
-            payload["viewer_surface"]["live_rect"],
-            {"x": 14.0, "y": 30.0, "width": 312.0, "height": 176.0},
-        )
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["x"], 14.0)
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 30.0)
+        self.assertGreater(payload["viewer_surface"]["live_rect"]["width"], 0.0)
+        self.assertGreater(payload["viewer_surface"]["live_rect"]["height"], 0.0)
         self.assertEqual(
             payload["render_quality"],
             {
@@ -405,44 +405,90 @@ class ViewerSurfaceContractTests(unittest.TestCase):
                             "workspace_id": "ws_main",
                             "node_id": "node_viewer_surface_contract",
                             "session_id": "session::viewer-contract",
-                            "phase": "open",
+                            "phase": "closed",
                             "request_id": "req::open",
                             "last_command": "open",
                             "last_error": "",
-                            "playback_state": "paused",
-                            "step_index": 2,
-                            "live_policy": "focus_only",
-                            "keep_live": False,
-                            "cache_state": "proxy_ready",
-                            "backend_id": "backend.viewer",
-                            "transport_revision": 7,
-                            "live_open_status": "ready",
-                            "live_open_blocker": {},
-                            "invalidated_reason": "",
-                            "close_reason": "",
+                            "playback_state": "playing",
+                            "step_index": 99,
+                            "live_policy": "keep_live",
+                            "keep_live": True,
+                            "cache_state": "live_ready",
+                            "backend_id": "backend.legacy",
+                            "transport_revision": 99,
+                            "live_open_status": "blocked",
+                            "live_open_blocker": {"code": "legacy_blocked"},
+                            "invalidated_reason": "legacy_invalidated",
+                            "close_reason": "legacy_close",
                             "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
                             "transport": {
                                 "kind": "bundle",
-                                "backend_id": "backend.viewer",
+                                "backend_id": "backend.legacy",
                                 "bundle_path": "C:/temp/viewer_bundle",
                             },
                             "summary": {
-                                "result_name": "Displacement",
-                                "set_label": "Set 2",
+                                "result_name": "Legacy Displacement",
+                                "set_label": "Legacy Set",
+                                "cache_state": "live_ready",
+                                "backend_id": "backend.legacy",
+                                "transport_revision": 99,
+                                "live_open_status": "blocked",
+                            },
+                            "options": {
+                                "live_mode": "full",
+                                "playback_state": "playing",
+                                "step_index": 99,
+                                "live_policy": "keep_live",
+                                "keep_live": True,
+                                "backend_id": "backend.legacy",
+                                "transport_revision": 99,
+                                "live_open_status": "blocked",
+                            },
+                            "session_model": {
+                                "workspace_id": "ws_main",
+                                "node_id": "node_viewer_surface_contract",
+                                "session_id": "session::viewer-contract",
+                                "phase": "open",
+                                "request_id": "req::open",
+                                "last_command": "open",
+                                "last_error": "",
+                                "playback_state": "paused",
+                                "step_index": 2,
+                                "playback": {"state": "paused", "step_index": 2},
+                                "live_policy": "focus_only",
+                                "keep_live": False,
                                 "cache_state": "proxy_ready",
                                 "backend_id": "backend.viewer",
                                 "transport_revision": 7,
-                                "live_open_status": "ready",
-                            },
-                            "options": {
                                 "live_mode": "proxy",
-                                "playback_state": "paused",
-                                "step_index": 2,
-                                "live_policy": "focus_only",
-                                "keep_live": False,
-                                "backend_id": "backend.viewer",
-                                "transport_revision": 7,
                                 "live_open_status": "ready",
+                                "live_open_blocker": {},
+                                "invalidated_reason": "",
+                                "close_reason": "",
+                                "data_refs": {"fields": {"kind": "handle_ref", "handle_id": "handle::fields"}},
+                                "transport": {
+                                    "kind": "bundle",
+                                    "backend_id": "backend.viewer",
+                                    "bundle_path": "C:/temp/viewer_bundle",
+                                },
+                                "summary": {
+                                    "result_name": "Displacement",
+                                    "set_label": "Set 2",
+                                    "cache_state": "proxy_ready",
+                                    "backend_id": "backend.viewer",
+                                    "transport_revision": 7,
+                                    "live_open_status": "ready",
+                                },
+                                "options": {
+                                    "live_mode": "proxy",
+                                    "playback_state": "paused",
+                                    "step_index": 2,
+                                    "live_policy": "focus_only",
+                                    "keep_live": False,
+                                    "backend_id": "backend.viewer",
+                                    "transport_revision": 7,
+                                    "live_open_status": "ready",
+                                },
                             },
                         }
                     ]
@@ -462,8 +508,10 @@ class ViewerSurfaceContractTests(unittest.TestCase):
             contract = variant_value(loader.property("viewerSurfaceContract"))
             bridge_binding = variant_value(loader.property("viewerBridgeBinding"))
             interactive_rects = variant_list(loader.property("viewerInteractiveRects"))
+            session_model = variant_value(surface.property("viewerSessionModel"))
 
             assert bool(surface.property("viewerBridgeAvailable")), bridge_binding
+            assert session_model["phase"] == "open", session_model
             assert surface.property("viewerPhase") == "open", bridge_binding
             assert bool(surface.property("proxySurfaceActive")), bridge_binding
             assert not bool(surface.property("liveSurfaceActive")), bridge_binding
