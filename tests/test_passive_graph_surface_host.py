@@ -1031,14 +1031,20 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             ]
 
             for label, payload, committed_title in scenarios:
+                def scenario_check(condition, step):
+                    assert condition, f"{label}: {step}"
+
                 host = create_component(graph_node_host_qml_path, {"nodeData": payload})
                 window = attach_host_to_window(host, width=640, height=480)
                 try:
                     title_item = host.findChild(QObject, "graphNodeTitle")
                     editor = host.findChild(QObject, "graphNodeTitleEditor")
-                    assert title_item is not None, label
-                    assert editor is not None, label
-                    assert bool(host.property("sharedHeaderTitleEditable")), label
+                    scenario_check(title_item is not None, "title item missing")
+                    scenario_check(editor is not None, "title editor missing")
+                    scenario_check(
+                        bool(host.property("sharedHeaderTitleEditable")),
+                        "shared header title editing disabled",
+                    )
 
                     events = host_pointer_events(host)
                     interactions = []
@@ -1051,14 +1057,23 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     title_point = item_scene_point(title_item)
                     body_point = host_scene_point(
                         host,
-                        float(host.property("width")) * 0.5,
-                        float(host.property("height")) * 0.78,
+                        24.0,
+                        44.0,
                     )
 
                     mouse_click(window, title_point)
-                    assert events["clicked"] == [(payload["node_id"], False)], label
-                    assert events["opened"] == [], label
-                    assert not bool(editor.property("visible")), label
+                    scenario_check(
+                        events["clicked"] == [(payload["node_id"], False)],
+                        f"single-click title routed unexpectedly: clicked={events['clicked']!r}",
+                    )
+                    scenario_check(
+                        events["opened"] == [],
+                        f"single-click title unexpectedly opened node: opened={events['opened']!r}",
+                    )
+                    scenario_check(
+                        not bool(editor.property("visible")),
+                        "single-click title unexpectedly opened editor",
+                    )
 
                     events["clicked"].clear()
                     events["opened"].clear()
@@ -1066,11 +1081,23 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
                     mouse_double_click(window, title_point)
                     settle_events(5)
-                    assert bool(editor.property("visible")), label
-                    assert str(editor.property("selectedText") or "") == "", label
-                    assert int(editor.property("cursorPosition")) == len(str(payload["title"])), label
-                    assert interactions == [payload["node_id"]], label
-                    assert events["opened"] == [], label
+                    scenario_check(bool(editor.property("visible")), "double-click title did not open editor")
+                    scenario_check(
+                        str(editor.property("selectedText") or "") == "",
+                        f"editor selected unexpected title text: {editor.property('selectedText')!r}",
+                    )
+                    scenario_check(
+                        int(editor.property("cursorPosition")) == len(str(payload["title"])),
+                        f"cursor positioned incorrectly: cursor={editor.property('cursorPosition')!r}",
+                    )
+                    scenario_check(
+                        interactions == [payload["node_id"]],
+                        f"title edit interaction event mismatch: {interactions!r}",
+                    )
+                    scenario_check(
+                        events["opened"] == [],
+                        f"double-click title unexpectedly opened node: opened={events['opened']!r}",
+                    )
 
                     editor.setProperty("text", f" {committed_title} ")
                     app.processEvents()
@@ -1083,8 +1110,11 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                         QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
                     )
                     settle_events(5)
-                    assert committed == [(payload["node_id"], "title", committed_title)], label
-                    assert not bool(editor.property("visible")), label
+                    scenario_check(
+                        committed == [(payload["node_id"], "title", committed_title)],
+                        f"title commit mismatch: {committed!r}",
+                    )
+                    scenario_check(not bool(editor.property("visible")), "editor stayed visible after commit")
 
                     committed.clear()
                     events["clicked"].clear()
@@ -1093,7 +1123,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
 
                     mouse_double_click(window, title_point)
                     settle_events(5)
-                    assert bool(editor.property("visible")), label
+                    scenario_check(bool(editor.property("visible")), "second title double-click did not reopen editor")
 
                     events["clicked"].clear()
                     events["opened"].clear()
@@ -1103,9 +1133,18 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                     mouse_double_click(window, editor_point)
                     mouse_click(window, editor_point, Qt.MouseButton.RightButton)
                     settle_events(5)
-                    assert events["clicked"] == [], label
-                    assert events["opened"] == [], label
-                    assert events["contexts"] == [], label
+                    scenario_check(
+                        events["clicked"] == [],
+                        f"editor click leaked node clicks: {events['clicked']!r}",
+                    )
+                    scenario_check(
+                        events["opened"] == [],
+                        f"editor click leaked node opens: {events['opened']!r}",
+                    )
+                    scenario_check(
+                        events["contexts"] == [],
+                        f"editor click leaked node context menu: {events['contexts']!r}",
+                    )
 
                     app.sendEvent(
                         editor,
@@ -1116,15 +1155,18 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
                         QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier),
                     )
                     settle_events(5)
-                    assert committed == [], label
-                    assert not bool(editor.property("visible")), label
+                    scenario_check(committed == [], f"escape unexpectedly committed title: {committed!r}")
+                    scenario_check(not bool(editor.property("visible")), "editor stayed visible after escape")
 
                     events["clicked"].clear()
                     events["opened"].clear()
                     events["contexts"].clear()
                     mouse_double_click(window, body_point)
                     settle_events(5)
-                    assert events["opened"] == [payload["node_id"]], label
+                    scenario_check(
+                        events["opened"] == [payload["node_id"]],
+                        f"body double-click did not open node: {events['opened']!r}",
+                    )
                 finally:
                     dispose_host_window(host, window)
             """,

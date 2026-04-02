@@ -24,17 +24,29 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
             mutation_service_text,
         )
         self.assertNotIn("from ea_node_editor.graph.transforms import", mutation_service_text)
-        self.assertIn("from ea_node_editor.graph.boundary_adapters import clamp_pdf_page_number, node_size", mutation_service_text)
+        self.assertIn(
+            "from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters",
+            mutation_service_text,
+        )
+        self.assertIn(
+            "boundary_adapters: GraphBoundaryAdapters = field(default_factory=fallback_graph_boundary_adapters)",
+            mutation_service_text,
+        )
+        self.assertIn("self.boundary_adapters.node_size(", mutation_service_text)
+        self.assertIn("self.boundary_adapters.clamp_pdf_page_number(", mutation_service_text)
 
-    def test_scene_bridge_installs_ui_boundary_implementations(self) -> None:
+    def test_scene_bridge_injects_ui_boundary_implementations_without_global_installation(self) -> None:
         bridge_text = (REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(
             encoding="utf-8"
         )
 
-        self.assertIn("from ea_node_editor.graph.boundary_adapters import set_graph_boundary_adapters", bridge_text)
+        self.assertIn("from ea_node_editor.graph.boundary_adapters import build_graph_boundary_adapters", bridge_text)
         self.assertIn("from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number", bridge_text)
         self.assertIn("from ea_node_editor.ui_qml.edge_routing import node_size", bridge_text)
-        self.assertIn("set_graph_boundary_adapters(", bridge_text)
+        self.assertNotIn("set_graph_boundary_adapters(", bridge_text)
+        self.assertIn("self._boundary_adapters = build_graph_boundary_adapters(", bridge_text)
+        self.assertIn("self._payload_builder = GraphScenePayloadBuilder(boundary_adapters=self._boundary_adapters)", bridge_text)
+        self.assertIn("boundary_adapters=self._boundary_adapters", bridge_text)
 
     def test_graph_model_externalizes_workspace_persistence_state(self) -> None:
         model_text = (REPO_ROOT / "ea_node_editor" / "graph" / "model.py").read_text(encoding="utf-8")

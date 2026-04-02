@@ -8,6 +8,7 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
     CommentBackdropMembership,
     compute_comment_backdrop_membership,
 )
+from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.effective_ports import effective_ports, ordered_ports_for_display
 from ea_node_editor.graph.hierarchy import is_node_in_scope, node_scope_path, scope_edges, scope_node_ids
@@ -26,8 +27,7 @@ from ea_node_editor.ui.graph_theme import (
     resolve_graph_theme,
 )
 from ea_node_editor.ui.support.node_presentation import build_inline_property_items
-from ea_node_editor.ui.pdf_preview_provider import clamp_pdf_page_number
-from ea_node_editor.ui_qml.edge_routing import build_edge_payload, node_size
+from ea_node_editor.ui_qml.edge_routing import build_edge_payload
 from ea_node_editor.ui_qml.graph_surface_metrics import (
     node_surface_metrics,
     viewer_surface_contract_payload,
@@ -46,6 +46,9 @@ class _GraphSceneThemeResolver:
 
 
 class _GraphSceneNodePayloadFactory:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters) -> None:
+        self._boundary_adapters = boundary_adapters
+
     def build_node_payload(
         self,
         *,
@@ -62,7 +65,7 @@ class _GraphSceneNodePayloadFactory:
             workspace.nodes,
             show_port_labels=show_port_labels,
         )
-        width, height = node_size(
+        width, height = self._boundary_adapters.node_size(
             node,
             spec,
             workspace.nodes,
@@ -124,7 +127,7 @@ class _GraphSceneNodePayloadFactory:
             return properties
         if str(spec.surface_variant or "").strip() != "pdf_panel":
             return properties
-        resolved_page_number = clamp_pdf_page_number(
+        resolved_page_number = self._boundary_adapters.clamp_pdf_page_number(
             str(properties.get("source_path", "") or ""),
             properties.get("page_number"),
         )
@@ -140,7 +143,7 @@ class _GraphSceneNodePayloadFactory:
         workspace: WorkspaceData,
         show_port_labels: bool = True,
     ) -> dict[str, float | str]:
-        width, height = node_size(
+        width, height = self._boundary_adapters.node_size(
             node,
             spec,
             workspace.nodes,
@@ -208,8 +211,8 @@ class _GraphSceneNodePayloadFactory:
     def is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
         return str(spec.surface_family or "").strip() == "comment_backdrop"
 
-    @staticmethod
     def membership_candidate_size(
+        self,
         *,
         node,
         spec: NodeTypeSpec,
@@ -218,7 +221,12 @@ class _GraphSceneNodePayloadFactory:
         show_port_labels: bool = True,
     ) -> tuple[float, float]:
         if not is_comment_backdrop:
-            return node_size(node, spec, workspace.nodes, show_port_labels=show_port_labels)
+            return self._boundary_adapters.node_size(
+                node,
+                spec,
+                workspace.nodes,
+                show_port_labels=show_port_labels,
+            )
         surface_metrics = node_surface_metrics(
             node,
             spec,
@@ -393,9 +401,10 @@ class _GraphSceneBackdropPartitioner:
 
 
 class GraphScenePayloadBuilder:
-    def __init__(self) -> None:
+    def __init__(self, boundary_adapters: GraphBoundaryAdapters | None = None) -> None:
+        self.boundary_adapters = boundary_adapters or fallback_graph_boundary_adapters()
         self._theme_resolver = _GraphSceneThemeResolver()
-        self._node_payload_factory = _GraphSceneNodePayloadFactory()
+        self._node_payload_factory = _GraphSceneNodePayloadFactory(self.boundary_adapters)
         self._backdrop_partitioner = _GraphSceneBackdropPartitioner(self._node_payload_factory)
 
     def edge_item(

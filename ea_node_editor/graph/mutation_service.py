@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Sequence
 
 from ea_node_editor.graph.comment_backdrop_geometry import (
@@ -11,7 +11,7 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
     CommentBackdropWrapResult,
     build_comment_backdrop_wrap_bounds,
 )
-from ea_node_editor.graph.boundary_adapters import clamp_pdf_page_number, node_size
+from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import normalize_scope_path, node_scope_path, scope_parent_id
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
 from ea_node_editor.graph.transform_fragment_ops import _insert_graph_fragment_operation
@@ -33,6 +33,7 @@ class WorkspaceMutationService:
     model: GraphModel
     workspace_id: str
     registry: NodeRegistry | None = None
+    boundary_adapters: GraphBoundaryAdapters = field(default_factory=fallback_graph_boundary_adapters)
 
     _PDF_PANEL_PROPERTY_KEYS = frozenset({"page_number", "source_path"})
 
@@ -362,7 +363,7 @@ class WorkspaceMutationService:
             if node_scope_path(workspace, node_id) != normalized_scope:
                 return None
             spec = self.registry.get_spec(node.type_id)
-            width, height = node_size(node, spec, workspace.nodes)
+            width, height = self.boundary_adapters.node_size(node, spec, workspace.nodes)
             selected_candidates.append(
                 CommentBackdropCandidate(
                     node_id=node_id,
@@ -442,7 +443,7 @@ class WorkspaceMutationService:
             return False
         if str(spec.surface_variant or "").strip() != "pdf_panel":
             return False
-        resolved_page_number = clamp_pdf_page_number(
+        resolved_page_number = self.boundary_adapters.clamp_pdf_page_number(
             str(node.properties.get("source_path", "") or ""),
             node.properties.get("page_number"),
         )

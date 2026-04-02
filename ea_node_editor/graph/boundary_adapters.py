@@ -48,49 +48,44 @@ class GraphBoundaryAdapters:
     node_size_resolver: NodeSizeResolver
     clamp_pdf_page_number_resolver: PdfPageNumberResolver
 
+    def node_size(
+        self,
+        node: NodeInstance,
+        spec: NodeTypeSpec,
+        workspace_nodes: Mapping[str, NodeInstance] | None = None,
+        *,
+        show_port_labels: bool = True,
+    ) -> tuple[float, float]:
+        return self.node_size_resolver(
+            node,
+            spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+        )
 
-_GRAPH_BOUNDARY_ADAPTERS = GraphBoundaryAdapters(
-    node_size_resolver=_fallback_node_size,
-    clamp_pdf_page_number_resolver=_fallback_clamp_pdf_page_number,
-)
+    def clamp_pdf_page_number(self, source: str, page_number: Any) -> int | None:
+        return self.clamp_pdf_page_number_resolver(source, page_number)
 
 
-def set_graph_boundary_adapters(
+def build_graph_boundary_adapters(
     *,
     node_size_resolver: NodeSizeResolver | None = None,
     clamp_pdf_page_number_resolver: PdfPageNumberResolver | None = None,
-) -> None:
-    global _GRAPH_BOUNDARY_ADAPTERS
-    _GRAPH_BOUNDARY_ADAPTERS = GraphBoundaryAdapters(
+) -> GraphBoundaryAdapters:
+    return GraphBoundaryAdapters(
         node_size_resolver=node_size_resolver or _fallback_node_size,
         clamp_pdf_page_number_resolver=clamp_pdf_page_number_resolver or _fallback_clamp_pdf_page_number,
     )
 
 
-def node_size(
-    node: NodeInstance,
-    spec: NodeTypeSpec,
-    workspace_nodes: Mapping[str, NodeInstance] | None = None,
-    *,
-    show_port_labels: bool = True,
-) -> tuple[float, float]:
-    return _GRAPH_BOUNDARY_ADAPTERS.node_size_resolver(
-        node,
-        spec,
-        workspace_nodes,
-        show_port_labels=show_port_labels,
-    )
-
-
-def clamp_pdf_page_number(source: str, page_number: Any) -> int | None:
-    return _GRAPH_BOUNDARY_ADAPTERS.clamp_pdf_page_number_resolver(source, page_number)
+def fallback_graph_boundary_adapters() -> GraphBoundaryAdapters:
+    return build_graph_boundary_adapters()
 
 
 __all__ = [
     "GraphBoundaryAdapters",
     "NodeSizeResolver",
     "PdfPageNumberResolver",
-    "clamp_pdf_page_number",
-    "node_size",
-    "set_graph_boundary_adapters",
+    "build_graph_boundary_adapters",
+    "fallback_graph_boundary_adapters",
 ]

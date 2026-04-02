@@ -10,7 +10,7 @@ from ea_node_editor.graph.hierarchy import (
     ScopePath,
     scope_breadcrumb_payload,
 )
-from ea_node_editor.graph.boundary_adapters import set_graph_boundary_adapters
+from ea_node_editor.graph.boundary_adapters import build_graph_boundary_adapters
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -280,14 +280,21 @@ class GraphSceneBridge(QObject):
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
-        self._install_graph_boundary_adapters()
+        self._boundary_adapters = build_graph_boundary_adapters(
+            node_size_resolver=node_size,
+            clamp_pdf_page_number_resolver=clamp_pdf_page_number,
+        )
         self._model: GraphModel | None = None
         self._registry: NodeRegistry | None = None
         self._history: RuntimeGraphHistory | None = None
-        self._payload_builder = GraphScenePayloadBuilder()
+        self._payload_builder = GraphScenePayloadBuilder(boundary_adapters=self._boundary_adapters)
         self._scene_context = _GraphSceneContext(self, payload_builder=self._payload_builder)
         self._scope_selection = GraphSceneScopeSelection(self._scene_context)
-        self._mutation_history = GraphSceneMutationHistory(self._scene_context, self._scope_selection)
+        self._authoring_boundary = GraphSceneMutationHistory(
+            self._scene_context,
+            self._scope_selection,
+            boundary_adapters=self._boundary_adapters,
+        )
         self._workspace_id = ""
         self._scope_path: ScopePath = ()
         self._selected_node_ids: list[str] = []
@@ -295,12 +302,6 @@ class GraphSceneBridge(QObject):
         self._payload_cache = _GraphScenePayloadCache()
         self._graph_theme_bridge: GraphThemeBridge | None = None
         self._pending_surface_action = _GraphScenePendingSurfaceAction()
-
-    def _install_graph_boundary_adapters(self) -> None:
-        set_graph_boundary_adapters(
-            node_size_resolver=node_size,
-            clamp_pdf_page_number_resolver=clamp_pdf_page_number,
-        )
 
     def _graphics_preference_source(self) -> object | None:
         host = self.parent()
@@ -461,7 +462,6 @@ class GraphSceneBridge(QObject):
         self._scene_context.rebuild_models()
 
     def set_workspace(self, model: GraphModel, registry: NodeRegistry, workspace_id: str) -> None:
-        self._install_graph_boundary_adapters()
         self._model = model
         self._registry = registry
         self._scope_selection.set_workspace(workspace_id)
@@ -535,14 +535,14 @@ class GraphSceneBridge(QObject):
 
     @pyqtSlot(str, float, float, result=str)
     def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
-        return self._mutation_history.add_node_from_type(type_id, x, y)
+        return self._authoring_boundary.add_node_from_type(type_id, x, y)
 
     def add_subnode_shell_pin(self, shell_node_id: str, pin_type_id: str) -> str:
-        return self._mutation_history.add_subnode_shell_pin(shell_node_id, pin_type_id)
+        return self._authoring_boundary.add_subnode_shell_pin(shell_node_id, pin_type_id)
 
     @pyqtSlot(str, str, str, str, result=bool)
     def are_ports_compatible(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> bool:
-        return self._mutation_history.are_ports_compatible(
+        return self._authoring_boundary.are_ports_compatible(
             source_node_id,
             source_port,
             target_node_id,
@@ -551,113 +551,113 @@ class GraphSceneBridge(QObject):
 
     @pyqtSlot(str, str, result=bool)
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
-        return self._mutation_history.are_port_kinds_compatible(source_kind, target_kind)
+        return self._authoring_boundary.are_port_kinds_compatible(source_kind, target_kind)
 
     @pyqtSlot(str, str, result=bool)
     def are_data_types_compatible(self, source_type: str, target_type: str) -> bool:
-        return self._mutation_history.are_data_types_compatible(source_type, target_type)
+        return self._authoring_boundary.are_data_types_compatible(source_type, target_type)
 
     def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, target_port: str) -> str:
-        return self._mutation_history.add_edge(source_node_id, source_port, target_node_id, target_port)
+        return self._authoring_boundary.add_edge(source_node_id, source_port, target_node_id, target_port)
 
     @pyqtSlot(str, str, result=str)
     def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
-        return self._mutation_history.connect_nodes(node_a_id, node_b_id)
+        return self._authoring_boundary.connect_nodes(node_a_id, node_b_id)
 
     def remove_edge(self, edge_id: str) -> None:
-        self._mutation_history.remove_edge(edge_id)
+        self._authoring_boundary.remove_edge(edge_id)
 
     def _remove_node(self, node_id: str, *, require_visible: bool) -> bool:
-        return self._mutation_history.remove_node_with_policy(node_id, require_visible=require_visible)
+        return self._authoring_boundary.remove_node_with_policy(node_id, require_visible=require_visible)
 
     def remove_node(self, node_id: str) -> None:
-        self._mutation_history.remove_node(node_id)
+        self._authoring_boundary.remove_node(node_id)
 
     def remove_workspace_node(self, node_id: str) -> bool:
-        return self._mutation_history.remove_workspace_node(node_id)
+        return self._authoring_boundary.remove_workspace_node(node_id)
 
     @pyqtSlot(str)
     def focus_node_slot(self, node_id: str) -> None:
         self.focus_node(node_id)
 
     def focus_node(self, node_id: str) -> QPointF | None:
-        return self._mutation_history.focus_node(node_id)
+        return self._authoring_boundary.focus_node(node_id)
 
     def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
-        self._mutation_history.set_node_collapsed(node_id, collapsed)
+        self._authoring_boundary.set_node_collapsed(node_id, collapsed)
 
     @pyqtSlot(str, str, str)
     def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
-        self._mutation_history.set_node_port_label(node_id, port_key, label)
+        self._authoring_boundary.set_node_port_label(node_id, port_key, label)
 
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: Any) -> None:
-        self._mutation_history.set_node_property(node_id, key, value)
+        self._authoring_boundary.set_node_property(node_id, key, value)
 
     @pyqtSlot(str, "QVariantMap", result=bool)
     def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
-        return self._mutation_history.set_node_properties(node_id, values)
+        return self._authoring_boundary.set_node_properties(node_id, values)
 
     @pyqtSlot("QVariant", result="QVariantMap")
     def normalize_node_visual_style(self, visual_style: Any) -> dict[str, Any]:
-        return self._mutation_history.normalize_node_visual_style(visual_style)
+        return self._authoring_boundary.normalize_node_visual_style(visual_style)
 
     @pyqtSlot(str, "QVariant")
     def set_node_visual_style(self, node_id: str, visual_style: Any) -> None:
-        self._mutation_history.set_node_visual_style(node_id, visual_style)
+        self._authoring_boundary.set_node_visual_style(node_id, visual_style)
 
     @pyqtSlot(str)
     def clear_node_visual_style(self, node_id: str) -> None:
-        self._mutation_history.clear_node_visual_style(node_id)
+        self._authoring_boundary.clear_node_visual_style(node_id)
 
     def set_node_title(self, node_id: str, title: str) -> None:
-        self._mutation_history.set_node_title(node_id, title)
+        self._authoring_boundary.set_node_title(node_id, title)
 
     @pyqtSlot("QVariant", result=str)
     def normalize_edge_label(self, label: Any) -> str:
-        return self._mutation_history.normalize_edge_label(label)
+        return self._authoring_boundary.normalize_edge_label(label)
 
     @pyqtSlot(str, "QVariant")
     def set_edge_label(self, edge_id: str, label: Any) -> None:
-        self._mutation_history.set_edge_label(edge_id, label)
+        self._authoring_boundary.set_edge_label(edge_id, label)
 
     @pyqtSlot(str)
     def clear_edge_label(self, edge_id: str) -> None:
-        self._mutation_history.clear_edge_label(edge_id)
+        self._authoring_boundary.clear_edge_label(edge_id)
 
     @pyqtSlot("QVariant", result="QVariantMap")
     def normalize_edge_visual_style(self, visual_style: Any) -> dict[str, Any]:
-        return self._mutation_history.normalize_edge_visual_style(visual_style)
+        return self._authoring_boundary.normalize_edge_visual_style(visual_style)
 
     @pyqtSlot(str, "QVariant")
     def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
-        self._mutation_history.set_edge_visual_style(edge_id, visual_style)
+        self._authoring_boundary.set_edge_visual_style(edge_id, visual_style)
 
     @pyqtSlot(str)
     def clear_edge_visual_style(self, edge_id: str) -> None:
-        self._mutation_history.clear_edge_visual_style(edge_id)
+        self._authoring_boundary.clear_edge_visual_style(edge_id)
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
-        self._mutation_history.set_exposed_port(node_id, key, exposed)
+        self._authoring_boundary.set_exposed_port(node_id, key, exposed)
 
     @pyqtSlot(str, float, float)
     def move_node(self, node_id: str, x: float, y: float) -> None:
-        self._mutation_history.move_node(node_id, x, y)
+        self._authoring_boundary.move_node(node_id, x, y)
 
     @pyqtSlot(str, float, float)
     def resize_node(self, node_id: str, width: float, height: float) -> None:
-        self._mutation_history.resize_node(node_id, width, height)
+        self._authoring_boundary.resize_node(node_id, width, height)
 
     @pyqtSlot(str, float, float, float, float)
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
-        self._mutation_history.set_node_geometry(node_id, x, y, width, height)
+        self._authoring_boundary.set_node_geometry(node_id, x, y, width, height)
 
     @pyqtSlot("QVariantList", float, float, result=bool)
     def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:
-        return self._mutation_history.move_nodes_by_delta(node_ids, dx, dy)
+        return self._authoring_boundary.move_nodes_by_delta(node_ids, dx, dy)
 
     def align_selected_nodes(self, alignment: str, *, snap_to_grid: bool = False, grid_size: float = _SNAP_GRID_SIZE) -> bool:
-        return self._mutation_history.align_selected_nodes(
+        return self._authoring_boundary.align_selected_nodes(
             alignment,
             snap_to_grid=snap_to_grid,
             grid_size=grid_size,
@@ -670,7 +670,7 @@ class GraphSceneBridge(QObject):
         snap_to_grid: bool = False,
         grid_size: float = _SNAP_GRID_SIZE,
     ) -> bool:
-        return self._mutation_history.distribute_selected_nodes(
+        return self._authoring_boundary.distribute_selected_nodes(
             orientation,
             snap_to_grid=snap_to_grid,
             grid_size=grid_size,
@@ -678,35 +678,35 @@ class GraphSceneBridge(QObject):
 
     @pyqtSlot("QVariantList", result=str)
     def wrap_node_ids_in_comment_backdrop(self, node_ids: list[Any]) -> str:
-        return self._mutation_history.wrap_nodes_in_comment_backdrop(node_ids)
+        return self._authoring_boundary.wrap_nodes_in_comment_backdrop(node_ids)
 
     @pyqtSlot(result=bool)
     def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
-        return self._mutation_history.wrap_selected_nodes_in_comment_backdrop()
+        return self._authoring_boundary.wrap_selected_nodes_in_comment_backdrop()
 
     @pyqtSlot(result=bool)
     def group_selected_nodes(self) -> bool:
-        return self._mutation_history.group_selected_nodes()
+        return self._authoring_boundary.group_selected_nodes()
 
     @pyqtSlot(result=bool)
     def ungroup_selected_subnode(self) -> bool:
-        return self._mutation_history.ungroup_selected_subnode()
+        return self._authoring_boundary.ungroup_selected_subnode()
 
     @pyqtSlot(result=bool)
     def duplicate_selected_subgraph(self) -> bool:
-        return self._mutation_history.duplicate_selected_subgraph()
+        return self._authoring_boundary.duplicate_selected_subgraph()
 
     def serialize_selected_subgraph_fragment(self) -> dict[str, Any] | None:
-        return self._mutation_history.serialize_selected_subgraph_fragment()
+        return self._authoring_boundary.serialize_selected_subgraph_fragment()
 
     def fragment_bounds_center(self, fragment_payload: Any) -> tuple[float, float] | None:
-        return self._mutation_history.fragment_bounds_center(fragment_payload)
+        return self._authoring_boundary.fragment_bounds_center(fragment_payload)
 
     def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center_y: float) -> bool:
-        return self._mutation_history.paste_subgraph_fragment(fragment_payload, center_x, center_y)
+        return self._authoring_boundary.paste_subgraph_fragment(fragment_payload, center_x, center_y)
 
     def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:
-        return self._mutation_history.delete_selected_graph_items(edge_ids)
+        return self._authoring_boundary.delete_selected_graph_items(edge_ids)
 
 
 __all__ = ["GraphSceneBridge"]
