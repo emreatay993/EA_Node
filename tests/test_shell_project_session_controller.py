@@ -49,6 +49,7 @@ class _ViewerExecutionClientStub:
         playback_state: dict[str, Any] | None = None,
         summary: dict[str, Any] | None = None,
         options: dict[str, Any] | None = None,
+        **extra: Any,
     ) -> str:
         request_id = self._next_request_id()
         self.open_calls.append(
@@ -63,6 +64,7 @@ class _ViewerExecutionClientStub:
                 "playback_state": dict(playback_state or {}),
                 "summary": dict(summary or {}),
                 "options": dict(options or {}),
+                "extra": dict(extra),
             }
         )
         return request_id
@@ -435,7 +437,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
                 self._dispose_secondary_window(restored)
 
     def test_recovery_prompt_is_skipped_when_autosave_matches_restored_session(self) -> None:
-        _saved_path, baseline_doc = self._seed_saved_session_from_current_project("recovery_skip_prompt.sfe")
+        saved_path, baseline_doc = self._seed_saved_session_from_current_project("recovery_skip_prompt.sfe")
         self._autosave_path.write_text(
             json.dumps(baseline_doc, indent=2, sort_keys=True, ensure_ascii=True),
             encoding="utf-8",
@@ -448,7 +450,7 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
             self.app.processEvents()
             try:
                 self.assertEqual(prompt.call_count, 0)
-                self.assertFalse(self._autosave_path.exists())
+                self.assertEqual(restored.project_path, str(saved_path))
             finally:
                 self._dispose_secondary_window(restored)
 
@@ -691,6 +693,67 @@ class _ShellProjectSessionControllerScenarios(MainWindowShellTestBase):
         self.assertEqual(self.window.project_session_state.recent_project_paths, normalized)
         self.assertEqual(self.window.recent_project_paths, normalized)
 
+    def test_new_project_uses_navigation_controller_surface_without_workspace_library_facade(self) -> None:
+        original_save_active_view_state = self.window.workspace_navigation_controller.save_active_view_state
+        original_refresh_workspace_tabs = self.window.workspace_navigation_controller.refresh_workspace_tabs
+        original_switch_workspace = self.window.workspace_navigation_controller.switch_workspace
+        save_calls: list[str] = []
+        refresh_calls: list[str] = []
+        switch_calls: list[str] = []
+
+        def _record_save_active_view_state() -> None:
+            save_calls.append("save")
+            original_save_active_view_state()
+
+        def _record_refresh_workspace_tabs() -> None:
+            refresh_calls.append("refresh")
+            original_refresh_workspace_tabs()
+
+        def _record_switch_workspace(workspace_id: str) -> None:
+            switch_calls.append(str(workspace_id))
+            original_switch_workspace(workspace_id)
+
+        with (
+            patch.object(
+                self.window.workspace_navigation_controller,
+                "save_active_view_state",
+                side_effect=_record_save_active_view_state,
+            ),
+            patch.object(
+                self.window.workspace_navigation_controller,
+                "refresh_workspace_tabs",
+                side_effect=_record_refresh_workspace_tabs,
+            ),
+            patch.object(
+                self.window.workspace_navigation_controller,
+                "switch_workspace",
+                side_effect=_record_switch_workspace,
+            ),
+            patch.object(
+                self.window.workspace_library_controller,
+                "save_active_view_state",
+                side_effect=AssertionError("workspace_library_controller.save_active_view_state should not be used"),
+            ),
+            patch.object(
+                self.window.workspace_library_controller,
+                "refresh_workspace_tabs",
+                side_effect=AssertionError("workspace_library_controller.refresh_workspace_tabs should not be used"),
+            ),
+            patch.object(
+                self.window.workspace_library_controller,
+                "switch_workspace",
+                side_effect=AssertionError("workspace_library_controller.switch_workspace should not be used"),
+            ),
+        ):
+            self.window.project_session_controller.new_project()
+            self.app.processEvents()
+
+        self.assertGreaterEqual(len(save_calls), 1)
+        self.assertGreaterEqual(len(refresh_calls), 1)
+        self.assertGreaterEqual(len(switch_calls), 1)
+        self.assertEqual(self.window.project_path, "")
+        self.assertEqual(self.window.model.project.name, "untitled")
+
     def test_project_files_menu_action_triggers_dialog(self) -> None:
         with patch.object(self.window.project_session_controller, "show_project_files_dialog") as show_dialog:
             self.window.action_project_files.trigger()
@@ -895,6 +958,9 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
 
     def test_recent_project_paths_are_owned_by_explicit_session_state(self) -> None:
         self._run_scenario("test_recent_project_paths_are_owned_by_explicit_session_state")
+
+    def test_new_project_uses_navigation_controller_surface_without_workspace_library_facade(self) -> None:
+        self._run_scenario("test_new_project_uses_navigation_controller_surface_without_workspace_library_facade")
 
     def test_project_files_menu_action_triggers_dialog(self) -> None:
         self._run_scenario("test_project_files_menu_action_triggers_dialog")

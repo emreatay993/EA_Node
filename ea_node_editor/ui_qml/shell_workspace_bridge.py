@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -57,6 +57,19 @@ class _ShellWorkspaceSource(Protocol):
     def request_create_workspace(self) -> None: ...
 
 
+class _ShellWindowWorkspaceSourceAdapter:
+    def __init__(self, shell_window: "ShellWindow") -> None:
+        self._shell_window = shell_window
+
+    @property
+    def _source(self) -> object:
+        presenter = getattr(self._shell_window, "shell_workspace_presenter", None)
+        return presenter if presenter is not None else self._shell_window
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._source, name)
+
+
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
@@ -69,7 +82,7 @@ def _resolve_workspace_source(
         return workspace_source
     if shell_window is None:
         raise TypeError("ShellWorkspaceBridge requires a shell window or explicit workspace source contract.")
-    return cast(_ShellWorkspaceSource, shell_window)
+    return _ShellWindowWorkspaceSourceAdapter(shell_window)
 
 
 class ShellWorkspaceBridge(QObject):

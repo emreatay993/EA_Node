@@ -7,8 +7,10 @@ from pathlib import Path
 from unittest import mock
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.ui.dialogs.project_files_dialog import ProjectFilesBrokenEntry
 from ea_node_editor.ui.shell.controllers.project_session_controller import ProjectSessionController
 from ea_node_editor.ui.shell.state import ShellProjectSessionState
+from ea_node_editor.workspace.manager import WorkspaceManager
 
 
 class _ScriptEditorStub:
@@ -42,12 +44,32 @@ class _ActionToggleStub:
 class _SceneStub:
     def __init__(self, selected_node_id: str = "") -> None:
         self._selected_node_id = selected_node_id
+        self.property_changes: list[tuple[str, str, object]] = []
 
     def selected_node_id(self) -> str:
         return self._selected_node_id
 
+    def set_node_property(self, node_id: str, key: str, value: object) -> None:
+        self.property_changes.append((node_id, key, value))
+
 
 class _WorkspaceLibraryControllerStub:
+    def __init__(self) -> None:
+        self.save_active_view_state_calls = 0
+        self.refresh_workspace_tabs_calls = 0
+        self.switch_workspace_calls: list[str] = []
+
+    def save_active_view_state(self) -> None:
+        self.save_active_view_state_calls += 1
+
+    def refresh_workspace_tabs(self) -> None:
+        self.refresh_workspace_tabs_calls += 1
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        self.switch_workspace_calls.append(str(workspace_id))
+
+
+class _WorkspaceNavigationControllerStub:
     def __init__(self) -> None:
         self.save_active_view_state_calls = 0
         self.refresh_workspace_tabs_calls = 0
@@ -132,6 +154,7 @@ class _ProjectHostStub:
     def __init__(self, base_path: Path | None = None) -> None:
         self.project_session_state = ShellProjectSessionState()
         self.model = GraphModel()
+        self.workspace_manager = WorkspaceManager(self.model)
         self.registry = _RegistryStub()
         self.script_editor = _ScriptEditorStub()
         self.action_toggle_script_editor = _ActionToggleStub()
@@ -146,9 +169,15 @@ class _ProjectHostStub:
         self.node_library_changed = _SignalStub()
         self.project_meta_changed = _SignalStub()
         self.refresh_calls = 0
+        self.browse_calls: list[tuple[str, str, str]] = []
+        self.browse_result = ""
 
     def _refresh_recent_projects_menu(self) -> None:
         self.refresh_calls += 1
+
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
+        self.browse_calls.append((node_id, key, current_path))
+        return self.browse_result or current_path
 
 
 class ProjectSessionControllerUnitTests(unittest.TestCase):
@@ -280,6 +309,86 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         show_project_files_dialog.assert_called_once_with(snapshot=snapshot, allow_repair=True)
         repair_project_file_issue.assert_called_once_with(issue)
         prompt_recover_autosave.assert_called_once_with(recovered_project)
+
+    def test_persist_session_prefers_workspace_navigation_surface_over_umbrella_controller(self) -> None:
+        host = _ProjectHostStub()
+        host.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
+        host.workspace_library_controller.save_active_view_state = mock.Mock(  # type: ignore[method-assign]
+            side_effect=AssertionError("workspace_library_controller.save_active_view_state should not be used")
+        )
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+        controller.persist_session()
+
+        self.assertEqual(host.workspace_navigation_controller.save_active_view_state_calls, 1)
+        self.assertEqual(host.workspace_library_controller.save_active_view_state.call_count, 0)
+
+    def test_new_project_prefers_workspace_navigation_surface_over_umbrella_controller(self) -> None:
+        host = _ProjectHostStub()
+        host.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
+        host.workspace_library_controller.save_active_view_state = mock.Mock(  # type: ignore[method-assign]
+            side_effect=AssertionError("workspace_library_controller.save_active_view_state should not be used")
+        )
+        host.workspace_library_controller.refresh_workspace_tabs = mock.Mock(  # type: ignore[method-assign]
+            side_effect=AssertionError("workspace_library_controller.refresh_workspace_tabs should not be used")
+        )
+        host.workspace_library_controller.switch_workspace = mock.Mock(  # type: ignore[method-assign]
+            side_effect=AssertionError("workspace_library_controller.switch_workspace should not be used")
+        )
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+        controller.new_project()
+
+        self.assertEqual(host.workspace_navigation_controller.save_active_view_state_calls, 1)
+        self.assertEqual(host.workspace_navigation_controller.refresh_workspace_tabs_calls, 1)
+        self.assertEqual(len(host.workspace_navigation_controller.switch_workspace_calls), 1)
+        self.assertEqual(host.workspace_library_controller.save_active_view_state.call_count, 0)
+        self.assertEqual(host.workspace_library_controller.refresh_workspace_tabs.call_count, 0)
+        self.assertEqual(host.workspace_library_controller.switch_workspace.call_count, 0)
+
+    def test_project_file_repair_prefers_workspace_navigation_surface_over_umbrella_controller(self) -> None:
+        host = _ProjectHostStub()
+        host.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
+        current_workspace_id = host.workspace_manager.active_workspace_id()
+        alternate_workspace_id = host.workspace_manager.create_workspace("Other")
+        host.workspace_manager.set_active_workspace(current_workspace_id)
+        repaired_node = host.model.add_node(
+            alternate_workspace_id,
+            "passive.media.image_panel",
+            "Broken Image",
+            40.0,
+            60.0,
+            properties={"source_path": "missing.png"},
+        )
+        host.workspace_library_controller.switch_workspace = mock.Mock(  # type: ignore[method-assign]
+            side_effect=AssertionError("workspace_library_controller.switch_workspace should not be used")
+        )
+        host.browse_result = "repaired.png"
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        issue = ProjectFilesBrokenEntry(
+            workspace_id=alternate_workspace_id,
+            workspace_name="Other",
+            node_id=repaired_node.node_id,
+            node_title="Broken Image",
+            property_key="source_path",
+            property_label="Source Path",
+            current_value="missing.png",
+            issue_kind="missing_file",
+            source_kind="path",
+            source_mode="file",
+            message="missing",
+        )
+
+        repaired = controller._project_files_service.repair_project_file_issue(issue)
+
+        self.assertTrue(repaired)
+        self.assertEqual(
+            host.workspace_navigation_controller.switch_workspace_calls,
+            [alternate_workspace_id, current_workspace_id],
+        )
+        self.assertEqual(host.workspace_library_controller.switch_workspace.call_count, 0)
+        self.assertEqual(host.browse_calls, [(repaired_node.node_id, "source_path", issue.repair_request)])
+        self.assertEqual(host.scene.property_changes, [(repaired_node.node_id, "source_path", "repaired.png")])
 
     def test_document_service_seeds_viewer_projection_when_installing_project(self) -> None:
         host = _ProjectHostStub()

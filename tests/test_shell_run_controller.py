@@ -12,6 +12,9 @@ from PyQt6.QtCore import QObject
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
 
+from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
+from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
+from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from tests.main_window_shell.base import MainWindowShellTestBase
 from tests.qt_wait import wait_for_condition_or_raise
@@ -73,6 +76,7 @@ class _ViewerExecutionClientStub:
         playback_state: dict | None = None,
         summary: dict | None = None,
         options: dict | None = None,
+        **extra,
     ) -> str:
         request_id = self._next_request_id("open")
         self.open_calls.append(
@@ -87,6 +91,7 @@ class _ViewerExecutionClientStub:
                 "playback_state": dict(playback_state or {}),
                 "summary": dict(summary or {}),
                 "options": dict(options or {}),
+                "extra": dict(extra),
             }
         )
         return request_id
@@ -102,6 +107,7 @@ class _ViewerExecutionClientStub:
         playback_state: dict | None = None,
         summary: dict | None = None,
         options: dict | None = None,
+        **extra,
     ) -> str:
         request_id = self._next_request_id("update")
         self.update_calls.append(
@@ -115,6 +121,7 @@ class _ViewerExecutionClientStub:
                 "playback_state": dict(playback_state or {}),
                 "summary": dict(summary or {}),
                 "options": dict(options or {}),
+                "extra": dict(extra),
             }
         )
         return request_id
@@ -126,6 +133,7 @@ class _ViewerExecutionClientStub:
         node_id: str,
         session_id: str,
         options: dict | None = None,
+        **extra,
     ) -> str:
         request_id = self._next_request_id("close")
         self.close_calls.append(
@@ -135,6 +143,7 @@ class _ViewerExecutionClientStub:
                 "node_id": node_id,
                 "session_id": session_id,
                 "options": dict(options or {}),
+                "extra": dict(extra),
             }
         )
         return request_id
@@ -468,6 +477,29 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(state["summary"]["run_id"], "run_live")
         self.assertEqual(self.window.run_state.active_run_id, "run_live")
         self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
+
+    def test_shell_context_bridge_fallbacks_wrap_shell_window_with_focused_sources(self) -> None:
+        library_bridge = ShellLibraryBridge(self.window, shell_window=self.window)
+        workspace_bridge = ShellWorkspaceBridge(
+            self.window,
+            shell_window=self.window,
+            scene_bridge=self.window.scene,
+            view_bridge=self.window.view,
+            console_bridge=self.window.console_panel,
+            workspace_tabs_bridge=self.window.workspace_tabs,
+        )
+        inspector_bridge = ShellInspectorBridge(
+            self.window,
+            shell_window=self.window,
+            scene_bridge=self.window.scene,
+        )
+
+        self.assertIsNot(library_bridge.library_source, self.window)
+        self.assertIsNot(workspace_bridge.workspace_source, self.window)
+        self.assertIsNot(inspector_bridge.inspector_source, self.window)
+        self.assertEqual(library_bridge.graph_search_query, self.window.shell_library_presenter.graph_search_query)
+        self.assertEqual(workspace_bridge.project_display_name, self.window.shell_workspace_presenter.project_display_name)
+        self.assertEqual(inspector_bridge.selected_node_title, self.window.shell_inspector_presenter.selected_node_title)
 
     def test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset(self) -> None:
         execution_client = _ViewerExecutionClientStub()

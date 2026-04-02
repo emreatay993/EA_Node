@@ -278,48 +278,40 @@ class WorkspaceLibraryControllerCapabilityCompositionTests(unittest.TestCase):
         )
 
 
-class WorkspaceLibraryControllerSurfaceDelegationTests(unittest.TestCase):
-    def test_facade_delegates_custom_workflow_surface_to_focused_controller(self) -> None:
+class WorkspaceLibraryControllerFocusedSurfaceTests(unittest.TestCase):
+    def test_graph_edit_controller_uses_workflow_library_callback_surface(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        controller.workflow_library_controller.custom_workflow_library_items = lambda: [  # type: ignore[method-assign]
-            {"workflow_id": "wf-1"}
-        ]
-
-        self.assertEqual(controller.custom_workflow_library_items(), [{"workflow_id": "wf-1"}])
-
-    def test_facade_delegates_navigation_surface_to_focused_controller(self) -> None:
-        controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        controller.workspace_navigation_controller.search_graph_nodes = lambda query, limit, enabled_scopes=None: [  # type: ignore[method-assign]
-            {"query": query, "limit": limit}
-        ]
+        controller.workflow_library_controller.resolve_custom_workflow_definition = lambda workflow_id: {  # type: ignore[method-assign]
+            "workflow_id": workflow_id
+        }
 
         self.assertEqual(
-            controller.search_graph_nodes("needle", 7),
-            [{"query": "needle", "limit": 7}],
+            controller.workspace_graph_edit_controller.resolve_custom_workflow_definition("wf-1"),
+            {"workflow_id": "wf-1"},
         )
 
-    def test_facade_delegates_graph_edit_surface_to_focused_controller(self) -> None:
+    def test_graph_edit_controller_uses_navigation_refresh_callback_surface(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        controller.workspace_graph_edit_controller.request_remove_edge = lambda edge_id: edge_id  # type: ignore[method-assign]
+        refresh_calls: list[str] = []
+        controller.workspace_navigation_controller.refresh_workspace_tabs = lambda: refresh_calls.append("refresh")  # type: ignore[method-assign]
 
-        self.assertEqual(controller.request_remove_edge("edge-1"), "edge-1")
+        controller.workspace_graph_edit_controller.refresh_workspace_tabs()
 
-    def test_facade_delegates_package_io_surface_to_focused_controller(self) -> None:
+        self.assertEqual(refresh_calls, ["refresh"])
+
+    def test_package_io_controller_uses_workflow_library_definition_surfaces(self) -> None:
         controller = WorkspaceLibraryController(SimpleNamespace())  # type: ignore[arg-type]
-        prompted: list[list[dict[str, object]]] = []
+        recorded_definitions: list[list[dict[str, object]]] = []
+        definitions = [{"workflow_id": "wf-1"}]
+        controller.workflow_library_controller.custom_workflow_definitions = lambda: list(definitions)  # type: ignore[method-assign]
+        controller.workflow_library_controller.set_custom_workflow_definitions = lambda items: recorded_definitions.append(list(items))  # type: ignore[method-assign]
 
-        def _prompt(definitions: list[dict[str, object]]) -> dict[str, object] | None:
-            prompted.append(definitions)
-            return definitions[0] if definitions else None
+        self.assertEqual(controller.workspace_package_io_controller.custom_workflow_definitions(), definitions)
 
-        controller.workspace_package_io_controller.prompt_custom_workflow_export_definition = _prompt  # type: ignore[method-assign]
-        definition = {"workflow_id": "wf-1"}
+        updated = [{"workflow_id": "wf-2"}]
+        controller.workspace_package_io_controller.set_custom_workflow_definitions(updated)
 
-        self.assertEqual(
-            controller._prompt_custom_workflow_export_definition([definition]),
-            definition,
-        )
-        self.assertEqual(prompted, [[definition]])
+        self.assertEqual(recorded_definitions, [updated])
 
 
 class WorkspaceLibraryControllerCloseViewTests(unittest.TestCase):

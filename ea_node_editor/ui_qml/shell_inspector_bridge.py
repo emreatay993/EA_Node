@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 
@@ -46,6 +46,19 @@ class _ShellInspectorSource(Protocol):
     def request_remove_selected_port(self, key: str) -> bool: ...
 
 
+class _ShellWindowInspectorSourceAdapter:
+    def __init__(self, shell_window: "ShellWindow") -> None:
+        self._shell_window = shell_window
+
+    @property
+    def _source(self) -> object:
+        presenter = getattr(self._shell_window, "shell_inspector_presenter", None)
+        return presenter if presenter is not None else self._shell_window
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._source, name)
+
+
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
@@ -58,7 +71,7 @@ def _resolve_inspector_source(
         return inspector_source
     if shell_window is None:
         raise TypeError("ShellInspectorBridge requires a shell window or explicit inspector source contract.")
-    return cast(_ShellInspectorSource, shell_window)
+    return _ShellWindowInspectorSourceAdapter(shell_window)
 
 
 class ShellInspectorBridge(QObject):

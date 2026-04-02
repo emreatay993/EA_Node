@@ -21,12 +21,29 @@ class ProjectSessionController:
 
     def __init__(self, host: Any) -> None:
         self._host = host
-        self._project_files_service = ProjectFilesService(host)
-        self._session_service = ProjectSessionLifecycleService(host, project_files=self._project_files_service)
+        dialog_parent_source = _DialogParentSourceAdapter(host)
+        workspace_session = _WorkspaceSessionAdapter(host)
+        self._project_files_service = ProjectFilesService(
+            host,
+            dialog_parent_source=dialog_parent_source,
+            path_browser=_NodePropertyPathBrowserAdapter(host),
+            workspace_session=workspace_session,
+        )
+        self._session_service = ProjectSessionLifecycleService(
+            host,
+            project_files=self._project_files_service,
+            workspace_session=workspace_session,
+            recent_projects_menu=_RecentProjectsMenuAdapter(host),
+            recovery_prompt=_AutosaveRecoveryPromptAdapter(host),
+        )
         self._document_service = ProjectDocumentIOService(
             host,
             project_files=self._project_files_service,
             session=self._session_service,
+            dialog_parent_source=dialog_parent_source,
+            workspace_session=workspace_session,
+            script_editor_panel=_ScriptEditorPanelAdapter(host),
+            viewer_project_loader=_ViewerProjectLoaderAdapter(host),
         )
         self._session_service.bind_document_service(self._document_service)
 
@@ -216,3 +233,130 @@ class ProjectSessionController:
 
     def persist_session(self, project_doc: dict[str, Any] | None = None) -> None:
         self._session_service.persist_session(project_doc)
+
+
+class _DialogParentSourceAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    def dialog_parent(self) -> object | None:
+        from PyQt6.QtWidgets import QWidget
+
+        return self._host if isinstance(self._host, QWidget) else None
+
+
+class _WorkspaceSessionAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    def _navigation_surface(self) -> Any:
+        navigation_controller = getattr(self._host, "workspace_navigation_controller", None)
+        if navigation_controller is not None:
+            return navigation_controller
+        library_controller = getattr(self._host, "workspace_library_controller", None)
+        if library_controller is None:
+            raise RuntimeError("Project session workspace surface is unavailable.")
+        return library_controller
+
+    def save_active_view_state(self) -> None:
+        self._navigation_surface().save_active_view_state()
+
+    def refresh_workspace_tabs(self) -> None:
+        self._navigation_surface().refresh_workspace_tabs()
+
+    def switch_workspace(self, workspace_id: str) -> None:
+        self._navigation_surface().switch_workspace(workspace_id)
+
+
+class _NodePropertyPathBrowserAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
+        browse = getattr(self._host, "browse_node_property_path", None)
+        if callable(browse):
+            return str(browse(node_id, key, current_path) or "")
+        presenter = getattr(self._host, "graph_canvas_presenter", None)
+        presenter_browse = getattr(presenter, "browse_node_property_path", None)
+        if callable(presenter_browse):
+            return str(presenter_browse(node_id, key, current_path) or "")
+        return ""
+
+
+class _RecentProjectsMenuAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    def refresh_recent_projects_menu(self) -> None:
+        refresh_menu = getattr(self._host, "_refresh_recent_projects_menu", None)
+        if callable(refresh_menu):
+            refresh_menu()
+
+
+class _AutosaveRecoveryPromptAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    def is_visible(self) -> bool:
+        is_visible = getattr(self._host, "isVisible", None)
+        if not callable(is_visible):
+            return True
+        return bool(is_visible())
+
+    def prompt_recover_autosave(self, recovered_project=None):  # noqa: ANN001
+        prompt = getattr(self._host, "_prompt_recover_autosave", None)
+        if not callable(prompt):
+            raise RuntimeError("Project session autosave recovery prompt is unavailable.")
+        return prompt(recovered_project)
+
+
+class _ScriptEditorPanelAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    @property
+    def visible(self) -> bool:
+        return bool(self._host.script_editor.visible)
+
+    @property
+    def floating(self) -> bool:
+        return bool(self._host.script_editor.floating)
+
+    def set_floating(self, value: bool) -> None:
+        self._host.script_editor.set_floating(value)
+
+    def set_visible(self, value: bool) -> None:
+        self._host.script_editor.set_visible(value)
+
+    def set_checked(self, value: bool) -> None:
+        self._host.action_toggle_script_editor.setChecked(value)
+
+    def set_node(self, node: object) -> None:
+        self._host.script_editor.set_node(node)
+
+    def focus_editor(self) -> None:
+        self._host.script_editor.focus_editor()
+
+
+class _ViewerProjectLoaderAdapter:
+    def __init__(self, host: Any) -> None:
+        self._host = host
+
+    def project_loaded(
+        self,
+        project,
+        registry,
+        *,
+        reseed_on_next_reset: bool = False,
+    ) -> None:  # noqa: ANN001
+        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
+        if viewer_session_bridge is None:
+            return
+        project_loaded = getattr(viewer_session_bridge, "project_loaded", None)
+        if not callable(project_loaded):
+            return
+        project_loaded(
+            project,
+            registry,
+            reseed_on_next_reset=reseed_on_next_reset,
+        )

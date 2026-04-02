@@ -60,34 +60,103 @@ def normalized_recent_project_paths_value(
 
 
 class _ProjectSessionHostProtocol(Protocol):
-    project_session_state: ShellProjectSessionState
+    def dialog_parent(self) -> object | None: ...
+
+
+class _WorkspaceSessionProtocol(Protocol):
+    def save_active_view_state(self) -> None: ...
+
+    def refresh_workspace_tabs(self) -> None: ...
+
+    def switch_workspace(self, workspace_id: str) -> None: ...
+
+
+class _NodePropertyPathBrowserProtocol(Protocol):
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str: ...
+
+
+class _RecentProjectsMenuProtocol(Protocol):
+    def refresh_recent_projects_menu(self) -> None: ...
+
+
+class _AutosaveRecoveryPromptProtocol(Protocol):
+    def is_visible(self) -> bool: ...
+
+    def prompt_recover_autosave(self, recovered_project: ProjectData | None = None): ...
+
+
+class _ScriptEditorPanelProtocol(Protocol):
+    @property
+    def visible(self) -> bool: ...
+
+    @property
+    def floating(self) -> bool: ...
+
+    def set_floating(self, value: bool) -> None: ...
+
+    def set_visible(self, value: bool) -> None: ...
+
+    def set_checked(self, value: bool) -> None: ...
+
+    def set_node(self, node: Any) -> None: ...
+
+    def focus_editor(self) -> None: ...
+
+
+class _ViewerProjectLoaderProtocol(Protocol):
+    def project_loaded(
+        self,
+        project: ProjectData,
+        registry: Any,
+        *,
+        reseed_on_next_reset: bool = False,
+    ) -> None: ...
+
+
+class _ProjectFilesHostProtocol(Protocol):
     session_store: SessionAutosaveStore
     registry: Any
     model: GraphModel
     workspace_manager: WorkspaceManager
-    runtime_history: Any
-    serializer: Any
-    workspace_library_controller: Any
-    script_editor: Any
-    action_toggle_script_editor: Any
     scene: Any
-    project_meta_changed: Any
-    library_pane_reset_requested: Any
-    node_library_changed: Any
     project_path: str
 
-    def _refresh_recent_projects_menu(self) -> None: ...
 
-    def _prompt_recover_autosave(self, recovered_project: ProjectData | None = None): ...
+class _ProjectSessionLifecycleHostProtocol(Protocol):
+    project_session_state: ShellProjectSessionState
+    session_store: SessionAutosaveStore
+    serializer: Any
+    model: GraphModel
+    project_meta_changed: Any
+    project_path: str
 
-    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str: ...
 
-    def isVisible(self) -> bool: ...
+class _ProjectDocumentIOHostProtocol(Protocol):
+    registry: Any
+    model: GraphModel
+    scene: Any
+    workspace_manager: WorkspaceManager
+    runtime_history: Any
+    serializer: Any
+    library_pane_reset_requested: Any
+    node_library_changed: Any
+    project_meta_changed: Any
+    project_path: str
 
 
 class ProjectFilesService:
-    def __init__(self, host: _ProjectSessionHostProtocol) -> None:
+    def __init__(
+        self,
+        host: _ProjectFilesHostProtocol,
+        *,
+        dialog_parent_source: _ProjectSessionHostProtocol,
+        path_browser: _NodePropertyPathBrowserProtocol,
+        workspace_session: _WorkspaceSessionProtocol,
+    ) -> None:
         self._host = host
+        self._dialog_parent_source = dialog_parent_source
+        self._path_browser = path_browser
+        self._workspace_session = workspace_session
 
     @staticmethod
     def _count_text(count: int, noun: str) -> str:
@@ -240,9 +309,7 @@ class ProjectFilesService:
         return "\n\n".join(lines)
 
     def _dialog_parent(self):
-        from PyQt6.QtWidgets import QWidget
-
-        return self._host if isinstance(self._host, QWidget) else None
+        return self._dialog_parent_source.dialog_parent()
 
     def prompt_project_files_action(
         self,
@@ -307,9 +374,9 @@ class ProjectFilesService:
             return False
         switched_workspace = workspace_id != current_workspace_id
         if switched_workspace:
-            self._host.workspace_library_controller.switch_workspace(workspace_id)
+            self._workspace_session.switch_workspace(workspace_id)
         try:
-            repaired_value = self._host.browse_node_property_path(
+            repaired_value = self._path_browser.browse_node_property_path(
                 issue.node_id,
                 issue.property_key,
                 issue.repair_request,
@@ -320,13 +387,24 @@ class ProjectFilesService:
             return True
         finally:
             if switched_workspace and current_workspace_id:
-                self._host.workspace_library_controller.switch_workspace(current_workspace_id)
+                self._workspace_session.switch_workspace(current_workspace_id)
 
 
 class ProjectSessionLifecycleService:
-    def __init__(self, host: _ProjectSessionHostProtocol, *, project_files: ProjectFilesService) -> None:
+    def __init__(
+        self,
+        host: _ProjectSessionLifecycleHostProtocol,
+        *,
+        project_files: ProjectFilesService,
+        workspace_session: _WorkspaceSessionProtocol,
+        recent_projects_menu: _RecentProjectsMenuProtocol,
+        recovery_prompt: _AutosaveRecoveryPromptProtocol,
+    ) -> None:
         self._host = host
         self._project_files = project_files
+        self._workspace_session = workspace_session
+        self._recent_projects_menu = recent_projects_menu
+        self._recovery_prompt = recovery_prompt
         self._document_service: ProjectDocumentIOService | None = None
 
     def bind_document_service(self, document_service: "ProjectDocumentIOService") -> None:
@@ -337,12 +415,10 @@ class ProjectSessionLifecycleService:
         return self._host.project_session_state
 
     def _refresh_recent_projects_menu(self) -> None:
-        refresh_menu = getattr(self._host, "_refresh_recent_projects_menu", None)
-        if callable(refresh_menu):
-            refresh_menu()
+        self._recent_projects_menu.refresh_recent_projects_menu()
 
     def _sync_session_state(self) -> None:
-        self._host.workspace_library_controller.save_active_view_state()
+        self._workspace_session.save_active_view_state()
         self._require_document_service().persist_script_editor_state()
 
     def _current_project_document(self) -> dict[str, Any]:
@@ -447,11 +523,11 @@ class ProjectSessionLifecycleService:
         if recovered_project is None:
             return None
 
-        if not self._host.isVisible():
+        if not self._recovery_prompt.is_visible():
             self._session_state.autosave_recovery_deferred = True
             return None
 
-        choice = self._host._prompt_recover_autosave(recovered_project)
+        choice = self._recovery_prompt.prompt_recover_autosave(recovered_project)
         if choice != QMessageBox.StandardButton.Yes:
             self.discard_autosave_snapshot()
             return None
@@ -491,8 +567,8 @@ class ProjectSessionLifecycleService:
             return
         self._require_document_service()._install_project(recovered_project, project_path=self._host.project_path)
         self._require_document_service().ensure_project_metadata_defaults()
-        self._host.workspace_library_controller.refresh_workspace_tabs()
-        self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        self._workspace_session.refresh_workspace_tabs()
+        self._workspace_session.switch_workspace(self._host.model.active_workspace.workspace_id)
         self._require_document_service().restore_script_editor_state()
         document = self._current_project_document()
         self._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(document)
@@ -543,14 +619,25 @@ class ProjectSessionLifecycleService:
 class ProjectDocumentIOService:
     def __init__(
         self,
-        host: _ProjectSessionHostProtocol,
+        host: _ProjectDocumentIOHostProtocol,
         *,
         project_files: ProjectFilesService,
         session: ProjectSessionLifecycleService,
+        dialog_parent_source: _ProjectSessionHostProtocol,
+        workspace_session: _WorkspaceSessionProtocol,
+        script_editor_panel: _ScriptEditorPanelProtocol,
+        viewer_project_loader: _ViewerProjectLoaderProtocol,
     ) -> None:
         self._host = host
         self._project_files = project_files
         self._session = session
+        self._dialog_parent_source = dialog_parent_source
+        self._workspace_session = workspace_session
+        self._script_editor_panel = script_editor_panel
+        self._viewer_project_loader = viewer_project_loader
+
+    def _dialog_parent(self) -> object | None:
+        return self._dialog_parent_source.dialog_parent()
 
     @staticmethod
     def _delete_save_as_sidecar_path(path: Path) -> None:
@@ -584,8 +671,8 @@ class ProjectDocumentIOService:
     def persist_script_editor_state(self) -> None:
         session_metadata = ProjectSessionMetadata.from_mapping(self._host.model.project.metadata)
         self._host.model.project.metadata = session_metadata.with_script_editor_state(
-            visible=self._host.script_editor.visible,
-            floating=self._host.script_editor.floating,
+            visible=self._script_editor_panel.visible,
+            floating=self._script_editor_panel.floating,
         ).to_mapping()
 
     def restore_script_editor_state(self) -> None:
@@ -596,20 +683,14 @@ class ProjectDocumentIOService:
         can_show_editor = bool(selected_node_id)
         visible = state.visible and can_show_editor
         floating = state.floating
-        self._host.script_editor.set_floating(floating)
-        self._host.script_editor.set_visible(visible)
-        self._host.action_toggle_script_editor.setChecked(visible)
+        self._script_editor_panel.set_floating(floating)
+        self._script_editor_panel.set_visible(visible)
+        self._script_editor_panel.set_checked(visible)
 
     def _project_viewer_bridge_loaded(self, *, reseed_on_next_reset: bool) -> None:
-        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
-        if viewer_session_bridge is None:
-            return
-        project_loaded = getattr(viewer_session_bridge, "project_loaded", None)
-        if not callable(project_loaded):
-            return
-        project_loaded(
+        self._viewer_project_loader.project_loaded(
             self._host.model.project,
-            getattr(self._host, "registry", None),
+            self._host.registry,
             reseed_on_next_reset=reseed_on_next_reset,
         )
 
@@ -620,7 +701,7 @@ class ProjectDocumentIOService:
         self._host.model.project.metadata = session_metadata.to_mapping()
         dialog = WorkflowSettingsDialog(
             initial_settings=copy.deepcopy(session_metadata.workflow_settings),
-            parent=self._host,
+            parent=self._dialog_parent(),
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
@@ -628,16 +709,16 @@ class ProjectDocumentIOService:
         self._session.persist_session()
 
     def set_script_editor_panel_visible(self, checked: bool | None = None) -> None:
-        target_visible = bool(checked) if checked is not None else not self._host.script_editor.visible
-        self._host.script_editor.set_visible(target_visible)
-        self._host.action_toggle_script_editor.setChecked(target_visible)
+        target_visible = bool(checked) if checked is not None else not self._script_editor_panel.visible
+        self._script_editor_panel.set_visible(target_visible)
+        self._script_editor_panel.set_checked(target_visible)
         self.persist_script_editor_state()
         if target_visible:
             node_id = self._host.scene.selected_node_id()
             if node_id:
                 workspace = self._host.model.project.workspaces[self._host.workspace_manager.active_workspace_id()]
-                self._host.script_editor.set_node(workspace.nodes.get(node_id))
-            self._host.script_editor.focus_editor()
+                self._script_editor_panel.set_node(workspace.nodes.get(node_id))
+            self._script_editor_panel.focus_editor()
 
     def _install_project(
         self,
@@ -674,8 +755,8 @@ class ProjectDocumentIOService:
             self._host.serializer.to_document(self._host.model.project)
         )
         self._session.add_recent_project_path(str(resolved_path), persist=False)
-        self._host.workspace_library_controller.refresh_workspace_tabs()
-        self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        self._workspace_session.refresh_workspace_tabs()
+        self._workspace_session.switch_workspace(self._host.model.active_workspace.workspace_id)
         self.restore_script_editor_state()
         self._session.persist_session()
         self._host.project_meta_changed.emit()
@@ -789,11 +870,11 @@ class ProjectDocumentIOService:
 
         path = self._host.project_path
         if not path:
-            path, _ = QFileDialog.getSaveFileName(self._host, "Save Project", "", "EA Project (*.sfe)")
+            path, _ = QFileDialog.getSaveFileName(self._dialog_parent(), "Save Project", "", "EA Project (*.sfe)")
         if not path:
             return
         saved_path = Path(path).with_suffix(".sfe")
-        self._host.workspace_library_controller.save_active_view_state()
+        self._workspace_session.save_active_view_state()
         persistent_document = self._host.serializer.to_persistent_document(self._host.model.project)
         artifact_refs = collect_project_artifact_references(persistent_document)
         store = ProjectArtifactStore.from_project_metadata(
@@ -825,7 +906,7 @@ class ProjectDocumentIOService:
             self._session._session_state.last_manual_save_ts = time.time()
         for workspace in self._host.model.project.workspaces.values():
             workspace.dirty = False
-        self._host.workspace_library_controller.refresh_workspace_tabs()
+        self._workspace_session.refresh_workspace_tabs()
         self._session.discard_autosave_snapshot()
         self._session._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
@@ -853,7 +934,7 @@ class ProjectDocumentIOService:
             return
 
         path, _ = QFileDialog.getSaveFileName(
-            self._host,
+            self._dialog_parent(),
             "Save Project As",
             self._default_save_as_path(),
             "EA Project (*.sfe)",
@@ -868,7 +949,7 @@ class ProjectDocumentIOService:
         dialog = ProjectSaveAsDialog(
             referenced_managed_count=len(artifact_refs.managed_ids),
             referenced_staged_count=len(artifact_refs.staged_ids),
-            parent=self._host,
+            parent=self._dialog_parent(),
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
@@ -880,7 +961,7 @@ class ProjectDocumentIOService:
 
         copy_managed_data = dialog.selected_mode() == ProjectSaveAsDialog.SELF_CONTAINED_COPY
 
-        self._host.workspace_library_controller.save_active_view_state()
+        self._workspace_session.save_active_view_state()
         updated_document = copy.deepcopy(persistent_document)
         document_metadata = (
             dict(updated_document.get("metadata", {}))
@@ -905,7 +986,7 @@ class ProjectDocumentIOService:
             self._session._session_state.last_manual_save_ts = time.time()
         for workspace in self._host.model.project.workspaces.values():
             workspace.dirty = False
-        self._host.workspace_library_controller.refresh_workspace_tabs()
+        self._workspace_session.refresh_workspace_tabs()
         self._session.discard_autosave_snapshot()
         self._session._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
@@ -927,8 +1008,8 @@ class ProjectDocumentIOService:
         self._session._session_state.last_autosave_fingerprint = SessionAutosaveStore.document_fingerprint(
             self._host.serializer.to_document(self._host.model.project)
         )
-        self._host.workspace_library_controller.refresh_workspace_tabs()
-        self._host.workspace_library_controller.switch_workspace(self._host.workspace_manager.active_workspace_id())
+        self._workspace_session.refresh_workspace_tabs()
+        self._workspace_session.switch_workspace(self._host.model.active_workspace.workspace_id)
         self.restore_script_editor_state()
         self._session.persist_session()
         self._host.project_meta_changed.emit()
@@ -936,7 +1017,7 @@ class ProjectDocumentIOService:
     def open_project(self) -> None:
         from PyQt6.QtWidgets import QFileDialog
 
-        path, _ = QFileDialog.getOpenFileName(self._host, "Open Project", "", "EA Project (*.sfe)")
+        path, _ = QFileDialog.getOpenFileName(self._dialog_parent(), "Open Project", "", "EA Project (*.sfe)")
         if not path:
             return
         self.open_project_path(path, show_errors=True)
@@ -952,13 +1033,13 @@ class ProjectDocumentIOService:
             self._session.remove_recent_project_path(normalized_path, persist=False)
             self._session.persist_session()
             if show_errors:
-                QMessageBox.warning(self._host, "Open Project", f"Project file not found.\n{resolved_path}")
+                QMessageBox.warning(self._dialog_parent(), "Open Project", f"Project file not found.\n{resolved_path}")
             return False
         try:
             project = self._host.serializer.load(str(resolved_path))
         except Exception as exc:  # noqa: BLE001
             if show_errors:
-                QMessageBox.warning(self._host, "Open Project", f"Could not open project file.\n{exc}")
+                QMessageBox.warning(self._dialog_parent(), "Open Project", f"Could not open project file.\n{exc}")
             return False
         snapshot = self._project_files.build_project_files_snapshot(project=project, project_path=resolved_path)
         if not self._project_files.prompt_project_files_action(
