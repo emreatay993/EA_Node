@@ -13,11 +13,17 @@ from ea_node_editor.execution.protocol import (
     dict_to_event,
     event_to_dict,
 )
-from ea_node_editor.execution.runtime_snapshot import RuntimeSnapshot, RuntimeSnapshotContext
+from ea_node_editor.execution.runtime_snapshot import (
+    RuntimeSnapshot,
+    RuntimeSnapshotContext,
+    build_runtime_snapshot,
+)
 from ea_node_editor.execution.runtime_value_codec import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.builtins.integrations import FileReadNodePlugin, FileWriteNodePlugin
 from ea_node_editor.nodes.types import ExecutionContext, RuntimeArtifactRef
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
@@ -106,6 +112,38 @@ class ExecutionArtifactRefProtocolTests(unittest.TestCase):
         restored_ref = restored.runtime_snapshot.metadata["artifact_cache"]["stdout"]
         self.assertIsInstance(restored_ref, RuntimeArtifactRef)
         self.assertEqual(restored_ref.ref, "artifact://stored_report")
+
+    def test_build_runtime_snapshot_preserves_queue_safe_metadata_artifact_refs(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        model.project.metadata["artifact_cache"] = {
+            "stdout": RuntimeArtifactRef.managed("stored_report"),
+            "preview": RuntimeArtifactRef.staged("preview_png"),
+        }
+
+        snapshot = build_runtime_snapshot(
+            model.project,
+            workspace_id=workspace.workspace_id,
+            registry=build_default_registry(),
+        )
+
+        self.assertEqual(
+            snapshot.to_document()["metadata"]["artifact_cache"],
+            {
+                "stdout": {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact://stored_report",
+                    "artifact_id": "stored_report",
+                    "scope": "managed",
+                },
+                "preview": {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact-stage://preview_png",
+                    "artifact_id": "preview_png",
+                    "scope": "staged",
+                },
+            },
+        )
 
     def test_start_run_command_rejects_legacy_project_doc_payload(self) -> None:
         snapshot = RuntimeSnapshot(

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import copy
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
+
+if TYPE_CHECKING:
+    from ea_node_editor.graph.model import EdgeInstance, NodeInstance, WorkspaceData
 
 _RUNTIME_NODE_FIELDS = frozenset(
     {
@@ -99,6 +102,15 @@ class RuntimeNode:
             },
         )
 
+    @classmethod
+    def from_node_instance(cls, node: "NodeInstance") -> RuntimeNode:
+        from ea_node_editor.graph.model import node_instance_to_mapping
+
+        runtime_node = cls.from_mapping(node_instance_to_mapping(node))
+        if runtime_node is None:
+            raise ValueError(f"Unable to materialize runtime node: {node.node_id}")
+        return runtime_node
+
     def to_document(self) -> dict[str, Any]:
         payload = copy.deepcopy(self.extra_fields)
         payload.update(
@@ -154,6 +166,15 @@ class RuntimeEdge:
                 if str(key) not in _RUNTIME_EDGE_FIELDS
             },
         )
+
+    @classmethod
+    def from_edge_instance(cls, edge: "EdgeInstance") -> RuntimeEdge:
+        from ea_node_editor.graph.model import edge_instance_to_mapping
+
+        runtime_edge = cls.from_mapping(edge_instance_to_mapping(edge))
+        if runtime_edge is None:
+            raise ValueError(f"Unable to materialize runtime edge: {edge.edge_id}")
+        return runtime_edge
 
     def to_document(self) -> dict[str, Any]:
         payload = copy.deepcopy(self.extra_fields)
@@ -223,6 +244,44 @@ class RuntimeWorkspace:
             document_fields=document_fields,
             nodes=tuple(nodes),
             edges=tuple(edges),
+        )
+
+    @classmethod
+    def from_workspace_data(cls, workspace: "WorkspaceData") -> RuntimeWorkspace:
+        from ea_node_editor.graph.hierarchy import normalize_scope_path
+
+        workspace.ensure_default_view()
+        active_view_id = workspace.active_view_id
+        if active_view_id not in workspace.views:
+            active_view_id = next(iter(workspace.views))
+
+        document_fields = {
+            "workspace_id": workspace.workspace_id,
+            "name": workspace.name,
+            "dirty": workspace.dirty,
+            "active_view_id": active_view_id,
+            "views": [
+                {
+                    "view_id": view.view_id,
+                    "name": view.name,
+                    "zoom": view.zoom,
+                    "pan_x": view.pan_x,
+                    "pan_y": view.pan_y,
+                    "scope_path": list(normalize_scope_path(workspace, view.scope_path)),
+                }
+                for view in workspace.views.values()
+            ],
+        }
+        return cls(
+            document_fields=document_fields,
+            nodes=tuple(
+                RuntimeNode.from_node_instance(node)
+                for node in sorted(workspace.nodes.values(), key=lambda item: item.node_id)
+            ),
+            edges=tuple(
+                RuntimeEdge.from_edge_instance(edge)
+                for edge in sorted(workspace.edges.values(), key=lambda item: item.edge_id)
+            ),
         )
 
     def to_document(self) -> dict[str, Any]:

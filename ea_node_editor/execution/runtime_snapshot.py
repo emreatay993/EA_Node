@@ -10,7 +10,16 @@ from ea_node_editor.execution.runtime_value_codec import (
     serialize_runtime_value,
 )
 from ea_node_editor.persistence.artifact_store import ProjectArtifactStore
+from ea_node_editor.persistence.artifact_store import normalize_artifact_store_metadata
+from ea_node_editor.persistence.migration import JsonProjectMigration
+from ea_node_editor.persistence.overlay import (
+    LEGACY_RUNTIME_PERSISTENCE_KEY,
+    PERSISTENCE_ENVELOPE_KEY,
+)
+from ea_node_editor.persistence.project_codec import ProjectPersistenceEnvelope, WorkspacePersistenceEnvelope
 from ea_node_editor.settings import PROJECT_ARTIFACT_STORE_METADATA_KEY
+from ea_node_editor.settings import SCHEMA_VERSION
+from ea_node_editor.workspace.ownership import resolve_workspace_ownership
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.model import ProjectData
@@ -60,6 +69,43 @@ class RuntimeSnapshot:
                 else {}
             ),
             workspaces=workspaces,
+        )
+
+    @classmethod
+    def from_project_data(cls, project: "ProjectData") -> RuntimeSnapshot:
+        metadata = project.metadata if isinstance(project.metadata, Mapping) else {}
+        ownership = resolve_workspace_ownership(
+            project.workspaces,
+            order_sources=(metadata.get("workspace_order"),),
+            active_workspace_id=project.active_workspace_id,
+        )
+        runtime_metadata = JsonProjectMigration.normalize_metadata(metadata, ownership.workspace_order)
+        runtime_metadata["artifact_store"] = normalize_artifact_store_metadata(runtime_metadata.get("artifact_store"))
+        runtime_metadata.pop(PERSISTENCE_ENVELOPE_KEY, None)
+        runtime_metadata.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
+
+        workspaces: list[RuntimeWorkspace] = []
+        workspace_envelopes: dict[str, WorkspacePersistenceEnvelope] = {}
+        for workspace_id in ownership.workspace_order:
+            workspace = project.workspaces[workspace_id]
+            persistence_envelope = WorkspacePersistenceEnvelope.capture(workspace)
+            workspaces.append(RuntimeWorkspace.from_workspace_data(workspace))
+            if not persistence_envelope.is_empty:
+                workspace_envelopes[workspace.workspace_id] = persistence_envelope
+
+        runtime_envelope = ProjectPersistenceEnvelope.runtime(workspace_envelopes)
+        metadata_value = runtime_envelope.metadata_value()
+        if metadata_value is not None:
+            runtime_metadata[PERSISTENCE_ENVELOPE_KEY] = metadata_value
+
+        return cls(
+            schema_version=SCHEMA_VERSION,
+            project_id=project.project_id,
+            name=project.name,
+            active_workspace_id=ownership.active_workspace_id,
+            workspace_order=tuple(ownership.workspace_order),
+            metadata=runtime_metadata,
+            workspaces=tuple(workspaces),
         )
 
     def workspace(self, workspace_id: str = "") -> RuntimeWorkspace:
@@ -159,13 +205,11 @@ def build_runtime_snapshot(
     serializer: "JsonProjectSerializer | None" = None,
 ) -> RuntimeSnapshot:
     from ea_node_editor.graph.normalization import normalize_project_for_registry
-    from ea_node_editor.persistence.serializer import JsonProjectSerializer
 
+    del serializer  # Compatibility parameter retained; runtime snapshots now build directly from domain data.
     project_copy = copy.deepcopy(project)
     normalize_project_for_registry(project_copy, registry)
-    project_serializer = serializer or JsonProjectSerializer(registry)
-    runtime_project_doc = project_serializer.to_document(project_copy)
-    snapshot = RuntimeSnapshot.from_mapping(runtime_project_doc)
+    snapshot = RuntimeSnapshot.from_project_data(project_copy)
     snapshot.workspace(workspace_id)
     return snapshot
 

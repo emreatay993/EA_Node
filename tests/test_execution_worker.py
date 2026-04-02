@@ -275,9 +275,11 @@ class ExecutionWorkerTests(unittest.TestCase):
             artifact_store=None,  # noqa: ANN001
             artifact_key: str = "",
             export_formats=(),  # noqa: ANN001
+            camera_state=None,  # noqa: ANN001
             temporary_root_parent=None,  # noqa: ANN001
             run_id: str = "",
             owner_scope: str = "",
+            **extra_kwargs,  # noqa: ANN003
         ) -> DpfMaterializationResult:
             worker_services.resolve_handle(value, expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND)
             worker_services.resolve_handle(model, expected_kind=DPF_MODEL_HANDLE_KIND)
@@ -289,9 +291,11 @@ class ExecutionWorkerTests(unittest.TestCase):
                     "output_profile": output_profile,
                     "export_formats": tuple(export_formats),
                     "artifact_store_present": artifact_store is not None,
+                    "camera_state": dict(camera_state or {}) if isinstance(camera_state, dict) else camera_state,
                     "temporary_root_parent": temporary_root_parent,
                     "run_id": run_id,
                     "owner_scope": owner_scope,
+                    "extra_kwargs": dict(extra_kwargs),
                 }
             )
 
@@ -879,6 +883,7 @@ class ExecutionWorkerTests(unittest.TestCase):
                     self.assertEqual(len(materialize_calls), 1)
                     self.assertEqual(materialize_calls[0]["output_profile"], "both")
                     self.assertEqual(materialize_calls[0]["artifact_key"], "node_viewer_session_worker")
+                    self.assertEqual(materialize_calls[0]["camera_state"], {"zoom": 1.1})
                     self.assertEqual(
                         materialize_calls[0]["fields_owner_scope"],
                         f"cache:viewer_session:{ws.workspace_id}:session_worker",

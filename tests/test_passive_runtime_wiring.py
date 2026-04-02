@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import unittest
+from unittest import mock
 
 from ea_node_editor.execution.compiler import (
     compile_runtime_snapshot,
@@ -194,7 +195,9 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         self.assertNotIn(passive.node_id, {node.node_id for node in compiled.nodes})
         self.assertEqual(compile_workspace_document(workspace_doc, registry=registry), compiled.to_document())
 
-    def test_build_runtime_snapshot_round_trips_project_doc_and_compiles_active_workspace(self) -> None:
+    def test_build_runtime_snapshot_matches_runtime_document_without_serializer_round_trip_and_compiles_active_workspace(
+        self,
+    ) -> None:
         registry = _build_runtime_registry()
         serializer = JsonProjectSerializer(registry)
         model = GraphModel()
@@ -204,15 +207,49 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         target = model.add_node(workspace.workspace_id, "tests.single_sink", "Target", 320.0, 0.0)
         model.add_edge(workspace.workspace_id, source.node_id, "exec_out", target.node_id, "exec_in")
         model.add_edge(workspace.workspace_id, source.node_id, "value", target.node_id, "value")
+        workspace.nodes[source.node_id].custom_width = 180.0
+        workspace.nodes[target.node_id].port_labels["value"] = "Input Value"
+        workspace.views[workspace.active_view_id].scope_path = [source.node_id]
+        workspace.unresolved_node_docs = {
+            "node_missing": {
+                "node_id": "node_missing",
+                "type_id": "tests.unknown",
+                "title": "Missing",
+                "x": 10.0,
+                "y": 20.0,
+            }
+        }
+        secondary_workspace = model.create_workspace("Secondary")
+        model.add_node(secondary_workspace.workspace_id, "tests.passive_note", "Passive", 0.0, 0.0)
+        model.set_active_workspace(workspace.workspace_id)
+        model.project.metadata["workspace_order"] = [
+            secondary_workspace.workspace_id,
+            workspace.workspace_id,
+        ]
+        model.project.metadata["artifact_store"] = {
+            "staged": {
+                "preview_png": {
+                    "absolute_path": "C:/runtime/cache/preview.png",
+                }
+            }
+        }
 
-        runtime_snapshot = build_runtime_snapshot(
-            model.project,
-            workspace_id=workspace.workspace_id,
-            registry=registry,
-        )
+        with mock.patch(
+            "ea_node_editor.persistence.serializer.JsonProjectSerializer",
+            side_effect=AssertionError("build_runtime_snapshot should not instantiate JsonProjectSerializer"),
+        ):
+            runtime_snapshot = build_runtime_snapshot(
+                model.project,
+                workspace_id=workspace.workspace_id,
+                registry=registry,
+            )
 
         self.assertIsInstance(runtime_snapshot, RuntimeSnapshot)
         self.assertEqual(runtime_snapshot.active_workspace_id, workspace.workspace_id)
+        self.assertEqual(
+            runtime_snapshot.workspace_order,
+            (secondary_workspace.workspace_id, workspace.workspace_id),
+        )
         normalized_project = copy.deepcopy(model.project)
         normalize_project_for_registry(normalized_project, registry)
         self.assertEqual(runtime_snapshot.to_document(), serializer.to_document(normalized_project))
