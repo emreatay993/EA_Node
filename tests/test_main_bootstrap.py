@@ -159,12 +159,18 @@ class AppBootstrapTests(unittest.TestCase):
         self.assertIsInstance(composition.primitives, shell_composition_module.ShellPrimitiveDependencies)
         self.assertIsInstance(composition.controllers, shell_composition_module.ShellControllerDependencies)
         self.assertIsInstance(composition.presenters, shell_composition_module.ShellPresenterDependencies)
+        self.assertIsInstance(composition.runtime, shell_composition_module.ShellRuntimeDependencies)
         self.assertIsInstance(composition.context_bridges, shell_composition_module.ShellContextBridgeDependencies)
         self.assertIsInstance(
             composition.presenters.graph_canvas_host_presenter,
             shell_presenters_module.GraphCanvasHostPresenter,
         )
+        context_bindings = dict(composition.context_bridges.qml_context_property_bindings)
+        self.assertIs(context_bindings["viewerSessionBridge"], composition.runtime.viewer_session_bridge)
+        self.assertIs(context_bindings["viewerHostService"], composition.runtime.viewer_host_service)
         self.assertNotIn("_shell_context_bridges", window.__dict__)
+        self.assertNotIn("viewer_session_bridge", window.__dict__)
+        self.assertNotIn("viewer_host_service", window.__dict__)
         window.close()
         window.deleteLater()
         self.app.sendPostedEvents()

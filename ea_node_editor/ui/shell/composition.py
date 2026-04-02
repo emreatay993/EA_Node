@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QTimer, Qt
 from PyQt6.QtQuickWidgets import QQuickWidget
@@ -46,11 +46,16 @@ from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
-from ea_node_editor.ui_qml.shell_context_bootstrap import bootstrap_shell_qml_context
+from ea_node_editor.ui_qml.shell_context_bootstrap import (
+    ShellContextPropertyBindings,
+    bootstrap_shell_qml_context,
+)
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
+from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
+from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -147,6 +152,10 @@ class ShellControllerDependencies:
     def attach(self, host: "ShellWindow") -> None:
         host.search_scope_controller = self.search_scope_controller
         host.workspace_library_controller = self.workspace_library_controller
+        host.workflow_library_controller = self.workspace_library_controller.workflow_library_controller
+        host.workspace_navigation_controller = self.workspace_library_controller.workspace_navigation_controller
+        host.workspace_graph_edit_controller = self.workspace_library_controller.workspace_graph_edit_controller
+        host.workspace_package_io_controller = self.workspace_library_controller.workspace_package_io_controller
         host.project_session_controller = self.project_session_controller
         host.run_controller = self.run_controller
         host.app_preferences_controller = self.app_preferences_controller
@@ -172,20 +181,34 @@ class ShellPresenterDependencies:
 
 
 @dataclass(frozen=True, slots=True)
+class ShellRuntimeDependencies:
+    viewer_session_bridge: ViewerSessionBridge
+    viewer_host_service: ViewerHostService
+
+    def attach(self, host: "ShellWindow") -> None:
+        host.viewer_session_bridge = self.viewer_session_bridge
+        host.viewer_host_service = self.viewer_host_service
+
+
+@dataclass(frozen=True, slots=True)
 class ShellContextBridgeDependencies:
-    _shell_context_bridges: ShellContextBridges
+    shell_context_bridges: ShellContextBridges
     shell_library_bridge: ShellLibraryBridge
     shell_workspace_bridge: ShellWorkspaceBridge
     shell_inspector_bridge: ShellInspectorBridge
+    graph_canvas_state_bridge: GraphCanvasStateBridge
+    graph_canvas_command_bridge: GraphCanvasCommandBridge
     graph_canvas_bridge: GraphCanvasBridge
-    qml_context_property_bindings_factory: Callable[[], tuple[tuple[str, object], ...]]
+    qml_context_property_bindings: ShellContextPropertyBindings
 
     def attach(self, host: "ShellWindow") -> None:
-        host._shell_context_bridges = self._shell_context_bridges
-        host._shell_qml_context_property_bindings_factory = self.qml_context_property_bindings_factory
+        host._shell_context_bridges = self.shell_context_bridges
+        host._shell_qml_context_property_bindings = self.qml_context_property_bindings
         host.shell_library_bridge = self.shell_library_bridge
         host.shell_workspace_bridge = self.shell_workspace_bridge
         host.shell_inspector_bridge = self.shell_inspector_bridge
+        host.graph_canvas_state_bridge = self.graph_canvas_state_bridge
+        host.graph_canvas_command_bridge = self.graph_canvas_command_bridge
         host.graph_canvas_bridge = self.graph_canvas_bridge
 
 
@@ -207,6 +230,7 @@ class ShellWindowComposition:
     primitives: ShellPrimitiveDependencies
     controllers: ShellControllerDependencies
     presenters: ShellPresenterDependencies
+    runtime: ShellRuntimeDependencies
     context_bridges: ShellContextBridgeDependencies
 
     def attach(self, host: "ShellWindow") -> None:
@@ -214,6 +238,7 @@ class ShellWindowComposition:
         self.primitives.attach(host)
         self.controllers.attach(host)
         self.presenters.attach(host)
+        self.runtime.attach(host)
         self.context_bridges.attach(host)
 
 
@@ -226,12 +251,14 @@ class ShellWindowDependencyFactory:
         primitives = self.create_primitive_dependencies(state)
         controllers = self.create_controller_dependencies(state)
         presenters = self.create_presenter_dependencies(state)
-        context_bridges = self.create_context_bridge_dependencies(primitives, presenters)
+        runtime = self.create_runtime_dependencies(primitives)
+        context_bridges = self.create_context_bridge_dependencies(primitives, presenters, runtime)
         return ShellWindowComposition(
             state=state,
             primitives=primitives,
             controllers=controllers,
             presenters=presenters,
+            runtime=runtime,
             context_bridges=context_bridges,
         )
 
@@ -247,12 +274,16 @@ class ShellWindowDependencyFactory:
     def create_presenter_dependencies(self, state: ShellStateDependencies) -> ShellPresenterDependencies:
         return _create_shell_presenter_dependencies(self._host, state)
 
+    def create_runtime_dependencies(self, primitives: ShellPrimitiveDependencies) -> ShellRuntimeDependencies:
+        return _create_shell_runtime_dependencies(self._host, primitives)
+
     def create_context_bridge_dependencies(
         self,
         primitives: ShellPrimitiveDependencies,
         presenters: ShellPresenterDependencies,
+        runtime: ShellRuntimeDependencies,
     ) -> ShellContextBridgeDependencies:
-        return _create_shell_context_bridge_dependencies(self._host, primitives, presenters)
+        return _create_shell_context_bridge_dependencies(self._host, primitives, presenters, runtime)
 
 
 class ShellWindowBootstrapCoordinator:
@@ -426,10 +457,31 @@ def _create_shell_presenter_dependencies(
     )
 
 
+def _create_shell_runtime_dependencies(
+    host: "ShellWindow",
+    primitives: ShellPrimitiveDependencies,
+) -> ShellRuntimeDependencies:
+    viewer_session_bridge = ViewerSessionBridge(
+        host,
+        shell_window=host,
+        scene_bridge=primitives.scene,
+    )
+    viewer_host_service = ViewerHostService(
+        host,
+        shell_window=host,
+        viewer_session_bridge=viewer_session_bridge,
+    )
+    return ShellRuntimeDependencies(
+        viewer_session_bridge=viewer_session_bridge,
+        viewer_host_service=viewer_host_service,
+    )
+
+
 def _create_shell_context_bridge_dependencies(
     host: "ShellWindow",
     primitives: ShellPrimitiveDependencies,
     presenters: ShellPresenterDependencies,
+    runtime: ShellRuntimeDependencies,
 ) -> ShellContextBridgeDependencies:
     graph_canvas_state_bridge = GraphCanvasStateBridge(
         host,
@@ -479,39 +531,43 @@ def _create_shell_context_bridge_dependencies(
         ),
     )
     return ShellContextBridgeDependencies(
-        _shell_context_bridges=shell_context_bridges,
+        shell_context_bridges=shell_context_bridges,
         shell_library_bridge=shell_context_bridges.shell_library_bridge,
         shell_workspace_bridge=shell_context_bridges.shell_workspace_bridge,
         shell_inspector_bridge=shell_context_bridges.shell_inspector_bridge,
+        graph_canvas_state_bridge=graph_canvas_state_bridge,
+        graph_canvas_command_bridge=graph_canvas_command_bridge,
         graph_canvas_bridge=shell_context_bridges.graph_canvas_bridge,
-        qml_context_property_bindings_factory=lambda: _build_shell_context_property_bindings(
-            host,
+        qml_context_property_bindings=_build_shell_context_property_bindings(
             shell_context_bridges,
+            primitives,
+            runtime,
         ),
     )
 
 
 def _build_shell_context_property_bindings(
-    host: "ShellWindow",
     bridges: ShellContextBridges,
-) -> tuple[tuple[str, object], ...]:
+    primitives: ShellPrimitiveDependencies,
+    runtime: ShellRuntimeDependencies,
+) -> ShellContextPropertyBindings:
     return (
         ("shellLibraryBridge", bridges.shell_library_bridge),
         ("shellWorkspaceBridge", bridges.shell_workspace_bridge),
         ("shellInspectorBridge", bridges.shell_inspector_bridge),
         ("graphCanvasStateBridge", bridges.graph_canvas_state_bridge),
         ("graphCanvasCommandBridge", bridges.graph_canvas_command_bridge),
-        ("viewerSessionBridge", host.viewer_session_bridge),
-        ("viewerHostService", host.viewer_host_service),
-        ("scriptEditorBridge", host.script_editor),
-        ("scriptHighlighterBridge", host.script_highlighter),
-        ("themeBridge", host.theme_bridge),
-        ("graphThemeBridge", host.graph_theme_bridge),
-        ("uiIcons", host.ui_icons),
-        ("statusEngine", host.status_engine),
-        ("statusJobs", host.status_jobs),
-        ("statusMetrics", host.status_metrics),
-        ("statusNotifications", host.status_notifications),
+        ("viewerSessionBridge", runtime.viewer_session_bridge),
+        ("viewerHostService", runtime.viewer_host_service),
+        ("scriptEditorBridge", primitives.script_editor),
+        ("scriptHighlighterBridge", primitives.script_highlighter),
+        ("themeBridge", primitives.theme_bridge),
+        ("graphThemeBridge", primitives.graph_theme_bridge),
+        ("uiIcons", primitives.ui_icons),
+        ("statusEngine", primitives.status_engine),
+        ("statusJobs", primitives.status_jobs),
+        ("statusMetrics", primitives.status_metrics),
+        ("statusNotifications", primitives.status_notifications),
     )
 
 
@@ -530,8 +586,7 @@ def _run_shell_startup_sequence(host: "ShellWindow") -> None:
 
 def _build_shell_qml_widget(host: "ShellWindow") -> QQuickWidget:
     widget = QQuickWidget(host)
-    context_property_bindings = host._shell_qml_context_property_bindings_factory()
-    host._shell_qml_context_property_bindings = context_property_bindings
+    context_property_bindings = host._shell_qml_context_property_bindings
     bootstrap_shell_qml_context(host, widget, context_property_bindings)
     if widget.status() == QQuickWidget.Status.Error:
         formatted_errors = "\n".join(error.toString() for error in widget.errors()).strip()

@@ -25,6 +25,8 @@ from tests.main_window_shell.bridge_contracts import (
     build_graph_fragment_payload,
     serialize_graph_fragment_payload,
 )
+from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
+from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
 
 def _status_strip_items(window) -> tuple[QObject, QObject, QObject, QObject]:
@@ -107,6 +109,8 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
             "shellInspectorBridge",
             "graphCanvasStateBridge",
             "graphCanvasCommandBridge",
+            "viewerSessionBridge",
+            "viewerHostService",
         )
         for name in expected_context_names:
             with self.subTest(name=name):
@@ -160,12 +164,27 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
 
+        viewer_session_bridge = context.contextProperty("viewerSessionBridge")
+        self.assertIsInstance(viewer_session_bridge, ViewerSessionBridge)
+        self.assertIs(viewer_session_bridge.parent(), self.window)
+        self.assertEqual(
+            viewer_session_bridge.active_workspace_id,
+            self.window.workspace_manager.active_workspace_id(),
+        )
+
+        viewer_host_service = context.contextProperty("viewerHostService")
+        self.assertIsInstance(viewer_host_service, ViewerHostService)
+        self.assertIs(viewer_host_service.parent(), self.window)
+        self.assertIs(viewer_host_service.overlay_manager, self.window.embedded_viewer_overlay_manager)
+
         context_bindings = dict(self.window._shell_qml_context_property_bindings)
         self.assertIs(context_bindings["shellLibraryBridge"], shell_library_bridge)
         self.assertIs(context_bindings["shellWorkspaceBridge"], shell_workspace_bridge)
         self.assertIs(context_bindings["shellInspectorBridge"], shell_inspector_bridge)
         self.assertIs(context_bindings["graphCanvasStateBridge"], graph_canvas_state_bridge)
         self.assertIs(context_bindings["graphCanvasCommandBridge"], graph_canvas_command_bridge)
+        self.assertIs(context_bindings["viewerSessionBridge"], viewer_session_bridge)
+        self.assertIs(context_bindings["viewerHostService"], viewer_host_service)
 
     def test_shell_window_keeps_bridge_aliases_in_sync_with_context_bundle(self) -> None:
         bridges = self.window._shell_context_bridges
@@ -175,6 +194,14 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.shell_inspector_bridge, bridges.shell_inspector_bridge)
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
+        self.assertIs(
+            self.window.viewer_session_bridge,
+            dict(self.window._shell_qml_context_property_bindings)["viewerSessionBridge"],
+        )
+        self.assertIs(
+            self.window.viewer_host_service,
+            dict(self.window._shell_qml_context_property_bindings)["viewerHostService"],
+        )
 
 
 class MainWindowShellStatusStripQuickToggleTests(SharedMainWindowShellTestBase):

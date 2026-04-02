@@ -7,7 +7,6 @@ from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtQml import QQmlContext
 from PyQt6.QtQuickWidgets import QQuickWidget
 
-from ea_node_editor.ui.shell.context_bridges import ShellContextBridges, create_shell_context_bridges
 from ea_node_editor.ui.icon_registry import UI_ICON_PROVIDER_ID
 from ea_node_editor.ui.media_preview_provider import (
     LOCAL_MEDIA_PREVIEW_PROVIDER_ID,
@@ -73,9 +72,7 @@ def bootstrap_shell_qml_context(
 
 
 __all__ = [
-    "ShellContextBridges",
     "ShellContextPropertyBindings",
     "bootstrap_shell_qml_context",
-    "create_shell_context_bridges",
     "main_shell_qml_url",
 ]

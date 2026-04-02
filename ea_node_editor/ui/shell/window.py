@@ -97,11 +97,8 @@ from ea_node_editor.ui.shell.window_search_scope_state import WindowSearchScopeC
 from ea_node_editor.ui.theme import build_theme_stylesheet
 from ea_node_editor.ui_qml.console_model import ConsoleModel
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlayManager
-from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
-from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
-from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
 from ea_node_editor.ui_qml.script_editor_model import ScriptEditorModel
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
@@ -109,7 +106,6 @@ from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
 from ea_node_editor.ui_qml.status_model import StatusItemModel
 from ea_node_editor.ui_qml.syntax_bridge import QmlScriptSyntaxBridge
 from ea_node_editor.ui_qml.theme_bridge import ThemeBridge
-from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
 from ea_node_editor.ui_qml.workspace_tabs_model import WorkspaceTabsModel
 from ea_node_editor.workspace.manager import WorkspaceManager
@@ -178,63 +174,6 @@ class ShellWindow(QMainWindow):
         self._connect_application_state_signal()
 
     @property
-    def workflow_library_controller(self):
-        return self.workspace_library_controller.workflow_library_controller
-
-    @property
-    def workspace_navigation_controller(self):
-        return self.workspace_library_controller.workspace_navigation_controller
-
-    @property
-    def workspace_graph_edit_controller(self):
-        return self.workspace_library_controller.workspace_graph_edit_controller
-
-    @property
-    def workspace_package_io_controller(self):
-        return self.workspace_library_controller.workspace_package_io_controller
-
-    @property
-    def graph_canvas_state_bridge(self) -> GraphCanvasStateBridge | None:
-        bridges = getattr(self, "_shell_context_bridges", None)
-        if bridges is None:
-            return None
-        return bridges.graph_canvas_state_bridge
-
-    @property
-    def graph_canvas_command_bridge(self) -> GraphCanvasCommandBridge | None:
-        bridges = getattr(self, "_shell_context_bridges", None)
-        if bridges is None:
-            return None
-        return bridges.graph_canvas_command_bridge
-
-    @property
-    def viewer_session_bridge(self) -> ViewerSessionBridge:
-        bridge = getattr(self, "_viewer_session_bridge", None)
-        if bridge is None:
-            bridge = ViewerSessionBridge(
-                self,
-                shell_window=self,
-                scene_bridge=self.scene,
-            )
-            self._viewer_session_bridge = bridge
-        return bridge
-
-    @property
-    def viewer_host_service(self) -> ViewerHostService:
-        service = getattr(self, "_viewer_host_service", None)
-        if service is None:
-            service = ViewerHostService(
-                self,
-                shell_window=self,
-                viewer_session_bridge=self.viewer_session_bridge,
-            )
-            existing_manager = getattr(self, "_embedded_viewer_overlay_manager", None)
-            if isinstance(existing_manager, EmbeddedViewerOverlayManager):
-                service.set_overlay_manager(existing_manager)
-            self._viewer_host_service = service
-        return service
-
-    @property
     def embedded_viewer_overlay_manager(self) -> EmbeddedViewerOverlayManager | None:
         return self._ensure_embedded_viewer_overlay_manager()
 
@@ -251,12 +190,12 @@ class ShellWindow(QMainWindow):
 
         manager = getattr(self, "_embedded_viewer_overlay_manager", None)
         if manager is not None and manager.quick_widget is resolved_quick_widget:
-            host_service = getattr(self, "_viewer_host_service", None)
+            host_service = getattr(self, "viewer_host_service", None)
             if host_service is not None:
                 host_service.set_overlay_manager(manager)
             return manager
         if manager is not None:
-            host_service = getattr(self, "_viewer_host_service", None)
+            host_service = getattr(self, "viewer_host_service", None)
             if host_service is not None:
                 host_service.set_overlay_manager(None)
             manager.deleteLater()
@@ -269,7 +208,7 @@ class ShellWindow(QMainWindow):
             view_bridge=self.view,
         )
         self._embedded_viewer_overlay_manager = manager
-        host_service = getattr(self, "_viewer_host_service", None)
+        host_service = getattr(self, "viewer_host_service", None)
         if host_service is not None:
             host_service.set_overlay_manager(manager)
         return manager
@@ -279,7 +218,7 @@ class ShellWindow(QMainWindow):
         if isinstance(existing_quick_widget, QQuickWidget) and widget is not existing_quick_widget:
             manager = getattr(self, "_embedded_viewer_overlay_manager", None)
             if manager is not None:
-                host_service = getattr(self, "_viewer_host_service", None)
+                host_service = getattr(self, "viewer_host_service", None)
                 if host_service is not None:
                     host_service.set_overlay_manager(None)
                 manager.deleteLater()
@@ -444,10 +383,10 @@ class ShellWindow(QMainWindow):
         return ProcessExecutionClient()
 
     def _reset_viewer_session_bridge(self, *, reason: str) -> None:
-        host_service = getattr(self, "_viewer_host_service", None)
+        host_service = getattr(self, "viewer_host_service", None)
         if host_service is not None:
             host_service.reset(reason=reason)
-        bridge = getattr(self, "_viewer_session_bridge", None)
+        bridge = getattr(self, "viewer_session_bridge", None)
         if bridge is None:
             return
         bridge.reset_all_sessions(reason=reason)
@@ -1843,7 +1782,7 @@ class ShellWindow(QMainWindow):
         if not getattr(self, "_viewer_window_active", True):
             return
         self._viewer_window_active = False
-        bridge = getattr(self, "_viewer_session_bridge", None)
+        bridge = getattr(self, "viewer_session_bridge", None)
         clear_focus = getattr(bridge, "clear_viewer_focus", None)
         if not callable(clear_focus):
             return

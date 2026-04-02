@@ -19,6 +19,8 @@ from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBrid
 from ea_node_editor.ui_qml.shell_inspector_bridge import ShellInspectorBridge
 from ea_node_editor.ui_qml.shell_library_bridge import ShellLibraryBridge
 from ea_node_editor.ui_qml.shell_workspace_bridge import ShellWorkspaceBridge
+from ea_node_editor.ui_qml.viewer_host_service import ViewerHostService
+from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 from tests.main_window_shell.base import MainWindowShellTestBase, SharedMainWindowShellTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -1709,6 +1711,19 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(graph_canvas_command_bridge.scene_bridge, self.window.scene)
         self.assertIs(graph_canvas_command_bridge.view_bridge, self.window.view)
 
+        viewer_session_bridge = context.contextProperty("viewerSessionBridge")
+        self.assertIsInstance(viewer_session_bridge, ViewerSessionBridge)
+        self.assertIs(viewer_session_bridge.parent(), self.window)
+        self.assertEqual(
+            viewer_session_bridge.active_workspace_id,
+            self.window.workspace_manager.active_workspace_id(),
+        )
+
+        viewer_host_service = context.contextProperty("viewerHostService")
+        self.assertIsInstance(viewer_host_service, ViewerHostService)
+        self.assertIs(viewer_host_service.parent(), self.window)
+        self.assertIs(viewer_host_service.overlay_manager, self.window.embedded_viewer_overlay_manager)
+
         self.assertIsNone(context.contextProperty("graphCanvasBridge"))
 
     def test_shell_window_keeps_split_canvas_bridge_aliases_in_sync_with_context_bundle(self) -> None:
@@ -1716,6 +1731,14 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
 
         self.assertIs(self.window.graph_canvas_state_bridge, bridges.graph_canvas_state_bridge)
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
+        self.assertIs(
+            self.window.viewer_session_bridge,
+            dict(self.window._shell_qml_context_property_bindings)["viewerSessionBridge"],
+        )
+        self.assertIs(
+            self.window.viewer_host_service,
+            dict(self.window._shell_qml_context_property_bindings)["viewerHostService"],
+        )
 
     def test_shell_window_and_split_graph_canvas_bridges_share_persisted_port_label_preference_path(self) -> None:
         graph_canvas_state_bridge = self.window.graph_canvas_state_bridge
