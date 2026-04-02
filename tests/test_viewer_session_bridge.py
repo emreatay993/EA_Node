@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +10,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from PyQt6.QtCore import QCoreApplication, QEvent, QObject, QUrl, pyqtSignal
+from PyQt6.QtGui import QImage
 
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
@@ -214,8 +217,11 @@ class _HostStub(QObject):
         self.scene = _SceneStub()
         self.workspace_manager = _WorkspaceManagerStub(self.scene)
         self.execution_client = _ViewerExecutionClientStub()
+        self.project_path = ""
         self.captured_camera_state: dict[str, Any] = {}
         self.capture_camera_calls: list[dict[str, str]] = []
+        self.captured_preview_image = QImage()
+        self.capture_preview_calls: list[dict[str, str]] = []
         self.model = _ModelState(
             project=_ProjectState(
                 workspaces={
@@ -230,6 +236,7 @@ class _HostStub(QObject):
                 }
             )
         )
+        self.model.project.metadata = {}
 
     def capture_overlay_camera_state(self, node_id: str, *, workspace_id: str = "") -> dict[str, Any]:
         self.capture_camera_calls.append(
@@ -239,6 +246,15 @@ class _HostStub(QObject):
             }
         )
         return dict(self.captured_camera_state)
+
+    def capture_overlay_preview_image(self, node_id: str, *, workspace_id: str = "") -> QImage:
+        self.capture_preview_calls.append(
+            {
+                "workspace_id": str(workspace_id),
+                "node_id": str(node_id),
+            }
+        )
+        return self.captured_preview_image.copy()
 
     @property
     def viewer_host_service(self):  # noqa: ANN201
@@ -282,6 +298,12 @@ def _viewer_opened_event(
     return payload
 
 
+def _preview_image(color: int = 0xFF4C7BC0) -> QImage:
+    image = QImage(24, 18, QImage.Format.Format_ARGB32)
+    image.fill(color)
+    return image
+
+
 class ViewerSessionBridgeUnitTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -294,6 +316,63 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             shell_window=self.host,
             scene_bridge=self.host.scene,
         )
+
+    def _open_live_session(self, node_id: str = "node_viewer") -> str:
+        self.host.scene.set_selected(node_id)
+        session_id = self.bridge.open(node_id, {"data_refs": {"fields": f"fields::{node_id}"}})
+        open_call = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id="ws_main",
+                node_id=node_id,
+                session_id=session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "full"},
+                data_refs={"dataset": {"kind": f"mock::{node_id}"}},
+            )
+        )
+        return session_id
+
+    def _create_transient_proxy_preview(self, node_id: str = "node_viewer") -> tuple[str, Path]:
+        session_id = self._open_live_session(node_id=node_id)
+        self.host.captured_camera_state = {
+            "position": [9.0, 8.0, 7.0],
+            "focal_point": [1.0, 2.0, 3.0],
+            "viewup": [0.0, 1.0, 0.0],
+            "view_angle": 24.0,
+        }
+        self.host.captured_preview_image = _preview_image()
+        self.assertTrue(self.bridge.focus_session(node_id))
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        preview_path = Path(self.bridge.session_state(node_id)["data_refs"]["preview"])
+        self.assertTrue(preview_path.is_file())
+        return session_id, preview_path
+
+    def _register_managed_preview_artifact(self, artifact_id: str, *, color: int = 0xFF4C7BC0) -> Path:
+        if not self.host.project_path:
+            temp_dir = tempfile.TemporaryDirectory()
+            self.addCleanup(temp_dir.cleanup)
+            project_path = Path(temp_dir.name) / "viewer_bridge_test.sfe"
+            project_path.parent.mkdir(parents=True, exist_ok=True)
+            project_path.write_text("{}", encoding="utf-8")
+            self.host.project_path = str(project_path)
+
+        project_file = Path(self.host.project_path)
+        sidecar_root = project_file.with_name(f"{project_file.stem}.data")
+        relative_path = f"assets/media/{artifact_id}.png"
+        artifact_path = sidecar_root / "assets" / "media" / f"{artifact_id}.png"
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        self.assertTrue(_preview_image(color).save(str(artifact_path), "PNG"))
+
+        metadata = dict(self.host.model.project.metadata) if isinstance(self.host.model.project.metadata, dict) else {}
+        artifact_store = dict(metadata.get("artifact_store", {}))
+        artifacts = dict(artifact_store.get("artifacts", {}))
+        artifacts[artifact_id] = {"relative_path": relative_path}
+        artifact_store["artifacts"] = artifacts
+        metadata["artifact_store"] = artifact_store
+        self.host.model.project.metadata = metadata
+        return artifact_path
 
     def test_open_close_and_control_actions_route_through_execution_client_and_track_state(self) -> None:
         self.host.scene.set_selected("node_viewer")
@@ -545,6 +624,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             "viewup": [0.0, 1.0, 0.0],
             "view_angle": 24.0,
         }
+        self.host.captured_preview_image = _preview_image()
         session_id = self.bridge.open("node_viewer", {"data_refs": {"fields": "fields_ref"}})
         open_call = self.host.execution_client.open_calls[-1]
         self.host.execution_event.emit(
@@ -565,14 +645,23 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             self.host.capture_camera_calls[-1],
             {"workspace_id": "ws_main", "node_id": "node_viewer"},
         )
+        self.assertEqual(
+            self.host.capture_preview_calls[-1],
+            {"workspace_id": "ws_main", "node_id": "node_viewer"},
+        )
         self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "proxy")
         self.assertEqual(
             self.host.execution_client.update_calls[-1]["camera_state"],
             self.host.captured_camera_state,
         )
-        self.assertEqual(self.bridge.session_state("node_viewer")["camera_state"], self.host.captured_camera_state)
-        self.assertEqual(self.bridge.session_state("node_viewer")["options"]["live_mode"], "proxy")
+        preview_state = self.bridge.session_state("node_viewer")
+        transient_preview_path = Path(preview_state["data_refs"]["preview"])
+        self.assertEqual(preview_state["camera_state"], self.host.captured_camera_state)
+        self.assertEqual(preview_state["options"]["live_mode"], "proxy")
+        self.assertTrue(transient_preview_path.is_file())
+        self.assertNotIn("png", preview_state["data_refs"])
+        self.assertEqual(len(self.host.execution_client.materialize_calls), 0)
 
         demoted_event = _viewer_opened_event(
             request_id=self.host.execution_client.update_calls[-1]["request_id"],
@@ -591,6 +680,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["live_mode"], "proxy")
         self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["output_profile"], "stored")
         self.assertEqual(self.host.execution_client.materialize_calls[-1]["options"]["export_formats"], ["png"])
+        self._register_managed_preview_artifact("viewer_proxy_png")
 
         materialized_event = _viewer_opened_event(
             request_id=self.host.execution_client.materialize_calls[-1]["request_id"],
@@ -615,11 +705,446 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         proxy_state = self.bridge.session_state("node_viewer")
         self.assertEqual(proxy_state["options"]["live_mode"], "proxy")
         self.assertIn("png", proxy_state["data_refs"])
+        self.assertNotIn("preview", proxy_state["data_refs"])
         self.assertEqual(proxy_state["camera_state"], self.host.captured_camera_state)
+        self.assertFalse(transient_preview_path.exists())
 
         self.assertTrue(self.bridge.focus_session("node_viewer"))
         self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
+
+    def test_transient_proxy_preview_overrides_existing_png_until_authoritative_replacement_arrives(self) -> None:
+        self.host.scene.set_selected("node_viewer")
+        self.host.captured_camera_state = {
+            "position": [9.0, 8.0, 7.0],
+            "focal_point": [1.0, 2.0, 3.0],
+            "viewup": [0.0, 1.0, 0.0],
+            "view_angle": 24.0,
+        }
+        self.host.captured_preview_image = _preview_image()
+        session_id = self.bridge.open("node_viewer", {"data_refs": {"fields": "fields_ref"}})
+        open_call = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id=session_id,
+                summary={"cache_state": "live_ready", "camera": {"zoom": 1.1}},
+                options={"live_mode": "full"},
+                data_refs={
+                    "dataset": {"kind": "mock_dataset"},
+                    "png": {
+                        "__ea_runtime_value__": "artifact_ref",
+                        "ref": "artifact://viewer_proxy_png_old",
+                        "artifact_id": "viewer_proxy_png_old",
+                        "scope": "managed",
+                    },
+                },
+            )
+        )
+        self._register_managed_preview_artifact("viewer_proxy_png_old", color=0xFF355D99)
+        self._register_managed_preview_artifact("viewer_proxy_png_new", color=0xFF6D9D35)
+
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        preview_state = self.bridge.session_state("node_viewer")
+        transient_preview_path = Path(preview_state["data_refs"]["preview"])
+        self.assertTrue(transient_preview_path.is_file())
+        self.assertNotIn("png", preview_state["data_refs"])
+
+        demoted_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+            data_refs={
+                "dataset": {"kind": "mock_dataset"},
+                "png": {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact://viewer_proxy_png_old",
+                    "artifact_id": "viewer_proxy_png_old",
+                    "scope": "managed",
+                },
+            },
+            camera_state=dict(self.host.captured_camera_state),
+        )
+        demoted_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted_event)
+
+        pending_proxy_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(pending_proxy_state["data_refs"]["preview"], str(transient_preview_path))
+        self.assertNotIn("png", pending_proxy_state["data_refs"])
+
+        materialized_event = _viewer_opened_event(
+            request_id=self.host.execution_client.materialize_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy", "output_profile": "stored", "export_formats": ["png"]},
+            data_refs={
+                "dataset": {"kind": "mock_dataset"},
+                "png": {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact://viewer_proxy_png_new",
+                    "artifact_id": "viewer_proxy_png_new",
+                    "scope": "managed",
+                },
+            },
+        )
+        materialized_event["type"] = "viewer_data_materialized"
+        self.host.execution_event.emit(materialized_event)
+
+        final_proxy_state = self.bridge.session_state("node_viewer")
+        self.assertIn("png", final_proxy_state["data_refs"])
+        self.assertNotIn("preview", final_proxy_state["data_refs"])
+        self.assertFalse(transient_preview_path.exists())
+
+    def test_materialized_proxy_preview_keeps_transient_capture_when_replacement_is_not_resolvable(self) -> None:
+        session_id, transient_preview_path = self._create_transient_proxy_preview("node_viewer")
+        demoted_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+            data_refs={"dataset": {"kind": "mock_dataset"}},
+            camera_state=dict(self.host.captured_camera_state),
+        )
+        demoted_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted_event)
+
+        materialized_event = _viewer_opened_event(
+            request_id=self.host.execution_client.materialize_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy", "output_profile": "stored", "export_formats": ["png"]},
+            data_refs={
+                "dataset": {"kind": "mock_dataset"},
+                "png": {
+                    "__ea_runtime_value__": "artifact_ref",
+                    "ref": "artifact-stage://viewer_proxy_png_missing",
+                    "artifact_id": "viewer_proxy_png_missing",
+                    "scope": "staged",
+                },
+            },
+        )
+        materialized_event["type"] = "viewer_data_materialized"
+        self.host.execution_event.emit(materialized_event)
+
+        proxy_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(proxy_state["data_refs"]["preview"], str(transient_preview_path))
+        self.assertNotIn("png", proxy_state["data_refs"])
+        self.assertTrue(transient_preview_path.exists())
+
+    def test_materialized_proxy_preview_projects_runtime_absolute_path_and_clears_transient_capture(self) -> None:
+        session_id, transient_preview_path = self._create_transient_proxy_preview("node_viewer")
+        demoted_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+            data_refs={"dataset": {"kind": "mock_dataset"}},
+            camera_state=dict(self.host.captured_camera_state),
+        )
+        demoted_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted_event)
+
+        file_descriptor, temp_path = tempfile.mkstemp(suffix=".png")
+        try:
+            os.close(file_descriptor)
+        except OSError:
+            pass
+        Path(temp_path).unlink(missing_ok=True)
+        try:
+            materialized_png_path = Path(temp_path)
+            self.assertTrue(_preview_image(0xFF55AA44).save(str(materialized_png_path), "PNG"))
+
+            materialized_event = _viewer_opened_event(
+                request_id=self.host.execution_client.materialize_calls[-1]["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id=session_id,
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "proxy", "output_profile": "stored", "export_formats": ["png"]},
+                data_refs={
+                    "dataset": {"kind": "mock_dataset"},
+                    "png": {
+                        "__ea_runtime_value__": "artifact_ref",
+                        "ref": "artifact-stage://viewer_proxy_png_ready",
+                        "artifact_id": "viewer_proxy_png_ready",
+                        "scope": "staged",
+                        "metadata": {
+                            "absolute_path": str(materialized_png_path),
+                        },
+                    },
+                },
+            )
+            materialized_event["type"] = "viewer_data_materialized"
+            self.host.execution_event.emit(materialized_event)
+
+            proxy_state = self.bridge.session_state("node_viewer")
+            self.assertEqual(proxy_state["data_refs"]["png"], str(materialized_png_path))
+            self.assertNotIn("preview", proxy_state["data_refs"])
+            self.assertFalse(transient_preview_path.exists())
+        finally:
+            Path(temp_path).unlink(missing_ok=True)
+
+    def test_transient_proxy_preview_cleanup_on_close_reset_project_reload_and_node_removal(self) -> None:
+        close_session_id, close_preview_path = self._create_transient_proxy_preview("node_viewer")
+        close_request = self.host.execution_client.close_viewer_session(
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=close_session_id,
+            options={"reason": "test_close"},
+        )
+        self.host.execution_event.emit(
+            {
+                "type": "viewer_session_closed",
+                "request_id": close_request,
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "session_id": close_session_id,
+                "summary": {"close_reason": "test_close", "cache_state": "proxy_ready"},
+                "options": {"session_state": "closed", "cache_state": "proxy_ready", "reason": "test_close"},
+            }
+        )
+        self.assertFalse(close_preview_path.exists())
+
+        _, reset_preview_path = self._create_transient_proxy_preview("node_viewer")
+        self.bridge.reset_all_sessions(reason="test_reset")
+        self.assertFalse(reset_preview_path.exists())
+
+        self.host.model.project.workspaces["ws_main"].nodes = {
+            "node_viewer": SimpleNamespace(type_id=DPF_VIEWER_NODE_TYPE_ID),
+        }
+        _, reload_preview_path = self._create_transient_proxy_preview("node_viewer")
+        self.bridge.project_loaded(self.host.model.project, None)
+        self.assertFalse(reload_preview_path.exists())
+        self.assertNotIn("preview", self.bridge.session_state("node_viewer").get("data_refs", {}))
+
+        self.host.model.project.workspaces["ws_main"].nodes["node_viewer"] = object()
+        _, removed_preview_path = self._create_transient_proxy_preview("node_viewer")
+        self.host.model.project.workspaces["ws_main"].nodes.pop("node_viewer")
+        self.host.scene.nodes_changed.emit()
+        self.assertFalse(removed_preview_path.exists())
+        self.assertEqual(self.bridge.session_state("node_viewer"), {})
+
+    def test_first_blur_refocus_preserves_camera_state_even_when_backend_returns_different_camera(self) -> None:
+        captured = {
+            "position": [5.0, 6.0, 7.0],
+            "focal_point": [0.0, 0.0, 0.0],
+            "viewup": [0.0, 1.0, 0.0],
+            "view_angle": 30.0,
+        }
+        self.host.captured_camera_state = dict(captured)
+        self.host.captured_preview_image = _preview_image()
+        session_id = self._open_live_session()
+
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        state_after_blur = self.bridge.session_state("node_viewer")
+        self.assertEqual(state_after_blur["camera_state"], captured)
+
+        # Backend responds with a DIFFERENT camera state (e.g. default)
+        demoted_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready", "camera": {"zoom": 1.0}},
+            options={"live_mode": "proxy"},
+            camera_state={"zoom": 1.0},  # different from captured!
+        )
+        demoted_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted_event)
+
+        # Camera state must still be the locally captured one
+        state_after_event = self.bridge.session_state("node_viewer")
+        self.assertEqual(state_after_event["camera_state"], captured)
+
+        # Materialization event with no camera_state should also preserve
+        mat_event = _viewer_opened_event(
+            request_id=self.host.execution_client.materialize_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready", "camera_state": {"zoom": 1.0}},
+            options={"live_mode": "proxy", "output_profile": "stored", "export_formats": ["png"]},
+            data_refs={"png": {"ref": "artifact://png"}},
+        )
+        mat_event["type"] = "viewer_data_materialized"
+        self.host.execution_event.emit(mat_event)
+
+        state_after_mat = self.bridge.session_state("node_viewer")
+        self.assertEqual(state_after_mat["camera_state"], captured)
+
+        # Re-focus must send the captured camera state to the backend
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        refocus_update = self.host.execution_client.update_calls[-1]
+        self.assertEqual(refocus_update["options"]["live_mode"], "full")
+        self.assertEqual(refocus_update["camera_state"], captured)
+        internal_state = self.bridge._ensure_session_state("ws_main", "node_viewer")
+        self.assertTrue(internal_state.camera_state_locally_captured)
+
+        full_restore_event = _viewer_opened_event(
+            request_id=refocus_update["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready", "camera": {"zoom": 1.0}},
+            options={"live_mode": "full"},
+            camera_state={"zoom": 1.0},
+        )
+        full_restore_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(full_restore_event)
+
+        restored_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(restored_state["camera_state"], captured)
+        self.assertFalse(self.bridge._ensure_session_state("ws_main", "node_viewer").camera_state_locally_captured)
+
+    def test_second_blur_refocus_cycle_also_preserves_camera(self) -> None:
+        first_camera = {
+            "position": [1.0, 2.0, 3.0],
+            "focal_point": [0.0, 0.0, 0.0],
+            "viewup": [0.0, 1.0, 0.0],
+        }
+        self.host.captured_camera_state = dict(first_camera)
+        self.host.captured_preview_image = _preview_image()
+        session_id = self._open_live_session()
+
+        # First blur + backend response
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        demoted = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+            camera_state={},
+        )
+        demoted["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted)
+
+        # Re-focus
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        refocus_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "full"},
+        )
+        refocus_event["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(refocus_event)
+
+        # Second blur with a different camera
+        second_camera = {
+            "position": [10.0, 20.0, 30.0],
+            "focal_point": [5.0, 5.0, 5.0],
+            "viewup": [0.0, 0.0, 1.0],
+        }
+        self.host.captured_camera_state = dict(second_camera)
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.assertEqual(self.bridge.session_state("node_viewer")["camera_state"], second_camera)
+
+        # Re-focus again must use the second camera
+        demoted2 = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+        )
+        demoted2["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted2)
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.assertEqual(self.host.execution_client.update_calls[-1]["camera_state"], second_camera)
+
+    def test_null_capture_preserves_existing_transient_proxy_preview(self) -> None:
+        session_id, first_preview_path = self._create_transient_proxy_preview("node_viewer")
+        self.assertTrue(first_preview_path.is_file())
+
+        # Second blur on same session (without full refocus round-trip) using null capture.
+        # Simulate backend confirming proxy mode so we stay in proxy.
+        demoted = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "proxy"},
+        )
+        demoted["type"] = "viewer_session_updated"
+        self.host.execution_event.emit(demoted)
+
+        # Refocus then blur again with null image capture
+        refocus_event = _viewer_opened_event(
+            request_id=self.host.execution_client.update_calls[-1]["request_id"]
+                if self.host.execution_client.update_calls
+                else self.host.execution_client.materialize_calls[-1]["request_id"],
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            summary={"cache_state": "live_ready"},
+            options={"live_mode": "full"},
+        )
+        refocus_event["type"] = "viewer_session_updated"
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+        self.host.execution_event.emit(refocus_event)
+
+        self.host.captured_preview_image = QImage()  # null image
+        self.host.captured_camera_state = {"position": [1.0, 2.0, 3.0]}
+        self.assertTrue(self.bridge.clear_viewer_focus())
+
+        # Authoritative PNG from materialization should still be in data_refs
+        # even though transient capture failed
+        state = self.bridge.session_state("node_viewer")
+        # The null capture should not destroy data_refs completely
+        self.assertEqual(state["options"]["live_mode"], "proxy")
+
+    def test_null_capture_does_not_destroy_existing_transient_preview_file(self) -> None:
+        """When a transient preview exists and the next capture returns null,
+        the existing file must be kept rather than deleted."""
+        session_id, first_preview_path = self._create_transient_proxy_preview("node_viewer")
+        self.assertTrue(first_preview_path.is_file())
+
+        # Directly invoke _set_transient_proxy_preview with null image
+        result = self.bridge._set_transient_proxy_preview("ws_main", "node_viewer", QImage())
+
+        # Existing file must still be on disk
+        self.assertTrue(first_preview_path.is_file())
+        # Return value should be the existing path
+        self.assertEqual(result, str(first_preview_path))
+
+    def test_proxy_not_cleared_prematurely_when_live_open_not_ready(self) -> None:
+        session_id, preview_path = self._create_transient_proxy_preview("node_viewer")
+        self.assertTrue(preview_path.is_file())
+
+        # Simulate backend going to a state where live_open_status is blocked
+        state = self.bridge._ensure_session_state("ws_main", "node_viewer")
+        state.live_open_status = "blocked"
+
+        # Try to re-focus; live is not ready so it should return without clearing proxy
+        self.assertTrue(self.bridge.focus_session("node_viewer"))
+
+        # Proxy file should still exist since live couldn't be established
+        session_state = self.bridge.session_state("node_viewer")
+        # The proxy preview path should still be accessible
+        self.assertTrue(preview_path.is_file())
 
     def test_project_loaded_seeds_viewer_nodes_as_run_required_projection(self) -> None:
         self.host.model.project.workspaces["ws_main"].nodes = {

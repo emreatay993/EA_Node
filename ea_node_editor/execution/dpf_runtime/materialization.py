@@ -152,6 +152,7 @@ class DpfRuntimeMaterializationMixin(DpfRuntimeBase):
                     "format": export_format,
                     "artifact_key": normalized_key,
                     "relative_path": relative_path,
+                    "absolute_path": str(output_path),
                     **({"entry_file": entry_metadata["entry_file"]} if "entry_file" in entry_metadata else {}),
                 },
             )

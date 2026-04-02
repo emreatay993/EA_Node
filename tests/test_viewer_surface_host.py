@@ -713,6 +713,57 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             """,
         )
 
+    def test_viewer_surface_uses_preview_ref_when_png_ref_is_absent(self) -> None:
+        self._run_qml_probe(
+            "viewer-surface-host-preview-ref-fallback",
+            """
+            import tempfile
+            from urllib.parse import quote
+
+            from PyQt6.QtGui import QImage
+
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+            temp_file.close()
+            preview_path = Path(temp_file.name)
+            preview_image = QImage(18, 12, QImage.Format.Format_ARGB32)
+            preview_image.fill(0xFF5DA9FF)
+            assert preview_image.save(str(preview_path), "PNG")
+
+            bridge = ViewerSessionBridgeStub()
+            bridge._set_state(
+                cache_state="proxy_ready",
+                options={"live_mode": "proxy"},
+                data_refs={"preview": str(preview_path)},
+            )
+            engine.rootContext().setContextProperty("viewerSessionBridge", bridge)
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": viewer_payload()})
+            surface = host.findChild(QObject, "graphNodeViewerSurface")
+            proxy_image = host.findChild(QObject, "graphNodeViewerProxyImage")
+            assert surface is not None
+            assert proxy_image is not None
+
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                settle_events(5)
+                assert bool(surface.property("proxySurfaceActive"))
+                assert bool(surface.property("viewerPreviewAvailable"))
+                assert bool(proxy_image.property("visible"))
+                proxy_image_source = proxy_image.property("source")
+                proxy_image_source_text = proxy_image_source.toString() if hasattr(proxy_image_source, "toString") else str(proxy_image_source)
+                assert proxy_image_source_text.startswith("image://local-media-preview/preview?source=")
+                assert quote(str(preview_path), safe="") in proxy_image_source_text
+            finally:
+                dispose_host_window(host, window)
+                engine.deleteLater()
+                app.processEvents()
+                try:
+                    preview_path.unlink()
+                except OSError:
+                    pass
+            """,
+        )
+
     def test_viewer_surface_compact_strip_reports_error_and_run_required_states(self) -> None:
         self._run_qml_probe(
             "viewer-surface-host-error-run-required",

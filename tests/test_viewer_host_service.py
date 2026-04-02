@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 from typing import Any
 
+from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
 from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
@@ -95,13 +97,16 @@ class _RecordingBinder:
         reuse_current_widget: bool = True,
         no_bind_predicate=None,  # noqa: ANN001
         captured_camera_state: dict[str, Any] | None = None,
+        captured_preview_image: QImage | None = None,
     ) -> None:
         self.reuse_current_widget = reuse_current_widget
         self.no_bind_predicate = no_bind_predicate
         self.captured_camera_state = dict(captured_camera_state or {})
+        self.captured_preview_image = captured_preview_image.copy() if isinstance(captured_preview_image, QImage) else QImage()
         self.bind_calls: list[dict[str, Any]] = []
         self.release_calls: list[dict[str, Any]] = []
         self.capture_calls: list[QWidget] = []
+        self.capture_preview_calls: list[QWidget] = []
         self.widgets: list[_FakeBinderWidget] = []
 
     def bind_widget(self, request) -> QWidget | None:  # noqa: ANN001
@@ -114,6 +119,7 @@ class _RecordingBinder:
                 "transport_revision": request.transport_revision,
                 "live_mode": request.live_mode,
                 "cache_state": request.cache_state,
+                "camera_state": dict(request.camera_state),
                 "transport": dict(request.transport),
                 "options": dict(request.options),
             }
@@ -136,12 +142,17 @@ class _RecordingBinder:
                 "transport_revision": request.transport_revision,
                 "reason": request.reason,
                 "widget": request.widget,
+                "visible": bool(request.widget.isVisible()) if request.widget is not None else False,
             }
         )
 
     def capture_camera_state(self, widget: QWidget) -> dict[str, Any]:
         self.capture_calls.append(widget)
         return dict(self.captured_camera_state)
+
+    def capture_preview_image(self, widget: QWidget) -> QImage:
+        self.capture_preview_calls.append(widget)
+        return self.captured_preview_image.copy()
 
 
 class ViewerHostServiceTests(MainWindowShellTestBase):
@@ -150,6 +161,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.window.registry.register(lambda: _ViewerOverlayPlugin(_viewer_overlay_spec()))
         self.window.execution_client = _ViewerExecutionClientStub()
         self.host_service = self.window.viewer_host_service
+        self.bridge = self.window.viewer_session_bridge
         self.overlay_manager = self.window.embedded_viewer_overlay_manager
         self.assertIsNotNone(self.overlay_manager)
         self.workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -422,6 +434,251 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             binder.capture_calls[0],
             self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
         )
+
+    def test_capture_overlay_preview_image_prefers_binder_capture_hook(self) -> None:
+        preview_image = QImage(20, 12, QImage.Format.Format_ARGB32)
+        preview_image.fill(0xFF67D487)
+        binder = _RecordingBinder(captured_preview_image=preview_image)
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        captured = self.host_service.capture_overlay_preview_image(
+            node_id,
+            workspace_id=self.workspace_id,
+        )
+
+        self.assertFalse(captured.isNull())
+        self.assertEqual(captured.size(), preview_image.size())
+        self.assertEqual(len(binder.capture_preview_calls), 1)
+        self.assertIs(
+            binder.capture_preview_calls[0],
+            self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id),
+        )
+
+    def test_snapshot_from_projected_state_prefers_projected_camera_state_during_pending_transition(self) -> None:
+        self.host_service._authoritative_sessions[("ws_main", "node_viewer")] = self.host_service._snapshot_from_projected_state(
+            {
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "session_id": "session::node_viewer",
+                "phase": "open",
+                "cache_state": "live_ready",
+                "camera_state": {"position": [0.0, 0.0, 5.0]},
+                "summary": {"cache_state": "live_ready"},
+                "options": {
+                    "backend_id": "tests.viewer_backend",
+                    "live_mode": "proxy",
+                    "live_open_status": "ready",
+                    "transport_revision": 1,
+                    "playback_state": "paused",
+                    "step_index": 0,
+                },
+                "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
+                "data_refs": {},
+            }
+        )
+
+        snapshot = self.host_service._snapshot_from_projected_state(
+            {
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "session_id": "session::node_viewer",
+                "phase": "open",
+                "cache_state": "live_ready",
+                "camera_state": {"position": [9.0, 8.0, 7.0], "view_angle": 24.0},
+                "summary": {"cache_state": "live_ready"},
+                "options": {
+                    "backend_id": "tests.viewer_backend",
+                    "live_mode": "full",
+                    "live_open_status": "ready",
+                    "transport_revision": 1,
+                    "playback_state": "paused",
+                    "step_index": 0,
+                },
+                "transport": {"kind": "tests_transport_bundle", "backend_id": "tests.viewer_backend"},
+                "data_refs": {},
+            }
+        )
+
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.camera_state, {"position": [9.0, 8.0, 7.0], "view_angle": 24.0})
+
+    def test_first_refocus_rebind_uses_projected_camera_before_authoritative_full_event(self) -> None:
+        binder = _RecordingBinder(
+            captured_camera_state={
+                "position": [11.0, 12.0, 13.0],
+                "focal_point": [1.0, 2.0, 3.0],
+                "viewup": [0.0, 1.0, 0.0],
+                "view_angle": 28.0,
+            }
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+        session_id = ""
+        stale_camera = {"position": [0.0, 0.0, 5.0], "view_angle": 15.0}
+
+        def emit_event(*, event_type: str, request_id: str, live_mode: str, camera_state: dict[str, Any]) -> None:
+            self.window.execution_event.emit(
+                {
+                    "type": event_type,
+                    "request_id": request_id,
+                    "workspace_id": self.workspace_id,
+                    "node_id": node_id,
+                    "session_id": session_id,
+                    "backend_id": "tests.viewer_backend",
+                    "data_refs": {
+                        "dataset": {
+                            "kind": "tests.dataset",
+                            "handle_id": f"dataset::{node_id}",
+                        }
+                    },
+                    "transport": {
+                        "kind": "tests_transport_bundle",
+                        "backend_id": "tests.viewer_backend",
+                        "manifest_path": f"C:/temp/{session_id}/manifest.json",
+                        "entry_path": f"C:/temp/{session_id}/entry.json",
+                    },
+                    "transport_revision": 1,
+                    "live_open_status": "ready",
+                    "live_open_blocker": {},
+                    "camera_state": dict(camera_state),
+                    "playback_state": {
+                        "state": "paused",
+                        "step_index": 0,
+                    },
+                    "summary": {
+                        "cache_state": "live_ready",
+                        "backend_id": "tests.viewer_backend",
+                        "transport_revision": 1,
+                        "live_open_status": "ready",
+                        "camera_state": dict(camera_state),
+                    },
+                    "options": {
+                        "session_state": "open",
+                        "cache_state": "live_ready",
+                        "backend_id": "tests.viewer_backend",
+                        "transport_revision": 1,
+                        "live_open_status": "ready",
+                        "live_policy": "focus_only",
+                        "keep_live": False,
+                        "playback_state": "paused",
+                        "step_index": 0,
+                        "playback": {
+                            "state": "paused",
+                            "step_index": 0,
+                        },
+                        "live_mode": live_mode,
+                    },
+                }
+            )
+            self.app.processEvents()
+
+        self.window.scene.select_node(node_id, False)
+        self.app.processEvents()
+        opened_session_id = self.bridge.open(
+            node_id,
+            {
+                "data_refs": {"fields": f"fields::{node_id}"},
+                "backend_id": "tests.viewer_backend",
+            },
+        )
+        self.assertTrue(opened_session_id.startswith("viewer_session_"))
+        session_id = opened_session_id
+
+        open_call = self.window.execution_client.open_calls[-1]
+        emit_event(
+            event_type="viewer_data_materialized",
+            request_id=open_call["request_id"],
+            live_mode="full",
+            camera_state=stale_camera,
+        )
+        self.assertEqual(binder.bind_calls[-1]["camera_state"], stale_camera)
+        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+
+        self.assertTrue(self.bridge.clear_viewer_focus())
+        self.app.processEvents()
+        proxy_update = self.window.execution_client.update_calls[-1]
+        self.assertEqual(proxy_update["options"]["live_mode"], "proxy")
+        self.assertEqual(proxy_update["camera_state"], binder.captured_camera_state)
+        self.assertEqual(len(binder.release_calls), 1)
+        self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+
+        emit_event(
+            event_type="viewer_session_updated",
+            request_id=proxy_update["request_id"],
+            live_mode="proxy",
+            camera_state=stale_camera,
+        )
+        self.assertEqual(self.bridge.session_state(node_id)["camera_state"], binder.captured_camera_state)
+
+        self.assertTrue(self.bridge.focus_session(node_id))
+        self.app.processEvents()
+        refocus_update = self.window.execution_client.update_calls[-1]
+        self.assertEqual(refocus_update["options"]["live_mode"], "full")
+        self.assertEqual(refocus_update["camera_state"], binder.captured_camera_state)
+
+        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(binder.bind_calls[-1]["live_mode"], "full")
+        self.assertEqual(binder.bind_calls[-1]["camera_state"], binder.captured_camera_state)
+
+    def test_window_deactivate_blurs_live_viewer_and_captures_camera(self) -> None:
+        preview_image = QImage(24, 16, QImage.Format.Format_ARGB32)
+        preview_image.fill(0xFF5DA9FF)
+        binder = _RecordingBinder(
+            captured_camera_state={
+                "position": [7.0, 8.0, 9.0],
+                "focal_point": [0.0, 0.0, 0.0],
+                "viewup": [0.0, 1.0, 0.0],
+                "view_angle": 26.0,
+            },
+            captured_preview_image=preview_image,
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self.window.scene.select_node(node_id, False)
+        self.app.processEvents()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+
+        self.app.sendEvent(self.window, QEvent(QEvent.Type.WindowDeactivate))
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.capture_calls), 1)
+        self.assertEqual(len(self.window.execution_client.update_calls), 1)
+        blur_update = self.window.execution_client.update_calls[-1]
+        self.assertEqual(blur_update["node_id"], node_id)
+        self.assertEqual(blur_update["options"]["live_mode"], "proxy")
+        self.assertEqual(blur_update["camera_state"], binder.captured_camera_state)
+        self.assertEqual(len(binder.release_calls), 1)
+        self.assertFalse(binder.release_calls[-1]["visible"])
+
+    def test_application_inactive_blurs_live_viewer_once(self) -> None:
+        binder = _RecordingBinder(
+            captured_camera_state={
+                "position": [2.0, 3.0, 4.0],
+                "focal_point": [0.0, 0.0, 0.0],
+                "viewup": [0.0, 1.0, 0.0],
+            }
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self.window.scene.select_node(node_id, False)
+        self.app.processEvents()
+        self._emit_viewer_event(event_type="viewer_data_materialized", node_id=node_id)
+
+        self.window._handle_application_state_changed(Qt.ApplicationState.ApplicationInactive)
+        self.window._handle_application_state_changed(Qt.ApplicationState.ApplicationSuspended)
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.capture_calls), 1)
+        self.assertEqual(len(self.window.execution_client.update_calls), 1)
+        self.assertEqual(self.window.execution_client.update_calls[-1]["options"]["live_mode"], "proxy")
 
 
 if __name__ == "__main__":

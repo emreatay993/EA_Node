@@ -994,7 +994,7 @@ Item {
                         anchors.margins: 1
                         source: surface.viewerPreviewImageSource
                         fillMode: Image.PreserveAspectFit
-                        asynchronous: true
+                        asynchronous: false
                         cache: false
                         smooth: true
                         mipmap: true

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from ea_node_editor.ui_qml.dpf_viewer_widget_binder import DpfViewerWidgetBinder
@@ -36,6 +37,10 @@ class _FakeInteractor(QWidget):
         self.add_mesh_calls: list[dict[str, object]] = []
         self.reset_camera_calls = 0
         self.render_calls = 0
+        self.screenshot_calls = 0
+        self.screenshot_kwargs: list[dict[str, object]] = []
+        self.screenshot_image = QImage(16, 10, QImage.Format.Format_ARGB32)
+        self.screenshot_image.fill(0xFF2F89FF)
         self.camera_position = None
         self.camera = _FakeCamera()
 
@@ -51,6 +56,11 @@ class _FakeInteractor(QWidget):
 
     def render(self) -> None:
         self.render_calls += 1
+
+    def screenshot(self, **kwargs):  # noqa: ANN001
+        self.screenshot_calls += 1
+        self.screenshot_kwargs.append(dict(kwargs))
+        return self.screenshot_image.copy()
 
 
 class _FakeMesh:
@@ -313,6 +323,22 @@ class DpfViewerWidgetBinderTests(unittest.TestCase):
                 "view_angle": 18.0,
             },
         )
+
+    def test_capture_preview_image_uses_live_interactor_screenshot(self) -> None:
+        binder = DpfViewerWidgetBinder(
+            interactor_factory=lambda parent: _FakeInteractor(parent),
+            dataset_loader=lambda _path: _FakeMesh("stress"),
+        )
+        widget = _FakeInteractor()
+        widget.setProperty("ea.viewer.backend_id", DpfViewerWidgetBinder.backend_id)
+
+        captured = binder.capture_preview_image(widget)
+
+        self.assertIsInstance(captured, QImage)
+        self.assertFalse(captured.isNull())
+        self.assertEqual(captured.size(), widget.screenshot_image.size())
+        self.assertEqual(widget.screenshot_calls, 1)
+        self.assertEqual(widget.screenshot_kwargs, [{"return_img": True}])
 
 
 if __name__ == "__main__":
