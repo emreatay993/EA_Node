@@ -681,6 +681,20 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_TRACEABILITY_COMMAND = (
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_MARKDOWN_COMMAND = (
     "./venv/Scripts/python.exe scripts/check_markdown_links.py"
 )
+ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md"
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_architecture_boundaries.py tests/test_traceability_checker.py "
+    "tests/test_markdown_hygiene.py --ignore=venv -q"
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
 
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
@@ -737,6 +751,61 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_TOKENS = (
     "tests/test_markdown_hygiene.py",
     "## Remaining Manual and Windows-Only Checks",
     "## Historical References",
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-029": (
+            "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+            "`P01` through `P07`",
+            "`P08`",
+            "docs/specs/INDEX.md",
+            "manual desktop checks inherited from the packet-set wrap-ups",
+        ),
+        "AC-REQ-QA-029-01": (
+            ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+            ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+            ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+            "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+        ),
+    },
+}
+
+ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-QA-029": (
+        "ARCHITECTURE.md",
+        "docs/specs/INDEX.md",
+        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+        "tests/test_architecture_boundaries.py",
+        "tests/test_markdown_hygiene.py",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-029-01": (
+        ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+    ),
+}
+
+ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_TOKENS = (
+    "Architecture Followup Refactor QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-03 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "ARCHITECTURE.md",
+    "docs/specs/INDEX.md",
+    "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
+    ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+    "P01_shell_composition_root_collapse_WRAPUP.md",
+    "P03_qml_bridge_cleanup_finalization_WRAPUP.md",
+    "P05_runtime_snapshot_direct_builder_WRAPUP.md",
+    "P07_viewer_session_single_authority_WRAPUP.md",
 )
 
 
@@ -852,6 +921,7 @@ class TraceabilityCheckerTests(unittest.TestCase):
         required_paths = set(self.checker.REQUIRED_ARTIFACTS) | set(
             self.checker.P10_REQUIRED_GENERATED_ARTIFACTS
         )
+        required_paths.update(self.checker.P08_REQUIRED_ARTIFACTS)
         required_paths.update(self.checker.P10_REQUIREMENT_DOC_TOKENS.keys())
         for relative_path in required_paths:
             source = REPO_ROOT / relative_path
@@ -1258,6 +1328,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_architecture_maintainability_refactor_qa_matrix_records_commands_and_boundaries(self) -> None:
         text = ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_architecture_followup_refactor_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in ARCHITECTURE_FOLLOWUP_REFACTOR_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_architecture_followup_refactor_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_architecture_followup_refactor_qa_matrix_records_commands_and_boundaries(self) -> None:
+        text = ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
 

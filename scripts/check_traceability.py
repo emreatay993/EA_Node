@@ -21,6 +21,21 @@ SHELL_ISOLATION_RESULT_PATTERN = re.compile(r"^`\d+ passed in \d+\.\d+s`$")
 P10_TRACEABILITY_TEST_COMMAND = (
     "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
 )
+ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC = (
+    "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md"
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_architecture_boundaries.py tests/test_traceability_checker.py "
+    "tests/test_markdown_hygiene.py --ignore=venv -q"
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
+P08_REQUIRED_ARTIFACTS = (ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC,)
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR = "artifacts/graphics_performance_modes_docs"
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD = (
     f"{GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR}/TRACK_H_BENCHMARK_REPORT.md"
@@ -162,8 +177,27 @@ P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         P09_DESKTOP_REFERENCE_REPORT_MD,
     ),
 }
+P08_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
+    "REQ-QA-029": (
+        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+        "`P01` through `P07`",
+        "`P08`",
+        "docs/specs/INDEX.md",
+        "manual desktop checks inherited from the packet-set wrap-ups",
+    ),
+    "AC-REQ-QA-029-01": (
+        ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+    ),
+}
 QA_ACCEPTANCE_REQUIREMENT_TOKENS = dict(manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS)
 QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS)
+QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(P08_QA_ACCEPTANCE_REQUIREMENT_TOKENS)
+QA_ACCEPTANCE_CURRENT_CLOSEOUT_EVIDENCE_TOKENS = (
+    ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC,
+)
 
 GRAPHICS_PERFORMANCE_MODES_MATRIX_REQUIRED_TOKENS = (
     "GraphCanvas.qml",
@@ -228,6 +262,34 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
     manifest.DOCS_RELEASE_TRACEABILITY_PYTEST_COMMAND,
     manifest.proof_audit_command(),
     f"{manifest.LOCAL_VENV_PYTHON_DISPLAY} {manifest.CHECK_MARKDOWN_LINKS_SCRIPT}",
+)
+ARCHITECTURE_DOC_REQUIRED_TOKENS = (
+    ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC,
+)
+SPEC_INDEX_REQUIRED_TOKENS = ("ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",)
+ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
+    "Architecture Followup Refactor QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-03 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "ARCHITECTURE.md",
+    "docs/specs/INDEX.md",
+    "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
+    ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+    "P01_shell_composition_root_collapse_WRAPUP.md",
+    "P03_qml_bridge_cleanup_finalization_WRAPUP.md",
+    "P05_runtime_snapshot_direct_builder_WRAPUP.md",
+    "P07_viewer_session_single_authority_WRAPUP.md",
+)
+ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
+    ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
 )
 
 P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
@@ -332,6 +394,24 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
 }
 TRACEABILITY_ROW_REQUIRED_TOKENS = dict(manifest.TRACEABILITY_ROW_REQUIRED_TOKENS)
 TRACEABILITY_ROW_REQUIRED_TOKENS.update(P10_TRACEABILITY_ROW_REQUIRED_TOKENS)
+P08_TRACEABILITY_ROW_REQUIRED_TOKENS = {
+    "REQ-QA-029": (
+        "ARCHITECTURE.md",
+        "docs/specs/INDEX.md",
+        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+        "tests/test_architecture_boundaries.py",
+        "tests/test_markdown_hygiene.py",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-029-01": (
+        ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+    ),
+}
+TRACEABILITY_ROW_REQUIRED_TOKENS.update(P08_TRACEABILITY_ROW_REQUIRED_TOKENS)
 
 P10_TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "REQ-QA-018": ("artifacts/graph_canvas_perf_docs",),
@@ -520,6 +600,17 @@ def audit_generic_document_rule(
 
 def audit_qa_acceptance(text: str, relative_path: str, issues: list[str]) -> None:
     audit_requirement_tokens(text, relative_path, QA_ACCEPTANCE_REQUIREMENT_TOKENS, issues)
+    current_closeout_evidence = extract_section(text, "Current Closeout Evidence")
+    if current_closeout_evidence is None:
+        issues.append(f"{relative_path}: missing section: Current Closeout Evidence")
+    else:
+        require_tokens(
+            current_closeout_evidence,
+            QA_ACCEPTANCE_CURRENT_CLOSEOUT_EVIDENCE_TOKENS,
+            relative_path=relative_path,
+            label="Current Closeout Evidence",
+            issues=issues,
+        )
 
 
 def audit_requirement_doc(text: str, relative_path: str, issues: list[str]) -> None:
@@ -820,6 +911,75 @@ def audit_architecture_maintainability_refactor_qa_matrix(
             )
 
 
+def audit_architecture_doc(text: str, relative_path: str, issues: list[str]) -> None:
+    require_tokens(
+        text,
+        ARCHITECTURE_DOC_REQUIRED_TOKENS,
+        relative_path=relative_path,
+        label="architecture closeout discovery",
+        issues=issues,
+    )
+
+
+def audit_spec_index(text: str, relative_path: str, issues: list[str]) -> None:
+    require_tokens(
+        text,
+        SPEC_INDEX_REQUIRED_TOKENS,
+        relative_path=relative_path,
+        label="spec index registration",
+        issues=issues,
+    )
+
+
+def audit_architecture_followup_refactor_qa_matrix(
+    text: str,
+    relative_path: str,
+    issues: list[str],
+) -> None:
+    require_tokens(
+        text,
+        ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
+        relative_path=relative_path,
+        label="architecture-followup-refactor qa matrix",
+        issues=issues,
+    )
+
+    final_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="Final Closeout Commands",
+        issues=issues,
+    )
+    if final_rows is not None:
+        for command in ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+            row = find_row(
+                final_rows,
+                column="Command",
+                predicate=lambda value, command=command: strip_code_fence(value) == command,
+            )
+            if row is None:
+                issues.append(
+                    f"{relative_path}: Final Closeout Commands missing command row: {command}"
+                )
+
+    execution_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="2026-04-03 Execution Results",
+        issues=issues,
+    )
+    if execution_rows is not None:
+        for command in ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+            require_command_result(
+                execution_rows,
+                relative_path=relative_path,
+                heading="2026-04-03 Execution Results",
+                predicate=lambda value, command=command: value == command,
+                label=command,
+                issues=issues,
+            )
+
+
 def find_traceability_row(matrix_text: str, row_id: str) -> dict[str, str] | None:
     return parse_traceability_rows(matrix_text).get(row_id)
 
@@ -851,6 +1011,8 @@ def audit_traceability_rows(matrix_text: str, issues: list[str]) -> None:
 
 
 SPECIAL_DOCUMENT_AUDITORS = {
+    "ARCHITECTURE.md": audit_architecture_doc,
+    manifest.SPEC_INDEX_DOC: audit_spec_index,
     "docs/specs/requirements/20_UI_UX.md": audit_requirement_doc,
     "docs/specs/requirements/40_NODE_SDK.md": audit_requirement_doc,
     "docs/specs/requirements/60_PERSISTENCE.md": audit_requirement_doc,
@@ -860,6 +1022,7 @@ SPECIAL_DOCUMENT_AUDITORS = {
     manifest.GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
     manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
     manifest.CURRENT_CLOSEOUT_QA_MATRIX_DOC: audit_architecture_maintainability_refactor_qa_matrix,
+    ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC: audit_architecture_followup_refactor_qa_matrix,
 }
 
 
@@ -868,6 +1031,10 @@ def audit_repository(repo_root: Path) -> list[str]:
     matrix_text: str | None = None
 
     for relative_path in REQUIRED_ARTIFACTS:
+        path = repo_root / relative_path
+        if not path.exists():
+            issues.append(f"Missing required artifact: {relative_path}")
+    for relative_path in P08_REQUIRED_ARTIFACTS:
         path = repo_root / relative_path
         if not path.exists():
             issues.append(f"Missing required artifact: {relative_path}")

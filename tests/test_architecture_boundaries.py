@@ -90,6 +90,25 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertTrue(hasattr(WorkspaceMutationService, "_set_node_parent_record"))
         self.assertTrue(hasattr(WorkspaceMutationService, "_set_node_fragment_state_record"))
 
+    def test_closeout_docs_publish_architecture_followup_matrix_from_canonical_surfaces(self) -> None:
+        architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
+        qa_acceptance_text = (
+            REPO_ROOT / "docs" / "specs" / "requirements" / "90_QA_ACCEPTANCE.md"
+        ).read_text(encoding="utf-8")
+        traceability_text = (
+            REPO_ROOT / "docs" / "specs" / "requirements" / "TRACEABILITY_MATRIX.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
+            architecture_text,
+        )
+        self.assertIn("REQ-QA-029", qa_acceptance_text)
+        self.assertIn("ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md", qa_acceptance_text)
+        self.assertIn("REQ-QA-029", traceability_text)
+        self.assertIn("AC-REQ-QA-029-01", traceability_text)
+        self.assertIn("ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md", traceability_text)
+
 
 if __name__ == "__main__":
     unittest.main()

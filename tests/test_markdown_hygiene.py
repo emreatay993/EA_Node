@@ -35,6 +35,24 @@ class MarkdownHygieneTests(unittest.TestCase):
     def test_audit_repository_passes_for_current_repo(self) -> None:
         self.assertEqual([], self.checker.audit_repository(REPO_ROOT))
 
+    def test_spec_index_registers_architecture_followup_matrix_link(self) -> None:
+        spec_index_text = (REPO_ROOT / "docs" / "specs" / "INDEX.md").read_text(
+            encoding="utf-8-sig"
+        )
+        matrix_text = (
+            REPO_ROOT
+            / "docs"
+            / "specs"
+            / "perf"
+            / "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md"
+        ).read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[ARCHITECTURE_FOLLOWUP_REFACTOR QA Matrix](perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md)",
+            spec_index_text,
+        )
+        self.assertTrue(matrix_text.startswith("# Architecture Followup Refactor QA Matrix"))
+
     def test_audit_repository_reports_missing_local_markdown_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)

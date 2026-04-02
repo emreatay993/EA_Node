@@ -33,6 +33,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [ARCHITECTURE_MAINTAINABILITY_REFACTOR QA Matrix](perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md)
 - [ARCHITECTURE_FOLLOWUP_REFACTOR Work Packet Manifest](work_packets/architecture_followup_refactor/ARCHITECTURE_FOLLOWUP_REFACTOR_MANIFEST.md)
 - [ARCHITECTURE_FOLLOWUP_REFACTOR Status Ledger](work_packets/architecture_followup_refactor/ARCHITECTURE_FOLLOWUP_REFACTOR_STATUS.md)
+- [ARCHITECTURE_FOLLOWUP_REFACTOR QA Matrix](perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Work Packet Manifest](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Status Ledger](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_STATUS.md)
 - [PYDPF_VIEWER_V1 QA Matrix](perf/PYDPF_VIEWER_V1_QA_MATRIX.md) - closeout evidence only; packet planning docs are archived outside the canonical spec pack.
