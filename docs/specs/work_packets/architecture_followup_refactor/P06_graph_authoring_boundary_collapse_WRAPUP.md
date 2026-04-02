@@ -2,32 +2,12 @@
 
 ## Implementation Summary
 
-Packet: `P06`
-Branch Label: `codex/architecture-followup-refactor/p06-graph-authoring-boundary-collapse`
-Commit Owner: `worker`
-Commit SHA: `3c2ed4cd5d7de2aea7261349a8c48714c39fdb8a`
-
-Changed Files:
-- `ea_node_editor/graph/boundary_adapters.py`
-- `ea_node_editor/graph/mutation_service.py`
-- `ea_node_editor/ui_qml/graph_scene_bridge.py`
-- `ea_node_editor/ui_qml/graph_scene_mutation_history.py`
-- `ea_node_editor/ui_qml/graph_scene_payload_builder.py`
-- `tests/test_architecture_boundaries.py`
-- `tests/test_graph_scene_bridge_bind_regression.py`
-- `tests/test_passive_graph_surface_host.py`
-- `docs/specs/work_packets/architecture_followup_refactor/P06_graph_authoring_boundary_collapse_WRAPUP.md`
-
-Artifacts Produced:
-- `docs/specs/work_packets/architecture_followup_refactor/P06_graph_authoring_boundary_collapse_WRAPUP.md`
-- `ea_node_editor/graph/boundary_adapters.py`
-- `ea_node_editor/graph/mutation_service.py`
-- `ea_node_editor/ui_qml/graph_scene_bridge.py`
-- `ea_node_editor/ui_qml/graph_scene_mutation_history.py`
-- `ea_node_editor/ui_qml/graph_scene_payload_builder.py`
-- `tests/test_architecture_boundaries.py`
-- `tests/test_graph_scene_bridge_bind_regression.py`
-- `tests/test_passive_graph_surface_host.py`
+- Packet: `P06`
+- Branch Label: `codex/architecture-followup-refactor/p06-graph-authoring-boundary-collapse`
+- Commit Owner: `worker`
+- Commit SHA: `3c2ed4cd5d7de2aea7261349a8c48714c39fdb8a`
+- Changed Files: `docs/specs/work_packets/architecture_followup_refactor/P06_graph_authoring_boundary_collapse_WRAPUP.md`, `ea_node_editor/graph/boundary_adapters.py`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/graph_scene_mutation_history.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_architecture_boundaries.py`, `tests/test_graph_scene_bridge_bind_regression.py`, `tests/test_passive_graph_surface_host.py`
+- Artifacts Produced: `docs/specs/work_packets/architecture_followup_refactor/P06_graph_authoring_boundary_collapse_WRAPUP.md`, `ea_node_editor/graph/boundary_adapters.py`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/ui_qml/graph_scene_bridge.py`, `ea_node_editor/ui_qml/graph_scene_mutation_history.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_architecture_boundaries.py`, `tests/test_graph_scene_bridge_bind_regression.py`, `tests/test_passive_graph_surface_host.py`
 
 Collapsed packet-owned graph authoring onto one `GraphSceneMutationHistory` command boundary above the validated mutation helpers and moved packet-owned scene notification, history capture, and workspace mutation orchestration out of competing `ui_qml` helper stacks.
 
@@ -37,37 +17,11 @@ Updated packet-owned regression anchors to assert explicit adapter injection and
 
 ## Verification
 
-Review Gate:
-
-```powershell
-$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q
-```
-
-Result: `14 passed in 3.15s`
-
-Focused affected rerun:
-
-```powershell
-$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_non_scoped_standard_and_passive_titles_use_shared_header_editor_without_pointer_leaks tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_graph_canvas_max_performance_degrades_grid_and_minimap_but_preserves_shadows_during_wheel_zoom tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_graph_canvas_minimap_keeps_node_geometry_static_when_center_changes --ignore=venv -q
-```
-
-Result: `3 passed in 2.90s`
-
-Packet Verification Command:
-
-```powershell
-$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_graph_scene_bridge_bind_regression.py tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py --ignore=venv -q
-```
-
-Result: `98 passed in 57.81s`
-
-Supplemental check:
-
-```powershell
-$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_non_scoped_standard_and_passive_titles_use_shared_header_editor_without_pointer_leaks --ignore=venv -q
-```
-
-Result: `1 passed in 0.89s`
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_graph_scene_bridge_bind_regression.py --ignore=venv -q` (`14 passed in 3.15s`)
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_non_scoped_standard_and_passive_titles_use_shared_header_editor_without_pointer_leaks tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_graph_canvas_max_performance_degrades_grid_and_minimap_but_preserves_shadows_during_wheel_zoom tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_graph_canvas_minimap_keeps_node_geometry_static_when_center_changes --ignore=venv -q` (`3 passed in 2.90s`)
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_architecture_boundaries.py tests/test_graph_scene_bridge_bind_regression.py tests/test_graph_surface_input_contract.py tests/test_graph_surface_input_controls.py tests/test_graph_surface_input_inline.py tests/test_passive_graph_surface_host.py --ignore=venv -q` (`98 passed in 57.81s`)
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_passive_graph_surface_host.py::PassiveGraphSurfaceHostTests::test_non_scoped_standard_and_passive_titles_use_shared_header_editor_without_pointer_leaks --ignore=venv -q` (`1 passed in 0.89s`)
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 
@@ -91,4 +45,4 @@ The command-boundary refactor is covered by packet-owned bridge, payload, surfac
 
 ## Ready for Integration
 
-Yes. The packet-owned refactor is committed, the required wrap-up artifact is prepared, the review gate passed, and the exact packet verification command completed cleanly against this branch state.
+- Yes: the packet-owned refactor is committed, the required wrap-up artifact is prepared, the review gate passed, and the exact packet verification command completed cleanly against this branch state.
