@@ -29,6 +29,7 @@ from ea_node_editor.persistence.migration import JsonProjectMigration
 from ea_node_editor.persistence.overlay import (
     LEGACY_RUNTIME_PERSISTENCE_KEY,
     PERSISTENCE_ENVELOPE_KEY,
+    restore_workspace_persistence_state,
     WorkspacePersistenceState,
     WorkspacePersistenceEnvelope,
 )
@@ -358,7 +359,7 @@ class JsonProjectCodec:
                 if node_id not in workspace.nodes:
                     del persistence_state.authored_node_overrides[node_id]
             sanitize_workspace_parent_links(workspace, persistence_state)
-            workspace.restore_persistence_state(persistence_state)
+            restore_workspace_persistence_state(workspace, persistence_state)
             project.workspaces[workspace.workspace_id] = workspace
 
         project.ensure_default_workspace()

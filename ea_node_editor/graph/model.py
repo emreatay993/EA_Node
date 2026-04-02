@@ -4,23 +4,35 @@ import copy
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from functools import lru_cache
+from importlib import import_module
 from typing import TYPE_CHECKING, Any
-
-from ea_node_editor.persistence.overlay import (
-    WorkspacePersistenceState,
-    capture_workspace_persistence_state,
-    copy_workspace_persistence_overlay,
-    restore_workspace_persistence_state,
-    set_workspace_authored_node_overrides,
-    set_workspace_unresolved_edge_docs,
-    set_workspace_unresolved_node_docs,
-    workspace_persistence_overlay,
-)
 from ea_node_editor.settings import SCHEMA_VERSION
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.mutation_service import WorkspaceMutationService
     from ea_node_editor.nodes.registry import NodeRegistry
+
+_PERSISTENCE_OVERLAY_MODULE = "ea_node_editor.persistence.overlay"
+
+
+@lru_cache(maxsize=1)
+def _persistence_overlay_api() -> Any:
+    # Keep the unresolved-document sidecar owned by persistence without a static
+    # graph-to-persistence module import.
+    return import_module(_PERSISTENCE_OVERLAY_MODULE)
+
+
+def _live_workspace_persistence_state(owner: object) -> Any:
+    return _persistence_overlay_api().workspace_persistence_overlay(owner)
+
+
+def _capture_workspace_persistence_state(owner: object) -> Any:
+    return _persistence_overlay_api().capture_workspace_persistence_state(owner)
+
+
+def _restore_workspace_persistence_state(owner: object, state: Any) -> None:
+    _persistence_overlay_api().restore_workspace_persistence_state(owner, state)
 
 
 def new_id(prefix: str) -> str:
@@ -176,21 +188,21 @@ class WorkspaceSnapshot:
 
     @property
     def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).unresolved_node_docs
+        return _live_workspace_persistence_state(self).unresolved_node_docs
 
     @property
     def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).unresolved_edge_docs
+        return _live_workspace_persistence_state(self).unresolved_edge_docs
 
     @property
     def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).authored_node_overrides
+        return _live_workspace_persistence_state(self).authored_node_overrides
 
-    def capture_persistence_state(self) -> WorkspacePersistenceState:
-        return capture_workspace_persistence_state(self)
+    def capture_persistence_state(self) -> Any:
+        return _capture_workspace_persistence_state(self)
 
-    def restore_persistence_state(self, state: WorkspacePersistenceState) -> None:
-        restore_workspace_persistence_state(self, state)
+    def restore_persistence_state(self, state: Any) -> None:
+        _restore_workspace_persistence_state(self, state)
 
     @classmethod
     def capture(cls, workspace: WorkspaceData) -> "WorkspaceSnapshot":
@@ -202,7 +214,7 @@ class WorkspaceSnapshot:
             active_view_id=str(workspace.active_view_id),
             dirty=bool(workspace.dirty),
         )
-        copy_workspace_persistence_overlay(workspace, snapshot)
+        snapshot.restore_persistence_state(workspace.capture_persistence_state())
         return snapshot
 
     def restore(self, workspace: WorkspaceData) -> None:
@@ -212,7 +224,7 @@ class WorkspaceSnapshot:
         workspace.views = copy.deepcopy(self.views)
         workspace.active_view_id = str(self.active_view_id)
         workspace.dirty = bool(self.dirty)
-        copy_workspace_persistence_overlay(self, workspace)
+        workspace.restore_persistence_state(self.capture_persistence_state())
         workspace.ensure_default_view()
         if workspace.active_view_id not in workspace.views:
             workspace.active_view_id = next(iter(workspace.views))
@@ -251,33 +263,33 @@ class WorkspaceData:
 
     @property
     def unresolved_node_docs(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).unresolved_node_docs
+        return _live_workspace_persistence_state(self).unresolved_node_docs
 
     @unresolved_node_docs.setter
     def unresolved_node_docs(self, value: Mapping[str, Any] | None) -> None:
-        set_workspace_unresolved_node_docs(self, value)
+        _live_workspace_persistence_state(self).replace_unresolved_node_docs(value)
 
     @property
     def unresolved_edge_docs(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).unresolved_edge_docs
+        return _live_workspace_persistence_state(self).unresolved_edge_docs
 
     @unresolved_edge_docs.setter
     def unresolved_edge_docs(self, value: Mapping[str, Any] | None) -> None:
-        set_workspace_unresolved_edge_docs(self, value)
+        _live_workspace_persistence_state(self).replace_unresolved_edge_docs(value)
 
     @property
     def authored_node_overrides(self) -> dict[str, dict[str, Any]]:
-        return workspace_persistence_overlay(self).authored_node_overrides
+        return _live_workspace_persistence_state(self).authored_node_overrides
 
     @authored_node_overrides.setter
     def authored_node_overrides(self, value: Mapping[str, Any] | None) -> None:
-        set_workspace_authored_node_overrides(self, value)
+        _live_workspace_persistence_state(self).replace_authored_node_overrides(value)
 
-    def capture_persistence_state(self) -> WorkspacePersistenceState:
-        return capture_workspace_persistence_state(self)
+    def capture_persistence_state(self) -> Any:
+        return _capture_workspace_persistence_state(self)
 
-    def restore_persistence_state(self, state: WorkspacePersistenceState) -> None:
-        restore_workspace_persistence_state(self, state)
+    def restore_persistence_state(self, state: Any) -> None:
+        _restore_workspace_persistence_state(self, state)
 
     def capture_snapshot(self) -> WorkspaceSnapshot:
         return WorkspaceSnapshot.capture(self)
@@ -305,8 +317,8 @@ class WorkspaceData:
 
 def sanitize_workspace_parent_links(
     workspace: WorkspaceData,
-    persistence_state: WorkspacePersistenceState | None = None,
-) -> WorkspacePersistenceState:
+    persistence_state: Any | None = None,
+) -> Any:
     state = persistence_state or workspace.capture_persistence_state()
     unresolved_nodes = state.unresolved_node_docs
     authored_overrides = state.authored_node_overrides

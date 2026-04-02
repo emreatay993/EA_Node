@@ -3,6 +3,10 @@ from __future__ import annotations
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.persistence.overlay import (
+    capture_workspace_persistence_state,
+    restore_workspace_persistence_state,
+)
 from ea_node_editor.workspace.manager import WorkspaceManager
 
 
@@ -54,15 +58,15 @@ class WorkspaceManagerTests(unittest.TestCase):
         model = GraphModel()
         manager = WorkspaceManager(model)
         source = model.active_workspace
-        state = source.capture_persistence_state()
+        state = capture_workspace_persistence_state(source)
         state.replace_unresolved_node_docs(
             {"node_missing": {"node_id": "node_missing", "type_id": "plugin.missing"}}
         )
-        source.restore_persistence_state(state)
+        restore_workspace_persistence_state(source, state)
 
         duplicated_id = manager.duplicate_workspace(source.workspace_id)
         duplicate = model.project.workspaces[duplicated_id]
-        duplicate_state = duplicate.capture_persistence_state()
+        duplicate_state = capture_workspace_persistence_state(duplicate)
 
         self.assertEqual(
             duplicate_state.unresolved_node_docs,
@@ -70,10 +74,10 @@ class WorkspaceManagerTests(unittest.TestCase):
         )
 
         duplicate_state.unresolved_node_docs["node_missing"]["type_id"] = "plugin.changed"
-        duplicate.restore_persistence_state(duplicate_state)
+        restore_workspace_persistence_state(duplicate, duplicate_state)
 
         self.assertEqual(
-            source.capture_persistence_state().unresolved_node_docs["node_missing"]["type_id"],
+            capture_workspace_persistence_state(source).unresolved_node_docs["node_missing"]["type_id"],
             "plugin.missing",
         )
 

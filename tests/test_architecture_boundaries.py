@@ -38,10 +38,15 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
 
     def test_graph_model_externalizes_workspace_persistence_state(self) -> None:
         model_text = (REPO_ROOT / "ea_node_editor" / "graph" / "model.py").read_text(encoding="utf-8")
+        codec_text = (REPO_ROOT / "ea_node_editor" / "persistence" / "project_codec.py").read_text(
+            encoding="utf-8"
+        )
 
-        self.assertIn("capture_workspace_persistence_state", model_text)
-        self.assertIn("workspace_persistence_overlay", model_text)
+        self.assertNotIn("from ea_node_editor.persistence.overlay import", model_text)
+        self.assertIn("return import_module(_PERSISTENCE_OVERLAY_MODULE)", model_text)
+        self.assertNotIn("WorkspacePersistenceState", model_text)
         self.assertNotIn("persistence_state: WorkspacePersistenceState = field(", model_text)
+        self.assertIn("restore_workspace_persistence_state(workspace, persistence_state)", codec_text)
 
     def test_graph_file_issue_module_is_a_boundary_adapter_to_persistence(self) -> None:
         file_issue_text = (REPO_ROOT / "ea_node_editor" / "graph" / "file_issue_state.py").read_text(
