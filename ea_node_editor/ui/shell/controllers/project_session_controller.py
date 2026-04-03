@@ -242,7 +242,8 @@ class _DialogParentSourceAdapter:
     def dialog_parent(self) -> object | None:
         from PyQt6.QtWidgets import QWidget
 
-        return self._host if isinstance(self._host, QWidget) else None
+        dialog_parent_host = getattr(self._host, "dialog_parent_host", self._host)
+        return dialog_parent_host if isinstance(dialog_parent_host, QWidget) else None
 
 
 class _WorkspaceSessionAdapter:
@@ -273,13 +274,13 @@ class _NodePropertyPathBrowserAdapter:
         self._host = host
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
-        browse = getattr(self._host, "browse_node_property_path", None)
-        if callable(browse):
-            return str(browse(node_id, key, current_path) or "")
         presenter = getattr(self._host, "graph_canvas_presenter", None)
         presenter_browse = getattr(presenter, "browse_node_property_path", None)
         if callable(presenter_browse):
             return str(presenter_browse(node_id, key, current_path) or "")
+        browse = getattr(self._host, "browse_node_property_path", None)
+        if callable(browse):
+            return str(browse(node_id, key, current_path) or "")
         return ""
 
 

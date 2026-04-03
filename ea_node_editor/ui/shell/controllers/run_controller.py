@@ -8,6 +8,14 @@ from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_actio
 from ea_node_editor.ui.shell.state import ShellRunState
 
 
+class _WorkflowSettingsSourceProtocol(Protocol):
+    def workflow_settings_payload(self) -> dict[str, Any]: ...
+
+
+class _RunFailureFocusProtocol(Protocol):
+    def focus_failed_node(self, workspace_id: str, node_id: str, error: str) -> None: ...
+
+
 class _RunControllerHostProtocol(Protocol):
     run_state: ShellRunState
     project_path: str
@@ -15,10 +23,10 @@ class _RunControllerHostProtocol(Protocol):
     serializer: Any
     model: Any
     registry: Any
-    project_session_controller: Any
+    project_session_controller: _WorkflowSettingsSourceProtocol
     console_panel: Any
     execution_client: Any
-    workspace_library_controller: Any
+    workspace_library_controller: _RunFailureFocusProtocol
     action_stop: Any
     action_pause: Any
     _RUN_SCOPED_EVENT_TYPES: set[str]

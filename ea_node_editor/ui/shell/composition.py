@@ -64,6 +64,83 @@ if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 
+class _ShellWindowAdapterBase:
+    def __init__(self, host: "ShellWindow") -> None:
+        self._window = host
+
+    @property
+    def window(self) -> "ShellWindow":
+        return self._window
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._window, name)
+
+
+class _WorkspaceLibraryControllerHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
+class _RunControllerHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
+class _ProjectSessionControllerHostAdapter(_ShellWindowAdapterBase):
+    @property
+    def dialog_parent_host(self) -> "ShellWindow":
+        return self._window
+
+    @property
+    def model(self) -> GraphModel:
+        return self._window.model
+
+    @model.setter
+    def model(self, value: GraphModel) -> None:
+        self._window.model = value
+
+    @property
+    def workspace_manager(self) -> WorkspaceManager:
+        return self._window.workspace_manager
+
+    @workspace_manager.setter
+    def workspace_manager(self, value: WorkspaceManager) -> None:
+        self._window.workspace_manager = value
+
+    @property
+    def project_path(self) -> str:
+        return self._window.project_path
+
+    @project_path.setter
+    def project_path(self, value: str) -> None:
+        self._window.project_path = value
+
+    def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
+        presenter = getattr(self._window, "graph_canvas_presenter", None)
+        browse = getattr(presenter, "browse_node_property_path", None)
+        if not callable(browse):
+            return ""
+        return str(browse(node_id, key, current_path) or "")
+
+
+class _ShellLibraryPresenterHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
+class _ShellWorkspacePresenterHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
+class _ShellInspectorPresenterHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
+class _GraphCanvasPresenterHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
+class _GraphCanvasHostPresenterHostAdapter(_ShellWindowAdapterBase):
+    pass
+
+
 @dataclass(frozen=True, slots=True)
 class ShellStateDependencies:
     state: ShellState
@@ -415,9 +492,9 @@ def _create_shell_controller_dependencies(
     state: ShellStateDependencies,
 ) -> ShellControllerDependencies:
     search_scope_controller = WindowSearchScopeController(host, state.search_scope_state)
-    workspace_library_controller = WorkspaceLibraryController(host)
-    project_session_controller = ProjectSessionController(host)
-    run_controller = RunController(host)
+    workspace_library_controller = WorkspaceLibraryController(_WorkspaceLibraryControllerHostAdapter(host))
+    project_session_controller = ProjectSessionController(_ProjectSessionControllerHostAdapter(host))
+    run_controller = RunController(_RunControllerHostAdapter(host))
     app_preferences_controller = AppPreferencesController()
     execution_client = host._create_execution_client()
     execution_client.subscribe(host.execution_event.emit)
@@ -437,16 +514,21 @@ def _create_shell_presenter_dependencies(
     state: ShellStateDependencies,
 ) -> ShellPresenterDependencies:
     shell_host_presenter = ShellHostPresenter(host)
-    shell_library_presenter = ShellLibraryPresenter(host)
-    shell_workspace_presenter = ShellWorkspacePresenter(host, ui_state=state.workspace_ui_state)
-    shell_inspector_presenter = ShellInspectorPresenter(host)
+    shell_library_presenter = ShellLibraryPresenter(_ShellLibraryPresenterHostAdapter(host), parent=host)
+    shell_workspace_presenter = ShellWorkspacePresenter(
+        _ShellWorkspacePresenterHostAdapter(host),
+        parent=host,
+        ui_state=state.workspace_ui_state,
+    )
+    shell_inspector_presenter = ShellInspectorPresenter(_ShellInspectorPresenterHostAdapter(host), parent=host)
     graph_canvas_presenter = GraphCanvasPresenter(
-        host,
+        _GraphCanvasPresenterHostAdapter(host),
+        parent=host,
         workspace_presenter=shell_workspace_presenter,
         library_presenter=shell_library_presenter,
         inspector_presenter=shell_inspector_presenter,
     )
-    graph_canvas_host_presenter = GraphCanvasHostPresenter(host)
+    graph_canvas_host_presenter = GraphCanvasHostPresenter(_GraphCanvasHostPresenterHostAdapter(host), parent=host)
     return ShellPresenterDependencies(
         shell_host_presenter=shell_host_presenter,
         shell_library_presenter=shell_library_presenter,

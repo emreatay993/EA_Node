@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
@@ -50,6 +50,97 @@ if TYPE_CHECKING:
 
 
 _UNSET = object()
+
+
+class _SignalLike(Protocol):
+    def connect(self, slot) -> object: ...  # noqa: ANN001
+
+
+def _presenter_parent(host: object, parent: QObject | None) -> QObject | None:
+    if parent is not None:
+        return parent
+    return host if isinstance(host, QObject) else None
+
+
+class _ShellLibraryPresenterHostProtocol(Protocol):
+    node_library_changed: _SignalLike
+    library_pane_reset_requested: _SignalLike
+    graph_search_changed: _SignalLike
+    connection_quick_insert_changed: _SignalLike
+    graph_hint_changed: _SignalLike
+    registry: Any
+    workspace_library_controller: Any
+    library_filter_state: Any
+    search_scope_controller: Any
+    search_scope_state: Any
+    model: Any
+    workspace_manager: Any
+    _CONNECTION_QUICK_INSERT_LIMIT: int
+    _CONNECTION_QUICK_INSERT_OFFSET: float
+
+
+class _ShellWorkspacePresenterHostProtocol(Protocol):
+    project_meta_changed: _SignalLike
+    workspace_state_changed: _SignalLike
+    graphics_preferences_changed: _SignalLike
+    project_path: str
+    workspace_ui_state: Any
+    workspace_manager: Any
+    model: Any
+    scene: Any
+    run_controller: Any
+    project_session_controller: Any
+    search_scope_controller: Any
+    search_scope_state: Any
+    workspace_library_controller: Any
+    shell_host_presenter: Any
+    graph_theme_bridge: Any
+
+    def set_graphics_performance_mode(self, mode: str) -> None: ...
+
+
+class _ShellInspectorPresenterHostProtocol(Protocol):
+    selected_node_changed: _SignalLike
+    workspace_state_changed: _SignalLike
+    workspace_library_controller: Any
+    model: Any
+    workspace_manager: Any
+    registry: Any
+    _SUBNODE_PIN_TYPE_IDS: set[str]
+    project_path: str
+    shell_host_presenter: Any
+
+    def _repair_property_path_dialog(
+        self,
+        *,
+        node_type_id: str,
+        property_key: str,
+        property_label: str,
+        current_path: str,
+    ) -> str: ...
+
+
+class _GraphCanvasPresenterHostProtocol(Protocol):
+    graphics_preferences_changed: _SignalLike
+    snap_to_grid_changed: _SignalLike
+    search_scope_state: Any
+    workspace_ui_state: Any
+    _SNAP_GRID_SIZE: float
+    search_scope_controller: Any
+    app_preferences_controller: Any
+    scene: Any
+    workspace_library_controller: Any
+
+    def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None: ...
+
+    def clear_graph_hint(self) -> None: ...
+
+
+class _GraphCanvasHostPresenterHostProtocol(Protocol):
+    search_scope_controller: Any
+    scene: Any
+    shell_host_presenter: Any
+    workspace_library_controller: Any
 
 
 @dataclass(slots=True)
@@ -108,8 +199,13 @@ class ShellLibraryPresenter(QObject):
     connection_quick_insert_changed = pyqtSignal()
     graph_hint_changed = pyqtSignal()
 
-    def __init__(self, host: "ShellWindow") -> None:
-        super().__init__(host)
+    def __init__(
+        self,
+        host: _ShellLibraryPresenterHostProtocol,
+        *,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(_presenter_parent(host, parent))
         self._host = host
         host.node_library_changed.connect(self.node_library_changed.emit)
         host.library_pane_reset_requested.connect(self.library_pane_reset_requested.emit)
@@ -655,8 +751,14 @@ class ShellWorkspacePresenter(QObject):
     workspace_state_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
 
-    def __init__(self, host: "ShellWindow", *, ui_state: ShellWorkspaceUiState | None = None) -> None:
-        super().__init__(host)
+    def __init__(
+        self,
+        host: _ShellWorkspacePresenterHostProtocol,
+        *,
+        parent: QObject | None = None,
+        ui_state: ShellWorkspaceUiState | None = None,
+    ) -> None:
+        super().__init__(_presenter_parent(host, parent))
         self._host = host
         self._ui_state = ui_state if ui_state is not None else host.workspace_ui_state
         host.project_meta_changed.connect(self.project_meta_changed.emit)
@@ -939,8 +1041,13 @@ class ShellInspectorPresenter(QObject):
     workspace_state_changed = pyqtSignal()
     inspector_state_changed = pyqtSignal()
 
-    def __init__(self, host: "ShellWindow") -> None:
-        super().__init__(host)
+    def __init__(
+        self,
+        host: _ShellInspectorPresenterHostProtocol,
+        *,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(_presenter_parent(host, parent))
         self._host = host
         host.selected_node_changed.connect(self._emit_selected_node_changed)
         host.workspace_state_changed.connect(self._emit_workspace_state_changed)
@@ -1199,13 +1306,14 @@ class GraphCanvasPresenter(QObject):
 
     def __init__(
         self,
-        host: "ShellWindow",
+        host: _GraphCanvasPresenterHostProtocol,
         *,
+        parent: QObject | None = None,
         workspace_presenter: ShellWorkspacePresenter,
         library_presenter: ShellLibraryPresenter,
         inspector_presenter: ShellInspectorPresenter,
     ) -> None:
-        super().__init__(host)
+        super().__init__(_presenter_parent(host, parent))
         self._host = host
         self._workspace_presenter = workspace_presenter
         self._library_presenter = library_presenter
@@ -1374,8 +1482,13 @@ class GraphCanvasPresenter(QObject):
 
 
 class GraphCanvasHostPresenter(QObject):
-    def __init__(self, host: "ShellWindow") -> None:
-        super().__init__(host)
+    def __init__(
+        self,
+        host: _GraphCanvasHostPresenterHostProtocol,
+        *,
+        parent: QObject | None = None,
+    ) -> None:
+        super().__init__(_presenter_parent(host, parent))
         self._host = host
 
     def request_delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:

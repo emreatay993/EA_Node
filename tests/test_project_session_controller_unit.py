@@ -310,6 +310,23 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         repair_project_file_issue.assert_called_once_with(issue)
         prompt_recover_autosave.assert_called_once_with(recovered_project)
 
+    def test_node_property_path_browser_prefers_graph_canvas_presenter_surface(self) -> None:
+        host = _ProjectHostStub()
+        presenter = mock.Mock()
+        presenter.browse_node_property_path.return_value = "presenter-path"
+        host.graph_canvas_presenter = presenter
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+
+        resolved = controller._project_files_service._path_browser.browse_node_property_path(  # noqa: SLF001
+            "node-1",
+            "source_path",
+            "current.png",
+        )
+
+        self.assertEqual(resolved, "presenter-path")
+        presenter.browse_node_property_path.assert_called_once_with("node-1", "source_path", "current.png")
+        self.assertEqual(host.browse_calls, [])
+
     def test_persist_session_prefers_workspace_navigation_surface_over_umbrella_controller(self) -> None:
         host = _ProjectHostStub()
         host.workspace_navigation_controller = _WorkspaceNavigationControllerStub()
