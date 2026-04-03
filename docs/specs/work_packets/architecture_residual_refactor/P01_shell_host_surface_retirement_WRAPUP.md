@@ -18,7 +18,7 @@
 - FAIL: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_project_session_controller_unit.py tests/test_workspace_library_controller_unit.py tests/test_shell_project_session_controller.py tests/test_shell_run_controller.py tests/test_main_window_shell.py --ignore=venv -q`
 - Failure detail: the only failing path was the inherited passive-PDF shell subprocess regression outside this packet's write scope. `tests/test_main_window_shell.py::MainWindowShellPassivePdfNodesTests::test_class_runs_in_subprocess` fails because [`ea_node_editor/ui_qml/graph_scene_payload_builder.py`](../../../../ea_node_editor/ui_qml/graph_scene_payload_builder.py) hits `NameError: name 'self' is not defined` at line 130 while `payload_properties` is declared `@staticmethod`.
 - PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_project_session_controller_unit.py tests/test_workspace_library_controller_unit.py --ignore=venv -q`
-- Final Verification Verdict: BLOCKED by an out-of-scope passive-PDF regression in `ea_node_editor/ui_qml/graph_scene_payload_builder.py`
+- Final Verification Verdict: FAIL
 
 ## Manual Test Directives
 
