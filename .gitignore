@@ -148,6 +148,13 @@ docs/specs/work_packets/architecture_followup_refactor/*
 !docs/specs/work_packets/architecture_followup_refactor/ARCHITECTURE_FOLLOWUP_REFACTOR_P*.md
 !docs/specs/work_packets/architecture_followup_refactor/ARCHITECTURE_FOLLOWUP_REFACTOR_P*_PROMPT.md
 !docs/specs/work_packets/architecture_followup_refactor/P*_WRAPUP.md
+!docs/specs/work_packets/architecture_residual_refactor/
+docs/specs/work_packets/architecture_residual_refactor/*
+!docs/specs/work_packets/architecture_residual_refactor/ARCHITECTURE_RESIDUAL_REFACTOR_MANIFEST.md
+!docs/specs/work_packets/architecture_residual_refactor/ARCHITECTURE_RESIDUAL_REFACTOR_STATUS.md
+!docs/specs/work_packets/architecture_residual_refactor/ARCHITECTURE_RESIDUAL_REFACTOR_P*.md
+!docs/specs/work_packets/architecture_residual_refactor/ARCHITECTURE_RESIDUAL_REFACTOR_P*_PROMPT.md
+!docs/specs/work_packets/architecture_residual_refactor/P*_WRAPUP.md
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/
 docs/specs/work_packets/global_gap_break_edge_crossing_variant/*
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md
@@ -224,6 +231,7 @@ docs/specs/perf/*
 !docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md
+!docs/specs/perf/ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md
 !docs/specs/perf/NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md
 !docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
