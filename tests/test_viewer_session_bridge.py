@@ -317,6 +317,17 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             scene_bridge=self.host.scene,
         )
 
+    def test_viewer_session_bridge_facade_stays_within_packet_budget(self) -> None:
+        ui_qml_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui_qml"
+        facade_path = ui_qml_dir / "viewer_session_bridge.py"
+        support_path = ui_qml_dir / "viewer_session_bridge_support.py"
+        facade_text = facade_path.read_text(encoding="utf-8")
+
+        self.assertTrue(support_path.exists())
+        self.assertIn("viewer_session_bridge_support", facade_text)
+        self.assertIn("ViewerSessionBridge", facade_text)
+        self.assertLessEqual(len(facade_text.splitlines()), 550)
+
     def _open_live_session(self, node_id: str = "node_viewer") -> str:
         self.host.scene.set_selected(node_id)
         session_id = self.bridge.open(node_id, {"data_refs": {"fields": f"fields::{node_id}"}})

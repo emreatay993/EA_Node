@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from ea_node_editor.graph.model import GraphModel, NodeInstance
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -48,6 +49,16 @@ def _viewer_surface_spec() -> NodeTypeSpec:
 
 
 class ViewerSurfaceContractTests(unittest.TestCase):
+    def test_graph_viewer_surface_facade_stays_within_packet_budget(self) -> None:
+        viewer_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui_qml" / "components" / "graph" / "viewer"
+        facade_path = viewer_dir / "GraphViewerSurface.qml"
+        content_path = viewer_dir / "GraphViewerSurfaceContent.qml"
+        facade_text = facade_path.read_text(encoding="utf-8")
+
+        self.assertTrue(content_path.exists())
+        self.assertIn("GraphViewerSurfaceContent {}", facade_text)
+        self.assertLessEqual(len(facade_text.splitlines()), 600)
+
     def _run_qml_probe(self, label: str, body: str) -> None:
         run_qml_probe(
             self,

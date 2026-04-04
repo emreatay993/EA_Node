@@ -52,6 +52,17 @@ class ViewerSessionServiceTests(unittest.TestCase):
         self.services = WorkerServices()
         self.service = self.services.viewer_session_service
 
+    def test_viewer_session_service_facade_stays_within_packet_budget(self) -> None:
+        execution_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "execution"
+        facade_path = execution_dir / "viewer_session_service.py"
+        support_path = execution_dir / "viewer_session_service_support.py"
+        facade_text = facade_path.read_text(encoding="utf-8")
+
+        self.assertTrue(support_path.exists())
+        self.assertIn("viewer_session_service_support", facade_text)
+        self.assertIn("ViewerSessionService", facade_text)
+        self.assertLessEqual(len(facade_text.splitlines()), 700)
+
     def test_runtime_contract_viewer_helpers_preserve_projection_payload(self) -> None:
         session_id = default_viewer_session_id("ws_main", "node_viewer")
         event = ViewerSessionOpenedEvent(
