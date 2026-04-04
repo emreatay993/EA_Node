@@ -21,21 +21,19 @@ SHELL_ISOLATION_RESULT_PATTERN = re.compile(r"^`\d+ passed in \d+\.\d+s`$")
 P10_TRACEABILITY_TEST_COMMAND = (
     "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
 )
-ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC = (
-    "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md"
+ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC = (
+    manifest.ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC
 )
-ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest "
-    "tests/test_architecture_boundaries.py tests/test_traceability_checker.py "
-    "tests/test_markdown_hygiene.py --ignore=venv -q"
+ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND = (
+    manifest.ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND
 )
-ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND = (
-    "./venv/Scripts/python.exe scripts/check_traceability.py"
+ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND = (
+    manifest.ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND
 )
-ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND = (
-    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND = (
+    manifest.ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND
 )
-P08_REQUIRED_ARTIFACTS = (ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC,)
+P08_REQUIRED_ARTIFACTS: tuple[str, ...] = ()
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR = "artifacts/graphics_performance_modes_docs"
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD = (
     f"{GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR}/TRACK_H_BENCHMARK_REPORT.md"
@@ -177,26 +175,10 @@ P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         P09_DESKTOP_REFERENCE_REPORT_MD,
     ),
 }
-P08_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
-    "REQ-QA-029": (
-        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
-        "`P01` through `P07`",
-        "`P08`",
-        "docs/specs/INDEX.md",
-        "manual desktop checks inherited from the packet-set wrap-ups",
-    ),
-    "AC-REQ-QA-029-01": (
-        ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
-        ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
-        ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
-        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
-    ),
-}
 QA_ACCEPTANCE_REQUIREMENT_TOKENS = dict(manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS)
 QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS)
-QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(P08_QA_ACCEPTANCE_REQUIREMENT_TOKENS)
 QA_ACCEPTANCE_CURRENT_CLOSEOUT_EVIDENCE_TOKENS = (
-    ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC,
+    *manifest.ARCHITECTURE_RESIDUAL_REFACTOR_CURRENT_EVIDENCE_TOKENS,
 )
 
 GRAPHICS_PERFORMANCE_MODES_MATRIX_REQUIRED_TOKENS = (
@@ -264,32 +246,14 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
     f"{manifest.LOCAL_VENV_PYTHON_DISPLAY} {manifest.CHECK_MARKDOWN_LINKS_SCRIPT}",
 )
 ARCHITECTURE_DOC_REQUIRED_TOKENS = (
-    ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC,
+    "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
 )
-SPEC_INDEX_REQUIRED_TOKENS = ("ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",)
-ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
-    "Architecture Followup Refactor QA Matrix",
-    "## Locked Scope",
-    "## Retained Automated Verification",
-    "## Final Closeout Commands",
-    "## 2026-04-03 Execution Results",
-    "## Remaining Manual Desktop Checks",
-    "## Residual Risks",
-    "ARCHITECTURE.md",
-    "docs/specs/INDEX.md",
-    "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
-    ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
-    ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
-    ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
-    "P01_shell_composition_root_collapse_WRAPUP.md",
-    "P03_qml_bridge_cleanup_finalization_WRAPUP.md",
-    "P05_runtime_snapshot_direct_builder_WRAPUP.md",
-    "P07_viewer_session_single_authority_WRAPUP.md",
+SPEC_INDEX_REQUIRED_TOKENS = manifest.ARCHITECTURE_RESIDUAL_REFACTOR_SPEC_INDEX_TOKENS
+ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
+    manifest.ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS
 )
-ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
-    ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
-    ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
-    ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
+ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
+    manifest.ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS
 )
 
 P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
@@ -394,24 +358,6 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
 }
 TRACEABILITY_ROW_REQUIRED_TOKENS = dict(manifest.TRACEABILITY_ROW_REQUIRED_TOKENS)
 TRACEABILITY_ROW_REQUIRED_TOKENS.update(P10_TRACEABILITY_ROW_REQUIRED_TOKENS)
-P08_TRACEABILITY_ROW_REQUIRED_TOKENS = {
-    "REQ-QA-029": (
-        "ARCHITECTURE.md",
-        "docs/specs/INDEX.md",
-        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
-        "tests/test_architecture_boundaries.py",
-        "tests/test_markdown_hygiene.py",
-        "tests/test_traceability_checker.py",
-        "scripts/check_traceability.py",
-    ),
-    "AC-REQ-QA-029-01": (
-        ARCHITECTURE_FOLLOWUP_REFACTOR_TARGETED_REGRESSION_COMMAND,
-        ARCHITECTURE_FOLLOWUP_REFACTOR_TRACEABILITY_COMMAND,
-        ARCHITECTURE_FOLLOWUP_REFACTOR_MARKDOWN_COMMAND,
-        "ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
-    ),
-}
-TRACEABILITY_ROW_REQUIRED_TOKENS.update(P08_TRACEABILITY_ROW_REQUIRED_TOKENS)
 
 P10_TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "REQ-QA-018": ("artifacts/graph_canvas_perf_docs",),
@@ -931,16 +877,16 @@ def audit_spec_index(text: str, relative_path: str, issues: list[str]) -> None:
     )
 
 
-def audit_architecture_followup_refactor_qa_matrix(
+def audit_architecture_residual_refactor_qa_matrix(
     text: str,
     relative_path: str,
     issues: list[str],
 ) -> None:
     require_tokens(
         text,
-        ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
+        ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
         relative_path=relative_path,
-        label="architecture-followup-refactor qa matrix",
+        label="architecture-residual-refactor qa matrix",
         issues=issues,
     )
 
@@ -951,7 +897,7 @@ def audit_architecture_followup_refactor_qa_matrix(
         issues=issues,
     )
     if final_rows is not None:
-        for command in ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+        for command in ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
             row = find_row(
                 final_rows,
                 column="Command",
@@ -965,15 +911,15 @@ def audit_architecture_followup_refactor_qa_matrix(
     execution_rows = table_after_heading(
         text,
         relative_path=relative_path,
-        heading="2026-04-03 Execution Results",
+        heading="2026-04-04 Execution Results",
         issues=issues,
     )
     if execution_rows is not None:
-        for command in ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+        for command in ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
             require_command_result(
                 execution_rows,
                 relative_path=relative_path,
-                heading="2026-04-03 Execution Results",
+                heading="2026-04-04 Execution Results",
                 predicate=lambda value, command=command: value == command,
                 label=command,
                 issues=issues,
@@ -1022,7 +968,7 @@ SPECIAL_DOCUMENT_AUDITORS = {
     manifest.GRAPH_CANVAS_PERF_MATRIX_DOC: audit_graph_canvas_perf_matrix,
     manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
     manifest.CURRENT_CLOSEOUT_QA_MATRIX_DOC: audit_architecture_maintainability_refactor_qa_matrix,
-    ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX_DOC: audit_architecture_followup_refactor_qa_matrix,
+    ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC: audit_architecture_residual_refactor_qa_matrix,
 }
 
 

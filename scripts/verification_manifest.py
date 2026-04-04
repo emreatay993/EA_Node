@@ -30,8 +30,38 @@ ARCHITECTURE_REFACTOR_QA_MATRIX_DOC = "docs/specs/perf/ARCHITECTURE_REFACTOR_QA_
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC = (
     "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md"
 )
+ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC = (
+    "docs/specs/perf/ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md"
+)
 CURRENT_CLOSEOUT_QA_MATRIX_DOC = ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_DOC
 MARKDOWN_HYGIENE_TEST = "tests/test_markdown_hygiene.py"
+
+ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND = (
+    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
+    "tests/test_architecture_boundaries.py tests/test_shell_isolation_phase.py "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py --ignore=venv -q"
+)
+ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
+ARCHITECTURE_RESIDUAL_REFACTOR_PACKET_WRAPUPS = (
+    "P01_shell_host_surface_retirement_WRAPUP.md",
+    "P02_shell_lifecycle_isolation_hardening_WRAPUP.md",
+    "P03_graph_scene_bridge_decomposition_WRAPUP.md",
+    "P04_viewer_projection_authority_split_WRAPUP.md",
+    "P05_runtime_snapshot_boundary_decoupling_WRAPUP.md",
+    "P06_graph_mutation_service_decoupling_WRAPUP.md",
+    "P07_shared_runtime_contract_extraction_WRAPUP.md",
+)
+ARCHITECTURE_RESIDUAL_REFACTOR_SPEC_INDEX_TOKENS = (
+    "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
+)
+ARCHITECTURE_RESIDUAL_REFACTOR_CURRENT_EVIDENCE_TOKENS = (
+    ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC,
+)
 
 SERIALIZER_BASELINE_COMMAND = (
     "./venv/Scripts/python.exe -m pytest "
@@ -114,6 +144,7 @@ PROOF_AUDIT_REQUIRED_ARTIFACTS = (
     QA_ACCEPTANCE_DOC,
     TRACEABILITY_MATRIX_DOC,
     CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+    ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC,
     ARCHITECTURE_REFACTOR_QA_MATRIX_DOC,
     GRAPH_CANVAS_PERF_MATRIX_DOC,
     "docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md",
@@ -168,6 +199,17 @@ class ShellIsolationCatalogSpec:
     module_path: str
     module_name: str
     target_id_prefixes: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ShellIsolationOwnershipSpec:
+    """Manifest-owned ownership rule for shell-isolated regression surfaces."""
+
+    source_path: str
+    coverage_kind: str
+    owner_name: str | None = None
+    covered_names: tuple[str, ...] = ()
+    excluded_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -229,6 +271,165 @@ SHELL_ISOLATION_SPEC = ShellIsolationSpec(
     target_catalog_paths=SHELL_ISOLATION_TARGET_CATALOG_PATHS,
     shell_module_paths=SHELL_BACKED_TEST_PATHS,
     shell_module_names=SHELL_BACKED_TEST_MODULES,
+)
+
+SHELL_ISOLATION_OWNERSHIP_SPECS = (
+    ShellIsolationOwnershipSpec(
+        source_path="tests/test_main_window_shell.py",
+        coverage_kind="class_targets",
+        excluded_names=(
+            "MainWindowShellContextBootstrapTests",
+            "MainWindowGraphCanvasBridgeTests",
+            "ShellWorkspaceBridgeQmlBoundaryTests",
+            "GraphCanvasQmlBoundaryTests",
+            "MainWindowNodeExecutionCanvasTests",
+            "MainWindowShellGraphCanvasHostTests",
+            "MainWindowShellHostFacadeDelegationTests",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/bridge_contracts.py",
+        coverage_kind="class_targets",
+        covered_names=(
+            "ShellLibraryBridgeTests",
+            "ShellInspectorBridgeTests",
+            "GraphCanvasBridgeTests",
+            "ShellWorkspaceBridgeTests",
+        ),
+        excluded_names=(
+            "MainWindowGraphCanvasBridgeTests",
+            "SharedUiSupportBoundaryTests",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/bridge_qml_boundaries.py",
+        coverage_kind="class_targets",
+        covered_names=(
+            "ShellLibraryBridgeQmlBoundaryTests",
+            "ShellInspectorBridgeQmlBoundaryTests",
+            "ShellWorkspaceBridgeQmlBoundaryTests",
+        ),
+        excluded_names=("ShellStatusStripQmlBoundaryTests", "GraphCanvasQmlBoundaryTests"),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/comment_backdrop_workflows.py",
+        coverage_kind="class_targets",
+        excluded_names=("MainWindowShellCommentBackdropWorkflowTests",),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/drop_connect_and_workflow_io.py",
+        coverage_kind="module_target",
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/edit_clipboard_history.py",
+        coverage_kind="module_target",
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/passive_image_nodes.py",
+        coverage_kind="class_targets",
+        covered_names=("MainWindowShellPassiveImageNodesTests",),
+        excluded_names=("MainWindowShellPassiveImageNodesSubprocessTests",),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/passive_pdf_nodes.py",
+        coverage_kind="class_targets",
+        covered_names=("MainWindowShellPassivePdfNodesTests",),
+        excluded_names=("MainWindowShellPassivePdfNodesSubprocessTests",),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/passive_property_editors.py",
+        coverage_kind="module_target",
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/passive_style_context_menus.py",
+        coverage_kind="module_target",
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/shell_basics_and_search.py",
+        coverage_kind="module_target",
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/shell_runtime_contracts.py",
+        coverage_kind="class_targets",
+        covered_names=(
+            "FrameRateSamplerTests",
+            "MainWindowShellTelemetryTests",
+            "MainWindowShellBootstrapCompositionTests",
+            "MainWindowShellContextBootstrapTests",
+            "MainWindowShellHostProtocolStateTests",
+            "_MainWindowShellGraphCanvasHostDirectTests",
+        ),
+        excluded_names=(
+            "MainWindowShellStatusStripQuickToggleTests",
+            "MainWindowShellPassiveImageNodesTests",
+            "MainWindowShellPassivePdfNodesTests",
+            "MainWindowShellGraphCanvasHostTests",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/main_window_shell/view_library_inspector.py",
+        coverage_kind="module_target",
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/test_script_editor_dock.py",
+        coverage_kind="method_targets",
+        owner_name="ScriptEditorDockTests",
+        covered_names=(
+            "test_script_editor_binds_to_selected_python_script_node",
+            "test_script_editor_state_persists_in_metadata",
+            "test_script_editor_exposes_cursor_diagnostics_and_dirty_state",
+            "test_set_script_editor_panel_visible_focuses_editor_for_script_node",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/test_shell_run_controller.py",
+        coverage_kind="method_targets",
+        owner_name="ShellRunControllerTests",
+        covered_names=(
+            "test_stream_log_events_are_scoped_to_active_run",
+            "test_stale_run_events_do_not_mutate_active_run_ui",
+            "test_failure_focus_reveals_parent_chain_when_present",
+            "test_run_failed_event_centers_failed_node_and_reports_exception_details",
+        ),
+        excluded_names=(
+            "test_node_execution_visualization_shell_events_drive_graph_node_chrome_states",
+            "test_node_execution_visualization_failure_priority_overrides_completed_chrome",
+            "test_nonfatal_run_failed_hides_elapsed_timer_for_failed_running_node",
+            "test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace",
+            "test_shell_context_bridge_fallbacks_wrap_shell_window_with_focused_sources",
+            "test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset",
+            "test_node_completed_artifact_ref_payload_keeps_run_ui_running",
+            "test_new_run_clears_failed_node_highlight_before_start",
+        ),
+    ),
+    ShellIsolationOwnershipSpec(
+        source_path="tests/test_shell_project_session_controller.py",
+        coverage_kind="scenario_targets",
+        owner_name="ShellProjectSessionControllerTests",
+        covered_names=(
+            "test_session_restore_recovers_workspace_order_active_workspace_and_view_camera",
+            "test_autosave_tick_writes_snapshot_and_keeps_valid_project_doc",
+            "test_recovery_prompt_accept_loads_newer_autosave",
+            "test_recovery_prompt_reject_keeps_session_state_and_discards_autosave",
+            "test_restore_session_handles_corrupted_session_and_autosave_files",
+            "test_recovery_prompt_is_deferred_until_main_window_is_visible",
+            "test_recent_project_paths_are_owned_by_explicit_session_state",
+        ),
+        excluded_names=(
+            "test_saved_project_reopen_seeds_run_required_viewer_projection_without_persisting_live_transport",
+            "test_session_restore_recovers_unsaved_temp_staged_refs_without_autosave",
+            "test_recovery_prompt_accept_recovers_unsaved_temp_staged_refs",
+            "test_recovery_prompt_is_skipped_when_autosave_matches_restored_session",
+            "test_clean_close_discards_staged_scratch_and_clears_unsaved_root_hint",
+            "test_explicit_save_promotes_referenced_staged_refs_and_prunes_orphans",
+            "test_save_as_default_copy_switches_project_path_and_excludes_staging",
+            "test_new_project_uses_navigation_controller_surface_without_workspace_library_facade",
+            "test_project_files_menu_action_triggers_dialog",
+            "test_save_prompt_receives_project_file_summary_before_saving",
+            "test_open_project_path_can_abort_when_project_files_summary_has_staged_and_broken_entries",
+            "test_recovery_prompt_receives_project_file_summary_for_recovered_project",
+        ),
+    ),
 )
 
 SHELL_ISOLATION_PHASE_KEY = "shell_isolation"
@@ -297,6 +498,12 @@ def shell_isolation_target_id_prefixes() -> tuple[str, ...]:
         for spec in SHELL_ISOLATION_CATALOG_SPECS
         for prefix in spec.target_id_prefixes
     )
+
+
+def shell_isolation_ownership_specs_by_path() -> dict[str, ShellIsolationOwnershipSpec]:
+    """Return manifest-owned shell-isolation ownership rules keyed by source path."""
+
+    return {spec.source_path: spec for spec in SHELL_ISOLATION_OWNERSHIP_SPECS}
 
 
 def shell_isolation_target_pytest_args(*nodeids: str) -> tuple[str, ...]:
@@ -375,6 +582,7 @@ GENERIC_DOCUMENT_RULES: dict[str, DocumentRule] = {
     SPEC_INDEX_DOC: DocumentRule(
         required=(
             "ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md",
+            "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
             "PROJECT_MANAGED_FILES_QA_MATRIX.md",
             "PYDPF_VIEWER_V1_QA_MATRIX.md",
             "closeout evidence only",
@@ -501,6 +709,19 @@ QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
         proof_audit_command(),
         f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
         CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+    ),
+    "REQ-QA-029": (
+        "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
+        "`P01` through `P07`",
+        "`P08`",
+        "docs/specs/INDEX.md",
+        "manual desktop checks inherited from the packet-set wrap-ups",
+    ),
+    "AC-REQ-QA-029-01": (
+        ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND,
+        ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND,
+        ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,
+        "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
     ),
 }
 
@@ -716,9 +937,58 @@ TRACEABILITY_ROW_REQUIRED_TOKENS = {
         f"{LOCAL_VENV_PYTHON_DISPLAY} {CHECK_MARKDOWN_LINKS_SCRIPT}",
         CURRENT_CLOSEOUT_QA_MATRIX_DOC,
     ),
+    "REQ-QA-029": (
+        "docs/specs/INDEX.md",
+        "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+        "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC,
+        "scripts/verification_manifest.py",
+        "scripts/check_traceability.py",
+        "tests/test_architecture_boundaries.py",
+        "tests/test_shell_isolation_phase.py",
+        "tests/test_markdown_hygiene.py",
+        "tests/test_traceability_checker.py",
+        "tests/shell_isolation_main_window_targets.py",
+        "tests/shell_isolation_controller_targets.py",
+    ),
+    "AC-REQ-QA-029-01": (
+        ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND,
+        ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND,
+        ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,
+        "ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md",
+    ),
 }
 
 TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "AC-REQ-QA-013-01": ("approved fresh-process shell fallback",),
     "AC-REQ-QA-017-01": ("Recorded serializer baseline caveat",),
 }
+
+ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
+    "Architecture Residual Refactor QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-04 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "docs/specs/INDEX.md",
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+    "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+    "scripts/verification_manifest.py",
+    "scripts/check_traceability.py",
+    "tests/test_architecture_boundaries.py",
+    "tests/test_shell_isolation_phase.py",
+    "tests/test_traceability_checker.py",
+    MARKDOWN_HYGIENE_TEST,
+    CURRENT_CLOSEOUT_QA_MATRIX_DOC,
+    ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND,
+    ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND,
+    ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,
+    *ARCHITECTURE_RESIDUAL_REFACTOR_PACKET_WRAPUPS,
+)
+ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
+    ARCHITECTURE_RESIDUAL_REFACTOR_TARGETED_REGRESSION_COMMAND,
+    ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND,
+    ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND,
+)
