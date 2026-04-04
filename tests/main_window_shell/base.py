@@ -4,7 +4,7 @@ import gc
 import unittest
 from unittest.mock import patch
 
-from PyQt6.QtCore import QEvent, QObject, QMetaObject, Qt, QUrl, Q_ARG
+from PyQt6.QtCore import QEvent, QObject, QMetaObject, Qt, Q_ARG
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
@@ -60,18 +60,7 @@ def _prepare_shell_test_process(app: QApplication) -> None:
 def _destroy_shell_window(window: ShellWindow | None) -> None:
     if window is None:
         return
-    for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
-        timer = getattr(window, timer_name, None)
-        if timer is not None:
-            timer.stop()
     window.close()
-    quick_widget = getattr(window, "quick_widget", None)
-    if quick_widget is not None:
-        window.takeCentralWidget()
-        quick_widget.setSource(QUrl())
-        quick_widget.hide()
-        quick_widget.deleteLater()
-        window.quick_widget = None
     window.deleteLater()
 
 

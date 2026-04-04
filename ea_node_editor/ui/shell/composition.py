@@ -381,6 +381,7 @@ def create_shell_window() -> "ShellWindow":
     host = ShellWindow(_defer_bootstrap=True)
     composition = build_shell_window_composition(host)
     bootstrap_shell_window(host, composition)
+    host._connect_application_state_signal()
     return host
 
 

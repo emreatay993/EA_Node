@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Literal
 
-from PyQt6.QtCore import QEvent, QTimer, Qt, pyqtProperty, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QEvent, QTimer, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QCursor
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
 from PyQt6.QtQuickWidgets import QQuickWidget
@@ -167,6 +167,8 @@ class ShellWindow(QMainWindow):
     def __init__(self, composition: ShellWindowComposition | None = None, *, _defer_bootstrap: bool = False) -> None:
         super().__init__()
         self._viewer_window_active = True
+        self._application_state_signal_connected = False
+        self._shell_teardown_started = False
         if _defer_bootstrap:
             return
         resolved_composition = composition or build_shell_window_composition(self)
@@ -1792,10 +1794,50 @@ class ShellWindow(QMainWindow):
             return
 
     def _connect_application_state_signal(self) -> None:
+        if self._application_state_signal_connected:
+            return
         app = QApplication.instance()
         signal = getattr(app, "applicationStateChanged", None) if app is not None else None
         if signal is not None and hasattr(signal, "connect"):
             signal.connect(self._handle_application_state_changed)
+            self._application_state_signal_connected = True
+
+    def _disconnect_application_state_signal(self) -> None:
+        if not self._application_state_signal_connected:
+            return
+        app = QApplication.instance()
+        signal = getattr(app, "applicationStateChanged", None) if app is not None else None
+        if signal is None or not hasattr(signal, "disconnect"):
+            self._application_state_signal_connected = False
+            return
+        try:
+            signal.disconnect(self._handle_application_state_changed)
+        except (TypeError, RuntimeError):
+            pass
+        self._application_state_signal_connected = False
+
+    def _teardown_qml_surface(self) -> None:
+        host_service = getattr(self, "viewer_host_service", None)
+        shutdown = getattr(host_service, "shutdown", None)
+        if callable(shutdown):
+            shutdown(reason="window_close")
+
+        manager = getattr(self, "_embedded_viewer_overlay_manager", None)
+        if manager is not None:
+            manager.deleteLater()
+            self._embedded_viewer_overlay_manager = None
+
+        quick_widget = getattr(self, "quick_widget", None)
+        if not isinstance(quick_widget, QQuickWidget):
+            return
+        try:
+            quick_widget.setUpdatesEnabled(False)
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            quick_widget.setSource(QUrl())
+        except Exception:  # noqa: BLE001
+            return
 
     def _handle_application_state_changed(self, state) -> None:  # noqa: ANN001
         if state == Qt.ApplicationState.ApplicationActive:
@@ -1820,12 +1862,22 @@ class ShellWindow(QMainWindow):
         self._viewer_window_active = True
         super().showEvent(event)
         if self._autosave_recovery_deferred:
-            QTimer.singleShot(0, self._process_deferred_autosave_recovery)
+            QTimer.singleShot(0, self._process_deferred_autosave_recovery_if_open)
+
+    def _process_deferred_autosave_recovery_if_open(self) -> None:
+        if self._shell_teardown_started:
+            return
+        self._process_deferred_autosave_recovery()
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
-        autosave_timer = getattr(self, "autosave_timer", None)
-        if autosave_timer is not None:
-            autosave_timer.stop()
+        if self._shell_teardown_started:
+            super().closeEvent(event)
+            return
+        self._shell_teardown_started = True
+        for timer_name in ("metrics_timer", "graph_hint_timer", "autosave_timer"):
+            timer = getattr(self, timer_name, None)
+            if timer is not None:
+                timer.stop()
         try:
             if hasattr(self, "run_state"):
                 self.clear_run_failure_focus()
@@ -1833,6 +1885,8 @@ class ShellWindow(QMainWindow):
             project_session_controller = getattr(self, "project_session_controller", None)
             if project_session_controller is not None:
                 project_session_controller.close_session()
+            self._disconnect_application_state_signal()
+            self._teardown_qml_surface()
         finally:
             execution_client = getattr(self, "execution_client", None)
             if execution_client is not None:

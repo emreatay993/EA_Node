@@ -17,6 +17,29 @@ except ModuleNotFoundError:
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _PROJECT_SESSION_SCENARIO_ARG = "--scenario"
 _PROJECT_SESSION_SCENARIO_MODULE = "tests.test_shell_project_session_controller"
+_LEGACY_PYTEST_NODEID_ALIASES = {
+    "tests/test_main_window_shell.py::ShellLibraryBridgeTests": (
+        "tests/main_window_shell/bridge_contracts.py::ShellLibraryBridgeTests"
+    ),
+    "tests/test_main_window_shell.py::ShellInspectorBridgeTests": (
+        "tests/main_window_shell/bridge_contracts.py::ShellInspectorBridgeTests"
+    ),
+    "tests/test_main_window_shell.py::GraphCanvasBridgeTests": (
+        "tests/main_window_shell/bridge_contracts.py::GraphCanvasBridgeTests"
+    ),
+    "tests/test_main_window_shell.py::ShellWorkspaceBridgeTests": (
+        "tests/main_window_shell/bridge_contracts.py::ShellWorkspaceBridgeTests"
+    ),
+    "tests/test_main_window_shell.py::ShellLibraryBridgeQmlBoundaryTests": (
+        "tests/main_window_shell/bridge_qml_boundaries.py::ShellLibraryBridgeQmlBoundaryTests"
+    ),
+    "tests/test_main_window_shell.py::ShellInspectorBridgeQmlBoundaryTests": (
+        "tests/main_window_shell/bridge_qml_boundaries.py::ShellInspectorBridgeQmlBoundaryTests"
+    ),
+    "tests/test_main_window_shell.py::ShellWorkspaceBridgeQmlBoundaryTests": (
+        "tests/main_window_shell/bridge_qml_boundaries.py::ShellWorkspaceBridgeQmlBoundaryTests"
+    ),
+}
 
 
 def _stable_target_id(prefix: str, value: str) -> str:
@@ -28,6 +51,10 @@ def _normalized_env_overrides(extra_env: Mapping[str, str] | None) -> tuple[tupl
     if not extra_env:
         return ()
     return tuple(sorted((str(key), str(value)) for key, value in extra_env.items()))
+
+
+def _normalize_pytest_nodeid(nodeid: str) -> str:
+    return _LEGACY_PYTEST_NODEID_ALIASES.get(nodeid, nodeid)
 
 
 def build_unittest_module_command(module_name: str) -> tuple[str, ...]:
@@ -45,13 +72,14 @@ def build_unittest_target_list_command(dotted_targets: Sequence[str]) -> tuple[s
 
 
 def build_pytest_nodeid_command(nodeid: str) -> tuple[str, ...]:
-    return (sys.executable, *manifest.shell_isolation_target_pytest_args(nodeid))
+    return (sys.executable, *manifest.shell_isolation_target_pytest_args(_normalize_pytest_nodeid(nodeid)))
 
 
 def build_pytest_nodeid_list_command(nodeids: Sequence[str]) -> tuple[str, ...]:
     if not nodeids:
         raise ValueError("pytest_nodeid_list requires at least one nodeid.")
-    return (sys.executable, *manifest.shell_isolation_target_pytest_args(*nodeids))
+    normalized_nodeids = tuple(_normalize_pytest_nodeid(nodeid) for nodeid in nodeids)
+    return (sys.executable, *manifest.shell_isolation_target_pytest_args(*normalized_nodeids))
 
 
 def build_project_session_scenario_command(scenario_name: str) -> tuple[str, ...]:
@@ -189,6 +217,14 @@ def load_target_registry() -> dict[str, ShellIsolationTarget]:
 
 def list_target_ids() -> tuple[str, ...]:
     return tuple(sorted(load_target_registry()))
+
+
+def shell_lifecycle_contract() -> dict[str, str]:
+    return {
+        "truth": manifest.SHELL_LIFECYCLE_TRUTH,
+        "shared_window_scope": manifest.SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE,
+        "lifecycle_test_path": manifest.SHELL_WINDOW_LIFECYCLE_TEST_PATH,
+    }
 
 
 def resolve_target(target_id: str) -> ShellIsolationTarget:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -10,6 +11,7 @@ from tests.shell_isolation_runtime import list_target_ids
 from tests.shell_isolation_runtime import load_target_registry
 from tests.shell_isolation_runtime import resolve_target
 from tests.shell_isolation_runtime import run_shell_isolation_target
+from tests.shell_isolation_runtime import shell_lifecycle_contract
 
 
 def _target_params():
@@ -47,6 +49,16 @@ def test_shell_isolation_pytest_targets_use_manifest_owned_pytest_args() -> None
         nodeids = target.command[4:-1]
         expected = (sys.executable, *manifest.shell_isolation_target_pytest_args(*nodeids))
         assert target.command == expected
+
+
+def test_shell_lifecycle_contract_registers_packet_owned_gui_regression() -> None:
+    contract = shell_lifecycle_contract()
+    lifecycle_test_path = Path(contract["lifecycle_test_path"])
+
+    assert contract["truth"]
+    assert contract["shared_window_scope"]
+    assert lifecycle_test_path.is_file()
+    assert lifecycle_test_path.as_posix() in manifest.GUI_TEST_PATHS
 
 
 @pytest.mark.parametrize(

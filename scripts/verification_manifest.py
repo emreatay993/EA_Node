@@ -10,8 +10,9 @@ CHECK_TRACEABILITY_SCRIPT = "scripts/check_traceability.py"
 CHECK_MARKDOWN_LINKS_SCRIPT = "scripts/check_markdown_links.py"
 OFFSCREEN_ENV = {"QT_QPA_PLATFORM": "offscreen"}
 WORKTREE_PYTEST_IGNORE_PATHS = ("venv",)
-SHELL_LIFECYCLE_TRUTH = "fresh-process shell isolation"
-SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE = "one isolated child process"
+SHELL_WINDOW_LIFECYCLE_TEST_PATH = "tests/test_shell_window_lifecycle.py"
+SHELL_LIFECYCLE_TRUTH = "deterministic in-process shell window teardown"
+SHELL_LIFECYCLE_SHARED_WINDOW_SCOPE = "repeated create/show/close cycles inside one isolated child process"
 
 MODE_NAMES = ("fast", "gui", "slow", "full")
 MAX_GUI_PARALLEL_WORKERS = 6
@@ -88,6 +89,7 @@ GUI_TEST_PATHS = (
     "tests/test_script_editor_dock.py",
     "tests/test_shell_project_session_controller.py",
     "tests/test_shell_run_controller.py",
+    SHELL_WINDOW_LIFECYCLE_TEST_PATH,
     "tests/test_shell_theme.py",
     "tests/test_viewer_surface_contract.py",
     "tests/test_viewer_surface_host.py",

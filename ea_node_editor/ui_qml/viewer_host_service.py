@@ -27,6 +27,8 @@ if TYPE_CHECKING:
     from ea_node_editor.ui_qml.viewer_session_bridge import ViewerSessionBridge
 
 _OverlayKey = tuple[str, str]
+
+
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
 
@@ -168,6 +170,7 @@ class ViewerHostService(QObject):
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
         self._last_error = ""
         self._sync_queued = False
+        self._shutdown = False
 
         self._register_builtin_binders()
         self._connect_signals()
@@ -190,6 +193,8 @@ class ViewerHostService(QObject):
         return self._last_error
 
     def capture_overlay_camera_state(self, node_id: str, *, workspace_id: str = "") -> dict[str, Any]:
+        if self._shutdown:
+            return {}
         normalized_workspace_id = _string(workspace_id)
         if not normalized_workspace_id and self._viewer_session_bridge is not None:
             normalized_workspace_id = _string(
@@ -219,6 +224,8 @@ class ViewerHostService(QObject):
             return {}
 
     def capture_overlay_preview_image(self, node_id: str, *, workspace_id: str = "") -> QImage:
+        if self._shutdown:
+            return QImage()
         normalized_workspace_id = _string(workspace_id)
         if not normalized_workspace_id and self._viewer_session_bridge is not None:
             normalized_workspace_id = _string(
@@ -272,6 +279,8 @@ class ViewerHostService(QObject):
         return image.copy()
 
     def register_binder(self, backend_id: str, binder: ViewerWidgetBinder) -> None:
+        if self._shutdown:
+            return
         self._binder_registry.register(backend_id, binder)
         self._schedule_sync()
 
@@ -288,6 +297,8 @@ class ViewerHostService(QObject):
         )
 
     def set_overlay_manager(self, overlay_manager: EmbeddedViewerOverlayManager | None) -> None:
+        if self._shutdown:
+            return
         if self._overlay_manager is overlay_manager:
             return
         self._release_all_bindings(reason="overlay_manager_replaced")
@@ -298,10 +309,26 @@ class ViewerHostService(QObject):
         self._schedule_sync()
 
     def reset(self, *, reason: str = "") -> None:
+        if self._shutdown:
+            return
         self._release_all_bindings(reason=reason or "reset")
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
             overlay_manager.set_active_overlays(())
+        self._set_last_error("")
+        self.state_changed.emit()
+
+    def shutdown(self, *, reason: str = "") -> None:
+        if self._shutdown:
+            return
+        self._shutdown = True
+        self._sync_queued = False
+        self._release_all_bindings(reason=reason or "shutdown")
+        overlay_manager = self._overlay_manager
+        if overlay_manager is not None:
+            overlay_manager.set_active_overlays(())
+        self._overlay_manager = None
+        self._viewer_session_bridge = None
         self._set_last_error("")
         self.state_changed.emit()
 
@@ -316,6 +343,8 @@ class ViewerHostService(QObject):
             signal.connect(slot)
 
     def _schedule_sync(self) -> None:
+        if self._shutdown:
+            return
         if self._sync_queued:
             return
         self._sync_queued = True
@@ -323,11 +352,16 @@ class ViewerHostService(QObject):
 
     @pyqtSlot()
     def _run_queued_sync(self) -> None:
+        if self._shutdown:
+            self._sync_queued = False
+            return
         self._sync_queued = False
         self.sync()
 
     @pyqtSlot()
     def sync(self) -> None:
+        if self._shutdown:
+            return
         overlay_manager = self._overlay_manager
         bridge = self._viewer_session_bridge
         if overlay_manager is None or bridge is None:
