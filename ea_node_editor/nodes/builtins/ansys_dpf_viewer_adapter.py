@@ -12,7 +12,7 @@ from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BAC
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_OUTPUT_MODE_BOTH,
     DPF_OUTPUT_MODE_MEMORY,
-    DPF_VIEWER_LIVE_POLICY_KEEP_LIVE,
+    DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
     wrap_field_handle_as_fields_container,
 )
 from ea_node_editor.runtime_contracts import default_viewer_session_id, viewer_event_payload
@@ -50,7 +50,6 @@ def open_dpf_viewer_session_payload(
     model_ref,
     mesh_ref,
     output_mode: str,
-    live_policy: str,
 ) -> dict[str, Any]:  # noqa: ANN001
     wrapped_fields_ref = wrap_field_handle_as_fields_container(
         ctx,
@@ -62,8 +61,8 @@ def open_dpf_viewer_session_payload(
     summary = viewer_summary_from_field_ref(field_ref)
     options = {
         "live_mode": "proxy",
-        "live_policy": live_policy,
-        "keep_live": live_policy == DPF_VIEWER_LIVE_POLICY_KEEP_LIVE,
+        "live_policy": DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
+        "keep_live": False,
         "output_profile": output_mode,
         "playback_state": "paused",
         "step_index": int(summary.get("step_index", 0)),

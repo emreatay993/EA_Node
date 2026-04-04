@@ -755,9 +755,9 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
             assert bridge_binding["phase"] == "open", bridge_binding
             assert bridge_binding["live_mode"] == "proxy", bridge_binding
             assert contract["bridge_binding"]["phase"] == "open", contract
-            assert len(control_rects) == 6, control_rects
-            assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 6, variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(contract["interactive_rects"]) == 6, contract
+            assert len(control_rects) == 4, control_rects
+            assert len(variant_list(loader.property("embeddedInteractiveRects"))) == 4, variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(contract["interactive_rects"]) == 4, contract
             assert contract["interactive_rects"][0]["width"] > 28.0, contract["interactive_rects"]
             assert contract["interactive_rects"][0]["height"] >= 24.0, contract["interactive_rects"]
             assert rect_field(host.property("viewerBodyRect"), "x") == float(contract["body_rect"]["x"]), variant_value(host.property("viewerBodyRect"))

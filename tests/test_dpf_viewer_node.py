@@ -76,7 +76,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         ).outputs["field"]
         return model_ref, field_ref
 
-    def test_viewer_node_seeds_cached_session_payload_with_live_dataset_defaults(self) -> None:
+    def test_viewer_node_seeds_cached_session_payload_with_focus_only_defaults_and_ignores_legacy_live_policy(self) -> None:
         services = WorkerServices()
         model_ref, field_ref = self._model_and_field_refs(services)
 
@@ -84,6 +84,7 @@ class DpfViewerNodeTests(unittest.TestCase):
             self._execution_context(
                 DPF_VIEWER_NODE_TYPE_ID,
                 inputs={"field": field_ref, "model": model_ref},
+                properties={"viewer_live_policy": "keep_live"},
                 services=services,
                 node_id="node_viewer_packet_p13",
             )
@@ -109,7 +110,7 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertIn("entry_path", session_payload["transport"])
         self.assertEqual(session_payload["data_refs"]["dataset"].kind, DPF_VIEWER_DATASET_HANDLE_KIND)
 
-    def test_viewer_node_reopen_restores_result_summary_and_keep_live_policy(self) -> None:
+    def test_viewer_node_reopen_restores_result_summary_but_resets_keep_live_defaults(self) -> None:
         services = WorkerServices()
         model_ref, field_ref = self._model_and_field_refs(services)
 
@@ -142,8 +143,8 @@ class DpfViewerNodeTests(unittest.TestCase):
         self.assertEqual(closed.summary["close_reason"], "test_demote")
         self.assertEqual(reopened.summary["result_name"], "displacement")
         self.assertEqual(reopened.summary["set_label"], "Set 2")
-        self.assertEqual(reopened.options["live_policy"], "keep_live")
-        self.assertTrue(reopened.options["keep_live"])
+        self.assertEqual(reopened.options["live_policy"], "focus_only")
+        self.assertFalse(reopened.options["keep_live"])
         self.assertEqual(reopened.options["live_mode"], "proxy")
         self.assertEqual(reopened.summary["cache_state"], "proxy_ready")
         self.assertEqual(reopened.backend_id, DPF_EXECUTION_VIEWER_BACKEND_ID)

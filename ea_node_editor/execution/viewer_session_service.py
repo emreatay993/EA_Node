@@ -423,8 +423,8 @@ def build_run_required_viewer_session_model(
     options["rerun_required"] = True
     options["playback_state"] = str(base_model.get("playback_state", "paused")).strip() or "paused"
     options["step_index"] = _coerce_int(base_model.get("step_index"), default=0)
-    options["live_policy"] = str(base_model.get("live_policy", "focus_only")).strip() or "focus_only"
-    options["keep_live"] = bool(base_model.get("keep_live", False))
+    options["live_policy"] = "focus_only"
+    options["keep_live"] = False
     if backend_id:
         options["backend_id"] = backend_id
     if transport_revision > 0:
@@ -442,8 +442,8 @@ def build_run_required_viewer_session_model(
             "state": str(base_model.get("playback_state", "paused")).strip() or "paused",
             "step_index": _coerce_int(base_model.get("step_index"), default=0),
         },
-        live_policy=options.get("live_policy", "focus_only"),
-        keep_live=bool(options.get("keep_live", False)),
+        live_policy="focus_only",
+        keep_live=False,
         cache_state=cache_state,
         invalidated_reason=str(base_model.get("invalidated_reason", "")).strip(),
         close_reason=str(base_model.get("close_reason", "")).strip(),
@@ -739,6 +739,9 @@ class ViewerSessionService:
             )
 
         self._sanitize_record(record)
+        open_options = _copy_mapping(command.options)
+        open_options["live_policy"] = "focus_only"
+        open_options["keep_live"] = False
         self._apply_session_payload(
             record,
             backend_id=command.backend_id,
@@ -750,7 +753,7 @@ class ViewerSessionService:
             camera_state=command.camera_state,
             playback_state=command.playback_state,
             summary=command.summary,
-            options=command.options,
+            options=open_options,
         )
         if command.data_refs or command.transport:
             record.invalidated_reason = ""

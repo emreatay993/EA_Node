@@ -335,7 +335,7 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
             event_type="viewer_session_updated",
             node_id=first_node_id,
             keep_live=True,
-            live_policy="keep_live",
+            live_policy="focus_only",
             live_mode="full",
         )
 
@@ -669,6 +669,38 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(blur_update["camera_state"], binder.captured_camera_state)
         self.assertEqual(len(binder.release_calls), 1)
         self.assertFalse(binder.release_calls[-1]["visible"])
+
+    def test_window_deactivate_leaves_keep_live_session_in_full_mode(self) -> None:
+        binder = _RecordingBinder(
+            captured_camera_state={
+                "position": [7.0, 8.0, 9.0],
+                "focal_point": [0.0, 0.0, 0.0],
+                "viewup": [0.0, 1.0, 0.0],
+            }
+        )
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self.window.scene.select_node(node_id, False)
+        self.app.processEvents()
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            keep_live=True,
+            live_policy="focus_only",
+        )
+
+        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
+
+        self.app.sendEvent(self.window, QEvent(QEvent.Type.WindowDeactivate))
+        self.app.processEvents()
+
+        self.assertEqual(len(binder.capture_calls), 0)
+        self.assertEqual(len(self.window.execution_client.update_calls), 0)
+        self.assertEqual(len(binder.release_calls), 0)
+        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.bridge.session_state(node_id)["options"]["live_mode"], "full")
 
     def test_application_inactive_blurs_live_viewer_once(self) -> None:
         binder = _RecordingBinder(

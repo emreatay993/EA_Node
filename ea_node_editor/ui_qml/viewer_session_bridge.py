@@ -279,6 +279,8 @@ class ViewerSessionBridge(QObject):
         if existing_state is not None:
             option_updates.pop("reason", None)
             option_updates.pop("release_handles", None)
+        option_updates["live_policy"] = _LIVE_POLICY_FOCUS_ONLY
+        option_updates["keep_live"] = False
         backend_id = self._resolve_backend_id(state, payload_map)
         camera_state = _copy_mapping(payload_map.get("camera_state"))
         if not camera_state and existing_state is not None:
@@ -601,6 +603,7 @@ class ViewerSessionBridge(QObject):
         reason: str,
         run_id: str = "",
     ) -> None:
+        self._clear_pending_projection(state)
         projection_model = build_run_required_viewer_session_model(
             state.payload(),
             reason=reason,

@@ -46,7 +46,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_RESULT_FIELD_NODE_TYPE_ID,
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
-    DPF_VIEWER_LIVE_POLICY_VALUES,
     DPF_VIEWER_NODE_TYPE_ID,
 )
 from ea_node_editor.nodes.types import (
@@ -145,7 +144,7 @@ _EXPECTED_DPF_SPECS = {
     DPF_VIEWER_NODE_TYPE_ID: {
         "display_name": "DPF Viewer",
         "ports": ("exec_in", "field", "model", "mesh", "session", "exec_out"),
-        "properties": ("viewer_live_policy", "output_mode"),
+        "properties": ("output_mode",),
         "output_types": {"session": DPF_VIEW_SESSION_DATA_TYPE},
         "output_mode_default": "both",
         "surface_family": "viewer",
@@ -210,9 +209,6 @@ class DpfNodeCatalogTests(unittest.TestCase):
             self.assertEqual(output_mode.default, expected["output_mode_default"])
             self.assertEqual(output_mode.enum_values, ("memory", "stored", "both"))
             if spec.type_id == DPF_VIEWER_NODE_TYPE_ID:
-                live_policy = next(prop for prop in spec.properties if prop.key == "viewer_live_policy")
-                self.assertEqual(live_policy.default, "focus_only")
-                self.assertEqual(live_policy.enum_values, DPF_VIEWER_LIVE_POLICY_VALUES)
                 self.assertEqual(spec.surface_family, expected["surface_family"])
                 self.assertEqual(
                     spec.render_quality.supported_quality_tiers,

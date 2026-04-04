@@ -3,12 +3,9 @@ from __future__ import annotations
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_NODE_CATEGORY,
     DPF_OUTPUT_MODE_BOTH,
-    DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
-    DPF_VIEWER_LIVE_POLICY_VALUES,
     DPF_VIEWER_NODE_TYPE_ID,
     dpf_output_mode_property,
     normalize_dpf_output_mode,
-    normalize_dpf_viewer_live_policy,
     resolve_field_handle_and_object,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_node_helpers import require_model_input
@@ -22,7 +19,6 @@ from ea_node_editor.nodes.node_specs import (
     DPF_VIEW_SESSION_DATA_TYPE,
     NodeRenderQualitySpec,
     PortSpec,
-    PropertySpec,
 )
 
 
@@ -40,17 +36,7 @@ from ea_node_editor.nodes.node_specs import (
         PortSpec("session", "out", "data", DPF_VIEW_SESSION_DATA_TYPE, exposed=True),
         PortSpec("exec_out", "out", "exec", "exec", exposed=True),
     ),
-    properties=(
-        PropertySpec(
-            "viewer_live_policy",
-            "enum",
-            DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
-            "Viewer Live Policy",
-            enum_values=DPF_VIEWER_LIVE_POLICY_VALUES,
-            inspector_editor="enum",
-        ),
-        dpf_output_mode_property(default=DPF_OUTPUT_MODE_BOTH),
-    ),
+    properties=(dpf_output_mode_property(default=DPF_OUTPUT_MODE_BOTH),),
     surface_family="viewer",
     render_quality=NodeRenderQualitySpec(
         weight_class="heavy",
@@ -64,10 +50,6 @@ class DpfViewerNodePlugin:
             ctx.properties.get("output_mode"),
             default=DPF_OUTPUT_MODE_BOTH,
         )
-        live_policy = normalize_dpf_viewer_live_policy(
-            ctx.properties.get("viewer_live_policy"),
-            default=DPF_VIEWER_LIVE_POLICY_FOCUS_ONLY,
-        )
         model_ref, _ = require_model_input(ctx, node_name="DPF Viewer")
         field_ref, _ = resolve_field_handle_and_object(
             ctx,
@@ -80,7 +62,6 @@ class DpfViewerNodePlugin:
             model_ref=model_ref,
             mesh_ref=ctx.inputs.get("mesh"),
             output_mode=output_mode,
-            live_policy=live_policy,
         )
         return NodeResult(outputs={"session": session_payload, "exec_out": True})
 

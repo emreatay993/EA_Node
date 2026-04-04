@@ -452,8 +452,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             session_button = host.findChild(QObject, "graphNodeViewerSessionButton")
             play_button = host.findChild(QObject, "graphNodeViewerPlayPauseButton")
             step_button = host.findChild(QObject, "graphNodeViewerStepButton")
-            focus_chip = host.findChild(QObject, "graphNodeViewerFocusPolicyChip")
             keep_live_button = host.findChild(QObject, "graphNodeViewerKeepLiveButton")
+            focus_chip = host.findChild(QObject, "graphNodeViewerFocusPolicyChip")
             keep_chip = host.findChild(QObject, "graphNodeViewerKeepPolicyChip")
             more_button = host.findChild(QObject, "graphNodeViewerMoreButton")
             proxy_image = host.findChild(QObject, "graphNodeViewerProxyImage")
@@ -463,9 +463,9 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             assert session_button is not None
             assert play_button is not None
             assert step_button is not None
-            assert focus_chip is not None
             assert keep_live_button is not None
-            assert keep_chip is not None
+            assert focus_chip is None
+            assert keep_chip is None
             assert more_button is not None
             assert proxy_image is not None
             assert status_text is not None
@@ -476,7 +476,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             pointer_events = host_pointer_events(host)
             window = attach_host_to_window(host, width=640, height=480)
             try:
-                pin_accent_before = keep_live_button.property("accentColor").name().lower()
+                keep_accent_before = keep_live_button.property("accentColor").name().lower()
                 assert surface.property("viewerBridgeAvailable")
                 assert surface.property("viewerPhase") == "open"
                 assert surface.property("viewerPlaybackState") == "paused"
@@ -486,12 +486,13 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bool(surface.property("proxySurfaceActive"))
                 assert not bool(surface.property("liveSurfaceActive"))
                 assert not bool(surface.property("viewerShowsPlaceholder"))
+                assert keep_live_button.property("text") == "Keep Live"
+                assert keep_live_button.property("tooltipText") == "Keep live is off; losing focus returns to proxy"
                 assert session_button.property("iconName") == "stop"
                 assert play_button.property("iconName") == "run"
                 assert status_text.property("text") == "Proxy viewer ready"
                 assert mode_label.property("text") == "Proxy"
-                assert focus_chip.property("baseFillColor").alphaF() > keep_chip.property("baseFillColor").alphaF()
-                assert len(variant_list(surface.property("viewerInteractiveRects"))) == 6
+                assert len(variant_list(surface.property("viewerInteractiveRects"))) == 4
                 assert bool(proxy_image.property("visible"))
                 proxy_image_source = proxy_image.property("source")
                 proxy_image_source_text = proxy_image_source.toString() if hasattr(proxy_image_source, "toString") else str(proxy_image_source)
@@ -509,16 +510,6 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bridge.update_calls[-1]["command"] == "step"
                 assert int(surface.property("viewerStepIndex")) == 4
 
-                mouse_click(window, item_scene_point(keep_chip))
-                settle_events(5)
-                assert bridge.update_calls[-1] == {
-                    "command": "set_live_policy",
-                    "node_id": "node_viewer_surface_host",
-                    "value": "keep_live",
-                }
-                assert surface.property("viewerLivePolicy") == "keep_live"
-                assert keep_chip.property("baseFillColor").alphaF() > focus_chip.property("baseFillColor").alphaF()
-
                 mouse_click(window, item_scene_point(keep_live_button))
                 settle_events(5)
                 assert bridge.update_calls[-1] == {
@@ -526,9 +517,12 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     "node_id": "node_viewer_surface_host",
                     "value": True,
                 }
+                assert surface.property("viewerLivePolicy") == "focus_only"
                 assert bool(surface.property("viewerKeepLive"))
+                assert keep_live_button.property("text") == "Keep Live"
+                assert keep_live_button.property("tooltipText") == "Keep live is on for this session"
                 assert keep_live_button.property("accentColor").name().lower() == "#67d487"
-                assert keep_live_button.property("accentColor").name().lower() != pin_accent_before
+                assert keep_live_button.property("accentColor").name().lower() != keep_accent_before
 
                 mouse_click(window, item_scene_point(session_button))
                 settle_events(5)
@@ -546,7 +540,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert session_button.property("iconName") == "run"
                 assert status_text.property("text") == "Opening viewer session"
                 assert mode_label.property("text") == "Opening"
-                assert len(interactions) >= 6
+                assert len(interactions) >= 5
                 assert all(node_id == "node_viewer_surface_host" for node_id in interactions)
                 assert len(bridge.session_state_calls) >= 1
                 assert all(node_id == "node_viewer_surface_host" for node_id in bridge.session_state_calls)
@@ -627,7 +621,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
             assert contract["bridge_binding"]["phase"] == "closed"
             assert not bool(contract["bridge_binding"]["bridge_available"])
             assert bridge_binding["phase"] == "closed"
-            assert len(interactive_rects) == 6
+            assert len(interactive_rects) == 4
             """,
         )
 
@@ -833,7 +827,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert "requires rerun" in str(hint.property("text"))
                 footer_meta = variant_list(surface.property("viewerFooterMetaModel"))
                 assert any(item["label"] == "Status" and item["value"] == "Rerun required" for item in footer_meta)
-                assert len(variant_list(surface.property("viewerInteractiveRects"))) == 6
+                assert len(variant_list(surface.property("viewerInteractiveRects"))) == 4
             finally:
                 dispose_host_window(host, window)
                 engine.deleteLater()

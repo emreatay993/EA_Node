@@ -320,9 +320,7 @@ Item {
             sessionButton.embeddedInteractiveRects,
             playPauseButton.embeddedInteractiveRects,
             stepButton.embeddedInteractiveRects,
-            keepLiveButton.embeddedInteractiveRects,
-            focusPolicyChip.embeddedInteractiveRects,
-            keepPolicyChip.embeddedInteractiveRects
+            keepLiveButton.embeddedInteractiveRects
         ]
     )
     readonly property var embeddedInteractiveRects: viewerInteractiveRects
@@ -542,12 +540,6 @@ Item {
         return Boolean(viewerSessionBridgeRef.step(viewerNodeId));
     }
 
-    function requestLivePolicy(policyName) {
-        if (!viewerCanControlPlayback || !viewerSessionBridgeRef.set_live_policy)
-            return false;
-        return Boolean(viewerSessionBridgeRef.set_live_policy(viewerNodeId, String(policyName || "focus_only")));
-    }
-
     function requestKeepLiveToggle() {
         if (!viewerCanControlPlayback || !viewerSessionBridgeRef.set_keep_live)
             return false;
@@ -707,101 +699,15 @@ Item {
                         }
                     }
 
-                    Rectangle {
-                        id: policyGroup
-                        objectName: "graphNodeViewerPolicyRow"
-                        radius: 6
-                        clip: true
-                        color: host ? Qt.alpha(host.inlineInputBackgroundColor, 0.86) : "#202635"
-                        border.width: 1
-                        border.color: host ? Qt.alpha(host.inlineInputBorderColor, 0.52) : "#465066"
-                        width: policyRow.implicitWidth
-                        height: 30
-                        opacity: surface.viewerCanControlPlayback ? 1.0 : 0.78
-
-                        Row {
-                            id: policyRow
-                            anchors.fill: parent
-                            spacing: 0
-
-                            GraphSurfaceControls.GraphSurfaceButton {
-                                id: focusPolicyChip
-                                objectName: "graphNodeViewerFocusPolicyChip"
-                                host: surface.host
-                                text: "Focus"
-                                tooltipText: "Focus only"
-                                iconName: "focus"
-                                iconSize: 11
-                                iconSourceResolver: function(name, size, color) {
-                                    return surface._iconSource(name, size, color);
-                                }
-                                enabled: surface.viewerCanControlPlayback
-                                accentColor: "#5DA9FF"
-                                foregroundColor: surface.viewerLivePolicy === "focus_only"
-                                    ? (host ? host.headerTextColor : "#eef3ff")
-                                    : (host ? host.inlineDrivenTextColor : "#7a8eae")
-                                baseFillColor: surface.viewerLivePolicy === "focus_only"
-                                    ? Qt.alpha("#5DA9FF", 0.22)
-                                    : "transparent"
-                                baseBorderColor: "transparent"
-                                hoverBorderColor: "transparent"
-                                pressedBorderColor: "transparent"
-                                chromeRadius: 0
-                                idleBorderWidth: 0
-                                hoverBorderWidth: 0
-                                contentHorizontalPadding: 8
-                                contentVerticalPadding: 3
-                                onControlStarted: surface._beginSurfaceControl()
-                                onClicked: surface.requestLivePolicy("focus_only")
-                            }
-
-                            Rectangle {
-                                width: 1
-                                height: parent.height
-                                color: host ? Qt.alpha(host.inlineInputBorderColor, 0.48) : "#465066"
-                            }
-
-                            GraphSurfaceControls.GraphSurfaceButton {
-                                id: keepPolicyChip
-                                objectName: "graphNodeViewerKeepPolicyChip"
-                                host: surface.host
-                                text: "Keep"
-                                tooltipText: "Keep live policy"
-                                iconName: "keep-live"
-                                iconSize: 11
-                                iconSourceResolver: function(name, size, color) {
-                                    return surface._iconSource(name, size, color);
-                                }
-                                enabled: surface.viewerCanControlPlayback
-                                accentColor: "#67D487"
-                                foregroundColor: surface.viewerLivePolicy === "keep_live"
-                                    ? (host ? host.headerTextColor : "#eef3ff")
-                                    : (host ? host.inlineDrivenTextColor : "#7a8eae")
-                                baseFillColor: surface.viewerLivePolicy === "keep_live"
-                                    ? Qt.alpha("#67D487", 0.22)
-                                    : "transparent"
-                                baseBorderColor: "transparent"
-                                hoverBorderColor: "transparent"
-                                pressedBorderColor: "transparent"
-                                chromeRadius: 0
-                                idleBorderWidth: 0
-                                hoverBorderWidth: 0
-                                contentHorizontalPadding: 8
-                                contentVerticalPadding: 3
-                                onControlStarted: surface._beginSurfaceControl()
-                                onClicked: surface.requestLivePolicy("keep_live")
-                            }
-                        }
-                    }
-
                     GraphSurfaceControls.GraphSurfaceButton {
                         id: keepLiveButton
                         objectName: "graphNodeViewerKeepLiveButton"
                         host: surface.host
-                        text: surface.viewerKeepLive ? "Pinned" : "Pin"
-                        tooltipText: surface.viewerKeepLive ? "Pinned" : "Pin session"
+                        text: "Keep Live"
+                        tooltipText: surface.viewerKeepLive
+                            ? "Keep live is on for this session"
+                            : "Keep live is off; losing focus returns to proxy"
                         iconName: "pin"
-                        iconOnly: true
                         iconSize: 14
                         iconSourceResolver: function(name, size, color) {
                             return surface._iconSource(name, size, color);
@@ -809,16 +715,16 @@ Item {
                         enabled: surface.viewerCanControlPlayback
                         accentColor: surface.viewerKeepLive ? "#67D487" : "#A0A8C0"
                         foregroundColor: surface.viewerKeepLive
-                            ? "#80E89A"
-                            : (host ? host.headerTextColor : "#eef3ff")
+                            ? (host ? host.headerTextColor : "#eef3ff")
+                            : (host ? host.inlineDrivenTextColor : "#c2cbdd")
                         baseFillColor: surface.viewerKeepLive
-                            ? Qt.alpha("#67D487", 0.2)
+                            ? Qt.alpha("#67D487", 0.22)
                             : Qt.alpha(surface.host ? surface.host.inlineInputBackgroundColor : "#202635", 0.92)
                         baseBorderColor: surface.viewerKeepLive
                             ? Qt.alpha("#67D487", 0.72)
                             : Qt.alpha("#A0A8C0", 0.34)
                         chromeRadius: 6
-                        contentHorizontalPadding: 7
+                        contentHorizontalPadding: 10
                         contentVerticalPadding: 4
                         onControlStarted: surface._beginSurfaceControl()
                         onClicked: surface.requestKeepLiveToggle()
