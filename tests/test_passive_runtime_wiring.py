@@ -219,6 +219,20 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
                 "y": 20.0,
             }
         }
+        workspace.unresolved_edge_docs = {
+            "edge_missing": {
+                "edge_id": "edge_missing",
+                "source_node_id": source.node_id,
+                "source_port_key": "value",
+                "target_node_id": "node_missing",
+                "target_port_key": "value",
+            }
+        }
+        workspace.authored_node_overrides = {
+            target.node_id: {
+                "parent_node_id": "node_missing",
+            }
+        }
         secondary_workspace = model.create_workspace("Secondary")
         model.add_node(secondary_workspace.workspace_id, "tests.passive_note", "Passive", 0.0, 0.0)
         model.set_active_workspace(workspace.workspace_id)
@@ -226,6 +240,8 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
             secondary_workspace.workspace_id,
             workspace.workspace_id,
         ]
+        model.project.metadata["_runtime_unresolved_workspaces"] = {"legacy": "discard me"}
+        model.project.metadata["_persistence_envelope"] = {"legacy": "discard me"}
         model.project.metadata["artifact_store"] = {
             "staged": {
                 "preview_png": {
@@ -253,6 +269,7 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         normalized_project = copy.deepcopy(model.project)
         normalize_project_for_registry(normalized_project, registry)
         self.assertEqual(runtime_snapshot.to_document(), serializer.to_document(normalized_project))
+        self.assertNotIn("_runtime_unresolved_workspaces", runtime_snapshot.metadata)
 
         compiled = compile_runtime_snapshot(
             runtime_snapshot,
@@ -279,6 +296,70 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
                     "target_port_key": "value",
                 },
             ],
+        )
+
+    def test_runtime_snapshot_from_project_data_captures_workspace_overlay_metadata(self) -> None:
+        model = GraphModel()
+        workspace = model.active_workspace
+        source = model.add_node(workspace.workspace_id, "core.start", "Start", 0.0, 0.0)
+        workspace.unresolved_node_docs = {
+            "node_missing": {
+                "node_id": "node_missing",
+                "type_id": "tests.unknown",
+                "title": "Missing",
+                "x": 10.0,
+                "y": 20.0,
+            }
+        }
+        workspace.unresolved_edge_docs = {
+            "edge_missing": {
+                "edge_id": "edge_missing",
+                "source_node_id": source.node_id,
+                "source_port_key": "exec_out",
+                "target_node_id": "node_missing",
+                "target_port_key": "exec_in",
+            }
+        }
+        workspace.authored_node_overrides = {
+            source.node_id: {
+                "parent_node_id": "node_missing",
+            }
+        }
+
+        runtime_snapshot = RuntimeSnapshot.from_project_data(model.project)
+
+        self.assertEqual(
+            runtime_snapshot.metadata["_persistence_envelope"],
+            {
+                "document_flavor": "runtime",
+                "workspaces": {
+                    workspace.workspace_id: {
+                        "unresolved_nodes": [
+                            {
+                                "node_id": "node_missing",
+                                "type_id": "tests.unknown",
+                                "title": "Missing",
+                                "x": 10.0,
+                                "y": 20.0,
+                            }
+                        ],
+                        "unresolved_edges": [
+                            {
+                                "edge_id": "edge_missing",
+                                "source_node_id": source.node_id,
+                                "source_port_key": "exec_out",
+                                "target_node_id": "node_missing",
+                                "target_port_key": "exec_in",
+                            }
+                        ],
+                        "authored_node_overrides": {
+                            source.node_id: {
+                                "parent_node_id": "node_missing",
+                            }
+                        },
+                    }
+                },
+            },
         )
 
     def test_compile_workspace_document_respects_registry_multiplicity_and_port_resolution(self) -> None:

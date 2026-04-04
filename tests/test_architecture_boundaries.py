@@ -69,6 +69,28 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("ProjectArtifactResolver", file_issue_text)
         self.assertNotIn("_TRACKED_REPAIR_MODES", file_issue_text)
 
+    def test_runtime_snapshot_builder_uses_execution_owned_assembly_seam(self) -> None:
+        runtime_snapshot_text = (
+            REPO_ROOT / "ea_node_editor" / "execution" / "runtime_snapshot.py"
+        ).read_text(encoding="utf-8")
+        runtime_snapshot_assembly_text = (
+            REPO_ROOT / "ea_node_editor" / "execution" / "runtime_snapshot_assembly.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn(
+            "from ea_node_editor.execution.runtime_snapshot_assembly import RuntimeSnapshotAssembly",
+            runtime_snapshot_text,
+        )
+        self.assertNotIn("from ea_node_editor.persistence.migration import JsonProjectMigration", runtime_snapshot_text)
+        self.assertNotIn("from ea_node_editor.persistence.overlay import (", runtime_snapshot_text)
+        self.assertNotIn("from ea_node_editor.persistence.project_codec import", runtime_snapshot_text)
+        self.assertNotIn("normalize_artifact_store_metadata", runtime_snapshot_text)
+        self.assertIn("class RuntimeSnapshotAssembly:", runtime_snapshot_assembly_text)
+        self.assertNotIn("JsonProjectMigration", runtime_snapshot_assembly_text)
+        self.assertNotIn("WorkspacePersistenceEnvelope", runtime_snapshot_assembly_text)
+        self.assertNotIn("ProjectPersistenceEnvelope", runtime_snapshot_assembly_text)
+        self.assertNotIn("normalize_artifact_store_metadata", runtime_snapshot_assembly_text)
+
     def test_transform_surface_reexports_focused_operation_modules(self) -> None:
         self.assertEqual(transforms.collect_layout_node_bounds.__module__, "ea_node_editor.graph.transform_layout_ops")
         self.assertEqual(transforms.build_subtree_fragment_payload_data.__module__, "ea_node_editor.graph.transform_fragment_ops")
