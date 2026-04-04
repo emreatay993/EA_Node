@@ -3,13 +3,14 @@ from __future__ import annotations
 import copy
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from PyQt6.QtCore import QObject, QRectF, QMetaObject, Qt, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QColor, QFont, QFontMetricsF
 from PyQt6.QtQml import QQmlComponent, QQmlEngine
 from PyQt6.QtWidgets import QApplication
 
+from ea_node_editor.graph.boundary_adapters import build_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import subtree_node_ids
 from ea_node_editor.graph.model import GraphModel, ViewState
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService
@@ -346,26 +347,31 @@ class GraphModelTrackBTests(unittest.TestCase):
             },
             exposed_ports={port.key: port.exposed for port in spec.ports},
         )
-        builder = GraphScenePayloadBuilder()
+        clamp_pdf_page_number = Mock(return_value=2)
+        builder = GraphScenePayloadBuilder(
+            boundary_adapters=build_graph_boundary_adapters(
+                clamp_pdf_page_number_resolver=clamp_pdf_page_number,
+            )
+        )
 
-        with patch("ea_node_editor.ui_qml.graph_scene_payload_builder.clamp_pdf_page_number", return_value=2):
-            builder.normalize_pdf_panel_pages(
-                model=model,
-                registry=registry,
-                workspace=workspace,
-            )
-            self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 99)
-            nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
-                model=model,
-                registry=registry,
-                workspace_id=workspace.workspace_id,
-                scope_path=(),
-                graph_theme_bridge=None,
-            )
+        builder.normalize_pdf_panel_pages(
+            model=model,
+            registry=registry,
+            workspace=workspace,
+        )
+        self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 99)
+        nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace.workspace_id,
+            scope_path=(),
+            graph_theme_bridge=None,
+        )
 
         payload = next(item for item in nodes_payload if item["node_id"] == node.node_id)
         self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 99)
         self.assertEqual(payload["properties"]["page_number"], 2)
+        clamp_pdf_page_number.assert_called_once_with("/tmp/clamped.pdf", 99)
 
 
 class GraphSceneBridgeTrackBTests(unittest.TestCase):

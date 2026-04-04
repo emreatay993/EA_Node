@@ -120,8 +120,7 @@ class _GraphSceneNodePayloadFactory:
         payload_node.properties = properties
         return payload_node
 
-    @staticmethod
-    def payload_properties(*, node, spec: NodeTypeSpec) -> dict[str, Any]:
+    def payload_properties(self, *, node, spec: NodeTypeSpec) -> dict[str, Any]:
         properties = copy.deepcopy(node.properties)
         if str(spec.surface_family or "").strip() != "media":
             return properties
