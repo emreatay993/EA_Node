@@ -51,19 +51,42 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
         self.scene.set_workspace(self.model, self.registry, self.workspace.workspace_id)
 
     def test_edge_layer_splits_viewport_style_label_and_renderer_helpers(self) -> None:
-        edge_layer_text = (
-            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph" / "EdgeLayer.qml"
-        ).read_text(encoding="utf-8")
+        graph_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph"
+        edge_layer_path = graph_dir / "EdgeLayer.qml"
+        edge_layer_text = edge_layer_path.read_text(encoding="utf-8")
+        helper_paths = {
+            "EdgeCanvasLayer.qml": graph_dir / "EdgeCanvasLayer.qml",
+            "EdgeFlowLabelLayer.qml": graph_dir / "EdgeFlowLabelLayer.qml",
+            "EdgeHitTestOverlay.qml": graph_dir / "EdgeHitTestOverlay.qml",
+            "EdgeViewportMath.js": graph_dir / "EdgeViewportMath.js",
+            "EdgeSnapshotCache.js": graph_dir / "EdgeSnapshotCache.js",
+        }
 
-        self.assertIn("id: viewportMath", edge_layer_text)
-        self.assertIn("id: flowStylePolicy", edge_layer_text)
-        self.assertIn("id: edgeRenderer", edge_layer_text)
-        self.assertIn("id: edgeCrossingPolicy", edge_layer_text)
-        self.assertIn("id: flowLabelPolicy", edge_layer_text)
-        self.assertIn("edgeRenderer.traceGeometry(ctx, geometry)", edge_layer_text)
-        self.assertIn("edgeRenderer.traceBrokenGeometry(ctx, geometry", edge_layer_text)
-        self.assertIn("edgeCrossingPolicy.applyCrossingMetadata", edge_layer_text)
-        self.assertIn("flowLabelPolicy.flowLabelMode(edge)", edge_layer_text)
+        self.assertIn('"EdgeViewportMath.js" as EdgeViewportMath', edge_layer_text)
+        self.assertIn('"EdgeSnapshotCache.js" as EdgeSnapshotCache', edge_layer_text)
+        self.assertIn("EdgeCanvasLayer {", edge_layer_text)
+        self.assertIn("EdgeFlowLabelLayer {", edge_layer_text)
+        self.assertIn("EdgeHitTestOverlay {", edge_layer_text)
+        self.assertIn("EdgeSnapshotCache.refreshVisibleEdgeSnapshots(root, edgeCanvasLayer, flowLabelLayer)", edge_layer_text)
+        self.assertIn(
+            "return EdgeSnapshotCache.edgeAtScreen(root, edgeCanvasLayer, flowLabelLayer, screenX, screenY);",
+            edge_layer_text,
+        )
+        self.assertNotIn("id: viewportMath", edge_layer_text)
+        self.assertNotIn("id: flowStylePolicy", edge_layer_text)
+        self.assertNotIn("id: edgeRenderer", edge_layer_text)
+        self.assertNotIn("id: edgeCrossingPolicy", edge_layer_text)
+        self.assertNotIn("id: flowLabelPolicy", edge_layer_text)
+        self.assertLessEqual(len(edge_layer_text.splitlines()), 700)
+
+        for helper_name, helper_path in helper_paths.items():
+            with self.subTest(helper=helper_name):
+                self.assertTrue(helper_path.exists(), msg=f"missing helper {helper_name}")
+                self.assertLessEqual(
+                    len(helper_path.read_text(encoding="utf-8").splitlines()),
+                    450,
+                    msg=f"{helper_name} exceeded the packet helper line budget",
+                )
 
     def test_flow_edge_payload_normalizes_render_metadata(self) -> None:
         source_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 20.0, 20.0)
@@ -209,7 +232,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 edge_layer.setProperty("viewBridge", view)
             app.processEvents()
             """
-        ) + "\n" + textwrap.dedent(body)
+        ) + "\n" + textwrap.dedent(body) + "\napp.processEvents()\napp.processEvents()\nimport os\nos._exit(0)\n"
         env = os.environ.copy()
         env["QT_QPA_PLATFORM"] = "offscreen"
         result = subprocess.run(
@@ -508,10 +531,6 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert label_item.property("labelMode") == "hidden"
             assert not label_item.isVisible()
 
-            canvas.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -534,6 +553,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     "label_background_color": "#223344",
                 },
             )
+            app.processEvents()
             app.processEvents()
 
             labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")
@@ -559,6 +579,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
 
             view.centerOn(4440.0, 3360.0)
             app.processEvents()
+            app.processEvents()
 
             revealed_snapshot = assert_flow_label_snapshot_consistency(edge_layer, culled_label, off_edge_id)
             assert revealed_snapshot["culled"] is False
@@ -569,10 +590,6 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert culled_label.property("labelAnchorScene") is not None
             assert not visible_label.isVisible()
 
-            canvas.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -589,20 +606,19 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
 
             view.centerOn(anchor["x"], anchor["y"])
             app.processEvents()
+            app.processEvents()
             assert_edge_screen_hit(edge_layer, edge_id, anchor)
 
             view.set_zoom(2.0)
+            app.processEvents()
             app.processEvents()
             assert_edge_screen_hit(edge_layer, edge_id, anchor)
 
             view.set_zoom(0.5)
             app.processEvents()
+            app.processEvents()
             assert_edge_screen_hit(edge_layer, edge_id, anchor)
 
-            canvas.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -637,20 +653,19 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
 
             view.centerOn(anchor["x"], anchor["y"])
             app.processEvents()
+            app.processEvents()
             assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
             view.set_zoom(2.0)
+            app.processEvents()
             app.processEvents()
             assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
             view.set_zoom(0.5)
             app.processEvents()
+            app.processEvents()
             assert_pipe_edge_screen_hit(pipe_edge_id, anchor)
 
-            canvas.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -717,10 +732,6 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert first["crossingSamplePoints"]
             assert first["crossingBreaks"][0]["centerDistance"] > first["crossingBreaks"][0]["startDistance"]
 
-            edge_layer.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -806,10 +817,6 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 gap_screen_y = edge_layer.sceneToScreenY(gap_scene_y)
                 assert edge_layer.edgeAtScreen(gap_screen_x, gap_screen_y) == under_edge_id
 
-            edge_layer.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -881,11 +888,8 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
 
             assert canvas.cancelWireDrag()
             app.processEvents()
+            app.processEvents()
 
-            canvas.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
@@ -926,10 +930,6 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert label_item.property("labelMode") == "pill"
             assert bool(label_item.property("hitTestMatches"))
 
-            canvas.deleteLater()
-            app.processEvents()
-            engine.deleteLater()
-            app.processEvents()
             """,
         )
 
