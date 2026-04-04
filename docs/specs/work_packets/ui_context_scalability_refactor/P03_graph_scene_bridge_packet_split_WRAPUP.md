@@ -11,7 +11,7 @@
 ## Verification
 - PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_scene_bridge_bind_regression.py tests/test_graph_surface_input_contract.py tests/test_passive_graph_surface_host.py tests/test_main_window_shell.py --ignore=venv -q`
 - PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graph_scene_bridge_bind_regression.py tests/test_graph_surface_input_contract.py --ignore=venv -q`
-Final Verification Verdict: PASS
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 Ready for manual testing
