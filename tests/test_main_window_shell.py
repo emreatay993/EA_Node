@@ -243,6 +243,43 @@ class MainWindowShellContextBootstrapTests(SharedMainWindowShellTestBase):
         )
 
 
+class PresenterPackageBoundaryTests(unittest.TestCase):
+    def test_presenter_family_split_uses_curated_package_surface_and_packet_line_budgets(self) -> None:
+        package_root = _REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "presenters"
+        self.assertTrue(package_root.is_dir())
+        self.assertFalse((_REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "presenters.py").exists())
+
+        module = importlib.import_module("ea_node_editor.ui.shell.presenters")
+        self.assertTrue(str(module.__file__ or "").replace("\\", "/").endswith("/ui/shell/presenters/__init__.py"))
+
+        expected_exports = {
+            "GraphCanvasHostPresenter",
+            "GraphCanvasPresenter",
+            "ShellInspectorPresenter",
+            "ShellLibraryPresenter",
+            "ShellWorkspacePresenter",
+            "ShellWorkspaceUiState",
+            "build_default_shell_workspace_ui_state",
+            "normalize_graph_theme_settings",
+        }
+        self.assertTrue(expected_exports.issubset(set(getattr(module, "__all__", ()))))
+        for name in expected_exports:
+            with self.subTest(name=name):
+                self.assertTrue(hasattr(module, name))
+
+        for relative_path, max_lines in {
+            "__init__.py": 120,
+            "library_presenter.py": 450,
+            "workspace_presenter.py": 450,
+            "inspector_presenter.py": 450,
+            "graph_canvas_presenter.py": 450,
+            "graph_canvas_host_presenter.py": 450,
+        }.items():
+            line_count = len((package_root / relative_path).read_text(encoding="utf-8").splitlines())
+            with self.subTest(path=relative_path):
+                self.assertLessEqual(line_count, max_lines)
+
+
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
     def test_qml_context_registers_only_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
