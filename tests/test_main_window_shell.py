@@ -514,7 +514,7 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var sceneBridge: root._canvasSceneStateBridgeRef",
             "readonly property var viewBridge: root._canvasViewStateBridgeRef",
             "root._canvasStateBridgeRef.graphics_show_grid",
-            "root._canvasSceneStateBridgeRef.nodes_model",
+            "root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
             "GraphCanvasComponents.GraphCanvasSceneState {",
             "GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {",

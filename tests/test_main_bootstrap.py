@@ -232,6 +232,18 @@ class AppBootstrapTests(unittest.TestCase):
         self.app.sendPostedEvents()
         self.app.processEvents()
 
+    def test_shell_window_module_stays_within_packet_budget_and_uses_helper_surface(self) -> None:
+        shell_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui" / "shell"
+        window_path = shell_dir / "window.py"
+        helper_path = shell_dir / "window_state_helpers.py"
+
+        window_text = window_path.read_text(encoding="utf-8")
+        helper_text = helper_path.read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(window_text.splitlines()), 900)
+        self.assertIn("window_state_helpers", window_text)
+        self.assertIn("SHELL_WINDOW_FACADE_BINDINGS", helper_text)
+
     def test_run_applies_startup_theme_and_bootstraps_shell_window(self) -> None:
         fake_app = Mock()
         fake_app.exec.return_value = 17

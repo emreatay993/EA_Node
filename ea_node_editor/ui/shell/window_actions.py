@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import Qt
@@ -9,6 +10,39 @@ from ea_node_editor.ui.icon_registry import qicon
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
+
+
+def format_recent_project_menu_label(index: int, project_path: str) -> str:
+    path = Path(project_path)
+    parent = str(path.parent)
+    if not parent or parent == ".":
+        return f"{index}. {path.name}"
+    return f"{index}. {path.name} [{parent}]"
+
+
+def refresh_recent_projects_menu(window: ShellWindow) -> None:
+    menu = getattr(window, "menu_recent_projects", None)
+    if menu is None:
+        return
+    menu.clear()
+    recent_paths = list(window.recent_project_paths)
+    if not recent_paths:
+        empty_action = menu.addAction("No Recent Files")
+        empty_action.setEnabled(False)
+        return
+
+    current_project_path = window.project_session_controller._normalize_project_path(window.project_path)
+    for index, project_path in enumerate(recent_paths, start=1):
+        action = menu.addAction(format_recent_project_menu_label(index, project_path))
+        action.setToolTip(project_path)
+        action.setStatusTip(project_path)
+        action.triggered.connect(
+            lambda _checked=False, selected_path=project_path: window._open_project_path(selected_path)
+        )
+        if current_project_path and project_path == current_project_path:
+            action.setEnabled(False)
+    menu.addSeparator()
+    menu.addAction(window.action_clear_recent_projects)
 
 
 def create_window_actions(window: ShellWindow) -> None:
@@ -257,7 +291,7 @@ def build_window_menu_bar(window: ShellWindow) -> None:
     file_menu.addAction(window.action_open_project)
     window.menu_recent_projects = file_menu.addMenu("Open Recent")
     window.menu_recent_projects.aboutToShow.connect(window._refresh_recent_projects_menu)
-    window._refresh_recent_projects_menu()
+    refresh_recent_projects_menu(window)
     file_menu.addAction(window.action_save_project)
     file_menu.addAction(window.action_save_project_as)
     file_menu.addAction(window.action_project_files)
