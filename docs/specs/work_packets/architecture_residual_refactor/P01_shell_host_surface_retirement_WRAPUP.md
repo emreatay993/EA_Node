@@ -3,7 +3,7 @@
 - Packet: `P01`
 - Branch Label: `codex/architecture-residual-refactor/p01-shell-host-surface-retirement`
 - Commit Owner: `worker`
-- Commit SHA: `c6513f0b5cbde243afb58916eaa6f303c03a48e9`
+- Commit SHA: `167c2c7aae6bc91959cece14b2a0dcb8b8d14768`
 - Changed Files: `docs/specs/work_packets/architecture_residual_refactor/P01_shell_host_surface_retirement_WRAPUP.md`, `ea_node_editor/ui/shell/composition.py`, `ea_node_editor/ui/shell/controllers/project_session_controller.py`, `ea_node_editor/ui/shell/controllers/run_controller.py`, `ea_node_editor/ui/shell/presenters.py`, `tests/test_main_bootstrap.py`, `tests/test_project_session_controller_unit.py`
 - Artifacts Produced: `docs/specs/work_packets/architecture_residual_refactor/P01_shell_host_surface_retirement_WRAPUP.md`
 
@@ -14,11 +14,9 @@
 
 ## Verification
 
-- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_project_session_controller_unit.py --ignore=venv -q`
-- FAIL: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_project_session_controller_unit.py tests/test_workspace_library_controller_unit.py tests/test_shell_project_session_controller.py tests/test_shell_run_controller.py tests/test_main_window_shell.py --ignore=venv -q`
-- Failure detail: the only failing path was the inherited passive-PDF shell subprocess regression outside this packet's write scope. `tests/test_main_window_shell.py::MainWindowShellPassivePdfNodesTests::test_class_runs_in_subprocess` fails because [`ea_node_editor/ui_qml/graph_scene_payload_builder.py`](../../../../ea_node_editor/ui_qml/graph_scene_payload_builder.py) hits `NameError: name 'self' is not defined` at line 130 while `payload_properties` is declared `@staticmethod`.
+- PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_project_session_controller_unit.py tests/test_workspace_library_controller_unit.py tests/test_shell_project_session_controller.py tests/test_shell_run_controller.py tests/test_main_window_shell.py --ignore=venv -q`
 - PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_main_bootstrap.py tests/test_project_session_controller_unit.py tests/test_workspace_library_controller_unit.py --ignore=venv -q`
-- Final Verification Verdict: FAIL
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 
@@ -38,16 +36,15 @@ Expected result: the browse flow resolves through the active presenter/controlle
 Action: start a workflow run from the shell toolbar, then pause/resume or stop it, and watch the console/status strip update.
 Expected result: run, pause, resume, and stop actions still operate correctly through the packet-owned workspace presenter and run controller surfaces, with the shell status UI remaining synchronized.
 
-4. Avoid passive PDF node coverage in this packet branch
-Action: do not use the passive PDF panel workflow as the acceptance check for this packet.
-Expected result: packet-owned shell host narrowing can be exercised normally, but passive PDF node creation is currently blocked by the unrelated `graph_scene_payload_builder.py` regression captured in Verification.
+4. Passive PDF shell regression smoke
+Action: add a PDF panel node, browse to a small local PDF, and confirm the panel renders while the shell remains responsive.
+Expected result: the PDF panel path browse still commits through the shell host seams and no passive-PDF subprocess or payload-building error appears.
 
 ## Residual Risks
 
 - `ShellWindow` still exposes legacy QAction slots and packet-external delegations for menu and widget wiring; this packet reduces controller and presenter host coupling, but it does not retire every remaining shell facade method.
 - `WorkspaceLibraryController` still aggregates several broader subcontroller surfaces internally; this packet narrows construction ownership around the shell host, not the entire workspace-controller tree.
-- The required full packet verification command is not green because of the inherited passive-PDF failure in `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, which remains outside this packet's write scope.
 
 ## Ready for Integration
 
-- No: the packet-owned shell host refactor and review gate passed, but the exact required verification command is still blocked by the out-of-scope passive-PDF regression noted above.
+- Yes: the packet-owned shell host refactor, inherited shell regressions, and packet review gate all pass on the rebased branch.
