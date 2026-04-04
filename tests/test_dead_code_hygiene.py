@@ -124,3 +124,15 @@ class DeadCodeHygienePythonHelperBoundaryTests(unittest.TestCase):
         self.assertNotIn("membership_candidate_size", payload_builder_functions)
         self.assertIn("membership_candidate_size", payload_factory_methods)
         self.assertIn(("surface_metrics", "node_surface_metrics"), payload_builder_assignments)
+
+    def test_retired_context_sink_support_files_do_not_reappear(self) -> None:
+        absent_paths = (
+            "ea_node_editor/ui/shell/presenters.py",
+            "ea_node_editor/execution/viewer_session_service_support.py",
+            "ea_node_editor/ui_qml/viewer_session_bridge_support.py",
+            "ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurfaceContent.qml",
+        )
+
+        for relative_path in absent_paths:
+            with self.subTest(path=relative_path):
+                self.assertFalse((_REPO_ROOT / relative_path).exists())

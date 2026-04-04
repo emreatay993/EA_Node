@@ -328,6 +328,44 @@ class RunVerificationTests(unittest.TestCase):
             self.packet_conftest._SLOW_TEST_PATHS,
         )
 
+    def test_context_budget_guardrail_metadata_matches_packet_contract(self) -> None:
+        self.assertEqual(
+            "scripts/check_context_budgets.py",
+            self.manifest.CHECK_CONTEXT_BUDGETS_SCRIPT,
+        )
+        self.assertEqual(
+            "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+            self.manifest.CONTEXT_BUDGET_RULES_PATH,
+        )
+        self.assertEqual(
+            "tests/test_context_budget_guardrails.py",
+            self.manifest.CONTEXT_BUDGET_GUARDRAILS_TEST,
+        )
+        self.assertEqual(
+            "./venv/Scripts/python.exe scripts/check_context_budgets.py",
+            self.manifest.CONTEXT_BUDGET_CHECK_COMMAND,
+        )
+        self.assertEqual(
+            (
+                "./venv/Scripts/python.exe scripts/check_context_budgets.py",
+                "./venv/Scripts/python.exe -m pytest tests/test_context_budget_guardrails.py "
+                "tests/test_run_verification.py --ignore=venv -q",
+            ),
+            self.manifest.P07_CONTEXT_BUDGET_VERIFICATION_COMMANDS,
+        )
+        self.assertEqual(
+            "./venv/Scripts/python.exe scripts/check_context_budgets.py",
+            self.manifest.P07_CONTEXT_BUDGET_REVIEW_GATE_COMMAND,
+        )
+        self.assertEqual(
+            (
+                "scripts/check_context_budgets.py",
+                "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+                "tests/test_context_budget_guardrails.py",
+            ),
+            self.manifest.P07_CONTEXT_BUDGET_ARTIFACTS,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

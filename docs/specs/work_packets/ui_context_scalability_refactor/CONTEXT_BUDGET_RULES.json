@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "rule_set": "UI_CONTEXT_SCALABILITY_REFACTOR_P07_context_budget_guardrails",
+  "rules": [
+    {
+      "path": "ea_node_editor/ui/shell/window.py",
+      "owner_packet": "P01",
+      "owner_label": "shell-window-facade",
+      "max_lines": 900
+    },
+    {
+      "path": "ea_node_editor/ui/shell/presenters/__init__.py",
+      "owner_packet": "P02",
+      "owner_label": "presenter-family",
+      "max_lines": 120
+    },
+    {
+      "path": "ea_node_editor/ui/shell/presenters/library_presenter.py",
+      "owner_packet": "P02",
+      "owner_label": "presenter-family",
+      "max_lines": 450
+    },
+    {
+      "path": "ea_node_editor/ui/shell/presenters/workspace_presenter.py",
+      "owner_packet": "P02",
+      "owner_label": "presenter-family",
+      "max_lines": 450
+    },
+    {
+      "path": "ea_node_editor/ui/shell/presenters/inspector_presenter.py",
+      "owner_packet": "P02",
+      "owner_label": "presenter-family",
+      "max_lines": 450
+    },
+    {
+      "path": "ea_node_editor/ui/shell/presenters/graph_canvas_presenter.py",
+      "owner_packet": "P02",
+      "owner_label": "presenter-family",
+      "max_lines": 450
+    },
+    {
+      "path": "ea_node_editor/ui/shell/presenters/graph_canvas_host_presenter.py",
+      "owner_packet": "P02",
+      "owner_label": "presenter-family",
+      "max_lines": 450
+    },
+    {
+      "path": "ea_node_editor/ui_qml/graph_scene_bridge.py",
+      "owner_packet": "P03",
+      "owner_label": "graph-scene-bridge",
+      "max_lines": 300
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/GraphCanvas.qml",
+      "owner_packet": "P04",
+      "owner_label": "graph-canvas-root",
+      "max_lines": 700
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph/EdgeLayer.qml",
+      "owner_packet": "P05",
+      "owner_label": "edge-renderer",
+      "max_lines": 700
+    },
+    {
+      "path": "ea_node_editor/ui_qml/viewer_session_bridge.py",
+      "owner_packet": "P06",
+      "owner_label": "viewer-surface",
+      "max_lines": 550
+    },
+    {
+      "path": "ea_node_editor/execution/viewer_session_service.py",
+      "owner_packet": "P06",
+      "owner_label": "viewer-surface",
+      "max_lines": 700
+    },
+    {
+      "path": "ea_node_editor/ui_qml/components/graph/viewer/GraphViewerSurface.qml",
+      "owner_packet": "P06",
+      "owner_label": "viewer-surface",
+      "max_lines": 600
+    }
+  ]
+}
