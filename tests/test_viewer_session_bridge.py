@@ -781,16 +781,18 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
 
         proxy_state = self.bridge.session_state("node_viewer")
         self.assertEqual(proxy_state["options"]["live_mode"], "proxy")
-        self.assertIn("png", proxy_state["data_refs"])
-        self.assertNotIn("preview", proxy_state["data_refs"])
+        self.assertEqual(proxy_state["data_refs"]["preview"], str(transient_preview_path))
+        self.assertNotIn("png", proxy_state["data_refs"])
         self.assertEqual(proxy_state["camera_state"], self.host.captured_camera_state)
-        self.assertFalse(transient_preview_path.exists())
+        self.assertTrue(transient_preview_path.exists())
+        internal_state = self.bridge._ensure_session_state("ws_main", "node_viewer")
+        self.assertIn("png", internal_state.data_refs)
 
         self.assertTrue(self.bridge.focus_session("node_viewer"))
         self.assertEqual(self.host.execution_client.update_calls[-1]["node_id"], "node_viewer")
         self.assertEqual(self.host.execution_client.update_calls[-1]["options"]["live_mode"], "full")
 
-    def test_transient_proxy_preview_overrides_existing_png_until_authoritative_replacement_arrives(self) -> None:
+    def test_transient_proxy_preview_stays_projected_while_authoritative_proxy_replacement_arrives(self) -> None:
         self.host.scene.set_selected("node_viewer")
         self.host.captured_camera_state = {
             "position": [9.0, 8.0, 7.0],
@@ -876,9 +878,11 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.host.execution_event.emit(materialized_event)
 
         final_proxy_state = self.bridge.session_state("node_viewer")
-        self.assertIn("png", final_proxy_state["data_refs"])
-        self.assertNotIn("preview", final_proxy_state["data_refs"])
-        self.assertFalse(transient_preview_path.exists())
+        self.assertEqual(final_proxy_state["data_refs"]["preview"], str(transient_preview_path))
+        self.assertNotIn("png", final_proxy_state["data_refs"])
+        self.assertTrue(transient_preview_path.exists())
+        internal_state = self.bridge._ensure_session_state("ws_main", "node_viewer")
+        self.assertEqual(internal_state.data_refs["png"]["artifact_id"], "viewer_proxy_png_new")
 
     def test_materialized_proxy_preview_keeps_transient_capture_when_replacement_is_not_resolvable(self) -> None:
         session_id, transient_preview_path = self._create_transient_proxy_preview("node_viewer")
@@ -920,7 +924,7 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertNotIn("png", proxy_state["data_refs"])
         self.assertTrue(transient_preview_path.exists())
 
-    def test_materialized_proxy_preview_projects_runtime_absolute_path_and_clears_transient_capture(self) -> None:
+    def test_materialized_proxy_preview_projects_runtime_absolute_path_while_transient_capture_stays_projected(self) -> None:
         session_id, transient_preview_path = self._create_transient_proxy_preview("node_viewer")
         demoted_event = _viewer_opened_event(
             request_id=self.host.execution_client.update_calls[-1]["request_id"],
@@ -969,9 +973,14 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
             self.host.execution_event.emit(materialized_event)
 
             proxy_state = self.bridge.session_state("node_viewer")
-            self.assertEqual(proxy_state["data_refs"]["png"], str(materialized_png_path))
-            self.assertNotIn("preview", proxy_state["data_refs"])
-            self.assertFalse(transient_preview_path.exists())
+            self.assertEqual(proxy_state["data_refs"]["preview"], str(transient_preview_path))
+            self.assertNotIn("png", proxy_state["data_refs"])
+            self.assertTrue(transient_preview_path.exists())
+            internal_state = self.bridge._ensure_session_state("ws_main", "node_viewer")
+            self.assertEqual(
+                self.bridge._projected_proxy_preview_path(internal_state.data_refs),
+                str(materialized_png_path),
+            )
         finally:
             Path(temp_path).unlink(missing_ok=True)
 
@@ -1310,6 +1319,82 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         self.assertEqual(blocked_state["summary"]["live_transport_release_reason"], "workspace_rerun")
         self.assertTrue(blocked_state["options"]["rerun_required"])
         self.assertEqual(blocked_state["transport"], {"kind": "bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID})
+
+    def test_node_completed_runtime_payload_clears_stale_rerun_blocker_after_workspace_rerun(self) -> None:
+        self.host.scene.set_selected("node_viewer")
+        session_id = self.bridge.open(
+            "node_viewer",
+            {
+                "data_refs": {"fields": "fields_ref"},
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+            },
+        )
+        open_call = self.host.execution_client.open_calls[-1]
+        self.host.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id="ws_main",
+                node_id="node_viewer",
+                session_id=session_id,
+                summary={"cache_state": "live_ready", "result_name": "displacement"},
+                options={"live_mode": "full"},
+                backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+                transport_revision=5,
+                live_open_status="ready",
+                transport={
+                    "kind": "bundle",
+                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "bundle_path": "C:/temp/viewer_bundle",
+                },
+            )
+        )
+
+        self.bridge.project_workspace_run_required(
+            "ws_main",
+            reason="workspace_rerun",
+            run_id="run_live",
+        )
+
+        runtime_session_payload = _viewer_opened_event(
+            request_id="run_node_viewer",
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id="viewer_session_runtime_seeded",
+            backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+            summary={"cache_state": "live_ready", "result_name": "displacement"},
+            options={"live_mode": "proxy"},
+            data_refs={"dataset": {"kind": "mock_dataset"}},
+            transport_revision=7,
+            live_open_status="ready",
+            transport={
+                "kind": "bundle",
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "bundle_path": "C:/temp/viewer_bundle",
+            },
+        )
+        self.host.execution_event.emit(
+            {
+                "type": "node_completed",
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "outputs": {"session": runtime_session_payload},
+            }
+        )
+
+        reseeded_state = self.bridge.session_state("node_viewer")
+        self.assertEqual(reseeded_state["phase"], "closed")
+        self.assertEqual(reseeded_state["session_id"], "viewer_session_runtime_seeded")
+        self.assertEqual(reseeded_state["cache_state"], "live_ready")
+        self.assertEqual(reseeded_state["live_open_status"], "ready")
+        self.assertEqual(reseeded_state["live_open_blocker"], {})
+        self.assertNotIn("rerun_required", reseeded_state["summary"])
+        self.assertNotIn("rerun_required", reseeded_state["options"])
+
+        reopened_session_id = self.bridge.open("node_viewer")
+        self.assertEqual(reopened_session_id, "viewer_session_runtime_seeded")
+        reopened_call = self.host.execution_client.open_calls[-1]
+        self.assertEqual(reopened_call["live_open_status"], "ready")
+        self.assertEqual(reopened_call["live_open_blocker"], {})
 
     def test_node_completed_runtime_session_payload_reseeds_closed_state_and_cached_open(self) -> None:
         self.host.scene.set_selected("node_viewer")

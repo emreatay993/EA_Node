@@ -961,6 +961,12 @@ class ViewerSessionBridge(QObject):
         replacement_preview_ready = authoritative_live_mode == _LIVE_MODE_FULL
         if not replacement_preview_ready and event_type == "viewer_data_materialized":
             replacement_preview_ready = bool(self._projected_proxy_preview_path(state.data_refs))
+            if (
+                replacement_preview_ready
+                and state.camera_state_locally_captured
+                and bool(self._transient_proxy_preview_path(workspace_id, node_id))
+            ):
+                replacement_preview_ready = False
         if replacement_preview_ready:
             state.pending_proxy_snapshot_refresh = False
             self._clear_transient_proxy_preview(workspace_id, node_id)
@@ -1003,7 +1009,11 @@ class ViewerSessionBridge(QObject):
 
         self._set_last_error("")
         self._clear_pending_projection(state)
-        self._apply_authoritative_projection(state, runtime_payload)
+        self._apply_authoritative_projection(
+            state,
+            runtime_payload,
+            fallback_payload={},
+        )
         state.phase = "closed"
         self.sessions_changed.emit()
         return True
@@ -1012,12 +1022,15 @@ class ViewerSessionBridge(QObject):
         self,
         state: _ViewerSessionProjection,
         event: Mapping[str, Any],
+        *,
+        fallback_payload: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         has_embedded_model = bool(
             _copy_mapping(_copy_mapping(event.get("summary")).get(VIEWER_SESSION_MODEL_KEY))
             or _copy_mapping(event.get(VIEWER_SESSION_MODEL_KEY))
         )
-        authoritative_model = coerce_viewer_session_model(event, fallback=state.payload())
+        fallback = state.payload() if fallback_payload is None else _copy_mapping(fallback_payload)
+        authoritative_model = coerce_viewer_session_model(event, fallback=fallback)
         if not authoritative_model:
             return {}
         if not has_embedded_model and "phase" not in event:
