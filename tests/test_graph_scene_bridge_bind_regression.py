@@ -16,33 +16,51 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
     def test_scene_bridge_routes_fragment_and_delete_flows_through_authoring_boundary(self) -> None:
-        bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
+        support_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene" / "state_support.py"
+        ).read_text(encoding="utf-8")
         helper_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation_history.py"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("return self._authoring_boundary.duplicate_selected_subgraph()", bridge_text)
-        self.assertIn("return self._authoring_boundary.serialize_selected_subgraph_fragment()", bridge_text)
-        self.assertIn("return self._authoring_boundary.paste_subgraph_fragment(fragment_payload, center_x, center_y)", bridge_text)
-        self.assertIn("return self._authoring_boundary.delete_selected_graph_items(edge_ids)", bridge_text)
+        self.assertIn("return self._command_bridge.duplicate_selected_subgraph()", support_text)
+        self.assertIn("return self._command_bridge.serialize_selected_subgraph_fragment()", support_text)
+        self.assertIn("return self._command_bridge.paste_subgraph_fragment(fragment_payload, center_x, center_y)", support_text)
+        self.assertIn("return self._command_bridge.delete_selected_graph_items(edge_ids)", support_text)
         self.assertIn("def delete_selected_graph_items(self, edge_ids: list[Any]) -> bool:", helper_text)
         self.assertIn("mutations = self._mutation_boundary()", helper_text)
         self.assertIn("def _expanded_selected_node_ids_for_fragment(self, workspace: WorkspaceData) -> list[str]:", helper_text)
 
     def test_scene_bridge_keeps_payload_cache_and_pending_surface_action_state_in_focused_helpers(self) -> None:
         bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
+        package_root = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene"
+        state_support_text = (package_root / "state_support.py").read_text(encoding="utf-8")
+        read_text = (package_root / "read_bridge.py").read_text(encoding="utf-8")
+        command_text = (package_root / "command_bridge.py").read_text(encoding="utf-8")
+        policy_text = (package_root / "policy_bridge.py").read_text(encoding="utf-8")
+        context_text = (package_root / "context.py").read_text(encoding="utf-8")
+        package_text = (package_root / "__init__.py").read_text(encoding="utf-8")
 
-        self.assertIn("class _GraphScenePayloadCache:", bridge_text)
-        self.assertIn("class _GraphScenePendingSurfaceAction:", bridge_text)
-        self.assertIn("class GraphSceneReadBridge(QObject):", bridge_text)
-        self.assertIn("class GraphSceneCommandBridge(QObject):", bridge_text)
-        self.assertIn("class GraphScenePolicyBridge(QObject):", bridge_text)
+        self.assertTrue(package_root.is_dir())
+        self.assertLessEqual(len(bridge_text.splitlines()), 300)
+        self.assertIn("from ea_node_editor.ui_qml.graph_scene import (", bridge_text)
         self.assertIn("self._payload_cache = _GraphScenePayloadCache()", bridge_text)
         self.assertIn("self._pending_surface_action = _GraphScenePendingSurfaceAction()", bridge_text)
         self.assertIn("self._state_bridge = GraphSceneReadBridge(self)", bridge_text)
         self.assertIn("self._command_bridge = GraphSceneCommandBridge(", bridge_text)
         self.assertIn("self._policy_bridge = GraphScenePolicyBridge(self, self._policy_boundary)", bridge_text)
-        self.assertIn("self._bridge._payload_cache.update(", bridge_text)
+        self.assertIn("class _GraphScenePayloadCache:", state_support_text)
+        self.assertIn("class _GraphScenePendingSurfaceAction:", state_support_text)
+        self.assertIn("class GraphSceneBridgeBase(QObject):", state_support_text)
+        self.assertIn("class GraphSceneReadBridge(QObject):", read_text)
+        self.assertIn("class GraphSceneCommandBridge(QObject):", command_text)
+        self.assertIn("class GraphScenePolicyBridge(QObject):", policy_text)
+        self.assertIn("class _GraphSceneContext:", context_text)
+        self.assertIn("self._bridge._payload_cache.update(", context_text)
+        self.assertIn("GraphSceneBridgeBase", package_text)
+        self.assertIn("GraphSceneCommandBridge", package_text)
+        self.assertIn("GraphScenePolicyBridge", package_text)
+        self.assertIn("GraphSceneReadBridge", package_text)
 
     def test_mutation_history_collapses_property_geometry_structure_and_fragment_flows_into_one_boundary(self) -> None:
         helper_text = (
@@ -64,6 +82,9 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
 
     def test_graph_canvas_bridges_resolve_split_scene_sources_without_losing_scene_compatibility(self) -> None:
         bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
+        support_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene" / "state_support.py"
+        ).read_text(encoding="utf-8")
         state_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_state_bridge.py"
         ).read_text(encoding="utf-8")
@@ -74,9 +95,10 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("def state_bridge(self) -> GraphSceneReadBridge:", bridge_text)
-        self.assertIn("def command_bridge(self) -> GraphSceneCommandBridge:", bridge_text)
-        self.assertIn("def policy_bridge(self) -> GraphScenePolicyBridge:", bridge_text)
+        self.assertIn("GraphSceneBridgeBase", bridge_text)
+        self.assertIn("def state_bridge(self) -> GraphSceneReadBridge:", support_text)
+        self.assertIn("def command_bridge(self) -> GraphSceneCommandBridge:", support_text)
+        self.assertIn("def policy_bridge(self) -> GraphScenePolicyBridge:", support_text)
         self.assertIn("def _resolve_scene_state_source(scene_bridge: object | None)", state_text)
         self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", state_text)
         self.assertIn("def _resolve_scene_command_source(scene_bridge: object | None)", command_text)

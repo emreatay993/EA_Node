@@ -2054,11 +2054,8 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
 
         bridge = GraphSceneBridge()
         meta_object = bridge.metaObject()
-        method_signatures = [
-            bytes(meta_object.method(index).methodSignature()).decode("utf-8")
-            for index in range(meta_object.methodOffset(), meta_object.methodCount())
-        ]
-        self.assertIn("set_node_property(QString,QString,QVariant)", method_signatures)
+        signature = b"set_node_property(QString,QString,QVariant)"
+        self.assertGreaterEqual(meta_object.indexOfMethod(signature), 0)
 
     def test_shell_window_browse_node_property_path_uses_explicit_node_id(self) -> None:
         from PyQt6.QtWidgets import QApplication
