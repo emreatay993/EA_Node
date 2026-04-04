@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Protocol
 
-from ea_node_editor.nodes.runtime_refs import (
+from ea_node_editor.runtime_contracts import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
     coerce_runtime_artifact_ref,

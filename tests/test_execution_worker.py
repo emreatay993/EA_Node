@@ -36,9 +36,9 @@ from ea_node_editor.nodes.types import (
     ExecutionContext,
     NodeResult,
     PortSpec,
-    RuntimeArtifactRef,
     deserialize_runtime_value,
 )
+from ea_node_editor.runtime_contracts import RuntimeArtifactRef
 
 _WAIT_NODE_ENTERED = threading.Event()
 _WAIT_NODE_RELEASE = threading.Event()

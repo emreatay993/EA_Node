@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from typing import Any, TypeAlias
 
-from ea_node_editor.nodes.types import (
+from ea_node_editor.runtime_contracts import (
     RuntimeArtifactRef,
     RuntimeHandleRef,
     coerce_runtime_artifact_ref,

@@ -32,7 +32,11 @@ from ea_node_editor.execution.viewer_session_service import (
     coerce_viewer_session_model,
 )
 from ea_node_editor.execution.worker_services import WorkerServices
-from ea_node_editor.nodes.types import RuntimeArtifactRef
+from ea_node_editor.runtime_contracts import (
+    RuntimeArtifactRef,
+    default_viewer_session_id,
+    viewer_event_payload,
+)
 
 
 class _FakeDpfObject:
@@ -47,6 +51,31 @@ class ViewerSessionServiceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.services = WorkerServices()
         self.service = self.services.viewer_session_service
+
+    def test_runtime_contract_viewer_helpers_preserve_projection_payload(self) -> None:
+        session_id = default_viewer_session_id("ws_main", "node_viewer")
+        event = ViewerSessionOpenedEvent(
+            request_id="viewer_req_open",
+            workspace_id="ws_main",
+            node_id="node_viewer",
+            session_id=session_id,
+            backend_id=DPF_EXECUTION_VIEWER_BACKEND_ID,
+            data_refs={"png": RuntimeArtifactRef.staged("viewer_contract_png")},
+            transport={"kind": "dpf_transport_bundle"},
+            transport_revision=2,
+            live_open_status="ready",
+            camera_state={"zoom": 1.25},
+            playback_state={"state": "paused", "step_index": 3},
+            summary={"result_name": "displacement"},
+            options={"live_mode": "proxy"},
+        )
+
+        payload = viewer_event_payload(event)
+        payload["summary"]["result_name"] = "changed"
+
+        self.assertEqual(payload["session_id"], session_id)
+        self.assertEqual(payload["data_refs"]["png"].artifact_id, "viewer_contract_png")
+        self.assertEqual(event.summary["result_name"], "displacement")
 
     def _fake_materialize(self, calls: list[dict[str, object]]):  # noqa: ANN001
         def _materialize(

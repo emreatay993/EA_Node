@@ -24,7 +24,7 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
     UnsupportedDpfResultFileError,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
-from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
+from ea_node_editor.runtime_contracts import RuntimeHandleRef, coerce_runtime_handle_ref
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.worker_services import WorkerServices

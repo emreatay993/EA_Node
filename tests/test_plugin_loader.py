@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ea_node_editor.nodes import plugin_loader
 from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.runtime_contracts import RuntimeArtifactRef
 
 
 def _write_text(path: Path, contents: str) -> Path:
@@ -279,3 +280,48 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
     assert descriptor.provenance.kind == "entry_point"
     assert descriptor.provenance.entry_point_name == "packet-entry-point"
     assert calls == [{"group": plugin_loader.ENTRY_POINT_GROUP}]
+
+
+def test_discover_and_load_plugins_supports_neutral_runtime_contract_imports(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    plugins_root = tmp_path / "plugins"
+    _write_text(
+        plugins_root / "runtime_contract_plugin.py",
+        """
+from ea_node_editor.nodes.types import NodeResult, NodeTypeSpec
+from ea_node_editor.runtime_contracts import RuntimeArtifactRef
+
+
+class RuntimeContractPlugin:
+    def spec(self):
+        return NodeTypeSpec(
+            type_id="packet.runtime_contracts",
+            display_name="Runtime Contracts",
+            category="Packet Tests",
+            icon="packet",
+            ports=(),
+            properties=(),
+        )
+
+    def execute(self, ctx):
+        return NodeResult(
+            outputs={"artifact": RuntimeArtifactRef.staged("packet_runtime_contract")},
+        )
+""".strip()
+        + "\n",
+    )
+
+    monkeypatch.setattr(plugin_loader, "plugins_dir", lambda: plugins_root)
+    monkeypatch.setattr(plugin_loader, "_load_plugins_from_entry_points", lambda registry: [])
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.discover_and_load_plugins(registry)
+
+    assert loaded == ["packet.runtime_contracts"]
+    descriptor = registry.get_descriptor("packet.runtime_contracts")
+    result = descriptor.factory().execute(None)
+
+    assert isinstance(result.outputs["artifact"], RuntimeArtifactRef)
+    assert result.outputs["artifact"].artifact_id == "packet_runtime_contract"

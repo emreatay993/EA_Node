@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ea_node_editor.runtime_contracts import (
+from ea_node_editor.runtime_contracts.runtime_values import (
     RuntimeArtifactRef,
     RuntimeArtifactScope,
     RuntimeHandleRef,
@@ -9,14 +9,10 @@ from ea_node_editor.runtime_contracts import (
     deserialize_runtime_value,
     serialize_runtime_value,
 )
-
-RuntimeArtifactRef.__module__ = __name__
-RuntimeHandleRef.__module__ = __name__
-coerce_runtime_artifact_ref.__module__ = __name__
-coerce_runtime_handle_ref.__module__ = __name__
-deserialize_runtime_value.__module__ = __name__
-serialize_runtime_value.__module__ = __name__
-
+from ea_node_editor.runtime_contracts.viewer_session import (
+    default_viewer_session_id,
+    viewer_event_payload,
+)
 
 __all__ = [
     "RuntimeArtifactRef",
@@ -24,6 +20,8 @@ __all__ = [
     "RuntimeHandleRef",
     "coerce_runtime_artifact_ref",
     "coerce_runtime_handle_ref",
+    "default_viewer_session_id",
     "deserialize_runtime_value",
     "serialize_runtime_value",
+    "viewer_event_payload",
 ]

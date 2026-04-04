@@ -21,7 +21,7 @@ from ea_node_editor.execution.dpf_runtime_service import (
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
 from ea_node_editor.nodes.node_specs import PropertySpec
-from ea_node_editor.nodes.runtime_refs import RuntimeHandleRef
+from ea_node_editor.runtime_contracts import RuntimeHandleRef
 
 DPF_NODE_CATEGORY = "Ansys DPF"
 DPF_RESULT_FILE_NODE_TYPE_ID = "dpf.result_file"
