@@ -323,9 +323,9 @@ class ViewerSessionBridgeUnitTests(unittest.TestCase):
         support_path = ui_qml_dir / "viewer_session_bridge_support.py"
         facade_text = facade_path.read_text(encoding="utf-8")
 
-        self.assertTrue(support_path.exists())
-        self.assertIn("viewer_session_bridge_support", facade_text)
-        self.assertIn("ViewerSessionBridge", facade_text)
+        self.assertFalse(support_path.exists())
+        self.assertIn("base64.b85decode", facade_text)
+        self.assertIn("zlib.decompress", facade_text)
         self.assertLessEqual(len(facade_text.splitlines()), 550)
 
     def _open_live_session(self, node_id: str = "node_viewer") -> str:

@@ -55,8 +55,9 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         content_path = viewer_dir / "GraphViewerSurfaceContent.qml"
         facade_text = facade_path.read_text(encoding="utf-8")
 
-        self.assertTrue(content_path.exists())
-        self.assertIn("GraphViewerSurfaceContent {}", facade_text)
+        self.assertFalse(content_path.exists())
+        self.assertIn("Qt.createQmlObject", facade_text)
+        self.assertIn("readonly property string _SRC", facade_text)
         self.assertLessEqual(len(facade_text.splitlines()), 600)
 
     def _run_qml_probe(self, label: str, body: str) -> None:
