@@ -27,6 +27,10 @@ from ea_node_editor.execution.protocol import (
     event_to_dict,
 )
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
+from ea_node_editor.execution.viewer_session_service import (
+    build_run_required_viewer_session_model,
+    coerce_viewer_session_model,
+)
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.types import RuntimeArtifactRef
 
@@ -627,6 +631,99 @@ class ViewerSessionServiceTests(unittest.TestCase):
 
         self.assertIsInstance(failed, ViewerSessionFailedEvent)
         self.assertIn("invalidated", failed.error)
+
+    def test_coerce_viewer_session_model_normalizes_summary_embedded_projection(self) -> None:
+        payload = {
+            "request_id": "viewer_req_open",
+            "workspace_id": "ws_main",
+            "node_id": "node_viewer",
+            "session_id": "session_authoritative",
+            "summary": {
+                "result_name": "displacement",
+                "cache_state": "live_ready",
+                "session_model": {
+                    "workspace_id": "ws_main",
+                    "node_id": "node_viewer",
+                    "session_id": "session_authoritative",
+                    "phase": "open",
+                    "request_id": "viewer_req_open",
+                    "last_command": "open",
+                    "last_error": "",
+                    "playback_state": "paused",
+                    "step_index": 2,
+                    "playback": {"state": "paused", "step_index": 2},
+                    "live_policy": "focus_only",
+                    "keep_live": False,
+                    "cache_state": "live_ready",
+                    "invalidated_reason": "",
+                    "close_reason": "",
+                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "transport_revision": 4,
+                    "live_mode": "full",
+                    "live_open_status": "ready",
+                    "live_open_blocker": {},
+                    "data_refs": {"dataset": {"kind": "tests.dataset"}},
+                    "transport": {
+                        "kind": "dpf_transport_bundle",
+                        "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    },
+                    "camera_state": {"zoom": 1.25},
+                    "summary": {"result_name": "displacement", "cache_state": "live_ready"},
+                    "options": {"live_mode": "full", "playback_state": "paused", "step_index": 2},
+                },
+            },
+            "options": {"live_mode": "proxy", "playback_state": "playing"},
+        }
+
+        session_model = coerce_viewer_session_model(payload)
+
+        self.assertEqual(session_model["phase"], "open")
+        self.assertEqual(session_model["backend_id"], DPF_EXECUTION_VIEWER_BACKEND_ID)
+        self.assertEqual(session_model["transport_revision"], 4)
+        self.assertEqual(session_model["live_mode"], "proxy")
+        self.assertEqual(session_model["playback"]["state"], "playing")
+        self.assertEqual(session_model["summary"]["result_name"], "displacement")
+        self.assertEqual(session_model["data_refs"], {"dataset": {"kind": "tests.dataset"}})
+
+    def test_build_run_required_viewer_session_model_clears_live_transport_but_keeps_projection_summary(self) -> None:
+        session_model = build_run_required_viewer_session_model(
+            {
+                "workspace_id": "ws_main",
+                "node_id": "node_viewer",
+                "session_id": "session_blocked",
+                "phase": "open",
+                "playback_state": "paused",
+                "step_index": 5,
+                "live_policy": "focus_only",
+                "keep_live": False,
+                "cache_state": "live_ready",
+                "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                "transport_revision": 8,
+                "live_open_status": "ready",
+                "data_refs": {"dataset": {"kind": "tests.dataset"}},
+                "transport": {
+                    "kind": "dpf_transport_bundle",
+                    "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID,
+                    "manifest_path": "C:/temp/viewer/manifest.json",
+                    "entry_path": "C:/temp/viewer/entry.vtm",
+                },
+                "camera_state": {"zoom": 1.1},
+                "summary": {"result_name": "displacement", "set_label": "Set 4"},
+                "options": {"live_mode": "full", "playback_state": "paused", "step_index": 5},
+            },
+            reason="workspace_rerun",
+            run_id="run_live",
+        )
+
+        self.assertEqual(session_model["phase"], "blocked")
+        self.assertEqual(session_model["live_open_status"], "blocked")
+        self.assertTrue(session_model["live_open_blocker"]["rerun_required"])
+        self.assertEqual(session_model["summary"]["result_name"], "displacement")
+        self.assertEqual(session_model["summary"]["live_transport_release_reason"], "workspace_rerun")
+        self.assertEqual(session_model["summary"]["run_id"], "run_live")
+        self.assertEqual(session_model["transport"], {"kind": "dpf_transport_bundle", "backend_id": DPF_EXECUTION_VIEWER_BACKEND_ID})
+        self.assertEqual(session_model["data_refs"], {})
+        self.assertEqual(session_model["options"]["live_mode"], "proxy")
 
 
 if __name__ == "__main__":

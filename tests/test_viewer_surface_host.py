@@ -103,6 +103,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                     self.close_calls = []
                     self.focus_calls = []
                     self.clear_focus_calls = 0
+                    self.session_state_calls = []
                     self._last_error = ""
                     self._state = self._build_state()
 
@@ -212,6 +213,7 @@ class ViewerSurfaceHostTests(unittest.TestCase):
 
                 @pyqtSlot(str, result="QVariantMap")
                 def session_state(self, node_id):
+                    self.session_state_calls.append(str(node_id))
                     if str(node_id) != "node_viewer_surface_host" or self._state is None:
                         return {}
                     return dict(self._state)
@@ -546,6 +548,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert mode_label.property("text") == "Opening"
                 assert len(interactions) >= 6
                 assert all(node_id == "node_viewer_surface_host" for node_id in interactions)
+                assert len(bridge.session_state_calls) >= 1
+                assert all(node_id == "node_viewer_surface_host" for node_id in bridge.session_state_calls)
                 assert pointer_events["clicked"] == []
                 assert pointer_events["opened"] == []
                 assert pointer_events["contexts"] == []

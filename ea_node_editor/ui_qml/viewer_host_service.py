@@ -9,7 +9,10 @@ from PyQt6.QtCore import QObject, QTimer, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QImage
 from PyQt6.QtWidgets import QWidget
 
-from ea_node_editor.execution.viewer_session_service import VIEWER_SESSION_MODEL_KEY
+from ea_node_editor.execution.viewer_session_service import (
+    VIEWER_SESSION_MODEL_KEY,
+    coerce_viewer_session_model,
+)
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import (
     EmbeddedViewerOverlayManager,
     EmbeddedViewerOverlaySpec,
@@ -72,8 +75,11 @@ def _playback_state_from_projection(
 
 
 def _projected_session_model(projected_state: Mapping[str, Any]) -> dict[str, Any]:
-    session_model = _mapping(projected_state.get(VIEWER_SESSION_MODEL_KEY))
-    return session_model if session_model else _mapping(projected_state)
+    session_model = coerce_viewer_session_model(projected_state)
+    if session_model:
+        return session_model
+    fallback = _mapping(projected_state.get(VIEWER_SESSION_MODEL_KEY))
+    return fallback if fallback else _mapping(projected_state)
 
 
 @dataclass(slots=True, frozen=True)
@@ -94,6 +100,7 @@ class _ViewerHostSessionSnapshot:
     playback_state: dict[str, Any] = field(default_factory=dict)
     summary: dict[str, Any] = field(default_factory=dict)
     options: dict[str, Any] = field(default_factory=dict)
+    session_model: dict[str, Any] = field(default_factory=dict)
 
     @property
     def overlay_key(self) -> _OverlayKey:
@@ -123,6 +130,7 @@ class _ViewerHostSessionSnapshot:
             playback_state=copy.deepcopy(self.playback_state),
             summary=copy.deepcopy(self.summary),
             options=copy.deepcopy(self.options),
+            session_model=copy.deepcopy(self.session_model),
             container=container,
             current_widget=current_widget,
         )
@@ -138,6 +146,7 @@ class _ViewerHostSessionSnapshot:
             transport=copy.deepcopy(self.transport),
             summary=copy.deepcopy(self.summary),
             options=copy.deepcopy(self.options),
+            session_model=copy.deepcopy(self.session_model),
             container=container,
             widget=widget,
             reason=reason,
@@ -524,6 +533,8 @@ class ViewerHostService(QObject):
         projected_state: Mapping[str, Any],
     ) -> _ViewerHostSessionSnapshot | None:
         session_model = _projected_session_model(projected_state)
+        if not session_model:
+            return None
         workspace_id = _string(session_model.get("workspace_id"))
         node_id = _string(session_model.get("node_id"))
         if not workspace_id or not node_id:
@@ -581,6 +592,7 @@ class ViewerHostService(QObject):
             playback_state=playback_state,
             summary=summary,
             options=options,
+            session_model=_mapping(session_model),
         )
 
     @staticmethod

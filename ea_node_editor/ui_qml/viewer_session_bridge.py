@@ -15,7 +15,10 @@ from PyQt6.QtGui import QImage
 from ea_node_editor.execution.viewer_backend_dpf import DPF_EXECUTION_VIEWER_BACKEND_ID
 from ea_node_editor.execution.viewer_session_service import (
     VIEWER_SESSION_MODEL_KEY,
+    build_run_required_viewer_session_model,
     build_viewer_session_model,
+    coerce_viewer_session_model,
+    projection_safe_viewer_transport,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_VIEWER_NODE_TYPE_ID
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
@@ -42,11 +45,6 @@ _VIEWER_EVENT_TYPES = frozenset(
 )
 _NODE_COMPLETED_EVENT_TYPE = "node_completed"
 _RUNTIME_VIEWER_OUTPUT_KEY = "session"
-_RUN_REQUIRED_BLOCKER = {
-    "code": "rerun_required",
-    "reason": "Live viewer transport is unavailable and requires rerun.",
-    "rerun_required": True,
-}
 
 
 @dataclass(slots=True)
@@ -183,18 +181,6 @@ def _normalize_playback_payload(
         "state": state,
         "step_index": step_index,
     }
-
-
-def _projection_safe_transport(value: Any) -> dict[str, Any]:
-    transport = _copy_mapping(value)
-    projection: dict[str, Any] = {}
-    kind = _string(transport.get("kind"))
-    if kind:
-        projection["kind"] = kind
-    backend_id = _string(transport.get("backend_id"))
-    if backend_id:
-        projection["backend_id"] = backend_id
-    return projection
 
 
 class ViewerSessionBridge(QObject):
@@ -615,54 +601,15 @@ class ViewerSessionBridge(QObject):
         reason: str,
         run_id: str = "",
     ) -> None:
-        blocker = copy.deepcopy(_RUN_REQUIRED_BLOCKER)
-        state.phase = "blocked"
-        state.request_id = ""
-        state.last_command = "run_required"
-        state.last_error = ""
-        state.cache_state = "proxy_ready" if self._has_proxy_projection(state) else "empty"
-        state.data_refs.clear()
-        state.transport = _projection_safe_transport(state.transport)
-        state.live_open_status = "blocked"
-        state.live_open_blocker = blocker
-        state.summary.pop("invalidated_reason", None)
-        state.summary["cache_state"] = state.cache_state
-        state.summary["live_open_status"] = "blocked"
-        state.summary["live_open_blocker"] = copy.deepcopy(blocker)
-        state.summary["rerun_required"] = True
-        if state.backend_id:
-            state.summary["backend_id"] = state.backend_id
-        if state.transport_revision > 0:
-            state.summary["transport_revision"] = int(state.transport_revision)
-        if reason:
-            state.summary["live_transport_release_reason"] = reason
-        if run_id:
-            state.summary["run_id"] = run_id
-        state.options["cache_state"] = state.cache_state
-        state.options["live_mode"] = _LIVE_MODE_PROXY
-        state.options["live_open_status"] = "blocked"
-        state.options["live_open_blocker"] = copy.deepcopy(blocker)
-        state.options["rerun_required"] = True
-        state.options["playback_state"] = state.playback_state
-        state.options["step_index"] = int(state.step_index)
-        state.options["live_policy"] = _normalize_live_policy(state.options.get("live_policy", state.live_policy))
-        state.options["keep_live"] = bool(state.options.get("keep_live", state.keep_live))
-        if state.backend_id:
-            state.options["backend_id"] = state.backend_id
-        if state.transport_revision > 0:
-            state.options["transport_revision"] = int(state.transport_revision)
-
-    @staticmethod
-    def _has_proxy_projection(state: _ViewerSessionProjection) -> bool:
-        return any(
-            (
-                bool(state.summary),
-                bool(state.options),
-                bool(state.camera_state),
-                state.transport_revision > 0,
-                bool(state.backend_id),
-            )
+        projection_model = build_run_required_viewer_session_model(
+            state.payload(),
+            reason=reason,
+            run_id=run_id,
+            last_command="run_required",
         )
+        if not projection_model:
+            return
+        self._apply_session_model(state, projection_model)
 
     def _active_session(self, node_id: str, payload: Any = None) -> _ViewerSessionProjection | None:
         workspace_id = self._workspace_id_from_payload(payload)
@@ -895,6 +842,45 @@ class ViewerSessionBridge(QObject):
             return captured.copy()
         return QImage()
 
+    @staticmethod
+    def _apply_session_model(
+        state: _ViewerSessionProjection,
+        session_model: Mapping[str, Any],
+    ) -> None:
+        playback = _copy_mapping(session_model.get("playback"))
+        if not playback:
+            playback = _normalize_playback_payload(
+                session_model.get("playback_state"),
+                fallback_state=state.playback_state,
+                fallback_step_index=state.step_index,
+            )
+        state.workspace_id = _string(session_model.get("workspace_id")) or state.workspace_id
+        state.node_id = _string(session_model.get("node_id")) or state.node_id
+        state.session_id = _string(session_model.get("session_id")) or state.session_id
+        state.phase = _string(session_model.get("phase")) or "closed"
+        state.request_id = _string(session_model.get("request_id"))
+        state.last_command = _string(session_model.get("last_command"))
+        state.last_error = _string(session_model.get("last_error"))
+        state.playback_state = _string(playback.get("state", state.playback_state)) or state.playback_state
+        state.step_index = _coerce_step_index(playback.get("step_index"), default=state.step_index)
+        state.live_policy = _normalize_live_policy(session_model.get("live_policy"))
+        state.keep_live = bool(session_model.get("keep_live"))
+        state.cache_state = _string(session_model.get("cache_state")) or "empty"
+        state.invalidated_reason = _string(session_model.get("invalidated_reason"))
+        state.close_reason = _string(session_model.get("close_reason"))
+        state.backend_id = _string(session_model.get("backend_id")) or state.backend_id
+        state.transport_revision = _coerce_step_index(
+            session_model.get("transport_revision"),
+            default=state.transport_revision,
+        )
+        state.live_open_status = _string(session_model.get("live_open_status"))
+        state.live_open_blocker = _copy_mapping(session_model.get("live_open_blocker"))
+        state.data_refs = _copy_mapping(session_model.get("data_refs"))
+        state.transport = _copy_mapping(session_model.get("transport"))
+        state.camera_state = _copy_mapping(session_model.get("camera_state"))
+        state.summary = _copy_mapping_without_session_model(session_model.get("summary"))
+        state.options = _copy_mapping_without_session_model(session_model.get("options"))
+
     def _ensure_session_state(self, workspace_id: str, node_id: str) -> _ViewerSessionProjection:
         session_key = (workspace_id, node_id)
         state = self._sessions.get(session_key)
@@ -982,7 +968,7 @@ class ViewerSessionBridge(QObject):
         if event_type == "viewer_session_closed":
             state.phase = authoritative_phase or "closed"
             state.data_refs.clear()
-            state.transport = _projection_safe_transport(state.transport)
+            state.transport = projection_safe_viewer_transport(state.transport)
             state.camera_state_locally_captured = False
             state.pending_proxy_snapshot_refresh = False
             self._clear_transient_proxy_preview(workspace_id, node_id)
@@ -1027,130 +1013,35 @@ class ViewerSessionBridge(QObject):
         state: _ViewerSessionProjection,
         event: Mapping[str, Any],
     ) -> dict[str, Any]:
-        summary_with_model = _copy_mapping(event.get("summary"))
-        authoritative_model = _copy_mapping(summary_with_model.get(VIEWER_SESSION_MODEL_KEY))
+        has_embedded_model = bool(
+            _copy_mapping(_copy_mapping(event.get("summary")).get(VIEWER_SESSION_MODEL_KEY))
+            or _copy_mapping(event.get(VIEWER_SESSION_MODEL_KEY))
+        )
+        authoritative_model = coerce_viewer_session_model(event, fallback=state.payload())
         if not authoritative_model:
-            authoritative_model = _copy_mapping(event.get(VIEWER_SESSION_MODEL_KEY))
-        summary = _copy_mapping_without_session_model(summary_with_model)
-        options = _copy_mapping_without_session_model(event.get("options"))
-        if authoritative_model:
-            playback = _copy_mapping(authoritative_model.get("playback"))
-            if not playback:
-                playback = _normalize_playback_payload(
-                    event.get("playback_state") or options,
-                    fallback_state=state.playback_state,
-                    fallback_step_index=state.step_index,
-                )
-            if state.camera_state_locally_captured and state.camera_state and _normalize_live_mode(
-                authoritative_model.get("live_mode")
-            ) == _LIVE_MODE_FULL:
-                camera_state = copy.deepcopy(state.camera_state)
-            else:
-                camera_state = _copy_mapping(authoritative_model.get("camera_state"))
-                if not camera_state:
-                    camera_state = _copy_mapping(summary.get("camera_state") or summary.get("camera"))
-                if not camera_state:
-                    camera_state = copy.deepcopy(state.camera_state)
-            state.backend_id = (
-                _string(authoritative_model.get("backend_id"))
-                or _string(options.get("backend_id"))
-                or _string(summary.get("backend_id"))
-                or state.backend_id
+            return {}
+        if not has_embedded_model and "phase" not in event:
+            authoritative_model["phase"] = (
+                "closed"
+                if _string(event.get("type")) == "viewer_session_closed"
+                else "open"
             )
-            state.transport_revision = _coerce_step_index(
-                authoritative_model.get(
-                    "transport_revision",
-                    options.get("transport_revision", summary.get("transport_revision", state.transport_revision)),
-                ),
-                default=state.transport_revision,
+        preserve_locally_captured_camera = (
+            state.camera_state_locally_captured
+            and bool(state.camera_state)
+            and (
+                not has_embedded_model
+                or _normalize_live_mode(authoritative_model.get("live_mode")) == _LIVE_MODE_FULL
             )
-            state.live_open_status = (
-                _string(authoritative_model.get("live_open_status"))
-                or _string(options.get("live_open_status"))
-                or _string(summary.get("live_open_status"))
-                or state.live_open_status
-            )
-            state.live_open_blocker = (
-                _copy_mapping(authoritative_model.get("live_open_blocker"))
-                or _copy_mapping(options.get("live_open_blocker"))
-                or _copy_mapping(summary.get("live_open_blocker"))
-            )
-            state.data_refs = _copy_mapping(authoritative_model.get("data_refs") or event.get("data_refs"))
-            state.transport = _copy_mapping(authoritative_model.get("transport") or event.get("transport"))
-            state.camera_state = camera_state
-            state.summary = summary
-            state.options = options
-            state.playback_state = _string(playback.get("state", state.playback_state)) or state.playback_state
-            state.step_index = _coerce_step_index(playback.get("step_index"), default=state.step_index)
-            state.live_policy = _normalize_live_policy(
-                authoritative_model.get("live_policy") or options.get("live_policy", state.live_policy)
-            )
-            state.keep_live = bool(authoritative_model.get("keep_live", options.get("keep_live", state.keep_live)))
-            state.cache_state = (
-                _string(authoritative_model.get("cache_state"))
-                or _string(summary.get("cache_state"))
-                or _string(options.get("cache_state"))
-                or state.cache_state
-                or "empty"
-            )
-            state.invalidated_reason = _string(authoritative_model.get("invalidated_reason"))
-            state.close_reason = _string(authoritative_model.get("close_reason"))
-            return authoritative_model
-        playback = _normalize_playback_payload(
-            event.get("playback_state") or options,
-            fallback_state=state.playback_state,
-            fallback_step_index=state.step_index,
         )
-        if state.camera_state_locally_captured and state.camera_state:
-            camera_state = copy.deepcopy(state.camera_state)
-        else:
-            camera_state = _copy_mapping(event.get("camera_state"))
-            if not camera_state:
-                camera_state = _copy_mapping(summary.get("camera_state") or summary.get("camera"))
-            if not camera_state:
-                camera_state = copy.deepcopy(state.camera_state)
-        state.backend_id = (
-            _string(event.get("backend_id"))
-            or _string(options.get("backend_id"))
-            or _string(summary.get("backend_id"))
-            or state.backend_id
-        )
-        state.transport_revision = _coerce_step_index(
-            event.get(
-                "transport_revision",
-                options.get("transport_revision", summary.get("transport_revision", state.transport_revision)),
-            ),
-            default=state.transport_revision,
-        )
-        state.live_open_status = (
-            _string(event.get("live_open_status"))
-            or _string(options.get("live_open_status"))
-            or _string(summary.get("live_open_status"))
-            or state.live_open_status
-        )
-        state.live_open_blocker = (
-            _copy_mapping(event.get("live_open_blocker"))
-            or _copy_mapping(options.get("live_open_blocker"))
-            or _copy_mapping(summary.get("live_open_blocker"))
-        )
-        state.data_refs = _copy_mapping(event.get("data_refs"))
-        state.transport = _copy_mapping(event.get("transport"))
-        state.camera_state = camera_state
-        state.summary = summary
-        state.options = options
-        state.playback_state = playback["state"]
-        state.step_index = playback["step_index"]
-        state.live_policy = _normalize_live_policy(options.get("live_policy", state.live_policy))
-        state.keep_live = bool(options.get("keep_live", state.keep_live))
-        state.cache_state = (
-            _string(summary.get("cache_state"))
-            or _string(options.get("cache_state"))
-            or state.cache_state
-            or "empty"
-        )
-        state.invalidated_reason = _string(summary.get("invalidated_reason"))
-        state.close_reason = _string(summary.get("close_reason") or options.get("reason"))
-        return {}
+        if preserve_locally_captured_camera:
+            authoritative_model["camera_state"] = copy.deepcopy(state.camera_state)
+            authoritative_summary = _copy_mapping(authoritative_model.get("summary"))
+            authoritative_summary["camera"] = copy.deepcopy(state.camera_state)
+            authoritative_summary["camera_state"] = copy.deepcopy(state.camera_state)
+            authoritative_model["summary"] = authoritative_summary
+        self._apply_session_model(state, authoritative_model)
+        return authoritative_model
 
     def _on_workspace_changed(self, _workspace_id: str) -> None:
         self.active_workspace_changed.emit()

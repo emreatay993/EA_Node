@@ -122,6 +122,7 @@ class _RecordingBinder:
                 "camera_state": dict(request.camera_state),
                 "transport": dict(request.transport),
                 "options": dict(request.options),
+                "session_model": dict(request.session_model),
             }
         )
         if callable(self.no_bind_predicate) and self.no_bind_predicate(request):
@@ -290,6 +291,9 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertTrue(container.isVisible())
         self.assertEqual(self.host_service.active_overlay_count, 1)
         self.assertEqual(self.host_service.last_error, "")
+        self.assertEqual(binder.bind_calls[-1]["session_model"]["phase"], "open")
+        self.assertEqual(binder.bind_calls[-1]["session_model"]["live_mode"], "full")
+        self.assertEqual(binder.bind_calls[-1]["session_model"]["transport_revision"], 1)
 
         self._close_viewer_session(node_id=node_id)
 

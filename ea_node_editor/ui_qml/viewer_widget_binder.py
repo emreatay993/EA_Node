@@ -29,6 +29,7 @@ class ViewerWidgetBindRequest:
     playback_state: Mapping[str, Any] = field(default_factory=dict)
     summary: Mapping[str, Any] = field(default_factory=dict)
     options: Mapping[str, Any] = field(default_factory=dict)
+    session_model: Mapping[str, Any] = field(default_factory=dict)
     container: QWidget | None = None
     current_widget: QWidget | None = None
 
@@ -44,6 +45,7 @@ class ViewerWidgetReleaseRequest:
     transport: Mapping[str, Any] = field(default_factory=dict)
     summary: Mapping[str, Any] = field(default_factory=dict)
     options: Mapping[str, Any] = field(default_factory=dict)
+    session_model: Mapping[str, Any] = field(default_factory=dict)
     container: QWidget | None = None
     widget: QWidget | None = None
     reason: str = ""

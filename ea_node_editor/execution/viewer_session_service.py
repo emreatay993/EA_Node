@@ -53,6 +53,12 @@ def _copy_mapping(value: Any) -> dict[str, Any]:
     return {str(key): copy.deepcopy(item) for key, item in value.items()}
 
 
+def _copy_mapping_without_session_model(value: Any) -> dict[str, Any]:
+    payload = _copy_mapping(value)
+    payload.pop(VIEWER_SESSION_MODEL_KEY, None)
+    return payload
+
+
 def _coerce_int(value: Any, *, default: int = 0) -> int:
     try:
         return int(value)
@@ -192,6 +198,266 @@ def build_viewer_session_model(
         "summary": normalized_summary,
         "options": normalized_options,
     }
+
+
+def _resolve_payload_value(
+    payload: Mapping[str, Any],
+    key: str,
+    *sources: Mapping[str, Any],
+) -> Any:
+    if key in payload:
+        return copy.deepcopy(payload.get(key))
+    for source in sources:
+        if isinstance(source, Mapping) and key in source:
+            return copy.deepcopy(source.get(key))
+    return None
+
+
+def _resolve_payload_mapping(
+    payload: Mapping[str, Any],
+    key: str,
+    *sources: Mapping[str, Any],
+) -> dict[str, Any]:
+    return _copy_mapping(_resolve_payload_value(payload, key, *sources))
+
+
+def projection_safe_viewer_transport(value: Any) -> dict[str, Any]:
+    transport = _copy_mapping(value)
+    projection: dict[str, Any] = {}
+    kind = str(transport.get("kind", "")).strip()
+    if kind:
+        projection["kind"] = kind
+    backend_id = str(transport.get("backend_id", "")).strip()
+    if backend_id:
+        projection["backend_id"] = backend_id
+    return projection
+
+
+def coerce_viewer_session_model(
+    payload: Mapping[str, Any] | None,
+    *,
+    fallback: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    payload_map = _copy_mapping(payload)
+    fallback_map = _copy_mapping(fallback)
+    if not payload_map and not fallback_map:
+        return {}
+
+    summary_payload = _copy_mapping(payload_map.get("summary"))
+    options_payload = _copy_mapping(payload_map.get("options"))
+    fallback_summary_payload = _copy_mapping(fallback_map.get("summary"))
+    fallback_options_payload = _copy_mapping(fallback_map.get("options"))
+    summary_model = _copy_mapping(summary_payload.get(VIEWER_SESSION_MODEL_KEY))
+    direct_model = _copy_mapping(payload_map.get(VIEWER_SESSION_MODEL_KEY))
+    fallback_model = (
+        _copy_mapping(fallback_summary_payload.get(VIEWER_SESSION_MODEL_KEY))
+        or _copy_mapping(fallback_map.get(VIEWER_SESSION_MODEL_KEY))
+    )
+    base_model = summary_model or direct_model or fallback_model or _copy_mapping(fallback_map)
+    has_authoritative_model = bool(summary_model or direct_model)
+    base_summary = _copy_mapping(base_model.get("summary"))
+    base_options = _copy_mapping(base_model.get("options"))
+
+    summary = _copy_mapping_without_session_model(base_summary)
+    summary.update(_copy_mapping_without_session_model(fallback_summary_payload))
+    summary.update(_copy_mapping_without_session_model(summary_payload))
+
+    options = _copy_mapping_without_session_model(base_options)
+    options.update(_copy_mapping_without_session_model(fallback_options_payload))
+    options.update(_copy_mapping_without_session_model(options_payload))
+
+    playback_value = _resolve_payload_value(payload_map, "playback_state")
+    if playback_value is None:
+        playback_value = _resolve_payload_value(payload_map, "playback")
+    if playback_value is None and any(
+        key in options_payload for key in ("playback", "playback_state", "step_index", "frame_index")
+    ):
+        playback_value = options_payload
+    if playback_value is None and any(
+        key in options for key in ("playback", "playback_state", "step_index", "frame_index")
+    ):
+        playback_value = options
+    if playback_value is None:
+        playback_value = _resolve_payload_value(base_model, "playback")
+    if playback_value is None:
+        playback_value = _resolve_payload_value(base_model, "playback_state")
+    if playback_value is None:
+        playback_value = _resolve_payload_value(fallback_map, "playback")
+    if playback_value is None:
+        playback_value = _resolve_payload_value(fallback_map, "playback_state")
+    if playback_value is None:
+        playback_value = options
+    if isinstance(playback_value, Mapping):
+        playback_payload = _copy_mapping(playback_value)
+        if "state" not in playback_payload:
+            playback_payload = {
+                "state": str(
+                    playback_payload.get(
+                        "playback_state",
+                        base_model.get("playback_state", "paused"),
+                    )
+                ).strip()
+                or "paused",
+                "step_index": _coerce_int(
+                    playback_payload.get(
+                        "step_index",
+                        playback_payload.get("frame_index", base_model.get("step_index", 0)),
+                    ),
+                    default=_coerce_int(base_model.get("step_index"), default=0),
+                ),
+            }
+        playback_value = playback_payload
+
+    camera_payload = base_model if has_authoritative_model else payload_map
+    camera_sources = (payload_map, fallback_map) if has_authoritative_model else (base_model, fallback_map)
+    camera_state = _resolve_payload_mapping(camera_payload, "camera_state", *camera_sources)
+    if not camera_state:
+        camera_state = _copy_mapping(summary.get("camera_state") or summary.get("camera"))
+
+    phase_sources = (base_model, payload_map, fallback_map) if has_authoritative_model else (payload_map, base_model, fallback_map)
+    projection_payload = base_model if has_authoritative_model else payload_map
+    projection_sources = (payload_map, options, summary) if has_authoritative_model else (base_model, options, summary)
+    identity_sources = (base_model, payload_map, fallback_map) if has_authoritative_model else (payload_map, base_model, fallback_map)
+    transport_payload = base_model if has_authoritative_model else payload_map
+    transport_sources = (payload_map, fallback_map) if has_authoritative_model else (base_model, fallback_map)
+
+    phase = str(_resolve_payload_value(payload_map, "phase", *phase_sources) or "").strip()
+    if not phase:
+        session_state = str(options.get("session_state") or "").strip().lower()
+        if session_state == "closed":
+            phase = "closed"
+        else:
+            phase = str(base_model.get("phase", "")).strip() or "closed"
+
+    live_open_status = str(
+        _resolve_payload_value(projection_payload, "live_open_status", *projection_sources) or ""
+    ).strip()
+    live_open_blocker = _resolve_payload_mapping(
+        projection_payload,
+        "live_open_blocker",
+        *projection_sources,
+    )
+
+    return build_viewer_session_model(
+        workspace_id=str(_resolve_payload_value(payload_map, "workspace_id", *identity_sources) or "").strip(),
+        node_id=str(_resolve_payload_value(payload_map, "node_id", *identity_sources) or "").strip(),
+        session_id=str(_resolve_payload_value(payload_map, "session_id", *identity_sources) or "").strip(),
+        phase=phase,
+        request_id=str(_resolve_payload_value(payload_map, "request_id", *identity_sources) or "").strip(),
+        last_command=str(_resolve_payload_value(payload_map, "last_command", *identity_sources) or "").strip(),
+        last_error=str(_resolve_payload_value(payload_map, "last_error", *identity_sources) or "").strip(),
+        playback_state=playback_value,
+        live_policy=_resolve_payload_value(payload_map, "live_policy", options, base_model) or "",
+        keep_live=bool(_resolve_payload_value(payload_map, "keep_live", options, base_model) or False),
+        cache_state=str(_resolve_payload_value(payload_map, "cache_state", summary, options, base_model) or "").strip(),
+        invalidated_reason=str(
+            _resolve_payload_value(payload_map, "invalidated_reason", base_model, summary) or ""
+        ).strip(),
+        close_reason=str(_resolve_payload_value(payload_map, "close_reason", base_model, summary) or "").strip(),
+        backend_id=str(
+            _resolve_payload_value(projection_payload, "backend_id", *projection_sources) or ""
+        ).strip(),
+        transport_revision=_resolve_payload_value(
+            projection_payload,
+            "transport_revision",
+            *projection_sources,
+        ),
+        live_mode=_resolve_payload_value(payload_map, "live_mode", options, base_model) or "",
+        live_open_status=live_open_status,
+        live_open_blocker=live_open_blocker,
+        data_refs=_resolve_payload_mapping(transport_payload, "data_refs", *transport_sources),
+        transport=_resolve_payload_mapping(transport_payload, "transport", *transport_sources),
+        camera_state=camera_state,
+        summary=summary,
+        options=options,
+    )
+
+
+def _viewer_session_has_proxy_projection(model: Mapping[str, Any]) -> bool:
+    return any(
+        (
+            bool(_copy_mapping(model.get("summary"))),
+            bool(_copy_mapping(model.get("options"))),
+            bool(_copy_mapping(model.get("camera_state"))),
+            _coerce_int(model.get("transport_revision"), default=0) > 0,
+            bool(str(model.get("backend_id", "")).strip()),
+        )
+    )
+
+
+def build_run_required_viewer_session_model(
+    payload: Mapping[str, Any] | None,
+    *,
+    reason: str,
+    run_id: str = "",
+    last_command: str = "run_required",
+) -> dict[str, Any]:
+    base_model = coerce_viewer_session_model(payload)
+    if not base_model:
+        return {}
+
+    blocker = copy.deepcopy(_TRANSPORT_RERUN_REQUIRED_BLOCKER)
+    summary = _copy_mapping(base_model.get("summary"))
+    options = _copy_mapping(base_model.get("options"))
+    cache_state = "proxy_ready" if _viewer_session_has_proxy_projection(base_model) else "empty"
+
+    summary["cache_state"] = cache_state
+    summary["live_open_status"] = "blocked"
+    summary["live_open_blocker"] = copy.deepcopy(blocker)
+    summary["rerun_required"] = True
+    backend_id = str(base_model.get("backend_id", "")).strip()
+    if backend_id:
+        summary["backend_id"] = backend_id
+    transport_revision = _coerce_int(base_model.get("transport_revision"), default=0)
+    if transport_revision > 0:
+        summary["transport_revision"] = transport_revision
+    if str(reason).strip():
+        summary["live_transport_release_reason"] = str(reason).strip()
+    if str(run_id).strip():
+        summary["run_id"] = str(run_id).strip()
+
+    options["cache_state"] = cache_state
+    options["live_mode"] = "proxy"
+    options["live_open_status"] = "blocked"
+    options["live_open_blocker"] = copy.deepcopy(blocker)
+    options["rerun_required"] = True
+    options["playback_state"] = str(base_model.get("playback_state", "paused")).strip() or "paused"
+    options["step_index"] = _coerce_int(base_model.get("step_index"), default=0)
+    options["live_policy"] = str(base_model.get("live_policy", "focus_only")).strip() or "focus_only"
+    options["keep_live"] = bool(base_model.get("keep_live", False))
+    if backend_id:
+        options["backend_id"] = backend_id
+    if transport_revision > 0:
+        options["transport_revision"] = transport_revision
+
+    return build_viewer_session_model(
+        workspace_id=str(base_model.get("workspace_id", "")).strip(),
+        node_id=str(base_model.get("node_id", "")).strip(),
+        session_id=str(base_model.get("session_id", "")).strip(),
+        phase="blocked",
+        request_id="",
+        last_command=str(last_command).strip() or "run_required",
+        last_error="",
+        playback_state=_copy_mapping(base_model.get("playback")) or {
+            "state": str(base_model.get("playback_state", "paused")).strip() or "paused",
+            "step_index": _coerce_int(base_model.get("step_index"), default=0),
+        },
+        live_policy=options.get("live_policy", "focus_only"),
+        keep_live=bool(options.get("keep_live", False)),
+        cache_state=cache_state,
+        invalidated_reason=str(base_model.get("invalidated_reason", "")).strip(),
+        close_reason=str(base_model.get("close_reason", "")).strip(),
+        backend_id=backend_id,
+        transport_revision=transport_revision,
+        live_mode="proxy",
+        live_open_status="blocked",
+        live_open_blocker=blocker,
+        data_refs={},
+        transport=projection_safe_viewer_transport(base_model.get("transport")),
+        camera_state=_copy_mapping(base_model.get("camera_state")),
+        summary=summary,
+        options=options,
+    )
 
 
 @dataclass(slots=True)
@@ -1244,6 +1510,9 @@ class ViewerSessionService:
 
 __all__ = [
     "VIEWER_SESSION_MODEL_KEY",
+    "build_run_required_viewer_session_model",
     "build_viewer_session_model",
+    "coerce_viewer_session_model",
+    "projection_safe_viewer_transport",
     "ViewerSessionService",
 ]

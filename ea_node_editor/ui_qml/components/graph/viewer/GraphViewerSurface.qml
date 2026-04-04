@@ -14,20 +14,18 @@ Item {
         ? viewerSessionBridge
         : null
     readonly property bool viewerBridgeAvailable: viewerSessionBridgeRef !== null
-    readonly property var bridgeSessionsModel: viewerBridgeAvailable
+    readonly property var bridgeSessionProjectionSeed: viewerBridgeAvailable
         ? viewerSessionBridgeRef.sessions_model
         : []
     readonly property string viewerNodeId: host && host.nodeData
         ? String(host.nodeData.node_id || "")
         : ""
     readonly property var viewerSessionState: {
-        var sessions = surface.bridgeSessionsModel;
-        for (var index = 0; index < sessions.length; index++) {
-            var session = sessions[index];
-            if (String(session && session.node_id || "") === surface.viewerNodeId)
-                return session;
-        }
-        return ({});
+        var projectionSeed = surface.bridgeSessionProjectionSeed;
+        void(projectionSeed);
+        if (!surface.viewerBridgeAvailable || surface.viewerNodeId.length === 0)
+            return ({});
+        return viewerSessionBridgeRef.session_state(surface.viewerNodeId);
     }
     readonly property var viewerSessionModel: viewerSessionState.session_model
         ? viewerSessionState.session_model
