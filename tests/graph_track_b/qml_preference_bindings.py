@@ -693,9 +693,12 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertNotEqual(running_key, idle_key)
         self.assertIn("|running|", running_key)
 
-        QTest.qWait(160)
-        self.app.processEvents()
-        self.assertNotEqual(str(elapsed_timer.property("text") or ""), "0.0s")
+        wait_for_condition_or_raise(
+            lambda: str(elapsed_timer.property("text") or "") != "0.0s",
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas elapsed timer to advance.",
+        )
 
         canvas_state_bridge.set_completed_node_state(node_id)
         wait_for_condition_or_raise(
