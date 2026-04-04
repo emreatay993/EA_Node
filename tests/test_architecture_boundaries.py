@@ -48,6 +48,30 @@ class GraphArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("self._payload_builder = GraphScenePayloadBuilder(boundary_adapters=self._boundary_adapters)", bridge_text)
         self.assertIn("boundary_adapters=self._boundary_adapters", bridge_text)
 
+    def test_graph_model_externalizes_workspace_mutation_service_factory(self) -> None:
+        model_text = (REPO_ROOT / "ea_node_editor" / "graph" / "model.py").read_text(encoding="utf-8")
+        mutation_service_text = (REPO_ROOT / "ea_node_editor" / "graph" / "mutation_service.py").read_text(
+            encoding="utf-8"
+        )
+        helper_text = (
+            REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation_history.py"
+        ).read_text(encoding="utf-8")
+        composition_text = (REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "composition.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("return WorkspaceMutationService(", model_text)
+        self.assertIn('mutation_service_factory: "WorkspaceMutationServiceFactory | None" = None', model_text)
+        self.assertIn('def _resolved_mutation_service_factory(self) -> "WorkspaceMutationServiceFactory":', model_text)
+        self.assertIn("from ea_node_editor.graph.mutation_service import create_workspace_mutation_service", model_text)
+        self.assertIn('boundary_adapters: "GraphBoundaryAdapters | None" = None', model_text)
+        self.assertIn("return self._resolved_mutation_service_factory()(", model_text)
+        self.assertIn("class WorkspaceMutationServiceFactory(Protocol):", mutation_service_text)
+        self.assertIn("def create_workspace_mutation_service(", mutation_service_text)
+        self.assertIn("return model.mutation_service(", helper_text)
+        self.assertNotIn("return WorkspaceMutationService(", helper_text)
+        self.assertIn("mutation_service_factory=create_workspace_mutation_service", composition_text)
+
     def test_graph_model_externalizes_workspace_persistence_state(self) -> None:
         model_text = (REPO_ROOT / "ea_node_editor" / "graph" / "model.py").read_text(encoding="utf-8")
         codec_text = (REPO_ROOT / "ea_node_editor" / "persistence" / "project_codec.py").read_text(

@@ -616,44 +616,52 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
         self._run_qml_probe(
             "viewer-surface-host-contract",
             """
-            from PyQt6.QtCore import pyqtSignal
+            from PyQt6.QtCore import pyqtSignal, pyqtSlot
 
             class ViewerSessionBridgeStub(QObject):
                 sessions_changed = pyqtSignal()
 
-                @pyqtProperty("QVariantList", notify=sessions_changed)
-                def sessions_model(self):
-                    return [
-                        {
-                            "workspace_id": "ws_main",
-                            "node_id": "node_surface_contract_test",
-                            "session_id": "session::viewer-surface-pointer",
-                            "phase": "open",
-                            "request_id": "req::viewer-pointer",
-                            "last_command": "open",
-                            "last_error": "",
+                @staticmethod
+                def _session_projection():
+                    return {
+                        "workspace_id": "ws_main",
+                        "node_id": "node_surface_contract_test",
+                        "session_id": "session::viewer-surface-pointer",
+                        "phase": "open",
+                        "request_id": "req::viewer-pointer",
+                        "last_command": "open",
+                        "last_error": "",
+                        "playback_state": "paused",
+                        "step_index": 1,
+                        "live_policy": "focus_only",
+                        "keep_live": False,
+                        "cache_state": "proxy_ready",
+                        "invalidated_reason": "",
+                        "close_reason": "",
+                        "data_refs": {},
+                        "summary": {
+                            "result_name": "Displacement",
+                            "set_label": "Set 1",
+                            "cache_state": "proxy_ready",
+                        },
+                        "options": {
+                            "live_mode": "proxy",
                             "playback_state": "paused",
                             "step_index": 1,
                             "live_policy": "focus_only",
                             "keep_live": False,
-                            "cache_state": "proxy_ready",
-                            "invalidated_reason": "",
-                            "close_reason": "",
-                            "data_refs": {},
-                            "summary": {
-                                "result_name": "Displacement",
-                                "set_label": "Set 1",
-                                "cache_state": "proxy_ready",
-                            },
-                            "options": {
-                                "live_mode": "proxy",
-                                "playback_state": "paused",
-                                "step_index": 1,
-                                "live_policy": "focus_only",
-                                "keep_live": False,
-                            },
-                        }
-                    ]
+                        },
+                    }
+
+                @pyqtProperty("QVariantList", notify=sessions_changed)
+                def sessions_model(self):
+                    return [self._session_projection()]
+
+                @pyqtSlot(str, result="QVariantMap")
+                def session_state(self, node_id):
+                    if str(node_id or "") != "node_surface_contract_test":
+                        return {}
+                    return self._session_projection()
 
                 @pyqtProperty(str, constant=True)
                 def last_error(self):

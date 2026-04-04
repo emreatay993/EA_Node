@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, Sequence
 
 from ea_node_editor.graph.comment_backdrop_geometry import (
     COMMENT_BACKDROP_WRAP_MIN_HEIGHT,
@@ -25,7 +25,37 @@ from ea_node_editor.nodes.builtins.passive_annotation import PASSIVE_ANNOTATION_
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.normalization import ValidatedGraphMutation
+    from ea_node_editor.graph.model import GraphModel
     from ea_node_editor.nodes.registry import NodeRegistry
+
+
+class WorkspaceMutationServiceFactory(Protocol):
+    def __call__(
+        self,
+        *,
+        model: GraphModel,
+        workspace_id: str,
+        registry: NodeRegistry | None = None,
+        boundary_adapters: GraphBoundaryAdapters | None = None,
+    ) -> "WorkspaceMutationService": ...
+
+
+def create_workspace_mutation_service(
+    *,
+    model: GraphModel,
+    workspace_id: str,
+    registry: NodeRegistry | None = None,
+    boundary_adapters: GraphBoundaryAdapters | None = None,
+) -> "WorkspaceMutationService":
+    service_kwargs: dict[str, Any] = {}
+    if boundary_adapters is not None:
+        service_kwargs["boundary_adapters"] = boundary_adapters
+    return WorkspaceMutationService(
+        model=model,
+        workspace_id=workspace_id,
+        registry=registry,
+        **service_kwargs,
+    )
 
 
 @dataclass(slots=True)

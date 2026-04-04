@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.graph.mutation_service import WorkspaceMutationService
+from ea_node_editor.graph.mutation_service import WorkspaceMutationService, create_workspace_mutation_service
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
@@ -58,6 +58,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("def set_node_property(self, node_id: str, key: str, value: Any) -> None:", helper_text)
         self.assertIn("def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:", helper_text)
         self.assertIn("def _mutation_boundary(self) -> WorkspaceMutationService:", helper_text)
+        self.assertIn("return model.mutation_service(", helper_text)
+        self.assertNotIn("return WorkspaceMutationService(", helper_text)
         self.assertIn("boundary_adapters=self._boundary_adapters", helper_text)
 
     def test_graph_canvas_bridges_resolve_split_scene_sources_without_losing_scene_compatibility(self) -> None:
@@ -131,6 +133,38 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         scene.set_workspace(model, registry, workspace_id)
 
         self.assertIn(edge.edge_id, model.project.workspaces[workspace_id].edges)
+
+    def test_scene_mutations_route_through_model_mutation_service_factory(self) -> None:
+        registry = build_default_registry()
+        calls: list[tuple[GraphModel, str, object, object | None]] = []
+
+        def _factory(
+            *,
+            model: GraphModel,
+            workspace_id: str,
+            registry=None,
+            boundary_adapters=None,
+        ) -> WorkspaceMutationService:
+            calls.append((model, workspace_id, registry, boundary_adapters))
+            return create_workspace_mutation_service(
+                model=model,
+                workspace_id=workspace_id,
+                registry=registry,
+                boundary_adapters=boundary_adapters,
+            )
+
+        model = GraphModel(mutation_service_factory=_factory)
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+
+        self.assertTrue(scene.add_node_from_type("core.start", 0.0, 0.0))
+
+        self.assertGreaterEqual(len(calls), 1)
+        self.assertIs(calls[0][0], model)
+        self.assertEqual(calls[0][1], workspace_id)
+        self.assertIs(calls[0][2], registry)
+        self.assertIsNotNone(calls[0][3])
 
     def test_group_selected_nodes_delegates_to_workspace_mutation_service_transaction(self) -> None:
         registry = build_default_registry()

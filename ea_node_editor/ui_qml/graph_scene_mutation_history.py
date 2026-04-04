@@ -18,7 +18,6 @@ from ea_node_editor.graph.hierarchy import (
     subtree_node_ids,
 )
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
-from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.graph.transforms import (
     LayoutNodeBounds,
     build_alignment_position_updates,
@@ -61,6 +60,7 @@ from ea_node_editor.ui.shell.runtime_history import (
 from ea_node_editor.ui_qml.graph_surface_metrics import node_surface_metrics
 
 if TYPE_CHECKING:
+    from ea_node_editor.graph.mutation_service import WorkspaceMutationService
     from ea_node_editor.nodes.types import NodeTypeSpec
     from ea_node_editor.ui.shell.runtime_history import WorkspaceSnapshot
     from ea_node_editor.ui_qml.graph_scene_bridge import _GraphSceneContext
@@ -1007,9 +1007,8 @@ class GraphSceneMutationHistory:
 
     def _mutation_boundary(self) -> WorkspaceMutationService:
         model, registry = self._scene_context.require_bound()
-        return WorkspaceMutationService(
-            model=model,
-            workspace_id=self._scene_context.workspace_id,
+        return model.mutation_service(
+            self._scene_context.workspace_id,
             registry=registry,
             boundary_adapters=self._boundary_adapters,
         )
@@ -1018,9 +1017,8 @@ class GraphSceneMutationHistory:
         model = self._scene_context.model
         if model is None:
             return None
-        return WorkspaceMutationService(
-            model=model,
-            workspace_id=self._scene_context.workspace_id,
+        return model.mutation_service(
+            self._scene_context.workspace_id,
             registry=self._scene_context.registry,
             boundary_adapters=self._boundary_adapters,
         )

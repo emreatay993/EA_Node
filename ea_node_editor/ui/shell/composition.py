@@ -8,6 +8,7 @@ from PyQt6.QtQuickWidgets import QQuickWidget
 from PyQt6.QtWidgets import QMessageBox
 
 from ea_node_editor.graph.model import GraphModel, ProjectData
+from ea_node_editor.graph.mutation_service import create_workspace_mutation_service
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import AUTOSAVE_INTERVAL_MS, DEFAULT_GRAPHICS_SETTINGS
@@ -428,7 +429,10 @@ def _create_shell_primitive_dependencies(
     registry = build_default_registry()
     serializer = JsonProjectSerializer(registry)
     session_store = host._create_session_store(serializer)
-    model = GraphModel(ProjectData(project_id="proj_local", name="untitled"))
+    model = GraphModel(
+        ProjectData(project_id="proj_local", name="untitled"),
+        mutation_service_factory=create_workspace_mutation_service,
+    )
     workspace_manager = WorkspaceManager(model)
     runtime_history = RuntimeGraphHistory()
     scene = GraphSceneBridge(host)

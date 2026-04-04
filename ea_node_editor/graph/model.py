@@ -10,7 +10,8 @@ from typing import TYPE_CHECKING, Any
 from ea_node_editor.settings import SCHEMA_VERSION
 
 if TYPE_CHECKING:
-    from ea_node_editor.graph.mutation_service import WorkspaceMutationService
+    from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters
+    from ea_node_editor.graph.mutation_service import WorkspaceMutationService, WorkspaceMutationServiceFactory
     from ea_node_editor.nodes.registry import NodeRegistry
 
 _PERSISTENCE_OVERLAY_MODULE = "ea_node_editor.persistence.overlay"
@@ -371,8 +372,14 @@ class ProjectData:
 
 
 class GraphModel:
-    def __init__(self, project: ProjectData | None = None) -> None:
+    def __init__(
+        self,
+        project: ProjectData | None = None,
+        *,
+        mutation_service_factory: "WorkspaceMutationServiceFactory | None" = None,
+    ) -> None:
         self.project = project or ProjectData(project_id=new_id("proj"), name="untitled")
+        self._mutation_service_factory = mutation_service_factory
         self.project.ensure_default_workspace()
 
     @property
@@ -380,23 +387,41 @@ class GraphModel:
         self.project.ensure_default_workspace()
         return self.project.workspaces[self.project.active_workspace_id]
 
+    def _resolved_mutation_service_factory(self) -> "WorkspaceMutationServiceFactory":
+        if self._mutation_service_factory is None:
+            from ea_node_editor.graph.mutation_service import create_workspace_mutation_service
+
+            self._mutation_service_factory = create_workspace_mutation_service
+        return self._mutation_service_factory
+
     def mutation_service(
         self,
         workspace_id: str,
         registry: "NodeRegistry | None" = None,
+        *,
+        boundary_adapters: "GraphBoundaryAdapters | None" = None,
     ) -> "WorkspaceMutationService":
         if workspace_id not in self.project.workspaces:
             raise KeyError(f"Unknown workspace: {workspace_id}")
-        from ea_node_editor.graph.mutation_service import WorkspaceMutationService
-
-        return WorkspaceMutationService(
+        return self._resolved_mutation_service_factory()(
             model=self,
             workspace_id=workspace_id,
             registry=registry,
+            boundary_adapters=boundary_adapters,
         )
 
-    def validated_mutations(self, workspace_id: str, registry: "NodeRegistry") -> "WorkspaceMutationService":
-        return self.mutation_service(workspace_id, registry=registry)
+    def validated_mutations(
+        self,
+        workspace_id: str,
+        registry: "NodeRegistry",
+        *,
+        boundary_adapters: "GraphBoundaryAdapters | None" = None,
+    ) -> "WorkspaceMutationService":
+        return self.mutation_service(
+            workspace_id,
+            registry=registry,
+            boundary_adapters=boundary_adapters,
+        )
 
     def _create_workspace_record(self, name: str | None = None) -> WorkspaceData:
         index = len(self.project.workspaces) + 1
