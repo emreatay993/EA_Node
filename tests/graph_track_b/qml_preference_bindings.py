@@ -250,6 +250,28 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
         self.assertEqual(str(self.canvas.property("edgeCrossingStyle")), "gap_break")
         self.assertEqual(str(edge_layer.property("edgeCrossingStyle")), "gap_break")
 
+    def test_graph_canvas_root_packetization_helpers_remain_registered(self) -> None:
+        graph_canvas_text = _GRAPH_CANVAS_QML_PATH.read_text(encoding="utf-8")
+        graph_canvas_lines = graph_canvas_text.splitlines()
+        root_bindings_text = (_GRAPH_CANVAS_QML_PATH.parent / "graph_canvas" / "GraphCanvasRootBindings.qml").read_text(
+            encoding="utf-8"
+        )
+        root_layers_text = (_GRAPH_CANVAS_QML_PATH.parent / "graph_canvas" / "GraphCanvasRootLayers.qml").read_text(
+            encoding="utf-8"
+        )
+        root_api_text = (_GRAPH_CANVAS_QML_PATH.parent / "graph_canvas" / "GraphCanvasRootApi.js").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertLessEqual(len(graph_canvas_lines), 700)
+        self.assertIn('import "graph_canvas/GraphCanvasRootApi.js" as GraphCanvasRootApi', graph_canvas_text)
+        self.assertIn("GraphCanvasComponents.GraphCanvasRootBindings {", graph_canvas_text)
+        self.assertIn("GraphCanvasComponents.GraphCanvasRootLayers {", graph_canvas_text)
+        self.assertIn("property alias backgroundLayerItem: backgroundLayer", root_layers_text)
+        self.assertIn("property alias edgeLayerItem: edgeLayer", root_layers_text)
+        self.assertIn("readonly property var canvasStateBridgeRef: root.canvasStateBridge || null", root_bindings_text)
+        self.assertIn("function snapToGridValue(canvasStateBridge, value) {", root_api_text)
+
     def test_graph_canvas_background_switches_between_line_and_point_grid_modes(self) -> None:
         background = self.canvas.findChild(QObject, "graphCanvasBackground")
         self.assertIsNotNone(background)
@@ -1257,10 +1279,13 @@ class GraphCanvasQmlPreferenceBindingTests(unittest.TestCase):
 
         self.assertIsNotNone(edge_layer)
         self.assertIsNotNone(world)
-        child_objects = list(self.canvas.children())
-        self.assertIn(edge_layer, child_objects)
-        self.assertIn(world, child_objects)
-        self.assertLess(child_objects.index(edge_layer), child_objects.index(world))
+        parent_item = world.parentItem()
+        self.assertIsNotNone(parent_item)
+        self.assertIs(parent_item, edge_layer.parentItem())
+        sibling_items = list(parent_item.childItems())
+        self.assertIn(edge_layer, sibling_items)
+        self.assertIn(world, sibling_items)
+        self.assertLess(sibling_items.index(edge_layer), sibling_items.index(world))
 
     def test_graph_canvas_live_resize_geometry_propagates_to_edge_layer(self) -> None:
         edge_layer = self.canvas.findChild(QObject, "graphCanvasEdgeLayer")

@@ -1,8 +1,7 @@
 import QtQuick 2.15
 import QtQml 2.15
-import "graph" as GraphComponents
 import "graph_canvas" as GraphCanvasComponents
-import "graph_canvas/GraphCanvasLogic.js" as GraphCanvasLogic
+import "graph_canvas/GraphCanvasRootApi.js" as GraphCanvasRootApi
 import "graph_canvas/GraphCanvasPerformancePolicy.js" as GraphCanvasPerformancePolicyLogic
 
 Item {
@@ -10,117 +9,83 @@ Item {
     objectName: "graphCanvas"
     property var canvasStateBridge: null
     property var canvasCommandBridge: null
-    property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined"
-        ? graphCanvasViewBridge
-        : null
-    readonly property var canvasStateBridgeRef: root.canvasStateBridge || null
-    readonly property var canvasCommandBridgeRef: root.canvasCommandBridge || null
-    readonly property var canvasViewBridgeRef: root.canvasViewBridge || null
-    readonly property var _canvasStateBridgeRef: root.canvasStateBridgeRef
-    readonly property var _canvasSceneStateBridgeRef: root.canvasStateBridgeRef
-    readonly property var _legacyCanvasViewBridgeRef: root.canvasStateBridgeRef
-        && root.canvasStateBridgeRef.viewport_bridge
-        ? root.canvasStateBridgeRef.viewport_bridge
-        : (root.canvasCommandBridgeRef
-            && root.canvasCommandBridgeRef.viewport_bridge
-            ? root.canvasCommandBridgeRef.viewport_bridge
-            : null)
-    readonly property var _canvasViewStateBridgeRef: root.canvasViewBridgeRef || root._legacyCanvasViewBridgeRef
-    readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
-    readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
-    readonly property var _canvasViewCommandBridgeRef: root._canvasViewStateBridgeRef
-    readonly property var sceneStateBridge: root._canvasSceneStateBridgeRef
-    readonly property var sceneCommandBridge: root._canvasSceneCommandBridgeRef
-    readonly property var sceneBridge: root._canvasSceneStateBridgeRef
-    readonly property var viewBridge: root._canvasViewStateBridgeRef
+    property var canvasViewBridge: typeof graphCanvasViewBridge !== "undefined" ? graphCanvasViewBridge : null
+    readonly property var canvasStateBridgeRef: rootBindings.canvasStateBridgeRef
+    readonly property var canvasCommandBridgeRef: rootBindings.canvasCommandBridgeRef
+    readonly property var canvasViewBridgeRef: rootBindings.canvasViewBridgeRef
+    readonly property var _canvasStateBridgeRef: rootBindings._canvasStateBridgeRef
+    readonly property var _canvasSceneStateBridgeRef: rootBindings._canvasSceneStateBridgeRef
+    readonly property var _legacyCanvasViewBridgeRef: rootBindings._legacyCanvasViewBridgeRef
+    readonly property var _canvasViewStateBridgeRef: rootBindings._canvasViewStateBridgeRef
+    readonly property var _canvasShellCommandBridgeRef: rootBindings._canvasShellCommandBridgeRef
+    readonly property var _canvasSceneCommandBridgeRef: rootBindings._canvasSceneCommandBridgeRef
+    readonly property var _canvasViewCommandBridgeRef: rootBindings._canvasViewCommandBridgeRef
+    readonly property var sceneStateBridge: rootBindings.sceneStateBridge
+    readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge
+    readonly property var sceneBridge: rootBindings.sceneBridge
+    readonly property var viewBridge: rootBindings.viewBridge
     property var overlayHostItem: null
     property var edgePayload: []
-    readonly property var visibleSceneRectPayload: root._canvasViewStateBridgeRef
-        ? (root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached !== undefined
-            ? root._canvasViewStateBridgeRef.visible_scene_rect_payload_cached
-            : root._canvasViewStateBridgeRef.visible_scene_rect_payload)
-        : ({})
-    readonly property var failedNodeLookup: root._canvasStateBridgeRef
-        ? root._canvasStateBridgeRef.failed_node_lookup
-        : ({})
-    readonly property int failedNodeRevision: root._canvasStateBridgeRef
-        ? Number(root._canvasStateBridgeRef.failed_node_revision)
-        : 0
-    readonly property string failedNodeTitle: root._canvasStateBridgeRef
-        ? String(root._canvasStateBridgeRef.failed_node_title || "")
-        : ""
-    readonly property var runningNodeLookup: root._canvasStateBridgeRef
-        ? root._canvasStateBridgeRef.running_node_lookup
-        : ({})
-    readonly property var completedNodeLookup: root._canvasStateBridgeRef
-        ? root._canvasStateBridgeRef.completed_node_lookup
-        : ({})
-    readonly property int nodeExecutionRevision: root._canvasStateBridgeRef
-        ? Number(root._canvasStateBridgeRef.node_execution_revision)
-        : 0
+    readonly property var visibleSceneRectPayload: rootBindings.visibleSceneRectPayload
+    readonly property var failedNodeLookup: rootBindings.failedNodeLookup
+    readonly property int failedNodeRevision: rootBindings.failedNodeRevision
+    readonly property string failedNodeTitle: rootBindings.failedNodeTitle
+    readonly property var runningNodeLookup: rootBindings.runningNodeLookup
+    readonly property var completedNodeLookup: rootBindings.completedNodeLookup
+    readonly property int nodeExecutionRevision: rootBindings.nodeExecutionRevision
     readonly property var canvasViewportController: viewportController
     readonly property var canvasSceneLifecycle: sceneLifecycle
-    readonly property real nodeRenderActivationPaddingPx: 240.0
-    readonly property var nodeRenderActivationSceneRectPayload: viewportController.inflateSceneRectPayload(
-        root.visibleSceneRectPayload,
-        viewportController.scenePaddingForViewportPixels(root.nodeRenderActivationPaddingPx)
-    )
-    property bool minimapExpanded: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_minimap_expanded) : true
-    readonly property bool showGrid: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_grid) : true
-    readonly property bool minimapVisible: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_show_minimap) : true
-    readonly property bool showPortLabels: root._canvasStateBridgeRef
-        ? Boolean(root._canvasStateBridgeRef.graphics_show_port_labels)
-        : true
-    readonly property string edgeCrossingStyle: root._canvasStateBridgeRef
-        ? String(root._canvasStateBridgeRef.graphics_edge_crossing_style || "none")
-        : "none"
-    readonly property bool nodeShadowEnabled: root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.graphics_node_shadow) : true
-    readonly property int shadowStrength: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_strength : 70
-    readonly property int shadowSoftness: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_softness : 50
-    readonly property int shadowOffset: root._canvasStateBridgeRef ? root._canvasStateBridgeRef.graphics_shadow_offset : 4
-    readonly property string graphicsPerformanceMode: root._canvasStateBridgeRef
-        ? GraphCanvasPerformancePolicyLogic.normalizePerformanceMode(
-            root._canvasStateBridgeRef.graphics_performance_mode
-        )
-        : "full_fidelity"
-    readonly property string resolvedGraphicsPerformanceMode: canvasPerformancePolicy.resolvedMode
-    readonly property bool mutationBurstActive: canvasPerformancePolicy.mutationBurstActive
-    readonly property bool transientPerformanceActivityActive: canvasPerformancePolicy.transientActivityActive
-    readonly property bool transientDegradedWindowActive: canvasPerformancePolicy.transientDegradedWindowActive
-    readonly property bool edgeLabelSimplificationActive: canvasPerformancePolicy.edgeLabelSimplificationActive
-        || root.transientDegradedWindowActive
-    readonly property bool gridSimplificationActive: canvasPerformancePolicy.gridSimplificationActive
-        || root.transientDegradedWindowActive
-    readonly property bool minimapSimplificationActive: canvasPerformancePolicy.minimapSimplificationActive
-        || root.transientDegradedWindowActive
-    readonly property bool shadowSimplificationActive: canvasPerformancePolicy.shadowSimplificationActive
-        || (canvasPerformancePolicy.maxPerformanceMode && root.mutationBurstActive)
-    readonly property bool snapshotProxyReuseActive: canvasPerformancePolicy.snapshotProxyReuseActive
-        || root.transientDegradedWindowActive
-    readonly property bool fullFidelityMode: canvasPerformancePolicy.fullFidelityMode
-    readonly property bool viewportInteractionWorldCacheActive: canvasPerformancePolicy.viewportWorldCacheActive
-    readonly property bool highQualityRendering: canvasPerformancePolicy.highQualityRendering
-        && !root.transientDegradedWindowActive
+    readonly property real nodeRenderActivationPaddingPx: rootBindings.nodeRenderActivationPaddingPx
+    readonly property var nodeRenderActivationSceneRectPayload: rootBindings.nodeRenderActivationSceneRectPayload
+    property bool minimapExpanded: rootBindings.minimapExpanded
+    readonly property bool showGrid: rootBindings.showGrid
+    readonly property bool minimapVisible: rootBindings.minimapVisible
+    readonly property bool showPortLabels: rootBindings.showPortLabels
+    readonly property string edgeCrossingStyle: rootBindings.edgeCrossingStyle
+    readonly property bool nodeShadowEnabled: rootBindings.nodeShadowEnabled
+    readonly property int shadowStrength: rootBindings.shadowStrength
+    readonly property int shadowSoftness: rootBindings.shadowSoftness
+    readonly property int shadowOffset: rootBindings.shadowOffset
+    readonly property string graphicsPerformanceMode: rootBindings.graphicsPerformanceMode
+    readonly property string resolvedGraphicsPerformanceMode: rootBindings.resolvedGraphicsPerformanceMode
+    readonly property bool mutationBurstActive: rootBindings.mutationBurstActive
+    readonly property bool transientPerformanceActivityActive: rootBindings.transientPerformanceActivityActive
+    readonly property bool transientDegradedWindowActive: rootBindings.transientDegradedWindowActive
+    readonly property bool edgeLabelSimplificationActive: rootBindings.edgeLabelSimplificationActive
+    readonly property bool gridSimplificationActive: rootBindings.gridSimplificationActive
+    readonly property bool minimapSimplificationActive: rootBindings.minimapSimplificationActive
+    readonly property bool shadowSimplificationActive: rootBindings.shadowSimplificationActive
+    readonly property bool snapshotProxyReuseActive: rootBindings.snapshotProxyReuseActive
+    readonly property bool fullFidelityMode: rootBindings.fullFidelityMode
+    readonly property bool viewportInteractionWorldCacheActive: rootBindings.viewportInteractionWorldCacheActive
+    readonly property bool highQualityRendering: rootBindings.highQualityRendering
     readonly property int interactionIdleDelayMs: 150
     readonly property real wireDragThreshold: 2
     readonly property real boxZoomDragThreshold: 4
     readonly property real boxZoomPaddingPx: 24
     readonly property real worldSize: 12000
-    readonly property real worldOffset: worldSize / 2
+    readonly property real worldOffset: root.worldSize / 2
     readonly property real minimapExpandedWidth: 238
     readonly property real minimapExpandedHeight: 162
     readonly property real minimapCollapsedWidth: 28
     readonly property real minimapCollapsedHeight: 28
-    readonly property string gridStyle: root._canvasStateBridgeRef
-        ? String(root._canvasStateBridgeRef.graphics_grid_style || "lines")
-        : "lines"
+    readonly property string gridStyle: rootBindings.gridStyle
+
+    GraphCanvasComponents.GraphCanvasRootBindings {
+        id: rootBindings
+        canvasStateBridge: root.canvasStateBridge
+        canvasCommandBridge: root.canvasCommandBridge
+        canvasViewBridge: root.canvasViewBridge
+        viewportController: viewportController
+        canvasPerformancePolicy: canvasPerformancePolicy
+    }
 
     GraphCanvasComponents.GraphCanvasInteractionState {
         id: interactionState
         canvasItem: root
         shellBridge: root._canvasShellCommandBridgeRef
         sceneBridge: root.sceneStateBridge
-        edgeLayerItem: edgeLayer
+        edgeLayerItem: rootLayers.edgeLayerItem
         interactionIdleTimer: interactionIdleTimer
         interactionIdleDelayMs: root.interactionIdleDelayMs
         wireDragThreshold: root.wireDragThreshold
@@ -129,7 +94,7 @@ Item {
     GraphCanvasComponents.GraphCanvasSceneState {
         id: sceneState
         canvasItem: root
-        edgeLayerItem: edgeLayer
+        edgeLayerItem: rootLayers.edgeLayerItem
     }
 
     GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {
@@ -144,8 +109,8 @@ Item {
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
         interactionState: interactionState
-        backgroundLayer: backgroundLayer
-        edgeLayer: edgeLayer
+        backgroundLayer: rootLayers.backgroundLayerItem
+        edgeLayer: rootLayers.edgeLayerItem
         redrawFlushTimer: viewStateRedrawFlushTimer
     }
 
@@ -158,7 +123,7 @@ Item {
         interactionState: interactionState
         canvasPerformancePolicy: canvasPerformancePolicy
         viewportController: viewportController
-        edgeLayerItem: edgeLayer
+        edgeLayerItem: rootLayers.edgeLayerItem
     }
 
     QtObject {
@@ -228,22 +193,6 @@ Item {
     Keys.forwardTo: [inputLayers]
     clip: true
 
-    function toggleMinimapExpanded() {
-        viewportController.toggleMinimapExpanded();
-    }
-
-    function beginViewportInteraction() {
-        viewportController.beginViewportInteraction();
-    }
-
-    function finishViewportInteractionSoon() {
-        viewportController.finishViewportInteractionSoon();
-    }
-
-    function noteViewportInteraction() {
-        viewportController.noteViewportInteraction();
-    }
-
     Timer {
         id: interactionIdleTimer
         interval: root.interactionIdleDelayMs
@@ -258,543 +207,123 @@ Item {
         onTriggered: root.flushViewStateRedraw()
     }
 
-    function screenToSceneX(screenX) {
-        return viewportController.screenToSceneX(screenX);
-    }
-
-    function screenToSceneY(screenY) {
-        return viewportController.screenToSceneY(screenY);
-    }
-
-    function _wheelDeltaY(eventObj) {
-        return viewportController.wheelDeltaY(eventObj);
-    }
-
-    function applyWheelZoom(eventObj) {
-        return viewportController.applyWheelZoom(eventObj);
-    }
-
-    function sceneToScreenX(sceneX) {
-        return viewportController.sceneToScreenX(sceneX);
-    }
-
-    function sceneToScreenY(sceneY) {
-        return viewportController.sceneToScreenY(sceneY);
-    }
-
-    function _normalizedSceneRectPayload(rectLike) {
-        return viewportController.normalizedSceneRectPayload(rectLike);
-    }
-
-    function _scenePaddingForViewportPixels(paddingPx) {
-        return viewportController.scenePaddingForViewportPixels(paddingPx);
-    }
-
-    function _inflateSceneRectPayload(rectLike, padding) {
-        return viewportController.inflateSceneRectPayload(rectLike, padding);
-    }
-
-    function frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx) {
-        return viewportController.frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx);
-    }
-
-    function snapToGridEnabled() {
-        return root._canvasStateBridgeRef ? Boolean(root._canvasStateBridgeRef.snap_to_grid_enabled) : false;
-    }
-
-    function snapGridSize() {
-        return GraphCanvasLogic.normalizeSnapGridSize(root._canvasStateBridgeRef ? root._canvasStateBridgeRef.snap_grid_size : 20.0);
-    }
-
-    function snapToGridValue(value) {
-        return GraphCanvasLogic.snapToGridValue(value, root.snapGridSize());
-    }
-
-    function snappedDragDelta(nodeId, rawDx, rawDy) {
-        return GraphCanvasLogic.snappedDragDelta(
-            rawDx,
-            rawDy,
-            root.snapToGridEnabled(),
-            root._sceneNodePayload(nodeId),
-            root.snapGridSize()
-        );
-    }
-
-    function _normalizeEdgeIds(values) {
-        return sceneState.normalizeEdgeIds(values);
-    }
-
-    function _availableEdgeIdSet() {
-        return sceneState.availableEdgeIdSet();
-    }
-
-    function pruneSelectedEdges() {
-        sceneState.pruneSelectedEdges();
-    }
-
-    function clearEdgeSelection() {
-        sceneState.clearEdgeSelection();
-    }
-
-    function toggleEdgeSelection(edgeId) {
-        sceneState.toggleEdgeSelection(edgeId);
-    }
-
-    function setExclusiveEdgeSelection(edgeId) {
-        sceneState.setExclusiveEdgeSelection(edgeId);
-    }
-
-    function _sceneNodePayload(nodeId) {
-        return sceneState.sceneNodePayload(nodeId);
-    }
-
-    function _sceneBackdropNodesModel() {
-        return sceneState.sceneBackdropNodesModel();
-    }
-
-    function _sceneAllNodesModel() {
-        return sceneState.sceneAllNodesModel();
-    }
-
-    function _sceneEdgePayload(edgeId) {
-        return sceneState.sceneEdgePayload(edgeId);
-    }
-
-    function _nodeSupportsPassiveStyle(nodeId) {
-        return sceneState.nodeSupportsPassiveStyle(nodeId);
-    }
-
-    function _edgeSupportsFlowStyle(edgeId) {
-        return sceneState.edgeSupportsFlowStyle(edgeId);
-    }
-
-    function _nodeCanEnterScope(nodeId) {
-        return sceneState.nodeCanEnterScope(nodeId);
-    }
-
-    function requestOpenSubnodeScope(nodeId) {
-        return nodeSurfaceBridge.requestOpenSubnodeScope(nodeId);
-    }
-
-    function _nodeSurfaceSelectionBridge() {
-        return nodeSurfaceBridge._sceneSelectionBridge();
-    }
-
-    function _nodeSurfacePendingActionBridge() {
-        return nodeSurfaceBridge._pendingActionBridge();
-    }
-
-    function _nodeSurfacePropertyBridge() {
-        return nodeSurfaceBridge._propertyBridge();
-    }
-
-    function _nodeSurfaceCursorBridge() {
-        return nodeSurfaceBridge._cursorBridge();
-    }
-
-    function _nodeSurfacePdfPreviewBridge() {
-        return nodeSurfaceBridge._pdfPreviewBridge();
-    }
-
-    function prepareNodeSurfaceControlInteraction(nodeId) {
-        return nodeSurfaceBridge.prepareNodeSurfaceControlInteraction(nodeId);
-    }
-
-    function commitNodeSurfaceProperty(nodeId, key, value) {
-        return nodeSurfaceBridge.commitNodeSurfaceProperty(nodeId, key, value);
-    }
-
-    function commitNodePortLabel(nodeId, portKey, label) {
-        return nodeSurfaceBridge.commitNodePortLabel(nodeId, portKey, label);
-    }
-
-    function requestNodeSurfaceCropEdit(nodeId) {
-        return nodeSurfaceBridge.requestNodeSurfaceCropEdit(nodeId);
-    }
-
-    function consumePendingNodeSurfaceAction(nodeId) {
-        return nodeSurfaceBridge.consumePendingNodeSurfaceAction(nodeId);
-    }
-
-    function commitNodeSurfaceProperties(nodeId, properties) {
-        return nodeSurfaceBridge.commitNodeSurfaceProperties(nodeId, properties);
-    }
-
-    function setNodeSurfaceCursorShape(cursorShape) {
-        return nodeSurfaceBridge.setNodeSurfaceCursorShape(cursorShape);
-    }
-
-    function clearNodeSurfaceCursorShape() {
-        return nodeSurfaceBridge.clearNodeSurfaceCursorShape();
-    }
-
-    function describeNodeSurfacePdfPreview(source, pageNumber) {
-        return nodeSurfaceBridge.describeNodeSurfacePdfPreview(source, pageNumber);
-    }
-
-    function browseNodePropertyPath(nodeId, key, currentPath) {
-        return nodeSurfaceBridge.browseNodePropertyPath(nodeId, key, currentPath);
-    }
-
-    function selectedNodeIds() {
-        return sceneState.selectedNodeIds();
-    }
-
-    function _appendUniqueDragNodeId(nodeIds, seenNodeIds, nodeId) {
-        sceneState._appendUniqueDragNodeId(nodeIds, seenNodeIds, nodeId);
-    }
-
-    function _payloadNodeIdList(payload, key) {
-        return sceneState._payloadNodeIdList(payload, key);
-    }
-
-    function _isCommentBackdropPayload(payload) {
-        return sceneState.isCommentBackdropPayload(payload);
-    }
-
-    function _appendBackdropDragDescendants(nodeIds, seenNodeIds, backdropNodeId) {
-        sceneState._appendBackdropDragDescendants(nodeIds, seenNodeIds, backdropNodeId);
-    }
-
-    function _appendBackdropAwareDragNodeIds(nodeIds, seenNodeIds, nodeId) {
-        sceneState._appendBackdropAwareDragNodeIds(nodeIds, seenNodeIds, nodeId);
-    }
-
-    function dragNodeIdsForAnchor(nodeId) {
-        return sceneState.dragNodeIdsForAnchor(nodeId);
-    }
-
-    function setLiveDragOffsets(nodeIds, dx, dy) {
-        sceneState.setLiveDragOffsets(nodeIds, dx, dy);
-    }
-
-    function clearLiveDragOffsets() {
-        sceneState.clearLiveDragOffsets();
-    }
-
-    function liveDragDxForNode(nodeId) {
-        return sceneState.liveDragDxForNode(nodeId);
-    }
-
-    function liveDragDyForNode(nodeId) {
-        return sceneState.liveDragDyForNode(nodeId);
-    }
-
-    function setLiveNodeGeometry(nodeId, x, y, width, height, active) {
-        sceneState.setLiveNodeGeometry(nodeId, x, y, width, height, active);
-    }
-
-    function clearLiveNodeGeometry() {
-        sceneState.clearLiveNodeGeometry();
-    }
-
-    function _dropTargetInput(sourceDrag, candidate) {
-        return interactionState._dropTargetInput(sourceDrag, candidate);
-    }
-
-    function _isExactDuplicate(sourceDrag, candidate, edge) {
-        return interactionState._isExactDuplicate(sourceDrag, candidate, edge);
-    }
-
-    function _portKind(nodeId, portKey) {
-        return interactionState._portKind(nodeId, portKey);
-    }
-
-    function _portDataType(nodeId, portKey) {
-        return interactionState._portDataType(nodeId, portKey);
-    }
-
-    function _arePortKindsCompatible(sourceKind, targetKind) {
-        return interactionState._arePortKindsCompatible(sourceKind, targetKind);
-    }
-
-    function _isDropAllowed(sourceDrag, candidate) {
-        return interactionState._isDropAllowed(sourceDrag, candidate);
-    }
-
-    function _nearestDropCandidateForWireDrag(screenX, screenY, sourceDrag, thresholdOverride) {
-        return interactionState._nearestDropCandidateForWireDrag(
-            screenX,
-            screenY,
-            sourceDrag,
-            thresholdOverride
-        );
-    }
-
-    function _areDataTypesCompatible(sourceType, targetType) {
-        return interactionState._areDataTypesCompatible(sourceType, targetType);
-    }
-
-    function _portsCompatibleForAuto(sourcePort, targetPort) {
-        return interactionState._portsCompatibleForAuto(sourcePort, targetPort);
-    }
-
-    function _libraryPorts(payload) {
-        return interactionState._libraryPorts(payload);
-    }
-
-    function _scenePortData(nodeId, portKey) {
-        return interactionState._scenePortData(nodeId, portKey);
-    }
-
-    function _scenePortPoint(node, port, inputRow, outputRow) {
-        return interactionState._scenePortPoint(node, port, inputRow, outputRow);
-    }
-
-    function _hasCompatiblePortForTarget(targetPort, nodePorts) {
-        return interactionState._hasCompatiblePortForTarget(targetPort, nodePorts);
-    }
-
-    function _portDropTargetAtScreen(screenX, screenY, payload) {
-        return interactionState._portDropTargetAtScreen(screenX, screenY, payload);
-    }
-
-    function _edgeSupportsDrop(edgeId, payload) {
-        return interactionState._edgeSupportsDrop(edgeId, payload);
-    }
-
-    function _computeLibraryDropTarget(screenX, screenY, payload) {
-        return interactionState._computeLibraryDropTarget(screenX, screenY, payload);
-    }
-
-    function _previewNodeMetrics(payload) {
-        return interactionState._previewNodeMetrics(payload);
-    }
-
-    function previewNodeMetrics() {
-        return interactionState.previewNodeMetrics();
-    }
-
-    function _previewVisiblePorts(payload, direction) {
-        return interactionState._previewVisiblePorts(payload, direction);
-    }
-
-    function previewInputPorts() {
-        return interactionState.previewInputPorts();
-    }
-
-    function previewOutputPorts() {
-        return interactionState.previewOutputPorts();
-    }
-
-    function previewPortColor(kind) {
-        return interactionState.previewPortColor(kind);
-    }
-
-    function previewNodeScreenWidth() {
-        return interactionState.previewNodeScreenWidth();
-    }
-
-    function previewNodeScreenHeight() {
-        return interactionState.previewNodeScreenHeight();
-    }
-
-    function previewPortLabelsVisible() {
-        return interactionState.previewPortLabelsVisible();
-    }
-
-    function clearLibraryDropPreview() {
-        interactionState.clearLibraryDropPreview();
-    }
-
-    function updateLibraryDropPreview(screenX, screenY, payload) {
-        interactionState.updateLibraryDropPreview(screenX, screenY, payload);
-    }
-
-    function isPointInCanvas(screenX, screenY) {
-        return GraphCanvasLogic.pointInCanvas(screenX, screenY, root.width, root.height);
-    }
-
-    function performLibraryDrop(screenX, screenY, payload) {
-        interactionState.performLibraryDrop(screenX, screenY, payload);
-    }
-
-    function _samePort(a, b) {
-        return interactionState._samePort(a, b);
-    }
-
-    function clearPendingConnection() {
-        interactionState.clearPendingConnection();
-    }
-
-    function _wireDragSourceData(state) {
-        return interactionState._wireDragSourceData(state);
-    }
-
-    function wireDragSourcePort() {
-        return interactionState.wireDragSourcePort();
-    }
-
-    function wireDragPreviewConnection() {
-        return interactionState.wireDragPreviewConnection();
-    }
-
-    function _updateWireDropCandidate(screenX, screenY, state) {
-        interactionState._updateWireDropCandidate(screenX, screenY, state);
-    }
-
-    function _clearWireDragState() {
-        interactionState._clearWireDragState();
-    }
-
-    function beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) {
-        interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);
-    }
-
-    function updatePortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
-        interactionState.updatePortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive);
-    }
-
-    function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) {
-        interactionState.finishPortWireDrag(
-            nodeId,
-            portKey,
-            direction,
-            _sceneX,
-            _sceneY,
-            screenX,
-            screenY,
-            dragActive
-        );
-    }
-
-    function cancelWireDrag() {
-        return interactionState.cancelWireDrag();
-    }
-
-    function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) {
-        interactionState.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
-    }
-
-    function _syncEdgePayload() {
-        sceneState.syncEdgePayload();
-    }
-
-    function requestEdgeRedraw() {
-        sceneLifecycle.requestEdgeRedraw();
-    }
-
-    function requestViewStateRedraw() {
-        viewportController.requestViewStateRedraw();
-    }
-
-    function flushViewStateRedraw() {
-        viewportController.flushViewStateRedraw();
-    }
-
-    function _closeContextMenus() {
-        interactionState._closeContextMenus();
-    }
-
-    function _clampMenuPosition(x, y, menuWidth, menuHeight) {
-        return GraphCanvasLogic.clampMenuPosition(
-            x,
-            y,
-            menuWidth,
-            menuHeight,
-            root.width,
-            root.height,
-            4
-        );
-    }
-
-    function _openEdgeContext(edgeId, x, y) {
-        interactionState._openEdgeContext(edgeId, x, y);
-    }
-
-    function _openNodeContext(nodeId, x, y) {
-        interactionState._openNodeContext(nodeId, x, y);
-    }
-
-    GraphCanvasComponents.GraphCanvasBackground {
-        id: backgroundLayer
-        objectName: "graphCanvasBackground"
-        anchors.fill: parent
-        viewBridge: root._canvasViewStateBridgeRef
-        showGrid: root.showGrid
-        gridStyle: root.gridStyle
-        degradedWindowActive: root.gridSimplificationActive
-    }
-
-    GraphCanvasComponents.GraphCanvasWorldLayer {
-        id: backdropWorld
-        objectName: "graphCanvasBackdropLayer"
-        canvasItem: root
-        viewBridge: root._canvasViewStateBridgeRef
-        sceneModel: root._sceneBackdropNodesModel()
-    }
-
-    GraphComponents.EdgeLayer {
-        id: edgeLayer
-        objectName: "graphCanvasEdgeLayer"
-        anchors.fill: parent
-        viewBridge: root._canvasViewStateBridgeRef
-        sceneBridge: root.sceneStateBridge
-        edges: root.edgePayload
-        nodes: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
-        dragOffsets: root.liveDragOffsets
-        liveNodeGeometry: root.liveNodeGeometry
-        selectedEdgeIds: root.selectedEdgeIds
-        visibleSceneRectPayload: root.visibleSceneRectPayload
-        previewEdgeId: root.dropPreviewEdgeId
-        dragConnection: root.wireDragPreviewConnection()
-        edgeCrossingStyle: root.edgeCrossingStyle
-        performanceMode: root.resolvedGraphicsPerformanceMode
-        transientPerformanceActivityActive: root.transientPerformanceActivityActive
-        transientDegradedWindowActive: root.transientDegradedWindowActive
-        edgeLabelSimplificationActive: root.edgeLabelSimplificationActive
-        inputEnabled: !(root.edgeContextVisible || root.nodeContextVisible)
-
-        onEdgeClicked: function(edgeId, additive) {
-            root.forceActiveFocus();
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
-            root._closeContextMenus();
-            root.clearPendingConnection();
-            if (additive)
-                root.toggleEdgeSelection(edgeId);
-            else
-                root.setExclusiveEdgeSelection(edgeId);
-        }
-        onEdgeContextRequested: function(edgeId, screenX, screenY) {
-            if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
-                viewerSessionBridge.clear_viewer_focus();
-            root._openEdgeContext(edgeId, screenX, screenY);
-        }
-    }
-
-    GraphCanvasComponents.GraphCanvasWorldLayer {
-        id: backdropInputWorld
-        objectName: "graphCanvasBackdropInputLayer"
-        canvasItem: root
-        viewBridge: root._canvasViewStateBridgeRef
-        sceneModel: root._sceneBackdropNodesModel()
-        backdropInputOverlay: true
-    }
-
-    GraphCanvasComponents.GraphCanvasDropPreview {
-        id: dragNodePreview
-        objectName: "graphCanvasDropPreview"
-        canvasItem: root
-        viewBridge: root._canvasViewStateBridgeRef
-    }
-
-    GraphCanvasComponents.GraphCanvasWorldLayer {
-        id: world
-        objectName: "graphCanvasWorld"
-        canvasItem: root
-        viewBridge: root._canvasViewStateBridgeRef
-        sceneModel: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
-    }
-
-    GraphCanvasComponents.GraphCanvasMinimapOverlay {
-        id: minimapOverlay
-        objectName: "graphCanvasMinimapOverlay"
+    function toggleMinimapExpanded() { GraphCanvasRootApi.invoke(viewportController, "toggleMinimapExpanded"); }
+    function beginViewportInteraction() { GraphCanvasRootApi.invoke(viewportController, "beginViewportInteraction"); }
+    function finishViewportInteractionSoon() { GraphCanvasRootApi.invoke(viewportController, "finishViewportInteractionSoon"); }
+    function noteViewportInteraction() { GraphCanvasRootApi.invoke(viewportController, "noteViewportInteraction"); }
+    function screenToSceneX(screenX) { return GraphCanvasRootApi.invoke(viewportController, "screenToSceneX", [screenX], 0.0); }
+    function screenToSceneY(screenY) { return GraphCanvasRootApi.invoke(viewportController, "screenToSceneY", [screenY], 0.0); }
+    function _wheelDeltaY(eventObj) { return GraphCanvasRootApi.invoke(viewportController, "wheelDeltaY", [eventObj], 0.0); }
+    function applyWheelZoom(eventObj) { return GraphCanvasRootApi.invoke(viewportController, "applyWheelZoom", [eventObj], false); }
+    function sceneToScreenX(sceneX) { return GraphCanvasRootApi.invoke(viewportController, "sceneToScreenX", [sceneX], 0.0); }
+    function sceneToScreenY(sceneY) { return GraphCanvasRootApi.invoke(viewportController, "sceneToScreenY", [sceneY], 0.0); }
+    function _normalizedSceneRectPayload(rectLike) { return GraphCanvasRootApi.invoke(viewportController, "normalizedSceneRectPayload", [rectLike], null); }
+    function _scenePaddingForViewportPixels(paddingPx) { return GraphCanvasRootApi.invoke(viewportController, "scenePaddingForViewportPixels", [paddingPx], 0.0); }
+    function _inflateSceneRectPayload(rectLike, padding) { return GraphCanvasRootApi.invoke(viewportController, "inflateSceneRectPayload", [rectLike, padding], ({})); }
+    function frameScreenRect(screenX1, screenY1, screenX2, screenY2, paddingPx) { return GraphCanvasRootApi.invoke(viewportController, "frameScreenRect", [screenX1, screenY1, screenX2, screenY2, paddingPx], false); }
+    function snapToGridEnabled() { return GraphCanvasRootApi.snapToGridEnabled(root._canvasStateBridgeRef); }
+    function snapGridSize() { return GraphCanvasRootApi.snapGridSize(root._canvasStateBridgeRef); }
+    function snapToGridValue(value) { return GraphCanvasRootApi.snapToGridValue(root._canvasStateBridgeRef, value); }
+    function snappedDragDelta(nodeId, rawDx, rawDy) { return GraphCanvasRootApi.snappedDragDelta(sceneState, root._canvasStateBridgeRef, nodeId, rawDx, rawDy); }
+    function _normalizeEdgeIds(values) { return GraphCanvasRootApi.invoke(sceneState, "normalizeEdgeIds", [values], []); }
+    function _availableEdgeIdSet() { return GraphCanvasRootApi.invoke(sceneState, "availableEdgeIdSet", [], ({})); }
+    function pruneSelectedEdges() { GraphCanvasRootApi.invoke(sceneState, "pruneSelectedEdges"); }
+    function clearEdgeSelection() { GraphCanvasRootApi.invoke(sceneState, "clearEdgeSelection"); }
+    function toggleEdgeSelection(edgeId) { GraphCanvasRootApi.invoke(sceneState, "toggleEdgeSelection", [edgeId]); }
+    function setExclusiveEdgeSelection(edgeId) { GraphCanvasRootApi.invoke(sceneState, "setExclusiveEdgeSelection", [edgeId]); }
+    function _sceneNodePayload(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "sceneNodePayload", [nodeId], null); }
+    function _sceneBackdropNodesModel() { return GraphCanvasRootApi.invoke(sceneState, "sceneBackdropNodesModel", [], []); }
+    function _sceneAllNodesModel() { return GraphCanvasRootApi.invoke(sceneState, "sceneAllNodesModel", [], []); }
+    function _sceneEdgePayload(edgeId) { return GraphCanvasRootApi.invoke(sceneState, "sceneEdgePayload", [edgeId], null); }
+    function _nodeSupportsPassiveStyle(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "nodeSupportsPassiveStyle", [nodeId], false); }
+    function _edgeSupportsFlowStyle(edgeId) { return GraphCanvasRootApi.invoke(sceneState, "edgeSupportsFlowStyle", [edgeId], false); }
+    function _nodeCanEnterScope(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "nodeCanEnterScope", [nodeId], false); }
+    function requestOpenSubnodeScope(nodeId) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "requestOpenSubnodeScope", [nodeId], false); }
+    function _nodeSurfaceSelectionBridge() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "_sceneSelectionBridge", [], null); }
+    function _nodeSurfacePendingActionBridge() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "_pendingActionBridge", [], null); }
+    function _nodeSurfacePropertyBridge() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "_propertyBridge", [], null); }
+    function _nodeSurfaceCursorBridge() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "_cursorBridge", [], null); }
+    function _nodeSurfacePdfPreviewBridge() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "_pdfPreviewBridge", [], null); }
+    function prepareNodeSurfaceControlInteraction(nodeId) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "prepareNodeSurfaceControlInteraction", [nodeId], false); }
+    function commitNodeSurfaceProperty(nodeId, key, value) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "commitNodeSurfaceProperty", [nodeId, key, value], false); }
+    function commitNodePortLabel(nodeId, portKey, label) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "commitNodePortLabel", [nodeId, portKey, label], false); }
+    function requestNodeSurfaceCropEdit(nodeId) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "requestNodeSurfaceCropEdit", [nodeId], false); }
+    function consumePendingNodeSurfaceAction(nodeId) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "consumePendingNodeSurfaceAction", [nodeId], false); }
+    function commitNodeSurfaceProperties(nodeId, properties) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "commitNodeSurfaceProperties", [nodeId, properties], false); }
+    function setNodeSurfaceCursorShape(cursorShape) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "setNodeSurfaceCursorShape", [cursorShape], false); }
+    function clearNodeSurfaceCursorShape() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "clearNodeSurfaceCursorShape", [], false); }
+    function describeNodeSurfacePdfPreview(source, pageNumber) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "describeNodeSurfacePdfPreview", [source, pageNumber], ({})); }
+    function browseNodePropertyPath(nodeId, key, currentPath) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "browseNodePropertyPath", [nodeId, key, currentPath], ""); }
+    function selectedNodeIds() { return GraphCanvasRootApi.invoke(sceneState, "selectedNodeIds", [], []); }
+    function _appendUniqueDragNodeId(nodeIds, seenNodeIds, nodeId) { GraphCanvasRootApi.invoke(sceneState, "_appendUniqueDragNodeId", [nodeIds, seenNodeIds, nodeId]); }
+    function _payloadNodeIdList(payload, key) { return GraphCanvasRootApi.invoke(sceneState, "_payloadNodeIdList", [payload, key], []); }
+    function _isCommentBackdropPayload(payload) { return GraphCanvasRootApi.invoke(sceneState, "isCommentBackdropPayload", [payload], false); }
+    function _appendBackdropDragDescendants(nodeIds, seenNodeIds, backdropNodeId) { GraphCanvasRootApi.invoke(sceneState, "_appendBackdropDragDescendants", [nodeIds, seenNodeIds, backdropNodeId]); }
+    function _appendBackdropAwareDragNodeIds(nodeIds, seenNodeIds, nodeId) { GraphCanvasRootApi.invoke(sceneState, "_appendBackdropAwareDragNodeIds", [nodeIds, seenNodeIds, nodeId]); }
+    function dragNodeIdsForAnchor(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "dragNodeIdsForAnchor", [nodeId], []); }
+    function setLiveDragOffsets(nodeIds, dx, dy) { GraphCanvasRootApi.invoke(sceneState, "setLiveDragOffsets", [nodeIds, dx, dy]); }
+    function clearLiveDragOffsets() { GraphCanvasRootApi.invoke(sceneState, "clearLiveDragOffsets"); }
+    function liveDragDxForNode(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "liveDragDxForNode", [nodeId], 0.0); }
+    function liveDragDyForNode(nodeId) { return GraphCanvasRootApi.invoke(sceneState, "liveDragDyForNode", [nodeId], 0.0); }
+    function setLiveNodeGeometry(nodeId, x, y, width, height, active) { GraphCanvasRootApi.invoke(sceneState, "setLiveNodeGeometry", [nodeId, x, y, width, height, active]); }
+    function clearLiveNodeGeometry() { GraphCanvasRootApi.invoke(sceneState, "clearLiveNodeGeometry"); }
+    function _dropTargetInput(sourceDrag, candidate) { return GraphCanvasRootApi.invoke(interactionState, "_dropTargetInput", [sourceDrag, candidate], null); }
+    function _isExactDuplicate(sourceDrag, candidate, edge) { return GraphCanvasRootApi.invoke(interactionState, "_isExactDuplicate", [sourceDrag, candidate, edge], false); }
+    function _portKind(nodeId, portKey) { return GraphCanvasRootApi.invoke(interactionState, "_portKind", [nodeId, portKey], ""); }
+    function _portDataType(nodeId, portKey) { return GraphCanvasRootApi.invoke(interactionState, "_portDataType", [nodeId, portKey], "any"); }
+    function _arePortKindsCompatible(sourceKind, targetKind) { return GraphCanvasRootApi.invoke(interactionState, "_arePortKindsCompatible", [sourceKind, targetKind], false); }
+    function _isDropAllowed(sourceDrag, candidate) { return GraphCanvasRootApi.invoke(interactionState, "_isDropAllowed", [sourceDrag, candidate], false); }
+    function _nearestDropCandidateForWireDrag(screenX, screenY, sourceDrag, thresholdOverride) { return GraphCanvasRootApi.invoke(interactionState, "_nearestDropCandidateForWireDrag", [screenX, screenY, sourceDrag, thresholdOverride], null); }
+    function _areDataTypesCompatible(sourceType, targetType) { return GraphCanvasRootApi.invoke(interactionState, "_areDataTypesCompatible", [sourceType, targetType], false); }
+    function _portsCompatibleForAuto(sourcePort, targetPort) { return GraphCanvasRootApi.invoke(interactionState, "_portsCompatibleForAuto", [sourcePort, targetPort], false); }
+    function _libraryPorts(payload) { return GraphCanvasRootApi.invoke(interactionState, "_libraryPorts", [payload], []); }
+    function _scenePortData(nodeId, portKey) { return GraphCanvasRootApi.invoke(interactionState, "_scenePortData", [nodeId, portKey], null); }
+    function _scenePortPoint(node, port, inputRow, outputRow) { return GraphCanvasRootApi.invoke(interactionState, "_scenePortPoint", [node, port, inputRow, outputRow], ({})); }
+    function _hasCompatiblePortForTarget(targetPort, nodePorts) { return GraphCanvasRootApi.invoke(interactionState, "_hasCompatiblePortForTarget", [targetPort, nodePorts], false); }
+    function _portDropTargetAtScreen(screenX, screenY, payload) { return GraphCanvasRootApi.invoke(interactionState, "_portDropTargetAtScreen", [screenX, screenY, payload], null); }
+    function _edgeSupportsDrop(edgeId, payload) { return GraphCanvasRootApi.invoke(interactionState, "_edgeSupportsDrop", [edgeId, payload], false); }
+    function _computeLibraryDropTarget(screenX, screenY, payload) { return GraphCanvasRootApi.invoke(interactionState, "_computeLibraryDropTarget", [screenX, screenY, payload], ({})); }
+    function _previewNodeMetrics(payload) { return GraphCanvasRootApi.invoke(interactionState, "_previewNodeMetrics", [payload], ({})); }
+    function previewNodeMetrics() { return GraphCanvasRootApi.invoke(interactionState, "previewNodeMetrics", [], ({})); }
+    function _previewVisiblePorts(payload, direction) { return GraphCanvasRootApi.invoke(interactionState, "_previewVisiblePorts", [payload, direction], []); }
+    function previewInputPorts() { return GraphCanvasRootApi.invoke(interactionState, "previewInputPorts", [], []); }
+    function previewOutputPorts() { return GraphCanvasRootApi.invoke(interactionState, "previewOutputPorts", [], []); }
+    function previewPortColor(kind) { return GraphCanvasRootApi.invoke(interactionState, "previewPortColor", [kind], "transparent"); }
+    function previewNodeScreenWidth() { return GraphCanvasRootApi.invoke(interactionState, "previewNodeScreenWidth", [], 0.0); }
+    function previewNodeScreenHeight() { return GraphCanvasRootApi.invoke(interactionState, "previewNodeScreenHeight", [], 0.0); }
+    function previewPortLabelsVisible() { return GraphCanvasRootApi.invoke(interactionState, "previewPortLabelsVisible", [], false); }
+    function clearLibraryDropPreview() { GraphCanvasRootApi.invoke(interactionState, "clearLibraryDropPreview"); }
+    function updateLibraryDropPreview(screenX, screenY, payload) { GraphCanvasRootApi.invoke(interactionState, "updateLibraryDropPreview", [screenX, screenY, payload]); }
+    function isPointInCanvas(screenX, screenY) { return GraphCanvasRootApi.isPointInCanvas(root, screenX, screenY); }
+    function performLibraryDrop(screenX, screenY, payload) { GraphCanvasRootApi.invoke(interactionState, "performLibraryDrop", [screenX, screenY, payload]); }
+    function _samePort(a, b) { return GraphCanvasRootApi.invoke(interactionState, "_samePort", [a, b], false); }
+    function clearPendingConnection() { GraphCanvasRootApi.invoke(interactionState, "clearPendingConnection"); }
+    function _wireDragSourceData(state) { return GraphCanvasRootApi.invoke(interactionState, "_wireDragSourceData", [state], null); }
+    function wireDragSourcePort() { return GraphCanvasRootApi.invoke(interactionState, "wireDragSourcePort", [], null); }
+    function wireDragPreviewConnection() { return GraphCanvasRootApi.invoke(interactionState, "wireDragPreviewConnection", [], null); }
+    function _updateWireDropCandidate(screenX, screenY, state) { GraphCanvasRootApi.invoke(interactionState, "_updateWireDropCandidate", [screenX, screenY, state]); }
+    function _clearWireDragState() { GraphCanvasRootApi.invoke(interactionState, "_clearWireDragState"); }
+    function beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) { GraphCanvasRootApi.invoke(interactionState, "beginPortWireDrag", [nodeId, portKey, direction, sceneX, sceneY, screenX, screenY]); }
+    function updatePortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) { GraphCanvasRootApi.invoke(interactionState, "updatePortWireDrag", [nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive]); }
+    function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) { GraphCanvasRootApi.invoke(interactionState, "finishPortWireDrag", [nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive]); }
+    function cancelWireDrag() { return GraphCanvasRootApi.invoke(interactionState, "cancelWireDrag", [], false); }
+    function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) { GraphCanvasRootApi.invoke(interactionState, "handlePortClick", [nodeId, portKey, direction, sceneX, sceneY]); }
+    function _syncEdgePayload() { GraphCanvasRootApi.invoke(sceneState, "syncEdgePayload"); }
+    function requestEdgeRedraw() { GraphCanvasRootApi.invoke(sceneLifecycle, "requestEdgeRedraw"); }
+    function requestViewStateRedraw() { GraphCanvasRootApi.invoke(viewportController, "requestViewStateRedraw"); }
+    function flushViewStateRedraw() { GraphCanvasRootApi.invoke(viewportController, "flushViewStateRedraw"); }
+    function _closeContextMenus() { GraphCanvasRootApi.invoke(interactionState, "_closeContextMenus"); }
+    function _clampMenuPosition(x, y, menuWidth, menuHeight) { return GraphCanvasRootApi.clampMenuPosition(root, x, y, menuWidth, menuHeight); }
+    function _openEdgeContext(edgeId, x, y) { GraphCanvasRootApi.invoke(interactionState, "_openEdgeContext", [edgeId, x, y]); }
+    function _openNodeContext(nodeId, x, y) { GraphCanvasRootApi.invoke(interactionState, "_openNodeContext", [nodeId, x, y]); }
+
+    GraphCanvasComponents.GraphCanvasRootLayers {
+        id: rootLayers
         canvasItem: root
         sceneStateBridge: root.sceneStateBridge
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
-        degradedWindowActive: root.minimapSimplificationActive
+        minimapSimplificationActive: root.minimapSimplificationActive
     }
 
     GraphCanvasComponents.GraphCanvasInputLayers {
@@ -816,22 +345,14 @@ Item {
         commandBridge: root._canvasShellCommandBridgeRef
     }
 
-    function _resetCanvasSceneState() {
-        sceneLifecycle.resetCanvasSceneState();
-    }
+    function _resetCanvasSceneState() { GraphCanvasRootApi.invoke(sceneLifecycle, "resetCanvasSceneState"); }
 
     onCanvasStateBridgeChanged: root._resetCanvasSceneState()
     onCanvasCommandBridgeChanged: root._resetCanvasSceneState()
     onCanvasViewBridgeChanged: root._resetCanvasSceneState()
     onSceneBridgeChanged: root._resetCanvasSceneState()
-
-    onWidthChanged: {
-        viewportController.updateViewportSize();
-    }
-
-    onHeightChanged: {
-        viewportController.updateViewportSize();
-    }
+    onWidthChanged: viewportController.updateViewportSize()
+    onHeightChanged: viewportController.updateViewportSize()
 
     Component.onDestruction: {
         canvasPerformancePolicy.clearStructuralMutation();

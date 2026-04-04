@@ -358,6 +358,51 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
         if failures:
             self.fail("\n\n".join(failures))
 
+    def test_graph_canvas_root_packetization_keeps_helper_split_and_stable_public_contract(self) -> None:
+        graph_canvas_path = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml"
+        root_bindings_path = graph_canvas_path.parent / "graph_canvas" / "GraphCanvasRootBindings.qml"
+        root_layers_path = graph_canvas_path.parent / "graph_canvas" / "GraphCanvasRootLayers.qml"
+        root_api_path = graph_canvas_path.parent / "graph_canvas" / "GraphCanvasRootApi.js"
+
+        graph_canvas_lines = graph_canvas_path.read_text(encoding="utf-8").splitlines()
+        graph_canvas_text = "\n".join(graph_canvas_lines)
+        root_layers_text = root_layers_path.read_text(encoding="utf-8")
+        root_api_text = root_api_path.read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(graph_canvas_lines), 700)
+        self.assertTrue(root_bindings_path.exists())
+        self.assertTrue(root_layers_path.exists())
+        self.assertTrue(root_api_path.exists())
+
+        for snippet in (
+            'import "graph_canvas/GraphCanvasRootApi.js" as GraphCanvasRootApi',
+            "GraphCanvasComponents.GraphCanvasRootBindings {",
+            "GraphCanvasComponents.GraphCanvasRootLayers {",
+            "function toggleMinimapExpanded() {",
+            "function clearLibraryDropPreview() {",
+            "function updateLibraryDropPreview(screenX, screenY, payload) {",
+            "function isPointInCanvas(screenX, screenY) {",
+            "function performLibraryDrop(screenX, screenY, payload) {",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, graph_canvas_text)
+
+        for snippet in (
+            "GraphCanvasBackground {",
+            "GraphComponents.EdgeLayer {",
+            "GraphCanvasMinimapOverlay {",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, root_layers_text)
+
+        for snippet in (
+            "function invoke(target, methodName, args, fallbackValue) {",
+            "function snapToGridValue(canvasStateBridge, value) {",
+            "function clampMenuPosition(canvasItem, x, y, menuWidth, menuHeight) {",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, root_api_text)
+
     def test_graph_scene_payload_builder_publishes_normalized_render_quality_metadata(self) -> None:
         registry: NodeRegistry = build_default_registry()
         spec = NodeTypeSpec(
