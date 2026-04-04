@@ -101,6 +101,45 @@ class _GraphCanvasHostSource(Protocol):
     def request_remove_node(self, node_id: str) -> bool: ...
 
 
+class _GraphCanvasSceneCommandSource(Protocol):
+    def select_node(self, node_id: str, additive: bool = False) -> None: ...
+
+    def clear_selection(self) -> None: ...
+
+    def select_nodes_in_rect(
+        self,
+        x1: float,
+        y1: float,
+        x2: float,
+        y2: float,
+        additive: bool = False,
+    ) -> None: ...
+
+    def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None: ...
+
+    def set_node_property(self, node_id: str, key: str, value: object) -> None: ...
+
+    def set_pending_surface_action(self, node_id: str) -> None: ...
+
+    def consume_pending_surface_action(self, node_id: str) -> bool: ...
+
+    def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool: ...
+
+    def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool: ...
+
+    def move_node(self, node_id: str, x: float, y: float) -> None: ...
+
+    def resize_node(self, node_id: str, width: float, height: float) -> None: ...
+
+    def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None: ...
+
+
+class _GraphCanvasScenePolicySource(Protocol):
+    def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool: ...
+
+    def are_data_types_compatible(self, source_type: str, target_type: str) -> bool: ...
+
+
 def _invoke(source: object | None, name: str, *args, default: Any = None) -> Any:
     callback = getattr(source, name, None) if source is not None else None
     if not callable(callback):
@@ -134,6 +173,24 @@ def _resolve_host_source(
     return cast(_GraphCanvasHostSource, shell_window)
 
 
+def _resolve_scene_command_source(scene_bridge: object | None) -> _GraphCanvasSceneCommandSource | None:
+    if scene_bridge is None:
+        return None
+    return cast(
+        _GraphCanvasSceneCommandSource,
+        getattr(scene_bridge, "command_bridge", scene_bridge),
+    )
+
+
+def _resolve_scene_policy_source(scene_bridge: object | None) -> _GraphCanvasScenePolicySource | None:
+    if scene_bridge is None:
+        return None
+    return cast(
+        _GraphCanvasScenePolicySource,
+        getattr(scene_bridge, "policy_bridge", scene_bridge),
+    )
+
+
 class GraphCanvasCommandBridge(QObject):
     def __init__(
         self,
@@ -151,6 +208,8 @@ class GraphCanvasCommandBridge(QObject):
         self._view_bridge = view_bridge
         self._canvas_source = _resolve_canvas_source(shell_window, canvas_source)
         self._host_source = _resolve_host_source(shell_window, host_source)
+        self._scene_command_source = _resolve_scene_command_source(scene_bridge)
+        self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
 
     @property
     def shell_window(self) -> "ShellWindow | None":
@@ -167,6 +226,14 @@ class GraphCanvasCommandBridge(QObject):
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":
         return self._scene_bridge
+
+    @property
+    def scene_command_source(self) -> _GraphCanvasSceneCommandSource | None:
+        return self._scene_command_source
+
+    @property
+    def scene_policy_source(self) -> _GraphCanvasScenePolicySource | None:
+        return self._scene_policy_source
 
     @property
     def view_bridge(self) -> "ViewportBridge | None":
@@ -384,11 +451,11 @@ class GraphCanvasCommandBridge(QObject):
 
     @pyqtSlot(str, bool)
     def select_node(self, node_id: str, additive: bool = False) -> None:
-        _invoke(self._scene_bridge, "select_node", node_id, bool(additive))
+        _invoke(self._scene_command_source, "select_node", node_id, bool(additive))
 
     @pyqtSlot()
     def clear_selection(self) -> None:
-        _invoke(self._scene_bridge, "clear_selection")
+        _invoke(self._scene_command_source, "clear_selection")
 
     @pyqtSlot(float, float, float, float)
     @pyqtSlot(float, float, float, float, bool)
@@ -401,7 +468,7 @@ class GraphCanvasCommandBridge(QObject):
         additive: bool = False,
     ) -> None:
         _invoke(
-            self._scene_bridge,
+            self._scene_command_source,
             "select_nodes_in_rect",
             float(x1),
             float(y1),
@@ -412,21 +479,21 @@ class GraphCanvasCommandBridge(QObject):
 
     @pyqtSlot(str, str, str)
     def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
-        _invoke(self._scene_bridge, "set_node_port_label", node_id, port_key, label)
+        _invoke(self._scene_command_source, "set_node_port_label", node_id, port_key, label)
 
     @pyqtSlot(str, str, "QVariant")
     def set_node_property(self, node_id: str, key: str, value: object) -> None:
-        _invoke(self._scene_bridge, "set_node_property", node_id, key, value)
+        _invoke(self._scene_command_source, "set_node_property", node_id, key, value)
 
     @pyqtSlot(str)
     def set_pending_surface_action(self, node_id: str) -> None:
-        _invoke(self._scene_bridge, "set_pending_surface_action", node_id)
+        _invoke(self._scene_command_source, "set_pending_surface_action", node_id)
 
     @pyqtSlot(str, result=bool)
     def consume_pending_surface_action(self, node_id: str) -> bool:
         return bool(
             _invoke(
-                self._scene_bridge,
+                self._scene_command_source,
                 "consume_pending_surface_action",
                 node_id,
                 default=False,
@@ -437,7 +504,7 @@ class GraphCanvasCommandBridge(QObject):
     def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
         return bool(
             _invoke(
-                self._scene_bridge,
+                self._scene_command_source,
                 "set_node_properties",
                 node_id,
                 dict(values or {}),
@@ -449,7 +516,7 @@ class GraphCanvasCommandBridge(QObject):
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
         return bool(
             _invoke(
-                self._scene_bridge,
+                self._scene_policy_source,
                 "are_port_kinds_compatible",
                 source_kind,
                 target_kind,
@@ -461,7 +528,7 @@ class GraphCanvasCommandBridge(QObject):
     def are_data_types_compatible(self, source_type: str, target_type: str) -> bool:
         return bool(
             _invoke(
-                self._scene_bridge,
+                self._scene_policy_source,
                 "are_data_types_compatible",
                 source_type,
                 target_type,
@@ -473,7 +540,7 @@ class GraphCanvasCommandBridge(QObject):
     def move_nodes_by_delta(self, node_ids: list, delta_x: float, delta_y: float) -> bool:
         return bool(
             _invoke(
-                self._scene_bridge,
+                self._scene_command_source,
                 "move_nodes_by_delta",
                 node_ids,
                 float(delta_x),
@@ -484,16 +551,16 @@ class GraphCanvasCommandBridge(QObject):
 
     @pyqtSlot(str, float, float)
     def move_node(self, node_id: str, x: float, y: float) -> None:
-        _invoke(self._scene_bridge, "move_node", node_id, float(x), float(y))
+        _invoke(self._scene_command_source, "move_node", node_id, float(x), float(y))
 
     @pyqtSlot(str, float, float)
     def resize_node(self, node_id: str, width: float, height: float) -> None:
-        _invoke(self._scene_bridge, "resize_node", node_id, float(width), float(height))
+        _invoke(self._scene_command_source, "resize_node", node_id, float(width), float(height))
 
     @pyqtSlot(str, float, float, float, float)
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
         _invoke(
-            self._scene_bridge,
+            self._scene_command_source,
             "set_node_geometry",
             node_id,
             float(x),

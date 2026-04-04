@@ -7,6 +7,8 @@ from unittest.mock import patch
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -32,8 +34,14 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
 
         self.assertIn("class _GraphScenePayloadCache:", bridge_text)
         self.assertIn("class _GraphScenePendingSurfaceAction:", bridge_text)
+        self.assertIn("class GraphSceneReadBridge(QObject):", bridge_text)
+        self.assertIn("class GraphSceneCommandBridge(QObject):", bridge_text)
+        self.assertIn("class GraphScenePolicyBridge(QObject):", bridge_text)
         self.assertIn("self._payload_cache = _GraphScenePayloadCache()", bridge_text)
         self.assertIn("self._pending_surface_action = _GraphScenePendingSurfaceAction()", bridge_text)
+        self.assertIn("self._state_bridge = GraphSceneReadBridge(self)", bridge_text)
+        self.assertIn("self._command_bridge = GraphSceneCommandBridge(", bridge_text)
+        self.assertIn("self._policy_bridge = GraphScenePolicyBridge(self, self._policy_boundary)", bridge_text)
         self.assertIn("self._bridge._payload_cache.update(", bridge_text)
 
     def test_mutation_history_collapses_property_geometry_structure_and_fragment_flows_into_one_boundary(self) -> None:
@@ -45,11 +53,47 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertNotIn("class _GraphSceneGeometryMutations:", helper_text)
         self.assertNotIn("class _GraphSceneStructureMutations:", helper_text)
         self.assertNotIn("class _GraphSceneFragmentMutations:", helper_text)
+        self.assertIn("class GraphSceneMutationPolicy:", helper_text)
         self.assertIn("class GraphSceneMutationHistory:", helper_text)
         self.assertIn("def set_node_property(self, node_id: str, key: str, value: Any) -> None:", helper_text)
         self.assertIn("def move_nodes_by_delta(self, node_ids: list[Any], dx: float, dy: float) -> bool:", helper_text)
         self.assertIn("def _mutation_boundary(self) -> WorkspaceMutationService:", helper_text)
         self.assertIn("boundary_adapters=self._boundary_adapters", helper_text)
+
+    def test_graph_canvas_bridges_resolve_split_scene_sources_without_losing_scene_compatibility(self) -> None:
+        bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
+        state_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_state_bridge.py"
+        ).read_text(encoding="utf-8")
+        command_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_canvas_command_bridge.py"
+        ).read_text(encoding="utf-8")
+        canvas_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "GraphCanvas.qml"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("def state_bridge(self) -> GraphSceneReadBridge:", bridge_text)
+        self.assertIn("def command_bridge(self) -> GraphSceneCommandBridge:", bridge_text)
+        self.assertIn("def policy_bridge(self) -> GraphScenePolicyBridge:", bridge_text)
+        self.assertIn("def _resolve_scene_state_source(scene_bridge: object | None)", state_text)
+        self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", state_text)
+        self.assertIn("def _resolve_scene_command_source(scene_bridge: object | None)", command_text)
+        self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", command_text)
+        self.assertIn("readonly property var sceneStateBridge: root._canvasSceneStateBridgeRef", canvas_text)
+        self.assertIn("readonly property var sceneCommandBridge: root._canvasSceneCommandBridgeRef", canvas_text)
+        self.assertIn("sceneBridge: root.sceneStateBridge", canvas_text)
+        self.assertIn("sceneCommandBridge: root.sceneCommandBridge", canvas_text)
+
+        scene = GraphSceneBridge()
+        canvas_state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
+        canvas_command_bridge = GraphCanvasCommandBridge(scene_bridge=scene)
+
+        self.assertIs(canvas_state_bridge.scene_bridge, scene)
+        self.assertIs(canvas_state_bridge.scene_state_source, scene.state_bridge)
+        self.assertIs(canvas_state_bridge.scene_policy_source, scene.policy_bridge)
+        self.assertIs(canvas_command_bridge.scene_bridge, scene)
+        self.assertIs(canvas_command_bridge.scene_command_source, scene.command_bridge)
+        self.assertIs(canvas_command_bridge.scene_policy_source, scene.policy_bridge)
 
     def test_set_workspace_does_not_mutate_node_properties_or_exposed_ports(self) -> None:
         registry = build_default_registry()

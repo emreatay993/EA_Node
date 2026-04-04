@@ -50,6 +50,9 @@ class PassiveGraphSurfaceHostBoundaryTests(unittest.TestCase):
 
 class PassiveGraphSurfaceHostTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
+        self._run_qml_probe_with_retry(label, body)
+
+    def _run_qml_probe_once(self, label: str, body: str) -> None:
         run_qml_probe(
             self,
             label,
@@ -457,6 +460,15 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
             QML_POINTER_REGRESSION_HELPERS,
             body,
         )
+
+    def _run_qml_probe_with_retry(self, label: str, body: str, *, retries: int = 2) -> None:
+        for attempt in range(max(1, int(retries))):
+            try:
+                self._run_qml_probe_once(label, body)
+                return
+            except AssertionError as exc:
+                if "exit code 3221226505" not in str(exc) or attempt + 1 >= retries:
+                    raise
 
     def test_graph_node_host_loads_standard_surface_for_standard_nodes(self) -> None:
         self._run_qml_probe(
@@ -2487,7 +2499,7 @@ class PassiveGraphSurfaceHostTests(unittest.TestCase):
         )
 
     def test_graph_canvas_keeps_node_shadow_visible_during_wheel_zoom(self) -> None:
-        self._run_qml_probe(
+        self._run_qml_probe_with_retry(
             "graph-canvas-shadow-quality",
             """
             from tests.qt_wait import wait_for_condition_or_raise

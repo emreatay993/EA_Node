@@ -29,6 +29,8 @@ Item {
     readonly property var _canvasShellCommandBridgeRef: root.canvasCommandBridgeRef
     readonly property var _canvasSceneCommandBridgeRef: root.canvasCommandBridgeRef
     readonly property var _canvasViewCommandBridgeRef: root._canvasViewStateBridgeRef
+    readonly property var sceneStateBridge: root._canvasSceneStateBridgeRef
+    readonly property var sceneCommandBridge: root._canvasSceneCommandBridgeRef
     readonly property var sceneBridge: root._canvasSceneStateBridgeRef
     readonly property var viewBridge: root._canvasViewStateBridgeRef
     property var overlayHostItem: null
@@ -117,7 +119,7 @@ Item {
         id: interactionState
         canvasItem: root
         shellBridge: root._canvasShellCommandBridgeRef
-        sceneBridge: root._canvasSceneStateBridgeRef
+        sceneBridge: root.sceneStateBridge
         edgeLayerItem: edgeLayer
         interactionIdleTimer: interactionIdleTimer
         interactionIdleDelayMs: root.interactionIdleDelayMs
@@ -150,7 +152,7 @@ Item {
     GraphCanvasComponents.GraphCanvasSceneLifecycle {
         id: sceneLifecycle
         canvasItem: root
-        sceneStateBridge: root._canvasSceneStateBridgeRef
+        sceneStateBridge: root.sceneStateBridge
         viewStateBridge: root._canvasViewStateBridgeRef
         sceneState: sceneState
         interactionState: interactionState
@@ -727,9 +729,9 @@ Item {
         objectName: "graphCanvasEdgeLayer"
         anchors.fill: parent
         viewBridge: root._canvasViewStateBridgeRef
-        sceneBridge: root._canvasSceneStateBridgeRef
+        sceneBridge: root.sceneStateBridge
         edges: root.edgePayload
-        nodes: root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : []
+        nodes: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
         dragOffsets: root.liveDragOffsets
         liveNodeGeometry: root.liveNodeGeometry
         selectedEdgeIds: root.selectedEdgeIds
@@ -782,14 +784,14 @@ Item {
         objectName: "graphCanvasWorld"
         canvasItem: root
         viewBridge: root._canvasViewStateBridgeRef
-        sceneModel: root._canvasSceneStateBridgeRef ? root._canvasSceneStateBridgeRef.nodes_model : []
+        sceneModel: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
     }
 
     GraphCanvasComponents.GraphCanvasMinimapOverlay {
         id: minimapOverlay
         objectName: "graphCanvasMinimapOverlay"
         canvasItem: root
-        sceneStateBridge: root._canvasSceneStateBridgeRef
+        sceneStateBridge: root.sceneStateBridge
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
         degradedWindowActive: root.minimapSimplificationActive
@@ -800,7 +802,7 @@ Item {
         objectName: "graphCanvasInputLayers"
         canvasItem: root
         shellCommandBridge: root._canvasShellCommandBridgeRef
-        sceneCommandBridge: root._canvasSceneCommandBridgeRef
+        sceneCommandBridge: root.sceneCommandBridge
         viewStateBridge: root._canvasViewStateBridgeRef
         viewCommandBridge: root._canvasViewCommandBridgeRef
         boxZoomDragThreshold: root.boxZoomDragThreshold

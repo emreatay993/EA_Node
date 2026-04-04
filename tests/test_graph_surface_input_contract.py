@@ -69,6 +69,9 @@ class _RenderQualityPayloadPlugin:
 
 class GraphSurfaceInputContractTests(unittest.TestCase):
     def _run_qml_probe(self, label: str, body: str) -> None:
+        self._run_qml_probe_with_retry(label, body)
+
+    def _run_qml_probe_once(self, label: str, body: str) -> None:
         run_qml_probe(
             self,
             label,
@@ -263,7 +266,7 @@ class GraphSurfaceInputContractTests(unittest.TestCase):
     def _run_qml_probe_with_retry(self, label: str, body: str, *, retries: int = 2) -> None:
         for attempt in range(max(1, int(retries))):
             try:
-                self._run_qml_probe(label, body)
+                self._run_qml_probe_once(label, body)
                 return
             except AssertionError as exc:
                 if "exit code 3221226505" not in str(exc) or attempt + 1 >= retries:

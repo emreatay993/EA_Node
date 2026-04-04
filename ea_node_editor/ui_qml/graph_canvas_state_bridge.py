@@ -32,6 +32,26 @@ class _GraphCanvasStateSource(Protocol):
     snap_grid_size: float
 
 
+class _GraphCanvasSceneStateSource(Protocol):
+    nodes_changed: _SignalLike
+    edges_changed: _SignalLike
+    selection_changed: _SignalLike
+    workspace_changed: _SignalLike
+    workspace_id: str
+    nodes_model: list[dict[str, Any]]
+    minimap_nodes_model: list[dict[str, Any]]
+    backdrop_nodes_model: list[dict[str, Any]]
+    workspace_scene_bounds_payload: dict[str, Any]
+    edges_model: list[dict[str, Any]]
+    selected_node_lookup: dict[str, bool]
+
+
+class _GraphCanvasScenePolicySource(Protocol):
+    def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool: ...
+
+    def are_data_types_compatible(self, source_type: str, target_type: str) -> bool: ...
+
+
 def _copy_list(value: object) -> list[Any]:
     return list(value) if isinstance(value, list) else []
 
@@ -70,6 +90,24 @@ def _resolve_canvas_source(
     return cast(_GraphCanvasStateSource, shell_window)
 
 
+def _resolve_scene_state_source(scene_bridge: object | None) -> _GraphCanvasSceneStateSource | None:
+    if scene_bridge is None:
+        return None
+    return cast(
+        _GraphCanvasSceneStateSource,
+        getattr(scene_bridge, "state_bridge", scene_bridge),
+    )
+
+
+def _resolve_scene_policy_source(scene_bridge: object | None) -> _GraphCanvasScenePolicySource | None:
+    if scene_bridge is None:
+        return None
+    return cast(
+        _GraphCanvasScenePolicySource,
+        getattr(scene_bridge, "policy_bridge", scene_bridge),
+    )
+
+
 class GraphCanvasStateBridge(QObject):
     graphics_preferences_changed = pyqtSignal()
     snap_to_grid_changed = pyqtSignal()
@@ -94,6 +132,8 @@ class GraphCanvasStateBridge(QObject):
         self._scene_bridge = scene_bridge
         self._view_bridge = view_bridge
         self._canvas_source = _resolve_canvas_source(shell_window, canvas_source)
+        self._scene_state_source = _resolve_scene_state_source(scene_bridge)
+        self._scene_policy_source = _resolve_scene_policy_source(scene_bridge)
 
         _connect_signal(
             self._canvas_source,
@@ -101,11 +141,11 @@ class GraphCanvasStateBridge(QObject):
             self.graphics_preferences_changed.emit,
         )
         _connect_signal(self._canvas_source, "snap_to_grid_changed", self.snap_to_grid_changed.emit)
-        _connect_signal(scene_bridge, "nodes_changed", self.scene_nodes_changed.emit)
-        _connect_signal(scene_bridge, "edges_changed", self.scene_edges_changed.emit)
-        _connect_signal(scene_bridge, "selection_changed", self.scene_selection_changed.emit)
-        _connect_signal(scene_bridge, "workspace_changed", self.failure_highlight_changed.emit)
-        _connect_signal(scene_bridge, "workspace_changed", self.node_execution_state_changed.emit)
+        _connect_signal(self._scene_state_source, "nodes_changed", self.scene_nodes_changed.emit)
+        _connect_signal(self._scene_state_source, "edges_changed", self.scene_edges_changed.emit)
+        _connect_signal(self._scene_state_source, "selection_changed", self.scene_selection_changed.emit)
+        _connect_signal(self._scene_state_source, "workspace_changed", self.failure_highlight_changed.emit)
+        _connect_signal(self._scene_state_source, "workspace_changed", self.node_execution_state_changed.emit)
         _connect_signal(shell_window, "run_failure_changed", self.failure_highlight_changed.emit)
         _connect_signal(shell_window, "node_execution_state_changed", self.node_execution_state_changed.emit)
         _connect_signal(view_bridge, "view_state_changed", self.view_state_changed.emit)
@@ -121,6 +161,14 @@ class GraphCanvasStateBridge(QObject):
     @property
     def scene_bridge(self) -> "GraphSceneBridge | None":
         return self._scene_bridge
+
+    @property
+    def scene_state_source(self) -> _GraphCanvasSceneStateSource | None:
+        return self._scene_state_source
+
+    @property
+    def scene_policy_source(self) -> _GraphCanvasScenePolicySource | None:
+        return self._scene_policy_source
 
     @property
     def view_bridge(self) -> "ViewportBridge | None":
@@ -207,27 +255,27 @@ class GraphCanvasStateBridge(QObject):
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def nodes_model(self) -> list[dict]:
-        return _copy_list(_source_attr(self._scene_bridge, "nodes_model", []))
+        return _copy_list(_source_attr(self._scene_state_source, "nodes_model", []))
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def minimap_nodes_model(self) -> list[dict]:
-        return _copy_list(_source_attr(self._scene_bridge, "minimap_nodes_model", []))
+        return _copy_list(_source_attr(self._scene_state_source, "minimap_nodes_model", []))
 
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def backdrop_nodes_model(self) -> list[dict]:
-        return _copy_list(_source_attr(self._scene_bridge, "backdrop_nodes_model", []))
+        return _copy_list(_source_attr(self._scene_state_source, "backdrop_nodes_model", []))
 
     @pyqtProperty("QVariantMap", notify=scene_nodes_changed)
     def workspace_scene_bounds_payload(self) -> dict[str, Any]:
-        return _copy_dict(_source_attr(self._scene_bridge, "workspace_scene_bounds_payload", {}))
+        return _copy_dict(_source_attr(self._scene_state_source, "workspace_scene_bounds_payload", {}))
 
     @pyqtProperty("QVariantList", notify=scene_edges_changed)
     def edges_model(self) -> list[dict]:
-        return _copy_list(_source_attr(self._scene_bridge, "edges_model", []))
+        return _copy_list(_source_attr(self._scene_state_source, "edges_model", []))
 
     @pyqtProperty("QVariantMap", notify=scene_selection_changed)
     def selected_node_lookup(self) -> dict[str, bool]:
-        return _copy_dict(_source_attr(self._scene_bridge, "selected_node_lookup", {}))
+        return _copy_dict(_source_attr(self._scene_state_source, "selected_node_lookup", {}))
 
     @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
     def failed_node_lookup(self) -> dict[str, bool]:
@@ -266,7 +314,7 @@ class GraphCanvasStateBridge(QObject):
         return str(getattr(run_state, "failed_node_title", "") or "")
 
     def _active_workspace_id(self) -> str:
-        workspace_id = str(_source_attr(self._scene_bridge, "workspace_id", "") or "").strip()
+        workspace_id = str(_source_attr(self._scene_state_source, "workspace_id", "") or "").strip()
         if workspace_id:
             return workspace_id
         shell_window = self._shell_window
@@ -319,7 +367,7 @@ class GraphCanvasStateBridge(QObject):
     @pyqtSlot(str, str, result=bool)
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool:
         return _invoke_bool(
-            self._scene_bridge,
+            self._scene_policy_source,
             "are_port_kinds_compatible",
             source_kind,
             target_kind,
@@ -328,7 +376,7 @@ class GraphCanvasStateBridge(QObject):
     @pyqtSlot(str, str, result=bool)
     def are_data_types_compatible(self, source_type: str, target_type: str) -> bool:
         return _invoke_bool(
-            self._scene_bridge,
+            self._scene_policy_source,
             "are_data_types_compatible",
             source_type,
             target_type,
