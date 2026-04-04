@@ -155,6 +155,13 @@ docs/specs/work_packets/architecture_residual_refactor/*
 !docs/specs/work_packets/architecture_residual_refactor/ARCHITECTURE_RESIDUAL_REFACTOR_P*.md
 !docs/specs/work_packets/architecture_residual_refactor/ARCHITECTURE_RESIDUAL_REFACTOR_P*_PROMPT.md
 !docs/specs/work_packets/architecture_residual_refactor/P*_WRAPUP.md
+!docs/specs/work_packets/ui_context_scalability_refactor/
+docs/specs/work_packets/ui_context_scalability_refactor/*
+!docs/specs/work_packets/ui_context_scalability_refactor/UI_CONTEXT_SCALABILITY_REFACTOR_MANIFEST.md
+!docs/specs/work_packets/ui_context_scalability_refactor/UI_CONTEXT_SCALABILITY_REFACTOR_STATUS.md
+!docs/specs/work_packets/ui_context_scalability_refactor/UI_CONTEXT_SCALABILITY_REFACTOR_P*.md
+!docs/specs/work_packets/ui_context_scalability_refactor/UI_CONTEXT_SCALABILITY_REFACTOR_P*_PROMPT.md
+!docs/specs/work_packets/ui_context_scalability_refactor/P*_WRAPUP.md
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/
 docs/specs/work_packets/global_gap_break_edge_crossing_variant/*
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md
@@ -239,6 +246,7 @@ docs/specs/perf/*
 !docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md
 !docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md
 !docs/specs/perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md
+!docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md
 !tests/fixtures/passive_nodes/reference_flowchart.sfe
 
 # Benchmark reference assets
