@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -80,6 +81,64 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertNotIn("return WorkspaceMutationService(", helper_text)
         self.assertIn("boundary_adapters=self._boundary_adapters", helper_text)
 
+    def test_mutation_history_facade_stays_within_packet_budget_and_helper_split(self) -> None:
+        ui_qml_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml"
+        package_root = ui_qml_dir / "graph_scene_mutation"
+        facade_path = ui_qml_dir / "graph_scene_mutation_history.py"
+        facade_text = facade_path.read_text(encoding="utf-8")
+        helper_paths = {
+            "__init__.py": package_root / "__init__.py",
+            "policy.py": package_root / "policy.py",
+            "selection_and_scope_ops.py": package_root / "selection_and_scope_ops.py",
+            "clipboard_and_fragment_ops.py": package_root / "clipboard_and_fragment_ops.py",
+            "alignment_and_distribution_ops.py": package_root / "alignment_and_distribution_ops.py",
+            "grouping_and_subnode_ops.py": package_root / "grouping_and_subnode_ops.py",
+            "comment_backdrop_ops.py": package_root / "comment_backdrop_ops.py",
+        }
+
+        self.assertTrue(package_root.is_dir())
+        for snippet in (
+            "graph_scene_mutation.policy",
+            "graph_scene_mutation.selection_and_scope_ops",
+            "graph_scene_mutation.clipboard_and_fragment_ops",
+            "graph_scene_mutation.alignment_and_distribution_ops",
+            "graph_scene_mutation.grouping_and_subnode_ops",
+            "graph_scene_mutation.comment_backdrop_ops",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, facade_text)
+        self.assertLessEqual(len(facade_text.splitlines()), 350)
+
+        for helper_name, helper_path in helper_paths.items():
+            with self.subTest(helper=helper_name):
+                self.assertTrue(helper_path.exists(), msg=f"missing helper {helper_name}")
+
+        module = importlib.import_module("ea_node_editor.ui_qml.graph_scene_mutation_history")
+        self.assertEqual(
+            module.GraphSceneMutationPolicy.are_ports_compatible.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.policy",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.add_node_from_type.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.selection_and_scope_ops",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.move_node.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.alignment_and_distribution_ops",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.group_selected_nodes.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.grouping_and_subnode_ops",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.wrap_nodes_in_comment_backdrop.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.comment_backdrop_ops",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.duplicate_selected_subgraph.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.clipboard_and_fragment_ops",
+        )
+
     def test_graph_canvas_bridges_resolve_split_scene_sources_without_losing_scene_compatibility(self) -> None:
         bridge_text = (_REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_bridge.py").read_text(encoding="utf-8")
         support_text = (
@@ -103,8 +162,8 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", state_text)
         self.assertIn("def _resolve_scene_command_source(scene_bridge: object | None)", command_text)
         self.assertIn("def _resolve_scene_policy_source(scene_bridge: object | None)", command_text)
-        self.assertIn("readonly property var sceneStateBridge: root._canvasSceneStateBridgeRef", canvas_text)
-        self.assertIn("readonly property var sceneCommandBridge: root._canvasSceneCommandBridgeRef", canvas_text)
+        self.assertIn("readonly property var sceneStateBridge: rootBindings.sceneStateBridge", canvas_text)
+        self.assertIn("readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge", canvas_text)
         self.assertIn("sceneBridge: root.sceneStateBridge", canvas_text)
         self.assertIn("sceneCommandBridge: root.sceneCommandBridge", canvas_text)
 
