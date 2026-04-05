@@ -6,7 +6,7 @@
 
 | Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
 |---|---|---|---|---|---|---|---|
-| P00 Bootstrap | `codex/ui-context-scalability-followup/p00-bootstrap` | PENDING |  |  |  |  | Bootstrap docs are not yet accepted until the packet set is written, registered, verified, and the accepted substantive commit SHA is recorded |
+| P00 Bootstrap | `codex/ui-context-scalability-followup/p00-bootstrap` | PASS | 4c70f8ec4df87805ef8b05c47ceea088797ed458 | bootstrap file gate: `UI_CONTEXT_SCALABILITY_FOLLOWUP_P00_FILE_GATE_PASS`; bootstrap review gate: `UI_CONTEXT_SCALABILITY_FOLLOWUP_P00_STATUS_PASS` | PASS (`UI_CONTEXT_SCALABILITY_FOLLOWUP_P00_FILE_GATE_PASS`; `UI_CONTEXT_SCALABILITY_FOLLOWUP_P00_STATUS_PASS`) | `.gitignore`, `docs/UI_CONTEXT_SCALABILITY_FOLLOWUP_REVIEW_2026-04-05.md`, `docs/specs/INDEX.md`, `docs/specs/work_packets/ui_context_scalability_followup/*` | Bootstrap docs are committed on the packet branch and are ready for executor-driven sequential packet waves on top of this bootstrap state |
 | P01 Guardrail Catalog Expansion | `codex/ui-context-scalability-followup/p01-guardrail-catalog-expansion` | PENDING |  |  |  |  |  |
 | P02 Shell Session Surface Split | `codex/ui-context-scalability-followup/p02-shell-session-surface-split` | PENDING |  |  |  |  |  |
 | P03 Graph Geometry Facade Split | `codex/ui-context-scalability-followup/p03-graph-geometry-facade-split` | PENDING |  |  |  |  |  |
