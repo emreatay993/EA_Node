@@ -4,6 +4,13 @@
 This file explains how COREX Node Editor is structured, how runtime data moves through the app, and where to make changes safely.
 It is a practical map for engineers working in this repository.
 
+## UI packet entry path
+Before changing packet-owned UI seams:
+- start with the [UI subsystem packet index](docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md) to pick the owning subsystem packet and inherit its verification anchors;
+- reuse the [UI feature packet template](docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md) for future UI packet specs;
+- read the owning subsystem contract doc before expanding shell, presenter, graph-scene, graph-canvas, edge-rendering, or viewer seams; and
+- keep one primary owner when work crosses subsystems instead of reopening omnibus files or raw host globals.
+
 ## What this app does
 COREX Node Editor is a desktop visual workflow editor that:
 - lets users build node graphs on a QML canvas,

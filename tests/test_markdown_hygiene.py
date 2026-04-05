@@ -11,6 +11,17 @@ from scripts import verification_manifest as manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_markdown_links.py"
+UI_PACKET_DOCS_ROOT = (
+    REPO_ROOT / "docs" / "specs" / "work_packets" / "ui_context_scalability_refactor"
+)
+UI_SUBSYSTEM_CONTRACT_DOCS = (
+    UI_PACKET_DOCS_ROOT / "SHELL_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "PRESENTERS_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "GRAPH_SCENE_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "GRAPH_CANVAS_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "EDGE_RENDERING_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "VIEWER_PACKET.md",
+)
 
 
 def load_module(module_name: str, module_path: Path):
@@ -50,6 +61,66 @@ class MarkdownHygieneTests(unittest.TestCase):
             spec_index_text,
         )
         self.assertTrue(matrix_text.startswith("# Architecture Residual Refactor QA Matrix"))
+
+    def test_architecture_registers_ui_packet_entry_path(self) -> None:
+        architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[UI subsystem packet index](docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md)",
+            architecture_text,
+        )
+        self.assertIn(
+            "[UI feature packet template](docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md)",
+            architecture_text,
+        )
+
+    def test_ui_subsystem_packet_contract_docs_have_required_sections(self) -> None:
+        required_headings = (
+            "## Owner Files",
+            "## Public Entry Points",
+            "## State Owner",
+            "## Allowed Dependencies",
+            "## Invariants",
+            "## Forbidden Shortcuts",
+            "## Required Tests",
+        )
+
+        for path in UI_SUBSYSTEM_CONTRACT_DOCS:
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8-sig")
+
+                for heading in required_headings:
+                    self.assertIn(heading, text)
+                self.assertEqual([], self.checker.audit_markdown_file(path, REPO_ROOT))
+
+    def test_ui_subsystem_packet_index_maps_contract_docs_and_test_anchors(self) -> None:
+        index_path = UI_PACKET_DOCS_ROOT / "SUBSYSTEM_PACKET_INDEX.md"
+        index_text = index_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn("[Shell Packet](./SHELL_PACKET.md)", index_text)
+        self.assertIn("[Presenters Packet](./PRESENTERS_PACKET.md)", index_text)
+        self.assertIn("[Graph Scene Packet](./GRAPH_SCENE_PACKET.md)", index_text)
+        self.assertIn("[Graph Canvas Packet](./GRAPH_CANVAS_PACKET.md)", index_text)
+        self.assertIn("[Edge Rendering Packet](./EDGE_RENDERING_PACKET.md)", index_text)
+        self.assertIn("[Viewer Packet](./VIEWER_PACKET.md)", index_text)
+        self.assertIn("[feature packet template](./FEATURE_PACKET_TEMPLATE.md)", index_text)
+        self.assertIn("`tests/test_main_window_shell.py`", index_text)
+        self.assertIn("`tests/test_graph_scene_bridge_bind_regression.py`", index_text)
+        self.assertIn("`tests/test_graph_surface_input_contract.py`", index_text)
+        self.assertIn("`tests/test_flow_edge_labels.py`", index_text)
+        self.assertIn("`tests/test_viewer_session_bridge.py`", index_text)
+        self.assertEqual([], self.checker.audit_markdown_file(index_path, REPO_ROOT))
+
+    def test_ui_feature_packet_template_requires_owner_and_inherited_tests(self) -> None:
+        template_path = UI_PACKET_DOCS_ROOT / "FEATURE_PACKET_TEMPLATE.md"
+        template_text = template_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn("[subsystem packet index](./SUBSYSTEM_PACKET_INDEX.md)", template_text)
+        self.assertIn("Owning Subsystem Packet", template_text)
+        self.assertIn("Inherited Secondary Subsystem Docs", template_text)
+        self.assertIn("Required Tests", template_text)
+        self.assertIn("Forbidden Shortcuts", template_text)
+        self.assertEqual([], self.checker.audit_markdown_file(template_path, REPO_ROOT))
 
     def test_audit_repository_reports_missing_local_markdown_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
