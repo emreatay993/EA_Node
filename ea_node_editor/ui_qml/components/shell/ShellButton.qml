@@ -9,7 +9,26 @@ ToolButton {
     property url iconSource: ""
     property string tooltipText: ""
     property int iconSize: iconName.length > 0 && uiIcons.has(iconName) ? uiIcons.defaultSize(iconName) : 16
-    property color iconColor: selectedStyle ? themePalette.tab_selected_fg : themePalette.tab_fg
+    readonly property color foregroundColor: !control.enabled
+        ? Qt.alpha(control.themePalette.muted_fg, 0.55)
+        : (control.selectedStyle ? control.themePalette.tab_selected_fg : control.themePalette.tab_fg)
+    readonly property color chromeBorderColor: !control.enabled
+        ? Qt.alpha(control.themePalette.border, 0.65)
+        : (control.selectedStyle
+            ? control.themePalette.accent
+            : (control.down ? control.themePalette.input_border : control.themePalette.border))
+    readonly property color chromeFillColor: !control.enabled
+        ? Qt.alpha(
+            control.selectedStyle ? control.themePalette.accent_strong : control.themePalette.tab_bg,
+            control.selectedStyle ? 0.35 : 0.9
+        )
+        : (control.selectedStyle
+            ? control.themePalette.accent_strong
+            : ((control.enabled && control.down)
+                ? control.themePalette.pressed
+                : ((control.enabled && control.hovered) ? control.themePalette.hover : control.themePalette.tab_bg)))
+    readonly property real contentOpacity: control.enabled ? 1.0 : 0.72
+    property color iconColor: control.foregroundColor
     readonly property string resolvedIconSource: iconName.length > 0
         ? uiIcons.sourceSized(iconName, iconSize, String(iconColor))
         : iconSource
@@ -19,15 +38,16 @@ ToolButton {
     implicitHeight: 24
     implicitWidth: Math.max(control.resolvedIconSource !== "" && control.text.length === 0 ? 28 : 64, contentRow.implicitWidth + 16)
     padding: 0
-    hoverEnabled: true
+    hoverEnabled: control.enabled
 
-    ToolTip.visible: hovered && resolvedTooltipText.length > 0
+    ToolTip.visible: control.enabled && hovered && resolvedTooltipText.length > 0
     ToolTip.text: resolvedTooltipText
     ToolTip.delay: 300
 
     contentItem: Item {
         implicitWidth: contentRow.implicitWidth
         implicitHeight: contentRow.implicitHeight
+        opacity: control.contentOpacity
 
         Row {
             id: contentRow
@@ -50,7 +70,7 @@ ToolButton {
                 id: label
                 visible: control.text.length > 0
                 text: control.text
-                color: control.selectedStyle ? control.themePalette.tab_selected_fg : control.themePalette.tab_fg
+                color: control.foregroundColor
                 font.pixelSize: 11
                 font.bold: control.selectedStyle
                 horizontalAlignment: Text.AlignHCenter
@@ -61,13 +81,7 @@ ToolButton {
 
     background: Rectangle {
         radius: 2
-        border.color: control.selectedStyle
-            ? control.themePalette.accent
-            : (control.down ? control.themePalette.input_border : control.themePalette.border)
-        color: control.selectedStyle
-            ? control.themePalette.accent_strong
-            : (control.down
-                ? control.themePalette.pressed
-                : (control.hovered ? control.themePalette.hover : control.themePalette.tab_bg))
+        border.color: control.chromeBorderColor
+        color: control.chromeFillColor
     }
 }

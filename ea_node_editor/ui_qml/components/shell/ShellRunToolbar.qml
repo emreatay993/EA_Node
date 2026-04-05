@@ -20,16 +20,22 @@ Rectangle {
         spacing: 6
 
         ShellButton {
+            objectName: "shellRunToolbarRunButton"
             iconName: "run"
+            enabled: root.workspaceBridgeRef.active_workspace_can_run
             onClicked: root.workspaceBridgeRef.request_run_workflow()
         }
         ShellButton {
+            objectName: "shellRunToolbarPauseButton"
             iconName: "pause"
             tooltipText: "Pause / Resume"
+            enabled: root.workspaceBridgeRef.active_workspace_can_pause
             onClicked: root.workspaceBridgeRef.request_toggle_run_pause()
         }
         ShellButton {
+            objectName: "shellRunToolbarStopButton"
             iconName: "stop"
+            enabled: root.workspaceBridgeRef.active_workspace_can_stop
             onClicked: root.workspaceBridgeRef.request_stop_workflow()
         }
         Item { Layout.fillWidth: true }
