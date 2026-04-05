@@ -1,10 +1,9 @@
 from __future__ import annotations
 
+import importlib
+from pathlib import Path
 import unittest
-from unittest.mock import Mock
 
-from ea_node_editor.graph.model import GraphModel
-from ea_node_editor.nodes.bootstrap import build_default_registry
 from tests.graph_track_b.qml_preference_bindings import (
     GraphCanvasQmlPreferenceBindingTests,
     build_graph_canvas_qml_preference_binding_subprocess_suite,
@@ -13,41 +12,58 @@ from tests.graph_track_b.runtime_history import RuntimeGraphHistoryTrackBTests
 from tests.graph_track_b.scene_and_model import GraphModelTrackBTests, GraphSceneBridgeTrackBTests
 from tests.graph_track_b.viewport import ViewportBridgeTrackBTests
 
-
-def _compat_test_workspace_mutation_service_clamps_pdf_panel_page_numbers_on_property_updates(self) -> None:
-    registry = build_default_registry()
-    model = GraphModel()
-    workspace = model.active_workspace
-    service = model.validated_mutations(workspace.workspace_id, registry)
-    spec = registry.get_spec("passive.media.pdf_panel")
-    node = service.add_node(
-        type_id=spec.type_id,
-        title=spec.display_name,
-        x=40.0,
-        y=60.0,
-        properties=registry.default_properties(spec.type_id),
-        exposed_ports={port.key: port.exposed for port in spec.ports},
-    )
-
-    clamp_pdf_page_number = Mock(return_value=2)
-    service.boundary_adapters.clamp_pdf_page_number_resolver = clamp_pdf_page_number
-    source_path = service.set_node_property(node.node_id, "source_path", "/tmp/clamped.pdf")
-    page_updates = service.set_node_properties(node.node_id, {"page_number": 99})
-
-    self.assertEqual(source_path, "/tmp/clamped.pdf")
-    self.assertEqual(page_updates, {"page_number": 2})
-    self.assertEqual(workspace.nodes[node.node_id].properties["page_number"], 2)
-    self.assertEqual(clamp_pdf_page_number.call_args_list[-1].args, ("/tmp/clamped.pdf", 99))
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-# Keep the shared track-b source untouched and override only the stale patch target here.
-GraphModelTrackBTests.test_workspace_mutation_service_clamps_pdf_panel_page_numbers_on_property_updates = (
-    _compat_test_workspace_mutation_service_clamps_pdf_panel_page_numbers_on_property_updates
-)
+class TrackBPacketBoundaryTests(unittest.TestCase):
+    def test_track_b_entrypoints_stay_thin_and_route_suites_through_packet_modules(self) -> None:
+        qml_module = importlib.import_module("tests.graph_track_b.qml_preference_bindings")
+        scene_module = importlib.import_module("tests.graph_track_b.scene_and_model")
+        package_root = _REPO_ROOT / "tests" / "graph_track_b"
+
+        self.assertLessEqual(
+            len((package_root / "qml_preference_bindings.py").read_text(encoding="utf-8").splitlines()),
+            200,
+        )
+        self.assertLessEqual(
+            len((package_root / "scene_and_model.py").read_text(encoding="utf-8").splitlines()),
+            200,
+        )
+        for relative_path in (
+            "qml_support.py",
+            "theme_support.py",
+            "qml_preference_rendering_suite.py",
+            "qml_preference_performance_suite.py",
+            "scene_model_graph_model_suite.py",
+            "scene_model_graph_scene_suite.py",
+        ):
+            with self.subTest(path=relative_path):
+                self.assertTrue((package_root / relative_path).is_file())
+
+        self.assertEqual(
+            {base.__module__ for base in qml_module.GraphCanvasQmlPreferenceBindingTests.__bases__},
+            {
+                "tests.graph_track_b.qml_preference_rendering_suite",
+                "tests.graph_track_b.qml_preference_performance_suite",
+            },
+        )
+        self.assertEqual(
+            scene_module.GraphModelTrackBTests.__module__,
+            "tests.graph_track_b.scene_model_graph_model_suite",
+        )
+        self.assertEqual(
+            scene_module.GraphSceneBridgeTrackBTests.__module__,
+            "tests.graph_track_b.scene_model_graph_scene_suite",
+        )
+        self.assertEqual(
+            scene_module._GraphCanvasPreferenceBridge.__module__,
+            "tests.graph_track_b.qml_support",
+        )
 
 
 def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
     suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(TrackBPacketBoundaryTests))
     suite.addTests(loader.loadTestsFromTestCase(GraphModelTrackBTests))
     suite.addTests(loader.loadTestsFromTestCase(GraphSceneBridgeTrackBTests))
     suite.addTests(loader.loadTestsFromTestCase(ViewportBridgeTrackBTests))

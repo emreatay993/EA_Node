@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import os
 from pathlib import Path
 import subprocess
@@ -176,6 +177,38 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
                 abs(start["x"] - end["x"]) < 0.001 or abs(start["y"] - end["y"]) < 0.001,
                 msg=f"segment {index - 1}->{index} is not orthogonal: {start} -> {end}",
             )
+
+
+class TrackBQmlPreferencePacketBoundaryTests(unittest.TestCase):
+    def test_track_b_qml_entrypoint_keeps_edge_gap_break_coverage_packetized(self) -> None:
+        module = importlib.import_module("tests.graph_track_b.qml_preference_bindings")
+        package_root = _REPO_ROOT / "tests" / "graph_track_b"
+        entry_text = (package_root / "qml_preference_bindings.py").read_text(encoding="utf-8")
+        rendering_text = (package_root / "qml_preference_rendering_suite.py").read_text(encoding="utf-8")
+        performance_text = (package_root / "qml_preference_performance_suite.py").read_text(encoding="utf-8")
+
+        self.assertLessEqual(len(entry_text.splitlines()), 200)
+        self.assertIn("qml_preference_rendering_suite", entry_text)
+        self.assertIn("qml_preference_performance_suite", entry_text)
+        self.assertIn(
+            "def test_edge_layer_gap_break_marks_only_under_edge_for_pipe_pipe_crossings",
+            rendering_text,
+        )
+        self.assertIn(
+            "def test_edge_layer_gap_break_metadata_respects_style_and_performance_gates",
+            performance_text,
+        )
+        self.assertIn(
+            "def test_graph_canvas_propagates_visible_scene_rect_payload_to_edge_layer",
+            performance_text,
+        )
+        self.assertEqual(
+            {base.__module__ for base in module.GraphCanvasQmlPreferenceBindingTests.__bases__},
+            {
+                "tests.graph_track_b.qml_preference_rendering_suite",
+                "tests.graph_track_b.qml_preference_performance_suite",
+            },
+        )
 
 
 class FlowEdgeLabelQmlTests(unittest.TestCase):
