@@ -529,7 +529,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 assert bridge.close_calls == [{"node_id": "node_viewer_surface_host"}]
                 assert surface.property("viewerPhase") == "closed"
                 assert bool(surface.property("viewerShowsPlaceholder"))
-                assert session_button.property("iconName") == "run"
+                assert session_button.property("iconName") == "open-session"
+                assert session_button.property("iconName") != play_button.property("iconName")
                 assert status_text.property("text") == "Ready to open viewer session"
                 assert mode_label.property("text") == "Overlay"
 
@@ -537,7 +538,8 @@ class ViewerSurfaceHostTests(unittest.TestCase):
                 settle_events(5)
                 assert bridge.open_calls == [{"node_id": "node_viewer_surface_host"}]
                 assert surface.property("viewerPhase") == "opening"
-                assert session_button.property("iconName") == "run"
+                assert session_button.property("iconName") == "open-session"
+                assert session_button.property("iconName") != play_button.property("iconName")
                 assert status_text.property("text") == "Opening viewer session"
                 assert mode_label.property("text") == "Opening"
                 assert len(interactions) >= 5
