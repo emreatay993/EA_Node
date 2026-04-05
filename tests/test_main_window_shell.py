@@ -321,6 +321,53 @@ class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
         self.assertIn("_switch_workspace", module.SHELL_WINDOW_FACADE_BINDINGS)
 
 
+class MainWindowBridgeContractPacketBoundaryTests(unittest.TestCase):
+    def test_bridge_contracts_entrypoint_stays_thin_and_routes_suites_through_packet_modules(self) -> None:
+        module = importlib.import_module("tests.main_window_shell.bridge_contracts")
+        package_root = _REPO_ROOT / "tests" / "main_window_shell"
+        entry_path = package_root / "bridge_contracts.py"
+
+        self.assertLessEqual(len(entry_path.read_text(encoding="utf-8").splitlines()), 150)
+        for relative_path in (
+            "bridge_support.py",
+            "bridge_contracts_library_and_inspector.py",
+            "bridge_contracts_graph_canvas.py",
+            "bridge_contracts_workspace_and_console.py",
+            "bridge_contracts_main_window.py",
+        ):
+            with self.subTest(path=relative_path):
+                self.assertTrue((package_root / relative_path).is_file())
+
+        self.assertEqual(
+            module.ShellLibraryBridgeTests.__module__,
+            "tests.main_window_shell.bridge_contracts_library_and_inspector",
+        )
+        self.assertEqual(
+            module.ShellInspectorBridgeTests.__module__,
+            "tests.main_window_shell.bridge_contracts_library_and_inspector",
+        )
+        self.assertEqual(
+            module.GraphCanvasBridgeTests.__module__,
+            "tests.main_window_shell.bridge_contracts_graph_canvas",
+        )
+        self.assertEqual(
+            module.ShellWorkspaceBridgeTests.__module__,
+            "tests.main_window_shell.bridge_contracts_workspace_and_console",
+        )
+        self.assertEqual(
+            module.SharedUiSupportBoundaryTests.__module__,
+            "tests.main_window_shell.bridge_contracts_workspace_and_console",
+        )
+        self.assertEqual(
+            module.MainWindowGraphCanvasBridgeTests.__module__,
+            "tests.main_window_shell.bridge_contracts_main_window",
+        )
+        self.assertEqual(
+            module._named_child_items.__module__,
+            "tests.main_window_shell.bridge_support",
+        )
+
+
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
     def test_qml_context_registers_only_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
@@ -948,6 +995,7 @@ def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
         "ShellLibraryBridgeTests",
         "ShellInspectorBridgeTests",
         "ShellWorkspaceBridgeTests",
+        "MainWindowBridgeContractPacketBoundaryTests",
         "ShellWindowStateFacadeBoundaryTests",
         "ShellLibraryBridgeQmlBoundaryTests",
         "ShellInspectorBridgeQmlBoundaryTests",
