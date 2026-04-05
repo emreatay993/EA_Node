@@ -1,0 +1,145 @@
+from __future__ import annotations
+
+import inspect
+from typing import TYPE_CHECKING
+
+from PyQt6.QtCore import pyqtSlot
+
+if TYPE_CHECKING:
+    from ea_node_editor.ui.shell.window import ShellWindow
+
+
+@pyqtSlot()
+def request_save_project(self: "ShellWindow") -> None:
+    self._save_project()
+
+
+@pyqtSlot()
+def request_save_project_as(self: "ShellWindow") -> None:
+    self._save_project_as()
+
+
+@pyqtSlot()
+def request_open_project(self: "ShellWindow") -> None:
+    self._open_project()
+
+
+def _ensure_project_metadata_defaults(self: "ShellWindow"):
+    return self.project_session_controller.ensure_project_metadata_defaults()
+
+
+def _workflow_settings_payload(self: "ShellWindow"):
+    return self.project_session_controller.workflow_settings_payload()
+
+
+def _persist_script_editor_state(self: "ShellWindow"):
+    return self.project_session_controller.persist_script_editor_state()
+
+
+def _restore_script_editor_state(self: "ShellWindow"):
+    return self.project_session_controller.restore_script_editor_state()
+
+
+def _save_project(self: "ShellWindow"):
+    return self.project_session_controller.save_project()
+
+
+def _save_project_as(self: "ShellWindow"):
+    return self.project_session_controller.save_project_as()
+
+
+def _show_project_files(self: "ShellWindow"):
+    return self.project_session_controller.show_project_files_dialog()
+
+
+def _new_project(self: "ShellWindow"):
+    self.project_session_controller.new_project()
+    self.clear_run_failure_focus()
+    self._reset_viewer_session_bridge(reason="project_close")
+    return None
+
+
+def _open_project(self: "ShellWindow"):
+    before_project_path = self.project_path
+    before_project_object_id = id(self.model.project)
+    self.project_session_controller.open_project()
+    if self.project_path != before_project_path or id(self.model.project) != before_project_object_id:
+        self.clear_run_failure_focus()
+        self._reset_viewer_session_bridge(reason="project_close")
+    return None
+
+
+def _open_project_path(self: "ShellWindow", path):
+    opened = bool(self.project_session_controller.open_project_path(path))
+    if opened:
+        self.clear_run_failure_focus()
+        self._reset_viewer_session_bridge(reason="project_close")
+    return opened
+
+
+def _clear_recent_projects(self: "ShellWindow"):
+    return self.project_session_controller.clear_recent_projects()
+
+
+def _restore_session(self: "ShellWindow"):
+    return self.project_session_controller.restore_session()
+
+
+def _discard_autosave_snapshot(self: "ShellWindow"):
+    return self.project_session_controller.discard_autosave_snapshot()
+
+
+def _recover_autosave_if_newer(self: "ShellWindow"):
+    return self.project_session_controller.recover_autosave_if_newer()
+
+
+def _process_deferred_autosave_recovery(self: "ShellWindow"):
+    return self.project_session_controller.process_deferred_autosave_recovery()
+
+
+def _autosave_tick(self: "ShellWindow"):
+    return self.project_session_controller.autosave_tick()
+
+
+def _persist_session(self: "ShellWindow", project_doc=None):
+    return self.project_session_controller.persist_session(project_doc)
+
+
+def _prompt_recover_autosave(self: "ShellWindow", recovered_project=None):
+    return self.project_session_controller.prompt_recover_autosave(recovered_project)
+
+
+_PROPERTY_EXPORTS = set()
+_FORCE_BIND_NAMES = set()
+_PRIVATE_EXPORT_NAMES = {"_exported_names", "_should_bind"}
+
+
+def _exported_names() -> list[str]:
+    names = set(_PROPERTY_EXPORTS)
+    for name, value in globals().items():
+        if name in _PRIVATE_EXPORT_NAMES:
+            continue
+        if not inspect.isfunction(value) or getattr(value, "__module__", None) != __name__:
+            continue
+        if name.startswith("_get_"):
+            continue
+        if name.startswith("_set_") and name not in _FORCE_BIND_NAMES:
+            continue
+        names.add(name)
+    return sorted(names)
+
+
+def _should_bind(name: str, value: object) -> bool:
+    if name in _FORCE_BIND_NAMES:
+        return True
+    if name.startswith("_qt_") or name.startswith("_get_") or name.startswith("_set_"):
+        return False
+    return inspect.isfunction(value) or isinstance(value, property)
+
+
+__all__ = _exported_names()
+WINDOW_STATE_FACADE_BINDINGS = {
+    name: globals()[name]
+    for name in __all__
+    if _should_bind(name, globals()[name])
+}

@@ -280,6 +280,47 @@ class PresenterPackageBoundaryTests(unittest.TestCase):
                 self.assertLessEqual(line_count, max_lines)
 
 
+class ShellWindowStateFacadeBoundaryTests(unittest.TestCase):
+    def test_window_state_split_uses_curated_package_surface_and_packet_line_budget(self) -> None:
+        package_root = _REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_state"
+        helper_path = _REPO_ROOT / "ea_node_editor" / "ui" / "shell" / "window_state_helpers.py"
+
+        self.assertTrue(package_root.is_dir())
+        for relative_path in (
+            "__init__.py",
+            "context_properties.py",
+            "library_and_overlay_state.py",
+            "workspace_graph_actions.py",
+            "project_session_actions.py",
+            "run_and_style_state.py",
+        ):
+            with self.subTest(path=relative_path):
+                self.assertTrue((package_root / relative_path).is_file())
+        self.assertLessEqual(len(helper_path.read_text(encoding="utf-8").splitlines()), 350)
+
+        module = importlib.import_module("ea_node_editor.ui.shell.window_state_helpers")
+        self.assertEqual(
+            module.request_open_graph_search.__module__,
+            "ea_node_editor.ui.shell.window_state.library_and_overlay_state",
+        )
+        self.assertEqual(
+            module.mark_node_execution_running.__module__,
+            "ea_node_editor.ui.shell.window_state.run_and_style_state",
+        )
+        self.assertEqual(
+            module._save_project.__module__,
+            "ea_node_editor.ui.shell.window_state.project_session_actions",
+        )
+        self.assertEqual(
+            module._switch_workspace.__module__,
+            "ea_node_editor.ui.shell.window_state.workspace_graph_actions",
+        )
+        self.assertIn("request_open_graph_search", module.SHELL_WINDOW_FACADE_BINDINGS)
+        self.assertIn("mark_node_execution_running", module.SHELL_WINDOW_FACADE_BINDINGS)
+        self.assertIn("_save_project", module.SHELL_WINDOW_FACADE_BINDINGS)
+        self.assertIn("_switch_workspace", module.SHELL_WINDOW_FACADE_BINDINGS)
+
+
 class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
     def test_qml_context_registers_only_state_command_and_view_canvas_bridges(self) -> None:
         context = self.window.quick_widget.rootContext()
@@ -548,30 +589,32 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             "readonly property var _canvasShellCommandBridgeRef",
             "readonly property var _canvasSceneCommandBridgeRef",
             "readonly property var _canvasViewCommandBridgeRef",
-            "readonly property var sceneBridge: root._canvasSceneStateBridgeRef",
-            "readonly property var viewBridge: root._canvasViewStateBridgeRef",
-            "root._canvasStateBridgeRef.graphics_show_grid",
-            "root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []",
+            "GraphCanvasComponents.GraphCanvasRootBindings {",
+            "readonly property var sceneBridge: rootBindings.sceneBridge",
+            "readonly property var viewBridge: rootBindings.viewBridge",
+            "readonly property bool showGrid: rootBindings.showGrid",
+            "readonly property var sceneStateBridge: rootBindings.sceneStateBridge",
+            "readonly property var sceneCommandBridge: rootBindings.sceneCommandBridge",
             "GraphCanvasComponents.GraphCanvasInteractionState {",
             "GraphCanvasComponents.GraphCanvasSceneState {",
             "GraphCanvasComponents.GraphCanvasNodeSurfaceBridge {",
             "GraphCanvasComponents.GraphCanvasViewportController {",
             "GraphCanvasComponents.GraphCanvasSceneLifecycle {",
-            "GraphCanvasComponents.GraphCanvasWorldLayer {",
+            "GraphCanvasComponents.GraphCanvasRootLayers {",
+            "GraphCanvasComponents.GraphCanvasInputLayers {",
+            "GraphCanvasComponents.GraphCanvasContextMenus {",
             "readonly property var canvasViewportController: viewportController",
             "readonly property var canvasSceneLifecycle: sceneLifecycle",
             "property alias hoveredPort: interactionState.hoveredPort",
             "property alias pendingConnectionPort: interactionState.pendingConnectionPort",
             "property alias interactionActive: interactionState.interactionActive",
-            "interactionState.updateLibraryDropPreview(screenX, screenY, payload);",
-            "interactionState.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);",
-            "viewportController.applyWheelZoom(eventObj);",
-            "sceneLifecycle.requestEdgeRedraw();",
-            "viewBridge: root._canvasViewStateBridgeRef",
-            "sceneBridge: root._canvasSceneStateBridgeRef",
+            'GraphCanvasRootApi.invoke(interactionState, "updateLibraryDropPreview"',
+            'GraphCanvasRootApi.invoke(interactionState, "beginPortWireDrag"',
+            'GraphCanvasRootApi.invoke(viewportController, "applyWheelZoom"',
+            'GraphCanvasRootApi.invoke(sceneLifecycle, "requestEdgeRedraw"',
+            "sceneStateBridge: root.sceneStateBridge",
+            "sceneCommandBridge: root.sceneCommandBridge",
             "shellCommandBridge: root._canvasShellCommandBridgeRef",
-            "sceneCommandBridge: root._canvasSceneCommandBridgeRef",
-            "sceneStateBridge: root._canvasSceneStateBridgeRef",
             "viewStateBridge: root._canvasViewStateBridgeRef",
             "viewCommandBridge: root._canvasViewCommandBridgeRef",
         )
@@ -589,12 +632,12 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
         qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
         present_snippets = (
-            "readonly property var runningNodeLookup: root._canvasStateBridgeRef",
-            "root._canvasStateBridgeRef.running_node_lookup",
-            "readonly property var completedNodeLookup: root._canvasStateBridgeRef",
-            "root._canvasStateBridgeRef.completed_node_lookup",
-            "readonly property int nodeExecutionRevision: root._canvasStateBridgeRef",
-            "root._canvasStateBridgeRef.node_execution_revision",
+            "readonly property var runningNodeLookup: rootBindings.runningNodeLookup",
+            "rootBindings.runningNodeLookup",
+            "readonly property var completedNodeLookup: rootBindings.completedNodeLookup",
+            "rootBindings.completedNodeLookup",
+            "readonly property int nodeExecutionRevision: rootBindings.nodeExecutionRevision",
+            "rootBindings.nodeExecutionRevision",
         )
 
         _assert_text_snippets(
@@ -905,6 +948,7 @@ def load_tests(loader: unittest.TestLoader, _tests, _pattern):  # noqa: ANN001
         "ShellLibraryBridgeTests",
         "ShellInspectorBridgeTests",
         "ShellWorkspaceBridgeTests",
+        "ShellWindowStateFacadeBoundaryTests",
         "ShellLibraryBridgeQmlBoundaryTests",
         "ShellInspectorBridgeQmlBoundaryTests",
         "ShellWorkspaceBridgeQmlBoundaryTests",

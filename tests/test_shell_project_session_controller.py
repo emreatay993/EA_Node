@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import gc
 import json
 import os
@@ -975,8 +976,47 @@ class ShellProjectSessionControllerTests(unittest.TestCase):
         self._run_scenario("test_recovery_prompt_receives_project_file_summary_for_recovered_project")
 
 
+class ProjectSessionServiceFacadeBoundaryTests(unittest.TestCase):
+    def test_project_session_service_split_uses_support_package_surface_and_packet_line_budget(self) -> None:
+        facade_path = _PROJECT_ROOT / "ea_node_editor" / "ui" / "shell" / "controllers" / "project_session_services.py"
+        support_root = facade_path.parent / "project_session_services_support"
+
+        self.assertTrue(support_root.is_dir())
+        for relative_path in (
+            "__init__.py",
+            "shared.py",
+            "project_files_service.py",
+            "session_lifecycle_service.py",
+            "document_io_service.py",
+        ):
+            with self.subTest(path=relative_path):
+                self.assertTrue((support_root / relative_path).is_file())
+        self.assertLessEqual(len(facade_path.read_text(encoding="utf-8").splitlines()), 300)
+
+        module = importlib.import_module("ea_node_editor.ui.shell.controllers.project_session_services")
+        self.assertEqual(
+            module.ProjectFilesService.__module__,
+            "ea_node_editor.ui.shell.controllers.project_session_services_support.project_files_service",
+        )
+        self.assertEqual(
+            module.ProjectSessionLifecycleService.__module__,
+            "ea_node_editor.ui.shell.controllers.project_session_services_support.session_lifecycle_service",
+        )
+        self.assertEqual(
+            module.ProjectDocumentIOService.__module__,
+            "ea_node_editor.ui.shell.controllers.project_session_services_support.document_io_service",
+        )
+        self.assertEqual(
+            module.normalize_project_path_value.__module__,
+            "ea_node_editor.ui.shell.controllers.project_session_services_support.shared",
+        )
+
+
 def load_tests(loader, _tests, _pattern):  # noqa: ANN001
-    return loader.loadTestsFromTestCase(ShellProjectSessionControllerTests)
+    suite = unittest.TestSuite()
+    suite.addTests(loader.loadTestsFromTestCase(ProjectSessionServiceFacadeBoundaryTests))
+    suite.addTests(loader.loadTestsFromTestCase(ShellProjectSessionControllerTests))
+    return suite
 
 
 if __name__ == "__main__":
