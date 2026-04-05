@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "rule_set": "UI_CONTEXT_SCALABILITY_REFACTOR_P07_context_budget_guardrails",
+  "rule_set": "UI_CONTEXT_SCALABILITY_FOLLOWUP_P08_context_budget_guardrails",
   "rules": [
     {
       "path": "ea_node_editor/ui/shell/window.py",
@@ -84,61 +84,61 @@
       "path": "ea_node_editor/ui/shell/window_state_helpers.py",
       "owner_packet": "P02",
       "owner_label": "shell-session-surface",
-      "max_lines": 1976
+      "max_lines": 102
     },
     {
       "path": "ea_node_editor/ui/shell/controllers/project_session_services.py",
       "owner_packet": "P02",
       "owner_label": "shell-session-surface",
-      "max_lines": 1056
+      "max_lines": 23
     },
     {
       "path": "ea_node_editor/ui_qml/graph_surface_metrics.py",
       "owner_packet": "P03",
       "owner_label": "graph-geometry-facade",
-      "max_lines": 1404
+      "max_lines": 251
     },
     {
       "path": "ea_node_editor/ui_qml/edge_routing.py",
       "owner_packet": "P03",
       "owner_label": "graph-geometry-facade",
-      "max_lines": 1335
+      "max_lines": 326
     },
     {
       "path": "ea_node_editor/ui_qml/graph_scene_mutation_history.py",
       "owner_packet": "P04",
       "owner_label": "graph-scene-mutation",
-      "max_lines": 1195
+      "max_lines": 328
     },
     {
       "path": "tests/main_window_shell/bridge_contracts.py",
       "owner_packet": "P05",
       "owner_label": "main-window-bridge-regression",
-      "max_lines": 2055
+      "max_lines": 61
     },
     {
       "path": "tests/test_passive_graph_surface_host.py",
       "owner_packet": "P06",
       "owner_label": "graph-surface-regression",
-      "max_lines": 3599
+      "max_lines": 20
     },
     {
       "path": "tests/test_graph_surface_input_contract.py",
       "owner_packet": "P06",
       "owner_label": "graph-surface-regression",
-      "max_lines": 2261
+      "max_lines": 24
     },
     {
       "path": "tests/graph_track_b/qml_preference_bindings.py",
       "owner_packet": "P07",
       "owner_label": "track-b-regression",
-      "max_lines": 1886
+      "max_lines": 41
     },
     {
       "path": "tests/graph_track_b/scene_and_model.py",
       "owner_packet": "P07",
       "owner_label": "track-b-regression",
-      "max_lines": 1822
+      "max_lines": 78
     }
   ]
 }

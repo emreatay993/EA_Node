@@ -22,6 +22,11 @@ UI_SUBSYSTEM_CONTRACT_DOCS = (
     UI_PACKET_DOCS_ROOT / "EDGE_RENDERING_PACKET.md",
     UI_PACKET_DOCS_ROOT / "VIEWER_PACKET.md",
 )
+UI_REGRESSION_PACKET_DOCS = (
+    UI_PACKET_DOCS_ROOT / "MAIN_WINDOW_SHELL_TEST_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "GRAPH_SURFACE_TEST_PACKET.md",
+    UI_PACKET_DOCS_ROOT / "TRACK_B_TEST_PACKET.md",
+)
 
 
 def load_module(module_name: str, module_path: Path):
@@ -87,6 +92,10 @@ class MarkdownHygieneTests(unittest.TestCase):
             "[UI feature packet template](docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md)",
             architecture_text,
         )
+        self.assertIn(
+            "owning source subsystem packet and the owning regression packet",
+            architecture_text,
+        )
 
     def test_ui_subsystem_packet_contract_docs_have_required_sections(self) -> None:
         required_headings = (
@@ -107,6 +116,26 @@ class MarkdownHygieneTests(unittest.TestCase):
                     self.assertIn(heading, text)
                 self.assertEqual([], self.checker.audit_markdown_file(path, REPO_ROOT))
 
+    def test_ui_regression_packet_contract_docs_have_required_sections(self) -> None:
+        required_headings = (
+            "## Source Packet Docs",
+            "## Owner Files",
+            "## Public Entry Points",
+            "## State Owner",
+            "## Allowed Dependencies",
+            "## Invariants",
+            "## Forbidden Shortcuts",
+            "## Required Tests",
+        )
+
+        for path in UI_REGRESSION_PACKET_DOCS:
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8-sig")
+
+                for heading in required_headings:
+                    self.assertIn(heading, text)
+                self.assertEqual([], self.checker.audit_markdown_file(path, REPO_ROOT))
+
     def test_ui_subsystem_packet_index_maps_contract_docs_and_test_anchors(self) -> None:
         index_path = UI_PACKET_DOCS_ROOT / "SUBSYSTEM_PACKET_INDEX.md"
         index_text = index_path.read_text(encoding="utf-8-sig")
@@ -117,10 +146,16 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertIn("[Graph Canvas Packet](./GRAPH_CANVAS_PACKET.md)", index_text)
         self.assertIn("[Edge Rendering Packet](./EDGE_RENDERING_PACKET.md)", index_text)
         self.assertIn("[Viewer Packet](./VIEWER_PACKET.md)", index_text)
+        self.assertIn("[Main Window Shell Test Packet](./MAIN_WINDOW_SHELL_TEST_PACKET.md)", index_text)
+        self.assertIn("[Graph Surface Test Packet](./GRAPH_SURFACE_TEST_PACKET.md)", index_text)
+        self.assertIn("[Track B Test Packet](./TRACK_B_TEST_PACKET.md)", index_text)
         self.assertIn("[feature packet template](./FEATURE_PACKET_TEMPLATE.md)", index_text)
+        self.assertIn("primary source owner and one primary regression owner", index_text)
         self.assertIn("`tests/test_main_window_shell.py`", index_text)
+        self.assertIn("`tests/main_window_shell/bridge_contracts.py`", index_text)
         self.assertIn("`tests/test_graph_scene_bridge_bind_regression.py`", index_text)
         self.assertIn("`tests/test_graph_surface_input_contract.py`", index_text)
+        self.assertIn("`tests/test_graph_surface_input_controls.py`", index_text)
         self.assertIn("`tests/test_flow_edge_labels.py`", index_text)
         self.assertIn("`tests/test_viewer_session_bridge.py`", index_text)
         self.assertEqual([], self.checker.audit_markdown_file(index_path, REPO_ROOT))
@@ -130,8 +165,11 @@ class MarkdownHygieneTests(unittest.TestCase):
         template_text = template_path.read_text(encoding="utf-8-sig")
 
         self.assertIn("[subsystem packet index](./SUBSYSTEM_PACKET_INDEX.md)", template_text)
-        self.assertIn("Owning Subsystem Packet", template_text)
+        self.assertIn("Owning Source Subsystem Packet", template_text)
+        self.assertIn("Owning Regression Packet", template_text)
         self.assertIn("Inherited Secondary Subsystem Docs", template_text)
+        self.assertIn("Inherited Secondary Regression Docs", template_text)
+        self.assertIn("Regression Public Entry Points", template_text)
         self.assertIn("Required Tests", template_text)
         self.assertIn("Forbidden Shortcuts", template_text)
         self.assertEqual([], self.checker.audit_markdown_file(template_path, REPO_ROOT))

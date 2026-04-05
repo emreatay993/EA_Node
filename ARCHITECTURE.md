@@ -6,10 +6,10 @@ It is a practical map for engineers working in this repository.
 
 ## UI packet entry path
 Before changing packet-owned UI seams:
-- start with the [UI subsystem packet index](docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md) to pick the owning subsystem packet and inherit its verification anchors;
+- start with the [UI subsystem packet index](docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md) to pick the owning source subsystem packet and the owning regression packet and inherit both verification anchors;
 - reuse the [UI feature packet template](docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md) for future UI packet specs;
-- read the owning subsystem contract doc before expanding shell, presenter, graph-scene, graph-canvas, edge-rendering, or viewer seams; and
-- keep one primary owner when work crosses subsystems instead of reopening omnibus files or raw host globals.
+- read the owning source subsystem contract doc and the owning regression packet doc before expanding shell, presenter, graph-scene, graph-canvas, edge-rendering, viewer, or packetized UI regression seams; and
+- keep one primary source owner and one primary regression owner when work crosses subsystems instead of reopening omnibus files, stable regression entrypoints, or raw host globals.
 
 ## What this app does
 COREX Node Editor is a desktop visual workflow editor that:
