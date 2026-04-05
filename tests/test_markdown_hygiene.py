@@ -81,6 +81,30 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
+    def test_spec_index_registers_ui_context_scalability_followup_packet_set(self) -> None:
+        spec_index_path = REPO_ROOT / "docs" / "specs" / "INDEX.md"
+        spec_index_text = spec_index_path.read_text(encoding="utf-8-sig")
+        matrix_path = (
+            REPO_ROOT / "docs" / "specs" / "perf" / "UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md"
+        )
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[UI_CONTEXT_SCALABILITY_FOLLOWUP Work Packet Manifest](work_packets/ui_context_scalability_followup/UI_CONTEXT_SCALABILITY_FOLLOWUP_MANIFEST.md)",
+            spec_index_text,
+        )
+        self.assertIn(
+            "[UI_CONTEXT_SCALABILITY_FOLLOWUP Status Ledger](work_packets/ui_context_scalability_followup/UI_CONTEXT_SCALABILITY_FOLLOWUP_STATUS.md)",
+            spec_index_text,
+        )
+        self.assertIn(
+            "[UI_CONTEXT_SCALABILITY_FOLLOWUP QA Matrix](perf/UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md)",
+            spec_index_text,
+        )
+        self.assertTrue(matrix_text.startswith("# UI Context Scalability Follow-Up QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_ui_packet_entry_path(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 

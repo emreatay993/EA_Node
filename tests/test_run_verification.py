@@ -13,6 +13,20 @@ RUN_VERIFICATION_PATH = REPO_ROOT / "scripts" / "run_verification.py"
 VERIFICATION_MANIFEST_PATH = REPO_ROOT / "scripts" / "verification_manifest.py"
 CONFTEST_PATH = REPO_ROOT / "tests" / "conftest.py"
 SHELL_ISOLATION_RUNTIME_PATH = REPO_ROOT / "tests" / "shell_isolation_runtime.py"
+UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX_PATH = (
+    REPO_ROOT / "docs" / "specs" / "perf" / "UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_CLOSEOUT_PYTEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py "
+    "tests/test_run_verification.py --ignore=venv -q"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
 
 
 def load_module(module_name: str, module_path: Path):
@@ -437,6 +451,22 @@ class RunVerificationTests(unittest.TestCase):
             ),
             self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_ARTIFACTS,
         )
+
+    def test_followup_closeout_matrix_records_guardrail_and_closeout_commands(self) -> None:
+        text = UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX_PATH.read_text(encoding="utf-8-sig")
+
+        for token in (
+            self.manifest.CONTEXT_BUDGET_RULES_PATH,
+            self.manifest.CONTEXT_BUDGET_CHECK_COMMAND,
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_PYTEST_COMMAND,
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_FAST_DRY_RUN_COMMAND,
+            UI_CONTEXT_SCALABILITY_FOLLOWUP_CLOSEOUT_PYTEST_COMMAND,
+            UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_COMMAND,
+            UI_CONTEXT_SCALABILITY_FOLLOWUP_MARKDOWN_COMMAND,
+            "UI_CONTEXT_SCALABILITY_FOLLOWUP_STATUS.md",
+            "P08_canonical_ui_test_packet_docs_WRAPUP.md",
+        ):
+            self.assertIn(token, text)
 
 
 if __name__ == "__main__":

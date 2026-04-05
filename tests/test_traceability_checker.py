@@ -848,6 +848,106 @@ UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_TOKENS = (
     "P07_context_budget_guardrails_WRAPUP.md",
     "P08_subsystem_packet_docs_WRAPUP.md",
 )
+UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_FINAL_PYTEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py "
+    "tests/test_run_verification.py --ignore=venv -q"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
+UI_CONTEXT_SCALABILITY_FOLLOWUP_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-031": (
+            "UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md",
+            "P01",
+            "guardrail",
+            "P08",
+            "packet-doc",
+            "UI_CONTEXT_SCALABILITY_FOLLOWUP_MANIFEST.md",
+            "UI_CONTEXT_SCALABILITY_FOLLOWUP_STATUS.md",
+            "packet wrap-up evidence",
+            "CONTEXT_BUDGET_RULES.json",
+            "SUBSYSTEM_PACKET_INDEX.md",
+            "FEATURE_PACKET_TEMPLATE.md",
+        ),
+        "AC-REQ-QA-031-01": (
+            UI_CONTEXT_SCALABILITY_FOLLOWUP_FINAL_PYTEST_COMMAND,
+            UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_COMMAND,
+            UI_CONTEXT_SCALABILITY_FOLLOWUP_MARKDOWN_COMMAND,
+            "UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md",
+        ),
+    },
+}
+UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-QA-031": (
+        "docs/specs/INDEX.md",
+        "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+        "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        "docs/specs/perf/UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/UI_CONTEXT_SCALABILITY_FOLLOWUP_MANIFEST.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/UI_CONTEXT_SCALABILITY_FOLLOWUP_STATUS.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P01_guardrail_catalog_expansion_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P02_shell_session_surface_split_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P03_graph_geometry_facade_split_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P04_graph_scene_mutation_packet_split_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P05_main_window_bridge_test_packetization_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P06_graph_surface_test_packetization_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P07_track_b_test_packetization_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_followup/P08_canonical_ui_test_packet_docs_WRAPUP.md",
+        "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+        "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+        "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+        "scripts/check_context_budgets.py",
+        "scripts/check_traceability.py",
+        "tests/test_traceability_checker.py",
+        "tests/test_markdown_hygiene.py",
+        "tests/test_run_verification.py",
+    ),
+    "AC-REQ-QA-031-01": (
+        UI_CONTEXT_SCALABILITY_FOLLOWUP_FINAL_PYTEST_COMMAND,
+        UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_COMMAND,
+        UI_CONTEXT_SCALABILITY_FOLLOWUP_MARKDOWN_COMMAND,
+        "UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md",
+    ),
+}
+UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX_TOKENS = (
+    "UI Context Scalability Follow-Up QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-05 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "UI_CONTEXT_SCALABILITY_FOLLOWUP_MANIFEST.md",
+    "UI_CONTEXT_SCALABILITY_FOLLOWUP_STATUS.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+    "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/MAIN_WINDOW_SHELL_TEST_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/GRAPH_SURFACE_TEST_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/TRACK_B_TEST_PACKET.md",
+    manifest.CONTEXT_BUDGET_CHECK_COMMAND,
+    manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_PYTEST_COMMAND,
+    manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_FAST_DRY_RUN_COMMAND,
+    UI_CONTEXT_SCALABILITY_FOLLOWUP_FINAL_PYTEST_COMMAND,
+    UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_COMMAND,
+    UI_CONTEXT_SCALABILITY_FOLLOWUP_MARKDOWN_COMMAND,
+    "P01_guardrail_catalog_expansion_WRAPUP.md",
+    "P02_shell_session_surface_split_WRAPUP.md",
+    "P03_graph_geometry_facade_split_WRAPUP.md",
+    "P04_graph_scene_mutation_packet_split_WRAPUP.md",
+    "P05_main_window_bridge_test_packetization_WRAPUP.md",
+    "P06_graph_surface_test_packetization_WRAPUP.md",
+    "P07_track_b_test_packetization_WRAPUP.md",
+    "P08_canonical_ui_test_packet_docs_WRAPUP.md",
+)
 
 
 def load_module(module_name: str, module_path: Path):
@@ -1480,6 +1580,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_ui_context_scalability_refactor_qa_matrix_records_commands_and_guardrails(self) -> None:
         text = UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_ui_context_scalability_followup_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in UI_CONTEXT_SCALABILITY_FOLLOWUP_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_ui_context_scalability_followup_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in UI_CONTEXT_SCALABILITY_FOLLOWUP_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_ui_context_scalability_followup_qa_matrix_records_commands_and_guardrails(self) -> None:
+        text = UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
 
