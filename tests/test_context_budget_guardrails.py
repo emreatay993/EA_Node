@@ -28,6 +28,32 @@ EXPECTED_RULES = {
         "viewer-surface",
         600,
     ),
+    "ea_node_editor/ui/shell/window_state_helpers.py": ("P02", "shell-session-surface", 1976),
+    "ea_node_editor/ui/shell/controllers/project_session_services.py": (
+        "P02",
+        "shell-session-surface",
+        1056,
+    ),
+    "ea_node_editor/ui_qml/graph_surface_metrics.py": (
+        "P03",
+        "graph-geometry-facade",
+        1404,
+    ),
+    "ea_node_editor/ui_qml/edge_routing.py": ("P03", "graph-geometry-facade", 1335),
+    "ea_node_editor/ui_qml/graph_scene_mutation_history.py": (
+        "P04",
+        "graph-scene-mutation",
+        1195,
+    ),
+    "tests/main_window_shell/bridge_contracts.py": (
+        "P05",
+        "main-window-bridge-regression",
+        2055,
+    ),
+    "tests/test_passive_graph_surface_host.py": ("P06", "graph-surface-regression", 3599),
+    "tests/test_graph_surface_input_contract.py": ("P06", "graph-surface-regression", 2261),
+    "tests/graph_track_b/qml_preference_bindings.py": ("P07", "track-b-regression", 1886),
+    "tests/graph_track_b/scene_and_model.py": ("P07", "track-b-regression", 1822),
 }
 
 
@@ -51,7 +77,7 @@ class ContextBudgetGuardrailTests(unittest.TestCase):
 
         self.assertEqual(0, return_code)
         self.assertIn(
-            "PASS: context budget guardrails satisfied for 13 guarded hotspots.",
+            "PASS: context budget guardrails satisfied for 23 guarded hotspots.",
             captured.getvalue(),
         )
 

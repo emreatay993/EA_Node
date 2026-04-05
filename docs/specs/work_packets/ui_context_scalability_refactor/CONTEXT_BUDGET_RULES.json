@@ -79,6 +79,66 @@
       "owner_packet": "P06",
       "owner_label": "viewer-surface",
       "max_lines": 600
+    },
+    {
+      "path": "ea_node_editor/ui/shell/window_state_helpers.py",
+      "owner_packet": "P02",
+      "owner_label": "shell-session-surface",
+      "max_lines": 1976
+    },
+    {
+      "path": "ea_node_editor/ui/shell/controllers/project_session_services.py",
+      "owner_packet": "P02",
+      "owner_label": "shell-session-surface",
+      "max_lines": 1056
+    },
+    {
+      "path": "ea_node_editor/ui_qml/graph_surface_metrics.py",
+      "owner_packet": "P03",
+      "owner_label": "graph-geometry-facade",
+      "max_lines": 1404
+    },
+    {
+      "path": "ea_node_editor/ui_qml/edge_routing.py",
+      "owner_packet": "P03",
+      "owner_label": "graph-geometry-facade",
+      "max_lines": 1335
+    },
+    {
+      "path": "ea_node_editor/ui_qml/graph_scene_mutation_history.py",
+      "owner_packet": "P04",
+      "owner_label": "graph-scene-mutation",
+      "max_lines": 1195
+    },
+    {
+      "path": "tests/main_window_shell/bridge_contracts.py",
+      "owner_packet": "P05",
+      "owner_label": "main-window-bridge-regression",
+      "max_lines": 2055
+    },
+    {
+      "path": "tests/test_passive_graph_surface_host.py",
+      "owner_packet": "P06",
+      "owner_label": "graph-surface-regression",
+      "max_lines": 3599
+    },
+    {
+      "path": "tests/test_graph_surface_input_contract.py",
+      "owner_packet": "P06",
+      "owner_label": "graph-surface-regression",
+      "max_lines": 2261
+    },
+    {
+      "path": "tests/graph_track_b/qml_preference_bindings.py",
+      "owner_packet": "P07",
+      "owner_label": "track-b-regression",
+      "max_lines": 1886
+    },
+    {
+      "path": "tests/graph_track_b/scene_and_model.py",
+      "owner_packet": "P07",
+      "owner_label": "track-b-regression",
+      "max_lines": 1822
     }
   ]
 }

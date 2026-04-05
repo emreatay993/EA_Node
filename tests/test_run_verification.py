@@ -57,6 +57,15 @@ class RunVerificationTests(unittest.TestCase):
         self.assertEqual(phase_spec.phase, command.phase)
         self.assertEqual(tuple(expected), command.display_argv)
 
+    def assert_context_budget_command(self, command) -> None:
+        expected = (
+            "./venv/Scripts/python.exe",
+            self.manifest.CHECK_CONTEXT_BUDGETS_SCRIPT,
+        )
+        self.assertEqual(self.manifest.CONTEXT_BUDGET_PHASE, command.phase)
+        self.assertEqual(expected, command.display_argv)
+        self.assertEqual({}, command.env)
+
     def assert_shell_isolation_command(
         self,
         command,
@@ -87,7 +96,9 @@ class RunVerificationTests(unittest.TestCase):
 
         expected_phase_order: list[str] = []
         for phase_key in self.manifest.RUN_VERIFICATION_MODE_SEQUENCE["full"]:
-            if phase_key == self.manifest.SHELL_ISOLATION_PHASE_KEY:
+            if phase_key == self.manifest.CONTEXT_BUDGET_PHASE_KEY:
+                expected_phase_order.append(self.manifest.CONTEXT_BUDGET_PHASE)
+            elif phase_key == self.manifest.SHELL_ISOLATION_PHASE_KEY:
                 expected_phase_order.append(self.manifest.SHELL_ISOLATION_SPEC.phase)
             else:
                 expected_phase_order.append(self.manifest.PYTEST_PHASE_SPECS_BY_MODE[phase_key].phase)
@@ -97,7 +108,8 @@ class RunVerificationTests(unittest.TestCase):
             [command.phase for command in commands],
         )
 
-        fast_command, gui_command, slow_command, shell_command = commands
+        context_budget_command, fast_command, gui_command, slow_command, shell_command = commands
+        self.assert_context_budget_command(context_budget_command)
         self.assert_pytest_phase_command(
             fast_command,
             phase_spec=self.manifest.PYTEST_PHASE_SPECS_BY_MODE["fast"],
@@ -117,6 +129,31 @@ class RunVerificationTests(unittest.TestCase):
             use_xdist=False,
         )
         self.assert_shell_isolation_command(shell_command, worker_count=12, use_xdist=True)
+
+    def test_fast_mode_runs_context_budget_check_before_pytest(self) -> None:
+        with (
+            patch.object(
+                self.runner,
+                "resolve_python",
+                return_value=("./venv/Scripts/python.exe", "./venv/Scripts/python.exe"),
+            ),
+            patch.object(self.runner, "pytest_xdist_available", return_value=True),
+            patch.object(self.runner, "resolve_max_parallel_workers", return_value=8),
+        ):
+            commands = self.runner.build_commands("fast")
+
+        self.assertEqual(
+            [self.manifest.CONTEXT_BUDGET_PHASE, self.manifest.PYTEST_PHASE_SPECS_BY_MODE["fast"].phase],
+            [command.phase for command in commands],
+        )
+        context_budget_command, fast_command = commands
+        self.assert_context_budget_command(context_budget_command)
+        self.assert_pytest_phase_command(
+            fast_command,
+            phase_spec=self.manifest.PYTEST_PHASE_SPECS_BY_MODE["fast"],
+            worker_count=8,
+            use_xdist=True,
+        )
 
     def test_gui_parallel_worker_count_is_capped_for_qml_heavy_phase(self) -> None:
         self.assertEqual(1, self.runner.resolve_gui_parallel_workers(1))
@@ -345,6 +382,8 @@ class RunVerificationTests(unittest.TestCase):
             "./venv/Scripts/python.exe scripts/check_context_budgets.py",
             self.manifest.CONTEXT_BUDGET_CHECK_COMMAND,
         )
+        self.assertEqual("context_budgets", self.manifest.CONTEXT_BUDGET_PHASE_KEY)
+        self.assertEqual("fast.context_budgets", self.manifest.CONTEXT_BUDGET_PHASE)
         self.assertEqual(
             (
                 "./venv/Scripts/python.exe scripts/check_context_budgets.py",
@@ -364,6 +403,39 @@ class RunVerificationTests(unittest.TestCase):
                 "tests/test_context_budget_guardrails.py",
             ),
             self.manifest.P07_CONTEXT_BUDGET_ARTIFACTS,
+        )
+        self.assertEqual(
+            "./venv/Scripts/python.exe -m pytest tests/test_context_budget_guardrails.py "
+            "tests/test_run_verification.py --ignore=venv -q",
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_PYTEST_COMMAND,
+        )
+        self.assertEqual(
+            "./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run",
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_FAST_DRY_RUN_COMMAND,
+        )
+        self.assertEqual(
+            (
+                "./venv/Scripts/python.exe scripts/check_context_budgets.py",
+                "./venv/Scripts/python.exe -m pytest tests/test_context_budget_guardrails.py "
+                "tests/test_run_verification.py --ignore=venv -q",
+                "./venv/Scripts/python.exe scripts/run_verification.py --mode fast --dry-run",
+            ),
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_VERIFICATION_COMMANDS,
+        )
+        self.assertEqual(
+            "./venv/Scripts/python.exe scripts/check_context_budgets.py",
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_REVIEW_GATE_COMMAND,
+        )
+        self.assertEqual(
+            (
+                "scripts/check_context_budgets.py",
+                "scripts/run_verification.py",
+                "scripts/verification_manifest.py",
+                "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+                "tests/test_context_budget_guardrails.py",
+                "tests/test_run_verification.py",
+            ),
+            self.manifest.FOLLOWUP_P01_GUARDRAIL_CATALOG_EXPANSION_ARTIFACTS,
         )
 
 

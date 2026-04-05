@@ -339,6 +339,19 @@ def build_shell_isolation_phase_command(
     )
 
 
+def build_context_budget_command(
+    *,
+    python_exec: str,
+    python_display: str,
+) -> CommandSpec:
+    return CommandSpec(
+        phase=manifest.CONTEXT_BUDGET_PHASE,
+        argv=(python_exec, manifest.CHECK_CONTEXT_BUDGETS_SCRIPT),
+        display_argv=(python_display, manifest.CHECK_CONTEXT_BUDGETS_SCRIPT),
+        env={},
+    )
+
+
 def build_commands(mode: str) -> list[CommandSpec]:
     python_exec, python_display = resolve_python()
     xdist_available = pytest_xdist_available(python_exec)
@@ -353,6 +366,12 @@ def build_commands(mode: str) -> list[CommandSpec]:
 
     commands_by_key: dict[str, CommandSpec] = {}
     for phase_key in manifest.RUN_VERIFICATION_MODE_SEQUENCE["full"]:
+        if phase_key == manifest.CONTEXT_BUDGET_PHASE_KEY:
+            commands_by_key[phase_key] = build_context_budget_command(
+                python_exec=python_exec,
+                python_display=python_display,
+            )
+            continue
         if phase_key == manifest.SHELL_ISOLATION_PHASE_KEY:
             commands_by_key[phase_key] = build_shell_isolation_phase_command(
                 python_exec=python_exec,
