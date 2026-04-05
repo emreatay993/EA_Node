@@ -89,6 +89,9 @@ class WorkspaceViewNavOps:
         self._controller.restore_active_view_state()
         self._controller.refresh_workspace_tabs()
         self._host.script_editor.set_node(None)
+        update_run_actions = getattr(self._host, "_update_run_actions", None)
+        if callable(update_run_actions):
+            update_run_actions()
         self._host.workspace_state_changed.emit()
 
     def save_active_view_state(self) -> None:

@@ -105,11 +105,15 @@ class _ViewMutationWorkspaceManagerStub:
     def active_workspace_id(self) -> str:
         return self._workspace_id
 
+    def set_active_workspace(self, workspace_id: str) -> None:
+        self._workspace_id = workspace_id
+
 
 class _ViewMutationControllerStub:
     def __init__(self) -> None:
         self.save_calls = 0
         self.restore_calls = 0
+        self.refresh_calls = 0
 
     def save_active_view_state(self) -> None:
         self.save_calls += 1
@@ -117,12 +121,38 @@ class _ViewMutationControllerStub:
     def restore_active_view_state(self) -> None:
         self.restore_calls += 1
 
+    def refresh_workspace_tabs(self) -> None:
+        self.refresh_calls += 1
+
+
+class _WorkspaceSceneStub:
+    def __init__(self) -> None:
+        self.set_workspace_calls: list[str] = []
+
+    def set_workspace(self, model, registry, workspace_id: str) -> None:  # noqa: ANN001
+        self.set_workspace_calls.append(workspace_id)
+
+
+class _ScriptEditorStub:
+    def __init__(self) -> None:
+        self.set_node_calls: list[object | None] = []
+
+    def set_node(self, node: object | None) -> None:
+        self.set_node_calls.append(node)
+
 
 class _ViewMutationHostStub:
     def __init__(self) -> None:
         self.model = GraphModel()
         self.workspace_manager = _ViewMutationWorkspaceManagerStub(self.model.active_workspace.workspace_id)
+        self.registry = object()
+        self.scene = _WorkspaceSceneStub()
+        self.script_editor = _ScriptEditorStub()
         self.workspace_state_changed = _SignalCounter()
+        self.run_action_update_calls = 0
+
+    def _update_run_actions(self) -> None:
+        self.run_action_update_calls += 1
 
 
 class _PointStub:
@@ -401,6 +431,25 @@ class WorkspaceViewNavOpsMutationServiceTests(unittest.TestCase):
         self.assertEqual(controller.restore_calls, 1)
         self.assertEqual(host.workspace_state_changed.calls, 1)
         self.assertEqual(workspace.active_view_id, alternate_view.view_id)
+
+    def test_switch_workspace_refreshes_run_controls_immediately(self) -> None:
+        host = _ViewMutationHostStub()
+        source_workspace_id = host.workspace_manager.active_workspace_id()
+        target_workspace = host.model.create_workspace(name="Review Target")
+        host.workspace_manager.set_active_workspace(source_workspace_id)
+        controller = _ViewMutationControllerStub()
+        ops = WorkspaceViewNavOps(host, controller)  # type: ignore[arg-type]
+
+        ops.switch_workspace(target_workspace.workspace_id)
+
+        self.assertEqual(controller.save_calls, 1)
+        self.assertEqual(controller.restore_calls, 1)
+        self.assertEqual(controller.refresh_calls, 1)
+        self.assertEqual(host.workspace_manager.active_workspace_id(), target_workspace.workspace_id)
+        self.assertEqual(host.scene.set_workspace_calls, [target_workspace.workspace_id])
+        self.assertEqual(host.script_editor.set_node_calls, [None])
+        self.assertEqual(host.run_action_update_calls, 1)
+        self.assertEqual(host.workspace_state_changed.calls, 1)
 
 
 class WorkspaceDropConnectOpsValidationTests(unittest.TestCase):

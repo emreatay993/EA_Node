@@ -47,6 +47,7 @@ class ShellWindow(QMainWindow):
     node_library_changed = pyqtSignal()
     library_pane_reset_requested = pyqtSignal(name="libraryPaneResetRequested")
     workspace_state_changed = pyqtSignal()
+    run_controls_changed = pyqtSignal()
     selected_node_changed = pyqtSignal()
     project_meta_changed = pyqtSignal()
     graph_search_changed = pyqtSignal()

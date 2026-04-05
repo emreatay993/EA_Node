@@ -45,12 +45,23 @@ class _ActionStub:
         self.icon = value
 
 
+class _SignalCounter:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def emit(self) -> None:
+        self.calls += 1
+
+
 class _WorkspaceManagerStub:
     def __init__(self, workspace_id: str) -> None:
         self._workspace_id = workspace_id
 
     def active_workspace_id(self) -> str:
         return self._workspace_id
+
+    def set_active_workspace(self, workspace_id: str) -> None:
+        self._workspace_id = workspace_id
 
 
 class _SerializerStub:
@@ -122,8 +133,10 @@ class _RunHostStub:
         self.console_panel = _ConsoleStub()
         self.execution_client = _ExecutionClientStub()
         self.workspace_library_controller = _WorkspaceLibraryControllerStub()
+        self.action_run = _ActionStub()
         self.action_stop = _ActionStub()
         self.action_pause = _ActionStub()
+        self.run_controls_changed = _SignalCounter()
         self._notifications = (0, 0)
         self._engine_status = ("ready", "")
         self._job_counters = (0, 0, 0, 0)
@@ -204,6 +217,20 @@ class _RunHostStub:
 
 
 class RunControllerUnitTests(unittest.TestCase):
+    def assert_run_controls(
+        self,
+        host: _RunHostStub,
+        *,
+        run_enabled: bool,
+        pause_enabled: bool,
+        stop_enabled: bool,
+        pause_label: str,
+    ) -> None:
+        self.assertEqual(host.action_run.enabled, run_enabled)
+        self.assertEqual(host.action_pause.enabled, pause_enabled)
+        self.assertEqual(host.action_stop.enabled, stop_enabled)
+        self.assertEqual(host.action_pause.text, pause_label)
+
     def test_run_workflow_starts_new_run_with_manual_trigger_and_updates_state(self) -> None:
         host = _RunHostStub()
         controller = RunController(host)  # type: ignore[arg-type]
@@ -216,8 +243,14 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.engine_state_value, "running")
         self.assertEqual(host._engine_status, ("running", "Starting"))
         self.assertEqual(host._job_counters, (1, 0, 0, 0))
-        self.assertTrue(host.action_pause.enabled)
-        self.assertEqual(host.action_pause.text, "Pause")
+        self.assert_run_controls(
+            host,
+            run_enabled=False,
+            pause_enabled=True,
+            stop_enabled=True,
+            pause_label="Pause",
+        )
+        self.assertEqual(host.run_controls_changed.calls, 1)
 
         start_call = host.execution_client.start_calls[-1]
         self.assertEqual(start_call["project_path"], "demo.sfe")
@@ -246,6 +279,86 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.engine_state_value, "error")
         self.assertEqual(host._engine_status, ("error", "Start Failed"))
         self.assertEqual(host._job_counters, (0, 0, 0, 1))
+        self.assert_run_controls(
+            host,
+            run_enabled=True,
+            pause_enabled=False,
+            stop_enabled=False,
+            pause_label="Pause",
+        )
+        self.assertEqual(host.run_controls_changed.calls, 1)
+
+    def test_update_run_actions_idle_selected_workspace_enables_only_run(self) -> None:
+        host = _RunHostStub()
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.update_run_actions()
+
+        self.assert_run_controls(
+            host,
+            run_enabled=True,
+            pause_enabled=False,
+            stop_enabled=False,
+            pause_label="Pause",
+        )
+        self.assertEqual(host.run_controls_changed.calls, 1)
+
+    def test_update_run_actions_selected_workspace_owner_running_disables_run_and_enables_pause_stop(self) -> None:
+        host = _RunHostStub()
+        controller = RunController(host)  # type: ignore[arg-type]
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.engine_state_value = "running"
+
+        controller.update_run_actions()
+
+        self.assert_run_controls(
+            host,
+            run_enabled=False,
+            pause_enabled=True,
+            stop_enabled=True,
+            pause_label="Pause",
+        )
+        self.assertEqual(host.run_controls_changed.calls, 1)
+
+    def test_update_run_actions_selected_workspace_owner_paused_uses_resume_label(self) -> None:
+        host = _RunHostStub()
+        controller = RunController(host)  # type: ignore[arg-type]
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.engine_state_value = "paused"
+
+        controller.update_run_actions()
+
+        self.assert_run_controls(
+            host,
+            run_enabled=False,
+            pause_enabled=True,
+            stop_enabled=True,
+            pause_label="Resume",
+        )
+        self.assertEqual(host.run_controls_changed.calls, 1)
+
+    def test_update_run_actions_non_owning_selected_workspace_disables_pause_and_stop(self) -> None:
+        host = _RunHostStub()
+        controller = RunController(host)  # type: ignore[arg-type]
+        owning_workspace_id = host.model.active_workspace.workspace_id
+        other_workspace = host.model.create_workspace(name="Second Workspace")
+        host.workspace_manager.set_active_workspace(other_workspace.workspace_id)
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = owning_workspace_id
+        host.run_state.engine_state_value = "running"
+
+        controller.update_run_actions()
+
+        self.assert_run_controls(
+            host,
+            run_enabled=True,
+            pause_enabled=False,
+            stop_enabled=False,
+            pause_label="Pause",
+        )
+        self.assertEqual(host.run_controls_changed.calls, 1)
 
     def test_toggle_pause_resume_and_stop_route_to_execution_client(self) -> None:
         host = _RunHostStub()
@@ -312,8 +425,13 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.active_run_id, "")
         self.assertEqual(host.run_state.active_run_workspace_id, "")
         self.assertEqual(host.run_state.engine_state_value, "error")
-        self.assertFalse(host.action_pause.enabled)
-        self.assertEqual(host.action_pause.text, "Pause")
+        self.assert_run_controls(
+            host,
+            run_enabled=True,
+            pause_enabled=False,
+            stop_enabled=False,
+            pause_label="Pause",
+        )
 
     def test_protocol_error_is_logged(self) -> None:
         host = _RunHostStub()
