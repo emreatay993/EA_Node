@@ -60,6 +60,38 @@ class ViewerSurfaceContractTests(unittest.TestCase):
         self.assertIn("readonly property string _SRC", facade_text)
         self.assertLessEqual(len(facade_text.splitlines()), 600)
 
+
+    def test_graph_surface_metrics_facade_stays_within_packet_budget_and_helper_split(self) -> None:
+        ui_qml_dir = Path(__file__).resolve().parents[1] / "ea_node_editor" / "ui_qml"
+        graph_geometry_dir = ui_qml_dir / "graph_geometry"
+        facade_path = ui_qml_dir / "graph_surface_metrics.py"
+        facade_text = facade_path.read_text(encoding="utf-8")
+        helper_paths = {
+            "anchors.py": graph_geometry_dir / "anchors.py",
+            "flowchart_metrics.py": graph_geometry_dir / "flowchart_metrics.py",
+            "panel_metrics.py": graph_geometry_dir / "panel_metrics.py",
+            "standard_metrics.py": graph_geometry_dir / "standard_metrics.py",
+            "surface_contract.py": graph_geometry_dir / "surface_contract.py",
+            "viewer_metrics.py": graph_geometry_dir / "viewer_metrics.py",
+        }
+
+        for snippet in (
+            "graph_geometry.anchors",
+            "graph_geometry.flowchart_metrics",
+            "graph_geometry.panel_metrics",
+            "graph_geometry.standard_metrics",
+            "graph_geometry.surface_contract",
+            "graph_geometry.viewer_metrics",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, facade_text)
+
+        self.assertLessEqual(len(facade_text.splitlines()), 350)
+
+        for helper_name, helper_path in helper_paths.items():
+            with self.subTest(helper=helper_name):
+                self.assertTrue(helper_path.exists(), msg=f"missing helper {helper_name}")
+
     def _run_qml_probe(self, label: str, body: str) -> None:
         run_qml_probe(
             self,

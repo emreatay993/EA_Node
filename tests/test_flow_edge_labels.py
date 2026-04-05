@@ -88,6 +88,34 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
                     msg=f"{helper_name} exceeded the packet helper line budget",
                 )
 
+
+    def test_edge_routing_facade_stays_within_packet_budget_and_helper_split(self) -> None:
+        ui_qml_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml"
+        graph_geometry_dir = ui_qml_dir / "graph_geometry"
+        facade_path = ui_qml_dir / "edge_routing.py"
+        facade_text = facade_path.read_text(encoding="utf-8")
+        helper_paths = {
+            "route_endpoints.py": graph_geometry_dir / "route_endpoints.py",
+            "route_pipe.py": graph_geometry_dir / "route_pipe.py",
+            "route_payload.py": graph_geometry_dir / "route_payload.py",
+            "route_styles.py": graph_geometry_dir / "route_styles.py",
+        }
+
+        for snippet in (
+            "graph_geometry.route_endpoints",
+            "graph_geometry.route_payload",
+            "graph_geometry.route_pipe",
+            "graph_geometry.route_styles",
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, facade_text)
+
+        self.assertLessEqual(len(facade_text.splitlines()), 400)
+
+        for helper_name, helper_path in helper_paths.items():
+            with self.subTest(helper=helper_name):
+                self.assertTrue(helper_path.exists(), msg=f"missing helper {helper_name}")
+
     def test_flow_edge_payload_normalizes_render_metadata(self) -> None:
         source_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 20.0, 20.0)
         target_id = self.scene.add_node_from_type("tests.flow_edge_label_node", 340.0, 110.0)
