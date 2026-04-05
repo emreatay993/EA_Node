@@ -62,6 +62,20 @@ class MarkdownHygieneTests(unittest.TestCase):
         )
         self.assertTrue(matrix_text.startswith("# Architecture Residual Refactor QA Matrix"))
 
+    def test_spec_index_registers_ui_context_scalability_matrix_link(self) -> None:
+        spec_index_path = REPO_ROOT / "docs" / "specs" / "INDEX.md"
+        spec_index_text = spec_index_path.read_text(encoding="utf-8-sig")
+        matrix_path = REPO_ROOT / "docs" / "specs" / "perf" / "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md"
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[UI_CONTEXT_SCALABILITY_REFACTOR QA Matrix](perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md)",
+            spec_index_text,
+        )
+        self.assertTrue(matrix_text.startswith("# UI Context Scalability Refactor QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_ui_packet_entry_path(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 

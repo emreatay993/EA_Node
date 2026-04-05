@@ -13,7 +13,7 @@ except ModuleNotFoundError:
     import scripts.verification_manifest as manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-REQUIRED_ARTIFACTS = manifest.PROOF_AUDIT_REQUIRED_ARTIFACTS
+BASE_REQUIRED_ARTIFACTS = manifest.PROOF_AUDIT_REQUIRED_ARTIFACTS
 GENERIC_DOCUMENT_RULES = manifest.GENERIC_DOCUMENT_RULES
 OLD_SHELL_TAIL_RESULT_PATTERN = re.compile(r"^`\d+\.\d+s` mean across `\d+` reps$")
 SHELL_ISOLATION_RESULT_PATTERN = re.compile(r"^`\d+ passed in \d+\.\d+s`$")
@@ -33,7 +33,35 @@ ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_COMMAND = (
 ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND = (
     manifest.ARCHITECTURE_RESIDUAL_REFACTOR_MARKDOWN_COMMAND
 )
-P08_REQUIRED_ARTIFACTS: tuple[str, ...] = ()
+UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC = (
+    "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py "
+    "tests/test_run_verification.py --ignore=venv -q"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
+REQUIRED_ARTIFACTS = (
+    *BASE_REQUIRED_ARTIFACTS,
+    UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC,
+)
+P08_REQUIRED_ARTIFACTS = (
+    "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+    "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/SHELL_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/PRESENTERS_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/GRAPH_SCENE_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/GRAPH_CANVAS_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/EDGE_RENDERING_PACKET.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/VIEWER_PACKET.md",
+)
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR = "artifacts/graphics_performance_modes_docs"
 GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_MD = (
     f"{GRAPHICS_PERFORMANCE_MODES_CANONICAL_REPORT_DIR}/TRACK_H_BENCHMARK_REPORT.md"
@@ -177,8 +205,32 @@ P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS = {
 }
 QA_ACCEPTANCE_REQUIREMENT_TOKENS = dict(manifest.QA_ACCEPTANCE_REQUIREMENT_TOKENS)
 QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(P10_QA_ACCEPTANCE_REQUIREMENT_TOKENS)
+QA_ACCEPTANCE_REQUIREMENT_TOKENS.update(
+    {
+        "REQ-QA-030": (
+            "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+            "P07",
+            "context-budget",
+            "P08",
+            "subsystem-doc",
+            "CONTEXT_BUDGET_RULES.json",
+            "SUBSYSTEM_PACKET_INDEX.md",
+            "FEATURE_PACKET_TEMPLATE.md",
+        ),
+        "AC-REQ-QA-030-01": (
+            UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+            UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+            UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+            "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+        ),
+    }
+)
 QA_ACCEPTANCE_CURRENT_CLOSEOUT_EVIDENCE_TOKENS = (
     *manifest.ARCHITECTURE_RESIDUAL_REFACTOR_CURRENT_EVIDENCE_TOKENS,
+    UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC,
+    "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+    "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
 )
 
 GRAPHICS_PERFORMANCE_MODES_MATRIX_REQUIRED_TOKENS = (
@@ -248,12 +300,45 @@ ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
 ARCHITECTURE_DOC_REQUIRED_TOKENS = (
     "docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md",
 )
-SPEC_INDEX_REQUIRED_TOKENS = manifest.ARCHITECTURE_RESIDUAL_REFACTOR_SPEC_INDEX_TOKENS
+SPEC_INDEX_REQUIRED_TOKENS = (
+    *manifest.ARCHITECTURE_RESIDUAL_REFACTOR_SPEC_INDEX_TOKENS,
+    "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+)
 ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
     manifest.ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS
 )
 ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
     manifest.ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_AUDIT_COMMANDS
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_REQUIRED_TOKENS = (
+    "UI Context Scalability Refactor QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-05 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+    "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+    "scripts/check_context_budgets.py",
+    "tests/test_run_verification.py",
+    UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+    UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+    UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+    "P01_shell_window_facade_collapse_WRAPUP.md",
+    "P02_presenter_family_split_WRAPUP.md",
+    "P03_graph_scene_bridge_packet_split_WRAPUP.md",
+    "P04_graph_canvas_root_packetization_WRAPUP.md",
+    "P05_edge_renderer_packet_split_WRAPUP.md",
+    "P06_viewer_surface_isolation_WRAPUP.md",
+    "P07_context_budget_guardrails_WRAPUP.md",
+    "P08_subsystem_packet_docs_WRAPUP.md",
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS = (
+    UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+    UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+    UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
 )
 
 P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
@@ -358,6 +443,30 @@ P10_TRACEABILITY_ROW_REQUIRED_TOKENS = {
 }
 TRACEABILITY_ROW_REQUIRED_TOKENS = dict(manifest.TRACEABILITY_ROW_REQUIRED_TOKENS)
 TRACEABILITY_ROW_REQUIRED_TOKENS.update(P10_TRACEABILITY_ROW_REQUIRED_TOKENS)
+TRACEABILITY_ROW_REQUIRED_TOKENS.update(
+    {
+        "REQ-QA-030": (
+            "docs/specs/INDEX.md",
+            "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+            "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+            UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC,
+            "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+            "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+            "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+            "scripts/check_context_budgets.py",
+            "scripts/check_traceability.py",
+            "tests/test_traceability_checker.py",
+            "tests/test_markdown_hygiene.py",
+            "tests/test_run_verification.py",
+        ),
+        "AC-REQ-QA-030-01": (
+            UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+            UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+            UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+            "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+        ),
+    }
+)
 
 P10_TRACEABILITY_ROW_FORBIDDEN_TOKENS = {
     "REQ-QA-018": ("artifacts/graph_canvas_perf_docs",),
@@ -926,6 +1035,55 @@ def audit_architecture_residual_refactor_qa_matrix(
             )
 
 
+def audit_ui_context_scalability_refactor_qa_matrix(
+    text: str,
+    relative_path: str,
+    issues: list[str],
+) -> None:
+    require_tokens(
+        text,
+        UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_REQUIRED_TOKENS,
+        relative_path=relative_path,
+        label="ui-context-scalability-refactor qa matrix",
+        issues=issues,
+    )
+
+    final_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="Final Closeout Commands",
+        issues=issues,
+    )
+    if final_rows is not None:
+        for command in UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+            row = find_row(
+                final_rows,
+                column="Command",
+                predicate=lambda value, command=command: strip_code_fence(value) == command,
+            )
+            if row is None:
+                issues.append(
+                    f"{relative_path}: Final Closeout Commands missing command row: {command}"
+                )
+
+    execution_rows = table_after_heading(
+        text,
+        relative_path=relative_path,
+        heading="2026-04-05 Execution Results",
+        issues=issues,
+    )
+    if execution_rows is not None:
+        for command in UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_AUDIT_COMMANDS:
+            require_command_result(
+                execution_rows,
+                relative_path=relative_path,
+                heading="2026-04-05 Execution Results",
+                predicate=lambda value, command=command: value == command,
+                label=command,
+                issues=issues,
+            )
+
+
 def find_traceability_row(matrix_text: str, row_id: str) -> dict[str, str] | None:
     return parse_traceability_rows(matrix_text).get(row_id)
 
@@ -969,6 +1127,7 @@ SPECIAL_DOCUMENT_AUDITORS = {
     manifest.TRACK_H_BENCHMARK_REPORT_DOC: audit_track_h_report,
     manifest.CURRENT_CLOSEOUT_QA_MATRIX_DOC: audit_architecture_maintainability_refactor_qa_matrix,
     ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_DOC: audit_architecture_residual_refactor_qa_matrix,
+    UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_DOC: audit_ui_context_scalability_refactor_qa_matrix,
 }
 
 

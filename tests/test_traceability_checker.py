@@ -767,6 +767,87 @@ ARCHITECTURE_RESIDUAL_REFACTOR_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...
 ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_TOKENS = (
     manifest.ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_REQUIRED_TOKENS
 )
+UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND = (
+    "./venv/Scripts/python.exe -m pytest "
+    "tests/test_traceability_checker.py tests/test_markdown_hygiene.py "
+    "tests/test_run_verification.py --ignore=venv -q"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_traceability.py"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND = (
+    "./venv/Scripts/python.exe scripts/check_markdown_links.py"
+)
+UI_CONTEXT_SCALABILITY_REFACTOR_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-030": (
+            "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+            "P07",
+            "context-budget",
+            "P08",
+            "subsystem-doc",
+            "CONTEXT_BUDGET_RULES.json",
+            "SUBSYSTEM_PACKET_INDEX.md",
+            "FEATURE_PACKET_TEMPLATE.md",
+        ),
+        "AC-REQ-QA-030-01": (
+            UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+            UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+            UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+            "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+        ),
+    },
+}
+UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-QA-030": (
+        "docs/specs/INDEX.md",
+        "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+        "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+        "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+        "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+        "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+        "scripts/check_context_budgets.py",
+        "scripts/check_traceability.py",
+        "tests/test_traceability_checker.py",
+        "tests/test_markdown_hygiene.py",
+        "tests/test_run_verification.py",
+    ),
+    "AC-REQ-QA-030-01": (
+        UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+        UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+        UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+        "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+    ),
+}
+UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_TOKENS = (
+    "UI Context Scalability Refactor QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-05 Execution Results",
+    "## Remaining Manual Desktop Checks",
+    "## Residual Risks",
+    "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+    "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+    "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+    "scripts/check_context_budgets.py",
+    "tests/test_run_verification.py",
+    UI_CONTEXT_SCALABILITY_REFACTOR_FINAL_PYTEST_COMMAND,
+    UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_COMMAND,
+    UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+    "P01_shell_window_facade_collapse_WRAPUP.md",
+    "P02_presenter_family_split_WRAPUP.md",
+    "P03_graph_scene_bridge_packet_split_WRAPUP.md",
+    "P04_graph_canvas_root_packetization_WRAPUP.md",
+    "P05_edge_renderer_packet_split_WRAPUP.md",
+    "P06_viewer_surface_isolation_WRAPUP.md",
+    "P07_context_budget_guardrails_WRAPUP.md",
+    "P08_subsystem_packet_docs_WRAPUP.md",
+)
 
 
 def load_module(module_name: str, module_path: Path):
@@ -866,7 +947,27 @@ class TraceabilityCheckerTests(unittest.TestCase):
         cls.checker = load_module("check_traceability_for_tests", CHECKER_PATH)
 
     def test_checker_uses_manifest_owned_audit_catalogs(self) -> None:
-        self.assertEqual(self.manifest.PROOF_AUDIT_REQUIRED_ARTIFACTS, self.checker.REQUIRED_ARTIFACTS)
+        self.assertTrue(
+            set(self.manifest.PROOF_AUDIT_REQUIRED_ARTIFACTS).issubset(self.checker.REQUIRED_ARTIFACTS)
+        )
+        self.assertIn(
+            "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+            self.checker.REQUIRED_ARTIFACTS,
+        )
+        self.assertEqual(
+            (
+                "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
+                "docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/SHELL_PACKET.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/PRESENTERS_PACKET.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/GRAPH_SCENE_PACKET.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/GRAPH_CANVAS_PACKET.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/EDGE_RENDERING_PACKET.md",
+                "docs/specs/work_packets/ui_context_scalability_refactor/VIEWER_PACKET.md",
+            ),
+            self.checker.P08_REQUIRED_ARTIFACTS,
+        )
         manifest_rules = {
             path: (rule.required, rule.forbidden)
             for path, rule in self.manifest.GENERIC_DOCUMENT_RULES.items()
@@ -1180,6 +1281,57 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
 
+    def test_audit_repository_reports_ui_context_closeout_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo_fixture(repo_root)
+
+            replace_text(
+                repo_root / "docs/specs/INDEX.md",
+                "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+                "UI_CONTEXT_SCALABILITY_REFACTOR_MATRIX.md",
+            )
+            remove_token_from_requirement_line(
+                repo_root / self.manifest.QA_ACCEPTANCE_DOC,
+                "REQ-QA-030",
+                "CONTEXT_BUDGET_RULES.json",
+            )
+            update_markdown_table_result(
+                repo_root / "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+                UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND,
+                "Pending",
+                "Markdown links were not rerun after the UI closeout refresh",
+            )
+            remove_token_from_traceability_row(
+                repo_root / self.manifest.TRACEABILITY_MATRIX_DOC,
+                "REQ-QA-030",
+                "tests/test_run_verification.py",
+            )
+
+            issues = self.checker.audit_repository(repo_root)
+
+        self.assertIn(
+            "docs/specs/INDEX.md: spec index registration missing fact: "
+            "UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.QA_ACCEPTANCE_DOC}: requirement REQ-QA-030 missing fact: "
+            "CONTEXT_BUDGET_RULES.json",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md: "
+            "2026-04-05 Execution Results command "
+            f"{UI_CONTEXT_SCALABILITY_REFACTOR_MARKDOWN_COMMAND} has unexpected result: Pending",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-030 missing implementation "
+            "artifact text: tests/test_run_verification.py",
+            issues,
+        )
+
     def test_project_managed_files_docs_record_final_scope_tokens(self) -> None:
         for relative_path, requirement_tokens in PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS.items():
             path = REPO_ROOT / relative_path
@@ -1308,6 +1460,26 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_architecture_residual_refactor_qa_matrix_records_commands_and_boundaries(self) -> None:
         text = ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_ui_context_scalability_refactor_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in UI_CONTEXT_SCALABILITY_REFACTOR_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_ui_context_scalability_refactor_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in UI_CONTEXT_SCALABILITY_REFACTOR_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_ui_context_scalability_refactor_qa_matrix_records_commands_and_guardrails(self) -> None:
+        text = UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
 
