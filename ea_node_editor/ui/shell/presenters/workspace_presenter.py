@@ -11,6 +11,10 @@ from ea_node_editor.app_preferences import (
     normalize_grid_overlay_style,
 )
 from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.ui.shell.run_flow import (
+    SelectedWorkspaceRunControlState,
+    selected_workspace_run_control_state,
+)
 from ea_node_editor.ui.graph_theme import resolve_graph_theme_id, serialize_custom_graph_themes
 
 from .contracts import _ShellWorkspacePresenterHostProtocol, _presenter_parent
@@ -21,6 +25,7 @@ class ShellWorkspacePresenter(QObject):
     project_meta_changed = pyqtSignal()
     workspace_state_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
+    run_controls_changed = pyqtSignal()
 
     def __init__(
         self,
@@ -35,6 +40,7 @@ class ShellWorkspacePresenter(QObject):
         host.project_meta_changed.connect(self.project_meta_changed.emit)
         host.workspace_state_changed.connect(self.workspace_state_changed.emit)
         host.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+        host.run_controls_changed.connect(self.run_controls_changed.emit)
 
     @property
     def project_display_name(self) -> str:
@@ -95,6 +101,28 @@ class ShellWorkspacePresenter(QObject):
 
     @property
     def can_publish_custom_workflow_from_scope(self) -> bool: return bool(self._host.scene.active_scope_path)
+
+    @property
+    def _active_workspace_run_controls(self) -> SelectedWorkspaceRunControlState:
+        run_state = self._host.run_state
+        return selected_workspace_run_control_state(
+            selected_workspace_id=self.active_workspace_id,
+            active_run_id=getattr(run_state, "active_run_id", ""),
+            active_run_workspace_id=getattr(run_state, "active_run_workspace_id", ""),
+            engine_state=getattr(run_state, "engine_state_value", ""),
+        )
+
+    @property
+    def active_workspace_can_run(self) -> bool:
+        return bool(self._active_workspace_run_controls.can_run_active_workspace)
+
+    @property
+    def active_workspace_can_pause(self) -> bool:
+        return bool(self._active_workspace_run_controls.can_pause_active_workspace)
+
+    @property
+    def active_workspace_can_stop(self) -> bool:
+        return bool(self._active_workspace_run_controls.can_stop_active_workspace)
 
     def request_run_workflow(self) -> None: self._host.run_controller.run_workflow()
     def request_save_project_as(self) -> None: self._host.project_session_controller.save_project_as()
