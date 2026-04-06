@@ -4,7 +4,10 @@ from typing import Any, Literal, Protocol
 
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.ui.icon_registry import qicon
-from ea_node_editor.ui.shell.run_flow import event_targets_active_run, run_action_state
+from ea_node_editor.ui.shell.run_flow import (
+    event_targets_active_run,
+    selected_workspace_run_control_state,
+)
 from ea_node_editor.ui.shell.state import ShellRunState
 
 
@@ -27,8 +30,10 @@ class _RunControllerHostProtocol(Protocol):
     console_panel: Any
     execution_client: Any
     workspace_library_controller: _RunFailureFocusProtocol
+    action_run: Any
     action_stop: Any
     action_pause: Any
+    run_controls_changed: Any
     _RUN_SCOPED_EVENT_TYPES: set[str]
 
     def update_notification_counters(self, warning_count: int, error_count: int) -> None: ...
@@ -228,12 +233,19 @@ class RunController:
         self.update_run_actions()
 
     def update_run_actions(self) -> None:
-        can_pause, pause_label = run_action_state(self._state.active_run_id, self._state.engine_state_value)
-        self._host.action_stop.setEnabled(True)
-        self._host.action_pause.setEnabled(can_pause)
-        self._host.action_pause.setText(pause_label)
+        projection = selected_workspace_run_control_state(
+            selected_workspace_id=self._host.workspace_manager.active_workspace_id(),
+            active_run_id=self._state.active_run_id,
+            active_run_workspace_id=self._state.active_run_workspace_id,
+            engine_state=self._state.engine_state_value,
+        )
+        self._host.action_run.setEnabled(projection.can_run_active_workspace)
+        self._host.action_stop.setEnabled(projection.can_stop_active_workspace)
+        self._host.action_pause.setEnabled(projection.can_pause_active_workspace)
+        self._host.action_pause.setText(projection.pause_label)
         if hasattr(self._host.action_pause, "setIcon"):
-            self._host.action_pause.setIcon(qicon("resume" if pause_label == "Resume" else "pause"))
+            self._host.action_pause.setIcon(qicon("resume" if projection.pause_label == "Resume" else "pause"))
+        self._host.run_controls_changed.emit()
 
     def _event_workspace_id(self, event: dict[str, Any]) -> str:
         workspace_id = str(event.get("workspace_id", "") or "").strip()

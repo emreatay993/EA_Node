@@ -37,11 +37,13 @@ class _ShellWorkspacePresenterHostProtocol(Protocol):
     project_meta_changed: _SignalLike
     workspace_state_changed: _SignalLike
     graphics_preferences_changed: _SignalLike
+    run_controls_changed: _SignalLike
     project_path: str
     workspace_ui_state: Any
     workspace_manager: Any
     model: Any
     scene: Any
+    run_state: Any
     run_controller: Any
     project_session_controller: Any
     search_scope_controller: Any

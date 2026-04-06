@@ -185,6 +185,12 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
                     "property var viewBridgeRef",
                     "property var scriptEditorBridgeRef",
                     "readonly property var workspaceBridgeRef: shellWorkspaceBridge",
+                    'objectName: "shellRunToolbarRunButton"',
+                    'objectName: "shellRunToolbarPauseButton"',
+                    'objectName: "shellRunToolbarStopButton"',
+                    "enabled: root.workspaceBridgeRef.active_workspace_can_run",
+                    "enabled: root.workspaceBridgeRef.active_workspace_can_pause",
+                    "enabled: root.workspaceBridgeRef.active_workspace_can_stop",
                     "root.workspaceBridgeRef.request_run_workflow",
                     "root.workspaceBridgeRef.request_toggle_run_pause",
                     "root.workspaceBridgeRef.request_stop_workflow",
@@ -280,6 +286,29 @@ class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
             for snippet in present_snippets:
                 with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
                     self.assertIn(snippet, qml_text)
+
+    def test_shell_button_qml_mutes_disabled_visual_states(self) -> None:
+        qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell/ShellButton.qml"
+        qml_text = qml_path.read_text(encoding="utf-8")
+
+        present_snippets = (
+            "readonly property color foregroundColor: !control.enabled",
+            "Qt.alpha(control.themePalette.muted_fg, 0.55)",
+            "readonly property color chromeBorderColor: !control.enabled",
+            "readonly property color chromeFillColor: !control.enabled",
+            "readonly property real contentOpacity: control.enabled ? 1.0 : 0.72",
+            "property color iconColor: control.foregroundColor",
+            "hoverEnabled: control.enabled",
+            "ToolTip.visible: control.enabled && hovered && resolvedTooltipText.length > 0",
+            "opacity: control.contentOpacity",
+            "color: control.foregroundColor",
+            "(control.enabled && control.down)",
+            "(control.enabled && control.hovered)",
+        )
+
+        for snippet in present_snippets:
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, qml_text)
 
     def test_main_shell_keeps_only_the_remaining_live_shell_plumbing_assignments(self) -> None:
         qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/MainShell.qml"

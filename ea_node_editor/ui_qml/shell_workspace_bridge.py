@@ -20,11 +20,15 @@ class _ShellWorkspaceSource(Protocol):
     project_meta_changed: _SignalLike
     workspace_state_changed: _SignalLike
     graphics_preferences_changed: _SignalLike
+    run_controls_changed: _SignalLike
     project_display_name: str
     graphics_tab_strip_density: str
     active_workspace_id: str
     active_scope_breadcrumb_items: list[dict[str, str]]
     active_view_items: list[dict[str, Any]]
+    active_workspace_can_run: bool
+    active_workspace_can_pause: bool
+    active_workspace_can_stop: bool
 
     def request_run_workflow(self) -> None: ...
 
@@ -89,6 +93,7 @@ class ShellWorkspaceBridge(QObject):
     project_meta_changed = pyqtSignal()
     workspace_state_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
+    run_controls_changed = pyqtSignal()
     workspace_tabs_changed = pyqtSignal()
     console_output_changed = pyqtSignal()
     console_errors_changed = pyqtSignal()
@@ -117,6 +122,7 @@ class ShellWorkspaceBridge(QObject):
         self._workspace_source.project_meta_changed.connect(self.project_meta_changed.emit)
         self._workspace_source.workspace_state_changed.connect(self.workspace_state_changed.emit)
         self._workspace_source.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+        self._workspace_source.run_controls_changed.connect(self.run_controls_changed.emit)
         if scene_bridge is not None:
             scene_bridge.scope_changed.connect(self.workspace_state_changed.emit)
         if workspace_tabs_bridge is not None:
@@ -170,6 +176,18 @@ class ShellWorkspaceBridge(QObject):
     @pyqtProperty("QVariantList", notify=workspace_state_changed)
     def active_view_items(self) -> list[dict[str, Any]]:
         return _copy_list(self._workspace_source.active_view_items)
+
+    @pyqtProperty(bool, notify=run_controls_changed)
+    def active_workspace_can_run(self) -> bool:
+        return bool(self._workspace_source.active_workspace_can_run)
+
+    @pyqtProperty(bool, notify=run_controls_changed)
+    def active_workspace_can_pause(self) -> bool:
+        return bool(self._workspace_source.active_workspace_can_pause)
+
+    @pyqtProperty(bool, notify=run_controls_changed)
+    def active_workspace_can_stop(self) -> bool:
+        return bool(self._workspace_source.active_workspace_can_stop)
 
     @pyqtProperty("QVariantList", notify=workspace_tabs_changed)
     def workspace_tabs(self) -> list[dict[str, Any]]:

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PyQt6.QtCore import QObject
+from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QMessageBox
 
@@ -202,6 +203,23 @@ def _graph_node_card(graph_canvas: QObject, node_id: str) -> QObject | None:
                 _walk(child)
 
     _walk(graph_canvas)
+    return match
+
+
+def _named_qquick_item(root: QObject, object_name: str) -> QQuickItem | None:
+    match: QQuickItem | None = None
+
+    def _walk(item: QObject | None) -> None:
+        nonlocal match
+        if item is None or match is not None or not isinstance(item, QQuickItem):
+            return
+        if item.objectName() == object_name:
+            match = item
+            return
+        for child in item.childItems():
+            _walk(child)
+
+    _walk(root)
     return match
 
 
@@ -500,6 +518,90 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(library_bridge.graph_search_query, self.window.shell_library_presenter.graph_search_query)
         self.assertEqual(workspace_bridge.project_display_name, self.window.shell_workspace_presenter.project_display_name)
         self.assertEqual(inspector_bridge.selected_node_title, self.window.shell_inspector_presenter.selected_node_title)
+
+    def test_selected_workspace_toolbar_buttons_follow_run_owner_state_and_warning_path(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        if root_object is None:
+            self.fail("Expected main shell root object to exist")
+
+        run_button = _named_qquick_item(root_object, "shellRunToolbarRunButton")
+        pause_button = _named_qquick_item(root_object, "shellRunToolbarPauseButton")
+        stop_button = _named_qquick_item(root_object, "shellRunToolbarStopButton")
+        self.assertIsNotNone(run_button)
+        self.assertIsNotNone(pause_button)
+        self.assertIsNotNone(stop_button)
+        if run_button is None or pause_button is None or stop_button is None:
+            self.fail("Expected shell toolbar run buttons to expose stable object names")
+
+        workspace_a_id = self.window.workspace_manager.active_workspace_id()
+        workspace_b_id = self.window.workspace_manager.create_workspace("Second Workspace")
+        self.window._refresh_workspace_tabs()
+        self.window._switch_workspace(workspace_a_id)
+        self.app.processEvents()
+
+        bridge = self.window.quick_widget.rootContext().contextProperty("shellWorkspaceBridge")
+        self.assertIsInstance(bridge, ShellWorkspaceBridge)
+        if not isinstance(bridge, ShellWorkspaceBridge):
+            self.fail("Expected shellWorkspaceBridge context property to exist")
+
+        wait_for_condition_or_raise(
+            lambda: bool(run_button.property("enabled"))
+            and not bool(pause_button.property("enabled"))
+            and not bool(stop_button.property("enabled")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for idle toolbar run controls.",
+        )
+
+        with patch.object(self.window.execution_client, "start_run", return_value="run_owner") as start_run:
+            bridge.request_run_workflow()
+            self.app.processEvents()
+
+            wait_for_condition_or_raise(
+                lambda: not bool(run_button.property("enabled"))
+                and bool(pause_button.property("enabled"))
+                and bool(stop_button.property("enabled")),
+                timeout_ms=400,
+                app=self.app,
+                timeout_message="Timed out waiting for owning-workspace toolbar run controls.",
+            )
+            self.assertEqual(self.window.run_state.active_run_id, "run_owner")
+            self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_a_id)
+
+            self.window._switch_workspace(workspace_b_id)
+            self.app.processEvents()
+
+            wait_for_condition_or_raise(
+                lambda: bool(run_button.property("enabled"))
+                and not bool(pause_button.property("enabled"))
+                and not bool(stop_button.property("enabled")),
+                timeout_ms=400,
+                app=self.app,
+                timeout_message="Timed out waiting for non-owning workspace toolbar run controls.",
+            )
+
+            warnings_before = self.window.console_panel.warning_count
+            bridge.request_run_workflow()
+            self.app.processEvents()
+
+            self.assertEqual(start_run.call_count, 1)
+            self.assertEqual(self.window.run_state.active_run_id, "run_owner")
+            self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_a_id)
+            self.assertEqual(self.window.console_panel.warning_count, warnings_before + 1)
+            self.assertIn("A workflow run is already active.", self.window.console_panel.warnings_text)
+
+            self.window._switch_workspace(workspace_a_id)
+            self.app.processEvents()
+
+            wait_for_condition_or_raise(
+                lambda: not bool(run_button.property("enabled"))
+                and bool(pause_button.property("enabled"))
+                and bool(stop_button.property("enabled")),
+                timeout_ms=400,
+                app=self.app,
+                timeout_message="Timed out waiting for owning-workspace toolbar run controls to restore.",
+            )
 
     def test_fatal_run_failed_event_invalidates_viewer_sessions_as_worker_reset(self) -> None:
         execution_client = _ViewerExecutionClientStub()

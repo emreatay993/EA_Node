@@ -655,11 +655,17 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.assertTrue(self.window.action_snap_to_grid.isCheckable())
         self.assertFalse(self.window.snap_to_grid_enabled)
         self.assertFalse(self.window.action_snap_to_grid.isChecked())
+        self.assertTrue(self.window.action_run.isEnabled())
+        self.assertFalse(self.window.action_pause.isEnabled())
+        self.assertFalse(self.window.action_stop.isEnabled())
 
         with patch.object(self.window.execution_client, "start_run", return_value="run_test") as start_run:
             self.window.action_run.trigger()
             self.app.processEvents()
             start_run.assert_called_once()
+        self.assertFalse(self.window.action_run.isEnabled())
+        self.assertTrue(self.window.action_pause.isEnabled())
+        self.assertTrue(self.window.action_stop.isEnabled())
 
         self.window._active_run_id = "run_test"
         with patch.object(self.window.execution_client, "stop_run") as stop_run:

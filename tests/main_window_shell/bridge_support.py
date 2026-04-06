@@ -6,12 +6,15 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal
 from PyQt6.QtQuick import QQuickItem
 
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
+from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
+from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
 from ea_node_editor.ui.shell.state import ShellRunState
 from ea_node_editor.ui.shell.runtime_clipboard import build_graph_fragment_payload, serialize_graph_fragment_payload
 from ea_node_editor.ui_qml.graph_canvas_bridge import GraphCanvasBridge
@@ -222,6 +225,7 @@ class _ShellWorkspaceHostStub(QObject):
     project_meta_changed = pyqtSignal()
     workspace_state_changed = pyqtSignal()
     graphics_preferences_changed = pyqtSignal()
+    run_controls_changed = pyqtSignal()
 
     def __init__(self) -> None:
         super().__init__()
@@ -229,6 +233,9 @@ class _ShellWorkspaceHostStub(QObject):
         self.project_display_name = "COREX Node Editor - packet.sfe"
         self.graphics_tab_strip_density = "relaxed"
         self.active_workspace_id = "ws-2"
+        self.active_workspace_can_run = True
+        self.active_workspace_can_pause = False
+        self.active_workspace_can_stop = False
         self.active_scope_breadcrumb_items = [
             {"label": "Root", "node_id": ""},
             {"label": "Scope", "node_id": "scope-node"},
@@ -295,6 +302,127 @@ class _ShellWorkspaceHostStub(QObject):
 
     def request_create_workspace(self) -> None:
         self._record("request_create_workspace")
+
+
+def _workspace_view_stub(view_id: str, name: str) -> SimpleNamespace:
+    return SimpleNamespace(view_id=view_id, name=name)
+
+
+def _workspace_stub(
+    name: str,
+    *,
+    active_view_id: str,
+    views: list[SimpleNamespace],
+) -> SimpleNamespace:
+    workspace = SimpleNamespace(
+        name=name,
+        active_view_id=active_view_id,
+        views={view.view_id: view for view in views},
+    )
+    workspace.ensure_default_view = lambda: None
+    return workspace
+
+
+class _PresenterRunControllerStub:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def run_workflow(self) -> None:
+        self.calls.append(("run_workflow", ()))
+
+    def toggle_pause_resume(self) -> None:
+        self.calls.append(("toggle_pause_resume", ()))
+
+    def stop_workflow(self) -> None:
+        self.calls.append(("stop_workflow", ()))
+
+
+class _ShellWorkspacePresenterHostStub(QObject):
+    project_meta_changed = pyqtSignal()
+    workspace_state_changed = pyqtSignal()
+    graphics_preferences_changed = pyqtSignal()
+    run_controls_changed = pyqtSignal()
+
+    def __init__(
+        self,
+        *,
+        active_workspace_id: str = "ws-2",
+        active_run_id: str = "",
+        active_run_workspace_id: str = "",
+        engine_state: str = "ready",
+    ) -> None:
+        super().__init__()
+        self.project_path = "C:/projects/presenter_packet.sfe"
+        self.workspace_ui_state = build_default_shell_workspace_ui_state()
+        self.workspace_manager = _ActiveWorkspaceManagerStub(active_workspace_id)
+        self.model = SimpleNamespace(
+            project=SimpleNamespace(
+                workspaces={
+                    "ws-1": _workspace_stub(
+                        "Workspace 1",
+                        active_view_id="view-1",
+                        views=[
+                            _workspace_view_stub("view-1", "Main"),
+                            _workspace_view_stub("view-2", "Inspect"),
+                        ],
+                    ),
+                    "ws-2": _workspace_stub(
+                        "Workspace 2",
+                        active_view_id="view-3",
+                        views=[
+                            _workspace_view_stub("view-3", "Presenter"),
+                        ],
+                    ),
+                }
+            )
+        )
+        self.scene = SimpleNamespace(
+            scope_breadcrumb_model=[
+                {"label": "Root", "node_id": ""},
+                {"label": "Scope", "node_id": "scope-node"},
+            ],
+            active_scope_path=(),
+            navigate_scope_to=lambda node_id: bool(node_id),
+            sync_scope_with_active_view=lambda: None,
+        )
+        self.run_state = ShellRunState(
+            active_run_id=active_run_id,
+            active_run_workspace_id=active_run_workspace_id,
+            engine_state_value=engine_state,
+        )
+        self.run_controller = _PresenterRunControllerStub()
+        self.project_session_controller = SimpleNamespace(
+            save_project_as=lambda: None,
+            show_workflow_settings_dialog=lambda checked=False: None,
+            set_script_editor_panel_visible=lambda checked=None: None,
+        )
+        self.search_scope_controller = SimpleNamespace(
+            navigate_scope=lambda callback: callback(),
+            remember_scope_camera=lambda: None,
+            restore_scope_camera=lambda: None,
+            set_snap_to_grid_enabled=lambda enabled, persist=False: None,
+        )
+        self.search_scope_state = SimpleNamespace(
+            graphics_minimap_expanded=False,
+            snap_to_grid_enabled=False,
+        )
+        self.workspace_library_controller = SimpleNamespace(
+            switch_view=lambda target_id: None,
+            move_view=lambda from_index, to_index: True,
+            rename_view=lambda view_id: True,
+            close_view=lambda view_id: True,
+            create_view=lambda: None,
+            move_workspace=lambda from_index, to_index: True,
+            rename_workspace_by_id=lambda workspace_id: True,
+            close_workspace_by_id=lambda workspace_id: True,
+            create_workspace=lambda: None,
+        )
+        self.shell_host_presenter = SimpleNamespace(apply_theme=lambda theme_id: str(theme_id or "system"))
+        self.graph_theme_bridge = SimpleNamespace(theme_id="system", apply_settings=lambda **kwargs: None)
+        self.graphics_modes: list[str] = []
+
+    def set_graphics_performance_mode(self, mode: str) -> None:
+        self.graphics_modes.append(str(mode))
 
 
 class _WorkspaceTabsBridgeStub(QObject):
@@ -1866,6 +1994,9 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
             host.active_scope_breadcrumb_items,
         )
         self.assertEqual(bridge.active_view_items, host.active_view_items)
+        self.assertTrue(bridge.active_workspace_can_run)
+        self.assertFalse(bridge.active_workspace_can_pause)
+        self.assertFalse(bridge.active_workspace_can_stop)
         self.assertEqual(bridge.workspace_tabs, tabs_bridge.tabs)
         self.assertEqual(bridge.output_text, "stdout line")
         self.assertEqual(bridge.errors_text, "error line")
@@ -1923,9 +2054,13 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
 
     def test_bridge_uses_explicit_workspace_source_contract_when_injected(self) -> None:
         host = _ShellWorkspaceHostStub()
-        presenter = _ShellWorkspaceHostStub()
-        presenter.project_display_name = "Presenter Packet"
-        presenter.active_view_items = [{"view_id": "view-presenter", "label": "Presenter", "active": True}]
+        presenter_host = _ShellWorkspacePresenterHostStub(
+            active_workspace_id="ws-2",
+            active_run_id="run-1",
+            active_run_workspace_id="ws-2",
+            engine_state="paused",
+        )
+        presenter = ShellWorkspacePresenter(presenter_host)
         host.shell_workspace_presenter = presenter
         tabs_bridge = _WorkspaceTabsBridgeStub()
         console_bridge = _ConsoleBridgeStub()
@@ -1940,17 +2075,44 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
         )
 
         self.assertIs(bridge.workspace_source, presenter)
-        self.assertEqual(bridge.project_display_name, "Presenter Packet")
+        self.assertEqual(presenter.project_display_name, "COREX Node Editor - presenter_packet.sfe")
+        self.assertFalse(presenter.active_workspace_can_run)
+        self.assertTrue(presenter.active_workspace_can_pause)
+        self.assertTrue(presenter.active_workspace_can_stop)
+        self.assertEqual(bridge.project_display_name, presenter.project_display_name)
         self.assertEqual(bridge.active_view_items, presenter.active_view_items)
+        self.assertFalse(bridge.active_workspace_can_run)
+        self.assertTrue(bridge.active_workspace_can_pause)
+        self.assertTrue(bridge.active_workspace_can_stop)
+
+        seen = {"presenter": 0, "bridge": 0}
+        presenter.run_controls_changed.connect(
+            lambda: seen.__setitem__("presenter", seen["presenter"] + 1)
+        )
+        bridge.run_controls_changed.connect(
+            lambda: seen.__setitem__("bridge", seen["bridge"] + 1)
+        )
+        presenter_host.run_state.active_run_workspace_id = "ws-1"
+        presenter_host.run_controls_changed.emit()
+
+        self.assertEqual(seen, {"presenter": 1, "bridge": 1})
+        self.assertTrue(bridge.active_workspace_can_run)
+        self.assertFalse(bridge.active_workspace_can_pause)
+        self.assertFalse(bridge.active_workspace_can_stop)
 
         bridge.request_run_workflow()
-        self.assertEqual(presenter.calls, [("request_run_workflow", ())])
+        self.assertEqual(presenter_host.run_controller.calls, [("run_workflow", ())])
         self.assertEqual(host.calls, [])
 
     def test_bridge_wraps_shell_window_and_routes_through_host_workspace_presenter_when_present(self) -> None:
         host = _ShellWorkspaceHostStub()
-        presenter = _ShellWorkspaceHostStub()
-        presenter.project_display_name = "Presenter Packet"
+        presenter_host = _ShellWorkspacePresenterHostStub(
+            active_workspace_id="ws-1",
+            active_run_id="run-1",
+            active_run_workspace_id="ws-2",
+            engine_state="running",
+        )
+        presenter = ShellWorkspacePresenter(presenter_host)
         host.shell_workspace_presenter = presenter
         tabs_bridge = _WorkspaceTabsBridgeStub()
         console_bridge = _ConsoleBridgeStub()
@@ -1965,8 +2127,11 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
 
         self.assertIsNot(bridge.workspace_source, presenter)
         self.assertEqual(bridge.project_display_name, presenter.project_display_name)
+        self.assertTrue(bridge.active_workspace_can_run)
+        self.assertFalse(bridge.active_workspace_can_pause)
+        self.assertFalse(bridge.active_workspace_can_stop)
         bridge.request_run_workflow()
-        self.assertEqual(presenter.calls, [("request_run_workflow", ())])
+        self.assertEqual(presenter_host.run_controller.calls, [("run_workflow", ())])
         self.assertEqual(host.calls, [])
 
     def test_bridge_re_emits_workspace_and_console_signals(self) -> None:
@@ -1985,6 +2150,7 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
             "project_meta_changed": 0,
             "workspace_state_changed": 0,
             "graphics_preferences_changed": 0,
+            "run_controls_changed": 0,
             "workspace_tabs_changed": 0,
             "console_output_changed": 0,
             "console_errors_changed": 0,
@@ -2003,6 +2169,9 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
                 "graphics_preferences_changed",
                 seen["graphics_preferences_changed"] + 1,
             )
+        )
+        bridge.run_controls_changed.connect(
+            lambda: seen.__setitem__("run_controls_changed", seen["run_controls_changed"] + 1)
         )
         bridge.workspace_tabs_changed.connect(
             lambda: seen.__setitem__("workspace_tabs_changed", seen["workspace_tabs_changed"] + 1)
@@ -2023,6 +2192,7 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
         host.project_meta_changed.emit()
         host.workspace_state_changed.emit()
         host.graphics_preferences_changed.emit()
+        host.run_controls_changed.emit()
         scene_bridge.scope_changed.emit()
         tabs_bridge.tabs_changed.emit()
         console_bridge.output_changed.emit()
@@ -2036,6 +2206,7 @@ class ShellWorkspaceBridgeTests(unittest.TestCase):
                 "project_meta_changed": 1,
                 "workspace_state_changed": 2,
                 "graphics_preferences_changed": 1,
+                "run_controls_changed": 1,
                 "workspace_tabs_changed": 1,
                 "console_output_changed": 1,
                 "console_errors_changed": 1,
