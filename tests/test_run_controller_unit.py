@@ -493,6 +493,47 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.node_execution_revision, 7)
         self.assertEqual(host._engine_status, ("running", "Running"))
 
+    def test_node_completed_after_pause_preserves_paused_state_and_resume_action(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.engine_state_value = "running"
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.handle_execution_event(
+            {
+                "type": "run_state",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "state": "paused",
+                "transition": "pause",
+            }
+        )
+        controller.handle_execution_event(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": "node_1",
+            }
+        )
+
+        self.assertEqual(host.run_state.engine_state_value, "paused")
+        self.assertEqual(host._engine_status, ("paused", "Paused"))
+        self.assert_run_controls(
+            host,
+            run_enabled=False,
+            pause_enabled=True,
+            stop_enabled=True,
+            pause_label="Resume",
+        )
+
+        controller.toggle_pause_resume()
+
+        self.assertEqual(host.execution_client.resume_calls, ["run_live"])
+        self.assertEqual(host._engine_status, ("running", "Resuming"))
+
     def test_node_execution_bridge_nonfatal_run_failed_preserves_last_execution_context(self) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id

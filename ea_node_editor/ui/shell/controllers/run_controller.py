@@ -158,7 +158,9 @@ class RunController:
                 str(event.get("node_id", "")),
             )
 
-        if event_type in {"run_started", "node_started", "node_completed"}:
+        if event_type == "run_started" or (
+            event_type in {"node_started", "node_completed"} and self._state.engine_state_value != "paused"
+        ):
             self.set_run_ui_state("running", "Running", 1, 0, 0, 0)
 
         if event_type == "log":
