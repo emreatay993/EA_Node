@@ -43,6 +43,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [UI_CONTEXT_SCALABILITY_FOLLOWUP Work Packet Manifest](work_packets/ui_context_scalability_followup/UI_CONTEXT_SCALABILITY_FOLLOWUP_MANIFEST.md)
 - [UI_CONTEXT_SCALABILITY_FOLLOWUP Status Ledger](work_packets/ui_context_scalability_followup/UI_CONTEXT_SCALABILITY_FOLLOWUP_STATUS.md)
 - [UI_CONTEXT_SCALABILITY_FOLLOWUP QA Matrix](perf/UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md)
+- [SELECTED_WORKSPACE_RUN_CONTROL_STATES_REFACTOR Work Packet Manifest](work_packets/selected_workspace_run_control_states_refactor/SELECTED_WORKSPACE_RUN_CONTROL_STATES_REFACTOR_MANIFEST.md)
+- [SELECTED_WORKSPACE_RUN_CONTROL_STATES_REFACTOR Status Ledger](work_packets/selected_workspace_run_control_states_refactor/SELECTED_WORKSPACE_RUN_CONTROL_STATES_REFACTOR_STATUS.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Work Packet Manifest](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Status Ledger](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_STATUS.md)
 - [PYDPF_VIEWER_V1 QA Matrix](perf/PYDPF_VIEWER_V1_QA_MATRIX.md) - closeout evidence only; packet planning docs are archived outside the canonical spec pack.
