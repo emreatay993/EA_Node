@@ -89,6 +89,32 @@ class FlowEdgeLabelPayloadTests(unittest.TestCase):
                     msg=f"{helper_name} exceeded the packet helper line budget",
                 )
 
+    def test_execution_edge_progress_snapshot_contract_threads_root_layer_metadata(self) -> None:
+        graph_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph"
+        graph_canvas_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "components" / "graph_canvas"
+        root_layers_text = (graph_canvas_dir / "GraphCanvasRootLayers.qml").read_text(encoding="utf-8")
+        edge_layer_text = (graph_dir / "EdgeLayer.qml").read_text(encoding="utf-8")
+        snapshot_cache_text = (graph_dir / "EdgeSnapshotCache.js").read_text(encoding="utf-8")
+
+        self.assertIn(
+            "progressedExecutionEdgeLookup: root.canvasItem ? root.canvasItem.progressedExecutionEdgeLookup : ({})",
+            root_layers_text,
+        )
+        self.assertIn(
+            "nodeExecutionRevision: root.canvasItem ? Number(root.canvasItem.nodeExecutionRevision || 0) : 0",
+            root_layers_text,
+        )
+        self.assertIn("property var progressedExecutionEdgeLookup: ({})", edge_layer_text)
+        self.assertIn("property int nodeExecutionRevision: 0", edge_layer_text)
+        self.assertIn("property var _executionFlashStateByEdgeId: ({})", edge_layer_text)
+        self.assertIn("property real executionFlashDurationMs: 240.0", edge_layer_text)
+        self.assertIn("onNodeExecutionRevisionChanged: requestRedraw()", edge_layer_text)
+        self.assertIn('function _isExecutionEdge(edge) {', snapshot_cache_text)
+        self.assertIn('"executionProgressed": executionProgressed,', snapshot_cache_text)
+        self.assertIn('"executionDimmed": executionEdge && !executionProgressed && !selected && !previewed,', snapshot_cache_text)
+        self.assertIn('"executionFlashProgress": executionProgressed', snapshot_cache_text)
+        self.assertIn("function syncExecutionFlashState(edgeLayer) {", snapshot_cache_text)
+        self.assertIn("Initial already-progressed state should not synthesize a flash.", snapshot_cache_text)
 
     def test_edge_routing_facade_stays_within_packet_budget_and_helper_split(self) -> None:
         ui_qml_dir = _REPO_ROOT / "ea_node_editor" / "ui_qml"
@@ -552,6 +578,172 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 part for part in (result.stdout.strip(), result.stderr.strip()) if part
             )
             self.fail(f"{label} probe failed with exit code {result.returncode}\n{details}")
+
+    def test_execution_edge_progress_snapshot_metadata_tracks_dimming_and_one_shot_flash(self) -> None:
+        self._run_edge_layer_probe(
+            "execution-edge-progress-snapshot",
+            """
+            from PyQt6.QtTest import QTest
+
+            def bezier_edge(edge_id, source_port_kind, sx, sy, tx, ty):
+                return {
+                    "edge_id": edge_id,
+                    "source_node_id": "",
+                    "source_port_key": "",
+                    "target_node_id": "",
+                    "target_port_key": "",
+                    "source_port_kind": source_port_kind,
+                    "target_port_kind": "exec" if source_port_kind in {"exec", "completed", "failed"} else "data",
+                    "edge_family": "standard",
+                    "label": "",
+                    "visual_style": {},
+                    "flow_style": {},
+                    "source_port_side": "right",
+                    "target_port_side": "left",
+                    "source_anchor_side": "right",
+                    "target_anchor_side": "left",
+                    "source_anchor_kind": "scene",
+                    "target_anchor_kind": "scene",
+                    "source_anchor_node_id": "",
+                    "target_anchor_node_id": "",
+                    "source_hidden_by_backdrop_id": "",
+                    "target_hidden_by_backdrop_id": "",
+                    "source_anchor_bounds": None,
+                    "target_anchor_bounds": None,
+                    "lane_bias": 0.0,
+                    "sx": sx,
+                    "sy": sy,
+                    "tx": tx,
+                    "ty": ty,
+                    "c1x": sx + 72.0,
+                    "c1y": sy,
+                    "c2x": tx - 72.0,
+                    "c2y": ty,
+                    "route": "bezier",
+                    "pipe_points": [],
+                    "color": "#7AA8FF",
+                    "data_type_warning": False,
+                }
+
+            edge_layer.setProperty(
+                "progressedExecutionEdgeLookup",
+                {
+                    "exec_initial_progressed": True,
+                    "data_edge": True,
+                },
+            )
+            edge_layer.setProperty(
+                "edges",
+                [
+                    bezier_edge("exec_dimmed", "exec", 80.0, 80.0, 320.0, 80.0),
+                    bezier_edge("exec_selected", "completed", 80.0, 120.0, 320.0, 120.0),
+                    bezier_edge("exec_previewed", "failed", 80.0, 160.0, 320.0, 160.0),
+                    bezier_edge("exec_initial_progressed", "completed", 80.0, 200.0, 320.0, 200.0),
+                    bezier_edge("data_edge", "data", 80.0, 240.0, 320.0, 240.0),
+                ],
+            )
+            edge_layer.setProperty("selectedEdgeIds", ["exec_selected"])
+            edge_layer.setProperty("previewEdgeId", "exec_previewed")
+            refresh(edge_layer)
+
+            dimmed = snapshot(edge_layer, "exec_dimmed")
+            selected = snapshot(edge_layer, "exec_selected")
+            previewed = snapshot(edge_layer, "exec_previewed")
+            initial_progressed = snapshot(edge_layer, "exec_initial_progressed")
+            data_edge = snapshot(edge_layer, "data_edge")
+
+            assert dimmed["executionProgressed"] is False
+            assert dimmed["executionDimmed"] is True
+            assert float(dimmed["executionFlashProgress"]) == 0.0
+
+            assert selected["executionProgressed"] is False
+            assert selected["executionDimmed"] is False
+            assert float(selected["executionFlashProgress"]) == 0.0
+
+            assert previewed["executionProgressed"] is False
+            assert previewed["executionDimmed"] is False
+            assert float(previewed["executionFlashProgress"]) == 0.0
+
+            assert initial_progressed["executionProgressed"] is True
+            assert initial_progressed["executionDimmed"] is False
+            assert float(initial_progressed["executionFlashProgress"]) == 0.0
+
+            assert data_edge["executionProgressed"] is False
+            assert data_edge["executionDimmed"] is False
+            assert float(data_edge["executionFlashProgress"]) == 0.0
+
+            edge_layer.setProperty(
+                "progressedExecutionEdgeLookup",
+                {
+                    "exec_dimmed": True,
+                    "exec_initial_progressed": True,
+                    "data_edge": True,
+                },
+            )
+            edge_layer.setProperty("nodeExecutionRevision", 1)
+            app.processEvents()
+            app.processEvents()
+
+            progressed = snapshot(edge_layer, "exec_dimmed")
+            assert progressed["executionProgressed"] is True
+            assert progressed["executionDimmed"] is False
+            assert 0.0 < float(progressed["executionFlashProgress"]) <= 1.0
+
+            data_edge = snapshot(edge_layer, "data_edge")
+            assert data_edge["executionProgressed"] is False
+            assert data_edge["executionDimmed"] is False
+            assert float(data_edge["executionFlashProgress"]) == 0.0
+
+            QTest.qWait(280)
+            app.processEvents()
+            app.processEvents()
+
+            expired = snapshot(edge_layer, "exec_dimmed")
+            assert expired["executionProgressed"] is True
+            assert float(expired["executionFlashProgress"]) == 0.0
+
+            edge_layer.setProperty("nodeExecutionRevision", 2)
+            app.processEvents()
+            app.processEvents()
+
+            stable_progressed = snapshot(edge_layer, "exec_dimmed")
+            assert stable_progressed["executionProgressed"] is True
+            assert float(stable_progressed["executionFlashProgress"]) == 0.0
+
+            edge_layer.setProperty(
+                "progressedExecutionEdgeLookup",
+                {
+                    "exec_initial_progressed": True,
+                    "data_edge": True,
+                },
+            )
+            edge_layer.setProperty("nodeExecutionRevision", 3)
+            app.processEvents()
+            app.processEvents()
+
+            reset = snapshot(edge_layer, "exec_dimmed")
+            assert reset["executionProgressed"] is False
+            assert reset["executionDimmed"] is True
+            assert float(reset["executionFlashProgress"]) == 0.0
+
+            edge_layer.setProperty(
+                "progressedExecutionEdgeLookup",
+                {
+                    "exec_dimmed": True,
+                    "exec_initial_progressed": True,
+                },
+            )
+            edge_layer.setProperty("nodeExecutionRevision", 4)
+            app.processEvents()
+            app.processEvents()
+
+            retriggered = snapshot(edge_layer, "exec_dimmed")
+            assert retriggered["executionProgressed"] is True
+            assert retriggered["executionDimmed"] is False
+            assert 0.0 < float(retriggered["executionFlashProgress"]) <= 1.0
+
+            """,
+        )
 
     def test_graph_canvas_flow_edge_labels_render_and_reduce_at_low_zoom(self) -> None:
         self._run_qml_probe(

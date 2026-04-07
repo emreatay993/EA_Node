@@ -71,6 +71,97 @@ function _isSelected(edgeLayer, edgeId) {
     return (edgeLayer.selectedEdgeIds || []).indexOf(edgeId) >= 0;
 }
 
+function _normalizedPortKind(portKind) {
+    return String(portKind || "").trim().toLowerCase();
+}
+
+function _isExecutionEdge(edge) {
+    var sourcePortKind = _normalizedPortKind(edge ? edge.source_port_kind : "");
+    return sourcePortKind === "exec"
+        || sourcePortKind === "completed"
+        || sourcePortKind === "failed";
+}
+
+function _progressedExecutionLookup(edgeLayer) {
+    return edgeLayer.progressedExecutionEdgeLookup || ({});
+}
+
+function _flashDurationMs(edgeLayer) {
+    var durationMs = Number(edgeLayer.executionFlashDurationMs);
+    if (!isFinite(durationMs) || durationMs <= 0.0)
+        return 240.0;
+    return durationMs;
+}
+
+function syncExecutionFlashState(edgeLayer) {
+    var nextStateById = {};
+    var previousStateById = edgeLayer._executionFlashStateByEdgeId || ({});
+    var lookup = _progressedExecutionLookup(edgeLayer);
+    var edgesList = edgeLayer.edges || [];
+    var anyFlashActive = false;
+    var nowMs = Date.now();
+    var durationMs = _flashDurationMs(edgeLayer);
+
+    for (var i = 0; i < edgesList.length; i++) {
+        var edge = edgesList[i];
+        if (!edge || !edge.edge_id)
+            continue;
+        var edgeId = String(edge.edge_id);
+        var executionEdge = _isExecutionEdge(edge);
+        var progressed = executionEdge && Boolean(lookup[edgeId]);
+        var previousState = previousStateById[edgeId];
+        var flashStartedAt = previousState ? Number(previousState.flashStartedAt) : 0.0;
+        var flashed = previousState ? Boolean(previousState.flashed) : false;
+
+        if (!isFinite(flashStartedAt) || flashStartedAt < 0.0)
+            flashStartedAt = 0.0;
+
+        if (!progressed) {
+            flashed = false;
+            flashStartedAt = 0.0;
+        } else if (!previousState) {
+            // Initial already-progressed state should not synthesize a flash.
+            flashed = true;
+            flashStartedAt = 0.0;
+        } else if (!previousState.progressed) {
+            flashed = true;
+            flashStartedAt = nowMs;
+        } else if (flashStartedAt > 0.0 && (nowMs - flashStartedAt) >= durationMs) {
+            flashStartedAt = 0.0;
+        }
+
+        if (flashStartedAt > 0.0 && (nowMs - flashStartedAt) < durationMs)
+            anyFlashActive = true;
+
+        nextStateById[edgeId] = {
+            "progressed": progressed,
+            "flashed": flashed,
+            "flashStartedAt": flashStartedAt
+        };
+    }
+
+    edgeLayer._executionFlashStateByEdgeId = nextStateById;
+    edgeLayer._executionFlashTickerActive = anyFlashActive;
+}
+
+function _executionFlashProgress(edgeLayer, edgeId, edge, nowMs) {
+    if (!_isExecutionEdge(edge))
+        return 0.0;
+    var state = (edgeLayer._executionFlashStateByEdgeId || ({}))[edgeId];
+    if (!state)
+        return 0.0;
+    var flashStartedAt = Number(state.flashStartedAt);
+    if (!isFinite(flashStartedAt) || flashStartedAt <= 0.0)
+        return 0.0;
+    var elapsedMs = Number(nowMs) - flashStartedAt;
+    if (!isFinite(elapsedMs) || elapsedMs <= 0.0)
+        return 1.0;
+    var durationMs = _flashDurationMs(edgeLayer);
+    if (elapsedMs >= durationMs)
+        return 0.0;
+    return Math.max(0.0, 1.0 - (elapsedMs / durationMs));
+}
+
 function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision) {
     var snapshots = [];
     var snapshotById = {};
@@ -78,6 +169,7 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
     var nodeById = getNodeMap(edgeLayer);
     var viewportBounds = expandedVisibleSceneBounds(edgeLayer);
     var viewportTransform = EdgeViewportMath.viewportTransform(edgeLayer);
+    var nowMs = Date.now();
 
     for (var i = 0; i < edgesList.length; i++) {
         var edge = edgesList[i];
@@ -87,15 +179,24 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
         var cullState = edgeCullState(edgeLayer, edge, nodeById, viewportBounds);
         var geometry = cullState && !cullState.culled ? cullState.geometry : null;
         var labelMode = labelLayer.flowLabelMode(edge);
+        var selected = _isSelected(edgeLayer, edgeId);
+        var previewed = Boolean(edgeLayer.previewEdgeId && edgeLayer.previewEdgeId === edgeId);
+        var executionEdge = _isExecutionEdge(edge);
+        var executionProgressed = executionEdge && Boolean(_progressedExecutionLookup(edgeLayer)[edgeId]);
         var snapshot = {
             "revision": revision,
             "edgeId": edgeId,
             "edgeData": edge,
             "culled": cullState ? Boolean(cullState.culled) : false,
             "geometry": geometry,
-            "selected": _isSelected(edgeLayer, edgeId),
-            "previewed": Boolean(edgeLayer.previewEdgeId && edgeLayer.previewEdgeId === edgeId),
+            "selected": selected,
+            "previewed": previewed,
             "flowEdge": canvasLayer.edgeIsFlow(edge),
+            "executionProgressed": executionProgressed,
+            "executionDimmed": executionEdge && !executionProgressed && !selected && !previewed,
+            "executionFlashProgress": executionProgressed
+                ? _executionFlashProgress(edgeLayer, edgeId, edge, nowMs)
+                : 0.0,
             "labelText": labelLayer.edgeLabelText(edge),
             "labelMode": labelMode,
             "drawOrderIndex": i,
@@ -114,6 +215,7 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
 }
 
 function refreshVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer) {
+    syncExecutionFlashState(edgeLayer);
     var nextRevision = edgeLayer._visibleEdgeSnapshotRevision + 1;
     var model = buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, nextRevision);
     edgeLayer._visibleEdgeSnapshots = model.snapshots;

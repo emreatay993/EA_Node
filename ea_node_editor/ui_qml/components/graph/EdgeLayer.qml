@@ -20,6 +20,8 @@ Item {
     property var sceneBridge: null
     property var edges: []
     property var nodes: []
+    property var progressedExecutionEdgeLookup: ({})
+    property int nodeExecutionRevision: 0
     property var dragOffsets: ({})
     property var liveNodeGeometry: ({})
     property var selectedEdgeIds: []
@@ -40,6 +42,8 @@ Item {
     property var _visibleEdgeSnapshots: []
     property var _visibleEdgeSnapshotById: ({})
     property int _visibleEdgeSnapshotRevision: 0
+    property var _executionFlashStateByEdgeId: ({})
+    property bool _executionFlashTickerActive: false
     readonly property color selectedStrokeColor: edgePalette.selected_stroke || "#f0f4fb"
     readonly property color previewStrokeColor: edgePalette.preview_stroke || "#60CDFF"
     readonly property color validDragStrokeColor: edgePalette.valid_drag_stroke || "#60CDFF"
@@ -49,6 +53,7 @@ Item {
     readonly property color flowDefaultLabelTextColor: shellPalette.panel_title_fg || selectedStrokeColor
     readonly property color flowDefaultLabelBackgroundColor: shellPalette.panel_bg || "#1b1d22"
     readonly property color flowDefaultLabelBorderColor: shellPalette.border || "#3a3d45"
+    property real executionFlashDurationMs: 240.0
     property real flowLabelHideZoomThreshold: 0.55
     property real flowLabelSimplifyZoomThreshold: 0.85
     property real edgeCrossingGapScreenPx: 14.0
@@ -646,6 +651,14 @@ Item {
         };
     }
 
+    Timer {
+        id: executionFlashTimer
+        interval: 16
+        repeat: true
+        running: root._executionFlashTickerActive
+        onTriggered: root.requestRedraw()
+    }
+
     EdgeCanvasLayer {
         id: edgeCanvasLayer
         anchors.fill: parent
@@ -682,6 +695,7 @@ Item {
     onEdgePaletteChanged: requestRedraw()
     onShellPaletteChanged: requestRedraw()
     onPortKindPaletteChanged: requestRedraw()
+    onNodeExecutionRevisionChanged: requestRedraw()
     onEdgeCrossingStyleChanged: requestRedraw()
     onPerformanceModeChanged: requestRedraw()
     onTransientPerformanceActivityActiveChanged: {

@@ -38,6 +38,8 @@ Item {
         sceneBridge: root.sceneStateBridge
         edges: root.canvasItem ? root.canvasItem.edgePayload : []
         nodes: root.sceneStateBridge ? root.sceneStateBridge.nodes_model : []
+        progressedExecutionEdgeLookup: root.canvasItem ? root.canvasItem.progressedExecutionEdgeLookup : ({})
+        nodeExecutionRevision: root.canvasItem ? Number(root.canvasItem.nodeExecutionRevision || 0) : 0
         dragOffsets: root.canvasItem ? root.canvasItem.liveDragOffsets : ({})
         liveNodeGeometry: root.canvasItem ? root.canvasItem.liveNodeGeometry : ({})
         selectedEdgeIds: root.canvasItem ? root.canvasItem.selectedEdgeIds : []
