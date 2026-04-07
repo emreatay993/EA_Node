@@ -5,11 +5,11 @@
 - Packet: `P04`
 - Branch Label: `codex/execution-edge-progress-visualization/p04-execution-edge-renderer-highlights`
 - Commit Owner: `worker`
-- Commit SHA: `470bab94a8416dfdfb2c2f268b0a017c2cc9accc`
+- Commit SHA: `dc5f987054487a08153155ff259bae43ec8e8fb4`
 - Changed Files: `docs/specs/work_packets/execution_edge_progress_visualization/P04_execution_edge_renderer_highlights_WRAPUP.md`, `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`, `tests/graph_track_b/qml_preference_rendering_suite.py`, `tests/test_shell_run_controller.py`
 - Artifacts Produced: `docs/specs/work_packets/execution_edge_progress_visualization/P04_execution_edge_renderer_highlights_WRAPUP.md`, `ea_node_editor/ui_qml/components/graph/EdgeCanvasLayer.qml`, `tests/graph_track_b/qml_preference_rendering_suite.py`, `tests/test_shell_run_controller.py`
 
-Updated `EdgeCanvasLayer.qml` so authored control edges consume the packet-owned `executionProgressed`, `executionDimmed`, and `executionFlashProgress` snapshot fields in the real paint path, render dimmed unprogressed execution edges at `0.35` alpha and `1.7px`, restore progressed edges to their normal interaction-aware styling, and layer the one-shot `240ms` base-color flash as a `+1.4px` overlay. Added packet-owned paint diagnostics plus `execution_edge_progress_visualization` shell/QML regressions that cover dim-before-progress behavior, first-progress flash, handled-failure branch progression, terminal cleanup after progressed runs, selection/preview overrides, and unchanged non-control edges.
+Updated `EdgeCanvasLayer.qml` so authored control edges consume the packet-owned `executionProgressed`, `executionDimmed`, and `executionFlashProgress` snapshot fields in the real paint path, render dimmed unprogressed execution edges at `0.35` alpha and `1.7px`, restore progressed edges to their normal interaction-aware styling, and layer the one-shot `240ms` base-color flash as a `+1.4px` overlay. The focused remediation keeps the renderer from staying in the active dimmed state when a run stops or fatally fails before any control edge progresses by combining the existing GraphCanvas running/completed node lookups with the packet-local lifecycle state. Added packet-owned paint diagnostics plus `execution_edge_progress_visualization` shell/QML regressions that cover dim-before-progress behavior, first-progress flash, handled-failure branch progression, immediate stop/fatal cleanup before progress, terminal cleanup after progressed runs, selection/preview overrides, and unchanged non-control edges.
 
 ## Verification
 
@@ -30,7 +30,7 @@ Ready for manual testing.
 
 ## Residual Risks
 
-- `EdgeCanvasLayer.qml` still has no explicit run-active flag in the packet-owned contract, so the renderer infers active-vs-cleanup transitions from `nodeExecutionRevision` plus progressed-edge lookup changes. The covered completion/stop/fatal-failure paths pass after at least one edge progresses, but an immediate stop before any control edge progresses would benefit from a future contract-level active-run signal.
+- `EdgeCanvasLayer.qml` still has no explicit run-active flag in the packet-owned contract, so the renderer infers active-vs-cleanup transitions from `nodeExecutionRevision`, the existing running/completed node lookups, and progressed-edge lookup changes. The immediate stop/fatal-before-progress and progressed cleanup paths are now covered, but a future contract-level active-run signal would simplify that inference.
 - The packet-owned renderer tests assert the live paint diagnostics rather than sampling pixels, so later renderer refactors should preserve those diagnostics or replace them with an equally direct packet-owned render probe.
 
 ## Ready for Integration
