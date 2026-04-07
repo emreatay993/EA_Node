@@ -472,46 +472,57 @@ GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX_TOKENS = (
 NODE_EXECUTION_VISUALIZATION_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md"
 )
-NODE_EXECUTION_VISUALIZATION_P01_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_run_controller_unit.py tests/main_window_shell/bridge_contracts.py "
-    "-k node_execution_bridge --ignore=venv -q"
+NODE_EXECUTION_VISUALIZATION_P01_WORKER_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_execution_worker.py "
+    r"-k execution_edge_progress_projection --ignore=venv -q"
+)
+NODE_EXECUTION_VISUALIZATION_P01_CONTROLLER_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_run_controller_unit.py -k execution_edge_progress_projection "
+    r"--ignore=venv -q"
 )
 NODE_EXECUTION_VISUALIZATION_P02_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_main_window_shell.py -k node_execution_canvas --ignore=venv -q"
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/bridge_contracts.py tests/test_main_window_shell.py "
+    r"-k execution_edge_progress_canvas --ignore=venv -q"
 )
-NODE_EXECUTION_VISUALIZATION_P03_SHELL_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_shell_run_controller.py -k node_execution_visualization --ignore=venv -q"
+NODE_EXECUTION_VISUALIZATION_P03_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_flow_edge_labels.py -k execution_edge_progress_snapshot "
+    r"--ignore=venv -q"
 )
-NODE_EXECUTION_VISUALIZATION_P03_HOST_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/test_passive_graph_surface_host.py -k node_execution_visualization --ignore=venv -q"
+NODE_EXECUTION_VISUALIZATION_P04_SHELL_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_shell_run_controller.py -k execution_edge_progress_visualization "
+    r"--ignore=venv -q"
 )
-NODE_EXECUTION_VISUALIZATION_P03_QML_COMMAND = (
-    "QT_QPA_PLATFORM=offscreen ./venv/Scripts/python.exe -m pytest "
-    "tests/graph_track_b/qml_preference_bindings.py -k node_execution_visualization --ignore=venv -q"
+NODE_EXECUTION_VISUALIZATION_P04_QML_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/graph_track_b/qml_preference_bindings.py "
+    r"-k execution_edge_progress_visualization --ignore=venv -q"
 )
 NODE_EXECUTION_VISUALIZATION_TRACEABILITY_TEST_COMMAND = (
-    "./venv/Scripts/python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
 )
 NODE_EXECUTION_VISUALIZATION_TRACEABILITY_COMMAND = (
-    "./venv/Scripts/python.exe scripts/check_traceability.py"
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
 )
 
 NODE_EXECUTION_VISUALIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
     "docs/specs/requirements/20_UI_UX.md": {
         "REQ-UI-034": (
             "blue pulse halo",
-            "green border",
-            "failure red",
-            "inactive workspaces",
-            "QML-local",
+            "authored control-edge progress visualization",
+            "active-workspace-filtered",
+            "0.35",
+            "240ms",
+            "node_failed_handled",
         ),
         "AC-REQ-UI-034-01": (
             "blue pulse halo",
-            "green completed flash",
+            "dim-before-progress",
+            "240ms",
+            "node_failed_handled",
             "failure red priority",
             "QML-local elapsed timer",
             "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
@@ -521,13 +532,15 @@ NODE_EXECUTION_VISUALIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, 
         "REQ-NODE-027": (
             "node_started",
             "node_completed",
-            "run_started",
-            "run_failed",
+            "node_failed_handled",
+            "active-workspace-filtered",
+            "run-start authored workspace snapshot",
             "no `.sfe` persistence",
         ),
         "AC-REQ-NODE-027-01": (
-            "node_started",
+            "node_failed_handled",
             "active-workspace bridge filtering",
+            "shared revision-path invalidation",
             "run_started",
             "run_stopped",
             "non-fatal `run_failed`",
@@ -535,16 +548,17 @@ NODE_EXECUTION_VISUALIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, 
     },
     "docs/specs/requirements/80_PERFORMANCE.md": {
         "REQ-PERF-010": (
+            "240ms",
             "QML-local",
             "no Python monotonic timestamp bridge",
-            "render-active",
+            "in-memory only",
             "hit-testing contracts",
             "cached scene payload structure",
         ),
         "AC-REQ-PERF-010-01": (
-            "test_passive_graph_surface_host.py",
+            "test_flow_edge_labels.py",
             "qml_preference_bindings.py",
-            "QML-local timer constraint",
+            "240ms",
             "geometry",
             "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
         ),
@@ -552,23 +566,26 @@ NODE_EXECUTION_VISUALIZATION_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, 
     "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
         "REQ-QA-027": (
             "NODE_EXECUTION_VISUALIZATION",
-            "run-state projection",
-            "active-workspace bridge filtering",
+            "node_failed_handled",
+            "dim-before-progress",
+            "240ms",
             "QML-local timer",
             "retained packet-owned reruns",
         ),
         "REQ-QA-028": (
             "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
             "A+E-hybrid visual baseline",
-            "QML-local timer constraint",
+            "node_failed_handled",
+            "no-persistence constraint",
             "traceability gate",
         ),
         "AC-REQ-QA-027-01": (
-            NODE_EXECUTION_VISUALIZATION_P01_COMMAND,
+            NODE_EXECUTION_VISUALIZATION_P01_WORKER_COMMAND,
+            NODE_EXECUTION_VISUALIZATION_P01_CONTROLLER_COMMAND,
             NODE_EXECUTION_VISUALIZATION_P02_COMMAND,
-            NODE_EXECUTION_VISUALIZATION_P03_SHELL_COMMAND,
-            NODE_EXECUTION_VISUALIZATION_P03_HOST_COMMAND,
-            NODE_EXECUTION_VISUALIZATION_P03_QML_COMMAND,
+            NODE_EXECUTION_VISUALIZATION_P03_COMMAND,
+            NODE_EXECUTION_VISUALIZATION_P04_SHELL_COMMAND,
+            NODE_EXECUTION_VISUALIZATION_P04_QML_COMMAND,
             "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
         ),
         "AC-REQ-QA-028-01": (
@@ -585,36 +602,44 @@ NODE_EXECUTION_VISUALIZATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]]
         "GraphCanvas.qml",
         "GraphNodeChromeBackground.qml",
         "GraphNodeHost.qml",
+        "EdgeCanvasLayer.qml",
         "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
     ),
     "AC-REQ-UI-034-01": (
         "tests/test_shell_run_controller.py",
-        "tests/test_passive_graph_surface_host.py",
+        "tests/test_flow_edge_labels.py",
         "tests/graph_track_b/qml_preference_bindings.py",
         "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
     ),
     "REQ-NODE-027": (
+        "protocol.py",
+        "worker_runner.py",
         "state.py",
         "run_controller.py",
         "graph_canvas_state_bridge.py",
+        "tests/test_execution_worker.py",
         "tests/test_run_controller_unit.py",
         "bridge_contracts.py",
+        "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
     ),
     "AC-REQ-NODE-027-01": (
+        "tests/test_execution_worker.py",
         "tests/test_run_controller_unit.py",
         "tests/main_window_shell/bridge_contracts.py",
         "tests/test_main_window_shell.py",
         "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
     ),
     "REQ-PERF-010": (
-        "GraphNodeChromeBackground.qml",
-        "GraphNodeHost.qml",
-        "tests/test_passive_graph_surface_host.py",
+        "EdgeLayer.qml",
+        "EdgeSnapshotCache.js",
+        "GraphCanvasRootLayers.qml",
+        "EdgeCanvasLayer.qml",
+        "tests/test_flow_edge_labels.py",
         "tests/graph_track_b/qml_preference_bindings.py",
         "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
     ),
     "AC-REQ-PERF-010-01": (
-        "tests/test_passive_graph_surface_host.py",
+        "tests/test_flow_edge_labels.py",
         "tests/graph_track_b/qml_preference_bindings.py",
         "tests/test_shell_run_controller.py",
         "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
@@ -633,11 +658,12 @@ NODE_EXECUTION_VISUALIZATION_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]]
         "scripts/check_traceability.py",
     ),
     "AC-REQ-QA-027-01": (
-        NODE_EXECUTION_VISUALIZATION_P01_COMMAND,
+        NODE_EXECUTION_VISUALIZATION_P01_WORKER_COMMAND,
+        NODE_EXECUTION_VISUALIZATION_P01_CONTROLLER_COMMAND,
         NODE_EXECUTION_VISUALIZATION_P02_COMMAND,
-        NODE_EXECUTION_VISUALIZATION_P03_SHELL_COMMAND,
-        NODE_EXECUTION_VISUALIZATION_P03_HOST_COMMAND,
-        NODE_EXECUTION_VISUALIZATION_P03_QML_COMMAND,
+        NODE_EXECUTION_VISUALIZATION_P03_COMMAND,
+        NODE_EXECUTION_VISUALIZATION_P04_SHELL_COMMAND,
+        NODE_EXECUTION_VISUALIZATION_P04_QML_COMMAND,
         "NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md",
     ),
     "AC-REQ-QA-028-01": (
@@ -652,20 +678,26 @@ NODE_EXECUTION_VISUALIZATION_QA_MATRIX_TOKENS = (
     "## Locked Scope",
     "docs/node_execution_visualization_alternatives.html",
     "A+E-hybrid visual baseline",
-    "blue pulse halo",
-    "green border",
-    "QML-local elapsed timer",
-    NODE_EXECUTION_VISUALIZATION_P01_COMMAND,
+    "authored control-edge",
+    "node_failed_handled",
+    "0.35",
+    "1.7px",
+    "240ms",
+    NODE_EXECUTION_VISUALIZATION_P01_WORKER_COMMAND,
+    NODE_EXECUTION_VISUALIZATION_P01_CONTROLLER_COMMAND,
     NODE_EXECUTION_VISUALIZATION_P02_COMMAND,
-    NODE_EXECUTION_VISUALIZATION_P03_SHELL_COMMAND,
-    NODE_EXECUTION_VISUALIZATION_P03_HOST_COMMAND,
-    NODE_EXECUTION_VISUALIZATION_P03_QML_COMMAND,
+    NODE_EXECUTION_VISUALIZATION_P03_COMMAND,
+    NODE_EXECUTION_VISUALIZATION_P04_SHELL_COMMAND,
+    NODE_EXECUTION_VISUALIZATION_P04_QML_COMMAND,
     NODE_EXECUTION_VISUALIZATION_TRACEABILITY_TEST_COMMAND,
     NODE_EXECUTION_VISUALIZATION_TRACEABILITY_COMMAND,
-    "P01_run_state_execution_projection_WRAPUP.md",
-    "P02_graph_canvas_execution_bindings_WRAPUP.md",
-    "P03_node_chrome_execution_highlights_WRAPUP.md",
-    "## Remaining Manual A+E-Hybrid Visual Checks",
+    "P01_run_state_edge_progress_projection_WRAPUP.md",
+    "P02_graph_canvas_execution_edge_bindings_WRAPUP.md",
+    "P03_execution_edge_snapshot_metadata_WRAPUP.md",
+    "P04_execution_edge_renderer_highlights_WRAPUP.md",
+    "## Final Closeout Commands",
+    "## 2026-04-07 Execution Results",
+    "## Remaining Manual A+E-Hybrid and Execution-Edge Visual Checks",
     "## Residual Desktop-Only Validation",
 )
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX = (
