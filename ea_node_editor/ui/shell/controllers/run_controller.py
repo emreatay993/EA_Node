@@ -48,12 +48,28 @@ class _RunControllerHostProtocol(Protocol):
 
     def mark_node_execution_completed(self, workspace_id: str, node_id: str) -> None: ...
 
+    def seed_execution_edge_progress_state(
+        self,
+        *,
+        run_id: str,
+        workspace_id: str,
+        runtime_snapshot: Any,
+    ) -> None: ...
+
+    def mark_execution_edges_progressed(
+        self,
+        workspace_id: str,
+        node_id: str,
+        source_port_kinds: tuple[str, ...],
+    ) -> None: ...
+
     def clear_node_execution_visualization_state(self) -> None: ...
 
 
 class RunController:
     def __init__(self, host: _RunControllerHostProtocol) -> None:
         self._host = host
+        self._run_start_runtime_snapshots: dict[str, Any] = {}
 
     @property
     def _state(self) -> ShellRunState:
@@ -99,6 +115,7 @@ class RunController:
             return
         self._state.active_run_id = run_id
         self._state.active_run_workspace_id = workspace_id
+        self._run_start_runtime_snapshots[run_id] = runtime_snapshot
         self._invalidate_viewer_sessions_for_rerun(workspace_id=workspace_id, run_id=run_id)
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
@@ -147,19 +164,34 @@ class RunController:
                 self._state.active_run_workspace_id = workspace_id
             self._host.clear_node_execution_visualization_state()
             self._host.clear_run_failure_focus()
+            self._host.seed_execution_edge_progress_state(
+                run_id=str(event.get("run_id", "") or self._state.active_run_id),
+                workspace_id=workspace_id,
+                runtime_snapshot=self._take_run_start_runtime_snapshot(str(event.get("run_id", ""))),
+            )
         elif event_type == "node_started":
             self._host.mark_node_execution_running(
                 self._event_workspace_id(event),
                 str(event.get("node_id", "")),
             )
         elif event_type == "node_completed":
+            workspace_id = self._event_workspace_id(event)
+            node_id = str(event.get("node_id", ""))
             self._host.mark_node_execution_completed(
+                workspace_id,
+                node_id,
+            )
+            self._host.mark_execution_edges_progressed(workspace_id, node_id, ("exec", "completed"))
+        elif event_type == "node_failed_handled":
+            self._host.mark_execution_edges_progressed(
                 self._event_workspace_id(event),
                 str(event.get("node_id", "")),
+                ("failed",),
             )
 
         if event_type == "run_started" or (
-            event_type in {"node_started", "node_completed"} and self._state.engine_state_value != "paused"
+            event_type in {"node_started", "node_completed", "node_failed_handled"}
+            and self._state.engine_state_value != "paused"
         ):
             self.set_run_ui_state("running", "Running", 1, 0, 0, 0)
 
@@ -213,6 +245,7 @@ class RunController:
             )
 
     def clear_active_run(self) -> None:
+        self._take_run_start_runtime_snapshot(self._state.active_run_id)
         self._state.active_run_id = ""
         self._state.active_run_workspace_id = ""
 
@@ -288,3 +321,9 @@ class RunController:
         if not callable(invalidate_all_sessions):
             return
         invalidate_all_sessions(reason="worker_reset")
+
+    def _take_run_start_runtime_snapshot(self, run_id: str) -> Any:
+        normalized_run_id = str(run_id or self._state.active_run_id).strip()
+        if not normalized_run_id:
+            return None
+        return self._run_start_runtime_snapshots.pop(normalized_run_id, None)

@@ -7,6 +7,8 @@ from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.ui.shell.controllers.run_controller import RunController
 from ea_node_editor.ui.shell.state import ShellRunState
 
+_EXECUTION_EDGE_PORT_KINDS = frozenset({"exec", "completed", "failed"})
+
 
 class _ConsoleStub:
     def __init__(self) -> None:
@@ -119,6 +121,7 @@ class _RunHostStub:
         "run_stopped",
         "node_started",
         "node_completed",
+        "node_failed_handled",
         "log",
     }
 
@@ -147,6 +150,81 @@ class _RunHostStub:
         if normalized_workspace_id:
             return normalized_workspace_id
         return str(self.run_state.active_run_workspace_id or self.run_state.node_execution_workspace_id or "").strip()
+
+    def _normalize_execution_edge_workspace_id(self, workspace_id: str) -> str:
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if normalized_workspace_id:
+            return normalized_workspace_id
+        return str(
+            self.run_state.active_run_workspace_id
+            or self.run_state.execution_edge_workspace_id
+            or self.run_state.node_execution_workspace_id
+            or ""
+        ).strip()
+
+    def _clear_execution_edge_progress_state_fields(self) -> bool:
+        state = self.run_state
+        if not (
+            state.execution_edge_run_id
+            or state.execution_edge_workspace_id
+            or state.execution_edge_ids_by_source_node_id
+            or state.progressed_execution_edge_ids
+        ):
+            return False
+        state.execution_edge_run_id = ""
+        state.execution_edge_workspace_id = ""
+        state.execution_edge_ids_by_source_node_id.clear()
+        state.progressed_execution_edge_ids.clear()
+        return True
+
+    def _build_execution_edge_progress_index(
+        self,
+        *,
+        workspace_id: str,
+        runtime_snapshot,
+    ) -> tuple[str, dict[str, dict[str, tuple[str, ...]]]]:  # noqa: ANN001
+        normalized_workspace_id = str(workspace_id or "").strip()
+        if runtime_snapshot is None:
+            return normalized_workspace_id, {}
+        if not normalized_workspace_id:
+            normalized_workspace_id = str(runtime_snapshot.active_workspace_id or "").strip()
+        if not normalized_workspace_id:
+            return "", {}
+        try:
+            workspace = runtime_snapshot.workspace(normalized_workspace_id)
+        except KeyError:
+            return normalized_workspace_id, {}
+
+        nodes_by_id = workspace.nodes_by_id
+        port_kinds_by_node_id: dict[str, dict[str, str]] = {}
+        indexed_edge_ids: dict[str, dict[str, list[str]]] = {}
+        for edge in workspace.edges:
+            edge_id = str(edge.edge_id or "").strip()
+            source_node_id = str(edge.source_node_id or "").strip()
+            source_port_key = str(edge.source_port_key or "").strip()
+            if not edge_id or not source_node_id or not source_port_key:
+                continue
+            port_kinds = port_kinds_by_node_id.get(source_node_id)
+            if port_kinds is None:
+                source_node = nodes_by_id.get(source_node_id)
+                spec = self.registry.get_spec(source_node.type_id) if source_node is not None else None
+                port_kinds = {
+                    str(port.key): str(port.kind or "").strip().lower()
+                    for port in getattr(spec, "ports", ())
+                }
+                port_kinds_by_node_id[source_node_id] = port_kinds
+            port_kind = port_kinds.get(source_port_key, "")
+            if port_kind not in _EXECUTION_EDGE_PORT_KINDS:
+                continue
+            indexed_edge_ids.setdefault(source_node_id, {}).setdefault(port_kind, []).append(edge_id)
+
+        return normalized_workspace_id, {
+            source_node_id: {
+                port_kind: tuple(edge_ids)
+                for port_kind, edge_ids in port_kind_map.items()
+            }
+            for source_node_id, port_kind_map in indexed_edge_ids.items()
+        }
 
     def update_notification_counters(self, warnings: int, errors: int) -> None:
         self._notifications = (warnings, errors)
@@ -206,14 +284,73 @@ class _RunHostStub:
         if changed:
             state.node_execution_revision += 1
 
+    def seed_execution_edge_progress_state(
+        self,
+        *,
+        run_id: str,
+        workspace_id: str,
+        runtime_snapshot,
+    ) -> None:  # noqa: ANN001
+        normalized_run_id = str(run_id or "").strip()
+        normalized_workspace_id, edge_index = self._build_execution_edge_progress_index(
+            workspace_id=workspace_id,
+            runtime_snapshot=runtime_snapshot,
+        )
+        state = self.run_state
+        changed = self._clear_execution_edge_progress_state_fields()
+        if state.execution_edge_run_id != normalized_run_id:
+            state.execution_edge_run_id = normalized_run_id
+            changed = True
+        if state.execution_edge_workspace_id != normalized_workspace_id:
+            state.execution_edge_workspace_id = normalized_workspace_id
+            changed = True
+        if state.execution_edge_ids_by_source_node_id != edge_index:
+            state.execution_edge_ids_by_source_node_id = edge_index
+            changed = True
+        if changed:
+            state.node_execution_revision += 1
+
+    def mark_execution_edges_progressed(
+        self,
+        workspace_id: str,
+        node_id: str,
+        source_port_kinds: tuple[str, ...],
+    ) -> None:
+        normalized_node_id = str(node_id or "").strip()
+        if not normalized_node_id:
+            return
+        normalized_workspace_id = self._normalize_execution_edge_workspace_id(workspace_id)
+        state = self.run_state
+        if not normalized_workspace_id or state.execution_edge_workspace_id != normalized_workspace_id:
+            return
+        node_edge_ids = state.execution_edge_ids_by_source_node_id.get(normalized_node_id)
+        if not node_edge_ids:
+            return
+        changed = False
+        for source_port_kind in source_port_kinds:
+            normalized_port_kind = str(source_port_kind or "").strip().lower()
+            if normalized_port_kind not in _EXECUTION_EDGE_PORT_KINDS:
+                continue
+            for edge_id in node_edge_ids.get(normalized_port_kind, ()):
+                if edge_id in state.progressed_execution_edge_ids:
+                    continue
+                state.progressed_execution_edge_ids.add(edge_id)
+                changed = True
+        if changed:
+            state.node_execution_revision += 1
+
     def clear_node_execution_visualization_state(self) -> None:
         state = self.run_state
-        if not (state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids):
-            return
-        state.node_execution_workspace_id = ""
-        state.running_node_ids.clear()
-        state.completed_node_ids.clear()
-        state.node_execution_revision += 1
+        changed = False
+        if state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids:
+            state.node_execution_workspace_id = ""
+            state.running_node_ids.clear()
+            state.completed_node_ids.clear()
+            changed = True
+        if self._clear_execution_edge_progress_state_fields():
+            changed = True
+        if changed:
+            state.node_execution_revision += 1
 
 
 class RunControllerUnitTests(unittest.TestCase):
@@ -265,6 +402,159 @@ class RunControllerUnitTests(unittest.TestCase):
             runtime_snapshot.to_document()["workspaces"][0]["workspace_id"],
             host.model.active_workspace.workspace_id,
         )
+
+    def test_execution_edge_progress_projection_run_started_seeds_edge_index_and_progresses_exec_and_completed_edges(
+        self,
+    ) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        start = host.model.add_node(workspace_id, "core.start", "Start", 0, 0)
+        end = host.model.add_node(workspace_id, "core.end", "End", 180, 0)
+        logger = host.model.add_node(workspace_id, "core.logger", "Logger", 360, 0)
+        exec_edge = host.model.add_edge(workspace_id, start.node_id, "exec_out", end.node_id, "exec_in")
+        completed_edge = host.model.add_edge(workspace_id, end.node_id, "done", logger.node_id, "exec_in")
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.run_workflow()
+        controller.handle_execution_event(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.execution_edge_run_id, "run_live")
+        self.assertEqual(host.run_state.execution_edge_workspace_id, workspace_id)
+        self.assertEqual(
+            host.run_state.execution_edge_ids_by_source_node_id[start.node_id]["exec"],
+            (exec_edge.edge_id,),
+        )
+        self.assertEqual(
+            host.run_state.execution_edge_ids_by_source_node_id[end.node_id]["completed"],
+            (completed_edge.edge_id,),
+        )
+        self.assertEqual(host.run_state.progressed_execution_edge_ids, set())
+
+        seeded_revision = host.run_state.node_execution_revision
+        controller.handle_execution_event(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": start.node_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.completed_node_ids, {start.node_id})
+        self.assertIn(exec_edge.edge_id, host.run_state.progressed_execution_edge_ids)
+        self.assertGreater(host.run_state.node_execution_revision, seeded_revision)
+
+        exec_revision = host.run_state.node_execution_revision
+        controller.handle_execution_event(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": end.node_id,
+            }
+        )
+
+        self.assertIn(completed_edge.edge_id, host.run_state.progressed_execution_edge_ids)
+        self.assertGreater(host.run_state.node_execution_revision, exec_revision)
+
+    def test_execution_edge_progress_projection_node_failed_handled_progresses_failed_edges(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        start = host.model.add_node(workspace_id, "core.start", "Start", 0, 0)
+        script = host.model.add_node(
+            workspace_id,
+            "core.python_script",
+            "Script",
+            180,
+            0,
+            properties={"script": "raise RuntimeError('boom handled')"},
+        )
+        on_failure = host.model.add_node(workspace_id, "core.on_failure", "On Failure", 360, 0)
+        host.model.add_edge(workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
+        failed_edge = host.model.add_edge(workspace_id, script.node_id, "on_failed", on_failure.node_id, "failed_in")
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.run_workflow()
+        host.run_state.execution_edge_run_id = "run_stale"
+        host.run_state.execution_edge_workspace_id = "ws_stale"
+        host.run_state.execution_edge_ids_by_source_node_id = {"node_stale": {"exec": ("edge_stale",)}}
+        host.run_state.progressed_execution_edge_ids.add("edge_stale")
+
+        controller.handle_execution_event(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.execution_edge_run_id, "run_live")
+        self.assertEqual(host.run_state.execution_edge_workspace_id, workspace_id)
+        self.assertEqual(host.run_state.progressed_execution_edge_ids, set())
+        self.assertEqual(
+            host.run_state.execution_edge_ids_by_source_node_id[script.node_id]["failed"],
+            (failed_edge.edge_id,),
+        )
+
+        seeded_revision = host.run_state.node_execution_revision
+        controller.handle_execution_event(
+            {
+                "type": "node_failed_handled",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": script.node_id,
+                "error": "boom handled",
+            }
+        )
+
+        self.assertEqual(host.run_state.progressed_execution_edge_ids, {failed_edge.edge_id})
+        self.assertGreater(host.run_state.node_execution_revision, seeded_revision)
+        self.assertEqual(host._engine_status, ("running", "Running"))
+
+    def test_execution_edge_progress_projection_terminal_events_clear_edge_projection_state(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        start = host.model.add_node(workspace_id, "core.start", "Start", 0, 0)
+        end = host.model.add_node(workspace_id, "core.end", "End", 180, 0)
+        exec_edge = host.model.add_edge(workspace_id, start.node_id, "exec_out", end.node_id, "exec_in")
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.run_workflow()
+        controller.handle_execution_event(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        controller.handle_execution_event(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": start.node_id,
+            }
+        )
+        self.assertIn(exec_edge.edge_id, host.run_state.progressed_execution_edge_ids)
+
+        controller.handle_execution_event(
+            {
+                "type": "run_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.execution_edge_run_id, "")
+        self.assertEqual(host.run_state.execution_edge_workspace_id, "")
+        self.assertEqual(host.run_state.execution_edge_ids_by_source_node_id, {})
+        self.assertEqual(host.run_state.progressed_execution_edge_ids, set())
 
     def test_run_workflow_logs_error_when_start_fails(self) -> None:
         host = _RunHostStub()

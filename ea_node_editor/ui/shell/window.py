@@ -66,6 +66,7 @@ class ShellWindow(QMainWindow):
         "run_stopped",
         "node_started",
         "node_completed",
+        "node_failed_handled",
         "log",
     }
     _GRAPH_SEARCH_LIMIT = 10

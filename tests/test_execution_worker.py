@@ -20,11 +20,14 @@ from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.protocol import (
     CloseViewerSessionCommand,
     MaterializeViewerDataCommand,
+    NodeFailedHandledEvent,
     OpenViewerSessionCommand,
     ShutdownCommand,
     StartRunCommand,
     UpdateViewerSessionCommand,
     command_to_dict,
+    dict_to_event,
+    event_to_dict,
 )
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
 from ea_node_editor.execution.worker import run_workflow, worker_main
@@ -436,6 +439,110 @@ class ExecutionWorkerTests(unittest.TestCase):
         self.assertTrue(failed)
         self.assertEqual(failed[0]["node_id"], script.node_id)
         self.assertIn("RuntimeError: boom", failed[0]["traceback"])
+
+    def test_execution_edge_progress_projection_node_failed_handled_event_round_trips_protocol(self) -> None:
+        event = NodeFailedHandledEvent(
+            run_id="run_projection",
+            workspace_id="ws_projection",
+            node_id="node_projection",
+            error="handled boom",
+        )
+
+        payload = event_to_dict(event)
+        round_tripped = dict_to_event(payload)
+
+        self.assertEqual(payload["type"], "node_failed_handled")
+        self.assertEqual(round_tripped, event)
+
+    def test_execution_edge_progress_projection_run_workflow_emits_node_failed_handled_for_failure_handlers(
+        self,
+    ) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        script = model.add_node(
+            ws.workspace_id,
+            "core.python_script",
+            "Script",
+            120,
+            0,
+            properties={"script": "raise RuntimeError('boom handled')"},
+        )
+        on_failure = model.add_node(ws.workspace_id, "core.on_failure", "On Failure", 260, 0)
+        logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 420, 0, properties={"message": "done"})
+        end = model.add_node(ws.workspace_id, "core.end", "End", 560, 0)
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, script.node_id, "on_failed", on_failure.node_id, "failed_in")
+        model.add_edge(ws.workspace_id, on_failure.node_id, "exec_out", logger.node_id, "exec_in")
+        model.add_edge(ws.workspace_id, logger.node_id, "exec_out", end.node_id, "exec_in")
+
+        event_queue: queue.Queue = queue.Queue()
+        runtime_snapshot = self._runtime_snapshot(model)
+        run_workflow(
+            {
+                "run_id": "run_failed_handled",
+                "workspace_id": ws.workspace_id,
+                "runtime_snapshot": runtime_snapshot,
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        event_types = [str(event.get("type", "")) for event in events]
+        self.assertIn("node_failed_handled", event_types)
+        self.assertIn("run_completed", event_types)
+        self.assertNotIn("run_failed", event_types)
+
+        handled_index = next(
+            index
+            for index, event in enumerate(events)
+            if str(event.get("type", "")) == "node_failed_handled"
+        )
+        handler_started_index = next(
+            index
+            for index, event in enumerate(events)
+            if str(event.get("type", "")) == "node_started"
+            and str(event.get("node_id", "")) == on_failure.node_id
+        )
+        handled_event = events[handled_index]
+        self.assertLess(handled_index, handler_started_index)
+        self.assertEqual(str(handled_event.get("workspace_id", "")), ws.workspace_id)
+        self.assertEqual(str(handled_event.get("node_id", "")), script.node_id)
+        self.assertIn("boom handled", str(handled_event.get("error", "")))
+
+    def test_execution_edge_progress_projection_run_workflow_keeps_terminal_failure_without_failure_handlers(
+        self,
+    ) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        script = model.add_node(
+            ws.workspace_id,
+            "core.python_script",
+            "Script",
+            120,
+            0,
+            properties={"script": "raise RuntimeError('boom terminal')"},
+        )
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
+
+        event_queue: queue.Queue = queue.Queue()
+        runtime_snapshot = self._runtime_snapshot(model)
+        run_workflow(
+            {
+                "run_id": "run_failed_terminal",
+                "workspace_id": ws.workspace_id,
+                "runtime_snapshot": runtime_snapshot,
+                "trigger": {},
+            },
+            event_queue,
+        )
+
+        events = self._drain_events(event_queue)
+        event_types = [str(event.get("type", "")) for event in events]
+        self.assertIn("run_failed", event_types)
+        self.assertNotIn("node_failed_handled", event_types)
 
     def test_run_workflow_exec_node_pulls_pure_data_dependencies(self) -> None:
         model = GraphModel()

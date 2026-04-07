@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import inspect
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 from PyQt6.QtCore import Qt, pyqtSlot
+from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
 
 _UNSET = object()
+_EXECUTION_EDGE_PORT_KINDS = frozenset({"exec", "completed", "failed"})
 
 
 @pyqtSlot(bool)
@@ -80,9 +82,103 @@ def _normalize_node_execution_workspace_id(self: "ShellWindow", workspace_id: st
     return ""
 
 
+def _normalize_execution_edge_workspace_id(self: "ShellWindow", workspace_id: str) -> str:
+    normalized_workspace_id = str(workspace_id or "").strip()
+    if normalized_workspace_id:
+        return normalized_workspace_id
+    state = self.run_state
+    for candidate in (
+        state.active_run_workspace_id,
+        state.execution_edge_workspace_id,
+        state.node_execution_workspace_id,
+    ):
+        normalized_candidate = str(candidate or "").strip()
+        if normalized_candidate:
+            return normalized_candidate
+    return ""
+
+
 def _commit_node_execution_state_change(self: "ShellWindow") -> None:
     self.run_state.node_execution_revision += 1
     self.node_execution_state_changed.emit()
+
+
+def _clear_execution_edge_progress_state_fields(self: "ShellWindow") -> bool:
+    state = self.run_state
+    if not (
+        state.execution_edge_run_id
+        or state.execution_edge_workspace_id
+        or state.execution_edge_ids_by_source_node_id
+        or state.progressed_execution_edge_ids
+    ):
+        return False
+    state.execution_edge_run_id = ""
+    state.execution_edge_workspace_id = ""
+    state.execution_edge_ids_by_source_node_id.clear()
+    state.progressed_execution_edge_ids.clear()
+    return True
+
+
+def _build_execution_edge_progress_index(
+    self: "ShellWindow",
+    *,
+    workspace_id: str,
+    runtime_snapshot: Any,
+) -> tuple[str, dict[str, dict[str, tuple[str, ...]]]]:
+    snapshot = coerce_runtime_snapshot(runtime_snapshot)
+    normalized_workspace_id = str(workspace_id or "").strip()
+    if snapshot is None:
+        return normalized_workspace_id, {}
+    if not normalized_workspace_id:
+        normalized_workspace_id = str(snapshot.active_workspace_id or "").strip()
+    if not normalized_workspace_id:
+        return "", {}
+    try:
+        workspace = snapshot.workspace(normalized_workspace_id)
+    except KeyError:
+        return normalized_workspace_id, {}
+
+    registry = getattr(self, "registry", None)
+    if registry is None:
+        return normalized_workspace_id, {}
+
+    nodes_by_id = workspace.nodes_by_id
+    port_kinds_by_node_id: dict[str, dict[str, str]] = {}
+    indexed_edge_ids: dict[str, dict[str, list[str]]] = {}
+
+    for edge in workspace.edges:
+        edge_id = str(edge.edge_id or "").strip()
+        source_node_id = str(edge.source_node_id or "").strip()
+        source_port_key = str(edge.source_port_key or "").strip()
+        if not edge_id or not source_node_id or not source_port_key:
+            continue
+        port_kinds = port_kinds_by_node_id.get(source_node_id)
+        if port_kinds is None:
+            port_kinds = {}
+            source_node = nodes_by_id.get(source_node_id)
+            if source_node is not None:
+                try:
+                    spec = registry.get_spec(source_node.type_id)
+                except Exception:  # noqa: BLE001
+                    spec = None
+                if spec is not None:
+                    port_kinds = {
+                        str(port.key): str(port.kind or "").strip().lower()
+                        for port in getattr(spec, "ports", ())
+                    }
+            port_kinds_by_node_id[source_node_id] = port_kinds
+        port_kind = port_kinds.get(source_port_key, "")
+        if port_kind not in _EXECUTION_EDGE_PORT_KINDS:
+            continue
+        indexed_edge_ids.setdefault(source_node_id, {}).setdefault(port_kind, []).append(edge_id)
+
+    return normalized_workspace_id, {
+        source_node_id: {
+            port_kind: tuple(edge_ids)
+            for port_kind, edge_ids in port_kind_map.items()
+        }
+        for source_node_id, port_kind_map in indexed_edge_ids.items()
+    }
 
 
 def mark_node_execution_running(self: "ShellWindow", workspace_id: str, node_id: str) -> None:
@@ -133,14 +229,106 @@ def mark_node_execution_completed(self: "ShellWindow", workspace_id: str, node_i
         self._commit_node_execution_state_change()
 
 
+def clear_execution_edge_progress_state(self: "ShellWindow") -> None:
+    if self._clear_execution_edge_progress_state_fields():
+        self._commit_node_execution_state_change()
+
+
+def seed_execution_edge_progress_state(
+    self: "ShellWindow",
+    *,
+    run_id: str,
+    workspace_id: str,
+    runtime_snapshot: Any,
+) -> None:
+    normalized_run_id = str(run_id or "").strip()
+    normalized_workspace_id, edge_index = self._build_execution_edge_progress_index(
+        workspace_id=workspace_id,
+        runtime_snapshot=runtime_snapshot,
+    )
+    state = self.run_state
+    changed = self._clear_execution_edge_progress_state_fields()
+    if state.execution_edge_run_id != normalized_run_id:
+        state.execution_edge_run_id = normalized_run_id
+        changed = True
+    if state.execution_edge_workspace_id != normalized_workspace_id:
+        state.execution_edge_workspace_id = normalized_workspace_id
+        changed = True
+    if state.execution_edge_ids_by_source_node_id != edge_index:
+        state.execution_edge_ids_by_source_node_id = edge_index
+        changed = True
+    if changed:
+        self._commit_node_execution_state_change()
+
+
+def execution_edge_ids_for_source_port_kind(
+    self: "ShellWindow",
+    workspace_id: str,
+    node_id: str,
+    source_port_kind: str,
+) -> tuple[str, ...]:
+    normalized_node_id = str(node_id or "").strip()
+    normalized_port_kind = str(source_port_kind or "").strip().lower()
+    if not normalized_node_id or normalized_port_kind not in _EXECUTION_EDGE_PORT_KINDS:
+        return tuple()
+    normalized_workspace_id = self._normalize_execution_edge_workspace_id(workspace_id)
+    state = self.run_state
+    if not normalized_workspace_id or state.execution_edge_workspace_id != normalized_workspace_id:
+        return tuple()
+    node_edge_ids = state.execution_edge_ids_by_source_node_id.get(normalized_node_id, {})
+    return tuple(node_edge_ids.get(normalized_port_kind, ()))
+
+
+def mark_execution_edges_progressed(
+    self: "ShellWindow",
+    workspace_id: str,
+    node_id: str,
+    source_port_kinds: Iterable[str] | None = None,
+) -> None:
+    normalized_node_id = str(node_id or "").strip()
+    if not normalized_node_id:
+        return
+    normalized_workspace_id = self._normalize_execution_edge_workspace_id(workspace_id)
+    state = self.run_state
+    if not normalized_workspace_id or state.execution_edge_workspace_id != normalized_workspace_id:
+        return
+    node_edge_ids = state.execution_edge_ids_by_source_node_id.get(normalized_node_id)
+    if not node_edge_ids:
+        return
+    if source_port_kinds is None:
+        requested_port_kinds = tuple(node_edge_ids)
+    else:
+        requested_port_kinds = tuple(
+            normalized_kind
+            for normalized_kind in (
+                str(source_port_kind or "").strip().lower()
+                for source_port_kind in source_port_kinds
+            )
+            if normalized_kind in _EXECUTION_EDGE_PORT_KINDS
+        )
+    changed = False
+    for port_kind in requested_port_kinds:
+        for edge_id in node_edge_ids.get(port_kind, ()):
+            if edge_id in state.progressed_execution_edge_ids:
+                continue
+            state.progressed_execution_edge_ids.add(edge_id)
+            changed = True
+    if changed:
+        self._commit_node_execution_state_change()
+
+
 def clear_node_execution_visualization_state(self: "ShellWindow") -> None:
     state = self.run_state
-    if not (state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids):
-        return
-    state.node_execution_workspace_id = ""
-    state.running_node_ids.clear()
-    state.completed_node_ids.clear()
-    self._commit_node_execution_state_change()
+    changed = False
+    if state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids:
+        state.node_execution_workspace_id = ""
+        state.running_node_ids.clear()
+        state.completed_node_ids.clear()
+        changed = True
+    if self._clear_execution_edge_progress_state_fields():
+        changed = True
+    if changed:
+        self._commit_node_execution_state_change()
 
 
 def set_run_failure_focus(

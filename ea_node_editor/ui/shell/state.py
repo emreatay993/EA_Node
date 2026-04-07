@@ -8,6 +8,8 @@ from typing import Any, Literal, TypeAlias
 ScopeCameraKey: TypeAlias = tuple[str, str, tuple[str, ...]]
 ScopeCameraState: TypeAlias = tuple[float, float, float]
 GraphSearchScopeId: TypeAlias = Literal["title", "type", "content", "port"]
+ExecutionEdgePortKind: TypeAlias = Literal["exec", "completed", "failed"]
+ExecutionEdgeIdsBySourceNodeId: TypeAlias = dict[str, dict[ExecutionEdgePortKind, tuple[str, ...]]]
 
 GRAPH_SEARCH_SCOPE_IDS: tuple[GraphSearchScopeId, ...] = ("title", "type", "content", "port")
 
@@ -56,6 +58,10 @@ class ShellRunState:
     node_execution_workspace_id: str = ""
     running_node_ids: set[str] = field(default_factory=set)
     completed_node_ids: set[str] = field(default_factory=set)
+    execution_edge_run_id: str = ""
+    execution_edge_workspace_id: str = ""
+    execution_edge_ids_by_source_node_id: ExecutionEdgeIdsBySourceNodeId = field(default_factory=dict)
+    progressed_execution_edge_ids: set[str] = field(default_factory=set)
     node_execution_revision: int = 0
     engine_state_value: Literal["ready", "running", "paused", "error"] = "ready"
     failed_node_id: str = ""

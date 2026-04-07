@@ -272,6 +272,18 @@ class RunEventPublisher:
             )
         )
 
+    def emit_node_failed_handled(self, node_id: str, error: str) -> None:
+        from ea_node_editor.execution.protocol import NodeFailedHandledEvent
+
+        self.emit(
+            NodeFailedHandledEvent(
+                run_id=self.run_id,
+                workspace_id=self.workspace_id,
+                node_id=node_id,
+                error=error,
+            )
+        )
+
     def emit_log(self, level: str, message: str, *, node_id: str = "") -> None:
         from ea_node_editor.execution.protocol import LogEvent
 
@@ -408,6 +420,7 @@ class NodeExecutor:
                     f"Node failed but has failure handlers: {error_str}",
                     node_id=node_id,
                 )
+                self._publisher.emit_node_failed_handled(node_id, error_str)
                 self.executed.add(node_id)
                 return "failed_handled"
 

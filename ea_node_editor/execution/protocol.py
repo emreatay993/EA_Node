@@ -25,6 +25,7 @@ EventType = Literal[
     "run_stopped",
     "node_started",
     "node_completed",
+    "node_failed_handled",
     "log",
     "protocol_error",
     "viewer_session_opened",
@@ -225,6 +226,15 @@ class NodeCompletedEvent:
 
 
 @dataclass(frozen=True)
+class NodeFailedHandledEvent:
+    type: Literal["node_failed_handled"] = "node_failed_handled"
+    run_id: str = ""
+    workspace_id: str = ""
+    node_id: str = ""
+    error: str = ""
+
+
+@dataclass(frozen=True)
 class LogEvent:
     type: Literal["log"] = "log"
     run_id: str = ""
@@ -338,6 +348,7 @@ WorkerEvent: TypeAlias = (
     | RunStoppedEvent
     | NodeStartedEvent
     | NodeCompletedEvent
+    | NodeFailedHandledEvent
     | LogEvent
     | ProtocolErrorEvent
     | ViewerSessionOpenedEvent
@@ -631,6 +642,13 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
             outputs=dict(outputs_payload) if isinstance(outputs_payload, dict) else {},
+        )
+    if event_type == "node_failed_handled":
+        return NodeFailedHandledEvent(
+            run_id=str(payload.get("run_id", "")),
+            workspace_id=str(payload.get("workspace_id", "")),
+            node_id=str(payload.get("node_id", "")),
+            error=str(payload.get("error", "")),
         )
     if event_type == "log":
         return LogEvent(
