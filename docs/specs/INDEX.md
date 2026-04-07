@@ -53,6 +53,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT QA Matrix](perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md)
 - [NODE_EXECUTION_VISUALIZATION Work Packet Manifest](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_MANIFEST.md)
 - [NODE_EXECUTION_VISUALIZATION Status Ledger](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_STATUS.md)
+- [EXECUTION_EDGE_PROGRESS_VISUALIZATION Work Packet Manifest](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_MANIFEST.md)
+- [EXECUTION_EDGE_PROGRESS_VISUALIZATION Status Ledger](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_STATUS.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK Work Packet Manifest](work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_MANIFEST.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK Status Ledger](work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_STATUS.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK QA Matrix](perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md)
