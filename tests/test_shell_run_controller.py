@@ -223,6 +223,69 @@ def _named_qquick_item(root: QObject, object_name: str) -> QQuickItem | None:
     return match
 
 
+def _variant_payload(value):  # noqa: ANN001
+    if value is None:
+        return None
+    converter = getattr(value, "toVariant", None)
+    if callable(converter):
+        return converter()
+    return value
+
+
+def _graph_edge_layer(graph_canvas: QObject) -> QObject | None:
+    return graph_canvas.findChild(QObject, "graphCanvasEdgeLayer")
+
+
+def _graph_edge_canvas_layer(graph_canvas: QObject) -> QObject | None:
+    return graph_canvas.findChild(QObject, "graphCanvasEdgeCanvasLayer")
+
+
+def _edge_snapshot_payload(edge_layer: QObject, edge_id: str) -> dict[str, object] | None:
+    payload = _variant_payload(edge_layer._visibleEdgeSnapshot(edge_id))
+    if payload is None:
+        return None
+    return payload if isinstance(payload, dict) else dict(payload)
+
+
+def _edge_paint_diagnostics(edge_canvas_layer: QObject, edge_id: str) -> dict[str, object] | None:
+    payload = _variant_payload(edge_canvas_layer.property("_paintDiagnosticsByEdgeId")) or {}
+    if not isinstance(payload, dict):
+        payload = dict(payload)
+    edge_payload = _variant_payload(payload.get(edge_id))
+    if edge_payload is None:
+        return None
+    return edge_payload if isinstance(edge_payload, dict) else dict(edge_payload)
+
+
+def _build_execution_edge_progress_visualization_graph(window) -> dict[str, str]:  # noqa: ANN001
+    start_id = window.scene.add_node_from_type("core.start", x=20.0, y=40.0)
+    script_id = window.scene.add_node_from_type("core.python_script", x=150.0, y=40.0)
+    on_failure_id = window.scene.add_node_from_type("core.on_failure", x=280.0, y=40.0)
+    logger_id = window.scene.add_node_from_type("core.logger", x=410.0, y=40.0)
+    end_id = window.scene.add_node_from_type("core.end", x=540.0, y=40.0)
+    constant_id = window.scene.add_node_from_type("core.constant", x=410.0, y=200.0)
+
+    exec_edge_id = window.scene.add_edge(start_id, "exec_out", script_id, "exec_in")
+    failed_edge_id = window.scene.add_edge(script_id, "on_failed", on_failure_id, "failed_in")
+    continuation_edge_id = window.scene.add_edge(on_failure_id, "exec_out", logger_id, "exec_in")
+    terminal_edge_id = window.scene.add_edge(logger_id, "exec_out", end_id, "exec_in")
+    data_edge_id = window.scene.add_edge(constant_id, "as_text", logger_id, "message")
+
+    return {
+        "start_node_id": start_id,
+        "script_node_id": script_id,
+        "on_failure_node_id": on_failure_id,
+        "logger_node_id": logger_id,
+        "end_node_id": end_id,
+        "constant_node_id": constant_id,
+        "exec_edge_id": exec_edge_id,
+        "failed_edge_id": failed_edge_id,
+        "continuation_edge_id": continuation_edge_id,
+        "terminal_edge_id": terminal_edge_id,
+        "data_edge_id": data_edge_id,
+    }
+
+
 class ShellRunControllerTests(MainWindowShellTestBase):
     def test_node_execution_visualization_shell_events_drive_graph_node_chrome_states(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -456,6 +519,349 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             timeout_message="Timed out waiting for failed-node timer cleanup.",
         )
         self.assertEqual(dict(graph_canvas.property("failedNodeLookup")), {node_id: True})
+
+    def test_execution_edge_progress_visualization_shell_canvas_tracks_dimming_flash_failure_branch_and_completion_cleanup(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        graph_ids = _build_execution_edge_progress_visualization_graph(self.window)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        edge_layer = _graph_edge_layer(graph_canvas)
+        edge_canvas_layer = _graph_edge_canvas_layer(graph_canvas)
+        self.assertIsNotNone(edge_layer)
+        self.assertIsNotNone(edge_canvas_layer)
+        if edge_layer is None or edge_canvas_layer is None:
+            self.fail("Expected graph canvas edge layers to expose stable object names")
+
+        def _snapshot(edge_id: str) -> dict[str, object] | None:
+            return _edge_snapshot_payload(edge_layer, edge_id)
+
+        def _paint(edge_id: str) -> dict[str, object] | None:
+            return _edge_paint_diagnostics(edge_canvas_layer, edge_id)
+
+        wait_for_condition_or_raise(
+            lambda: all(
+                _snapshot(edge_id) is not None and _paint(edge_id) is not None
+                for edge_id in (
+                    graph_ids["exec_edge_id"],
+                    graph_ids["failed_edge_id"],
+                    graph_ids["continuation_edge_id"],
+                    graph_ids["data_edge_id"],
+                )
+            ),
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge progress visualization snapshots.",
+        )
+
+        idle_exec = _paint(graph_ids["exec_edge_id"])
+        idle_failed = _paint(graph_ids["failed_edge_id"])
+        idle_data = _paint(graph_ids["data_edge_id"])
+        self.assertIsNotNone(idle_exec)
+        self.assertIsNotNone(idle_failed)
+        self.assertIsNotNone(idle_data)
+        if idle_exec is None or idle_failed is None or idle_data is None:
+            self.fail("Expected edge paint diagnostics before execution begins")
+
+        self.assertFalse(bool(idle_exec["executionVisualizationActive"]))
+        self.assertEqual(float(idle_exec["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(idle_exec["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertEqual(float(idle_exec["flashAlpha"]), 0.0)
+        self.assertFalse(bool(idle_failed["executionVisualizationActive"]))
+        self.assertEqual(float(idle_failed["strokeAlpha"]), 1.0)
+        self.assertEqual(float(idle_data["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(idle_data["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertFalse(bool(idle_data["executionDimmedActive"]))
+
+        with patch.object(self.window.execution_client, "start_run", return_value="run_live"):
+            self.window._run_workflow()
+        self.app.processEvents()
+        self.window.execution_event.emit(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionVisualizationActive"))
+                and bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionDimmedActive"))
+                and bool((_paint(graph_ids["failed_edge_id"]) or {}).get("executionDimmedActive"))
+                and bool((_paint(graph_ids["continuation_edge_id"]) or {}).get("executionDimmedActive"))
+            ),
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for dimmed execution-edge render state at run start.",
+        )
+
+        run_started_exec = _paint(graph_ids["exec_edge_id"])
+        run_started_failed = _paint(graph_ids["failed_edge_id"])
+        run_started_continuation = _paint(graph_ids["continuation_edge_id"])
+        run_started_data = _paint(graph_ids["data_edge_id"])
+        self.assertIsNotNone(run_started_exec)
+        self.assertIsNotNone(run_started_failed)
+        self.assertIsNotNone(run_started_continuation)
+        self.assertIsNotNone(run_started_data)
+        if (
+            run_started_exec is None
+            or run_started_failed is None
+            or run_started_continuation is None
+            or run_started_data is None
+        ):
+            self.fail("Expected execution-edge paint diagnostics after run start")
+
+        for payload in (run_started_exec, run_started_failed, run_started_continuation):
+            self.assertEqual(float(payload["strokeAlpha"]), 0.35)
+            self.assertAlmostEqual(float(payload["strokeWidthScreenPx"]), 1.7, places=6)
+            self.assertEqual(float(payload["flashAlpha"]), 0.0)
+        self.assertEqual(dict(graph_canvas.property("progressedExecutionEdgeLookup")), {})
+        self.assertEqual(float(run_started_data["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(run_started_data["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertFalse(bool(run_started_data["executionDimmedActive"]))
+
+        self.window.execution_event.emit(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": graph_ids["start_node_id"],
+                "outputs": {"exit_code": 0},
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                graph_ids["exec_edge_id"] in dict(graph_canvas.property("progressedExecutionEdgeLookup"))
+                and bool((_snapshot(graph_ids["exec_edge_id"]) or {}).get("executionProgressed"))
+                and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("flashAlpha", 0.0))) > 0.0
+            ),
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for the first execution edge to progress and flash.",
+        )
+
+        progressed_exec = _paint(graph_ids["exec_edge_id"])
+        self.assertIsNotNone(progressed_exec)
+        if progressed_exec is None:
+            self.fail("Expected progressed execution-edge diagnostics")
+        self.assertFalse(bool(progressed_exec["executionDimmedActive"]))
+        self.assertTrue(bool(progressed_exec["executionProgressed"]))
+        self.assertEqual(float(progressed_exec["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(progressed_exec["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertLessEqual(float(progressed_exec["flashAlpha"]), 0.55)
+        self.assertGreater(float(progressed_exec["flashAlpha"]), 0.0)
+        self.assertAlmostEqual(float(progressed_exec["flashWidthScreenPx"]), 3.4, places=6)
+
+        wait_for_condition_or_raise(
+            lambda: float(((_paint(graph_ids["exec_edge_id"]) or {}).get("flashAlpha", -1.0))) == 0.0,
+            timeout_ms=1000,
+            app=self.app,
+            timeout_message="Timed out waiting for the first execution edge flash to expire.",
+        )
+
+        self.window.execution_event.emit(
+            {
+                "type": "node_failed_handled",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": graph_ids["script_node_id"],
+                "error": "boom handled",
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                graph_ids["failed_edge_id"] in dict(graph_canvas.property("progressedExecutionEdgeLookup"))
+                and bool((_snapshot(graph_ids["failed_edge_id"]) or {}).get("executionProgressed"))
+                and float(((_paint(graph_ids["failed_edge_id"]) or {}).get("flashAlpha", 0.0))) > 0.0
+            ),
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for handled-failure branch edge progression.",
+        )
+
+        failed_edge = _paint(graph_ids["failed_edge_id"])
+        continuation_edge = _paint(graph_ids["continuation_edge_id"])
+        self.assertIsNotNone(failed_edge)
+        self.assertIsNotNone(continuation_edge)
+        if failed_edge is None or continuation_edge is None:
+            self.fail("Expected handled-failure branch diagnostics")
+        self.assertTrue(bool(failed_edge["executionProgressed"]))
+        self.assertEqual(float(failed_edge["strokeAlpha"]), 1.0)
+        self.assertGreater(float(failed_edge["flashAlpha"]), 0.0)
+        self.assertTrue(bool(continuation_edge["executionDimmedActive"]))
+        self.assertEqual(float(continuation_edge["strokeAlpha"]), 0.35)
+
+        self.window.execution_event.emit(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": graph_ids["on_failure_node_id"],
+                "outputs": {"exit_code": 0},
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                graph_ids["continuation_edge_id"] in dict(graph_canvas.property("progressedExecutionEdgeLookup"))
+                and bool((_snapshot(graph_ids["continuation_edge_id"]) or {}).get("executionProgressed"))
+                and float(((_paint(graph_ids["continuation_edge_id"]) or {}).get("flashAlpha", 0.0))) > 0.0
+            ),
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for the failure-handler continuation edge to progress.",
+        )
+
+        self.window.execution_event.emit(
+            {
+                "type": "run_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                dict(graph_canvas.property("progressedExecutionEdgeLookup")) == {}
+                and not bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionVisualizationActive"))
+                and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 1.0
+                and float(((_paint(graph_ids["failed_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 1.0
+            ),
+            timeout_ms=1000,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge cleanup after run completion.",
+        )
+
+        completed_exec = _paint(graph_ids["exec_edge_id"])
+        completed_failed = _paint(graph_ids["failed_edge_id"])
+        completed_data = _paint(graph_ids["data_edge_id"])
+        self.assertIsNotNone(completed_exec)
+        self.assertIsNotNone(completed_failed)
+        self.assertIsNotNone(completed_data)
+        if completed_exec is None or completed_failed is None or completed_data is None:
+            self.fail("Expected execution-edge paint diagnostics after completion cleanup")
+
+        self.assertFalse(bool(completed_exec["executionVisualizationActive"]))
+        self.assertFalse(bool(completed_exec["executionDimmedActive"]))
+        self.assertEqual(float(completed_exec["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(completed_exec["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertEqual(float(completed_exec["flashAlpha"]), 0.0)
+        self.assertFalse(bool(completed_failed["executionDimmedActive"]))
+        self.assertEqual(float(completed_failed["strokeAlpha"]), 1.0)
+        self.assertEqual(float(completed_data["strokeAlpha"]), 1.0)
+        self.assertFalse(bool(completed_data["executionDimmedActive"]))
+
+    def test_execution_edge_progress_visualization_terminal_events_clear_progressed_edge_render_state(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        graph_ids = _build_execution_edge_progress_visualization_graph(self.window)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        edge_layer = _graph_edge_layer(graph_canvas)
+        edge_canvas_layer = _graph_edge_canvas_layer(graph_canvas)
+        self.assertIsNotNone(edge_layer)
+        self.assertIsNotNone(edge_canvas_layer)
+        if edge_layer is None or edge_canvas_layer is None:
+            self.fail("Expected graph canvas edge layers to expose stable object names")
+
+        def _paint(edge_id: str) -> dict[str, object] | None:
+            return _edge_paint_diagnostics(edge_canvas_layer, edge_id)
+
+        wait_for_condition_or_raise(
+            lambda: _paint(graph_ids["exec_edge_id"]) is not None,
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for terminal-cleanup edge diagnostics.",
+        )
+
+        terminal_events = (
+            {
+                "label": "run_stopped",
+                "payload": {
+                    "type": "run_stopped",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                },
+                "patch_critical": False,
+            },
+            {
+                "label": "run_failed_fatal",
+                "payload": {
+                    "type": "run_failed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": graph_ids["script_node_id"],
+                    "error": "fatal boom",
+                    "traceback": "traceback: line 1",
+                    "fatal": True,
+                },
+                "patch_critical": True,
+            },
+        )
+
+        for terminal_event in terminal_events:
+            with self.subTest(terminal_event=terminal_event["label"]):
+                self.window.clear_node_execution_visualization_state()
+                self.app.processEvents()
+
+                with patch.object(self.window.execution_client, "start_run", return_value="run_live"):
+                    self.window._run_workflow()
+                self.app.processEvents()
+                self.window.execution_event.emit(
+                    {
+                        "type": "run_started",
+                        "run_id": "run_live",
+                        "workspace_id": workspace_id,
+                    }
+                )
+                self.window.execution_event.emit(
+                    {
+                        "type": "node_completed",
+                        "run_id": "run_live",
+                        "workspace_id": workspace_id,
+                        "node_id": graph_ids["start_node_id"],
+                        "outputs": {"exit_code": 0},
+                    }
+                )
+                self.app.processEvents()
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        graph_ids["exec_edge_id"] in dict(graph_canvas.property("progressedExecutionEdgeLookup"))
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("flashAlpha", 0.0))) > 0.0
+                    ),
+                    timeout_ms=800,
+                    app=self.app,
+                    timeout_message=f"Timed out seeding progressed edge state for {terminal_event['label']}.",
+                )
+
+                if terminal_event["patch_critical"]:
+                    with patch.object(QMessageBox, "critical"):
+                        self.window.execution_event.emit(dict(terminal_event["payload"]))
+                        self.app.processEvents()
+                else:
+                    self.window.execution_event.emit(dict(terminal_event["payload"]))
+                    self.app.processEvents()
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        dict(graph_canvas.property("progressedExecutionEdgeLookup")) == {}
+                        and not bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionVisualizationActive"))
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 1.0
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("flashAlpha", -1.0))) == 0.0
+                    ),
+                    timeout_ms=1000,
+                    app=self.app,
+                    timeout_message=f"Timed out waiting for {terminal_event['label']} to clear edge render state.",
+                )
 
     def test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace(self) -> None:
         execution_client = _ViewerExecutionClientStub()

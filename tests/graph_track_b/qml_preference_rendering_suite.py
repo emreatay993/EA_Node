@@ -8,6 +8,7 @@ from tests.graph_track_b.qml_support import (
     QObject,
     QMetaObject,
     QQmlComponent,
+    QQuickWindow,
     QTest,
     Qt,
     QUrl,
@@ -551,6 +552,262 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertFalse(bool(running_pulse_halo.property("visible")))
         self.assertFalse(bool(completed_flash_halo.property("visible")))
         self.assertIn("|failed|", str(background_layer.property("cacheKey") or ""))
+
+    def test_execution_edge_progress_visualization_edge_canvas_diagnostics_follow_renderer_contract(self) -> None:
+        edge_layer = self._create_edge_layer()
+        edge_canvas_layer = edge_layer.findChild(QObject, "graphCanvasEdgeCanvasLayer")
+        self.assertIsNotNone(edge_canvas_layer)
+        if edge_canvas_layer is None:
+            self.fail("Expected EdgeCanvasLayer to expose a stable object name")
+        window = QQuickWindow()
+        window.resize(1280, 720)
+        edge_layer.setParentItem(window.contentItem())
+        window.show()
+        self.app.processEvents()
+
+        def bezier_edge(
+            edge_id: str,
+            *,
+            source_port_kind: str,
+            target_port_kind: str = "exec",
+            color: str = "#7AA8FF",
+        ) -> dict[str, object]:
+            return {
+                "edge_id": edge_id,
+                "source_node_id": "source",
+                "source_port_key": "out",
+                "target_node_id": "target",
+                "target_port_key": "in",
+                "source_port_kind": source_port_kind,
+                "target_port_kind": target_port_kind,
+                "edge_family": "standard",
+                "label": "",
+                "visual_style": {},
+                "flow_style": {},
+                "source_port_side": "right",
+                "target_port_side": "left",
+                "source_anchor_side": "right",
+                "target_anchor_side": "left",
+                "source_anchor_kind": "node",
+                "target_anchor_kind": "node",
+                "source_anchor_node_id": "",
+                "target_anchor_node_id": "",
+                "source_hidden_by_backdrop_id": "",
+                "target_hidden_by_backdrop_id": "",
+                "source_anchor_bounds": {"x": 80.0, "y": 80.0, "width": 40.0, "height": 40.0},
+                "target_anchor_bounds": {"x": 320.0, "y": 80.0, "width": 40.0, "height": 40.0},
+                "lane_bias": 0.0,
+                "sx": 80.0,
+                "sy": 80.0,
+                "tx": 320.0,
+                "ty": 80.0,
+                "c1x": 160.0,
+                "c1y": 80.0,
+                "c2x": 240.0,
+                "c2y": 80.0,
+                "route": "bezier",
+                "pipe_points": [],
+                "color": color,
+                "data_type_warning": False,
+            }
+
+        flow_edge = {
+            "edge_id": "flow_edge",
+            "source_node_id": "flow_source",
+            "source_port_key": "flow_out",
+            "target_node_id": "flow_target",
+            "target_port_key": "flow_in",
+            "source_port_kind": "flow",
+            "target_port_kind": "flow",
+            "edge_family": "flow",
+            "label": "",
+            "visual_style": {},
+            "flow_style": {},
+            "source_port_side": "bottom",
+            "target_port_side": "top",
+            "source_anchor_side": "bottom",
+            "target_anchor_side": "top",
+            "source_anchor_kind": "node",
+            "target_anchor_kind": "node",
+            "source_anchor_node_id": "",
+            "target_anchor_node_id": "",
+            "source_hidden_by_backdrop_id": "",
+            "target_hidden_by_backdrop_id": "",
+            "source_anchor_bounds": {"x": 80.0, "y": 200.0, "width": 40.0, "height": 40.0},
+            "target_anchor_bounds": {"x": 320.0, "y": 200.0, "width": 40.0, "height": 40.0},
+            "lane_bias": 0.0,
+            "sx": 100.0,
+            "sy": 220.0,
+            "tx": 340.0,
+            "ty": 220.0,
+            "c1x": 160.0,
+            "c1y": 220.0,
+            "c2x": 280.0,
+            "c2y": 220.0,
+            "route": "bezier",
+            "pipe_points": [],
+            "color": "#A0A8B8",
+            "data_type_warning": False,
+        }
+
+        edge_layer.setProperty(
+            "edges",
+            [
+                bezier_edge("exec_dimmed", source_port_kind="exec"),
+                bezier_edge("exec_selected", source_port_kind="completed", color="#6CE7FF"),
+                bezier_edge("exec_previewed", source_port_kind="failed", color="#FFB36B"),
+                bezier_edge("data_edge", source_port_kind="data", target_port_kind="data", color="#55AA66"),
+                flow_edge,
+            ],
+        )
+        edge_layer.setProperty("selectedEdgeIds", ["exec_selected"])
+        edge_layer.setProperty("previewEdgeId", "exec_previewed")
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        def _paint(edge_id: str) -> dict[str, object] | None:
+            diagnostics = edge_canvas_layer.property("_paintDiagnosticsByEdgeId")
+            if hasattr(diagnostics, "toVariant"):
+                diagnostics = diagnostics.toVariant()
+            diagnostics = diagnostics or {}
+            if not isinstance(diagnostics, dict):
+                diagnostics = dict(diagnostics)
+            payload = diagnostics.get(edge_id)
+            if hasattr(payload, "toVariant"):
+                payload = payload.toVariant()
+            if payload is None:
+                return None
+            return payload if isinstance(payload, dict) else dict(payload)
+
+        wait_for_condition_or_raise(
+            lambda: all(_paint(edge_id) is not None for edge_id in ("exec_dimmed", "exec_selected", "exec_previewed", "data_edge", "flow_edge")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge renderer diagnostics.",
+        )
+
+        idle_exec = _paint("exec_dimmed")
+        self.assertIsNotNone(idle_exec)
+        if idle_exec is None:
+            self.fail("Expected idle execution-edge diagnostics")
+        self.assertFalse(bool(idle_exec["executionVisualizationActive"]))
+        self.assertEqual(float(idle_exec["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(idle_exec["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertEqual(float(idle_exec["flashAlpha"]), 0.0)
+
+        edge_layer.setProperty("nodeExecutionRevision", 1)
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool((_paint("exec_dimmed") or {}).get("executionVisualizationActive")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for active execution-edge renderer state.",
+        )
+
+        dimmed = _paint("exec_dimmed")
+        selected = _paint("exec_selected")
+        previewed = _paint("exec_previewed")
+        data_edge = _paint("data_edge")
+        flow_edge_paint = _paint("flow_edge")
+        self.assertIsNotNone(dimmed)
+        self.assertIsNotNone(selected)
+        self.assertIsNotNone(previewed)
+        self.assertIsNotNone(data_edge)
+        self.assertIsNotNone(flow_edge_paint)
+        if None in (dimmed, selected, previewed, data_edge, flow_edge_paint):
+            self.fail("Expected execution-edge renderer diagnostics after activation")
+
+        self.assertTrue(bool(dimmed["executionDimmedActive"]))
+        self.assertEqual(float(dimmed["strokeAlpha"]), 0.35)
+        self.assertAlmostEqual(float(dimmed["strokeWidthScreenPx"]), 1.7, places=6)
+        self.assertEqual(float(dimmed["flashAlpha"]), 0.0)
+
+        self.assertFalse(bool(selected["executionDimmedActive"]))
+        self.assertEqual(float(selected["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(selected["strokeWidthScreenPx"]), 3.0, places=6)
+        self.assertEqual(
+            _color_name(selected["strokeColor"]),
+            _color_name(edge_layer.property("selectedStrokeColor")),
+        )
+
+        self.assertFalse(bool(previewed["executionDimmedActive"]))
+        self.assertEqual(float(previewed["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(previewed["strokeWidthScreenPx"]), 2.8, places=6)
+        self.assertEqual(
+            _color_name(previewed["strokeColor"]),
+            _color_name(edge_layer.property("previewStrokeColor")),
+        )
+
+        self.assertFalse(bool(data_edge["executionDimmedActive"]))
+        self.assertFalse(bool(data_edge["flowEdge"]))
+        self.assertEqual(float(data_edge["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(data_edge["strokeWidthScreenPx"]), 2.0, places=6)
+
+        self.assertTrue(bool(flow_edge_paint["flowEdge"]))
+        self.assertEqual(float(flow_edge_paint["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(flow_edge_paint["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertEqual(
+            _color_name(flow_edge_paint["strokeColor"]),
+            _color_name(edge_layer.property("flowDefaultStrokeColor")),
+        )
+
+        edge_layer.setProperty("progressedExecutionEdgeLookup", {"exec_dimmed": True})
+        edge_layer.setProperty("nodeExecutionRevision", 2)
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: float(((_paint("exec_dimmed") or {}).get("flashAlpha", 0.0))) > 0.0,
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge flash diagnostics.",
+        )
+
+        progressed = _paint("exec_dimmed")
+        self.assertIsNotNone(progressed)
+        if progressed is None:
+            self.fail("Expected progressed execution-edge diagnostics")
+        self.assertFalse(bool(progressed["executionDimmedActive"]))
+        self.assertTrue(bool(progressed["executionProgressed"]))
+        self.assertEqual(float(progressed["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(progressed["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertLessEqual(float(progressed["flashAlpha"]), 0.55)
+        self.assertGreater(float(progressed["flashAlpha"]), 0.0)
+        self.assertAlmostEqual(float(progressed["flashWidthScreenPx"]), 3.4, places=6)
+        self.assertEqual(_color_name(progressed["flashColor"]), _color_name(progressed["baseColor"]))
+
+        wait_for_condition_or_raise(
+            lambda: float(((_paint("exec_dimmed") or {}).get("flashAlpha", -1.0))) == 0.0,
+            timeout_ms=800,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge flash cleanup.",
+        )
+
+        edge_layer.setProperty("progressedExecutionEdgeLookup", {})
+        edge_layer.setProperty("nodeExecutionRevision", 3)
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: not bool((_paint("exec_dimmed") or {}).get("executionVisualizationActive")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge renderer cleanup.",
+        )
+
+        cleaned = _paint("exec_dimmed")
+        self.assertIsNotNone(cleaned)
+        if cleaned is None:
+            self.fail("Expected cleaned execution-edge diagnostics")
+        self.assertFalse(bool(cleaned["executionDimmedActive"]))
+        self.assertEqual(float(cleaned["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(cleaned["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertEqual(float(cleaned["flashAlpha"]), 0.0)
+
+        edge_layer.setParentItem(None)
+        window.close()
+        window.deleteLater()
+        edge_layer.deleteLater()
+        self.app.processEvents()
 
     def test_toggle_minimap_expanded_routes_through_bridge_slot(self) -> None:
         self.assertEqual(self.bridge.minimap_update_history, [])

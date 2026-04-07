@@ -4,7 +4,13 @@ import "EdgeViewportMath.js" as EdgeViewportMath
 
 Item {
     id: root
+    objectName: "graphCanvasEdgeCanvasLayer"
     property Item edgeLayer: null
+    property bool _executionVisualizationActive: false
+    property int _observedNodeExecutionRevision: -1
+    property bool _hadProgressedExecutionEdges: false
+    property var _paintDiagnosticsByEdgeId: ({})
+    property int _paintDiagnosticsRevision: 0
     function edgeIsFlow(edge) {
         if (!edge)
             return false;
@@ -68,6 +74,90 @@ Item {
         if (pattern === "dotted")
             return [Math.max(1.0, 1.0 * unit), Math.max(2.0, 4.0 * unit)];
         return [];
+    }
+    function clampUnitInterval(value) {
+        var numeric = Number(value);
+        if (!isFinite(numeric))
+            return 0.0;
+        return Math.max(0.0, Math.min(1.0, numeric));
+    }
+    function hasProgressedExecutionEdges() {
+        var lookup = root.edgeLayer ? (root.edgeLayer.progressedExecutionEdgeLookup || ({})) : ({});
+        for (var edgeId in lookup) {
+            if (Object.prototype.hasOwnProperty.call(lookup, edgeId) && Boolean(lookup[edgeId]))
+                return true;
+        }
+        return false;
+    }
+    function syncExecutionVisualizationLifecycle() {
+        if (!root.edgeLayer) {
+            root._executionVisualizationActive = false;
+            root._observedNodeExecutionRevision = -1;
+            root._hadProgressedExecutionEdges = false;
+            return;
+        }
+        var revision = Number(root.edgeLayer.nodeExecutionRevision);
+        if (!isFinite(revision))
+            revision = 0;
+        var hasProgressed = root.hasProgressedExecutionEdges();
+        if (root._observedNodeExecutionRevision < 0) {
+            root._observedNodeExecutionRevision = revision;
+            root._hadProgressedExecutionEdges = hasProgressed;
+            root._executionVisualizationActive = hasProgressed;
+            return;
+        }
+        if (revision !== root._observedNodeExecutionRevision) {
+            if (hasProgressed)
+                root._executionVisualizationActive = true;
+            else if (root._hadProgressedExecutionEdges)
+                root._executionVisualizationActive = false;
+            else
+                root._executionVisualizationActive = true;
+            root._observedNodeExecutionRevision = revision;
+        }
+        root._hadProgressedExecutionEdges = hasProgressed;
+    }
+    function standardEdgeBaseColor(edge) {
+        return edge && edge.color ? edge.color : root.edgeLayer.fallbackStrokeColor;
+    }
+    function standardEdgeStrokeColor(snapshot, edge) {
+        if (snapshot.selected)
+            return root.edgeLayer.selectedStrokeColor;
+        if (snapshot.previewed)
+            return root.edgeLayer.previewStrokeColor;
+        return root.standardEdgeBaseColor(edge);
+    }
+    function standardEdgeBaseWidthPx(snapshot) {
+        if (snapshot.selected)
+            return 3.0;
+        if (snapshot.previewed)
+            return 2.8;
+        return snapshot.executionDimmed && root._executionVisualizationActive ? 1.7 : 2.0;
+    }
+    function standardEdgeStrokeAlpha(snapshot) {
+        return snapshot.executionDimmed && root._executionVisualizationActive ? 0.35 : 1.0;
+    }
+    function standardEdgePaintState(snapshot, edge, zoom) {
+        var baseWidthPx = root.standardEdgeBaseWidthPx(snapshot);
+        var flashProgress = root._executionVisualizationActive
+            ? root.clampUnitInterval(snapshot.executionFlashProgress)
+            : 0.0;
+        return {
+            "flowEdge": false,
+            "executionVisualizationActive": root._executionVisualizationActive,
+            "executionDimmedActive": Boolean(snapshot.executionDimmed) && root._executionVisualizationActive,
+            "executionProgressed": Boolean(snapshot.executionProgressed),
+            "selected": Boolean(snapshot.selected),
+            "previewed": Boolean(snapshot.previewed),
+            "baseColor": root.standardEdgeBaseColor(edge),
+            "strokeColor": root.standardEdgeStrokeColor(snapshot, edge),
+            "strokeAlpha": root.standardEdgeStrokeAlpha(snapshot),
+            "strokeWidthScreenPx": Math.max(1.0, baseWidthPx * zoom),
+            "flashColor": root.standardEdgeBaseColor(edge),
+            "flashAlpha": 0.55 * flashProgress,
+            "flashWidthScreenPx": Math.max(1.0, (baseWidthPx + 1.4) * zoom),
+            "flashProgress": flashProgress
+        };
     }
     function traceBezierGeometry(ctx, geometry) {
         ctx.moveTo(geometry.sx, geometry.sy);
@@ -362,11 +452,16 @@ Item {
         onPaint: {
             var ctx = getContext("2d");
             ctx.reset();
-            if (!root.edgeLayer)
+            if (!root.edgeLayer) {
+                root._paintDiagnosticsByEdgeId = ({});
+                root._paintDiagnosticsRevision += 1;
                 return;
+            }
             var zoom = EdgeViewportMath.zoomValue(root.edgeLayer);
             var snapshots = root.edgeLayer._visibleEdgeSnapshots || [];
             var viewportTransform = EdgeViewportMath.viewportTransform(root.edgeLayer);
+            var paintDiagnosticsByEdgeId = {};
+            root.syncExecutionVisualizationLifecycle();
 
             ctx.save();
             EdgeViewportMath.applyViewportTransform(ctx, viewportTransform);
@@ -389,9 +484,10 @@ Item {
 
                 if (snapshot.flowEdge) {
                     var flowStrokeColor = root.flowStrokeColor(edge, selected, previewed);
+                    var flowStrokeWidthScreenPx = root.flowStrokeWidth(edge, selected, previewed, zoom);
                     ctx.strokeStyle = flowStrokeColor;
                     ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
-                        root.flowStrokeWidth(edge, selected, previewed, zoom),
+                        flowStrokeWidthScreenPx,
                         viewportTransform
                     );
                     ctx.setLineDash(
@@ -399,15 +495,41 @@ Item {
                     );
                     ctx.stroke();
                     root.drawFlowArrowHead(ctx, geometry, edge, flowStrokeColor, zoom, viewportTransform);
+                    paintDiagnosticsByEdgeId[snapshot.edgeId] = {
+                        "flowEdge": true,
+                        "executionVisualizationActive": root._executionVisualizationActive,
+                        "executionDimmedActive": false,
+                        "executionProgressed": Boolean(snapshot.executionProgressed),
+                        "selected": Boolean(selected),
+                        "previewed": Boolean(previewed),
+                        "baseColor": flowStrokeColor,
+                        "strokeColor": flowStrokeColor,
+                        "strokeAlpha": 1.0,
+                        "strokeWidthScreenPx": flowStrokeWidthScreenPx,
+                        "flashColor": "",
+                        "flashAlpha": 0.0,
+                        "flashWidthScreenPx": 0.0,
+                        "flashProgress": 0.0
+                    };
                 } else {
-                    ctx.strokeStyle = selected
-                        ? root.edgeLayer.selectedStrokeColor
-                        : (previewed ? root.edgeLayer.previewStrokeColor : (edge.color || root.edgeLayer.fallbackStrokeColor));
+                    var standardPaint = root.standardEdgePaintState(snapshot, edge, zoom);
+                    ctx.globalAlpha = standardPaint.strokeAlpha;
+                    ctx.strokeStyle = standardPaint.strokeColor;
                     ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
-                        Math.max(1.0, (selected ? 3.0 : (previewed ? 2.8 : 2.0)) * zoom),
+                        standardPaint.strokeWidthScreenPx,
                         viewportTransform
                     );
                     ctx.stroke();
+                    if (standardPaint.flashAlpha > 0.0) {
+                        ctx.globalAlpha = standardPaint.flashAlpha;
+                        ctx.strokeStyle = standardPaint.flashColor;
+                        ctx.lineWidth = EdgeViewportMath.screenLengthToScene(
+                            standardPaint.flashWidthScreenPx,
+                            viewportTransform
+                        );
+                        ctx.stroke();
+                    }
+                    paintDiagnosticsByEdgeId[snapshot.edgeId] = standardPaint;
                 }
                 ctx.restore();
             }
@@ -439,6 +561,8 @@ Item {
             }
 
             ctx.restore();
+            root._paintDiagnosticsByEdgeId = paintDiagnosticsByEdgeId;
+            root._paintDiagnosticsRevision += 1;
         }
     }
 }
