@@ -153,10 +153,10 @@ Item {
             return 3.0;
         if (snapshot.previewed)
             return 2.8;
-        return snapshot.executionDimmed && root._executionVisualizationActive ? 1.7 : 2.0;
+        return snapshot.executionDimmed && root._executionVisualizationActive ? 1.4 : 2.0;
     }
     function standardEdgeStrokeAlpha(snapshot) {
-        return snapshot.executionDimmed && root._executionVisualizationActive ? 0.35 : 1.0;
+        return snapshot.executionDimmed && root._executionVisualizationActive ? 0.2 : 1.0;
     }
     function standardEdgePaintState(snapshot, edge, zoom) {
         var baseWidthPx = root.standardEdgeBaseWidthPx(snapshot);
@@ -175,8 +175,8 @@ Item {
             "strokeAlpha": root.standardEdgeStrokeAlpha(snapshot),
             "strokeWidthScreenPx": Math.max(1.0, baseWidthPx * zoom),
             "flashColor": root.standardEdgeBaseColor(edge),
-            "flashAlpha": 0.55 * flashProgress,
-            "flashWidthScreenPx": Math.max(1.0, (baseWidthPx + 1.4) * zoom),
+            "flashAlpha": 0.85 * flashProgress,
+            "flashWidthScreenPx": Math.max(1.0, (baseWidthPx + 2.4) * zoom),
             "flashProgress": flashProgress
         };
     }

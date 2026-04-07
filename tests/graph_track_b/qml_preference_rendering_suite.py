@@ -719,8 +719,8 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             self.fail("Expected execution-edge renderer diagnostics after activation")
 
         self.assertTrue(bool(dimmed["executionDimmedActive"]))
-        self.assertEqual(float(dimmed["strokeAlpha"]), 0.35)
-        self.assertAlmostEqual(float(dimmed["strokeWidthScreenPx"]), 1.7, places=6)
+        self.assertEqual(float(dimmed["strokeAlpha"]), 0.2)
+        self.assertAlmostEqual(float(dimmed["strokeWidthScreenPx"]), 1.4, places=6)
         self.assertEqual(float(dimmed["flashAlpha"]), 0.0)
 
         self.assertFalse(bool(selected["executionDimmedActive"]))
@@ -801,9 +801,9 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         self.assertTrue(bool(progressed["executionProgressed"]))
         self.assertEqual(float(progressed["strokeAlpha"]), 1.0)
         self.assertAlmostEqual(float(progressed["strokeWidthScreenPx"]), 2.0, places=6)
-        self.assertLessEqual(float(progressed["flashAlpha"]), 0.55)
+        self.assertLessEqual(float(progressed["flashAlpha"]), 0.85)
         self.assertGreater(float(progressed["flashAlpha"]), 0.0)
-        self.assertAlmostEqual(float(progressed["flashWidthScreenPx"]), 3.4, places=6)
+        self.assertAlmostEqual(float(progressed["flashWidthScreenPx"]), 4.4, places=6)
         self.assertEqual(_color_name(progressed["flashColor"]), _color_name(progressed["baseColor"]))
 
         wait_for_condition_or_raise(

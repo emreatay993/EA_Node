@@ -614,8 +614,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             self.fail("Expected execution-edge paint diagnostics after run start")
 
         for payload in (run_started_exec, run_started_failed, run_started_continuation):
-            self.assertEqual(float(payload["strokeAlpha"]), 0.35)
-            self.assertAlmostEqual(float(payload["strokeWidthScreenPx"]), 1.7, places=6)
+            self.assertEqual(float(payload["strokeAlpha"]), 0.2)
+            self.assertAlmostEqual(float(payload["strokeWidthScreenPx"]), 1.4, places=6)
             self.assertEqual(float(payload["flashAlpha"]), 0.0)
         self.assertEqual(dict(graph_canvas.property("progressedExecutionEdgeLookup")), {})
         self.assertEqual(float(run_started_data["strokeAlpha"]), 1.0)
@@ -652,9 +652,9 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertTrue(bool(progressed_exec["executionProgressed"]))
         self.assertEqual(float(progressed_exec["strokeAlpha"]), 1.0)
         self.assertAlmostEqual(float(progressed_exec["strokeWidthScreenPx"]), 2.0, places=6)
-        self.assertLessEqual(float(progressed_exec["flashAlpha"]), 0.55)
+        self.assertLessEqual(float(progressed_exec["flashAlpha"]), 0.85)
         self.assertGreater(float(progressed_exec["flashAlpha"]), 0.0)
-        self.assertAlmostEqual(float(progressed_exec["flashWidthScreenPx"]), 3.4, places=6)
+        self.assertAlmostEqual(float(progressed_exec["flashWidthScreenPx"]), 4.4, places=6)
 
         wait_for_condition_or_raise(
             lambda: float(((_paint(graph_ids["exec_edge_id"]) or {}).get("flashAlpha", -1.0))) == 0.0,
@@ -695,7 +695,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(float(failed_edge["strokeAlpha"]), 1.0)
         self.assertGreater(float(failed_edge["flashAlpha"]), 0.0)
         self.assertTrue(bool(continuation_edge["executionDimmedActive"]))
-        self.assertEqual(float(continuation_edge["strokeAlpha"]), 0.35)
+        self.assertEqual(float(continuation_edge["strokeAlpha"]), 0.2)
 
         self.window.execution_event.emit(
             {
@@ -924,7 +924,7 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                     lambda: (
                         bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionVisualizationActive"))
                         and bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionDimmedActive"))
-                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 0.35
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 0.2
                     ),
                     timeout_ms=800,
                     app=self.app,
