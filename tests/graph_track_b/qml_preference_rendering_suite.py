@@ -752,8 +752,38 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
             _color_name(edge_layer.property("flowDefaultStrokeColor")),
         )
 
-        edge_layer.setProperty("progressedExecutionEdgeLookup", {"exec_dimmed": True})
         edge_layer.setProperty("nodeExecutionRevision", 2)
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: not bool((_paint("exec_dimmed") or {}).get("executionVisualizationActive")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for no-progress execution-edge cleanup diagnostics.",
+        )
+
+        cleaned_without_progress = _paint("exec_dimmed")
+        self.assertIsNotNone(cleaned_without_progress)
+        if cleaned_without_progress is None:
+            self.fail("Expected no-progress execution-edge cleanup diagnostics")
+        self.assertFalse(bool(cleaned_without_progress["executionVisualizationActive"]))
+        self.assertFalse(bool(cleaned_without_progress["executionDimmedActive"]))
+        self.assertEqual(float(cleaned_without_progress["strokeAlpha"]), 1.0)
+        self.assertAlmostEqual(float(cleaned_without_progress["strokeWidthScreenPx"]), 2.0, places=6)
+        self.assertEqual(float(cleaned_without_progress["flashAlpha"]), 0.0)
+
+        edge_layer.setProperty("nodeExecutionRevision", 3)
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool((_paint("exec_dimmed") or {}).get("executionVisualizationActive")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for execution-edge lifecycle reactivation.",
+        )
+
+        edge_layer.setProperty("progressedExecutionEdgeLookup", {"exec_dimmed": True})
+        edge_layer.setProperty("nodeExecutionRevision", 4)
         self.app.processEvents()
 
         wait_for_condition_or_raise(
@@ -784,7 +814,7 @@ class GraphCanvasQmlPreferenceRenderingTests(GraphCanvasQmlPreferenceTestBase):
         )
 
         edge_layer.setProperty("progressedExecutionEdgeLookup", {})
-        edge_layer.setProperty("nodeExecutionRevision", 3)
+        edge_layer.setProperty("nodeExecutionRevision", 5)
         self.app.processEvents()
 
         wait_for_condition_or_raise(

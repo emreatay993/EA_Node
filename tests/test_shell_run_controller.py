@@ -863,6 +863,95 @@ class ShellRunControllerTests(MainWindowShellTestBase):
                     timeout_message=f"Timed out waiting for {terminal_event['label']} to clear edge render state.",
                 )
 
+    def test_execution_edge_progress_visualization_immediate_terminal_events_clear_unprogressed_dimming(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        graph_ids = _build_execution_edge_progress_visualization_graph(self.window)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        edge_canvas_layer = _graph_edge_canvas_layer(graph_canvas)
+        self.assertIsNotNone(edge_canvas_layer)
+        if edge_canvas_layer is None:
+            self.fail("Expected graph canvas edge canvas layer to expose a stable object name")
+
+        def _paint(edge_id: str) -> dict[str, object] | None:
+            return _edge_paint_diagnostics(edge_canvas_layer, edge_id)
+
+        terminal_events = (
+            {
+                "label": "run_stopped",
+                "payload": {
+                    "type": "run_stopped",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                },
+                "patch_critical": False,
+            },
+            {
+                "label": "run_failed_fatal",
+                "payload": {
+                    "type": "run_failed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": graph_ids["script_node_id"],
+                    "error": "fatal boom",
+                    "traceback": "traceback: line 1",
+                    "fatal": True,
+                },
+                "patch_critical": True,
+            },
+        )
+
+        for terminal_event in terminal_events:
+            with self.subTest(terminal_event=terminal_event["label"]):
+                self.window.clear_node_execution_visualization_state()
+                self.app.processEvents()
+
+                with patch.object(self.window.execution_client, "start_run", return_value="run_live"):
+                    self.window._run_workflow()
+                self.app.processEvents()
+
+                self.window.execution_event.emit(
+                    {
+                        "type": "run_started",
+                        "run_id": "run_live",
+                        "workspace_id": workspace_id,
+                    }
+                )
+                self.app.processEvents()
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionVisualizationActive"))
+                        and bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionDimmedActive"))
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 0.35
+                    ),
+                    timeout_ms=800,
+                    app=self.app,
+                    timeout_message=f"Timed out waiting for run-start dimming before {terminal_event['label']}.",
+                )
+
+                if terminal_event["patch_critical"]:
+                    with patch.object(QMessageBox, "critical"):
+                        self.window.execution_event.emit(dict(terminal_event["payload"]))
+                        self.app.processEvents()
+                else:
+                    self.window.execution_event.emit(dict(terminal_event["payload"]))
+                    self.app.processEvents()
+
+                wait_for_condition_or_raise(
+                    lambda: (
+                        dict(graph_canvas.property("progressedExecutionEdgeLookup")) == {}
+                        and not bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionVisualizationActive"))
+                        and not bool((_paint(graph_ids["exec_edge_id"]) or {}).get("executionDimmedActive"))
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("strokeAlpha", 0.0))) == 1.0
+                        and float(((_paint(graph_ids["exec_edge_id"]) or {}).get("flashAlpha", -1.0))) == 0.0
+                    ),
+                    timeout_ms=1000,
+                    app=self.app,
+                    timeout_message=f"Timed out waiting for {terminal_event['label']} to clear unprogressed dimming.",
+                )
+
     def test_viewer_session_bridge_context_property_exists_and_rerun_invalidates_current_workspace(self) -> None:
         execution_client = _ViewerExecutionClientStub()
         self.window.execution_client = execution_client

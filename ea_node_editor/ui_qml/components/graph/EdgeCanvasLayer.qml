@@ -8,7 +8,6 @@ Item {
     property Item edgeLayer: null
     property bool _executionVisualizationActive: false
     property int _observedNodeExecutionRevision: -1
-    property bool _hadProgressedExecutionEdges: false
     property var _paintDiagnosticsByEdgeId: ({})
     property int _paintDiagnosticsRevision: 0
     function edgeIsFlow(edge) {
@@ -89,33 +88,55 @@ Item {
         }
         return false;
     }
+    function graphCanvasItem() {
+        var edgeLayerItem = root.edgeLayer || null;
+        if (!edgeLayerItem)
+            return null;
+        var container = edgeLayerItem.parent || null;
+        if (!container || container.canvasItem === undefined)
+            return null;
+        return container.canvasItem || null;
+    }
+    function lookupHasEntries(lookup) {
+        var sourceLookup = lookup || ({});
+        for (var key in sourceLookup) {
+            if (Object.prototype.hasOwnProperty.call(sourceLookup, key) && Boolean(sourceLookup[key]))
+                return true;
+        }
+        return false;
+    }
+    function hasTrackedNodeExecutionState() {
+        var canvasItem = root.graphCanvasItem();
+        if (!canvasItem)
+            return false;
+        return root.lookupHasEntries(canvasItem.runningNodeLookup || ({}))
+            || root.lookupHasEntries(canvasItem.completedNodeLookup || ({}));
+    }
     function syncExecutionVisualizationLifecycle() {
         if (!root.edgeLayer) {
             root._executionVisualizationActive = false;
             root._observedNodeExecutionRevision = -1;
-            root._hadProgressedExecutionEdges = false;
             return;
         }
         var revision = Number(root.edgeLayer.nodeExecutionRevision);
         if (!isFinite(revision))
             revision = 0;
         var hasProgressed = root.hasProgressedExecutionEdges();
+        var hasTrackedNodeState = root.hasTrackedNodeExecutionState();
         if (root._observedNodeExecutionRevision < 0) {
             root._observedNodeExecutionRevision = revision;
-            root._hadProgressedExecutionEdges = hasProgressed;
-            root._executionVisualizationActive = hasProgressed;
+            root._executionVisualizationActive = hasProgressed || hasTrackedNodeState;
             return;
         }
         if (revision !== root._observedNodeExecutionRevision) {
-            if (hasProgressed)
+            if (hasProgressed || hasTrackedNodeState)
                 root._executionVisualizationActive = true;
-            else if (root._hadProgressedExecutionEdges)
+            else if (root._executionVisualizationActive)
                 root._executionVisualizationActive = false;
             else
                 root._executionVisualizationActive = true;
             root._observedNodeExecutionRevision = revision;
         }
-        root._hadProgressedExecutionEdges = hasProgressed;
     }
     function standardEdgeBaseColor(edge) {
         return edge && edge.color ? edge.color : root.edgeLayer.fallbackStrokeColor;
