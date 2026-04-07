@@ -694,6 +694,27 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             present_snippets=present_snippets,
         )
 
+    def test_execution_edge_progress_canvas_properties_bind_only_to_state_bridge_execution_contract(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/GraphCanvas.qml": (
+                "readonly property var progressedExecutionEdgeLookup: rootBindings.progressedExecutionEdgeLookup",
+                "rootBindings.progressedExecutionEdgeLookup",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml": (
+                "readonly property var progressedExecutionEdgeLookup: root._canvasStateBridgeRef",
+                "root._canvasStateBridgeRef.progressed_execution_edge_lookup",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            _assert_text_snippets(
+                self,
+                label=relative_path,
+                text=qml_text,
+                present_snippets=present_snippets,
+            )
+
     def test_graph_canvas_interaction_state_helper_owns_extracted_canvas_state(self) -> None:
         relative_path = "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml"
         helper_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
@@ -952,6 +973,62 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
         self.assertEqual(
             int(graph_canvas.property("nodeExecutionRevision")),
             bridge.node_execution_revision,
+        )
+
+    def test_execution_edge_progress_canvas_properties_follow_graph_canvas_state_bridge(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        bridge = self.window.graph_canvas_state_bridge
+        workspace_id = self.window.scene.workspace_id
+
+        self.assertTrue(workspace_id)
+        self.assertEqual(
+            graph_canvas.property("progressedExecutionEdgeLookup"),
+            bridge.progressed_execution_edge_lookup,
+        )
+
+        self.window.run_state.execution_edge_workspace_id = workspace_id
+        self.window.run_state.execution_edge_ids_by_source_node_id = {
+            "node_exec": {
+                "exec": ("edge_exec",),
+                "completed": ("edge_completed",),
+            }
+        }
+
+        self.window.mark_execution_edges_progressed(workspace_id, "node_exec", ("exec",))
+        self.app.processEvents()
+
+        self.assertEqual(
+            graph_canvas.property("progressedExecutionEdgeLookup"),
+            {"edge_exec": True},
+        )
+        self.assertEqual(
+            graph_canvas.property("progressedExecutionEdgeLookup"),
+            bridge.progressed_execution_edge_lookup,
+        )
+        self.assertEqual(
+            int(graph_canvas.property("nodeExecutionRevision")),
+            bridge.node_execution_revision,
+        )
+
+        self.window.mark_execution_edges_progressed(workspace_id, "node_exec", ("completed",))
+        self.app.processEvents()
+
+        self.assertEqual(
+            graph_canvas.property("progressedExecutionEdgeLookup"),
+            {"edge_completed": True, "edge_exec": True},
+        )
+        self.assertEqual(
+            graph_canvas.property("progressedExecutionEdgeLookup"),
+            bridge.progressed_execution_edge_lookup,
+        )
+
+        self.window.clear_node_execution_visualization_state()
+        self.app.processEvents()
+
+        self.assertEqual(graph_canvas.property("progressedExecutionEdgeLookup"), {})
+        self.assertEqual(
+            graph_canvas.property("progressedExecutionEdgeLookup"),
+            bridge.progressed_execution_edge_lookup,
         )
 
 

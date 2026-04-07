@@ -51,6 +51,9 @@ QtObject {
     readonly property var completedNodeLookup: root._canvasStateBridgeRef
         ? root._canvasStateBridgeRef.completed_node_lookup
         : ({})
+    readonly property var progressedExecutionEdgeLookup: root._canvasStateBridgeRef
+        ? root._canvasStateBridgeRef.progressed_execution_edge_lookup
+        : ({})
     readonly property int nodeExecutionRevision: root._canvasStateBridgeRef
         ? Number(root._canvasStateBridgeRef.node_execution_revision)
         : 0

@@ -325,7 +325,7 @@ class GraphCanvasStateBridge(QObject):
             return ""
         return str(workspace_manager.active_workspace_id() or "").strip()
 
-    def _node_execution_lookup(self, attribute_name: str) -> dict[str, bool]:
+    def _run_state_lookup(self, workspace_attribute_name: str, ids_attribute_name: str) -> dict[str, bool]:
         shell_window = self._shell_window
         if shell_window is None:
             return {}
@@ -333,18 +333,21 @@ class GraphCanvasStateBridge(QObject):
         if run_state is None:
             return {}
         active_workspace_id = self._active_workspace_id()
-        execution_workspace_id = str(getattr(run_state, "node_execution_workspace_id", "") or "").strip()
+        execution_workspace_id = str(getattr(run_state, workspace_attribute_name, "") or "").strip()
         if not active_workspace_id or execution_workspace_id != active_workspace_id:
             return {}
-        node_ids = getattr(run_state, attribute_name, ())
-        if not isinstance(node_ids, (set, frozenset, list, tuple)):
+        ids = getattr(run_state, ids_attribute_name, ())
+        if not isinstance(ids, (set, frozenset, list, tuple)):
             return {}
         lookup: dict[str, bool] = {}
-        for node_id in node_ids:
-            normalized_node_id = str(node_id or "").strip()
-            if normalized_node_id:
-                lookup[normalized_node_id] = True
+        for value in ids:
+            normalized_value = str(value or "").strip()
+            if normalized_value:
+                lookup[normalized_value] = True
         return lookup
+
+    def _node_execution_lookup(self, attribute_name: str) -> dict[str, bool]:
+        return self._run_state_lookup("node_execution_workspace_id", attribute_name)
 
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def running_node_lookup(self) -> dict[str, bool]:
@@ -353,6 +356,13 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def completed_node_lookup(self) -> dict[str, bool]:
         return self._node_execution_lookup("completed_node_ids")
+
+    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+    def progressed_execution_edge_lookup(self) -> dict[str, bool]:
+        return self._run_state_lookup(
+            "execution_edge_workspace_id",
+            "progressed_execution_edge_ids",
+        )
 
     @pyqtProperty(int, notify=node_execution_state_changed)
     def node_execution_revision(self) -> int:

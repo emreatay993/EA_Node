@@ -32,6 +32,7 @@ Item {
     readonly property string failedNodeTitle: rootBindings.failedNodeTitle
     readonly property var runningNodeLookup: rootBindings.runningNodeLookup
     readonly property var completedNodeLookup: rootBindings.completedNodeLookup
+    readonly property var progressedExecutionEdgeLookup: rootBindings.progressedExecutionEdgeLookup
     readonly property int nodeExecutionRevision: rootBindings.nodeExecutionRevision
     readonly property var canvasViewportController: viewportController
     readonly property var canvasSceneLifecycle: sceneLifecycle

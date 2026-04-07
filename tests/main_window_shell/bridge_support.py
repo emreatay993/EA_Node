@@ -1231,6 +1231,42 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.node_execution_revision, 8)
         self.assertEqual(seen["node_execution_state_changed"], 2)
 
+    def test_execution_edge_progress_canvas_bridge_filters_lookup_to_scene_workspace_and_re_emits(self) -> None:
+        host = _GraphCanvasShellHostStub()
+        scene = _GraphCanvasSceneBridgeStub()
+        bridge = GraphCanvasStateBridge(
+            host,
+            shell_window=host,
+            canvas_source=host,
+            scene_bridge=scene,
+            view_bridge=_GraphCanvasViewBridgeStub(),
+        )
+        seen = {"node_execution_state_changed": 0}
+        bridge.node_execution_state_changed.connect(
+            lambda: seen.__setitem__(
+                "node_execution_state_changed",
+                seen["node_execution_state_changed"] + 1,
+            )
+        )
+
+        host.run_state.execution_edge_workspace_id = "ws-1"
+        host.run_state.progressed_execution_edge_ids.update({"edge_exec", "edge_failed"})
+        host.run_state.node_execution_revision = 11
+        host.node_execution_state_changed.emit()
+
+        self.assertEqual(
+            bridge.progressed_execution_edge_lookup,
+            {"edge_exec": True, "edge_failed": True},
+        )
+        self.assertEqual(bridge.node_execution_revision, 11)
+
+        scene.workspace_id = "ws-2"
+        scene.workspace_changed.emit("ws-2")
+
+        self.assertEqual(bridge.progressed_execution_edge_lookup, {})
+        self.assertEqual(bridge.node_execution_revision, 11)
+        self.assertEqual(seen["node_execution_state_changed"], 2)
+
     def test_command_bridge_routes_canvas_commands_to_explicit_canvas_host_scene_and_view_sources(self) -> None:
         host = _GraphCanvasShellHostStub()
         presenter = _GraphCanvasShellHostStub()
@@ -1926,6 +1962,41 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
 
         self.assertEqual(bridge.running_node_lookup, {})
         self.assertEqual(bridge.completed_node_lookup, {})
+
+    def test_execution_edge_progress_canvas_main_window_bridge_follows_shell_helper_contract(self) -> None:
+        bridge = self.window.graph_canvas_state_bridge
+        workspace_id = self.window.scene.workspace_id
+
+        self.assertTrue(workspace_id)
+        self.assertEqual(bridge.progressed_execution_edge_lookup, {})
+
+        self.window.run_state.execution_edge_workspace_id = workspace_id
+        self.window.run_state.execution_edge_ids_by_source_node_id = {
+            "node_exec": {
+                "exec": ("edge_exec",),
+                "completed": ("edge_completed",),
+            }
+        }
+
+        first_revision = bridge.node_execution_revision
+        self.window.mark_execution_edges_progressed(workspace_id, "node_exec", ("exec",))
+        self.app.processEvents()
+
+        self.assertGreater(bridge.node_execution_revision, first_revision)
+        self.assertEqual(bridge.progressed_execution_edge_lookup, {"edge_exec": True})
+
+        self.window.mark_execution_edges_progressed(workspace_id, "node_exec", ("completed",))
+        self.app.processEvents()
+
+        self.assertEqual(
+            bridge.progressed_execution_edge_lookup,
+            {"edge_completed": True, "edge_exec": True},
+        )
+
+        self.window.clear_node_execution_visualization_state()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.progressed_execution_edge_lookup, {})
 
 
 class SharedUiSupportBoundaryTests(unittest.TestCase):
