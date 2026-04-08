@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.hierarchy import ScopePath
@@ -167,24 +167,64 @@ class _GraphSceneContext:
             return None
         return self.history.capture_workspace(workspace)
 
+    def _invalidate_cached_node_elapsed_for_history_action(
+        self,
+        workspace_id: str,
+        action_type: str,
+        *,
+        before_snapshot: WorkspaceSnapshot | None,
+        after_snapshot: WorkspaceSnapshot | None,
+    ) -> None:
+        host = self._bridge.parent()
+        hook = getattr(host, "invalidate_cached_node_elapsed_for_history_action", None)
+        if not callable(hook):
+            return
+        hook(
+            workspace_id,
+            action_type,
+            before_snapshot=before_snapshot,
+            after_snapshot=after_snapshot,
+        )
+
     def record_history(self, action_type: str, before_snapshot: WorkspaceSnapshot | None) -> None:
         workspace = self.workspace_or_none()
         if self.history is None or workspace is None or before_snapshot is None:
             return
-        self.history.record_action(
+        if not self.history.record_action(
             self.workspace_id,
             action_type,
             before_snapshot,
             workspace,
+        ):
+            return
+        self._invalidate_cached_node_elapsed_for_history_action(
+            self.workspace_id,
+            action_type,
+            before_snapshot=before_snapshot,
+            after_snapshot=self.history.capture_workspace(workspace),
         )
 
+    @contextmanager
     def grouped_history_action(self, action_type: str, workspace: WorkspaceData):
         if self.history is None or not self.workspace_id:
-            return nullcontext()
-        return self.history.grouped_action(
+            with nullcontext():
+                yield
+            return
+        before_snapshot = self.history.capture_workspace(workspace)
+        before_depth = self.history.undo_depth(self.workspace_id)
+        with self.history.grouped_action(
             self.workspace_id,
             action_type,
             workspace,
+        ):
+            yield
+        if self.history.undo_depth(self.workspace_id) <= before_depth:
+            return
+        self._invalidate_cached_node_elapsed_for_history_action(
+            self.workspace_id,
+            action_type,
+            before_snapshot=before_snapshot,
+            after_snapshot=self.history.capture_workspace(workspace),
         )
 
     def emit_workspace_changed(self) -> None:

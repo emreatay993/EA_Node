@@ -27,6 +27,62 @@ ACTION_EDIT_PROPERTY = ACTION_EDIT_NODE_PROPERTY
 ACTION_DELETE_SELECTED = "delete-selected"
 ACTION_MOVE_NODE = "move-node"
 ACTION_RESIZE_NODE = "resize-node"
+_PASSIVE_ANNOTATION_TYPE_ID_PREFIX = "passive.annotation."
+_PERSISTENT_NODE_ELAPSED_PRESERVE_ACTION_TYPES = frozenset(
+    {
+        ACTION_RENAME_NODE,
+        ACTION_TOGGLE_COLLAPSED,
+        ACTION_EDIT_NODE_STYLE,
+        ACTION_EDIT_EDGE_LABEL,
+        ACTION_EDIT_EDGE_STYLE,
+        ACTION_EDIT_PORT_LABEL,
+        ACTION_MOVE_NODE,
+        ACTION_RESIZE_NODE,
+        ACTION_WRAP_COMMENT_BACKDROP,
+    }
+)
+
+
+def _workspace_snapshot_delta_is_annotation_only(
+    before_snapshot: WorkspaceSnapshot | None,
+    after_snapshot: WorkspaceSnapshot | None,
+) -> bool:
+    if before_snapshot is None or after_snapshot is None:
+        return False
+    if before_snapshot.edges != after_snapshot.edges:
+        return False
+    changed_node_ids = {
+        node_id
+        for node_id in set(before_snapshot.nodes) | set(after_snapshot.nodes)
+        if before_snapshot.nodes.get(node_id) != after_snapshot.nodes.get(node_id)
+    }
+    if not changed_node_ids:
+        return False
+    for node_id in changed_node_ids:
+        node = after_snapshot.nodes.get(node_id) or before_snapshot.nodes.get(node_id)
+        if node is None:
+            return False
+        if not str(node.type_id or "").strip().startswith(_PASSIVE_ANNOTATION_TYPE_ID_PREFIX):
+            return False
+    return True
+
+
+def history_action_invalidates_persistent_node_elapsed(
+    action_type: str,
+    before_snapshot: WorkspaceSnapshot | None = None,
+    after_snapshot: WorkspaceSnapshot | None = None,
+) -> bool:
+    normalized_action_type = str(action_type or "").strip()
+    if not normalized_action_type:
+        return False
+    if normalized_action_type in _PERSISTENT_NODE_ELAPSED_PRESERVE_ACTION_TYPES:
+        return False
+    if before_snapshot is not None and after_snapshot is not None:
+        if before_snapshot.nodes == after_snapshot.nodes and before_snapshot.edges == after_snapshot.edges:
+            return False
+        if _workspace_snapshot_delta_is_annotation_only(before_snapshot, after_snapshot):
+            return False
+    return True
 
 @dataclass(slots=True)
 class HistoryEntry:
@@ -205,4 +261,5 @@ __all__ = [
     "HistoryEntry",
     "RuntimeGraphHistory",
     "WorkspaceSnapshot",
+    "history_action_invalidates_persistent_node_elapsed",
 ]

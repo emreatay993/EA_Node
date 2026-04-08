@@ -490,6 +490,17 @@ class WorkspaceEditOps:
         self._controller.refresh_workspace_tabs()
         return True
 
+    def _invalidate_cached_node_elapsed_for_history_entry(self, workspace_id: str, entry: object) -> None:
+        hook = getattr(self._host, "invalidate_cached_node_elapsed_for_history_action", None)
+        if not callable(hook):
+            return
+        hook(
+            workspace_id,
+            getattr(entry, "action_type", ""),
+            before_snapshot=getattr(entry, "before", None),
+            after_snapshot=getattr(entry, "after", None),
+        )
+
     def undo(self) -> bool:
         workspace_id = self._host.workspace_manager.active_workspace_id()
         workspace = self._host.model.project.workspaces.get(workspace_id)
@@ -499,6 +510,7 @@ class WorkspaceEditOps:
         if entry is None:
             return False
         self._host.scene.refresh_workspace_from_model(workspace_id)
+        self._invalidate_cached_node_elapsed_for_history_entry(workspace_id, entry)
         self._controller.refresh_workspace_tabs()
         return True
 
@@ -511,6 +523,7 @@ class WorkspaceEditOps:
         if entry is None:
             return False
         self._host.scene.refresh_workspace_from_model(workspace_id)
+        self._invalidate_cached_node_elapsed_for_history_entry(workspace_id, entry)
         self._controller.refresh_workspace_tabs()
         return True
 

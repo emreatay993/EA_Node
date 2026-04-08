@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 from PyQt6.QtCore import Qt, pyqtSlot
 from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot
+from ea_node_editor.ui.shell.runtime_history import history_action_invalidates_persistent_node_elapsed
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -285,6 +286,39 @@ def mark_node_execution_completed(
             changed = True
     if changed:
         self._commit_node_execution_state_change()
+
+
+def invalidate_cached_node_elapsed_for_history_action(
+    self: "ShellWindow",
+    workspace_id: str,
+    action_type: str,
+    *,
+    before_snapshot: object | None = None,
+    after_snapshot: object | None = None,
+) -> bool:
+    normalized_workspace_id = str(workspace_id or "").strip()
+    if not normalized_workspace_id:
+        return False
+    if not history_action_invalidates_persistent_node_elapsed(
+        action_type,
+        before_snapshot=before_snapshot,
+        after_snapshot=after_snapshot,
+    ):
+        return False
+    state = self.run_state
+    changed = False
+    if (
+        state.node_execution_workspace_id == normalized_workspace_id
+        and state.running_node_started_at_epoch_ms_by_node_id
+    ):
+        state.running_node_started_at_epoch_ms_by_node_id.clear()
+        changed = True
+    if normalized_workspace_id in state.cached_node_elapsed_ms_by_workspace_id:
+        state.cached_node_elapsed_ms_by_workspace_id.pop(normalized_workspace_id, None)
+        changed = True
+    if changed:
+        self._commit_node_execution_state_change()
+    return changed
 
 
 def clear_execution_edge_progress_state(self: "ShellWindow") -> None:

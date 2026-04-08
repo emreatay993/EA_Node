@@ -1026,6 +1026,58 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
             bridge.node_execution_revision,
         )
 
+    def test_persistent_node_elapsed_invalidation_clears_canvas_timing_lookups_after_history_commit(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        bridge = self.window.graph_canvas_state_bridge
+        workspace_id = self.window.scene.workspace_id
+
+        self.assertTrue(workspace_id)
+        runner_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        logger_id = self.window.scene.add_node_from_type("core.logger", x=260.0, y=40.0)
+        self.window.runtime_history.clear_workspace(workspace_id)
+        self.window.run_state.node_execution_workspace_id = ""
+        self.window.run_state.running_node_ids.clear()
+        self.window.run_state.completed_node_ids.clear()
+        self.window.run_state.running_node_started_at_epoch_ms_by_node_id.clear()
+        self.window.run_state.cached_node_elapsed_ms_by_workspace_id.clear()
+        self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_other"] = {
+            "node_foreign": 12.0,
+        }
+        self.window.mark_node_execution_running(
+            workspace_id,
+            runner_id,
+            started_at_epoch_ms=125.0,
+        )
+        self.window.mark_node_execution_completed(
+            workspace_id,
+            logger_id,
+            elapsed_ms=48.5,
+        )
+        self.app.processEvents()
+
+        first_revision = bridge.node_execution_revision
+        self.assertEqual(
+            graph_canvas.property("runningNodeStartedAtMsLookup"),
+            {runner_id: 125.0},
+        )
+        self.assertEqual(
+            graph_canvas.property("nodeElapsedMsLookup"),
+            {logger_id: 48.5},
+        )
+
+        self.window.scene.set_node_property(logger_id, "message", "Invalidate cached elapsed")
+        self.app.processEvents()
+
+        self.assertGreater(bridge.node_execution_revision, first_revision)
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, {})
+        self.assertEqual(bridge.node_elapsed_ms_lookup, {})
+        self.assertEqual(graph_canvas.property("runningNodeStartedAtMsLookup"), {})
+        self.assertEqual(graph_canvas.property("nodeElapsedMsLookup"), {})
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_other"],
+            {"node_foreign": 12.0},
+        )
+
     def test_execution_edge_progress_canvas_properties_follow_graph_canvas_state_bridge(self) -> None:
         graph_canvas = self._graph_canvas_item()
         bridge = self.window.graph_canvas_state_bridge

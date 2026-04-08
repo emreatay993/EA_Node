@@ -18,6 +18,36 @@ def _scene_payload(window: ShellWindow, node_id: str) -> dict[str, object]:
     raise AssertionError(f"Node payload {node_id!r} was not found.")
 
 
+def _seed_persistent_node_elapsed_state(
+    window: ShellWindow,
+    *,
+    workspace_id: str,
+    running_node_id: str,
+    cached_node_id: str,
+) -> tuple[dict[str, float], dict[str, float]]:
+    state = window.run_state
+    state.node_execution_workspace_id = ""
+    state.running_node_ids.clear()
+    state.completed_node_ids.clear()
+    state.running_node_started_at_epoch_ms_by_node_id.clear()
+    state.cached_node_elapsed_ms_by_workspace_id.clear()
+    state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"] = {"node_foreign": 91.0}
+    window.mark_node_execution_running(
+        workspace_id,
+        running_node_id,
+        started_at_epoch_ms=125.0,
+    )
+    window.mark_node_execution_completed(
+        workspace_id,
+        cached_node_id,
+        elapsed_ms=48.5,
+    )
+    return (
+        {running_node_id: 125.0},
+        {cached_node_id: 48.5},
+    )
+
+
 class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
     def test_qml_request_remove_edge_mutates_model(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -675,6 +705,130 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
         assert_roundtrip(duplicate_selection, "duplicate-selection")
 
         assert_roundtrip(lambda: self.window.request_remove_node(target_id), "remove node")
+
+    def test_persistent_node_elapsed_invalidation_clears_execution_affecting_history_commit_undo_redo(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        runner_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)
+        logger_id = self.window.scene.add_node_from_type("core.logger", x=260.0, y=40.0)
+        self.app.processEvents()
+        self.window.runtime_history.clear_workspace(workspace_id)
+        bridge = self.window.graph_canvas_state_bridge
+
+        _seed_persistent_node_elapsed_state(
+            self.window,
+            workspace_id=workspace_id,
+            running_node_id=runner_id,
+            cached_node_id=logger_id,
+        )
+        self.app.processEvents()
+        first_revision = bridge.node_execution_revision
+
+        self.window.scene.set_node_property(logger_id, "message", "Updated execution payload")
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, {})
+        self.assertEqual(bridge.node_elapsed_ms_lookup, {})
+        self.assertGreater(bridge.node_execution_revision, first_revision)
+        self.assertNotIn(workspace_id, self.window.run_state.cached_node_elapsed_ms_by_workspace_id)
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"],
+            {"node_foreign": 91.0},
+        )
+
+        _seed_persistent_node_elapsed_state(
+            self.window,
+            workspace_id=workspace_id,
+            running_node_id=runner_id,
+            cached_node_id=logger_id,
+        )
+        self.app.processEvents()
+        second_revision = bridge.node_execution_revision
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, {})
+        self.assertEqual(bridge.node_elapsed_ms_lookup, {})
+        self.assertGreater(bridge.node_execution_revision, second_revision)
+        self.assertNotIn(workspace_id, self.window.run_state.cached_node_elapsed_ms_by_workspace_id)
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"],
+            {"node_foreign": 91.0},
+        )
+
+        _seed_persistent_node_elapsed_state(
+            self.window,
+            workspace_id=workspace_id,
+            running_node_id=runner_id,
+            cached_node_id=logger_id,
+        )
+        self.app.processEvents()
+        third_revision = bridge.node_execution_revision
+
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, {})
+        self.assertEqual(bridge.node_elapsed_ms_lookup, {})
+        self.assertGreater(bridge.node_execution_revision, third_revision)
+        self.assertNotIn(workspace_id, self.window.run_state.cached_node_elapsed_ms_by_workspace_id)
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"],
+            {"node_foreign": 91.0},
+        )
+
+    def test_persistent_node_elapsed_invalidation_preserves_comment_only_history_commit_undo_redo(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        runner_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=20.0)
+        comment_id = self.window.scene.add_node_from_type(
+            COMMENT_BACKDROP_TYPE_ID,
+            x=220.0,
+            y=60.0,
+        )
+        self.app.processEvents()
+        self.window.runtime_history.clear_workspace(workspace_id)
+        bridge = self.window.graph_canvas_state_bridge
+        expected_running_lookup, expected_elapsed_lookup = _seed_persistent_node_elapsed_state(
+            self.window,
+            workspace_id=workspace_id,
+            running_node_id=runner_id,
+            cached_node_id=comment_id,
+        )
+        self.app.processEvents()
+        first_revision = bridge.node_execution_revision
+
+        self.window.scene.set_node_property(comment_id, "body", "Context only note")
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, expected_running_lookup)
+        self.assertEqual(bridge.node_elapsed_ms_lookup, expected_elapsed_lookup)
+        self.assertEqual(bridge.node_execution_revision, first_revision)
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"],
+            {"node_foreign": 91.0},
+        )
+
+        self.window.action_undo.trigger()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, expected_running_lookup)
+        self.assertEqual(bridge.node_elapsed_ms_lookup, expected_elapsed_lookup)
+        self.assertEqual(bridge.node_execution_revision, first_revision)
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"],
+            {"node_foreign": 91.0},
+        )
+
+        self.window.action_redo.trigger()
+        self.app.processEvents()
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, expected_running_lookup)
+        self.assertEqual(bridge.node_elapsed_ms_lookup, expected_elapsed_lookup)
+        self.assertEqual(bridge.node_execution_revision, first_revision)
+        self.assertEqual(
+            self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_foreign"],
+            {"node_foreign": 91.0},
+        )
 
     def test_undo_redo_isolated_per_workspace_and_redo_clears_after_new_mutation(self) -> None:
         workspace_a_id = self.window.workspace_manager.active_workspace_id()
