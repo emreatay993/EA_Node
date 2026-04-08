@@ -9,7 +9,7 @@ from unittest import mock
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.ui.dialogs.project_files_dialog import ProjectFilesBrokenEntry
 from ea_node_editor.ui.shell.controllers.project_session_controller import ProjectSessionController
-from ea_node_editor.ui.shell.state import ShellProjectSessionState
+from ea_node_editor.ui.shell.state import ShellProjectSessionState, ShellRunState
 from ea_node_editor.workspace.manager import WorkspaceManager
 
 
@@ -153,6 +153,7 @@ class _SessionStoreStub:
 class _ProjectHostStub:
     def __init__(self, base_path: Path | None = None) -> None:
         self.project_session_state = ShellProjectSessionState()
+        self.run_state = ShellRunState()
         self.model = GraphModel()
         self.workspace_manager = WorkspaceManager(self.model)
         self.registry = _RegistryStub()
@@ -167,6 +168,7 @@ class _ProjectHostStub:
         self.viewer_session_bridge = _ViewerSessionBridgeStub()
         self.library_pane_reset_requested = _SignalStub()
         self.node_library_changed = _SignalStub()
+        self.node_execution_state_changed = _SignalStub()
         self.project_meta_changed = _SignalStub()
         self.refresh_calls = 0
         self.browse_calls: list[tuple[str, str, str]] = []
@@ -178,6 +180,10 @@ class _ProjectHostStub:
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         self.browse_calls.append((node_id, key, current_path))
         return self.browse_result or current_path
+
+    def _commit_node_execution_state_change(self) -> None:
+        self.run_state.node_execution_revision += 1
+        self.node_execution_state_changed.emit()
 
 
 class ProjectSessionControllerUnitTests(unittest.TestCase):
@@ -426,6 +432,31 @@ class ProjectSessionControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.runtime_history.clear_all_calls, 1)
         self.assertEqual(len(host.library_pane_reset_requested.emit_calls), 1)
         self.assertEqual(len(host.node_library_changed.emit_calls), 1)
+
+    def test_persistent_node_elapsed_state_install_project_clears_cached_elapsed_timing(self) -> None:
+        host = _ProjectHostStub()
+        controller = ProjectSessionController(host)  # type: ignore[arg-type]
+        project = GraphModel().project
+        host.run_state.running_node_started_at_epoch_ms_by_node_id = {
+            "node_live": 1200.0,
+        }
+        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
+            "ws_a": {
+                "node_1": 15.5,
+            }
+        }
+        host.run_state.node_execution_revision = 7
+
+        controller._document_service._install_project(  # noqa: SLF001
+            project,
+            project_path="example.sfe",
+            reseed_viewer_projection_on_next_reset=False,
+        )
+
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(host.run_state.cached_node_elapsed_ms_by_workspace_id, {})
+        self.assertEqual(host.run_state.node_execution_revision, 8)
+        self.assertEqual(len(host.node_execution_state_changed.emit_calls), 1)
 
     def test_new_project_seeds_viewer_projection_for_pending_reset_restore(self) -> None:
         host = _ProjectHostStub()

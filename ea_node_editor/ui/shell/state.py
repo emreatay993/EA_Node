@@ -58,6 +58,8 @@ class ShellRunState:
     node_execution_workspace_id: str = ""
     running_node_ids: set[str] = field(default_factory=set)
     completed_node_ids: set[str] = field(default_factory=set)
+    running_node_started_at_epoch_ms_by_node_id: dict[str, float] = field(default_factory=dict)
+    cached_node_elapsed_ms_by_workspace_id: dict[str, dict[str, float]] = field(default_factory=dict)
     execution_edge_run_id: str = ""
     execution_edge_workspace_id: str = ""
     execution_edge_ids_by_source_node_id: ExecutionEdgeIdsBySourceNodeId = field(default_factory=dict)

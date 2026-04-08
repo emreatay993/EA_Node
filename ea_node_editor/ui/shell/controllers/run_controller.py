@@ -44,9 +44,21 @@ class _RunControllerHostProtocol(Protocol):
 
     def clear_run_failure_focus(self) -> None: ...
 
-    def mark_node_execution_running(self, workspace_id: str, node_id: str) -> None: ...
+    def mark_node_execution_running(
+        self,
+        workspace_id: str,
+        node_id: str,
+        *,
+        started_at_epoch_ms: float = 0.0,
+    ) -> None: ...
 
-    def mark_node_execution_completed(self, workspace_id: str, node_id: str) -> None: ...
+    def mark_node_execution_completed(
+        self,
+        workspace_id: str,
+        node_id: str,
+        *,
+        elapsed_ms: float = 0.0,
+    ) -> None: ...
 
     def seed_execution_edge_progress_state(
         self,
@@ -173,6 +185,7 @@ class RunController:
             self._host.mark_node_execution_running(
                 self._event_workspace_id(event),
                 str(event.get("node_id", "")),
+                started_at_epoch_ms=float(event.get("started_at_epoch_ms", 0.0) or 0.0),
             )
         elif event_type == "node_completed":
             workspace_id = self._event_workspace_id(event)
@@ -180,6 +193,7 @@ class RunController:
             self._host.mark_node_execution_completed(
                 workspace_id,
                 node_id,
+                elapsed_ms=float(event.get("elapsed_ms", 0.0) or 0.0),
             )
             self._host.mark_execution_edges_progressed(workspace_id, node_id, ("exec", "completed"))
         elif event_type == "node_failed_handled":
@@ -205,6 +219,7 @@ class RunController:
             self._host.clear_node_execution_visualization_state()
             self.set_run_ui_state("ready", "Completed", 0, 0, 1, 0, clear_run=True)
         elif event_type == "run_failed":
+            self._host.clear_node_execution_visualization_state()
             self.set_run_ui_state("error", "Failed", 0, 0, 0, 1)
             self._host.console_panel.append_log("error", event.get("error", "Unknown failure"))
             self._host.console_panel.append_log("error", event.get("traceback", ""))
@@ -218,7 +233,6 @@ class RunController:
                 event.get("error", ""),
             )
             if bool(event.get("fatal", False)):
-                self._host.clear_node_execution_visualization_state()
                 self._invalidate_viewer_sessions_for_worker_reset()
             self.clear_active_run()
             self.update_run_actions()

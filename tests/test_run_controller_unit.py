@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import time
 import unittest
+from unittest import mock
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -8,6 +10,14 @@ from ea_node_editor.ui.shell.controllers.run_controller import RunController
 from ea_node_editor.ui.shell.state import ShellRunState
 
 _EXECUTION_EDGE_PORT_KINDS = frozenset({"exec", "completed", "failed"})
+
+
+def _coerce_nonnegative_timing_ms(value: object) -> float:
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return normalized if normalized >= 0.0 else 0.0
 
 
 class _ConsoleStub:
@@ -238,19 +248,29 @@ class _RunHostStub:
     def clear_run_failure_focus(self) -> None:
         self._failure_clear_count += 1
 
-    def mark_node_execution_running(self, workspace_id: str, node_id: str) -> None:
+    def mark_node_execution_running(
+        self,
+        workspace_id: str,
+        node_id: str,
+        *,
+        started_at_epoch_ms: float = 0.0,
+    ) -> None:
         normalized_node_id = str(node_id or "").strip()
         if not normalized_node_id:
             return
         normalized_workspace_id = self._normalize_node_execution_workspace_id(workspace_id)
         if not normalized_workspace_id:
             return
+        resolved_started_at_epoch_ms = _coerce_nonnegative_timing_ms(started_at_epoch_ms)
+        if resolved_started_at_epoch_ms <= 0.0:
+            resolved_started_at_epoch_ms = time.time() * 1000.0
         state = self.run_state
         changed = False
         if state.node_execution_workspace_id != normalized_workspace_id:
             state.node_execution_workspace_id = normalized_workspace_id
             state.running_node_ids.clear()
             state.completed_node_ids.clear()
+            state.running_node_started_at_epoch_ms_by_node_id.clear()
             changed = True
         if normalized_node_id in state.completed_node_ids:
             state.completed_node_ids.discard(normalized_node_id)
@@ -258,10 +278,22 @@ class _RunHostStub:
         if normalized_node_id not in state.running_node_ids:
             state.running_node_ids.add(normalized_node_id)
             changed = True
+        if (
+            state.running_node_started_at_epoch_ms_by_node_id.get(normalized_node_id)
+            != resolved_started_at_epoch_ms
+        ):
+            state.running_node_started_at_epoch_ms_by_node_id[normalized_node_id] = resolved_started_at_epoch_ms
+            changed = True
         if changed:
             state.node_execution_revision += 1
 
-    def mark_node_execution_completed(self, workspace_id: str, node_id: str) -> None:
+    def mark_node_execution_completed(
+        self,
+        workspace_id: str,
+        node_id: str,
+        *,
+        elapsed_ms: float = 0.0,
+    ) -> None:
         normalized_node_id = str(node_id or "").strip()
         if not normalized_node_id:
             return
@@ -274,6 +306,12 @@ class _RunHostStub:
             state.node_execution_workspace_id = normalized_workspace_id
             state.running_node_ids.clear()
             state.completed_node_ids.clear()
+            state.running_node_started_at_epoch_ms_by_node_id.clear()
+            changed = True
+        started_at_lookup = state.running_node_started_at_epoch_ms_by_node_id
+        had_started_at = normalized_node_id in started_at_lookup
+        started_at_epoch_ms = started_at_lookup.pop(normalized_node_id, 0.0)
+        if had_started_at:
             changed = True
         if normalized_node_id in state.running_node_ids:
             state.running_node_ids.discard(normalized_node_id)
@@ -281,6 +319,23 @@ class _RunHostStub:
         if normalized_node_id not in state.completed_node_ids:
             state.completed_node_ids.add(normalized_node_id)
             changed = True
+        worker_elapsed_ms = _coerce_nonnegative_timing_ms(elapsed_ms)
+        should_cache_elapsed = False
+        resolved_elapsed_ms = 0.0
+        if worker_elapsed_ms > 0.0:
+            resolved_elapsed_ms = worker_elapsed_ms
+            should_cache_elapsed = True
+        elif started_at_epoch_ms > 0.0:
+            resolved_elapsed_ms = max(0.0, (time.time() * 1000.0) - started_at_epoch_ms)
+            should_cache_elapsed = True
+        if should_cache_elapsed:
+            workspace_cache = state.cached_node_elapsed_ms_by_workspace_id.setdefault(
+                normalized_workspace_id,
+                {},
+            )
+            if workspace_cache.get(normalized_node_id) != resolved_elapsed_ms:
+                workspace_cache[normalized_node_id] = resolved_elapsed_ms
+                changed = True
         if changed:
             state.node_execution_revision += 1
 
@@ -342,10 +397,16 @@ class _RunHostStub:
     def clear_node_execution_visualization_state(self) -> None:
         state = self.run_state
         changed = False
-        if state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids:
+        if (
+            state.node_execution_workspace_id
+            or state.running_node_ids
+            or state.completed_node_ids
+            or state.running_node_started_at_epoch_ms_by_node_id
+        ):
             state.node_execution_workspace_id = ""
             state.running_node_ids.clear()
             state.completed_node_ids.clear()
+            state.running_node_started_at_epoch_ms_by_node_id.clear()
             changed = True
         if self._clear_execution_edge_progress_state_fields():
             changed = True
@@ -783,6 +844,100 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.node_execution_revision, 7)
         self.assertEqual(host._engine_status, ("running", "Running"))
 
+    def test_persistent_node_elapsed_state_projects_fallback_started_at_and_cached_elapsed_by_workspace(self) -> None:
+        host = _RunHostStub()
+        workspace_id = host.model.active_workspace.workspace_id
+        host.run_state.active_run_id = "run_live"
+        host.run_state.active_run_workspace_id = workspace_id
+        host.run_state.node_execution_workspace_id = workspace_id
+        host.run_state.running_node_ids.add("node_stale")
+        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_stale"] = 500.0
+        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
+            "ws_previous": {
+                "node_cached": 12.5,
+            }
+        }
+        host.run_state.node_execution_revision = 4
+        controller = RunController(host)  # type: ignore[arg-type]
+
+        controller.handle_execution_event(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id,
+            {"ws_previous": {"node_cached": 12.5}},
+        )
+
+        with mock.patch("tests.test_run_controller_unit.time.time", return_value=100.0):
+            controller.handle_execution_event(
+                {
+                    "type": "node_started",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": "node_1",
+                    "started_at_epoch_ms": 0.0,
+                }
+            )
+
+        self.assertEqual(
+            host.run_state.running_node_started_at_epoch_ms_by_node_id,
+            {"node_1": 100000.0},
+        )
+
+        with mock.patch("tests.test_run_controller_unit.time.time", return_value=100.04525):
+            controller.handle_execution_event(
+                {
+                    "type": "node_completed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": "node_1",
+                    "elapsed_ms": 0.0,
+                }
+            )
+
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id["ws_previous"],
+            {"node_cached": 12.5},
+        )
+        self.assertAlmostEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id]["node_1"],
+            45.25,
+            places=2,
+        )
+
+        controller.handle_execution_event(
+            {
+                "type": "run_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+
+        self.assertEqual(host.run_state.node_execution_workspace_id, "")
+        self.assertEqual(host.run_state.running_node_ids, set())
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id["ws_previous"],
+            {"node_cached": 12.5},
+        )
+        self.assertAlmostEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id[workspace_id]["node_1"],
+            45.25,
+            places=2,
+        )
+
     def test_node_completed_after_pause_preserves_paused_state_and_resume_action(self) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
@@ -824,13 +979,21 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.execution_client.resume_calls, ["run_live"])
         self.assertEqual(host._engine_status, ("running", "Resuming"))
 
-    def test_node_execution_bridge_nonfatal_run_failed_preserves_last_execution_context(self) -> None:
+    def test_persistent_node_elapsed_state_nonfatal_run_failed_clears_transient_execution_state_and_preserves_cache(
+        self,
+    ) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.node_execution_workspace_id = workspace_id
-        host.run_state.completed_node_ids.add("node_1")
+        host.run_state.running_node_ids.add("node_1")
+        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_1"] = 1000.0
+        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
+            workspace_id: {
+                "node_cached": 33.0,
+            }
+        }
         host.run_state.node_execution_revision = 2
         controller = RunController(host)  # type: ignore[arg-type]
 
@@ -846,21 +1009,31 @@ class RunControllerUnitTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(host.run_state.node_execution_workspace_id, workspace_id)
+        self.assertEqual(host.run_state.node_execution_workspace_id, "")
         self.assertEqual(host.run_state.running_node_ids, set())
-        self.assertEqual(host.run_state.completed_node_ids, {"node_1"})
-        self.assertEqual(host.run_state.node_execution_revision, 2)
+        self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id,
+            {workspace_id: {"node_cached": 33.0}},
+        )
+        self.assertEqual(host.run_state.node_execution_revision, 3)
         self.assertEqual(host.run_state.active_run_id, "")
 
-    def test_node_execution_bridge_terminal_events_clear_execution_state(self) -> None:
+    def test_persistent_node_elapsed_state_terminal_events_clear_transient_state_preserving_cache(self) -> None:
         host = _RunHostStub()
         workspace_id = host.model.active_workspace.workspace_id
         controller = RunController(host)  # type: ignore[arg-type]
+        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
+            workspace_id: {"node_cached": 12.5},
+            "ws_other": {"node_other": 8.0},
+        }
 
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.node_execution_workspace_id = workspace_id
         host.run_state.running_node_ids.add("node_1")
+        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_1"] = 1000.0
         host.run_state.node_execution_revision = 1
 
         controller.handle_execution_event(
@@ -874,12 +1047,21 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.node_execution_workspace_id, "")
         self.assertEqual(host.run_state.running_node_ids, set())
         self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id,
+            {
+                workspace_id: {"node_cached": 12.5},
+                "ws_other": {"node_other": 8.0},
+            },
+        )
         self.assertEqual(host.run_state.node_execution_revision, 2)
 
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.node_execution_workspace_id = workspace_id
         host.run_state.completed_node_ids.add("node_2")
+        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_2"] = 2000.0
 
         controller.handle_execution_event(
             {
@@ -892,12 +1074,21 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.node_execution_workspace_id, "")
         self.assertEqual(host.run_state.running_node_ids, set())
         self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id,
+            {
+                workspace_id: {"node_cached": 12.5},
+                "ws_other": {"node_other": 8.0},
+            },
+        )
         self.assertEqual(host.run_state.node_execution_revision, 3)
 
         host.run_state.active_run_id = "run_live"
         host.run_state.active_run_workspace_id = workspace_id
         host.run_state.node_execution_workspace_id = workspace_id
         host.run_state.running_node_ids.add("node_3")
+        host.run_state.running_node_started_at_epoch_ms_by_node_id["node_3"] = 3000.0
 
         controller.handle_execution_event(
             {
@@ -914,6 +1105,14 @@ class RunControllerUnitTests(unittest.TestCase):
         self.assertEqual(host.run_state.node_execution_workspace_id, "")
         self.assertEqual(host.run_state.running_node_ids, set())
         self.assertEqual(host.run_state.completed_node_ids, set())
+        self.assertEqual(host.run_state.running_node_started_at_epoch_ms_by_node_id, {})
+        self.assertEqual(
+            host.run_state.cached_node_elapsed_ms_by_workspace_id,
+            {
+                workspace_id: {"node_cached": 12.5},
+                "ws_other": {"node_other": 8.0},
+            },
+        )
         self.assertEqual(host.run_state.node_execution_revision, 4)
 
 

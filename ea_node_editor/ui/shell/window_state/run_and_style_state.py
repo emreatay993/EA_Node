@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import time
 from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 from PyQt6.QtCore import Qt, pyqtSlot
@@ -103,6 +104,18 @@ def _commit_node_execution_state_change(self: "ShellWindow") -> None:
     self.node_execution_state_changed.emit()
 
 
+def _coerce_nonnegative_timing_ms(value: object) -> float:
+    try:
+        normalized = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    return normalized if normalized >= 0.0 else 0.0
+
+
+def _current_epoch_ms() -> float:
+    return time.time() * 1000.0
+
+
 def _clear_execution_edge_progress_state_fields(self: "ShellWindow") -> bool:
     state = self.run_state
     if not (
@@ -181,19 +194,29 @@ def _build_execution_edge_progress_index(
     }
 
 
-def mark_node_execution_running(self: "ShellWindow", workspace_id: str, node_id: str) -> None:
+def mark_node_execution_running(
+    self: "ShellWindow",
+    workspace_id: str,
+    node_id: str,
+    *,
+    started_at_epoch_ms: float = 0.0,
+) -> None:
     normalized_node_id = str(node_id or "").strip()
     if not normalized_node_id:
         return
     normalized_workspace_id = self._normalize_node_execution_workspace_id(workspace_id)
     if not normalized_workspace_id:
         return
+    resolved_started_at_epoch_ms = _coerce_nonnegative_timing_ms(started_at_epoch_ms)
+    if resolved_started_at_epoch_ms <= 0.0:
+        resolved_started_at_epoch_ms = _current_epoch_ms()
     state = self.run_state
     changed = False
     if state.node_execution_workspace_id != normalized_workspace_id:
         state.node_execution_workspace_id = normalized_workspace_id
         state.running_node_ids.clear()
         state.completed_node_ids.clear()
+        state.running_node_started_at_epoch_ms_by_node_id.clear()
         changed = True
     if normalized_node_id in state.completed_node_ids:
         state.completed_node_ids.discard(normalized_node_id)
@@ -201,11 +224,23 @@ def mark_node_execution_running(self: "ShellWindow", workspace_id: str, node_id:
     if normalized_node_id not in state.running_node_ids:
         state.running_node_ids.add(normalized_node_id)
         changed = True
+    if (
+        state.running_node_started_at_epoch_ms_by_node_id.get(normalized_node_id)
+        != resolved_started_at_epoch_ms
+    ):
+        state.running_node_started_at_epoch_ms_by_node_id[normalized_node_id] = resolved_started_at_epoch_ms
+        changed = True
     if changed:
         self._commit_node_execution_state_change()
 
 
-def mark_node_execution_completed(self: "ShellWindow", workspace_id: str, node_id: str) -> None:
+def mark_node_execution_completed(
+    self: "ShellWindow",
+    workspace_id: str,
+    node_id: str,
+    *,
+    elapsed_ms: float = 0.0,
+) -> None:
     normalized_node_id = str(node_id or "").strip()
     if not normalized_node_id:
         return
@@ -218,6 +253,12 @@ def mark_node_execution_completed(self: "ShellWindow", workspace_id: str, node_i
         state.node_execution_workspace_id = normalized_workspace_id
         state.running_node_ids.clear()
         state.completed_node_ids.clear()
+        state.running_node_started_at_epoch_ms_by_node_id.clear()
+        changed = True
+    started_at_lookup = state.running_node_started_at_epoch_ms_by_node_id
+    had_started_at = normalized_node_id in started_at_lookup
+    started_at_epoch_ms = started_at_lookup.pop(normalized_node_id, 0.0)
+    if had_started_at:
         changed = True
     if normalized_node_id in state.running_node_ids:
         state.running_node_ids.discard(normalized_node_id)
@@ -225,6 +266,23 @@ def mark_node_execution_completed(self: "ShellWindow", workspace_id: str, node_i
     if normalized_node_id not in state.completed_node_ids:
         state.completed_node_ids.add(normalized_node_id)
         changed = True
+    worker_elapsed_ms = _coerce_nonnegative_timing_ms(elapsed_ms)
+    should_cache_elapsed = False
+    resolved_elapsed_ms = 0.0
+    if worker_elapsed_ms > 0.0:
+        resolved_elapsed_ms = worker_elapsed_ms
+        should_cache_elapsed = True
+    elif started_at_epoch_ms > 0.0:
+        resolved_elapsed_ms = max(0.0, _current_epoch_ms() - started_at_epoch_ms)
+        should_cache_elapsed = True
+    if should_cache_elapsed:
+        workspace_cache = state.cached_node_elapsed_ms_by_workspace_id.setdefault(
+            normalized_workspace_id,
+            {},
+        )
+        if workspace_cache.get(normalized_node_id) != resolved_elapsed_ms:
+            workspace_cache[normalized_node_id] = resolved_elapsed_ms
+            changed = True
     if changed:
         self._commit_node_execution_state_change()
 
@@ -320,10 +378,16 @@ def mark_execution_edges_progressed(
 def clear_node_execution_visualization_state(self: "ShellWindow") -> None:
     state = self.run_state
     changed = False
-    if state.node_execution_workspace_id or state.running_node_ids or state.completed_node_ids:
+    if (
+        state.node_execution_workspace_id
+        or state.running_node_ids
+        or state.completed_node_ids
+        or state.running_node_started_at_epoch_ms_by_node_id
+    ):
         state.node_execution_workspace_id = ""
         state.running_node_ids.clear()
         state.completed_node_ids.clear()
+        state.running_node_started_at_epoch_ms_by_node_id.clear()
         changed = True
     if self._clear_execution_edge_progress_state_fields():
         changed = True
