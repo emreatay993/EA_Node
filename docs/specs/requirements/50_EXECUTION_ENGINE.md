@@ -10,7 +10,7 @@
 - `REQ-EXEC-004`: the worker shall schedule exec-triggered nodes according to authored exec-edge dependencies.
 - `REQ-EXEC-005`: the worker shall propagate resolved data-edge inputs to downstream node execution.
 - `REQ-EXEC-006`: runtime failures shall emit structured error and traceback payloads that preserve authored node IDs for diagnostics and shell focus.
-- `REQ-EXEC-007`: the worker shall emit run/node lifecycle events covering start, state transitions, completion, failure, stop, logs, and protocol errors.
+- `REQ-EXEC-007`: the worker shall emit run/node lifecycle events covering start, state transitions, completion, failure, stop, logs, and protocol errors; when available, `node_started` and `node_completed` shall also carry additive `started_at_epoch_ms` and `elapsed_ms` metadata around actual plugin execution time without breaking shell-side fallback timing on emitters that omit those fields.
 - `REQ-EXEC-008`: stop requests shall cancel active subprocess-backed execution safely instead of leaving orphaned child processes running.
 
 ## Managed Output Transport
@@ -22,6 +22,7 @@
 ## Acceptance
 - `AC-REQ-EXEC-002-01`: protocol regressions confirm typed command/event payloads round-trip through the queue boundary, including runtime snapshot data and runtime artifact refs.
 - `AC-REQ-EXEC-006-01`: worker and shell regressions confirm structured failures preserve traceback data and authored node IDs for UI focus.
+- `AC-REQ-EXEC-007-01`: `tests/test_execution_worker.py` and `tests/test_execution_client.py` regressions confirm additive `started_at_epoch_ms` / `elapsed_ms` timing metadata round-trips through the typed protocol while remaining backward compatible with shell-side fallback timing.
 - `AC-REQ-EXEC-008-01`: `Process Run` regressions confirm `stop_run` cancels the active subprocess instead of leaking it.
 - `AC-REQ-EXEC-010-01`: execution client/worker regressions confirm runtime artifact refs round-trip as structured `artifact_ref` payloads rather than raw inline file blobs.
 - `AC-REQ-EXEC-011-01`: execution and integration regressions confirm downstream nodes can resolve stored outputs from runtime/project artifact metadata during the same run.
