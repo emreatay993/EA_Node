@@ -73,6 +73,10 @@ QtObject {
     readonly property color runningGlowColor: "#6EC6FF"
     readonly property color completedOutlineColor: "#4ADE80"
     readonly property color completedGlowColor: "#86EFAC"
+    readonly property color runningElapsedFooterColor: root.runningOutlineColor
+    readonly property color completedElapsedFooterColor: root.completedOutlineColor
+    readonly property real runningElapsedFooterOpacity: 0.88
+    readonly property real completedElapsedFooterOpacity: 0.72
 
     readonly property color surfaceColor: host && host.isPassiveNode
         ? (root.passiveFillOverride || (host.isFlowchartSurface ? root.flowchartDefaultFillColor : root.themeSurfaceColor))

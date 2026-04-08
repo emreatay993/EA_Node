@@ -341,6 +341,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """
             from PyQt6.QtCore import pyqtProperty, pyqtSignal
             from PyQt6.QtTest import QTest
+            import time
 
             class ExecutionSceneBridge(QObject):
                 selected_node_lookup_changed = pyqtSignal()
@@ -358,6 +359,8 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 failed_node_revision_changed = pyqtSignal()
                 running_node_lookup_changed = pyqtSignal()
                 completed_node_lookup_changed = pyqtSignal()
+                running_node_started_at_ms_lookup_changed = pyqtSignal()
+                node_elapsed_ms_lookup_changed = pyqtSignal()
                 node_execution_revision_changed = pyqtSignal()
 
                 def __init__(self):
@@ -365,9 +368,11 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                     self._scene_bridge = ExecutionSceneBridge()
                     self._failed_node_lookup = {}
                     self._failed_node_revision = 0
-                    self._running_node_lookup = {"node_surface_host_test": True}
+                    self._running_node_lookup = {}
                     self._completed_node_lookup = {}
-                    self._node_execution_revision = 1
+                    self._running_node_started_at_ms_lookup = {}
+                    self._node_elapsed_ms_lookup = {}
+                    self._node_execution_revision = 0
 
                 @pyqtProperty(QObject, constant=True)
                 def sceneBridge(self):
@@ -389,24 +394,44 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 def completedNodeLookup(self):
                     return dict(self._completed_node_lookup)
 
+                @pyqtProperty("QVariantMap", notify=running_node_started_at_ms_lookup_changed)
+                def runningNodeStartedAtMsLookup(self):
+                    return dict(self._running_node_started_at_ms_lookup)
+
+                @pyqtProperty("QVariantMap", notify=node_elapsed_ms_lookup_changed)
+                def nodeElapsedMsLookup(self):
+                    return dict(self._node_elapsed_ms_lookup)
+
                 @pyqtProperty(int, notify=node_execution_revision_changed)
                 def nodeExecutionRevision(self):
                     return int(self._node_execution_revision)
 
-                def set_running(self, node_id):
+                def set_running(self, node_id, started_at_ms):
                     self._running_node_lookup = {str(node_id): True}
                     self._completed_node_lookup = {}
+                    self._running_node_started_at_ms_lookup = {str(node_id): float(started_at_ms)}
                     self._node_execution_revision += 1
                     self.running_node_lookup_changed.emit()
                     self.completed_node_lookup_changed.emit()
+                    self.running_node_started_at_ms_lookup_changed.emit()
                     self.node_execution_revision_changed.emit()
 
-                def set_completed(self, node_id):
+                def set_completed(self, node_id, elapsed_ms):
                     self._running_node_lookup = {}
                     self._completed_node_lookup = {str(node_id): True}
+                    self._running_node_started_at_ms_lookup = {}
+                    self._node_elapsed_ms_lookup = {str(node_id): float(elapsed_ms)}
                     self._node_execution_revision += 1
                     self.running_node_lookup_changed.emit()
                     self.completed_node_lookup_changed.emit()
+                    self.running_node_started_at_ms_lookup_changed.emit()
+                    self.node_elapsed_ms_lookup_changed.emit()
+                    self.node_execution_revision_changed.emit()
+
+                def clear_cached_elapsed(self):
+                    self._node_elapsed_ms_lookup = {}
+                    self._node_execution_revision += 1
+                    self.node_elapsed_ms_lookup_changed.emit()
                     self.node_execution_revision_changed.emit()
 
                 def set_failed(self, node_id):
@@ -436,6 +461,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert completed_flash_halo is not None
             assert elapsed_timer is not None
 
+            started_at_ms = (time.time() * 1000.0) - 1800.0
+            completed_elapsed_ms = 3487.0
+            canvas_item.set_running("node_surface_host_test", started_at_ms)
             app.processEvents()
             assert bool(host.property("isRunningNode"))
             assert not bool(host.property("isCompletedNode"))
@@ -445,14 +473,16 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert bool(running_halo.property("visible"))
             assert bool(running_pulse_halo.property("visible"))
             assert bool(elapsed_timer.property("visible"))
+            assert bool(elapsed_timer.property("liveElapsedActive"))
+            assert abs(float(elapsed_timer.property("startedAtMs")) - started_at_ms) < 16.0
             running_key = str(background_layer.property("cacheKey") or "")
             assert "|running|" in running_key
 
-            QTest.qWait(160)
+            QTest.qWait(80)
             app.processEvents()
-            assert str(elapsed_timer.property("text") or "") != "0.0s"
+            assert float(elapsed_timer.property("elapsedMilliseconds")) >= 1400.0
 
-            canvas_item.set_completed("node_surface_host_test")
+            canvas_item.set_completed("node_surface_host_test", completed_elapsed_ms)
             app.processEvents()
             QTest.qWait(80)
             app.processEvents()
@@ -464,11 +494,22 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert str(background_layer.property("effectiveBorderState")) == "completed"
             assert not bool(running_halo.property("visible"))
             assert not bool(running_pulse_halo.property("visible"))
-            assert not bool(elapsed_timer.property("visible"))
+            assert bool(elapsed_timer.property("visible"))
+            assert not bool(elapsed_timer.property("liveElapsedActive"))
+            assert bool(elapsed_timer.property("cachedElapsedActive"))
+            assert abs(float(elapsed_timer.property("cachedElapsedMilliseconds")) - completed_elapsed_ms) < 0.01
+            assert str(elapsed_timer.property("text") or "") == "3.5s"
+            assert float(elapsed_timer.property("opacity")) == float(host.property("completedElapsedFooterOpacity"))
             assert float(background_layer.property("completedFlashProgress")) > 0.0
             completed_key = str(background_layer.property("cacheKey") or "")
             assert completed_key != running_key
             assert "|completed|" in completed_key
+
+            canvas_item.clear_cached_elapsed()
+            app.processEvents()
+
+            assert not bool(elapsed_timer.property("visible"))
+            assert not bool(elapsed_timer.property("cachedElapsedActive"))
 
             canvas_item.set_failed("node_surface_host_test")
             app.processEvents()
@@ -481,6 +522,9 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert "|failed|" in str(background_layer.property("cacheKey") or "")
             """,
         )
+
+    def test_persistent_node_elapsed_footer_graph_node_host_reuses_canvas_timing_and_clears_on_invalidation(self) -> None:
+        self.test_graph_node_host_node_execution_visualization_states_drive_timer_priority_and_cache_keys()
 
     def test_flowchart_host_shadow_visibility_follows_global_shadow_preference(self) -> None:
         self._run_qml_probe(

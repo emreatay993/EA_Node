@@ -66,6 +66,8 @@ Item {
     readonly property var failedNodeLookup: canvasItem ? canvasItem.failedNodeLookup : ({})
     readonly property var runningNodeLookup: canvasItem ? canvasItem.runningNodeLookup : ({})
     readonly property var completedNodeLookup: canvasItem ? canvasItem.completedNodeLookup : ({})
+    readonly property var runningNodeStartedAtMsLookup: canvasItem ? canvasItem.runningNodeStartedAtMsLookup : ({})
+    readonly property var nodeElapsedMsLookup: canvasItem ? canvasItem.nodeElapsedMsLookup : ({})
     readonly property bool isSelected: !!nodeData
         && Boolean(selectedNodeLookup[String(nodeData.node_id || "")])
     readonly property bool isFailedNode: !!nodeData
@@ -74,8 +76,26 @@ Item {
         && Boolean(runningNodeLookup[String(nodeData.node_id || "")])
     readonly property bool isCompletedNode: !!nodeData
         && Boolean(completedNodeLookup[String(nodeData.node_id || "")])
+    readonly property string executionNodeId: !!nodeData ? String(nodeData.node_id || "") : ""
     readonly property int failurePulseRevision: canvasItem ? Number(canvasItem.failedNodeRevision || 0) : 0
     readonly property int executionPulseRevision: canvasItem ? Number(canvasItem.nodeExecutionRevision || 0) : 0
+    readonly property double runningNodeStartedAtMs: {
+        var numeric = card._lookupExecutionTimingValue(card.runningNodeStartedAtMsLookup, false);
+        return isFinite(numeric) ? numeric : 0.0;
+    }
+    readonly property bool hasCachedExecutionElapsedMs: isFinite(
+        card._lookupExecutionTimingValue(card.nodeElapsedMsLookup, true)
+    )
+    readonly property double cachedExecutionElapsedMs: {
+        var numeric = card._lookupExecutionTimingValue(card.nodeElapsedMsLookup, true);
+        return isFinite(numeric) ? numeric : 0.0;
+    }
+    readonly property bool liveExecutionElapsedVisible: !card.isFailedNode
+        && card.isRunningNode
+        && card.runningNodeStartedAtMs > 0.0
+    readonly property bool cachedExecutionElapsedVisible: !card.isFailedNode
+        && !card.isRunningNode
+        && card.hasCachedExecutionElapsedMs
     readonly property string surfaceFamily: String(surfaceFamilyOverride || (nodeData ? nodeData.surface_family || "standard" : "standard"))
     readonly property string surfaceVariant: String(surfaceVariantOverride || (nodeData ? nodeData.surface_variant || "" : ""))
     readonly property var renderQuality: renderQualityState.renderQuality
@@ -152,6 +172,10 @@ Item {
     readonly property color runningGlowColor: themeState.runningGlowColor
     readonly property color completedOutlineColor: themeState.completedOutlineColor
     readonly property color completedGlowColor: themeState.completedGlowColor
+    readonly property color runningElapsedFooterColor: themeState.runningElapsedFooterColor
+    readonly property color completedElapsedFooterColor: themeState.completedElapsedFooterColor
+    readonly property real runningElapsedFooterOpacity: themeState.runningElapsedFooterOpacity
+    readonly property real completedElapsedFooterOpacity: themeState.completedElapsedFooterOpacity
     readonly property real flowchartRestPortDiameter: themeState.flowchartRestPortDiameter
     readonly property real flowchartConnectedPortDiameter: themeState.flowchartConnectedPortDiameter
     readonly property real flowchartSelectedPortDiameter: themeState.flowchartSelectedPortDiameter
@@ -454,6 +478,21 @@ Item {
         return sceneAccess.sceneRectsIntersect(firstRectLike, secondRectLike);
     }
 
+    function _lookupExecutionTimingValue(lookupLike, allowZero) {
+        if (!card.executionNodeId.length)
+            return NaN;
+        var lookup = lookupLike || {};
+        var value = lookup[card.executionNodeId];
+        if (value === undefined || value === null)
+            return NaN;
+        var numeric = Number(value);
+        if (!isFinite(numeric))
+            return NaN;
+        if (allowZero ? numeric < 0.0 : numeric <= 0.0)
+            return NaN;
+        return numeric;
+    }
+
     function formatExecutionElapsed(elapsedMilliseconds) {
         var elapsedSeconds = Math.max(0.0, Number(elapsedMilliseconds) / 1000.0);
         if (!isFinite(elapsedSeconds))
@@ -541,37 +580,37 @@ Item {
     Text {
         id: elapsedTimerLabel
         objectName: "graphNodeElapsedTimer"
-        visible: card.isRunningNode && !card.isFailedNode
+        visible: liveElapsedActive || cachedElapsedActive
         anchors.top: parent.bottom
         anchors.topMargin: 4
         anchors.horizontalCenter: parent.horizontalCenter
         z: 4
         font.pixelSize: 10
-        font.bold: true
-        color: card.runningOutlineColor
-        opacity: 0.88
+        font.bold: liveElapsedActive
+        color: liveElapsedActive ? card.runningElapsedFooterColor : card.completedElapsedFooterColor
+        opacity: liveElapsedActive ? card.runningElapsedFooterOpacity : card.completedElapsedFooterOpacity
         renderType: card.nodeTextRenderType
-        text: card.formatExecutionElapsed(elapsedMilliseconds)
+        text: card.formatExecutionElapsed(liveElapsedActive ? elapsedMilliseconds : cachedElapsedMilliseconds)
 
+        property bool liveElapsedActive: card.liveExecutionElapsedVisible
+        property bool cachedElapsedActive: card.cachedExecutionElapsedVisible
         property double elapsedMilliseconds: 0.0
-        property double startedAtMs: 0.0
+        property double startedAtMs: card.runningNodeStartedAtMs
+        property double cachedElapsedMilliseconds: card.cachedExecutionElapsedMs
 
         function _updateElapsed() {
-            if (startedAtMs <= 0.0) {
+            if (!liveElapsedActive || startedAtMs <= 0.0) {
                 elapsedMilliseconds = 0.0;
                 return;
             }
             elapsedMilliseconds = Math.max(0.0, Date.now() - startedAtMs);
         }
 
-        function _syncRunningState() {
-            if (!visible) {
-                startedAtMs = 0.0;
+        function _syncElapsedState() {
+            if (!liveElapsedActive) {
                 elapsedMilliseconds = 0.0;
                 return;
             }
-            if (startedAtMs <= 0.0)
-                startedAtMs = Date.now();
             _updateElapsed();
         }
 
@@ -579,28 +618,13 @@ Item {
             id: elapsedTimerTicker
             interval: 100
             repeat: true
-            running: elapsedTimerLabel.visible
+            running: elapsedTimerLabel.liveElapsedActive
             onTriggered: elapsedTimerLabel._updateElapsed()
         }
 
-        Connections {
-            target: card
-
-            function onIsRunningNodeChanged() {
-                elapsedTimerLabel._syncRunningState();
-            }
-
-            function onIsFailedNodeChanged() {
-                elapsedTimerLabel._syncRunningState();
-            }
-        }
-
-        onVisibleChanged: {
-            if (visible)
-                _syncRunningState();
-        }
-
-        Component.onCompleted: _syncRunningState()
+        onLiveElapsedActiveChanged: _syncElapsedState()
+        onStartedAtMsChanged: _syncElapsedState()
+        Component.onCompleted: _syncElapsedState()
     }
 
     // Keep body interactions below the loaded surface so local surface controls can own pointer input.

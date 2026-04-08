@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -206,6 +207,13 @@ def _graph_node_card(graph_canvas: QObject, node_id: str) -> QObject | None:
     return match
 
 
+def _graph_node_child(graph_canvas: QObject, node_id: str, object_name: str) -> QObject | None:
+    node_card = _graph_node_card(graph_canvas, node_id)
+    if node_card is None:
+        return None
+    return node_card.findChild(QObject, object_name)
+
+
 def _named_qquick_item(root: QObject, object_name: str) -> QQuickItem | None:
     match: QQuickItem | None = None
 
@@ -344,6 +352,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertTrue(bool(node_card.property("renderActive")))
         self.assertEqual(int(node_card.property("z")), 31)
         self.assertEqual(dict(graph_canvas.property("runningNodeLookup")), {node_id: True})
+        self.assertTrue(bool(elapsed_timer.property("liveElapsedActive")))
+        self.assertGreater(float(elapsed_timer.property("startedAtMs")), 0.0)
 
         QTest.qWait(160)
         self.app.processEvents()
@@ -366,7 +376,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             lambda: bool(node_card.property("isCompletedNode"))
             and not bool(node_card.property("isRunningNode"))
             and str(background_layer.property("effectiveBorderState")) == "completed"
-            and not bool(elapsed_timer.property("visible")),
+            and bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("cachedElapsedActive")),
             timeout_ms=400,
             app=self.app,
             timeout_message="Timed out waiting for completed-node execution chrome.",
@@ -374,6 +385,8 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertIn(int(node_card.property("z")), {29, 30})
         self.assertEqual(dict(graph_canvas.property("runningNodeLookup")), {})
         self.assertEqual(dict(graph_canvas.property("completedNodeLookup")), {node_id: True})
+        self.assertFalse(bool(elapsed_timer.property("liveElapsedActive")))
+        self.assertGreaterEqual(float(elapsed_timer.property("cachedElapsedMilliseconds")), 0.0)
 
         QTest.qWait(80)
         self.app.processEvents()
@@ -398,6 +411,253 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(dict(graph_canvas.property("runningNodeLookup")), {})
         self.assertEqual(dict(graph_canvas.property("completedNodeLookup")), {})
         self.assertIn(str(background_layer.property("effectiveBorderState")), {"idle", "selected"})
+        self.assertTrue(bool(elapsed_timer.property("visible")))
+        self.assertTrue(bool(elapsed_timer.property("cachedElapsedActive")))
+
+        self.window.scene.set_node_property(node_id, "message", "Invalidate cached elapsed footer")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                (_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer") is not None)
+                and not bool(_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer").property("visible"))
+            ),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for cached elapsed footer invalidation.",
+        )
+
+    def test_persistent_node_elapsed_footer_shell_events_render_live_then_cached_until_invalidation(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=180.0, y=80.0)
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        wait_for_condition_or_raise(
+            lambda: _graph_node_card(graph_canvas, node_id) is not None,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for graph node card to appear.",
+        )
+        node_card = _graph_node_card(graph_canvas, node_id)
+        self.assertIsNotNone(node_card)
+        if node_card is None:
+            self.fail("Expected graph node card to exist")
+
+        background_layer = node_card.findChild(QObject, "graphNodeChromeBackgroundLayer")
+        elapsed_timer = node_card.findChild(QObject, "graphNodeElapsedTimer")
+        self.assertIsNotNone(background_layer)
+        self.assertIsNotNone(elapsed_timer)
+        if background_layer is None or elapsed_timer is None:
+            self.fail("Expected graph node execution chrome items to exist")
+
+        started_at_ms = (time.time() * 1000.0) - 2400.0
+        completed_elapsed_ms = 3456.7
+
+        self.window.execution_event.emit(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "node_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "started_at_epoch_ms": started_at_ms,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isRunningNode"))
+            and bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("liveElapsedActive"))
+            and abs(float(elapsed_timer.property("startedAtMs")) - started_at_ms) < 16.0
+            and float(elapsed_timer.property("elapsedMilliseconds")) >= 2000.0,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for lookup-backed live elapsed footer rendering.",
+        )
+        self.assertEqual(
+            graph_canvas.property("runningNodeStartedAtMsLookup"),
+            {node_id: started_at_ms},
+        )
+        self.assertEqual(str(background_layer.property("effectiveBorderState")), "running")
+
+        self.window.execution_event.emit(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "elapsed_ms": completed_elapsed_ms,
+                "outputs": {"exit_code": 0},
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: not bool(node_card.property("isRunningNode"))
+            and bool(node_card.property("isCompletedNode"))
+            and bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("cachedElapsedActive"))
+            and abs(float(elapsed_timer.property("cachedElapsedMilliseconds")) - completed_elapsed_ms) < 0.01
+            and str(elapsed_timer.property("text") or "") == "3.5s",
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for cached elapsed footer rendering after completion.",
+        )
+        self.assertEqual(
+            graph_canvas.property("nodeElapsedMsLookup"),
+            {node_id: completed_elapsed_ms},
+        )
+        self.assertEqual(str(background_layer.property("effectiveBorderState")), "completed")
+
+        self.window.execution_event.emit(
+            {
+                "type": "run_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: not bool(node_card.property("isRunningNode"))
+            and not bool(node_card.property("isCompletedNode"))
+            and bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("cachedElapsedActive"))
+            and str(elapsed_timer.property("text") or "") == "3.5s",
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for cached elapsed footer persistence after run completion.",
+        )
+        self.assertIn(str(background_layer.property("effectiveBorderState")), {"idle", "selected"})
+
+        self.window.scene.set_node_title(node_id, "Retained Footer")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                (_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer") is not None)
+                and bool(_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer").property("visible"))
+                and bool(_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer").property("cachedElapsedActive"))
+                and str(_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer").property("text") or "") == "3.5s"
+            ),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for cached elapsed footer to survive cosmetic title edits.",
+        )
+        node_card = _graph_node_card(graph_canvas, node_id)
+        elapsed_timer = _graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer")
+        self.assertIsNotNone(node_card)
+        self.assertIsNotNone(elapsed_timer)
+        if node_card is None or elapsed_timer is None:
+            self.fail("Expected graph node card and elapsed timer to survive cosmetic title edits")
+
+        self.window.scene.set_node_property(node_id, "message", "Invalidate cached elapsed footer")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: (
+                (_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer") is not None)
+                and not bool(_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer").property("visible"))
+                and not bool(_graph_node_child(graph_canvas, node_id, "graphNodeElapsedTimer").property("cachedElapsedActive"))
+            ),
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for cached elapsed footer invalidation.",
+        )
+        self.assertEqual(graph_canvas.property("nodeElapsedMsLookup"), {})
+
+    def test_persistent_node_elapsed_footer_failure_priority_hides_failed_running_live_timer(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=220.0, y=140.0)
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        wait_for_condition_or_raise(
+            lambda: _graph_node_card(graph_canvas, node_id) is not None,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for graph node card to appear.",
+        )
+        node_card = _graph_node_card(graph_canvas, node_id)
+        self.assertIsNotNone(node_card)
+        if node_card is None:
+            self.fail("Expected graph node card to exist")
+
+        background_layer = node_card.findChild(QObject, "graphNodeChromeBackgroundLayer")
+        elapsed_timer = node_card.findChild(QObject, "graphNodeElapsedTimer")
+        self.assertIsNotNone(background_layer)
+        self.assertIsNotNone(elapsed_timer)
+        if background_layer is None or elapsed_timer is None:
+            self.fail("Expected graph node execution chrome items to exist")
+
+        started_at_ms = (time.time() * 1000.0) - 1800.0
+        self.window.execution_event.emit(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "node_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "started_at_epoch_ms": started_at_ms,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isRunningNode"))
+            and bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("liveElapsedActive"))
+            and float(elapsed_timer.property("elapsedMilliseconds")) >= 1400.0,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for running-node live elapsed footer to appear.",
+        )
+
+        with patch.object(QMessageBox, "critical"):
+            self.window.execution_event.emit(
+                {
+                    "type": "run_failed",
+                    "run_id": "run_live",
+                    "workspace_id": workspace_id,
+                    "node_id": node_id,
+                    "error": "boom",
+                    "traceback": "traceback: line 1",
+                    "fatal": False,
+                }
+            )
+            self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(node_card.property("isFailedNode"))
+            and str(background_layer.property("effectiveBorderState")) == "failed"
+            and not bool(elapsed_timer.property("visible"))
+            and not bool(elapsed_timer.property("liveElapsedActive"))
+            and not bool(elapsed_timer.property("cachedElapsedActive")),
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for failure-priority elapsed footer cleanup.",
+        )
+        self.assertEqual(graph_canvas.property("runningNodeStartedAtMsLookup"), {})
 
     def test_node_execution_visualization_failure_priority_overrides_completed_chrome(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
