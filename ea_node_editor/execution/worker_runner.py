@@ -249,7 +249,7 @@ class RunEventPublisher:
         )
         self.emit_run_state(state="error", transition="fail", reason=reason)
 
-    def emit_node_started(self, node_id: str) -> None:
+    def emit_node_started(self, node_id: str, *, started_at_epoch_ms: float = 0.0) -> None:
         from ea_node_editor.execution.protocol import NodeStartedEvent
 
         self.emit(
@@ -257,10 +257,17 @@ class RunEventPublisher:
                 run_id=self.run_id,
                 workspace_id=self.workspace_id,
                 node_id=node_id,
+                started_at_epoch_ms=started_at_epoch_ms,
             )
         )
 
-    def emit_node_completed(self, node_id: str, outputs: dict[str, Any]) -> None:
+    def emit_node_completed(
+        self,
+        node_id: str,
+        outputs: dict[str, Any],
+        *,
+        elapsed_ms: float = 0.0,
+    ) -> None:
         from ea_node_editor.execution.protocol import NodeCompletedEvent
 
         self.emit(
@@ -268,6 +275,7 @@ class RunEventPublisher:
                 run_id=self.run_id,
                 workspace_id=self.workspace_id,
                 node_id=node_id,
+                elapsed_ms=elapsed_ms,
                 outputs=dict(outputs),
             )
         )
@@ -369,7 +377,8 @@ class NodeExecutor:
         plugin = self._registry.create(node_type_id)
         inputs = self._plan.input_values_for(node_id, self.node_outputs)
 
-        self._publisher.emit_node_started(node_id)
+        started_at_epoch_ms = time.time() * 1000.0
+        self._publisher.emit_node_started(node_id, started_at_epoch_ms=started_at_epoch_ms)
 
         def _log(level: str, message: str) -> None:
             self._publisher.emit_log(level, message, node_id=node_id)
@@ -402,7 +411,8 @@ class NodeExecutor:
 
             outputs = self._artifact_service.normalize_outputs(dict(result.outputs))
             self.node_outputs[node_id] = outputs
-            self._publisher.emit_node_completed(node_id, outputs)
+            elapsed_ms = max(0.0, (time.time() * 1000.0) - started_at_epoch_ms)
+            self._publisher.emit_node_completed(node_id, outputs, elapsed_ms=elapsed_ms)
             self.executed.add(node_id)
             return "ok"
         except InterruptedError:

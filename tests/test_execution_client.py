@@ -9,6 +9,7 @@ import unittest
 from ea_node_editor.execution.client import ProcessExecutionClient
 from ea_node_editor.execution.protocol import (
     NodeCompletedEvent,
+    NodeStartedEvent,
     ProtocolErrorEvent,
     RunCompletedEvent,
     ViewerSessionOpenedEvent,
@@ -124,6 +125,86 @@ class ProcessExecutionClientTests(unittest.TestCase):
             },
         )
         self.assertEqual(event["outputs"]["preview"], "ok")
+
+    def test_persistent_node_elapsed_time_protocol_client_listener_preserves_timing_fields(self) -> None:
+        self.client._event_queue.put(
+            event_to_dict(
+                NodeStartedEvent(
+                    run_id="run_timing",
+                    workspace_id="ws_main",
+                    node_id="node_timing",
+                    started_at_epoch_ms=1234.5,
+                )
+            )
+        )  # noqa: SLF001
+        self.client._event_queue.put(
+            event_to_dict(
+                NodeCompletedEvent(
+                    run_id="run_timing",
+                    workspace_id="ws_main",
+                    node_id="node_timing",
+                    elapsed_ms=45.25,
+                    outputs={"status": "ok"},
+                )
+            )
+        )  # noqa: SLF001
+
+        started = self._wait_for_event(
+            lambda payload: payload.get("type") == "node_started"
+            and payload.get("run_id") == "run_timing",
+            timeout=3.0,
+        )
+        completed = self._wait_for_event(
+            lambda payload: payload.get("type") == "node_completed"
+            and payload.get("run_id") == "run_timing",
+            timeout=3.0,
+        )
+
+        self.assertIsNotNone(started)
+        self.assertIsNotNone(completed)
+        if started is None or completed is None:
+            self.fail("timing events were not received")
+        self.assertEqual(started["started_at_epoch_ms"], 1234.5)
+        self.assertEqual(completed["elapsed_ms"], 45.25)
+        self.assertEqual(completed["outputs"], {"status": "ok"})
+
+    def test_persistent_node_elapsed_time_protocol_client_listener_defaults_legacy_timing_fields(self) -> None:
+        self.client._event_queue.put(
+            {
+                "type": "node_started",
+                "run_id": "run_legacy",
+                "workspace_id": "ws_main",
+                "node_id": "node_legacy",
+            }
+        )  # noqa: SLF001
+        self.client._event_queue.put(
+            {
+                "type": "node_completed",
+                "run_id": "run_legacy",
+                "workspace_id": "ws_main",
+                "node_id": "node_legacy",
+                "outputs": {"status": "legacy"},
+            }
+        )  # noqa: SLF001
+
+        started = self._wait_for_event(
+            lambda payload: payload.get("type") == "node_started"
+            and payload.get("run_id") == "run_legacy",
+            timeout=3.0,
+        )
+        completed = self._wait_for_event(
+            lambda payload: payload.get("type") == "node_completed"
+            and payload.get("run_id") == "run_legacy",
+            timeout=3.0,
+        )
+
+        self.assertIsNotNone(started)
+        self.assertIsNotNone(completed)
+        if started is None or completed is None:
+            self.fail("legacy timing events were not received")
+        self.assertEqual(started["started_at_epoch_ms"], 0.0)
+        self.assertEqual(completed["elapsed_ms"], 0.0)
+        self.assertEqual(completed["outputs"], {"status": "legacy"})
 
     def test_worker_death_emits_failure_and_next_run_recovers(self) -> None:
         workspace_id, long_runtime_snapshot = self._build_runtime_snapshot(with_sleep_script=True)

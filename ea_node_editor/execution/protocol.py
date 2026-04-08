@@ -214,6 +214,7 @@ class NodeStartedEvent:
     run_id: str = ""
     workspace_id: str = ""
     node_id: str = ""
+    started_at_epoch_ms: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -222,6 +223,7 @@ class NodeCompletedEvent:
     run_id: str = ""
     workspace_id: str = ""
     node_id: str = ""
+    elapsed_ms: float = 0.0
     outputs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -405,6 +407,13 @@ def _deserialize_viewer_mapping(value: Any) -> dict[str, Any]:
 def _deserialize_viewer_int(value: Any, *, default: int = 0) -> int:
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _deserialize_float(value: Any, *, default: float = 0.0) -> float:
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return default
 
@@ -634,6 +643,7 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             run_id=str(payload.get("run_id", "")),
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
+            started_at_epoch_ms=_deserialize_float(payload.get("started_at_epoch_ms")),
         )
     if event_type == "node_completed":
         outputs_payload = deserialize_runtime_value(payload.get("outputs"))
@@ -641,6 +651,7 @@ def dict_to_event(payload: dict[str, Any]) -> WorkerEvent:
             run_id=str(payload.get("run_id", "")),
             workspace_id=str(payload.get("workspace_id", "")),
             node_id=str(payload.get("node_id", "")),
+            elapsed_ms=_deserialize_float(payload.get("elapsed_ms")),
             outputs=dict(outputs_payload) if isinstance(outputs_payload, dict) else {},
         )
     if event_type == "node_failed_handled":

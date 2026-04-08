@@ -407,6 +407,94 @@ class ExecutionWorkerTests(unittest.TestCase):
         self.assertIn("node_completed", event_types)
         self.assertIn("run_completed", event_types)
 
+    def test_persistent_node_elapsed_time_protocol_run_workflow_emits_timing_metadata(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        logger = model.add_node(ws.workspace_id, "core.logger", "Logger", 100, 0, properties={"message": "ok"})
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", logger.node_id, "exec_in")
+
+        event_queue: queue.Queue = queue.Queue()
+        runtime_snapshot = self._runtime_snapshot(model)
+        with mock.patch(
+            "ea_node_editor.execution.worker_runner.time.time",
+            side_effect=[100.0, 100.01, 200.0, 200.25],
+        ):
+            run_workflow(
+                {
+                    "run_id": "run_timing_protocol",
+                    "workspace_id": ws.workspace_id,
+                    "runtime_snapshot": runtime_snapshot,
+                    "trigger": {},
+                },
+                event_queue,
+            )
+
+        events = self._drain_events(event_queue)
+        started = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_started"
+            and str(event.get("node_id", "")) == logger.node_id
+        )
+        completed = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_completed"
+            and str(event.get("node_id", "")) == logger.node_id
+        )
+
+        self.assertEqual(float(started.get("started_at_epoch_ms", -1.0)), 200000.0)
+        self.assertEqual(float(completed.get("elapsed_ms", -1.0)), 250.0)
+        self.assertIn("outputs", completed)
+
+    def test_persistent_node_elapsed_time_protocol_failed_nodes_do_not_emit_completion_timing(self) -> None:
+        model = GraphModel()
+        ws = model.active_workspace
+        start = model.add_node(ws.workspace_id, "core.start", "Start", 0, 0)
+        script = model.add_node(
+            ws.workspace_id,
+            "core.python_script",
+            "Script",
+            100,
+            0,
+            properties={"script": "raise RuntimeError('timing boom')"},
+        )
+        model.add_edge(ws.workspace_id, start.node_id, "exec_out", script.node_id, "exec_in")
+
+        event_queue: queue.Queue = queue.Queue()
+        runtime_snapshot = self._runtime_snapshot(model)
+        with mock.patch(
+            "ea_node_editor.execution.worker_runner.time.time",
+            side_effect=[100.0, 100.01, 200.0],
+        ):
+            run_workflow(
+                {
+                    "run_id": "run_timing_failure",
+                    "workspace_id": ws.workspace_id,
+                    "runtime_snapshot": runtime_snapshot,
+                    "trigger": {},
+                },
+                event_queue,
+            )
+
+        events = self._drain_events(event_queue)
+        started = next(
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_started"
+            and str(event.get("node_id", "")) == script.node_id
+        )
+        completed = [
+            event
+            for event in events
+            if str(event.get("type", "")) == "node_completed"
+            and str(event.get("node_id", "")) == script.node_id
+        ]
+
+        self.assertEqual(float(started.get("started_at_epoch_ms", -1.0)), 200000.0)
+        self.assertFalse(completed)
+
     def test_run_workflow_emits_failure(self) -> None:
         model = GraphModel()
         ws = model.active_workspace
