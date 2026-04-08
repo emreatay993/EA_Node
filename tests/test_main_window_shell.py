@@ -975,6 +975,57 @@ class MainWindowNodeExecutionCanvasTests(SharedMainWindowShellTestBase):
             bridge.node_execution_revision,
         )
 
+    def test_persistent_node_elapsed_canvas_properties_follow_graph_canvas_state_bridge(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        bridge = self.window.graph_canvas_state_bridge
+        workspace_id = self.window.scene.workspace_id
+
+        self.assertTrue(workspace_id)
+        self.window.run_state.cached_node_elapsed_ms_by_workspace_id["ws_other"] = {
+            "node_foreign": 12.0,
+        }
+
+        self.window.mark_node_execution_running(
+            workspace_id,
+            "node_live",
+            started_at_epoch_ms=125.0,
+        )
+        self.window.mark_node_execution_completed(
+            workspace_id,
+            "node_cached",
+            elapsed_ms=48.5,
+        )
+        self.app.processEvents()
+
+        self.assertEqual(
+            bridge.running_node_started_at_ms_lookup,
+            {"node_live": 125.0},
+        )
+        self.assertEqual(
+            bridge.node_elapsed_ms_lookup,
+            {"node_cached": 48.5},
+        )
+        self.assertEqual(
+            graph_canvas.property("runningNodeStartedAtMsLookup"),
+            {"node_live": 125.0},
+        )
+        self.assertEqual(
+            graph_canvas.property("runningNodeStartedAtMsLookup"),
+            bridge.running_node_started_at_ms_lookup,
+        )
+        self.assertEqual(
+            graph_canvas.property("nodeElapsedMsLookup"),
+            {"node_cached": 48.5},
+        )
+        self.assertEqual(
+            graph_canvas.property("nodeElapsedMsLookup"),
+            bridge.node_elapsed_ms_lookup,
+        )
+        self.assertEqual(
+            int(graph_canvas.property("nodeExecutionRevision")),
+            bridge.node_execution_revision,
+        )
+
     def test_execution_edge_progress_canvas_properties_follow_graph_canvas_state_bridge(self) -> None:
         graph_canvas = self._graph_canvas_item()
         bridge = self.window.graph_canvas_state_bridge

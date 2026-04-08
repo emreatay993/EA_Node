@@ -349,6 +349,34 @@ class GraphCanvasStateBridge(QObject):
     def _node_execution_lookup(self, attribute_name: str) -> dict[str, bool]:
         return self._run_state_lookup("node_execution_workspace_id", attribute_name)
 
+    def _node_execution_timing_lookup(self, attribute_name: str) -> dict[str, Any]:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return {}
+        run_state = getattr(shell_window, "run_state", None)
+        if run_state is None:
+            return {}
+        active_workspace_id = self._active_workspace_id()
+        execution_workspace_id = str(getattr(run_state, "node_execution_workspace_id", "") or "").strip()
+        if not active_workspace_id or execution_workspace_id != active_workspace_id:
+            return {}
+        return _copy_dict(getattr(run_state, attribute_name, {}))
+
+    def _active_workspace_lookup(self, attribute_name: str) -> dict[str, Any]:
+        shell_window = self._shell_window
+        if shell_window is None:
+            return {}
+        run_state = getattr(shell_window, "run_state", None)
+        if run_state is None:
+            return {}
+        active_workspace_id = self._active_workspace_id()
+        if not active_workspace_id:
+            return {}
+        lookup_by_workspace = getattr(run_state, attribute_name, None)
+        if not isinstance(lookup_by_workspace, dict):
+            return {}
+        return _copy_dict(lookup_by_workspace.get(active_workspace_id, {}))
+
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def running_node_lookup(self) -> dict[str, bool]:
         return self._node_execution_lookup("running_node_ids")
@@ -356,6 +384,14 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def completed_node_lookup(self) -> dict[str, bool]:
         return self._node_execution_lookup("completed_node_ids")
+
+    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+    def running_node_started_at_ms_lookup(self) -> dict[str, Any]:
+        return self._node_execution_timing_lookup("running_node_started_at_epoch_ms_by_node_id")
+
+    @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+    def node_elapsed_ms_lookup(self) -> dict[str, Any]:
+        return self._active_workspace_lookup("cached_node_elapsed_ms_by_workspace_id")
 
     @pyqtProperty("QVariantMap", notify=node_execution_state_changed)
     def progressed_execution_edge_lookup(self) -> dict[str, bool]:

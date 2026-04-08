@@ -1231,6 +1231,58 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         self.assertEqual(bridge.node_execution_revision, 8)
         self.assertEqual(seen["node_execution_state_changed"], 2)
 
+    def test_persistent_node_elapsed_canvas_bridge_filters_running_and_cached_timing_to_active_workspace(
+        self,
+    ) -> None:
+        host = _GraphCanvasShellHostStub()
+        scene = _GraphCanvasSceneBridgeStub()
+        bridge = GraphCanvasStateBridge(
+            host,
+            shell_window=host,
+            canvas_source=host,
+            scene_bridge=scene,
+            view_bridge=_GraphCanvasViewBridgeStub(),
+        )
+        seen = {"node_execution_state_changed": 0}
+        bridge.node_execution_state_changed.connect(
+            lambda: seen.__setitem__(
+                "node_execution_state_changed",
+                seen["node_execution_state_changed"] + 1,
+            )
+        )
+
+        host.run_state.node_execution_workspace_id = "ws-1"
+        host.run_state.running_node_started_at_epoch_ms_by_node_id = {
+            "node_running": 1234.5,
+        }
+        host.run_state.cached_node_elapsed_ms_by_workspace_id = {
+            "ws-1": {"node_cached": 48.25},
+            "ws-2": {"node_foreign": 99.0},
+        }
+        host.run_state.node_execution_revision = 15
+        host.node_execution_state_changed.emit()
+
+        self.assertEqual(
+            bridge.running_node_started_at_ms_lookup,
+            {"node_running": 1234.5},
+        )
+        self.assertEqual(
+            bridge.node_elapsed_ms_lookup,
+            {"node_cached": 48.25},
+        )
+        self.assertEqual(bridge.node_execution_revision, 15)
+
+        scene.workspace_id = "ws-2"
+        scene.workspace_changed.emit("ws-2")
+
+        self.assertEqual(bridge.running_node_started_at_ms_lookup, {})
+        self.assertEqual(
+            bridge.node_elapsed_ms_lookup,
+            {"node_foreign": 99.0},
+        )
+        self.assertEqual(bridge.node_execution_revision, 15)
+        self.assertEqual(seen["node_execution_state_changed"], 2)
+
     def test_execution_edge_progress_canvas_bridge_filters_lookup_to_scene_workspace_and_re_emits(self) -> None:
         host = _GraphCanvasShellHostStub()
         scene = _GraphCanvasSceneBridgeStub()

@@ -495,6 +495,29 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
 
+    def test_persistent_node_elapsed_canvas_qml_properties_bind_only_to_state_bridge_execution_contract(
+        self,
+    ) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/GraphCanvas.qml": (
+                "readonly property var runningNodeStartedAtMsLookup: rootBindings.runningNodeStartedAtMsLookup",
+                "readonly property var nodeElapsedMsLookup: rootBindings.nodeElapsedMsLookup",
+            ),
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml": (
+                "readonly property var runningNodeStartedAtMsLookup: root._canvasStateBridgeRef",
+                "root._canvasStateBridgeRef.running_node_started_at_ms_lookup",
+                "readonly property var nodeElapsedMsLookup: root._canvasStateBridgeRef",
+                "root._canvasStateBridgeRef.node_elapsed_ms_lookup",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
+
     def test_graph_canvas_interaction_state_helper_owns_extracted_canvas_state(self) -> None:
         helper_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasInteractionState.qml"
         helper_text = helper_path.read_text(encoding="utf-8")
