@@ -5,7 +5,10 @@ from typing import TYPE_CHECKING
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.graph.transforms import plan_subnode_shell_pin_addition
 from ea_node_editor.nodes.builtins.subnode import SUBNODE_PIN_LABEL_PROPERTY, is_subnode_shell_type
-from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE, ACTION_REMOVE_NODE
+from ea_node_editor.ui.shell.runtime_history import (
+    ACTION_GROUP_SELECTED_NODES,
+    ACTION_UNGROUP_SELECTED_SUBNODE,
+)
 
 if TYPE_CHECKING:
     from ea_node_editor.graph.mutation_service import WorkspaceMutationService
@@ -62,7 +65,7 @@ def group_selected_nodes(self) -> bool:
     if transactions is None:
         return False
 
-    history_group = self._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
+    history_group = self._scene_context.grouped_history_action(ACTION_GROUP_SELECTED_NODES, workspace)
     grouped = None
     with history_group:
         grouped = transactions.group_selection_into_subnode(
@@ -94,7 +97,7 @@ def ungroup_selected_subnode(self) -> bool:
     if transactions is None:
         return False
 
-    history_group = self._scene_context.grouped_history_action(ACTION_REMOVE_NODE, workspace)
+    history_group = self._scene_context.grouped_history_action(ACTION_UNGROUP_SELECTED_SUBNODE, workspace)
     ungrouped = None
     with history_group:
         ungrouped = transactions.ungroup_subnode(shell_node_id=shell_node_id)

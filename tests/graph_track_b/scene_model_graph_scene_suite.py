@@ -13,8 +13,25 @@ from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec
 from ea_node_editor.ui.graph_interactions import GraphInteractions
 from ea_node_editor.ui.shell.runtime_history import (
-    ACTION_EDIT_PROPERTY,
+    ACTION_ADD_EDGE,
+    ACTION_ADD_NODE,
+    ACTION_DUPLICATE_SUBGRAPH,
+    ACTION_EDIT_EDGE_LABEL,
+    ACTION_EDIT_EDGE_STYLE,
+    ACTION_EDIT_NODE_PROPERTY,
+    ACTION_EDIT_NODE_STYLE,
+    ACTION_EDIT_PORT_LABEL,
+    ACTION_GROUP_SELECTED_NODES,
+    ACTION_MOVE_NODE,
+    ACTION_PASTE_SUBGRAPH,
+    ACTION_REMOVE_EDGE,
+    ACTION_REMOVE_NODE,
     ACTION_RENAME_NODE,
+    ACTION_RESIZE_NODE,
+    ACTION_TOGGLE_COLLAPSED,
+    ACTION_TOGGLE_EXPOSED_PORT,
+    ACTION_UNGROUP_SELECTED_SUBNODE,
+    ACTION_WRAP_COMMENT_BACKDROP,
     RuntimeGraphHistory,
 )
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -632,7 +649,147 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
 
         self.assertEqual(history.undo_depth(self.workspace_id), 1)
-        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_PROPERTY)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_NODE_PROPERTY)
+
+    def test_persistent_node_elapsed_action_types_split_property_and_cosmetic_mutations(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        logger_id = self.scene.add_node_from_type("core.logger", 320.0, 40.0)
+        edge_id = self.scene.add_edge(source_id, "exec_out", logger_id, "exec_in")
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_property(logger_id, "message", "Updated from single property")
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_NODE_PROPERTY)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_title(logger_id, "Logger Alpha")
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_RENAME_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(self.scene.set_node_properties(logger_id, {"title": "Logger Beta"}))
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_RENAME_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(
+            self.scene.set_node_properties(
+                logger_id,
+                {
+                    "title": "Logger Gamma",
+                    "message": "Updated from batch",
+                },
+            )
+        )
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_NODE_PROPERTY)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_visual_style(logger_id, {"fill": "#102030", "badge": {"shape": "pill"}})
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_NODE_STYLE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_edge_label(edge_id, "Primary path")
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_EDGE_LABEL)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_edge_visual_style(edge_id, {"stroke": "dashed", "arrow": {"kind": "none"}})
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_EDGE_STYLE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_port_label(logger_id, "message", "Message Input")
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_EDIT_PORT_LABEL)
+
+    def test_persistent_node_elapsed_action_types_keep_structural_and_layout_labels_distinct(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
+        target_id = self.scene.add_node_from_type("core.python_script", 320.0, 60.0)
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+        history.clear_workspace(self.workspace_id)
+
+        added_id = self.scene.add_node_from_type("core.end", 640.0, 80.0)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_ADD_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        edge_id = self.scene.add_edge(source_id, "exec_out", added_id, "exec_in")
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_ADD_EDGE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.move_node(source_id, 80.0, 20.0)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_MOVE_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.resize_node(target_id, 420.0, 180.0)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_RESIZE_NODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_node_collapsed(target_id, True)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_TOGGLE_COLLAPSED)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.add_edge(source_id, "trigger", target_id, "payload")
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.set_exposed_port(source_id, "trigger", False)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_TOGGLE_EXPOSED_PORT)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.remove_edge(edge_id)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_REMOVE_EDGE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.remove_node(added_id)
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_REMOVE_NODE)
+
+    def test_persistent_node_elapsed_action_types_split_duplicate_group_and_comment_flows(self) -> None:
+        source_id = self.scene.add_node_from_type("core.start", 20.0, 40.0)
+        grouped_logger_id = self.scene.add_node_from_type("core.logger", 320.0, 60.0)
+        grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
+        target_id = self.scene.add_node_from_type("core.end", 640.0, 90.0)
+        external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+
+        self.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
+        self.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
+        self.scene.add_edge(grouped_logger_id, "exec_out", target_id, "exec_in")
+        self.scene.add_edge(grouped_constant_id, "value", external_script_id, "payload")
+
+        history = RuntimeGraphHistory()
+        self.scene.bind_runtime_history(history)
+
+        self.scene.select_node(grouped_logger_id, False)
+        self.scene.select_node(grouped_constant_id, True)
+        history.clear_workspace(self.workspace_id)
+
+        self.assertTrue(self.scene.duplicate_selected_subgraph())
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_DUPLICATE_SUBGRAPH)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.select_node(grouped_logger_id, False)
+        self.scene.select_node(grouped_constant_id, True)
+        fragment = self.scene.serialize_selected_subgraph_fragment()
+        self.assertIsNotNone(fragment)
+        assert fragment is not None
+        self.assertTrue(self.scene.paste_subgraph_fragment(fragment, 960.0, 240.0))
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_PASTE_SUBGRAPH)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.select_node(grouped_logger_id, False)
+        self.scene.select_node(grouped_constant_id, True)
+        self.assertTrue(self.scene.group_selected_nodes())
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_GROUP_SELECTED_NODES)
+
+        shell_id = self.scene.selected_node_id()
+        self.assertIsNotNone(shell_id)
+        assert shell_id is not None
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.select_node(shell_id, False)
+        self.assertTrue(self.scene.ungroup_selected_subnode())
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_UNGROUP_SELECTED_SUBNODE)
+        history.clear_workspace(self.workspace_id)
+
+        self.scene.select_node(grouped_logger_id, False)
+        self.scene.select_node(grouped_constant_id, True)
+        self.assertTrue(self.scene.wrap_selected_nodes_in_comment_backdrop())
+        self.assertEqual(history._undo_stacks[self.workspace_id][-1].action_type, ACTION_WRAP_COMMENT_BACKDROP)
 
     def test_hiding_connected_port_removes_edges_immediately(self) -> None:
         source_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)

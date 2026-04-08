@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE
+from ea_node_editor.ui.shell.runtime_history import ACTION_WRAP_COMMENT_BACKDROP
 
 
 def wrap_nodes_in_comment_backdrop(self, node_ids: list[Any]) -> str:
@@ -16,7 +16,7 @@ def wrap_nodes_in_comment_backdrop(self, node_ids: list[Any]) -> str:
     if transactions is None:
         return ""
 
-    history_group = self._scene_context.grouped_history_action(ACTION_ADD_NODE, workspace)
+    history_group = self._scene_context.grouped_history_action(ACTION_WRAP_COMMENT_BACKDROP, workspace)
     wrapped = None
     with history_group:
         wrapped = transactions.wrap_selection_in_comment_backdrop(

@@ -20,7 +20,11 @@ from ea_node_editor.ui.shell.runtime_clipboard import (
 from ea_node_editor.ui.shell.runtime_history import (
     ACTION_ADD_EDGE,
     ACTION_ADD_NODE,
-    ACTION_EDIT_PROPERTY,
+    ACTION_EDIT_EDGE_LABEL,
+    ACTION_EDIT_EDGE_STYLE,
+    ACTION_EDIT_NODE_PROPERTY,
+    ACTION_EDIT_NODE_STYLE,
+    ACTION_EDIT_PORT_LABEL,
     ACTION_REMOVE_EDGE,
     ACTION_REMOVE_NODE,
     ACTION_RENAME_NODE,
@@ -272,7 +276,7 @@ def set_node_property(self, node_id: str, key: str, value: Any) -> None:
     self._mutation_boundary().set_node_property(node_id, key, normalized)
     self._scene_context.rebuild_models()
     self.notify_selected_node_context_updated(node_id)
-    self._record_history(ACTION_EDIT_PROPERTY, history_before)
+    self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
 
 
 def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
@@ -319,7 +323,7 @@ def set_node_properties(self, node_id: str, values: dict[str, Any]) -> bool:
         self._apply_title_update(node_id, node, spec, normalized_title)
     self._scene_context.rebuild_models()
     self.notify_selected_node_context_updated(node_id)
-    self._record_history(ACTION_EDIT_PROPERTY, history_before)
+    self._record_history(ACTION_EDIT_NODE_PROPERTY, history_before)
     return True
 
 
@@ -343,7 +347,7 @@ def set_node_visual_style(self, node_id: str, visual_style: Any) -> None:
     history_before = self._capture_history_snapshot()
     self._mutation_boundary().set_node_visual_style(node_id, normalized)
     self._scene_context.rebuild_models()
-    self._record_history(ACTION_EDIT_PROPERTY, history_before)
+    self._record_history(ACTION_EDIT_NODE_STYLE, history_before)
 
 
 def clear_node_visual_style(self, node_id: str) -> None:
@@ -388,7 +392,7 @@ def set_edge_label(self, edge_id: str, label: Any) -> None:
     history_before = self._capture_history_snapshot()
     self._mutation_boundary().set_edge_label(edge_id, normalized)
     self._scene_context.rebuild_models()
-    self._record_history(ACTION_EDIT_PROPERTY, history_before)
+    self._record_history(ACTION_EDIT_EDGE_LABEL, history_before)
 
 
 def clear_edge_label(self, edge_id: str) -> None:
@@ -415,7 +419,7 @@ def set_edge_visual_style(self, edge_id: str, visual_style: Any) -> None:
     history_before = self._capture_history_snapshot()
     self._mutation_boundary().set_edge_visual_style(edge_id, normalized)
     self._scene_context.rebuild_models()
-    self._record_history(ACTION_EDIT_PROPERTY, history_before)
+    self._record_history(ACTION_EDIT_EDGE_STYLE, history_before)
 
 
 def clear_edge_visual_style(self, edge_id: str) -> None:
@@ -476,7 +480,7 @@ def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
         self._mutation_boundary().set_node_property(pin_node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
         self._scene_context.rebuild_models()
         self.notify_selected_node_context_updated(node.node_id)
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._record_history(ACTION_EDIT_PORT_LABEL, history_before)
         return
 
     if is_subnode_pin_type(node.type_id) and str(port_key or "").strip() == SUBNODE_PIN_PORT_KEY:
@@ -487,7 +491,7 @@ def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
         self._mutation_boundary().set_node_property(node.node_id, SUBNODE_PIN_LABEL_PROPERTY, normalized_label)
         self._scene_context.rebuild_models()
         self.notify_selected_node_context_updated(node.node_id)
-        self._record_history(ACTION_EDIT_PROPERTY, history_before)
+        self._record_history(ACTION_EDIT_PORT_LABEL, history_before)
         return
 
     current_label = node.port_labels.get(port_key, "")
@@ -497,7 +501,7 @@ def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
     self._mutation_boundary().set_port_label(node_id, port_key, normalized_label)
     self._scene_context.rebuild_models()
     self.notify_selected_node_context_updated(node_id)
-    self._record_history(ACTION_EDIT_PROPERTY, history_before)
+    self._record_history(ACTION_EDIT_PORT_LABEL, history_before)
 
 
 __all__ = [

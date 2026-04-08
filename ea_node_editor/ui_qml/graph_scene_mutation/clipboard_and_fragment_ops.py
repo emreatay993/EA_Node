@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from ea_node_editor.ui.shell.runtime_clipboard import normalize_graph_fragment_payload
-from ea_node_editor.ui.shell.runtime_history import ACTION_ADD_NODE
+from ea_node_editor.ui.shell.runtime_history import ACTION_DUPLICATE_SUBGRAPH, ACTION_PASTE_SUBGRAPH
 
 DUPLICATE_OFFSET_X = 40.0
 DUPLICATE_OFFSET_Y = 40.0
@@ -16,7 +16,7 @@ def duplicate_selected_subgraph(self) -> bool:
         return False
     duplicated_node_ids = self._insert_fragment(
         normalized_fragment,
-        action_type=ACTION_ADD_NODE,
+        action_type=ACTION_DUPLICATE_SUBGRAPH,
         delta_x=DUPLICATE_OFFSET_X,
         delta_y=DUPLICATE_OFFSET_Y,
     )
@@ -63,7 +63,7 @@ def paste_subgraph_fragment(self, fragment_payload: Any, center_x: float, center
     delta_y = float(center_y) - fragment_bounds.center().y()
     pasted_node_ids = self._insert_fragment(
         normalized_fragment,
-        action_type=ACTION_ADD_NODE,
+        action_type=ACTION_PASTE_SUBGRAPH,
         delta_x=delta_x,
         delta_y=delta_y,
     )

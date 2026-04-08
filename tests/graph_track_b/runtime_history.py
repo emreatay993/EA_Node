@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.ui.shell.runtime_history import ACTION_EDIT_EDGE_LABEL, ACTION_GROUP_SELECTED_NODES
 from tests.graph_track_b.scene_and_model import ACTION_ADD_NODE, GraphModel, RuntimeGraphHistory, ViewState
 
 
@@ -178,6 +179,36 @@ class RuntimeGraphHistoryTrackBTests(unittest.TestCase):
         )
         self.assertEqual(workspace.unresolved_edge_docs, {})
         self.assertEqual(workspace.authored_node_overrides, {after_node.node_id: {"parent_node_id": "after_ghost"}})
+
+    def test_persistent_node_elapsed_action_types_preserve_recorded_labels(self) -> None:
+        model = GraphModel()
+        history = RuntimeGraphHistory()
+        workspace = model.active_workspace
+        workspace_id = workspace.workspace_id
+
+        before = history.capture_workspace(workspace)
+        model.add_node(workspace_id, "core.start", "Start", 0.0, 0.0)
+        self.assertTrue(history.record_action(workspace_id, ACTION_EDIT_EDGE_LABEL, before, workspace))
+
+        undone = history.undo_workspace(workspace_id, workspace)
+        self.assertIsNotNone(undone)
+        assert undone is not None
+        self.assertEqual(undone.action_type, ACTION_EDIT_EDGE_LABEL)
+
+        redone = history.redo_workspace(workspace_id, workspace)
+        self.assertIsNotNone(redone)
+        assert redone is not None
+        self.assertEqual(redone.action_type, ACTION_EDIT_EDGE_LABEL)
+
+        history.clear_workspace(workspace_id)
+        with history.grouped_action(workspace_id, ACTION_GROUP_SELECTED_NODES, workspace):
+            model.add_node(workspace_id, "core.start", "Grouped Start", 40.0, 20.0)
+            model.add_node(workspace_id, "core.end", "Grouped End", 320.0, 60.0)
+
+        grouped = history.undo_workspace(workspace_id, workspace)
+        self.assertIsNotNone(grouped)
+        assert grouped is not None
+        self.assertEqual(grouped.action_type, ACTION_GROUP_SELECTED_NODES)
 
 
 __all__ = ["RuntimeGraphHistoryTrackBTests"]
