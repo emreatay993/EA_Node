@@ -199,6 +199,8 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                                     "label": "Source",
                                     "inline_editor": "path",
                                     "value": "/fixtures/original.txt",
+                                    "status_chip_text": "Stored",
+                                    "status_chip_variant": "stored",
                                     "overridden_by_input": false,
                                     "input_port_label": "source_path"
                                 },
@@ -456,6 +458,33 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert max(ys[:2]) - min(ys[:2]) <= 4.0, (widths, heights, ys, embedded_rects)
             assert ys[2] > max(ys[:2]), (widths, heights, ys, embedded_rects)
             assert max(ys[3:]) - min(ys[3:]) <= 1.0, (widths, heights, ys, embedded_rects)
+            """,
+        )
+
+    def test_graph_typography_inline_edge_inline_labels_and_status_chips_follow_shared_roles(self) -> None:
+        self._run_qml_probe(
+            "inline-typography",
+            """
+            host = probe.findChild(QObject, "probeHost")
+            typography = host.findChild(QObject, "graphSharedTypography")
+            source_label = named_item(probe, "graphNodeInlinePropertyLabel", "source_path")
+            status_chip_label = named_item(probe, "graphNodeInlineStatusChipLabel", "source_path")
+
+            assert typography is not None
+            assert source_label.property("font").pixelSize() == int(typography.property("inlinePropertyPixelSize"))
+            assert source_label.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
+            assert status_chip_label.property("font").pixelSize() == int(typography.property("badgePixelSize"))
+            assert status_chip_label.property("font").weight() == int(typography.property("badgeFontWeight"))
+
+            host.setProperty("graphLabelPixelSize", 16)
+            app.processEvents()
+
+            assert int(typography.property("inlinePropertyPixelSize")) == 16
+            assert int(typography.property("badgePixelSize")) == 15
+            assert source_label.property("font").pixelSize() == 16
+            assert source_label.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
+            assert status_chip_label.property("font").pixelSize() == 15
+            assert status_chip_label.property("font").weight() == int(typography.property("badgeFontWeight"))
             """,
         )
 

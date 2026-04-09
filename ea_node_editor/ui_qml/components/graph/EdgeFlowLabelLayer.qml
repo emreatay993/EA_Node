@@ -4,6 +4,39 @@ Item {
     id: root
     property Item edgeLayer: null
     property Item canvasLayer: null
+    readonly property int effectiveGraphLabelPixelSize: {
+        var numeric = NaN;
+        if (root.canvasLayer && root.canvasLayer.graphLabelPixelSize !== undefined)
+            numeric = Number(root.canvasLayer.graphLabelPixelSize);
+        if (!isFinite(numeric) && root.canvasLayer && root.canvasLayer._canvasStateBridgeRef)
+            numeric = Number(root.canvasLayer._canvasStateBridgeRef.graphics_graph_label_pixel_size);
+        if (!isFinite(numeric)
+                && root.edgeLayer
+                && root.edgeLayer.parent
+                && root.edgeLayer.parent.canvasItem
+                && root.edgeLayer.parent.canvasItem.graphLabelPixelSize !== undefined) {
+            numeric = Number(root.edgeLayer.parent.canvasItem.graphLabelPixelSize);
+        }
+        if (!isFinite(numeric)
+                && root.edgeLayer
+                && root.edgeLayer.parent
+                && root.edgeLayer.parent.canvasItem
+                && root.edgeLayer.parent.canvasItem._canvasStateBridgeRef) {
+            numeric = Number(root.edgeLayer.parent.canvasItem._canvasStateBridgeRef.graphics_graph_label_pixel_size);
+        }
+        if (!isFinite(numeric) && root.edgeLayer && root.edgeLayer.graphLabelPixelSize !== undefined)
+            numeric = Number(root.edgeLayer.graphLabelPixelSize);
+        if (!isFinite(numeric))
+            numeric = 10;
+        return Math.max(8, Math.min(18, Math.round(numeric)));
+    }
+    readonly property var graphSharedTypography: sharedTypographyState
+
+    GraphSharedTypography {
+        id: sharedTypographyState
+        objectName: "graphEdgeSharedTypography"
+        graphLabelPixelSize: root.effectiveGraphLabelPixelSize
+    }
 
     function edgeLabelText(edge) {
         return String(edge && edge.label ? edge.label : "").trim();
@@ -145,8 +178,12 @@ Item {
                 width: Math.min(parent.maximumTextWidth, implicitWidth)
                 text: parent.labelText
                 color: root.flowLabelTextColor(parent.edgeData)
-                font.pixelSize: parent.pillVisible ? 12 : 11
-                font.weight: parent.pillVisible ? Font.DemiBold : Font.Medium
+                font.pixelSize: parent.pillVisible
+                    ? root.graphSharedTypography.edgePillPixelSize
+                    : root.graphSharedTypography.edgeLabelPixelSize
+                font.weight: parent.pillVisible
+                    ? root.graphSharedTypography.edgePillFontWeight
+                    : root.graphSharedTypography.edgeLabelFontWeight
                 wrapMode: Text.NoWrap
                 elide: Text.ElideRight
                 renderType: Text.NativeRendering
