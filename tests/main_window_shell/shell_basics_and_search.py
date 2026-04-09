@@ -304,6 +304,73 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"]["typography"]["graph_label_pixel_size"], 16)
 
+    def test_graph_label_pixel_size_preference_change_rebuilds_active_scene_payload(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+
+        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
+            self.window.app_preferences_controller.update_graphics_settings(
+                {"typography": {"graph_label_pixel_size": 16}},
+                host=self.window,
+            )
+            self.app.processEvents()
+        refresh_workspace.assert_called_once_with(workspace_id)
+
+        with patch.object(self.window.scene, "refresh_workspace_from_model") as refresh_workspace:
+            self.window.app_preferences_controller.update_graphics_settings(
+                {"typography": {"graph_label_pixel_size": 10}},
+                host=self.window,
+            )
+            self.app.processEvents()
+        refresh_workspace.assert_called_once_with(workspace_id)
+
+    def test_graph_typography_preference_change_rebuilds_standard_node_widths_without_manual_scene_refresh(
+        self,
+    ) -> None:
+        graph_canvas = self._graph_canvas_item()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=180.0, y=120.0)
+        self.window.scene.set_node_title(
+            node_id,
+            "Logger With An Extremely Long Title For Typography Growth",
+        )
+        self.window.scene.set_node_port_label(
+            node_id,
+            "message",
+            "Primary Input Payload With A Very Long Label To Force Reflow",
+        )
+        self.window.scene.set_node_port_label(
+            node_id,
+            "exec_out",
+            "Dispatch Result Token With Additional Details",
+        )
+        self.app.processEvents()
+
+        node_cards = _named_child_items(graph_canvas, "graphNodeCard")
+        self.assertGreaterEqual(len(node_cards), 1)
+        baseline_node_card = node_cards[0]
+        baseline_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
+        baseline_width = float(baseline_node_card.property("width"))
+        baseline_payload_width = float(baseline_payload["width"])
+        baseline_metric_width = float(baseline_payload["surface_metrics"]["standard_port_label_min_width"])
+
+        self.window.app_preferences_controller.update_graphics_settings(
+            {"typography": {"graph_label_pixel_size": 16}},
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        updated_node_cards = _named_child_items(graph_canvas, "graphNodeCard")
+        self.assertGreaterEqual(len(updated_node_cards), 1)
+        updated_node_card = updated_node_cards[0]
+        updated_payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
+        updated_width = float(updated_node_card.property("width"))
+        updated_payload_width = float(updated_payload["width"])
+        updated_metric_width = float(updated_payload["surface_metrics"]["standard_port_label_min_width"])
+
+        self.assertGreater(updated_width, baseline_width)
+        self.assertGreater(updated_payload_width, baseline_payload_width)
+        self.assertGreater(updated_metric_width, baseline_metric_width)
+        self.assertAlmostEqual(updated_width, updated_payload_width, places=6)
+
     def test_port_labels_setting_persists_across_window_restart(self) -> None:
         self.assertTrue(self.window.graphics_show_port_labels)
         self.assertTrue(self.window.action_show_port_labels.isChecked())
