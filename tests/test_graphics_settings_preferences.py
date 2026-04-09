@@ -182,6 +182,115 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
 
+    def test_graph_typography_preferences_default_schema_and_legacy_payload_compatibility(self) -> None:
+        defaults = self._controller.load()["graphics"]
+
+        self.assertEqual(defaults["typography"]["graph_label_pixel_size"], 10)
+
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "canvas": {
+                            "show_grid": False,
+                        },
+                        "theme": {
+                            "theme_id": "stitch_light",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        graphics = AppPreferencesController(store=self._store).load()["graphics"]
+
+        self.assertFalse(graphics["canvas"]["show_grid"])
+        self.assertEqual(graphics["theme"]["theme_id"], "stitch_light")
+        self.assertEqual(graphics["typography"]["graph_label_pixel_size"], 10)
+
+    def test_graph_typography_preferences_clamp_invalid_values_without_disturbing_other_graphics(self) -> None:
+        cases = (
+            ("missing", {}, 10),
+            ("non-integer", {"graph_label_pixel_size": "11"}, 10),
+            ("low", {"graph_label_pixel_size": 3}, 8),
+            ("high", {"graph_label_pixel_size": 27}, 18),
+        )
+
+        for _label, typography_payload, expected in cases:
+            with self.subTest(case=_label):
+                self._preferences_path.write_text(
+                    json.dumps(
+                        {
+                            "kind": APP_PREFERENCES_KIND,
+                            "version": APP_PREFERENCES_VERSION,
+                            "graphics": {
+                                "canvas": {
+                                    "show_grid": False,
+                                },
+                                "typography": typography_payload,
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                graphics = AppPreferencesController(store=self._store).load()["graphics"]
+
+                self.assertFalse(graphics["canvas"]["show_grid"])
+                self.assertEqual(
+                    graphics["typography"]["graph_label_pixel_size"],
+                    expected,
+                )
+
+    def test_graph_typography_preferences_persist_nested_block_on_save(self) -> None:
+        graphics = self._controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": False,
+                },
+                "typography": {
+                    "graph_label_pixel_size": 17,
+                },
+            }
+        )
+
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(graphics["typography"]["graph_label_pixel_size"], 17)
+        self.assertEqual(
+            persisted["graphics"]["typography"],
+            {"graph_label_pixel_size": 17},
+        )
+        self.assertEqual(
+            AppPreferencesController(store=self._store).load()["graphics"]["typography"],
+            {"graph_label_pixel_size": 17},
+        )
+
+    def test_graph_typography_preferences_load_into_host_applies_normalized_size(self) -> None:
+        host = _RecordingHost()
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "typography": {
+                            "graph_label_pixel_size": 22,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        resolved = self._controller.load_into_host(host)
+
+        self.assertEqual(host.applied_graphics, [resolved])
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 18)
+
     def test_startup_theme_resolution_reads_preferences_store_without_controller(self) -> None:
         self._preferences_path.write_text(
             json.dumps(

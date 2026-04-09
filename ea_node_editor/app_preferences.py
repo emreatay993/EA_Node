@@ -13,12 +13,15 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
     DEFAULT_EDGE_CROSSING_STYLE,
+    DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     DEFAULT_GRID_OVERLAY_STYLE,
     DEFAULT_GRAPHICS_SETTINGS,
     DEFAULT_SOURCE_IMPORT_MODE,
     DEFAULT_SOURCE_IMPORT_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
+    GRAPH_LABEL_PIXEL_SIZE_MAX,
+    GRAPH_LABEL_PIXEL_SIZE_MIN,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRID_OVERLAY_STYLE_CHOICES,
     SOURCE_IMPORT_MODE_CHOICES,
@@ -82,6 +85,7 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
     performance_payload = payload.get("performance")
     shell_payload = payload.get("shell")
     theme_payload = payload.get("theme")
+    typography_payload = payload.get("typography")
     graph_theme_payload = payload.get("graph_theme")
 
     normalized = copy.deepcopy(defaults)
@@ -151,6 +155,11 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["theme"]["theme_id"] = _normalize_theme_id(
             theme_payload.get("theme_id"),
             defaults["theme"]["theme_id"],
+        )
+    if isinstance(typography_payload, Mapping):
+        normalized["typography"]["graph_label_pixel_size"] = _normalize_graph_label_pixel_size(
+            typography_payload.get("graph_label_pixel_size"),
+            defaults["typography"]["graph_label_pixel_size"],
         )
     normalized["graph_theme"] = normalize_graph_theme_settings(graph_theme_payload)
     return normalized
@@ -240,6 +249,17 @@ def _normalize_bool(value: Any, default: bool) -> bool:
 def _normalize_int(value: Any, default: int, lo: int, hi: int) -> int:
     if isinstance(value, int) and lo <= value <= hi:
         return value
+    return default
+
+
+def _normalize_graph_label_pixel_size(
+    value: Any,
+    default: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(value, GRAPH_LABEL_PIXEL_SIZE_MAX))
     return default
 
 
