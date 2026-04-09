@@ -51,6 +51,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Work Packet Manifest](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_MANIFEST.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT Status Ledger](work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_STATUS.md)
 - [GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT QA Matrix](perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md)
+- [SHARED_GRAPH_TYPOGRAPHY_CONTROL QA Matrix](perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md)
 - [NODE_EXECUTION_VISUALIZATION Work Packet Manifest](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_MANIFEST.md)
 - [NODE_EXECUTION_VISUALIZATION Status Ledger](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_STATUS.md)
 - [EXECUTION_EDGE_PROGRESS_VISUALIZATION Work Packet Manifest](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_MANIFEST.md)

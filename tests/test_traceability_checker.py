@@ -843,6 +843,214 @@ NODE_EXECUTION_VISUALIZATION_QA_MATRIX_TOKENS = (
     "## Remaining Manual A+E-Hybrid, Execution-Edge, and Persistent Elapsed Checks",
     "## Residual Desktop-Only Validation",
 )
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_preferences.py "
+    r"-k graph_typography_preferences --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P02_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/bridge_contracts_graph_canvas.py tests/test_main_window_shell.py "
+    r"-k graph_typography_bridge --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P03_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/bridge_qml_boundaries.py tests/graph_track_b/qml_preference_bindings.py "
+    r"-k graph_typography_qml_contract --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P04_SHELL_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_shell_run_controller.py -k graph_typography_host_chrome --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P04_PASSIVE_HOST_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/graph_surface/passive_host_interaction_suite.py -k graph_typography_host_chrome "
+    r"--ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P04_QML_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/graph_track_b/qml_preference_bindings.py -k graph_typography_host_chrome "
+    r"--ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P05_INLINE_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_graph_surface_input_inline.py tests/graph_track_b/qml_preference_bindings.py "
+    r"-k graph_typography_inline_edge --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P05_EDGE_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_flow_edge_labels.py tests/graph_track_b/qml_preference_bindings.py "
+    r"-k graph_typography_inline_edge --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P05_PASSIVE_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/graph_surface/passive_host_interaction_suite.py -k graph_typography_inline_edge "
+    r"--ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P06_DIALOG_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_graphics_settings_dialog.py tests/test_graphics_settings_preferences.py "
+    r"-k graph_typography_dialog --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_P06_SHELL_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/shell_basics_and_search.py tests/graph_track_b/qml_preference_bindings.py "
+    r"-k graph_typography_dialog --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_TEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+)
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_INDEX_TOKENS = (
+    "SHARED_GRAPH_TYPOGRAPHY_CONTROL QA Matrix",
+    "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+)
+
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-035": (
+            "graphics.typography.graph_label_pixel_size",
+            "defaulting to `10`",
+            "clamping to `8..18`",
+            "GraphSharedTypography",
+            "visual_style.font_size",
+            "visual_style.font_weight",
+            "graph-theme typography schema",
+            ".sfe",
+        ),
+        "AC-REQ-UI-035-01": (
+            "Theme > Typography",
+            "host-chrome",
+            "passive-host",
+            "shared role hierarchy",
+            "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/80_PERFORMANCE.md": {
+        "REQ-PERF-011": (
+            "deterministic metric alignment",
+            "graph_label_pixel_size",
+            "standard_metrics.py",
+            "existing graph-canvas payload refresh or revision seam",
+            "second typography-only invalidation channel",
+            "stale clipping/label-width drift",
+        ),
+        "AC-REQ-PERF-011-01": (
+            "bridge_qml_boundaries.py",
+            "qml_preference_bindings.py",
+            "test_flow_edge_labels.py",
+            "8..18",
+            "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-032": (
+            "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+            "`P01` through `P06`",
+            "manual desktop checks",
+            "`PERSISTENT_NODE_ELAPSED_TIMES`",
+            "desktop-only validation",
+            "traceability gate",
+        ),
+        "AC-REQ-QA-032-01": (
+            SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_TEST_COMMAND,
+            SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_COMMAND,
+            "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+        ),
+    },
+}
+
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-UI-035": (
+        "settings.py",
+        "app_preferences.py",
+        "graphics_settings_dialog.py",
+        "GraphSharedTypography.qml",
+        "GraphNodeHeaderLayer.qml",
+        "GraphNodePortsLayer.qml",
+        "GraphInlinePropertiesLayer.qml",
+        "GraphNodeHost.qml",
+        "EdgeFlowLabelLayer.qml",
+        "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-035-01": (
+        "tests/test_graphics_settings_dialog.py",
+        "tests/test_graphics_settings_preferences.py",
+        "tests/test_shell_run_controller.py",
+        "tests/test_graph_surface_input_inline.py",
+        "tests/test_flow_edge_labels.py",
+        "tests/graph_surface/passive_host_interaction_suite.py",
+        "tests/graph_track_b/qml_preference_bindings.py",
+        "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+    ),
+    "REQ-PERF-011": (
+        "standard_metrics.py",
+        "graph_scene_payload_builder.py",
+        "GraphCanvasRootBindings.qml",
+        "GraphSharedTypography.qml",
+        "tests/main_window_shell/bridge_qml_boundaries.py",
+        "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERF-011-01": (
+        "tests/main_window_shell/bridge_qml_boundaries.py",
+        "tests/graph_track_b/qml_preference_bindings.py",
+        "tests/test_flow_edge_labels.py",
+        "SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+    ),
+    "REQ-QA-032": (
+        "docs/specs/INDEX.md",
+        "docs/specs/perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+        "docs/specs/requirements/20_UI_UX.md",
+        "docs/specs/requirements/80_PERFORMANCE.md",
+        "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+        "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-032-01": (
+        SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_TEST_COMMAND,
+        SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_COMMAND,
+        "docs/specs/perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md",
+    ),
+}
+
+SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX_TOKENS = (
+    "Shared Graph Typography Control QA Matrix",
+    "## Locked Scope",
+    "graphics.typography.graph_label_pixel_size",
+    "default `10`",
+    "`8..18`",
+    "GraphSharedTypography.qml",
+    "visual_style.font_size",
+    "visual_style.font_weight",
+    "PERSISTENT_NODE_ELAPSED_TIMES",
+    "second typography-only invalidation channel",
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P01_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P02_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P03_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P04_SHELL_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P04_PASSIVE_HOST_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P04_QML_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P05_INLINE_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P05_EDGE_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P05_PASSIVE_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P06_DIALOG_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_P06_SHELL_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_TEST_COMMAND,
+    SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_COMMAND,
+    "Accepted `P01` packet commit `af6d24a665b0910bfec54259424c89e3a9840593`",
+    "Accepted `P06` packet commit `cd409e0cffd8d6e7c41a94f9dd70bee336c75965`",
+    "## Final Closeout Commands",
+    "## 2026-04-09 Execution Results",
+    "## Remaining Manual Smoke Checks",
+    "## Residual Desktop-Only Validation",
+    "## Residual Risks",
+)
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md"
 )
@@ -1695,6 +1903,34 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_node_execution_visualization_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = NODE_EXECUTION_VISUALIZATION_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in NODE_EXECUTION_VISUALIZATION_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_shared_graph_typography_control_spec_index_registers_qa_matrix(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in SHARED_GRAPH_TYPOGRAPHY_CONTROL_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_shared_graph_typography_control_docs_record_closeout_scope_tokens(self) -> None:
+        for (
+            relative_path,
+            requirement_tokens,
+        ) in SHARED_GRAPH_TYPOGRAPHY_CONTROL_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_shared_graph_typography_control_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in SHARED_GRAPH_TYPOGRAPHY_CONTROL_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_shared_graph_typography_control_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_architecture_maintainability_refactor_docs_record_final_scope_tokens(self) -> None:
