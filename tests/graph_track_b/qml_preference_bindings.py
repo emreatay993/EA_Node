@@ -626,6 +626,270 @@ class GraphCanvasQmlPreferenceBindingTests(
         )
         self.assertGreater(float(updated_edge_payload["sx"]), float(baseline_edge_payload["sx"]))
 
+    def test_graph_typography_host_chrome_canvas_bindings_update_standard_title_ports_and_elapsed_footer(
+        self,
+    ) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        node_id = "node_typography_host_chrome"
+        started_at_ms = (time.time() * 1000.0) - 2100.0
+        node_payload = {
+            "node_id": node_id,
+            "type_id": "core.logger",
+            "title": "Logger",
+            "x": 120.0,
+            "y": 140.0,
+            "width": 210.0,
+            "height": 88.0,
+            "accent": "#2F89FF",
+            "collapsed": False,
+            "selected": False,
+            "can_enter_scope": False,
+            "surface_family": "standard",
+            "surface_variant": "",
+            "ports": [
+                {
+                    "key": "exec_in",
+                    "label": "Exec In",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                },
+                {
+                    "key": "exec_out",
+                    "label": "Exec Out",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+            ],
+            "inline_properties": [],
+            "surface_metrics": {
+                "default_width": 210.0,
+                "default_height": 88.0,
+                "min_width": 120.0,
+                "min_height": 50.0,
+                "collapsed_width": 130.0,
+                "collapsed_height": 36.0,
+                "header_height": 24.0,
+                "header_top_margin": 4.0,
+                "body_left_margin": 8.0,
+                "body_right_margin": 8.0,
+                "body_top": 30.0,
+                "body_height": 30.0,
+                "port_top": 60.0,
+                "port_height": 18.0,
+                "port_center_offset": 6.0,
+                "port_side_margin": 8.0,
+                "port_dot_radius": 3.5,
+                "resize_handle_size": 16.0,
+            },
+        }
+
+        class CanvasStateBridgeStub(_rendering_suite.QObject):
+            graphics_preferences_changed = _rendering_suite.pyqtSignal()
+            scene_nodes_changed = _rendering_suite.pyqtSignal()
+            failure_highlight_changed = _rendering_suite.pyqtSignal()
+            node_execution_state_changed = _rendering_suite.pyqtSignal()
+
+            def __init__(
+                self,
+                preference_bridge: _GraphCanvasTypographyPreferenceBridge,
+                view_bridge: _rendering_suite.ViewportBridge,
+            ) -> None:
+                super().__init__()
+                self._preference_bridge = preference_bridge
+                self._view_bridge = view_bridge
+                self._preference_bridge.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
+
+            @_rendering_suite.pyqtProperty(_rendering_suite.QObject, constant=True)
+            def viewport_bridge(self) -> _rendering_suite.ViewportBridge:
+                return self._view_bridge
+
+            @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_minimap_expanded(self) -> bool:
+                return bool(self._preference_bridge.graphics_minimap_expanded)
+
+            @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_grid(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_grid)
+
+            @_rendering_suite.pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_grid_style(self) -> str:
+                return str(self._preference_bridge.graphics_grid_style)
+
+            @_rendering_suite.pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_edge_crossing_style(self) -> str:
+                return str(self._preference_bridge.graphics_edge_crossing_style)
+
+            @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_minimap(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_minimap)
+
+            @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_show_port_labels(self) -> bool:
+                return bool(self._preference_bridge.graphics_show_port_labels)
+
+            @_rendering_suite.pyqtProperty(bool, notify=graphics_preferences_changed)
+            def graphics_node_shadow(self) -> bool:
+                return True
+
+            @_rendering_suite.pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_strength(self) -> int:
+                return 70
+
+            @_rendering_suite.pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_softness(self) -> int:
+                return 50
+
+            @_rendering_suite.pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_shadow_offset(self) -> int:
+                return 4
+
+            @_rendering_suite.pyqtProperty(str, notify=graphics_preferences_changed)
+            def graphics_performance_mode(self) -> str:
+                return "full_fidelity"
+
+            @_rendering_suite.pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_graph_label_pixel_size(self) -> int:
+                return int(self._preference_bridge.graphics_graph_label_pixel_size)
+
+            @_rendering_suite.pyqtProperty("QVariantList", notify=scene_nodes_changed)
+            def nodes_model(self) -> list[dict[str, object]]:
+                return [dict(node_payload)]
+
+            @_rendering_suite.pyqtProperty("QVariantList", constant=True)
+            def backdrop_nodes_model(self) -> list[dict[str, object]]:
+                return []
+
+            @_rendering_suite.pyqtProperty("QVariantList", constant=True)
+            def edges_model(self) -> list[dict[str, object]]:
+                return []
+
+            @_rendering_suite.pyqtProperty("QVariantMap", constant=True)
+            def selected_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @_rendering_suite.pyqtProperty("QVariantMap", constant=True)
+            def workspace_scene_bounds_payload(self) -> dict[str, float]:
+                return {}
+
+            @_rendering_suite.pyqtProperty("QVariantMap", notify=failure_highlight_changed)
+            def failed_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @_rendering_suite.pyqtProperty(int, notify=failure_highlight_changed)
+            def failed_node_revision(self) -> int:
+                return 0
+
+            @_rendering_suite.pyqtProperty(str, notify=failure_highlight_changed)
+            def failed_node_title(self) -> str:
+                return ""
+
+            @_rendering_suite.pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def running_node_lookup(self) -> dict[str, bool]:
+                return {node_id: True}
+
+            @_rendering_suite.pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def completed_node_lookup(self) -> dict[str, bool]:
+                return {}
+
+            @_rendering_suite.pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def running_node_started_at_ms_lookup(self) -> dict[str, float]:
+                return {node_id: started_at_ms}
+
+            @_rendering_suite.pyqtProperty("QVariantMap", notify=node_execution_state_changed)
+            def node_elapsed_ms_lookup(self) -> dict[str, float]:
+                return {}
+
+            @_rendering_suite.pyqtProperty(int, notify=node_execution_state_changed)
+            def node_execution_revision(self) -> int:
+                return 1
+
+        self.canvas.deleteLater()
+        self.app.processEvents()
+
+        canvas_state_bridge = CanvasStateBridgeStub(preference_bridge, self.view)
+        canvas_command_bridge = _rendering_suite.GraphCanvasCommandBridge(
+            shell_window=self.bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        self.canvas = self._create_canvas(
+            {
+                "canvasStateBridge": canvas_state_bridge,
+                "canvasCommandBridge": canvas_command_bridge,
+                "width": 1280.0,
+                "height": 720.0,
+            }
+        )
+
+        _rendering_suite.wait_for_condition_or_raise(
+            lambda: len(_rendering_suite._named_child_items(self.canvas, "graphNodeCard")) == 1,
+            timeout_ms=200,
+            app=self.app,
+            timeout_message="Timed out waiting for graph canvas typography host to appear.",
+        )
+        node_card = _rendering_suite._named_child_items(self.canvas, "graphNodeCard")[0]
+        typography = node_card.findChild(_rendering_suite.QObject, "graphSharedTypography")
+        title = node_card.findChild(_rendering_suite.QObject, "graphNodeTitle")
+        elapsed_timer = node_card.findChild(_rendering_suite.QObject, "graphNodeElapsedTimer")
+        input_labels = _rendering_suite._named_child_items(node_card, "graphNodeInputPortLabel")
+        output_labels = _rendering_suite._named_child_items(node_card, "graphNodeOutputPortLabel")
+        data_input_label = next(item for item in input_labels if str(item.property("text") or "") == "Message")
+        exec_input_label = next(item for item in input_labels if str(item.property("text") or "") == "\u27A1")
+        exec_output_label = next(item for item in output_labels if str(item.property("text") or "") == "\u27A1")
+
+        self.assertIsNotNone(typography)
+        self.assertIsNotNone(title)
+        self.assertIsNotNone(elapsed_timer)
+        if typography is None or title is None or elapsed_timer is None:
+            self.fail("Expected graph canvas typography host chrome items to exist")
+
+        _rendering_suite.wait_for_condition_or_raise(
+            lambda: bool(elapsed_timer.property("visible")) and bool(elapsed_timer.property("liveElapsedActive")),
+            timeout_ms=300,
+            app=self.app,
+            timeout_message="Timed out waiting for live elapsed footer to appear on the typography host.",
+        )
+
+        self.assertEqual(int(typography.property("nodeTitlePixelSize")), 12)
+        self.assertEqual(title.property("font").pixelSize(), 12)
+        self.assertEqual(title.property("font").weight(), int(typography.property("nodeTitleFontWeight")))
+        self.assertEqual(data_input_label.property("font").pixelSize(), 10)
+        self.assertEqual(data_input_label.property("font").weight(), int(typography.property("portLabelFontWeight")))
+        self.assertEqual(exec_input_label.property("font").pixelSize(), 18)
+        self.assertEqual(exec_input_label.property("font").weight(), int(typography.property("execArrowPortFontWeight")))
+        self.assertEqual(exec_output_label.property("font").pixelSize(), 18)
+        self.assertEqual(exec_output_label.property("font").weight(), int(typography.property("execArrowPortFontWeight")))
+        self.assertEqual(elapsed_timer.property("font").pixelSize(), 10)
+
+        preference_bridge.set_graphics_graph_label_pixel_size_value(16)
+        _rendering_suite.wait_for_condition_or_raise(
+            lambda: int(typography.property("nodeTitlePixelSize")) == 18
+            and title.property("font").pixelSize() == 18
+            and data_input_label.property("font").pixelSize() == 16
+            and exec_input_label.property("font").pixelSize() == 24
+            and exec_output_label.property("font").pixelSize() == 24
+            and elapsed_timer.property("font").pixelSize() == 16,
+            timeout_ms=300,
+            app=self.app,
+            timeout_message="Timed out waiting for graph typography preference updates to reach host chrome.",
+        )
+
+        self.assertEqual(title.property("font").weight(), int(typography.property("nodeTitleFontWeight")))
+        self.assertEqual(data_input_label.property("font").weight(), int(typography.property("portLabelFontWeight")))
+        self.assertEqual(exec_input_label.property("font").weight(), int(typography.property("execArrowPortFontWeight")))
+        self.assertEqual(exec_output_label.property("font").weight(), int(typography.property("execArrowPortFontWeight")))
+
     def test_node_execution_visualization_graph_canvas_host_chrome_follows_bridge_state_priority(self) -> None:
         self._assert_persistent_node_elapsed_footer_rendering()
 

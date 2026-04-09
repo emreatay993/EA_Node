@@ -148,7 +148,12 @@ QtObject {
     readonly property real passiveBorderWidth: host ? host._styleNumber(root.passiveStyle.border_width, 1.0, false) : 1.0
     readonly property real passiveCornerRadius: host ? host._styleNumber(root.passiveStyle.corner_radius, 6.0, true) : 6.0
     readonly property real passiveFontPixelSize: host ? host._styleNumber(root.passiveStyle.font_size, 12.0, false) : 12.0
-    readonly property bool passiveFontBold: host ? host._styleString(root.passiveStyle.font_weight).toLowerCase() === "bold" : false
+    readonly property int passiveFontWeight: host
+        ? (host._styleString(root.passiveStyle.font_weight).toLowerCase() === "bold"
+            ? Font.Bold
+            : Font.Normal)
+        : Font.Normal
+    readonly property bool passiveFontBold: root.passiveFontWeight >= Font.Bold
     readonly property real resolvedBorderWidth: host && host.isPassiveNode
         ? (host.isSelected ? Math.max(2.0, root.passiveBorderWidth) : root.passiveBorderWidth)
         : ((host && host.isSelected) ? 2.0 : 1.0)
