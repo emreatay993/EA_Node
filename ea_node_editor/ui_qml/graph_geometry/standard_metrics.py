@@ -8,6 +8,11 @@ from ea_node_editor.graph.effective_ports import visible_ports
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.types import NodeTypeSpec, inline_property_specs
+from ea_node_editor.settings import (
+    DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    GRAPH_LABEL_PIXEL_SIZE_MAX,
+    GRAPH_LABEL_PIXEL_SIZE_MIN,
+)
 
 from .surface_contract import (
     GraphNodeSurfaceMetrics,
@@ -44,8 +49,6 @@ from .surface_contract import (
 _STANDARD_NARROW_TEXT_CHARS = frozenset(" !\"'`.,:;|ijlItfr")
 _STANDARD_WIDE_TEXT_CHARS = frozenset("MWQG@#%&wm")
 _STANDARD_PUNCTUATION_TEXT_CHARS = frozenset("_-/\\+=*~^()[]{}")
-_STANDARD_TITLE_FONT_PIXEL_SIZE = 12.0
-_STANDARD_PORT_LABEL_FONT_PIXEL_SIZE = 10.0
 _STANDARD_TEXT_WIDTH_PADDING = 2.0
 _STANDARD_SUBNODE_SCOPE_BADGE_RESERVE = 56.0
 
@@ -83,6 +86,50 @@ def _estimated_standard_text_unit_width(character: str) -> float:
     return 0.44
 
 
+def _normalize_graph_label_pixel_size(value: object) -> int:
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_GRAPH_LABEL_PIXEL_SIZE
+    return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(numeric, GRAPH_LABEL_PIXEL_SIZE_MAX))
+
+
+def standard_graph_label_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return _normalize_graph_label_pixel_size(value)
+
+
+def standard_node_title_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value) + 2
+
+
+def standard_port_label_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value)
+
+
+def standard_elapsed_footer_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value)
+
+
+def standard_inline_property_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value)
+
+
+def standard_badge_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return max(9, standard_graph_label_pixel_size(value) - 1)
+
+
+def standard_edge_label_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value) + 1
+
+
+def standard_edge_pill_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value) + 2
+
+
+def standard_exec_arrow_port_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
+    return standard_graph_label_pixel_size(value) + 8
+
+
 @lru_cache(maxsize=1024)
 def _qt_standard_text_width(content: str, pixel_size: int, font_description: str) -> float:
     from PyQt6.QtGui import QFont, QFontMetricsF
@@ -115,8 +162,15 @@ def _estimate_standard_text_width(text: Any, *, pixel_size: float) -> float:
     return round(max(0.0, width + _STANDARD_TEXT_WIDTH_PADDING), 3)
 
 
-def _standard_title_full_width(node: NodeInstance) -> float:
-    title_width = _estimate_standard_text_width(node.title, pixel_size=_STANDARD_TITLE_FONT_PIXEL_SIZE)
+def _standard_title_full_width(
+    node: NodeInstance,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> float:
+    title_width = _estimate_standard_text_width(
+        node.title,
+        pixel_size=standard_node_title_pixel_size(graph_label_pixel_size),
+    )
     scope_badge_reserve = _STANDARD_SUBNODE_SCOPE_BADGE_RESERVE if is_subnode_shell_type(node.type_id) else 0.0
     return round(title_width + STANDARD_TITLE_LEFT_MARGIN + STANDARD_TITLE_RIGHT_MARGIN + scope_badge_reserve, 3)
 
@@ -125,19 +179,22 @@ def _standard_visible_label_widths(
     node: NodeInstance,
     spec: NodeTypeSpec,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> tuple[float, float]:
     scoped_nodes = workspace_nodes or {node.node_id: node}
+    port_label_pixel_size = standard_port_label_pixel_size(graph_label_pixel_size)
     in_ports, out_ports = visible_ports(node=node, spec=spec, workspace_nodes=scoped_nodes)
     left_label_width = max(
         (
-            _estimate_standard_text_width(port.label or port.key, pixel_size=_STANDARD_PORT_LABEL_FONT_PIXEL_SIZE)
+            _estimate_standard_text_width(port.label or port.key, pixel_size=port_label_pixel_size)
             for port in in_ports
         ),
         default=0.0,
     )
     right_label_width = max(
         (
-            _estimate_standard_text_width(port.label or port.key, pixel_size=_STANDARD_PORT_LABEL_FONT_PIXEL_SIZE)
+            _estimate_standard_text_width(port.label or port.key, pixel_size=port_label_pixel_size)
             for port in out_ports
         ),
         default=0.0,
@@ -156,10 +213,20 @@ def _standard_surface_min_width_contract(
     node: NodeInstance,
     spec: NodeTypeSpec,
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> _StandardWidthContract:
-    left_label_width, right_label_width = _standard_visible_label_widths(node, spec, workspace_nodes)
+    left_label_width, right_label_width = _standard_visible_label_widths(
+        node,
+        spec,
+        workspace_nodes,
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
     return _StandardWidthContract(
-        title_full_width=_standard_title_full_width(node),
+        title_full_width=_standard_title_full_width(
+            node,
+            graph_label_pixel_size=graph_label_pixel_size,
+        ),
         left_label_width=left_label_width,
         right_label_width=right_label_width,
         port_gutter=STANDARD_PORT_GUTTER,
@@ -174,13 +241,19 @@ def _standard_surface_metrics(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     *,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> GraphNodeSurfaceMetrics:
     from .surface_contract import _visible_port_count
 
     port_count = _visible_port_count(node, spec, workspace_nodes)
     body_height = standard_inline_body_height(spec)
     default_height = STANDARD_HEADER_HEIGHT + body_height + port_count * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
-    width_contract = _standard_surface_min_width_contract(node, spec, workspace_nodes)
+    width_contract = _standard_surface_min_width_contract(
+        node,
+        spec,
+        workspace_nodes,
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
     min_width = width_contract.min_width_with_labels if show_port_labels else width_contract.min_width_without_labels
     return GraphNodeSurfaceMetrics(
         default_width=STANDARD_DEFAULT_WIDTH,
@@ -227,12 +300,14 @@ def resolved_node_surface_size(
     show_port_labels: bool = True,
     surface_metrics: GraphNodeSurfaceMetrics | None = None,
     clamp_height: bool = False,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> tuple[float, float]:
     metrics = surface_metrics or node_surface_metrics(
         node,
         spec,
         workspace_nodes,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
     )
     if node.collapsed:
         return float(metrics.collapsed_width), float(metrics.collapsed_height)
@@ -255,6 +330,7 @@ def node_surface_metrics(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     *,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> GraphNodeSurfaceMetrics:
     family = str(spec.surface_family or "standard").strip() or "standard"
     if family == "flowchart":
@@ -291,4 +367,5 @@ def node_surface_metrics(
         spec,
         workspace_nodes,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
     )
