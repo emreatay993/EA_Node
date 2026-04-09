@@ -448,6 +448,7 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 def __init__(self):
                     super().__init__()
                     self._graphics_performance_mode = "full_fidelity"
+                    self._graphics_graph_label_pixel_size = 10
 
                 @pyqtProperty(bool, constant=True)
                 def graphics_minimap_expanded(self):
@@ -481,6 +482,10 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                 def graphics_performance_mode(self):
                     return self._graphics_performance_mode
 
+                @pyqtProperty(int, notify=graphics_preferences_changed)
+                def graphics_graph_label_pixel_size(self):
+                    return int(self._graphics_graph_label_pixel_size)
+
                 @pyqtProperty(bool, constant=True)
                 def snap_to_grid_enabled(self):
                     return False
@@ -494,6 +499,13 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
                     if self._graphics_performance_mode == normalized:
                         return
                     self._graphics_performance_mode = normalized
+                    self.graphics_preferences_changed.emit()
+
+                def set_graphics_graph_label_pixel_size_value(self, value):
+                    normalized = max(8, min(int(value), 18))
+                    if self._graphics_graph_label_pixel_size == normalized:
+                        return
+                    self._graphics_graph_label_pixel_size = normalized
                     self.graphics_preferences_changed.emit()
 
             app = QApplication.instance() or QApplication([])
@@ -784,6 +796,47 @@ class FlowEdgeLabelQmlTests(unittest.TestCase):
             assert label_item.property("labelMode") == "hidden"
             assert not label_item.isVisible()
 
+            """,
+        )
+
+    def test_graph_typography_inline_edge_flow_edge_labels_follow_shared_roles_in_pill_and_text_modes(self) -> None:
+        self._run_qml_probe(
+            "flow-edge-label-typography",
+            """
+            labels = named_child_items(edge_layer, "graphEdgeFlowLabelItem")
+            assert len(labels) == 1
+            label_item = labels[0]
+            label_text = label_item.findChild(QObject, "graphEdgeFlowLabelText")
+            typography = edge_layer.findChild(QObject, "graphEdgeSharedTypography")
+
+            assert label_text is not None
+            assert typography is not None
+            assert label_item.property("labelMode") == "pill"
+            assert label_text.property("font").pixelSize() == int(typography.property("edgePillPixelSize"))
+            assert label_text.property("font").weight() == int(typography.property("edgePillFontWeight"))
+
+            view.set_zoom(0.7)
+            app.processEvents()
+
+            assert label_item.property("labelMode") == "text"
+            assert label_text.property("font").pixelSize() == int(typography.property("edgeLabelPixelSize"))
+            assert label_text.property("font").weight() == int(typography.property("edgeLabelFontWeight"))
+
+            shell_bridge.set_graphics_graph_label_pixel_size_value(16)
+            app.processEvents()
+            app.processEvents()
+
+            assert int(typography.property("edgeLabelPixelSize")) == 17
+            assert int(typography.property("edgePillPixelSize")) == 18
+            assert label_text.property("font").pixelSize() == 17
+            assert label_text.property("font").weight() == int(typography.property("edgeLabelFontWeight"))
+
+            view.set_zoom(1.0)
+            app.processEvents()
+
+            assert label_item.property("labelMode") == "pill"
+            assert label_text.property("font").pixelSize() == 18
+            assert label_text.property("font").weight() == int(typography.property("edgePillFontWeight"))
             """,
         )
 

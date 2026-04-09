@@ -8,6 +8,7 @@ Item {
     id: root
     objectName: "graphInlinePropertiesLayer"
     property Item host: null
+    readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
     readonly property var inlineProperties: host ? host.inlineProperties : []
     readonly property real _textareaRowHeight: 104
     readonly property real _interactiveRectGeometryKey: {
@@ -140,13 +141,20 @@ Item {
                     spacing: 6
 
                     Text {
+                        objectName: "graphNodeInlinePropertyLabel"
+                        property string propertyKey: String(modelData.key || "")
                         Layout.preferredWidth: 78
                         Layout.alignment: modelData.inline_editor === "textarea"
                             ? Qt.AlignTop
                             : Qt.AlignVCenter
                         text: String(modelData.label || modelData.key || "")
                         color: host ? host.inlineLabelColor : "#d0d5de"
-                        font.pixelSize: 10
+                        font.pixelSize: root.graphSharedTypography
+                            ? root.graphSharedTypography.inlinePropertyPixelSize
+                            : 10
+                        font.weight: root.graphSharedTypography
+                            ? root.graphSharedTypography.inlinePropertyFontWeight
+                            : Font.Normal
                         elide: Text.ElideRight
                         renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                     }
@@ -192,8 +200,8 @@ Item {
                         property string propertyKey: String(modelData.key || "")
                         visible: String(modelData.status_chip_text || "").length > 0
                         Layout.alignment: Qt.AlignVCenter
-                        radius: 9
-                        height: 18
+                        radius: height * 0.5
+                        height: Math.max(18, statusChipLabel.implicitHeight + 4)
                         width: statusChipLabel.implicitWidth + 12
                         color: root._statusChipFillColor(modelData)
                         border.color: root._statusChipBorderColor(modelData)
@@ -205,8 +213,12 @@ Item {
                             anchors.centerIn: parent
                             text: String(modelData.status_chip_text || "")
                             color: root._statusChipTextColor(modelData)
-                            font.pixelSize: 9
-                            font.bold: true
+                            font.pixelSize: root.graphSharedTypography
+                                ? root.graphSharedTypography.badgePixelSize
+                                : 9
+                            font.weight: root.graphSharedTypography
+                                ? root.graphSharedTypography.badgeFontWeight
+                                : Font.Bold
                             renderType: host ? host.nodeTextRenderType : Text.CurveRendering
                         }
                     }

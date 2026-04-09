@@ -148,6 +148,80 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_graph_typography_inline_edge_inline_roles_apply_without_overriding_passive_title_authority(self) -> None:
+        self._run_qml_probe(
+            "graph-typography-inline-edge-passive-authority",
+            """
+            def configured_payload(*, passive=False):
+                payload = node_payload()
+                payload["inline_properties"] = [
+                    {
+                        "key": "source_path",
+                        "label": "Source",
+                        "inline_editor": "text",
+                        "value": "/fixtures/original.txt",
+                        "status_chip_text": "Stored",
+                        "status_chip_variant": "stored",
+                        "overridden_by_input": False,
+                        "input_port_label": "source_path",
+                    }
+                ]
+                if passive:
+                    payload["runtime_behavior"] = "passive"
+                    payload["visual_style"] = {
+                        "font_size": 17,
+                        "font_weight": "normal",
+                    }
+                return payload
+
+            def inline_item(host, object_name, property_key):
+                return next(
+                    item for item in named_child_items(host, object_name)
+                    if str(item.property("propertyKey") or "") == property_key
+                )
+
+            active_host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": configured_payload(),
+                    "graphLabelPixelSize": 16,
+                },
+            )
+            active_typography = active_host.findChild(QObject, "graphSharedTypography")
+            active_inline_label = inline_item(active_host, "graphNodeInlinePropertyLabel", "source_path")
+            active_status_chip = inline_item(active_host, "graphNodeInlineStatusChipLabel", "source_path")
+
+            assert active_typography is not None
+            assert active_inline_label.property("font").pixelSize() == int(active_typography.property("inlinePropertyPixelSize"))
+            assert active_inline_label.property("font").weight() == int(active_typography.property("inlinePropertyFontWeight"))
+            assert active_status_chip.property("font").pixelSize() == int(active_typography.property("badgePixelSize"))
+            assert active_status_chip.property("font").weight() == int(active_typography.property("badgeFontWeight"))
+
+            passive_host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": configured_payload(passive=True),
+                    "graphLabelPixelSize": 16,
+                },
+            )
+            passive_typography = passive_host.findChild(QObject, "graphSharedTypography")
+            passive_title = passive_host.findChild(QObject, "graphNodeTitle")
+            passive_inline_label = inline_item(passive_host, "graphNodeInlinePropertyLabel", "source_path")
+            passive_status_chip = inline_item(passive_host, "graphNodeInlineStatusChipLabel", "source_path")
+
+            assert passive_typography is not None
+            assert passive_title is not None
+            assert passive_title.property("font").pixelSize() == 17
+            assert passive_title.property("font").weight() == 400
+            assert passive_title.property("font").pixelSize() != int(passive_typography.property("nodeTitlePixelSize"))
+            assert passive_title.property("font").weight() != int(passive_typography.property("nodeTitleFontWeight"))
+            assert passive_inline_label.property("font").pixelSize() == int(passive_typography.property("inlinePropertyPixelSize"))
+            assert passive_inline_label.property("font").weight() == int(passive_typography.property("inlinePropertyFontWeight"))
+            assert passive_status_chip.property("font").pixelSize() == int(passive_typography.property("badgePixelSize"))
+            assert passive_status_chip.property("font").weight() == int(passive_typography.property("badgeFontWeight"))
+            """,
+        )
+
     def test_standard_host_consumes_metric_backed_label_columns_without_overlap(self) -> None:
         self._run_qml_probe(
             "port-label-width-contract-host",

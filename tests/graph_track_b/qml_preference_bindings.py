@@ -506,7 +506,7 @@ class GraphCanvasQmlPreferenceBindingTests(
         self.assertFalse(bool(elapsed_timer.property("cachedElapsedActive")))
         self.assertIn("|failed|", str(background_layer.property("cacheKey") or ""))
 
-    def test_graph_typography_qml_contract_root_bindings_and_shared_roles_follow_preference_projection(
+    def test_graph_typography_qml_contract_graph_typography_inline_edge_root_bindings_and_shared_roles_follow_preference_projection(
         self,
     ) -> None:
         preference_bridge = _GraphCanvasTypographyPreferenceBridge()
