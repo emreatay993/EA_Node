@@ -18,7 +18,7 @@ from ea_node_editor.ui.shell.run_flow import (
 from ea_node_editor.ui.graph_theme import resolve_graph_theme_id, serialize_custom_graph_themes
 
 from .contracts import _ShellWorkspacePresenterHostProtocol, _presenter_parent
-from .state import ShellWorkspaceUiState
+from .state import ShellWorkspaceUiState, _normalize_graph_label_pixel_size
 
 
 class ShellWorkspacePresenter(QObject):
@@ -55,6 +55,9 @@ class ShellWorkspacePresenter(QObject):
 
     @property
     def graphics_edge_crossing_style(self) -> str: return str(self._ui_state.edge_crossing_style)
+
+    @property
+    def graphics_graph_label_pixel_size(self) -> int: return int(self._ui_state.graph_label_pixel_size)
 
     @property
     def active_theme_id(self) -> str: return str(self._ui_state.active_theme_id)
@@ -182,6 +185,7 @@ class ShellWorkspacePresenter(QObject):
         performance = graphics.get("performance", {}) if isinstance(graphics, dict) else {}
         shell = graphics.get("shell", {}) if isinstance(graphics, dict) else {}
         theme = graphics.get("theme", {}) if isinstance(graphics, dict) else {}
+        typography = graphics.get("typography", {}) if isinstance(graphics, dict) else {}
         graph_theme = graphics.get("graph_theme", {}) if isinstance(graphics, dict) else {}
 
         changed = False
@@ -193,6 +197,10 @@ class ShellWorkspacePresenter(QObject):
         edge_crossing_style = normalize_edge_crossing_style(
             canvas.get("edge_crossing_style", self._ui_state.edge_crossing_style),
             self._ui_state.edge_crossing_style,
+        )
+        graph_label_pixel_size = _normalize_graph_label_pixel_size(
+            typography.get("graph_label_pixel_size", self._ui_state.graph_label_pixel_size),
+            self._ui_state.graph_label_pixel_size,
         )
         show_minimap = bool(canvas.get("show_minimap", self._ui_state.show_minimap))
         show_port_labels = bool(canvas.get("show_port_labels", self._ui_state.show_port_labels))
@@ -241,6 +249,9 @@ class ShellWorkspacePresenter(QObject):
             changed = True
         if self._ui_state.edge_crossing_style != edge_crossing_style:
             self._ui_state.edge_crossing_style = edge_crossing_style
+            changed = True
+        if self._ui_state.graph_label_pixel_size != graph_label_pixel_size:
+            self._ui_state.graph_label_pixel_size = graph_label_pixel_size
             changed = True
         if self._ui_state.show_minimap != show_minimap:
             self._ui_state.show_minimap = show_minimap
@@ -306,6 +317,9 @@ class ShellWorkspacePresenter(QObject):
             },
             "theme": {
                 "theme_id": str(self._ui_state.active_theme_id),
+            },
+            "typography": {
+                "graph_label_pixel_size": int(self._ui_state.graph_label_pixel_size),
             },
             "graph_theme": {
                 "follow_shell_theme": bool(follow_shell_theme),

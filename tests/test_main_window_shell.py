@@ -401,6 +401,62 @@ class MainWindowGraphCanvasBridgeTests(SharedMainWindowShellTestBase):
         self.assertIs(self.window.graph_canvas_command_bridge, bridges.graph_canvas_command_bridge)
 
 
+class MainWindowGraphTypographyBridgeTests(SharedMainWindowShellTestBase):
+    def test_graph_typography_bridge_shell_window_and_canvas_state_bridge_follow_graphics_updates(self) -> None:
+        context = self.window.quick_widget.rootContext()
+        graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
+        seen = {
+            "window_graphics_preferences_changed": 0,
+            "bridge_graphics_preferences_changed": 0,
+        }
+        self.window.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "window_graphics_preferences_changed",
+                seen["window_graphics_preferences_changed"] + 1,
+            )
+        )
+        graph_canvas_state_bridge.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "bridge_graphics_preferences_changed",
+                seen["bridge_graphics_preferences_changed"] + 1,
+            )
+        )
+
+        self.assertGreaterEqual(
+            self.window.metaObject().indexOfProperty("graphics_graph_label_pixel_size"),
+            0,
+        )
+        self.assertEqual(self.window.workspace_ui_state.graph_label_pixel_size, 10)
+        self.assertEqual(self.window.shell_workspace_presenter.graphics_graph_label_pixel_size, 10)
+        self.assertEqual(self.window.graph_canvas_presenter.graphics_graph_label_pixel_size, 10)
+        self.assertEqual(self.window.graphics_graph_label_pixel_size, 10)
+        self.assertEqual(graph_canvas_state_bridge.graphics_graph_label_pixel_size, 10)
+
+        resolved = self.window.app_preferences_controller.update_graphics_settings(
+            {"typography": {"graph_label_pixel_size": 16}},
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 16)
+        self.assertEqual(
+            self.window.app_preferences_controller.graphics_settings()["typography"]["graph_label_pixel_size"],
+            16,
+        )
+        self.assertEqual(self.window.workspace_ui_state.graph_label_pixel_size, 16)
+        self.assertEqual(self.window.shell_workspace_presenter.graphics_graph_label_pixel_size, 16)
+        self.assertEqual(self.window.graph_canvas_presenter.graphics_graph_label_pixel_size, 16)
+        self.assertEqual(self.window.graphics_graph_label_pixel_size, 16)
+        self.assertEqual(graph_canvas_state_bridge.graphics_graph_label_pixel_size, 16)
+        self.assertEqual(
+            seen,
+            {
+                "window_graphics_preferences_changed": 1,
+                "bridge_graphics_preferences_changed": 1,
+            },
+        )
+
+
 class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
     def test_workspace_run_title_and_console_qml_routes_owned_concerns_through_shell_workspace_bridge(self) -> None:
         expectations = {

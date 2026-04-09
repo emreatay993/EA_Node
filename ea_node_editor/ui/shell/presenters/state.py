@@ -9,7 +9,12 @@ from ea_node_editor.app_preferences import (
     normalize_grid_overlay_style,
 )
 from ea_node_editor.graph.effective_ports import find_port
-from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
+from ea_node_editor.settings import (
+    DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    DEFAULT_GRAPHICS_SETTINGS,
+    GRAPH_LABEL_PIXEL_SIZE_MAX,
+    GRAPH_LABEL_PIXEL_SIZE_MIN,
+)
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_canvas_quick_insert_items,
     build_connection_quick_insert_items,
@@ -23,6 +28,7 @@ class ShellWorkspaceUiState:
     show_grid: bool
     grid_style: str
     edge_crossing_style: str
+    graph_label_pixel_size: int
     show_minimap: bool
     show_port_labels: bool
     node_shadow: bool
@@ -41,6 +47,7 @@ def build_default_shell_workspace_ui_state(
     shell = graphics_settings.get("shell", {}) if isinstance(graphics_settings, dict) else {}
     performance = graphics_settings.get("performance", {}) if isinstance(graphics_settings, dict) else {}
     theme = graphics_settings.get("theme", {}) if isinstance(graphics_settings, dict) else {}
+    typography = graphics_settings.get("typography", {}) if isinstance(graphics_settings, dict) else {}
     return ShellWorkspaceUiState(
         show_grid=bool(canvas.get("show_grid", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_grid"])),
         grid_style=normalize_grid_overlay_style(
@@ -48,6 +55,9 @@ def build_default_shell_workspace_ui_state(
         ),
         edge_crossing_style=normalize_edge_crossing_style(
             canvas.get("edge_crossing_style", DEFAULT_GRAPHICS_SETTINGS["canvas"]["edge_crossing_style"])
+        ),
+        graph_label_pixel_size=_normalize_graph_label_pixel_size(
+            typography.get("graph_label_pixel_size", DEFAULT_GRAPHICS_SETTINGS["typography"]["graph_label_pixel_size"])
         ),
         show_minimap=bool(canvas.get("show_minimap", DEFAULT_GRAPHICS_SETTINGS["canvas"]["show_minimap"])),
         show_port_labels=bool(
@@ -65,6 +75,17 @@ def build_default_shell_workspace_ui_state(
         ),
         active_theme_id=str(theme.get("theme_id", DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])),
     )
+
+
+def _normalize_graph_label_pixel_size(
+    value: Any,
+    default: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> int:
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(value, GRAPH_LABEL_PIXEL_SIZE_MAX))
+    return default
 
 
 def connection_quick_insert_overlay_coordinate(context: dict[str, Any] | None, key: str) -> float:

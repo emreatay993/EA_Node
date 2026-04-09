@@ -137,6 +137,10 @@ class GraphCanvasBridge(QObject):
     def graphics_edge_crossing_style(self) -> str:
         return self._state_bridge.graphics_edge_crossing_style
 
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_graph_label_pixel_size(self) -> int:
+        return self._state_bridge.graphics_graph_label_pixel_size
+
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:
         return self._state_bridge.graphics_show_minimap
