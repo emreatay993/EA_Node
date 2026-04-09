@@ -247,6 +247,63 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["graphics"]["canvas"]["edge_crossing_style"], "gap_break")
 
+    def test_graph_typography_dialog_persists_graph_label_pixel_size_through_shell_window(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        self.window.scene.add_node_from_type("core.logger", x=180.0, y=120.0)
+        self.app.processEvents()
+
+        node_cards = _named_child_items(graph_canvas, "graphNodeCard")
+        self.assertGreaterEqual(len(node_cards), 1)
+        node_card = node_cards[0]
+        title = node_card.findChild(QObject, "graphNodeTitle")
+        typography = node_card.findChild(QObject, "graphSharedTypography")
+        self.assertIsNotNone(title)
+        self.assertIsNotNone(typography)
+        if title is None or typography is None:
+            self.fail("Expected graph node typography items to exist on the graph canvas.")
+
+        self.assertEqual(self.window.graphics_graph_label_pixel_size, 10)
+        self.assertEqual(int(typography.property("graphLabelPixelSize")), 10)
+        self.assertEqual(title.property("font").pixelSize(), 12)
+
+        captured_initial_settings: list[dict[str, object]] = []
+        accepted_values = self.window.app_preferences_controller.graphics_settings()
+        accepted_values["typography"]["graph_label_pixel_size"] = 16
+
+        class AcceptingDialog:
+            class DialogCode:
+                Rejected = 0
+                Accepted = 1
+
+            def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+                captured_initial_settings.append(copy.deepcopy(kwargs["initial_settings"]))
+
+            def exec(self) -> int:
+                return self.DialogCode.Accepted
+
+            def values(self) -> dict[str, object]:
+                return copy.deepcopy(accepted_values)
+
+        with patch(
+            "ea_node_editor.ui.dialogs.graphics_settings_dialog.GraphicsSettingsDialog",
+            AcceptingDialog,
+        ):
+            self.window.show_graphics_settings_dialog()
+            self.app.processEvents()
+
+        self.assertEqual(len(captured_initial_settings), 1)
+        self.assertEqual(captured_initial_settings[0]["typography"]["graph_label_pixel_size"], 10)
+        self.assertEqual(self.window.graphics_graph_label_pixel_size, 16)
+        self.assertEqual(
+            self.window.app_preferences_controller.graphics_settings()["typography"]["graph_label_pixel_size"],
+            16,
+        )
+        self.assertEqual(int(typography.property("graphLabelPixelSize")), 16)
+        self.assertEqual(int(typography.property("nodeTitlePixelSize")), 18)
+        self.assertEqual(title.property("font").pixelSize(), 18)
+        persisted = json.loads(self._app_preferences_path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["graphics"]["typography"]["graph_label_pixel_size"], 16)
+
     def test_port_labels_setting_persists_across_window_restart(self) -> None:
         self.assertTrue(self.window.graphics_show_port_labels)
         self.assertTrue(self.window.action_show_port_labels.isChecked())

@@ -291,6 +291,54 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(host.applied_graphics, [resolved])
         self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 18)
 
+    def test_graph_typography_dialog_preferences_persist_app_global_graph_label_size(self) -> None:
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "canvas": {
+                            "show_grid": False,
+                        },
+                        "typography": "invalid",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        loaded = self._controller.load()["graphics"]
+        self.assertFalse(loaded["canvas"]["show_grid"])
+        self.assertEqual(loaded["typography"]["graph_label_pixel_size"], 10)
+
+        host = _RecordingHost()
+        resolved = self._controller.set_graphics_settings(
+            {
+                "canvas": {
+                    "show_grid": False,
+                },
+                "typography": {
+                    "graph_label_pixel_size": 17,
+                },
+            },
+            host=host,
+        )
+
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(host.applied_graphics, [resolved])
+        self.assertFalse(resolved["canvas"]["show_grid"])
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 17)
+        self.assertEqual(
+            persisted["graphics"]["typography"],
+            {"graph_label_pixel_size": 17},
+        )
+        self.assertEqual(
+            AppPreferencesController(store=self._store).load()["graphics"]["typography"]["graph_label_pixel_size"],
+            17,
+        )
+
     def test_startup_theme_resolution_reads_preferences_store_without_controller(self) -> None:
         self._preferences_path.write_text(
             json.dumps(

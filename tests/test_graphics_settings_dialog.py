@@ -343,6 +343,45 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_graph_typography_dialog_theme_page_spinbox_roundtrips_app_global_size(self) -> None:
+        dialog = GraphicsSettingsDialog()
+        try:
+            self.assertEqual(
+                dialog.graph_label_pixel_size_spin.objectName(),
+                "graphicsSettingsGraphLabelPixelSizeSpin",
+            )
+            self.assertEqual(dialog.graph_label_pixel_size_spin.minimum(), 8)
+            self.assertEqual(dialog.graph_label_pixel_size_spin.maximum(), 18)
+            self.assertEqual(dialog.graph_label_pixel_size_spin.value(), 10)
+            self.assertEqual(dialog.values()["typography"]["graph_label_pixel_size"], 10)
+
+            dialog.graph_label_pixel_size_spin.setValue(16)
+
+            values = dialog.values()
+            self.assertEqual(values["typography"]["graph_label_pixel_size"], 16)
+            self.assertEqual(values["theme"], DEFAULT_GRAPHICS_SETTINGS["theme"])
+            self.assertEqual(values["graph_theme"], DEFAULT_GRAPHICS_SETTINGS["graph_theme"])
+        finally:
+            dialog.close()
+
+    def test_graph_typography_dialog_normalizes_missing_and_invalid_payloads(self) -> None:
+        cases = (
+            ("missing-block", {}, 10),
+            ("invalid-block", {"typography": "large"}, 10),
+            ("non-integer", {"typography": {"graph_label_pixel_size": "11"}}, 10),
+            ("low", {"typography": {"graph_label_pixel_size": 4}}, 8),
+            ("high", {"typography": {"graph_label_pixel_size": 24}}, 18),
+        )
+
+        for label, initial_settings, expected in cases:
+            with self.subTest(case=label):
+                dialog = GraphicsSettingsDialog(initial_settings=initial_settings)
+                try:
+                    self.assertEqual(dialog.graph_label_pixel_size_spin.value(), expected)
+                    self.assertEqual(dialog.values()["typography"]["graph_label_pixel_size"], expected)
+                finally:
+                    dialog.close()
+
 
 if __name__ == "__main__":
     unittest.main()

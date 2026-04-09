@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSlider,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -23,6 +24,8 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
+    GRAPH_LABEL_PIXEL_SIZE_MAX,
+    GRAPH_LABEL_PIXEL_SIZE_MIN,
     GRID_OVERLAY_STYLE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
 )
@@ -411,6 +414,19 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         graph_lay.addWidget(self._graph_theme_preview)
         outer.addWidget(graph_card)
 
+        # Typography section
+        outer.addWidget(self._make_section_title("Typography", page))
+        typography_card, typography_lay = self._make_section_card(page)
+        typography_form = QFormLayout()
+        typography_form.setContentsMargins(0, 0, 0, 0)
+        typography_form.setVerticalSpacing(8)
+        self.graph_label_pixel_size_spin = QSpinBox(typography_card)
+        self.graph_label_pixel_size_spin.setObjectName("graphicsSettingsGraphLabelPixelSizeSpin")
+        self.graph_label_pixel_size_spin.setRange(GRAPH_LABEL_PIXEL_SIZE_MIN, GRAPH_LABEL_PIXEL_SIZE_MAX)
+        typography_form.addRow("Graph label size", self.graph_label_pixel_size_spin)
+        typography_lay.addLayout(typography_form)
+        outer.addWidget(typography_card)
+
         self._sync_graph_theme_combo_enabled()
 
         outer.addStretch(1)
@@ -475,6 +491,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         theme_id = settings["theme"]["theme_id"]
         index = self.theme_combo.findData(theme_id)
         self.theme_combo.setCurrentIndex(index if index >= 0 else 0)
+        self.graph_label_pixel_size_spin.setValue(int(settings["typography"]["graph_label_pixel_size"]))
         self._apply_graph_theme_settings(settings["graph_theme"])
 
     def values(self) -> dict[str, Any]:
@@ -509,6 +526,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "theme": {
                     "theme_id": str(theme_id) if theme_id is not None else "",
+                },
+                "typography": {
+                    "graph_label_pixel_size": int(self.graph_label_pixel_size_spin.value()),
                 },
                 "graph_theme": self._current_graph_theme_settings(),
             }
