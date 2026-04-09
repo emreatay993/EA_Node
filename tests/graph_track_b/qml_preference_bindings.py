@@ -3,11 +3,96 @@ from __future__ import annotations
 import time
 import unittest
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from tests.graph_track_b import (
     qml_preference_performance_suite as _performance_suite,
     qml_preference_rendering_suite as _rendering_suite,
 )
 from tests.graph_track_b.qml_support import build_graph_canvas_qml_preference_subprocess_suite
+
+_GRAPH_CANVAS_ROOT_BINDINGS_QML_PATH = (
+    _rendering_suite._GRAPH_CANVAS_QML_PATH.parent / "graph_canvas" / "GraphCanvasRootBindings.qml"
+)
+_GRAPH_SHARED_TYPOGRAPHY_QML_PATH = _rendering_suite._NODE_CARD_QML_PATH.parent / "GraphSharedTypography.qml"
+
+
+class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
+    graphics_preferences_changed = _rendering_suite.pyqtSignal()
+    snap_to_grid_changed = _rendering_suite.pyqtSignal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._graphics_show_grid = True
+        self._graphics_grid_style = "lines"
+        self._graphics_show_minimap = True
+        self._graphics_minimap_expanded = True
+        self._graphics_show_port_labels = True
+        self._graphics_edge_crossing_style = "none"
+        self._graphics_node_shadow = True
+        self._graphics_shadow_strength = 70
+        self._graphics_shadow_softness = 50
+        self._graphics_shadow_offset = 4
+        self._graphics_performance_mode = "full_fidelity"
+        self._graphics_graph_label_pixel_size = 10
+
+    @property
+    def graphics_show_grid(self) -> bool:
+        return bool(self._graphics_show_grid)
+
+    @property
+    def graphics_grid_style(self) -> str:
+        return str(self._graphics_grid_style)
+
+    @property
+    def graphics_show_minimap(self) -> bool:
+        return bool(self._graphics_show_minimap)
+
+    @property
+    def graphics_minimap_expanded(self) -> bool:
+        return bool(self._graphics_minimap_expanded)
+
+    @property
+    def graphics_show_port_labels(self) -> bool:
+        return bool(self._graphics_show_port_labels)
+
+    @property
+    def graphics_edge_crossing_style(self) -> str:
+        return str(self._graphics_edge_crossing_style)
+
+    @property
+    def graphics_node_shadow(self) -> bool:
+        return bool(self._graphics_node_shadow)
+
+    @property
+    def graphics_shadow_strength(self) -> int:
+        return int(self._graphics_shadow_strength)
+
+    @property
+    def graphics_shadow_softness(self) -> int:
+        return int(self._graphics_shadow_softness)
+
+    @property
+    def graphics_shadow_offset(self) -> int:
+        return int(self._graphics_shadow_offset)
+
+    @property
+    def graphics_performance_mode(self) -> str:
+        return str(self._graphics_performance_mode)
+
+    @property
+    def graphics_graph_label_pixel_size(self) -> int:
+        return int(self._graphics_graph_label_pixel_size)
+
+    def set_graphics_graph_label_pixel_size_value(self, value: int) -> None:
+        normalized = max(8, min(int(value), 18))
+        if self._graphics_graph_label_pixel_size == normalized:
+            return
+        self._graphics_graph_label_pixel_size = normalized
+        self.graphics_preferences_changed.emit()
 
 
 class GraphCanvasQmlPreferenceBindingTests(
@@ -17,6 +102,28 @@ class GraphCanvasQmlPreferenceBindingTests(
     """Stable regression entrypoint for packetized Track-B QML preference coverage."""
 
     __test__ = True
+
+    def _load_qml_component(self, path) -> _rendering_suite.QQmlComponent:
+        component = _rendering_suite.QQmlComponent(self.engine, _rendering_suite.QUrl.fromLocalFile(str(path)))
+        if component.status() != _rendering_suite.QQmlComponent.Status.Ready:
+            errors = "\n".join(str(error) for error in component.errors())
+            self.fail(f"Failed to load {path.name}:\n{errors}")
+        return component
+
+    def _create_component(self, path, initial_properties: dict[str, object]) -> _rendering_suite.QObject:
+        component = self._load_qml_component(path)
+        if hasattr(component, "createWithInitialProperties"):
+            instance = component.createWithInitialProperties(initial_properties)
+        else:
+            instance = component.create()
+            if instance is not None:
+                for key, value in initial_properties.items():
+                    instance.setProperty(key, value)
+        if instance is None:
+            errors = "\n".join(str(error) for error in component.errors())
+            self.fail(f"Failed to instantiate {path.name}:\n{errors}")
+        self.app.processEvents()
+        return instance
 
     def _assert_persistent_node_elapsed_footer_rendering(self) -> None:
         node_id = "node_execution_visualization"
@@ -398,6 +505,126 @@ class GraphCanvasQmlPreferenceBindingTests(
         self.assertFalse(bool(elapsed_timer.property("liveElapsedActive")))
         self.assertFalse(bool(elapsed_timer.property("cachedElapsedActive")))
         self.assertIn("|failed|", str(background_layer.property("cacheKey") or ""))
+
+    def test_graph_typography_qml_contract_root_bindings_and_shared_roles_follow_preference_projection(
+        self,
+    ) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        state_bridge = GraphCanvasStateBridge(
+            shell_window=preference_bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        root_bindings = self._create_component(
+            _GRAPH_CANVAS_ROOT_BINDINGS_QML_PATH,
+            {"canvasStateBridge": state_bridge},
+        )
+        typography = self._create_component(
+            _GRAPH_SHARED_TYPOGRAPHY_QML_PATH,
+            {"graphLabelPixelSize": int(root_bindings.property("graphLabelPixelSize"))},
+        )
+
+        try:
+            self.assertEqual(int(root_bindings.property("graphLabelPixelSize")), 10)
+            expected_defaults = {
+                "nodeTitlePixelSize": 12,
+                "portLabelPixelSize": 10,
+                "elapsedFooterPixelSize": 10,
+                "inlinePropertyPixelSize": 10,
+                "badgePixelSize": 9,
+                "edgeLabelPixelSize": 11,
+                "edgePillPixelSize": 12,
+                "execArrowPortPixelSize": 18,
+                "nodeTitleFontWeight": 700,
+                "portLabelFontWeight": 400,
+                "inlinePropertyFontWeight": 400,
+                "badgeFontWeight": 700,
+                "edgeLabelFontWeight": 500,
+                "edgePillFontWeight": 600,
+                "execArrowPortFontWeight": 900,
+            }
+            for property_name, expected_value in expected_defaults.items():
+                with self.subTest(property_name=property_name, expected_value=expected_value):
+                    self.assertEqual(int(typography.property(property_name)), expected_value)
+
+            preference_bridge.set_graphics_graph_label_pixel_size_value(16)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: int(root_bindings.property("graphLabelPixelSize")) == 16,
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for GraphCanvasRootBindings to project graph label pixel size.",
+            )
+            typography.setProperty("graphLabelPixelSize", int(root_bindings.property("graphLabelPixelSize")))
+            self.app.processEvents()
+
+            expected_updated_sizes = {
+                "nodeTitlePixelSize": 18,
+                "portLabelPixelSize": 16,
+                "elapsedFooterPixelSize": 16,
+                "inlinePropertyPixelSize": 16,
+                "badgePixelSize": 15,
+                "edgeLabelPixelSize": 17,
+                "edgePillPixelSize": 18,
+                "execArrowPortPixelSize": 24,
+            }
+            for property_name, expected_value in expected_updated_sizes.items():
+                with self.subTest(property_name=property_name, expected_value=expected_value):
+                    self.assertEqual(int(typography.property(property_name)), expected_value)
+        finally:
+            typography.deleteLater()
+            root_bindings.deleteLater()
+            self.app.processEvents()
+
+    def test_graph_typography_qml_contract_scene_refresh_updates_standard_metrics_and_edge_geometry(
+        self,
+    ) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        scene = GraphSceneBridge(preference_bridge)
+        scene.bind_graph_theme_bridge(GraphThemeBridge(preference_bridge, theme_id="graph_stitch_dark"))
+        model = GraphModel()
+        registry = build_default_registry()
+        workspace_id = model.active_workspace.workspace_id
+        scene.set_workspace(model, registry, workspace_id)
+
+        source_id = scene.add_node_from_type("core.logger", 40.0, 60.0)
+        target_id = scene.add_node_from_type("core.end", 460.0, 80.0)
+        edge_id = scene.add_edge(source_id, "exec_out", target_id, "exec_in")
+        scene.set_node_port_label(source_id, "message", "Primary Input Payload")
+        scene.set_node_port_label(source_id, "exec_out", "Dispatch Result Token")
+        scene.refresh_workspace_from_model(workspace_id)
+
+        baseline_nodes = {item["node_id"]: item for item in scene.nodes_model}
+        baseline_edges = {item["edge_id"]: item for item in scene.edges_model}
+        baseline_source_payload = baseline_nodes[source_id]
+        baseline_edge_payload = baseline_edges[edge_id]
+
+        seen = {"nodes": 0, "edges": 0}
+        scene.nodes_changed.connect(lambda: seen.__setitem__("nodes", seen["nodes"] + 1))
+        scene.edges_changed.connect(lambda: seen.__setitem__("edges", seen["edges"] + 1))
+
+        preference_bridge.set_graphics_graph_label_pixel_size_value(16)
+        scene.refresh_workspace_from_model(workspace_id)
+
+        updated_nodes = {item["node_id"]: item for item in scene.nodes_model}
+        updated_edges = {item["edge_id"]: item for item in scene.edges_model}
+        updated_source_payload = updated_nodes[source_id]
+        updated_edge_payload = updated_edges[edge_id]
+
+        self.assertGreaterEqual(seen["nodes"], 1)
+        self.assertGreaterEqual(seen["edges"], 1)
+        self.assertGreater(
+            float(updated_source_payload["surface_metrics"]["standard_title_full_width"]),
+            float(baseline_source_payload["surface_metrics"]["standard_title_full_width"]),
+        )
+        self.assertGreater(
+            float(updated_source_payload["surface_metrics"]["standard_port_label_min_width"]),
+            float(baseline_source_payload["surface_metrics"]["standard_port_label_min_width"]),
+        )
+        self.assertGreater(float(updated_source_payload["width"]), float(baseline_source_payload["width"]))
+        self.assertGreater(
+            float(updated_edge_payload["source_anchor_bounds"]["width"]),
+            float(baseline_edge_payload["source_anchor_bounds"]["width"]),
+        )
+        self.assertGreater(float(updated_edge_payload["sx"]), float(baseline_edge_payload["sx"]))
 
     def test_node_execution_visualization_graph_canvas_host_chrome_follows_bridge_state_priority(self) -> None:
         self._assert_persistent_node_elapsed_footer_rendering()

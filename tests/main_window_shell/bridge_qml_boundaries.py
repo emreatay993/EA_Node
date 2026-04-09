@@ -495,6 +495,39 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             with self.subTest(snippet=snippet, expectation="present"):
                 self.assertIn(snippet, qml_text)
 
+    def test_graph_typography_qml_contract_exposes_canvas_binding_and_shared_role_names(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml": (
+                "readonly property int graphLabelPixelSize",
+                "graphics_graph_label_pixel_size",
+            ),
+            "ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml": (
+                'objectName: "graphSharedTypography"',
+                "property int graphLabelPixelSize",
+                "readonly property int nodeTitlePixelSize",
+                "readonly property int portLabelPixelSize",
+                "readonly property int elapsedFooterPixelSize",
+                "readonly property int inlinePropertyPixelSize",
+                "readonly property int badgePixelSize",
+                "readonly property int edgeLabelPixelSize",
+                "readonly property int edgePillPixelSize",
+                "readonly property int execArrowPortPixelSize",
+                "readonly property int nodeTitleFontWeight",
+                "readonly property int portLabelFontWeight",
+                "readonly property int inlinePropertyFontWeight",
+                "readonly property int badgeFontWeight",
+                "readonly property int edgeLabelFontWeight",
+                "readonly property int edgePillFontWeight",
+                "readonly property int execArrowPortFontWeight",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
+
     def test_persistent_node_elapsed_canvas_qml_properties_bind_only_to_state_bridge_execution_contract(
         self,
     ) -> None:

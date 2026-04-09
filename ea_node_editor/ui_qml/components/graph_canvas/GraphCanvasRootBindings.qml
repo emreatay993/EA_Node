@@ -81,6 +81,14 @@ QtObject {
     readonly property bool showPortLabels: root._canvasStateBridgeRef
         ? Boolean(root._canvasStateBridgeRef.graphics_show_port_labels)
         : true
+    readonly property int graphLabelPixelSize: {
+        if (!root._canvasStateBridgeRef)
+            return 10;
+        var numeric = Math.round(Number(root._canvasStateBridgeRef.graphics_graph_label_pixel_size));
+        if (!isFinite(numeric))
+            return 10;
+        return Math.max(8, Math.min(18, numeric));
+    }
     readonly property string edgeCrossingStyle: root._canvasStateBridgeRef
         ? String(root._canvasStateBridgeRef.graphics_edge_crossing_style || "none")
         : "none"

@@ -20,6 +20,11 @@ from ea_node_editor.graph.model import GraphModel, WorkspaceData
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.settings import (
+    DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    GRAPH_LABEL_PIXEL_SIZE_MAX,
+    GRAPH_LABEL_PIXEL_SIZE_MIN,
+)
 from ea_node_editor.ui.graph_theme import (
     DEFAULT_GRAPH_THEME_ID,
     GraphThemeDefinition,
@@ -28,8 +33,12 @@ from ea_node_editor.ui.graph_theme import (
 )
 from ea_node_editor.ui.support.node_presentation import build_inline_property_items
 from ea_node_editor.ui_qml.edge_routing import build_edge_payload
+from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
+    node_surface_metrics as standard_node_surface_metrics,
+    resolved_node_surface_size as resolved_standard_node_surface_size,
+)
 from ea_node_editor.ui_qml.graph_surface_metrics import (
-    node_surface_metrics,
+    node_surface_metrics as default_node_surface_metrics,
     viewer_surface_contract_payload,
 )
 
@@ -45,9 +54,98 @@ class _GraphSceneThemeResolver:
         return resolve_graph_theme(graph_theme_bridge.theme)
 
 
+def _normalize_graph_label_pixel_size(value: object) -> int:
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        return DEFAULT_GRAPH_LABEL_PIXEL_SIZE
+    return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(numeric, GRAPH_LABEL_PIXEL_SIZE_MAX))
+
+
+def _graph_typography_source(graph_theme_bridge: GraphThemeBridge | None) -> object | None:
+    if graph_theme_bridge is None:
+        return None
+    host = graph_theme_bridge.parent()
+    if host is None:
+        return None
+    presenter = getattr(host, "graph_canvas_presenter", None)
+    return presenter if presenter is not None else host
+
+
+def _graph_label_pixel_size(graph_theme_bridge: GraphThemeBridge | None) -> int:
+    source = _graph_typography_source(graph_theme_bridge)
+    if source is None:
+        return DEFAULT_GRAPH_LABEL_PIXEL_SIZE
+    return _normalize_graph_label_pixel_size(
+        getattr(source, "graphics_graph_label_pixel_size", DEFAULT_GRAPH_LABEL_PIXEL_SIZE)
+    )
+
+
+def _is_standard_surface(spec: NodeTypeSpec) -> bool:
+    family = str(spec.surface_family or "standard").strip() or "standard"
+    return family == "standard"
+
+
 class _GraphSceneNodePayloadFactory:
     def __init__(self, boundary_adapters: GraphBoundaryAdapters) -> None:
         self._boundary_adapters = boundary_adapters
+
+    @staticmethod
+    def _surface_metrics(
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace_nodes: dict[str, Any],
+        show_port_labels: bool,
+        graph_label_pixel_size: int,
+    ):
+        if _is_standard_surface(spec):
+            return standard_node_surface_metrics(
+                node,
+                spec,
+                workspace_nodes,
+                show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
+            )
+        return default_node_surface_metrics(
+            node,
+            spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+        )
+
+    def _resolved_payload_node(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace_nodes: dict[str, Any],
+        show_port_labels: bool,
+        graph_label_pixel_size: int,
+    ):
+        payload_node = self.payload_node(node, spec)
+        if not _is_standard_surface(spec):
+            return payload_node
+        if payload_node is node:
+            payload_node = node.clone()
+        surface_metrics = self._surface_metrics(
+            node=payload_node,
+            spec=spec,
+            workspace_nodes=workspace_nodes,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
+        width, height = resolved_standard_node_surface_size(
+            payload_node,
+            spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+            surface_metrics=surface_metrics,
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
+        payload_node.custom_width = float(width)
+        payload_node.custom_height = float(height)
+        return payload_node
 
     def build_node_payload(
         self,
@@ -55,26 +153,29 @@ class _GraphSceneNodePayloadFactory:
         node,
         spec: NodeTypeSpec,
         workspace: WorkspaceData,
+        workspace_nodes: dict[str, Any],
         port_connection_counts: dict[tuple[str, str], int],
         graph_theme: GraphThemeDefinition,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     ) -> dict[str, Any]:
-        surface_metrics = node_surface_metrics(
-            node,
-            spec,
-            workspace.nodes,
+        surface_metrics = self._surface_metrics(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace_nodes,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
         )
         width, height = self._boundary_adapters.node_size(
             node,
             spec,
-            workspace.nodes,
+            workspace_nodes,
             show_port_labels=show_port_labels,
         )
         inline_properties_payload = build_inline_property_items(
             node=node,
             spec=spec,
-            workspace_nodes=workspace.nodes,
+            workspace_nodes=workspace_nodes,
             port_connection_counts=port_connection_counts,
         )
         payload = {
@@ -100,6 +201,7 @@ class _GraphSceneNodePayloadFactory:
                 node=node,
                 spec=spec,
                 workspace=workspace,
+                workspace_nodes=workspace_nodes,
                 port_connection_counts=port_connection_counts,
             ),
             "inline_properties": inline_properties_payload,
@@ -140,12 +242,13 @@ class _GraphSceneNodePayloadFactory:
         node,
         spec: NodeTypeSpec,
         workspace: WorkspaceData,
+        workspace_nodes: dict[str, Any],
         show_port_labels: bool = True,
     ) -> dict[str, float | str]:
         width, height = self._boundary_adapters.node_size(
             node,
             spec,
-            workspace.nodes,
+            workspace_nodes,
             show_port_labels=show_port_labels,
         )
         return {
@@ -162,6 +265,7 @@ class _GraphSceneNodePayloadFactory:
         node,
         spec: NodeTypeSpec,
         workspace: WorkspaceData,
+        workspace_nodes: dict[str, Any],
         port_connection_counts: dict[tuple[str, str], int],
     ) -> list[dict[str, Any]]:
         ports_payload: list[dict[str, Any]] = []
@@ -170,7 +274,7 @@ class _GraphSceneNodePayloadFactory:
             for port in effective_ports(
                 node=node,
                 spec=spec,
-                workspace_nodes=workspace.nodes,
+                workspace_nodes=workspace_nodes,
             )
             if port.exposed
         ]
@@ -216,21 +320,24 @@ class _GraphSceneNodePayloadFactory:
         node,
         spec: NodeTypeSpec,
         workspace: WorkspaceData,
+        workspace_nodes: dict[str, Any],
         is_comment_backdrop: bool,
         show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     ) -> tuple[float, float]:
         if not is_comment_backdrop:
             return self._boundary_adapters.node_size(
                 node,
                 spec,
-                workspace.nodes,
+                workspace_nodes,
                 show_port_labels=show_port_labels,
             )
-        surface_metrics = node_surface_metrics(
-            node,
-            spec,
-            workspace.nodes,
+        surface_metrics = self._surface_metrics(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace_nodes,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
         )
         # Backdrop membership keeps the expanded surface envelope so collapsed
         # backdrops still own and serialize their descendants.
@@ -250,11 +357,13 @@ class _GraphSceneBackdropPartitioner:
         registry: NodeRegistry,
         scope_path: ScopePath,
         graph_theme: GraphThemeDefinition,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         visible_node_ids = scope_node_ids(workspace, scope_path)
         workspace_edges = scope_edges(workspace, scope_path)
         port_connection_counts = self.port_connection_counts(workspace_edges)
+        workspace_nodes = dict(workspace.nodes)
 
         nodes_payload: list[dict[str, Any]] = []
         backdrop_nodes_payload: list[dict[str, Any]] = []
@@ -269,14 +378,23 @@ class _GraphSceneBackdropPartitioner:
             node = workspace.nodes[node_id]
             spec = registry.get_spec(node.type_id)
             node_specs[node_id] = spec
-            payload_node = self._node_payload_factory.payload_node(node, spec)
+            payload_node = self._node_payload_factory._resolved_payload_node(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace_nodes,
+                show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
+            )
+            workspace_nodes[node_id] = payload_node
             node_payload = self._node_payload_factory.build_node_payload(
                 node=payload_node,
                 spec=spec,
                 workspace=workspace,
+                workspace_nodes=workspace_nodes,
                 port_connection_counts=port_connection_counts,
                 graph_theme=graph_theme,
                 show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
             )
             node_payload_by_id[node_id] = node_payload
             is_comment_backdrop = self._node_payload_factory.is_comment_backdrop_spec(spec)
@@ -286,8 +404,10 @@ class _GraphSceneBackdropPartitioner:
                 node=payload_node,
                 spec=spec,
                 workspace=workspace,
+                workspace_nodes=workspace_nodes,
                 is_comment_backdrop=is_comment_backdrop,
                 show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
             )
             membership_candidates.append(
                 CommentBackdropCandidate(
@@ -304,6 +424,7 @@ class _GraphSceneBackdropPartitioner:
                 node=payload_node,
                 spec=spec,
                 workspace=workspace,
+                workspace_nodes=workspace_nodes,
                 show_port_labels=show_port_labels,
             )
 
@@ -333,7 +454,7 @@ class _GraphSceneBackdropPartitioner:
         edges_payload = build_edge_payload(
             graph_theme=graph_theme,
             workspace_edges=workspace_edges,
-            workspace_nodes=workspace.nodes,
+            workspace_nodes=workspace_nodes,
             node_specs=node_specs,
             collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
             show_port_labels=show_port_labels,
@@ -464,11 +585,13 @@ class GraphScenePayloadBuilder:
             return [], [], [], []
 
         workspace = model.project.workspaces[workspace_id]
+        graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
         return self._backdrop_partitioner.build_payload_models(
             workspace=workspace,
             registry=registry,
             scope_path=scope_path,
             graph_theme=self.active_graph_theme(graph_theme_bridge),
+            graph_label_pixel_size=graph_label_pixel_size,
             show_port_labels=show_port_labels,
         )
 
