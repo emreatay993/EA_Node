@@ -24,12 +24,30 @@ Item {
     property bool shadowSimplificationActive: false
     property bool fullFidelityMode: true
     property bool showPortLabelsPreference: true
+    property int graphLabelPixelSize: 10
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
+    readonly property int effectiveGraphLabelPixelSize: {
+        var numeric = NaN;
+        if (card.canvasItem && card.canvasItem.graphLabelPixelSize !== undefined)
+            numeric = Number(card.canvasItem.graphLabelPixelSize);
+        if (!isFinite(numeric) && card.canvasItem && card.canvasItem._canvasStateBridgeRef)
+            numeric = Number(card.canvasItem._canvasStateBridgeRef.graphics_graph_label_pixel_size);
+        if (!isFinite(numeric))
+            numeric = Number(card.graphLabelPixelSize);
+        if (!isFinite(numeric))
+            numeric = 10;
+        return Math.max(8, Math.min(18, Math.round(numeric)));
+    }
 
     GraphNodeHostTheme {
         id: themeState
         host: card
+    }
+
+    GraphSharedTypography {
+        id: sharedTypographyState
+        graphLabelPixelSize: card.effectiveGraphLabelPixelSize
     }
 
     GraphNodeHostLayout {
@@ -184,7 +202,9 @@ Item {
     readonly property real passiveBorderWidth: themeState.passiveBorderWidth
     readonly property real passiveCornerRadius: themeState.passiveCornerRadius
     readonly property real passiveFontPixelSize: themeState.passiveFontPixelSize
+    readonly property int passiveFontWeight: themeState.passiveFontWeight
     readonly property bool passiveFontBold: themeState.passiveFontBold
+    readonly property var graphSharedTypography: sharedTypographyState
     readonly property var surfaceMetrics: GraphNodeSurfaceMetrics.surfaceMetrics(nodeData)
     readonly property bool surfaceInteractionLocked: Boolean(surfaceLoader.blocksHostInteraction)
     readonly property var viewerSurfaceContract: surfaceLoader.viewerSurfaceContract
@@ -585,7 +605,7 @@ Item {
         anchors.topMargin: 4
         anchors.horizontalCenter: parent.horizontalCenter
         z: 4
-        font.pixelSize: 10
+        font.pixelSize: card.graphSharedTypography ? card.graphSharedTypography.elapsedFooterPixelSize : 10
         font.bold: liveElapsedActive
         color: liveElapsedActive ? card.runningElapsedFooterColor : card.completedElapsedFooterColor
         opacity: liveElapsedActive ? card.runningElapsedFooterOpacity : card.completedElapsedFooterOpacity

@@ -214,6 +214,27 @@ def _graph_node_child(graph_canvas: QObject, node_id: str, object_name: str) -> 
     return node_card.findChild(QObject, object_name)
 
 
+def _graph_node_children(graph_canvas: QObject, node_id: str, object_name: str) -> list[QObject]:
+    node_card = _graph_node_card(graph_canvas, node_id)
+    if node_card is None:
+        return []
+
+    matches: list[QObject] = []
+
+    def _walk(item: QObject | None) -> None:
+        if item is None:
+            return
+        if item.objectName() == object_name:
+            matches.append(item)
+        child_items = getattr(item, "childItems", None)
+        if callable(child_items):
+            for child in child_items():
+                _walk(child)
+
+    _walk(node_card)
+    return matches
+
+
 def _named_qquick_item(root: QObject, object_name: str) -> QQuickItem | None:
     match: QQuickItem | None = None
 
@@ -658,6 +679,147 @@ class ShellRunControllerTests(MainWindowShellTestBase):
             timeout_message="Timed out waiting for failure-priority elapsed footer cleanup.",
         )
         self.assertEqual(graph_canvas.property("runningNodeStartedAtMsLookup"), {})
+
+    def test_graph_typography_host_chrome_shell_events_apply_shared_roles_and_preserve_elapsed_footer_semantics(
+        self,
+    ) -> None:
+        resolved = self.window.app_preferences_controller.update_graphics_settings(
+            {"typography": {"graph_label_pixel_size": 16}},
+            host=self.window,
+        )
+        self.app.processEvents()
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 16)
+
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=180.0, y=80.0)
+        self.window._active_run_id = "run_live"
+        self.window._active_run_workspace_id = workspace_id
+        self.window._set_run_ui_state("running", "Running", 1, 0, 0, 0)
+        self.app.processEvents()
+
+        graph_canvas = self._graph_canvas_item()
+        wait_for_condition_or_raise(
+            lambda: _graph_node_card(graph_canvas, node_id) is not None,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for graph node card to appear.",
+        )
+        node_card = _graph_node_card(graph_canvas, node_id)
+        self.assertIsNotNone(node_card)
+        if node_card is None:
+            self.fail("Expected graph node card to exist")
+
+        title = node_card.findChild(QObject, "graphNodeTitle")
+        typography = node_card.findChild(QObject, "graphSharedTypography")
+        elapsed_timer = node_card.findChild(QObject, "graphNodeElapsedTimer")
+        input_labels = _graph_node_children(graph_canvas, node_id, "graphNodeInputPortLabel")
+        output_labels = _graph_node_children(graph_canvas, node_id, "graphNodeOutputPortLabel")
+        data_input_label = next(
+            (label for label in input_labels if str(label.property("text") or "") != "\u27A1"),
+            None,
+        )
+        exec_input_label = next(
+            (label for label in input_labels if str(label.property("text") or "") == "\u27A1"),
+            None,
+        )
+        exec_output_label = next(
+            (label for label in output_labels if str(label.property("text") or "") == "\u27A1"),
+            None,
+        )
+
+        self.assertIsNotNone(title)
+        self.assertIsNotNone(typography)
+        self.assertIsNotNone(elapsed_timer)
+        self.assertIsNotNone(data_input_label)
+        self.assertIsNotNone(exec_input_label)
+        self.assertIsNotNone(exec_output_label)
+        if (
+            title is None
+            or typography is None
+            or elapsed_timer is None
+            or data_input_label is None
+            or exec_input_label is None
+            or exec_output_label is None
+        ):
+            self.fail("Expected standard host chrome typography items to exist")
+
+        wait_for_condition_or_raise(
+            lambda: title.property("font").pixelSize() == int(typography.property("nodeTitlePixelSize"))
+            and data_input_label.property("font").pixelSize() == int(typography.property("portLabelPixelSize"))
+            and exec_input_label.property("font").pixelSize() == int(typography.property("execArrowPortPixelSize"))
+            and exec_output_label.property("font").pixelSize() == int(typography.property("execArrowPortPixelSize")),
+            timeout_ms=400,
+            app=self.app,
+            timeout_message="Timed out waiting for shared host chrome typography to apply on the shell node card.",
+        )
+
+        self.assertEqual(title.property("font").pixelSize(), 18)
+        self.assertEqual(title.property("font").weight(), int(typography.property("nodeTitleFontWeight")))
+        self.assertEqual(data_input_label.property("font").pixelSize(), 16)
+        self.assertEqual(data_input_label.property("font").weight(), int(typography.property("portLabelFontWeight")))
+        self.assertEqual(exec_input_label.property("font").pixelSize(), 24)
+        self.assertEqual(exec_input_label.property("font").weight(), int(typography.property("execArrowPortFontWeight")))
+        self.assertEqual(exec_output_label.property("font").pixelSize(), 24)
+        self.assertEqual(exec_output_label.property("font").weight(), int(typography.property("execArrowPortFontWeight")))
+
+        started_at_ms = (time.time() * 1000.0) - 2400.0
+        completed_elapsed_ms = 3456.7
+        self.window.execution_event.emit(
+            {
+                "type": "run_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+            }
+        )
+        self.window.execution_event.emit(
+            {
+                "type": "node_started",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "started_at_epoch_ms": started_at_ms,
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("liveElapsedActive"))
+            and abs(float(elapsed_timer.property("startedAtMs")) - started_at_ms) < 16.0,
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for shared-typography live elapsed footer rendering.",
+        )
+        self.assertEqual(
+            elapsed_timer.property("font").pixelSize(),
+            int(typography.property("elapsedFooterPixelSize")),
+        )
+
+        self.window.execution_event.emit(
+            {
+                "type": "node_completed",
+                "run_id": "run_live",
+                "workspace_id": workspace_id,
+                "node_id": node_id,
+                "elapsed_ms": completed_elapsed_ms,
+                "outputs": {"exit_code": 0},
+            }
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: bool(elapsed_timer.property("visible"))
+            and bool(elapsed_timer.property("cachedElapsedActive"))
+            and not bool(elapsed_timer.property("liveElapsedActive"))
+            and str(elapsed_timer.property("text") or "") == "3.5s",
+            timeout_ms=500,
+            app=self.app,
+            timeout_message="Timed out waiting for shared-typography cached elapsed footer rendering.",
+        )
+        self.assertEqual(
+            elapsed_timer.property("font").pixelSize(),
+            int(typography.property("elapsedFooterPixelSize")),
+        )
 
     def test_node_execution_visualization_failure_priority_overrides_completed_chrome(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

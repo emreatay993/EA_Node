@@ -49,6 +49,105 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_graph_typography_host_chrome_shared_roles_apply_without_overriding_passive_title_authority(self) -> None:
+        self._run_qml_probe(
+            "graph-typography-host-chrome-passive-authority",
+            """
+            def configured_payload(*, passive=False, font_size=None, font_weight=None):
+                payload = node_payload()
+                payload["can_enter_scope"] = True
+                payload["ports"] = [
+                    {
+                        "key": "exec_in",
+                        "label": "Exec In",
+                        "direction": "in",
+                        "kind": "exec",
+                        "data_type": "exec",
+                        "connected": False,
+                    },
+                    {
+                        "key": "message",
+                        "label": "Message",
+                        "direction": "in",
+                        "kind": "data",
+                        "data_type": "str",
+                        "connected": False,
+                    },
+                    {
+                        "key": "exec_out",
+                        "label": "Exec Out",
+                        "direction": "out",
+                        "kind": "exec",
+                        "data_type": "exec",
+                        "connected": False,
+                    },
+                ]
+                if passive:
+                    payload["runtime_behavior"] = "passive"
+                    payload["visual_style"] = {}
+                    if font_size is not None:
+                        payload["visual_style"]["font_size"] = font_size
+                    if font_weight is not None:
+                        payload["visual_style"]["font_weight"] = font_weight
+                return payload
+
+            active_host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": configured_payload(),
+                    "graphLabelPixelSize": 16,
+                },
+            )
+            active_typography = active_host.findChild(QObject, "graphSharedTypography")
+            active_title = active_host.findChild(QObject, "graphNodeTitle")
+            active_open_badge = active_host.findChild(QObject, "graphNodeOpenBadgeText")
+            active_input_labels = named_child_items(active_host, "graphNodeInputPortLabel")
+            active_output_labels = named_child_items(active_host, "graphNodeOutputPortLabel")
+            active_data_label = [item for item in active_input_labels if item.property("text") == "Message"][0]
+            active_exec_input = [item for item in active_input_labels if item.property("text") == "\u27A1"][0]
+            active_exec_output = [item for item in active_output_labels if item.property("text") == "\u27A1"][0]
+
+            assert active_typography is not None
+            assert active_title is not None
+            assert active_open_badge is not None
+            assert active_title.property("font").pixelSize() == int(active_typography.property("nodeTitlePixelSize"))
+            assert active_title.property("font").weight() == int(active_typography.property("nodeTitleFontWeight"))
+            assert active_open_badge.property("font").pixelSize() == int(active_typography.property("badgePixelSize"))
+            assert active_open_badge.property("font").weight() == int(active_typography.property("badgeFontWeight"))
+            assert active_data_label.property("font").pixelSize() == int(active_typography.property("portLabelPixelSize"))
+            assert active_data_label.property("font").weight() == int(active_typography.property("portLabelFontWeight"))
+            assert active_exec_input.property("font").pixelSize() == int(active_typography.property("execArrowPortPixelSize"))
+            assert active_exec_input.property("font").weight() == int(active_typography.property("execArrowPortFontWeight"))
+            assert active_exec_output.property("font").pixelSize() == int(active_typography.property("execArrowPortPixelSize"))
+            assert active_exec_output.property("font").weight() == int(active_typography.property("execArrowPortFontWeight"))
+
+            passive_host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": configured_payload(passive=True, font_size=17, font_weight="normal"),
+                    "graphLabelPixelSize": 16,
+                },
+            )
+            passive_typography = passive_host.findChild(QObject, "graphSharedTypography")
+            passive_title = passive_host.findChild(QObject, "graphNodeTitle")
+            passive_open_badge = passive_host.findChild(QObject, "graphNodeOpenBadgeText")
+            passive_input_labels = named_child_items(passive_host, "graphNodeInputPortLabel")
+            passive_data_label = [item for item in passive_input_labels if item.property("text") == "Message"][0]
+
+            assert passive_typography is not None
+            assert passive_title is not None
+            assert passive_open_badge is not None
+            assert passive_title.property("font").pixelSize() == 17
+            assert passive_title.property("font").weight() == 400
+            assert passive_title.property("font").pixelSize() != int(passive_typography.property("nodeTitlePixelSize"))
+            assert passive_title.property("font").weight() != int(passive_typography.property("nodeTitleFontWeight"))
+            assert passive_open_badge.property("font").pixelSize() == int(passive_typography.property("badgePixelSize"))
+            assert passive_open_badge.property("font").weight() == int(passive_typography.property("badgeFontWeight"))
+            assert passive_data_label.property("font").pixelSize() == int(passive_typography.property("portLabelPixelSize"))
+            assert passive_data_label.property("font").weight() == int(passive_typography.property("portLabelFontWeight"))
+            """,
+        )
+
     def test_standard_host_consumes_metric_backed_label_columns_without_overlap(self) -> None:
         self._run_qml_probe(
             "port-label-width-contract-host",

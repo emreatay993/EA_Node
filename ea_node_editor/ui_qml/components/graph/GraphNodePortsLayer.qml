@@ -8,6 +8,7 @@ Item {
     property Item host: null
     property string editingPortKey: ""
     property string editingPortDirection: ""
+    readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
     z: 5
 
     function _isEditablePort(portData) {
@@ -61,11 +62,15 @@ Item {
     }
 
     function _portDisplayPixelSize(portData) {
-        return root._usesExecArrowLabel(portData) ? 18 : 10;
+        if (root._usesExecArrowLabel(portData))
+            return root.graphSharedTypography ? root.graphSharedTypography.execArrowPortPixelSize : 18;
+        return root.graphSharedTypography ? root.graphSharedTypography.portLabelPixelSize : 10;
     }
 
     function _portDisplayFontWeight(portData) {
-        return root._usesExecArrowLabel(portData) ? Font.Black : Font.Normal;
+        if (root._usesExecArrowLabel(portData))
+            return root.graphSharedTypography ? root.graphSharedTypography.execArrowPortFontWeight : Font.Black;
+        return root.graphSharedTypography ? root.graphSharedTypography.portLabelFontWeight : Font.Normal;
     }
 
     function _portInactive(portData) {
@@ -352,7 +357,6 @@ Item {
                     text: root._portDisplayText(modelData)
                     color: root._portDisplayColor(modelData)
                     font.pixelSize: root._portDisplayPixelSize(modelData)
-                    font.bold: root._usesExecArrowLabel(modelData)
                     font.weight: root._portDisplayFontWeight(modelData)
                     elide: Text.ElideRight
                     renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
@@ -687,7 +691,6 @@ Item {
                     text: root._portDisplayText(modelData)
                     color: root._portDisplayColor(modelData)
                     font.pixelSize: root._portDisplayPixelSize(modelData)
-                    font.bold: root._usesExecArrowLabel(modelData)
                     font.weight: root._portDisplayFontWeight(modelData)
                     horizontalAlignment: Text.AlignRight
                     elide: Text.ElideLeft

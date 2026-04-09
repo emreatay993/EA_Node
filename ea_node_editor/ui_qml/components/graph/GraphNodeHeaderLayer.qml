@@ -20,6 +20,7 @@ Item {
     readonly property string currentTitle: root.host && root.host.nodeData
         ? String(root.host.nodeData.title || "")
         : ""
+    readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
     readonly property string displayTitle: {
         var title = String(root.currentTitle || "");
         if (root.isCommentBackdropNode && title.trim() === "Comment Backdrop")
@@ -144,8 +145,14 @@ Item {
         height: root.host ? root.host._titleHeight : 0
         text: root.displayTitle
         color: root.host ? root.host.headerTextColor : "#f0f4fb"
-        font.pixelSize: root.host && root.host.isPassiveNode ? root.host.passiveFontPixelSize : 12
-        font.bold: root.host ? (root.host.isPassiveNode ? root.host.passiveFontBold : true) : true
+        font.pixelSize: root.host && root.host.isPassiveNode
+            ? root.host.passiveFontPixelSize
+            : (root.graphSharedTypography ? root.graphSharedTypography.nodeTitlePixelSize : 12)
+        font.weight: root.host
+            ? (root.host.isPassiveNode
+                ? root.host.passiveFontWeight
+                : (root.graphSharedTypography ? root.graphSharedTypography.nodeTitleFontWeight : Font.Bold))
+            : Font.Bold
         horizontalAlignment: root.host && root.host._titleCentered ? Text.AlignHCenter : Text.AlignLeft
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
@@ -170,7 +177,7 @@ Item {
         height: titleText.height
         text: root.currentTitle
         font.pixelSize: titleText.font.pixelSize
-        font.bold: titleText.font.bold
+        font.weight: titleText.font.weight
         textColor: root.host ? root.host.headerTextColor : "#f0f4fb"
         fillColor: root.host ? Qt.alpha(root.host.surfaceColor, 0.96) : "#f5fafd"
         borderColor: root.host ? Qt.alpha(root.host.outlineColor, 0.9) : "#61798B"
@@ -234,8 +241,8 @@ Item {
             anchors.centerIn: parent
             text: "HALTED"
             color: root.host ? root.host.failureBadgeTextColor : "#FFE5DE"
-            font.pixelSize: 9
-            font.bold: true
+            font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
+            font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
         }
     }
@@ -277,11 +284,12 @@ Item {
         }
 
         Text {
+            objectName: "graphNodeOpenBadgeText"
             anchors.centerIn: parent
             text: "OPEN"
             color: root.host ? root.host.scopeBadgeTextColor : "#f2f4f8"
-            font.pixelSize: 9
-            font.bold: true
+            font.pixelSize: root.graphSharedTypography ? root.graphSharedTypography.badgePixelSize : 9
+            font.weight: root.graphSharedTypography ? root.graphSharedTypography.badgeFontWeight : Font.Bold
             renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
         }
     }
