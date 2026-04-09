@@ -49,6 +49,10 @@ class GraphCanvasPresenter(QObject):
     def graphics_edge_crossing_style(self) -> str: return str(self._host.workspace_ui_state.edge_crossing_style)
 
     @property
+    def graphics_graph_label_pixel_size(self) -> int:
+        return int(self._host.workspace_ui_state.graph_label_pixel_size)
+
+    @property
     def graphics_show_port_labels(self) -> bool: return bool(self._host.workspace_ui_state.show_port_labels)
 
     @property

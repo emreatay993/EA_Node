@@ -203,6 +203,11 @@ class ShellWindow(QMainWindow):
         fget=state_helpers._qt_graphics_edge_crossing_style,
         notify=graphics_preferences_changed,
     )
+    graphics_graph_label_pixel_size = pyqtProperty(
+        int,
+        fget=state_helpers._qt_graphics_graph_label_pixel_size,
+        notify=graphics_preferences_changed,
+    )
     graphics_show_minimap = pyqtProperty(
         bool,
         fget=state_helpers._qt_graphics_show_minimap,

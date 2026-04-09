@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
+from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -21,6 +22,7 @@ class _GraphCanvasStateSource(Protocol):
     graphics_show_grid: bool
     graphics_grid_style: str
     graphics_edge_crossing_style: str
+    graphics_graph_label_pixel_size: int
     graphics_show_minimap: bool
     graphics_show_port_labels: bool
     graphics_node_shadow: bool
@@ -193,6 +195,16 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_edge_crossing_style(self) -> str:
         return str(_source_attr(self._canvas_source, "graphics_edge_crossing_style", "none"))
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_graph_label_pixel_size(self) -> int:
+        return int(
+            _source_attr(
+                self._canvas_source,
+                "graphics_graph_label_pixel_size",
+                DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+            )
+        )
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)
     def graphics_show_minimap(self) -> bool:
