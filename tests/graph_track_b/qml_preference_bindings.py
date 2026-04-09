@@ -574,6 +574,44 @@ class GraphCanvasQmlPreferenceBindingTests(
             root_bindings.deleteLater()
             self.app.processEvents()
 
+    def test_graph_typography_dialog_qml_bindings_follow_bridge_projection(self) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        state_bridge = GraphCanvasStateBridge(
+            shell_window=preference_bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        root_bindings = self._create_component(
+            _GRAPH_CANVAS_ROOT_BINDINGS_QML_PATH,
+            {"canvasStateBridge": state_bridge},
+        )
+        typography = self._create_component(
+            _GRAPH_SHARED_TYPOGRAPHY_QML_PATH,
+            {"graphLabelPixelSize": int(root_bindings.property("graphLabelPixelSize"))},
+        )
+
+        try:
+            self.assertEqual(int(root_bindings.property("graphLabelPixelSize")), 10)
+            self.assertEqual(int(typography.property("graphLabelPixelSize")), 10)
+            self.assertEqual(int(typography.property("nodeTitlePixelSize")), 12)
+
+            preference_bridge.set_graphics_graph_label_pixel_size_value(16)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: int(root_bindings.property("graphLabelPixelSize")) == 16,
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for dialog-owned typography preference projection to reach root bindings.",
+            )
+            typography.setProperty("graphLabelPixelSize", int(root_bindings.property("graphLabelPixelSize")))
+            self.app.processEvents()
+
+            self.assertEqual(int(typography.property("graphLabelPixelSize")), 16)
+            self.assertEqual(int(typography.property("portLabelPixelSize")), 16)
+            self.assertEqual(int(typography.property("nodeTitlePixelSize")), 18)
+        finally:
+            typography.deleteLater()
+            root_bindings.deleteLater()
+            self.app.processEvents()
+
     def test_graph_typography_qml_contract_scene_refresh_updates_standard_metrics_and_edge_geometry(
         self,
     ) -> None:
