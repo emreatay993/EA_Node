@@ -77,7 +77,7 @@ print("SHARED_GRAPH_TYPOGRAPHY_CONTROL_P00_FILE_GATE_PASS")
 - `@'
 from pathlib import Path
 text = Path("docs/specs/work_packets/shared_graph_typography_control/SHARED_GRAPH_TYPOGRAPHY_CONTROL_STATUS.md").read_text(encoding="utf-8")
-if "| P00 Bootstrap | `codex/shared-graph-typography-control/p00-bootstrap` | PASS | `LOCAL_ONLY_NOT_COMMITTED` |" not in text:
+if "| P00 Bootstrap | `codex/shared-graph-typography-control/p00-bootstrap` | PASS | `aa939b6c922a19e10bd32a7c8e0bcf090dec3fb0` |" not in text:
     raise SystemExit(1)
 print("SHARED_GRAPH_TYPOGRAPHY_CONTROL_P00_STATUS_PASS")
 '@ | .\venv\Scripts\python.exe -`
