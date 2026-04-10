@@ -62,7 +62,7 @@ Item {
     readonly property bool fullFidelityMode: rootBindings.fullFidelityMode
     readonly property bool viewportInteractionWorldCacheActive: rootBindings.viewportInteractionWorldCacheActive
     readonly property bool highQualityRendering: rootBindings.highQualityRendering
-    readonly property int interactionIdleDelayMs: 150
+    readonly property int interactionIdleDelayMs: 5000
     readonly property real wireDragThreshold: 2
     readonly property real boxZoomDragThreshold: 4
     readonly property real boxZoomPaddingPx: 24
