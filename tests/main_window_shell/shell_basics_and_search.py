@@ -714,7 +714,11 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         self.window._switch_workspace(original_workspace_id)
         self.app.processEvents()
 
-        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Renamed Space", True)):
+        with patch.object(
+            self.window.shell_host_presenter,
+            "prompt_text_value",
+            return_value=("Renamed Space", True),
+        ):
             renamed = self.window.request_rename_workspace_by_id(renamed_workspace_id)
         self.app.processEvents()
 
@@ -729,6 +733,19 @@ class MainWindowShellBasicsAndSearchTests(SharedMainWindowShellTestBase):
         ]
         self.assertEqual(len(target_tabs), 1)
         self.assertEqual(target_tabs[0]["label"], "Renamed Space")
+
+    def test_new_workspace_action_creates_and_activates_workspace_via_shell_prompt(self) -> None:
+        with patch.object(
+            self.window.shell_host_presenter,
+            "prompt_text_value",
+            return_value=("Created Workspace", True),
+        ) as prompt_text_value:
+            self.window.action_new_workspace.trigger()
+            self.app.processEvents()
+
+        self.assertEqual(len(self.window.model.project.workspaces), 2)
+        prompt_text_value.assert_called_once_with(title="New Workspace", label="Workspace name:")
+        self.assertEqual(self.window.active_workspace_name, "Created Workspace")
 
     def test_status_api_contract_updates_visible_values(self) -> None:
         self.window.update_engine_status("running", "Job #12")

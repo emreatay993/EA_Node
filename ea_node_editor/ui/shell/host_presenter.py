@@ -122,6 +122,40 @@ class ShellHostPresenter(QObject):
         )
         return managed_ref or normalized_path
 
+    def prompt_text_value(
+        self,
+        *,
+        title: str,
+        label: str,
+        text: str = "",
+    ) -> tuple[str, bool]:
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QLineEdit, QVBoxLayout
+
+        dialog = QDialog(self._host)
+        dialog.setWindowTitle(str(title or "").strip())
+        dialog.setModal(True)
+
+        layout = QVBoxLayout(dialog)
+        prompt_label = QLabel(str(label or "").strip(), dialog)
+        prompt_field = QLineEdit(dialog)
+        prompt_field.setText(str(text or ""))
+        prompt_field.selectAll()
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=dialog,
+        )
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        layout.addWidget(prompt_label)
+        layout.addWidget(prompt_field)
+        layout.addWidget(buttons)
+
+        prompt_field.setFocus(Qt.FocusReason.PopupFocusReason)
+        accepted = dialog.exec() == QDialog.DialogCode.Accepted
+        return prompt_field.text(), accepted
+
     def _import_source_as_managed_copy(
         self,
         *,

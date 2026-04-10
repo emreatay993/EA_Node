@@ -808,7 +808,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.window.view.set_zoom(1.7)
         self.window.view.centerOn(420.0, 315.0)
 
-        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Inspection", True)):
+        with patch.object(
+            self.window.shell_host_presenter,
+            "prompt_text_value",
+            return_value=("Inspection", True),
+        ):
             self.window.request_create_view()
         self.app.processEvents()
 
@@ -866,7 +870,11 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         view_id = self.window.workspace_manager.create_view(workspace_id, name="Inspection")
         self.app.processEvents()
 
-        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Inspection Renamed", True)):
+        with patch.object(
+            self.window.shell_host_presenter,
+            "prompt_text_value",
+            return_value=("Inspection Renamed", True),
+        ):
             renamed = self.window.request_rename_view(view_id)
         self.app.processEvents()
 

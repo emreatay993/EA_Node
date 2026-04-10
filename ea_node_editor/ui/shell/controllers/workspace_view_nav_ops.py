@@ -448,15 +448,20 @@ class WorkspaceViewNavOps:
         return str(node.title or "").strip()
 
     def create_view(self) -> None:
-        from PyQt6.QtWidgets import QInputDialog
-
         workspace_id = self._host.workspace_manager.active_workspace_id()
         self._controller.save_active_view_state()
         if workspace_id not in self._host.model.project.workspaces:
             return
         mutation_service = self._host.model.mutation_service(workspace_id)
         source_view_id = mutation_service.active_view_state().view_id
-        name, ok = QInputDialog.getText(self._host, "New View", "View name:")
+        presenter = getattr(self._host, "shell_host_presenter", None)
+        prompt_text_value = getattr(presenter, "prompt_text_value", None)
+        if callable(prompt_text_value):
+            name, ok = prompt_text_value(title="New View", label="View name:")
+        else:
+            from PyQt6.QtWidgets import QInputDialog
+
+            name, ok = QInputDialog.getText(self._host, "New View", "View name:")
         if not ok:
             return
         normalized_name = str(name).strip()

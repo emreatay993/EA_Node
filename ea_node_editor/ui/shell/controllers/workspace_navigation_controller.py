@@ -104,9 +104,14 @@ class WorkspaceNavigationController:
         self._ops.switch_view(view_id)
 
     def create_workspace(self) -> None:
-        from PyQt6.QtWidgets import QInputDialog
+        presenter = getattr(self._host, "shell_host_presenter", None)
+        prompt_text_value = getattr(presenter, "prompt_text_value", None)
+        if callable(prompt_text_value):
+            name, ok = prompt_text_value(title="New Workspace", label="Workspace name:")
+        else:
+            from PyQt6.QtWidgets import QInputDialog
 
-        name, ok = QInputDialog.getText(self._host, "New Workspace", "Workspace name:")
+            name, ok = QInputDialog.getText(self._host, "New Workspace", "Workspace name:")
         if not ok:
             return
         workspace_id = self._host.workspace_manager.create_workspace(name=name or None)
@@ -122,15 +127,24 @@ class WorkspaceNavigationController:
         self.rename_workspace_by_id(workspace_id)
 
     def rename_workspace_by_id(self, workspace_id: str) -> bool:
-        from PyQt6.QtWidgets import QInputDialog
-
         normalized_workspace_id = str(workspace_id or "").strip()
         if not normalized_workspace_id:
             return False
         workspace = self._host.model.project.workspaces.get(normalized_workspace_id)
         if workspace is None:
             return False
-        name, ok = QInputDialog.getText(self._host, "Rename Workspace", "New name:", text=workspace.name)
+        presenter = getattr(self._host, "shell_host_presenter", None)
+        prompt_text_value = getattr(presenter, "prompt_text_value", None)
+        if callable(prompt_text_value):
+            name, ok = prompt_text_value(
+                title="Rename Workspace",
+                label="New name:",
+                text=workspace.name,
+            )
+        else:
+            from PyQt6.QtWidgets import QInputDialog
+
+            name, ok = QInputDialog.getText(self._host, "Rename Workspace", "New name:", text=workspace.name)
         normalized_name = str(name or "").strip()
         if not ok or not normalized_name or normalized_name == workspace.name:
             return False
@@ -197,8 +211,6 @@ class WorkspaceNavigationController:
         return True
 
     def rename_view(self, view_id: str) -> bool:
-        from PyQt6.QtWidgets import QInputDialog
-
         workspace_id = self._host.workspace_manager.active_workspace_id()
         workspace = self._host.model.project.workspaces.get(workspace_id)
         normalized_view_id = str(view_id or "").strip()
@@ -209,7 +221,18 @@ class WorkspaceNavigationController:
         if view is None:
             return False
 
-        name, ok = QInputDialog.getText(self._host, "Rename View", "New name:", text=view.name)
+        presenter = getattr(self._host, "shell_host_presenter", None)
+        prompt_text_value = getattr(presenter, "prompt_text_value", None)
+        if callable(prompt_text_value):
+            name, ok = prompt_text_value(
+                title="Rename View",
+                label="New name:",
+                text=view.name,
+            )
+        else:
+            from PyQt6.QtWidgets import QInputDialog
+
+            name, ok = QInputDialog.getText(self._host, "Rename View", "New name:", text=view.name)
         if not ok:
             return False
         normalized_name = str(name or "").strip()
