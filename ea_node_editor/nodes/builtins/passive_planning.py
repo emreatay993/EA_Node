@@ -20,7 +20,7 @@ class _PassivePlanningNodePlugin:
 @node_type(
     type_id=PASSIVE_PLANNING_TASK_CARD_TYPE_ID,
     display_name="Task Card",
-    category=PASSIVE_PLANNING_CATEGORY,
+    category_path=(PASSIVE_PLANNING_CATEGORY,),
     icon="task_alt",
     description="Planning task card with owner, due date, and status fields.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -48,7 +48,7 @@ class PassivePlanningTaskCardNodePlugin(_PassivePlanningNodePlugin):
 @node_type(
     type_id=PASSIVE_PLANNING_MILESTONE_CARD_TYPE_ID,
     display_name="Milestone Card",
-    category=PASSIVE_PLANNING_CATEGORY,
+    category_path=(PASSIVE_PLANNING_CATEGORY,),
     icon="flag",
     description="Planning milestone card with target date and delivery status.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -75,7 +75,7 @@ class PassivePlanningMilestoneCardNodePlugin(_PassivePlanningNodePlugin):
 @node_type(
     type_id=PASSIVE_PLANNING_RISK_CARD_TYPE_ID,
     display_name="Risk Card",
-    category=PASSIVE_PLANNING_CATEGORY,
+    category_path=(PASSIVE_PLANNING_CATEGORY,),
     icon="warning",
     description="Planning risk card with severity and mitigation notes.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -102,7 +102,7 @@ class PassivePlanningRiskCardNodePlugin(_PassivePlanningNodePlugin):
 @node_type(
     type_id=PASSIVE_PLANNING_DECISION_CARD_TYPE_ID,
     display_name="Decision Card",
-    category=PASSIVE_PLANNING_CATEGORY,
+    category_path=(PASSIVE_PLANNING_CATEGORY,),
     icon="gavel",
     description="Planning decision card with state tracking and outcome notes.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,

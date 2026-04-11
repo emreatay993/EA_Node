@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
-    DPF_NODE_CATEGORY,
     DPF_OUTPUT_MODE_BOTH,
+    DPF_VIEWER_CATEGORY_PATH,
     DPF_VIEWER_NODE_TYPE_ID,
     dpf_output_mode_property,
     normalize_dpf_output_mode,
@@ -25,7 +25,7 @@ from ea_node_editor.nodes.node_specs import (
 @node_type(
     type_id=DPF_VIEWER_NODE_TYPE_ID,
     display_name="DPF Viewer",
-    category=DPF_NODE_CATEGORY,
+    category_path=DPF_VIEWER_CATEGORY_PATH,
     icon="monitor",
     description="Caches a DPF viewer session and its proxy/live dataset state through the worker session service.",
     ports=(

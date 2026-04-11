@@ -31,7 +31,7 @@ class _PassiveAnnotationNodePlugin:
 @node_type(
     type_id=PASSIVE_ANNOTATION_STICKY_NOTE_TYPE_ID,
     display_name="Sticky Note",
-    category=PASSIVE_ANNOTATION_CATEGORY,
+    category_path=(PASSIVE_ANNOTATION_CATEGORY,),
     icon="sticky_note_2",
     description="Annotation sticky note for contextual comments.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -51,7 +51,7 @@ class PassiveAnnotationStickyNoteNodePlugin(_PassiveAnnotationNodePlugin):
 @node_type(
     type_id=PASSIVE_ANNOTATION_CALLOUT_TYPE_ID,
     display_name="Callout",
-    category=PASSIVE_ANNOTATION_CATEGORY,
+    category_path=(PASSIVE_ANNOTATION_CATEGORY,),
     icon="campaign",
     description="Annotation callout for emphasized contextual notes.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -71,7 +71,7 @@ class PassiveAnnotationCalloutNodePlugin(_PassiveAnnotationNodePlugin):
 @node_type(
     type_id=PASSIVE_ANNOTATION_SECTION_HEADER_TYPE_ID,
     display_name="Section Header",
-    category=PASSIVE_ANNOTATION_CATEGORY,
+    category_path=(PASSIVE_ANNOTATION_CATEGORY,),
     icon="title",
     description="Annotation section header with optional subtitle copy.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -91,7 +91,7 @@ class PassiveAnnotationSectionHeaderNodePlugin(_PassiveAnnotationNodePlugin):
 @node_type(
     type_id=PASSIVE_ANNOTATION_COMMENT_BACKDROP_TYPE_ID,
     display_name="Comment Backdrop",
-    category=PASSIVE_ANNOTATION_CATEGORY,
+    category_path=(PASSIVE_ANNOTATION_CATEGORY,),
     icon="comment",
     description="Backdrop annotation for grouping related nodes without flow ports.",
     ports=(),

@@ -188,7 +188,7 @@ class _GraphSceneNodePayloadFactory:
             "y": float(node.y),
             "width": float(width),
             "height": float(height),
-            "accent": resolve_category_accent(graph_theme, spec.category),
+            "accent": resolve_category_accent(graph_theme, spec.category_path),
             "collapsed": bool(node.collapsed),
             "runtime_behavior": spec.runtime_behavior,
             "surface_family": spec.surface_family,

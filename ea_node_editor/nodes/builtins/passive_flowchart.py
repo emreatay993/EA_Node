@@ -32,7 +32,7 @@ def _flowchart_title_property(default_title: str):
 @node_type(
     type_id=PASSIVE_FLOWCHART_START_TYPE_ID,
     display_name="Start",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="play_circle",
     description="Flowchart start terminator.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -49,7 +49,7 @@ class PassiveFlowchartStartNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_END_TYPE_ID,
     display_name="End",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="stop_circle",
     description="Flowchart end terminator.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -66,7 +66,7 @@ class PassiveFlowchartEndNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_PROCESS_TYPE_ID,
     display_name="Process",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="crop_din",
     description="Flowchart process step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -83,7 +83,7 @@ class PassiveFlowchartProcessNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_DECISION_TYPE_ID,
     display_name="Decision",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="diamond",
     description="Flowchart decision branch.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -100,7 +100,7 @@ class PassiveFlowchartDecisionNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_DOCUMENT_TYPE_ID,
     display_name="Document",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="description",
     description="Flowchart document step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -117,7 +117,7 @@ class PassiveFlowchartDocumentNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_CONNECTOR_TYPE_ID,
     display_name="Connector",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="radio_button_checked",
     description="Flowchart connector marker.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -134,7 +134,7 @@ class PassiveFlowchartConnectorNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_INPUT_OUTPUT_TYPE_ID,
     display_name="Input / Output",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="input",
     description="Flowchart input or output step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -151,7 +151,7 @@ class PassiveFlowchartInputOutputNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_PREDEFINED_PROCESS_TYPE_ID,
     display_name="Predefined Process",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="view_column",
     description="Flowchart predefined process step.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -168,7 +168,7 @@ class PassiveFlowchartPredefinedProcessNodePlugin(_PassiveFlowchartNodePlugin):
 @node_type(
     type_id=PASSIVE_FLOWCHART_DATABASE_TYPE_ID,
     display_name="Database",
-    category=PASSIVE_FLOWCHART_CATEGORY,
+    category_path=(PASSIVE_FLOWCHART_CATEGORY,),
     icon="storage",
     description="Flowchart database store.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,

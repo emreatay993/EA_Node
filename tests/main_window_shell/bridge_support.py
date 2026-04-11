@@ -12,6 +12,7 @@ import pytest
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal
 from PyQt6.QtQuick import QQuickItem
 
+from ea_node_editor.nodes.category_paths import category_key
 from ea_node_editor.telemetry.frame_rate import FrameRateSampler
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
@@ -822,6 +823,73 @@ def _build_explicit_graph_canvas_bridge(
 
 
 class ShellLibraryBridgeTests(unittest.TestCase):
+    def test_bridge_nested_category_library_payload_preserves_row_and_quick_insert_metadata(self) -> None:
+        host = _ShellLibraryHostStub()
+        root_key = category_key(("Ansys DPF",))
+        compute_key = category_key(("Ansys DPF", "Compute"))
+        host.grouped_node_library_items = [
+            {
+                "kind": "category",
+                "category": "Ansys DPF",
+                "category_display": "Ansys DPF",
+                "category_path": ("Ansys DPF",),
+                "category_key": root_key,
+                "root_category": "Ansys DPF",
+                "label": "Ansys DPF",
+                "depth": 0,
+                "ancestor_category_keys": [],
+            },
+            {
+                "kind": "category",
+                "category": "Ansys DPF > Compute",
+                "category_display": "Ansys DPF > Compute",
+                "category_path": ("Ansys DPF", "Compute"),
+                "category_key": compute_key,
+                "root_category": "Ansys DPF",
+                "label": "Compute",
+                "depth": 1,
+                "ancestor_category_keys": [root_key],
+            },
+            {
+                "kind": "node",
+                "type_id": "fixture.compute",
+                "display_name": "Compute Node",
+                "category": "Ansys DPF > Compute",
+                "category_display": "Ansys DPF > Compute",
+                "category_path": ("Ansys DPF", "Compute"),
+                "category_key": compute_key,
+                "root_category": "Ansys DPF",
+                "depth": 2,
+                "ancestor_category_keys": [root_key, compute_key],
+            },
+        ]
+        host.connection_quick_insert_results = [
+            {
+                "type_id": "fixture.compute",
+                "display_name": "Compute Node",
+                "category": "Ansys DPF > Compute",
+                "category_display": "Ansys DPF > Compute",
+                "category_path": ("Ansys DPF", "Compute"),
+                "category_key": compute_key,
+                "root_category": "Ansys DPF",
+            }
+        ]
+        bridge = ShellLibraryBridge(shell_window=host, library_source=host)
+
+        self.assertEqual(bridge.grouped_node_library_items, host.grouped_node_library_items)
+        self.assertEqual(
+            bridge.grouped_node_library_items[1]["ancestor_category_keys"],
+            [root_key],
+        )
+        self.assertEqual(
+            bridge.connection_quick_insert_results[0]["category"],
+            "Ansys DPF > Compute",
+        )
+        self.assertEqual(
+            bridge.connection_quick_insert_results[0]["category_key"],
+            compute_key,
+        )
+
     def test_bridge_forwards_shell_library_search_state_and_actions(self) -> None:
         host = _ShellLibraryHostStub()
         bridge = ShellLibraryBridge(shell_window=host, library_source=host)
@@ -967,6 +1035,13 @@ class ShellLibraryBridgeTests(unittest.TestCase):
                 "graph_hint_changed": 1,
             },
         )
+
+
+def test_bridge_nested_category_library_payload_preserves_row_and_quick_insert_metadata() -> None:
+    case = ShellLibraryBridgeTests(
+        "test_bridge_nested_category_library_payload_preserves_row_and_quick_insert_metadata"
+    )
+    case.test_bridge_nested_category_library_payload_preserves_row_and_quick_insert_metadata()
 
 
 class ShellInspectorBridgeTests(unittest.TestCase):

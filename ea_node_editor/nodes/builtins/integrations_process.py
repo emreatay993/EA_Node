@@ -79,7 +79,7 @@ class ProcessRunNodePlugin:
         return NodeTypeSpec(
             type_id="io.process_run",
             display_name="Process Run",
-            category="Input / Output",
+    category_path=("Input / Output",),
             icon="terminal",
             description="Executes an external command and captures stdout/stderr.",
             ports=(

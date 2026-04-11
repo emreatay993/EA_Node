@@ -843,6 +843,247 @@ NODE_EXECUTION_VISUALIZATION_QA_MATRIX_TOKENS = (
     "## Remaining Manual A+E-Hybrid, Execution-Edge, and Persistent Elapsed Checks",
     "## Residual Desktop-Only Validation",
 )
+NESTED_NODE_CATEGORIES_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md"
+)
+NESTED_NODE_CATEGORIES_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_decorator_sdk.py "
+    r"tests/test_registry_validation.py -k nested_category_sdk --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P01_REVIEW_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_registry_validation.py "
+    r"-k nested_category_sdk --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P02_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_registry_filters.py "
+    r"tests/test_dpf_node_catalog.py tests/test_graph_theme_shell.py "
+    r"-k nested_category_registry --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_registry_filters.py "
+    r"tests/test_dpf_node_catalog.py -k nested_category_registry --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P03_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_window_library_inspector.py "
+    r"tests/main_window_shell/bridge_support.py -k nested_category_library_payload --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P03_REVIEW_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/drop_connect_and_workflow_io.py "
+    r"-k nested_category_library_payload --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P04_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/bridge_qml_boundaries.py "
+    r"tests/main_window_shell/drop_connect_and_workflow_io.py tests/test_main_window_shell.py "
+    r"-k nested_category_qml --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_P04_REVIEW_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/drop_connect_and_workflow_io.py "
+    r"-k nested_category_qml --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+)
+NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+
+NESTED_NODE_CATEGORIES_INDEX_TOKENS = (
+    "NESTED_NODE_CATEGORIES QA Matrix",
+    "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+)
+
+NESTED_NODE_CATEGORIES_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
+    "README.md": (
+        "category_path=(\"Math\",)",
+        "breaking change for external plugins",
+        "Ansys DPF > Compute",
+        "Input / Output",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "docs/GETTING_STARTED.md": (
+        "category_path=(\"Math\",)",
+        "breaking change for external plugins",
+        "category_key",
+        "Ansys DPF > Viewer",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+}
+
+NESTED_NODE_CATEGORIES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-006": (
+            "normalized category path",
+            "descendant-inclusive",
+            "ListView",
+            "category_key",
+            "Input / Output",
+        ),
+        "AC-REQ-UI-006-01": (
+            "Ansys DPF > Compute",
+            "Ansys DPF > Viewer",
+            "category rows default collapsed",
+            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/40_NODE_SDK.md": {
+        "REQ-NODE-003": (
+            "category_path",
+            "descendant-inclusive",
+            "category_paths()",
+        ),
+        "REQ-NODE-007": (
+            "category_path=",
+            "category=",
+            "external plugins",
+            "display-only",
+        ),
+        "AC-REQ-NODE-003-01": (
+            "category_path",
+            "parent category filters including descendant nodes",
+        ),
+        "AC-REQ-NODE-008-01": (
+            "category_path=",
+            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-008": (
+            "category_path",
+            "(\"Ansys DPF\", \"Compute\")",
+            "(\"Ansys DPF\", \"Viewer\")",
+        ),
+        "AC-REQ-INT-008-01": (
+            "Ansys DPF > Compute",
+            "Ansys DPF > Viewer",
+            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-033": (
+            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+            "`P01` through `P05`",
+            "external-plugin",
+            "category_path=",
+            "display-only ` > ` delimiter",
+            "manual evidence",
+        ),
+        "AC-REQ-QA-033-01": (
+            NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND,
+            NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND,
+            "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+        ),
+    },
+}
+
+NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-UI-006": (
+        "category_paths.py",
+        "window_library_inspector.py",
+        "NodeLibraryPane.qml",
+        "tests/test_window_library_inspector.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-006-01": (
+        "tests/main_window_shell/bridge_qml_boundaries.py",
+        "tests/main_window_shell/drop_connect_and_workflow_io.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "REQ-NODE-003": (
+        "category_paths.py",
+        "registry.py",
+        "tests/test_registry_filters.py",
+        "tests/test_registry_validation.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "REQ-NODE-007": (
+        "decorators.py",
+        "node_specs.py",
+        "README.md",
+        "docs/GETTING_STARTED.md",
+        "tests/test_decorator_sdk.py",
+    ),
+    "AC-REQ-NODE-003-01": (
+        NESTED_NODE_CATEGORIES_P02_COMMAND,
+        "tests/test_registry_filters.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "AC-REQ-NODE-008-01": (
+        "tests/test_decorator_sdk.py",
+        "category_path=",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "REQ-NODE-025": (
+        "ansys_dpf_compute.py",
+        "ansys_dpf_viewer.py",
+        "DPF_COMPUTE_CATEGORY_PATH",
+        "DPF_VIEWER_CATEGORY_PATH",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "AC-REQ-NODE-025-01": (
+        NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND,
+        "tests/test_dpf_node_catalog.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "REQ-INT-008": (
+        "ansys_dpf_compute.py",
+        "ansys_dpf_viewer.py",
+        "tests/test_dpf_node_catalog.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-008-01": (
+        "tests/test_dpf_compute_nodes.py",
+        "tests/test_dpf_node_catalog.py",
+        "NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+    "REQ-QA-033": (
+        "README.md",
+        "docs/GETTING_STARTED.md",
+        "docs/specs/INDEX.md",
+        "docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-033-01": (
+        NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND,
+        NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND,
+        "docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md",
+    ),
+}
+
+NESTED_NODE_CATEGORIES_QA_MATRIX_TOKENS = (
+    "Nested Node Categories QA Matrix",
+    "## Locked Scope",
+    "category_path: tuple[str, ...]",
+    "`1..10`",
+    "`category=` is a breaking change for external plugins",
+    "` > `",
+    "Input / Output",
+    "descendant-inclusive",
+    "Ansys DPF > Compute",
+    "Ansys DPF > Viewer",
+    "Custom Workflows",
+    "flat `ListView`",
+    "category_key",
+    NESTED_NODE_CATEGORIES_P01_COMMAND,
+    NESTED_NODE_CATEGORIES_P01_REVIEW_COMMAND,
+    NESTED_NODE_CATEGORIES_P02_COMMAND,
+    NESTED_NODE_CATEGORIES_P02_REVIEW_COMMAND,
+    NESTED_NODE_CATEGORIES_P03_COMMAND,
+    NESTED_NODE_CATEGORIES_P03_REVIEW_COMMAND,
+    NESTED_NODE_CATEGORIES_P04_COMMAND,
+    NESTED_NODE_CATEGORIES_P04_REVIEW_COMMAND,
+    NESTED_NODE_CATEGORIES_TRACEABILITY_TEST_COMMAND,
+    NESTED_NODE_CATEGORIES_TRACEABILITY_COMMAND,
+    "P01_sdk_category_path_contract_WRAPUP.md",
+    "P04_qml_nested_library_presentation_WRAPUP.md",
+    "## Final Closeout Commands",
+    "## 2026-04-11 Execution Results",
+    "## Retained Manual Evidence",
+    "## Residual Risks",
+)
 SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md"
 )
@@ -1903,6 +2144,37 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_node_execution_visualization_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = NODE_EXECUTION_VISUALIZATION_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in NODE_EXECUTION_VISUALIZATION_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_nested_node_categories_spec_index_registers_qa_matrix(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in NESTED_NODE_CATEGORIES_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_nested_node_categories_public_docs_record_authoring_change(self) -> None:
+        for relative_path, tokens in NESTED_NODE_CATEGORIES_PUBLIC_DOC_TOKENS.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for token in tokens:
+                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
+
+    def test_nested_node_categories_requirements_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in NESTED_NODE_CATEGORIES_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_nested_node_categories_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in NESTED_NODE_CATEGORIES_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_nested_node_categories_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = NESTED_NODE_CATEGORIES_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in NESTED_NODE_CATEGORIES_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_shared_graph_typography_control_spec_index_registers_qa_matrix(self) -> None:

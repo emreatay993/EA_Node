@@ -35,19 +35,23 @@ from ea_node_editor.nodes.builtins.ansys_dpf import (
     DpfViewerNodePlugin,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_MODEL_NODE_TYPE_ID,
     DPF_NODE_CATEGORY,
+    DPF_NODE_CATEGORY_PATH,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_OUTPUT_MODE_STORED,
     DPF_RESULT_FIELD_NODE_TYPE_ID,
     DPF_RESULT_FILE_NODE_TYPE_ID,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
     DPF_VIEWER_NODE_TYPE_ID,
+    DPF_VIEWER_CATEGORY_PATH,
 )
+from ea_node_editor.nodes.category_paths import category_display
 from ea_node_editor.nodes.types import (
     DPF_FIELD_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
@@ -199,7 +203,6 @@ class DpfNodeCatalogTests(unittest.TestCase):
             spec = self.registry.get_spec(type_id)
 
             self.assertEqual(spec.display_name, expected["display_name"])
-            self.assertEqual(spec.category, DPF_NODE_CATEGORY)
             self.assertEqual(spec.runtime_behavior, "active")
             self.assertEqual(spec.surface_family, expected.get("surface_family", "standard"))
             self.assertEqual(tuple(port.key for port in spec.ports), expected["ports"])
@@ -227,6 +230,18 @@ class DpfNodeCatalogTests(unittest.TestCase):
             for port_key, data_type in expected["output_types"].items():
                 self.assertEqual(ports_by_key[port_key].data_type, data_type)
 
+    def test_nested_category_registry_dpf_catalog_publishes_compute_and_viewer_paths(self) -> None:
+        for type_id in _EXPECTED_DPF_SPECS:
+            expected_path = (
+                DPF_VIEWER_CATEGORY_PATH
+                if type_id == DPF_VIEWER_NODE_TYPE_ID
+                else DPF_COMPUTE_CATEGORY_PATH
+            )
+            with self.subTest(type_id=type_id):
+                spec = self.registry.get_spec(type_id)
+                self.assertEqual(spec.category_path, expected_path)
+                self.assertEqual(spec.category, category_display(expected_path))
+
     def test_dpf_catalog_descriptors_remain_authoritative_and_stable(self) -> None:
         expected_type_ids = tuple(_EXPECTED_DPF_SPECS)
 
@@ -243,6 +258,11 @@ class DpfNodeCatalogTests(unittest.TestCase):
         dpf_specs = self.registry.filter_nodes(category=DPF_NODE_CATEGORY)
 
         self.assertEqual({spec.type_id for spec in dpf_specs}, set(_EXPECTED_DPF_SPECS))
+        self.assertEqual(
+            {spec.category_path for spec in dpf_specs},
+            {DPF_COMPUTE_CATEGORY_PATH, DPF_VIEWER_CATEGORY_PATH},
+        )
+        self.assertIn(DPF_NODE_CATEGORY_PATH, self.registry.category_paths())
         self.assertEqual(
             {spec.type_id for spec in self.registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out")},
             {DPF_MESH_SCOPING_NODE_TYPE_ID, DPF_TIME_SCOPING_NODE_TYPE_ID},

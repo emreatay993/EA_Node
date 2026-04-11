@@ -19,6 +19,8 @@ from ea_node_editor.ui.graph_theme import (
     GRAPH_STITCH_DARK_NODE_TOKENS_V1,
     GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1,
     GRAPH_STITCH_LIGHT_NODE_TOKENS_V1,
+    resolve_category_accent,
+    resolve_graph_theme,
 )
 from ea_node_editor.ui.theme import build_theme_stylesheet
 from tests.main_window_shell.base import SharedMainWindowShellTestBase
@@ -151,6 +153,22 @@ class GraphThemeShellTests(SharedMainWindowShellTestBase):
         edges_payload = {item["edge_id"]: item for item in self.window.scene.edges_model}
         self.assertEqual(nodes_payload[start_id]["accent"], GRAPH_CATEGORY_ACCENT_TOKENS_V1.core)
         self.assertEqual(edges_payload[edge_id]["color"], GRAPH_STITCH_LIGHT_EDGE_TOKENS_V1.warning_stroke)
+
+    def test_nested_category_registry_graph_theme_resolves_accent_from_root_segment(self) -> None:
+        theme = resolve_graph_theme("graph_stitch_dark")
+
+        self.assertEqual(
+            resolve_category_accent(theme, ("Ansys DPF", "Compute")),
+            resolve_category_accent(theme, ("Ansys DPF",)),
+        )
+        self.assertEqual(
+            resolve_category_accent(theme, ("Core", "Input")),
+            GRAPH_CATEGORY_ACCENT_TOKENS_V1.core,
+        )
+        self.assertEqual(
+            resolve_category_accent(theme, ("External Tools", "Input")),
+            GRAPH_CATEGORY_ACCENT_TOKENS_V1.default,
+        )
 
 
 class _SubprocessShellWindowTest(unittest.TestCase):

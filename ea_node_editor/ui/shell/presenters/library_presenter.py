@@ -94,10 +94,10 @@ class ShellLibraryPresenter(QObject):
         return build_grouped_library_items(filtered_items=self.filtered_node_library_items)
 
     @property
-    def library_category_options(self) -> list[dict[str, str]]:
+    def library_category_options(self) -> list[dict[str, Any]]:
         return build_library_category_options(
             combined_items=self._combined_library_items(),
-            registry_categories=self._host.registry.categories(),
+            registry_categories=self._host.registry.category_paths(),
         )
 
     @property

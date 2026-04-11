@@ -4,6 +4,7 @@ from ea_node_editor.nodes.execution_context import (
     NodeResult,
 )
 from ea_node_editor.nodes.node_specs import (
+    CategoryPath,
     DPF_FIELD_DATA_TYPE,
     DPF_MESH_DATA_TYPE,
     DPF_MODEL_DATA_TYPE,
@@ -31,6 +32,15 @@ from ea_node_editor.nodes.node_specs import (
     property_inspector_editor,
     property_visible_in_inspector,
 )
+from ea_node_editor.nodes.category_paths import (
+    CATEGORY_DISPLAY_SEPARATOR,
+    MAX_CATEGORY_PATH_DEPTH,
+    MIN_CATEGORY_PATH_DEPTH,
+    category_display,
+    category_key,
+    category_path_matches_prefix,
+    normalize_category_path,
+)
 from ea_node_editor.nodes.plugin_contracts import (
     AsyncNodePlugin,
     NodePlugin,
@@ -50,6 +60,8 @@ from ea_node_editor.nodes.runtime_refs import (
 
 __all__ = [
     "AsyncNodePlugin",
+    "CATEGORY_DISPLAY_SEPARATOR",
+    "CategoryPath",
     "DPF_FIELD_DATA_TYPE",
     "DPF_MESH_DATA_TYPE",
     "DPF_MODEL_DATA_TYPE",
@@ -61,6 +73,8 @@ __all__ = [
     "ExecutionHandleServices",
     "InlineEditorType",
     "InspectorEditorType",
+    "MAX_CATEGORY_PATH_DEPTH",
+    "MIN_CATEGORY_PATH_DEPTH",
     "MaxPerformanceStrategy",
     "NodePlugin",
     "NodeRenderQualitySpec",
@@ -82,6 +96,9 @@ __all__ = [
     "RuntimeBehavior",
     "RuntimeHandleRef",
     "SurfaceFamily",
+    "category_display",
+    "category_key",
+    "category_path_matches_prefix",
     "coerce_runtime_artifact_ref",
     "coerce_runtime_handle_ref",
     "deserialize_runtime_value",
@@ -89,5 +106,6 @@ __all__ = [
     "property_has_inline_editor",
     "property_inspector_editor",
     "property_visible_in_inspector",
+    "normalize_category_path",
     "serialize_runtime_value",
 ]
