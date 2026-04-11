@@ -142,18 +142,13 @@ Column {
             && propertyEditor.propertyKey === "data_type"
         enabled: !propertyEditor.overriddenByInput
         model: propertyEditor.pane.pinDataTypeOptions
-        currentIndex: {
-            var values = propertyEditor.pane.pinDataTypeOptions
-            var value = String(propertyEditor.propertyItem && propertyEditor.propertyItem.value || "").toLowerCase()
-            return values.indexOf(value)
-        }
-        onActivated: {
-            var values = propertyEditor.pane.pinDataTypeOptions
-            if (!propertyEditor.pane.inspectorBridgeRef || currentIndex < 0 || currentIndex >= values.length)
+        selectedValue: String(propertyEditor.propertyItem && propertyEditor.propertyItem.value || "").toLowerCase()
+        onValueActivated: function(value) {
+            if (!propertyEditor.pane.inspectorBridgeRef)
                 return
             propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
                 propertyEditor.propertyKey,
-                String(values[currentIndex])
+                String(value || "")
             )
         }
         onAccepted: {
@@ -185,22 +180,13 @@ Column {
         model: propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
             ? propertyEditor.propertyItem.enum_values
             : []
-        currentIndex: {
-            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-                ? propertyEditor.propertyItem.enum_values
-                : []
-            var value = String(propertyEditor.propertyItem && propertyEditor.propertyItem.value || "")
-            return values.indexOf(value)
-        }
-        onActivated: {
-            var values = propertyEditor.propertyItem && propertyEditor.propertyItem.enum_values
-                ? propertyEditor.propertyItem.enum_values
-                : []
-            if (!propertyEditor.pane.inspectorBridgeRef || currentIndex < 0 || currentIndex >= values.length)
+        selectedValue: String(propertyEditor.propertyItem && propertyEditor.propertyItem.value || "")
+        onValueActivated: function(value) {
+            if (!propertyEditor.pane.inspectorBridgeRef)
                 return
             propertyEditor.pane.inspectorBridgeRef.set_selected_node_property(
                 propertyEditor.propertyKey,
-                String(values[currentIndex])
+                String(value || "")
             )
         }
         onAccepted: {

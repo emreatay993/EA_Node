@@ -4,6 +4,7 @@ import QtQuick.Controls 2.15
 ComboBox {
     id: control
     property var pane
+    readonly property real popupMaxHeight: 240
     implicitHeight: 34
     leftPadding: 8
     rightPadding: 30
@@ -73,10 +74,14 @@ ComboBox {
 
         contentItem: ListView {
             clip: true
-            implicitHeight: contentHeight
+            implicitHeight: Math.min(contentHeight, control.popupMaxHeight)
             model: control.popup.visible ? control.delegateModel : null
             currentIndex: control.highlightedIndex
-            ScrollIndicator.vertical: ScrollIndicator { }
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar {
+                policy: ScrollBar.AsNeeded
+                interactive: true
+            }
         }
     }
 }
