@@ -7,6 +7,7 @@ from ea_node_editor.execution.dpf_runtime_service import (
     DPF_TIME_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPERATION_VALUES,
     DPF_FIELD_OP_CONVERT_LOCATION,
@@ -22,7 +23,6 @@ from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_MESH_SELECTION_NODE_IDS,
     DPF_MESH_SELECTION_VALUES,
     DPF_MODEL_NODE_TYPE_ID,
-    DPF_NODE_CATEGORY,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_OUTPUT_MODE_STORED,
     DPF_RESULT_FIELD_LOCATION_VALUES,
@@ -81,7 +81,7 @@ from ea_node_editor.nodes.node_specs import (
 @node_type(
     type_id=DPF_RESULT_FILE_NODE_TYPE_ID,
     display_name="DPF Result File",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="database",
     description="Normalizes a Mechanical result-file path and returns a worker-local DPF handle.",
     ports=(
@@ -113,7 +113,7 @@ class DpfResultFileNodePlugin:
 @node_type(
     type_id=DPF_MODEL_NODE_TYPE_ID,
     display_name="DPF Model",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="cube",
     description="Loads a DPF model from a Mechanical result-file handle or path.",
     ports=(
@@ -144,7 +144,7 @@ class DpfModelNodePlugin:
 @node_type(
     type_id=DPF_MESH_SCOPING_NODE_TYPE_ID,
     display_name="DPF Mesh Scoping",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="filter",
     description="Builds a worker-local DPF mesh scoping from named selections or raw mesh ids.",
     ports=(
@@ -257,7 +257,7 @@ class DpfMeshScopingNodePlugin:
 @node_type(
     type_id=DPF_TIME_SCOPING_NODE_TYPE_ID,
     display_name="DPF Time Scoping",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="clock",
     description="Builds a worker-local DPF time scoping from set ids or explicit time values.",
     ports=(
@@ -313,7 +313,7 @@ class DpfTimeScopingNodePlugin:
 @node_type(
     type_id=DPF_RESULT_FIELD_NODE_TYPE_ID,
     display_name="DPF Result Field",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="query_stats",
     description="Extracts a single active-set DPF field from a Mechanical result model.",
     ports=(
@@ -402,7 +402,7 @@ class DpfResultFieldNodePlugin:
 @node_type(
     type_id=DPF_FIELD_OPS_NODE_TYPE_ID,
     display_name="DPF Field Ops",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="calculate",
     description="Applies norm, location conversion, or min/max reductions to a single DPF field.",
     ports=(
@@ -508,7 +508,7 @@ class DpfFieldOpsNodePlugin:
 @node_type(
     type_id=DPF_MESH_EXTRACT_NODE_TYPE_ID,
     display_name="DPF Mesh Extract",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="hub",
     description="Extracts a worker-local DPF mesh from a model, optionally using a mesh scoping.",
     ports=(
@@ -539,7 +539,7 @@ class DpfMeshExtractNodePlugin:
 @node_type(
     type_id=DPF_EXPORT_NODE_TYPE_ID,
     display_name="DPF Export",
-    category_path=(DPF_NODE_CATEGORY,),
+    category_path=DPF_COMPUTE_CATEGORY_PATH,
     icon="download",
     description="Materializes a single DPF field into staged export artifacts and optional in-memory datasets.",
     ports=(

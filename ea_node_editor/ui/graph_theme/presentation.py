@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
+from ea_node_editor.nodes.category_paths import CATEGORY_DISPLAY_SEPARATOR, normalize_category_path
 from ea_node_editor.ui.graph_theme.registry import GraphThemeDefinition, resolve_graph_theme
 
 
 def resolve_category_accent(graph_theme: GraphThemeDefinition | object, category: object) -> str:
     theme = _resolve_theme(graph_theme)
-    normalized = str(category).strip().lower()
+    normalized = _category_root_segment(category).strip().lower()
     if normalized.startswith("core"):
         return theme.category_accent_tokens.core
     if "input" in normalized or "output" in normalized:
@@ -17,6 +20,26 @@ def resolve_category_accent(graph_theme: GraphThemeDefinition | object, category
     if "hpc" in normalized:
         return theme.category_accent_tokens.hpc
     return theme.category_accent_tokens.default
+
+
+def _category_root_segment(category: object) -> str:
+    category_path = getattr(category, "category_path", None)
+    if category_path is not None:
+        try:
+            return normalize_category_path(category_path)[0]
+        except (TypeError, ValueError):
+            pass
+
+    if isinstance(category, Sequence) and not isinstance(category, (str, bytes, bytearray)):
+        try:
+            return normalize_category_path(category)[0]
+        except (TypeError, ValueError):
+            pass
+
+    text = str(category).strip()
+    if CATEGORY_DISPLAY_SEPARATOR in text:
+        return text.split(CATEGORY_DISPLAY_SEPARATOR, 1)[0].strip()
+    return text
 
 
 def resolve_port_kind_color(graph_theme: GraphThemeDefinition | object, port_kind: object) -> str:

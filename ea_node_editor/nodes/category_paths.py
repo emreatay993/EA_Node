@@ -46,6 +46,11 @@ def category_path_matches_prefix(path: Sequence[str], prefix: Sequence[str]) -> 
     return normalized_path[: len(normalized_prefix)] == normalized_prefix
 
 
+def category_path_ancestors(path: Sequence[str]) -> tuple[CategoryPath, ...]:
+    normalized_path = normalize_category_path(path)
+    return tuple(normalized_path[:depth] for depth in range(1, len(normalized_path) + 1))
+
+
 __all__ = [
     "CATEGORY_DISPLAY_SEPARATOR",
     "MAX_CATEGORY_PATH_DEPTH",
@@ -53,6 +58,7 @@ __all__ = [
     "CategoryPath",
     "category_display",
     "category_key",
+    "category_path_ancestors",
     "category_path_matches_prefix",
     "normalize_category_path",
 ]
