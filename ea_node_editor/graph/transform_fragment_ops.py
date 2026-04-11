@@ -145,6 +145,7 @@ def build_subtree_fragment_payload_data(
                 "y": float(node.y),
                 "collapsed": bool(node.collapsed),
                 "properties": copy.deepcopy(node.properties),
+                "locked_ports": copy.deepcopy(node.locked_ports),
                 "exposed_ports": dict(node.exposed_ports),
                 "visual_style": copy.deepcopy(node.visual_style),
                 "parent_node_id": node.parent_node_id,
@@ -288,6 +289,7 @@ def _insert_graph_fragment_operation(
             y=float(node_payload.get("y", 0.0)) + float(delta_y),
             properties=dict(node_payload.get("properties", {})),
             exposed_ports=dict(node_payload.get("exposed_ports", {})),
+            locked_ports=dict(node_payload.get("locked_ports", {})),
             visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
         )
         mutations._set_node_fragment_state_record(

@@ -3,11 +3,13 @@ from __future__ import annotations
 import copy
 import unittest
 
+from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QFont, QFontMetricsF
 from PyQt6.QtWidgets import QApplication
 
 from ea_node_editor.graph.hierarchy import subtree_node_ids
 from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.normalization import LOCKED_TARGET_PORT_MESSAGE
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import node_type
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult, PortSpec
@@ -36,7 +38,6 @@ from ea_node_editor.ui.shell.runtime_history import (
 )
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
-from tests.graph_track_b.qml_support import _GraphCanvasPreferenceBridge
 from tests.graph_track_b.theme_support import (
     GRAPH_CATEGORY_ACCENT_TOKENS_V1,
     GRAPH_STITCH_DARK_EDGE_TOKENS_V1,
@@ -49,7 +50,7 @@ from tests.graph_track_b.theme_support import (
 @node_type(
     type_id="tests.track_b_flowchart_decision",
     display_name="Decision",
-    category="Tests",
+    category_path=("Tests",),
     icon="branch",
     ports=(
         PortSpec("top", "neutral", "flow", "flow", side="top", allow_multiple_connections=True),
@@ -69,7 +70,7 @@ class _TrackBFlowchartDecisionNode:
 @node_type(
     type_id="tests.track_b_flowchart_connector",
     display_name="Connector",
-    category="Tests",
+    category_path=("Tests",),
     icon="circle",
     ports=(
         PortSpec("top", "neutral", "flow", "flow", side="top", allow_multiple_connections=True),
@@ -86,10 +87,72 @@ class _TrackBFlowchartConnectorNode:
     def execute(self, _ctx: ExecutionContext) -> NodeResult:
         return NodeResult(outputs={})
 
+
+class _GraphCanvasPreferenceBridge(QObject):
+    graphics_preferences_changed = pyqtSignal()
+    snap_to_grid_changed = pyqtSignal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._graphics_show_grid = True
+        self._graphics_grid_style = "lines"
+        self._graphics_show_minimap = True
+        self._graphics_minimap_expanded = True
+        self._graphics_show_port_labels = True
+        self._snap_to_grid_enabled = False
+        self.minimap_update_history: list[bool] = []
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_grid(self) -> bool:
+        return bool(self._graphics_show_grid)
+
+    @pyqtProperty(str, notify=graphics_preferences_changed)
+    def graphics_grid_style(self) -> str:
+        return str(self._graphics_grid_style)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_minimap(self) -> bool:
+        return bool(self._graphics_show_minimap)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_minimap_expanded(self) -> bool:
+        return bool(self._graphics_minimap_expanded)
+
+    @pyqtProperty(bool, notify=snap_to_grid_changed)
+    def snap_to_grid_enabled(self) -> bool:
+        return bool(self._snap_to_grid_enabled)
+
+    @pyqtProperty(bool, notify=graphics_preferences_changed)
+    def graphics_show_port_labels(self) -> bool:
+        return bool(self._graphics_show_port_labels)
+
+    @pyqtProperty(float, constant=True)
+    def snap_grid_size(self) -> float:
+        return 20.0
+
+    def set_graphics_show_port_labels_value(self, value: bool) -> None:
+        normalized = bool(value)
+        if self._graphics_show_port_labels == normalized:
+            return
+        self._graphics_show_port_labels = normalized
+        self.graphics_preferences_changed.emit()
+
+    @pyqtSlot(bool)
+    def set_graphics_minimap_expanded(self, expanded: bool) -> None:
+        normalized = bool(expanded)
+        self.minimap_update_history.append(normalized)
+        if self._graphics_minimap_expanded == normalized:
+            return
+        self._graphics_minimap_expanded = normalized
+        self.graphics_preferences_changed.emit()
+
+
 class GraphSceneBridgeTrackBTests(unittest.TestCase):
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
         self.registry = build_default_registry()
+        self.registry.register(_TrackBFlowchartDecisionNode)
+        self.registry.register(_TrackBFlowchartConnectorNode)
         self.model = GraphModel()
         self.workspace_id = self.model.active_workspace.workspace_id
         self.preference_bridge = _GraphCanvasPreferenceBridge()
@@ -97,6 +160,18 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.set_workspace(self.model, self.registry, self.workspace_id)
         self.view = ViewportBridge()
         self.view.set_viewport_size(1280.0, 720.0)
+
+    def _set_locked_port(self, node_id: str, port_key: str, locked: bool) -> bool:
+        changed = self.model.validated_mutations(self.workspace_id, self.registry).set_locked_port(
+            node_id,
+            port_key,
+            locked,
+        )
+        self.scene.refresh_workspace_from_model(self.workspace_id)
+        return changed
+
+    def _unlock_logger_message_port(self, node_id: str) -> bool:
+        return self._set_locked_port(node_id, "message", False)
 
     def test_selection_signal_reports_select_and_clear(self) -> None:
         node_id = self.scene.add_node_from_type("core.start", 0.0, 0.0)
@@ -402,9 +477,6 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         )
 
     def test_flowchart_scene_payloads_publish_family_metrics_and_shape_aware_anchors(self) -> None:
-        self.registry.register(_TrackBFlowchartDecisionNode)
-        self.registry.register(_TrackBFlowchartConnectorNode)
-
         source_id = self.scene.add_node_from_type("tests.track_b_flowchart_decision", 20.0, 30.0)
         target_id = self.scene.add_node_from_type("tests.track_b_flowchart_connector", 360.0, 90.0)
         edge_id = self.scene.add_edge(source_id, "right", target_id, "left")
@@ -534,6 +606,18 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
 
         self.assertFalse(result.ok)
         self.assertEqual(result.message, "Flow edges cannot connect ports on the same node.")
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.assertEqual(len(workspace.edges), 0)
+
+    def test_connect_ports_rejects_locked_target_with_user_facing_reason(self) -> None:
+        source_id = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
+        target_id = self.scene.add_node_from_type("core.logger", 360.0, 90.0)
+
+        interactions = GraphInteractions(self.scene, self.registry)
+        result = interactions.connect_ports(source_id, "as_text", target_id, "message")
+
+        self.assertFalse(result.ok)
+        self.assertEqual(result.message, LOCKED_TARGET_PORT_MESSAGE)
         workspace = self.model.project.workspaces[self.workspace_id]
         self.assertEqual(len(workspace.edges), 0)
 
@@ -745,6 +829,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
         target_id = self.scene.add_node_from_type("core.end", 640.0, 90.0)
         external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+        self._unlock_logger_message_port(grouped_logger_id)
 
         self.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
         self.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
@@ -1412,6 +1497,8 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         nested_constant_id = self.scene.add_node_from_type("core.constant", 80.0, 220.0)
         deep_script_id = self.scene.add_node_from_type("core.python_script", 520.0, 260.0)
         external_logger_id = self.scene.add_node_from_type("core.logger", 780.0, 140.0)
+        self._unlock_logger_message_port(nested_logger_id)
+        self._unlock_logger_message_port(external_logger_id)
         workspace = self.model.project.workspaces[self.workspace_id]
         workspace.nodes[nested_logger_id].parent_node_id = shell_id
         workspace.nodes[nested_constant_id].parent_node_id = shell_id
@@ -1509,6 +1596,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
         target_id = self.scene.add_node_from_type("core.end", 640.0, 90.0)
         external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+        self._unlock_logger_message_port(grouped_logger_id)
 
         self.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
         self.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
@@ -1606,6 +1694,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         grouped_constant_id = self.scene.add_node_from_type("core.constant", 220.0, 190.0)
         target_id = self.scene.add_node_from_type("core.end", 640.0, 90.0)
         external_script_id = self.scene.add_node_from_type("core.python_script", 700.0, 230.0)
+        self._unlock_logger_message_port(grouped_logger_id)
 
         self.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
         self.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")

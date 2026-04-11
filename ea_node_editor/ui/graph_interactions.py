@@ -13,6 +13,7 @@ from ea_node_editor.graph.effective_ports import (
 )
 from ea_node_editor.graph.hierarchy import root_node_ids_for_fragment, subtree_node_ids
 from ea_node_editor.graph.model import NodeInstance, WorkspaceData
+from ea_node_editor.graph.normalization import LOCKED_TARGET_PORT_MESSAGE
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.ui.shell.runtime_history import ACTION_DELETE_SELECTED
 
@@ -89,6 +90,7 @@ class GraphInteractions:
 
         can_a_to_b = port_supports_outgoing_edge(port_a) and port_supports_incoming_edge(port_b)
         can_b_to_a = port_supports_outgoing_edge(port_b) and port_supports_incoming_edge(port_a)
+        final_target_port = port_b
 
         if direction_a == "neutral" and direction_b == "neutral":
             source_node_id, source_port_key, target_node_id, target_port_key = (
@@ -111,6 +113,7 @@ class GraphInteractions:
                 source_node_id,
                 source_port_key,
             )
+            final_target_port = port_a
         elif direction_a == "out" and direction_b == "in":
             source_node_id, source_port_key, target_node_id, target_port_key = (
                 source_node_id,
@@ -125,8 +128,12 @@ class GraphInteractions:
                 source_node_id,
                 source_port_key,
             )
+            final_target_port = port_a
         else:
             return GraphActionResult(False, "Ports must have compatible directions.")
+
+        if getattr(final_target_port, "locked", False):
+            return GraphActionResult(False, LOCKED_TARGET_PORT_MESSAGE)
 
         try:
             self._scene.add_edge(source_node_id, source_port_key, target_node_id, target_port_key)

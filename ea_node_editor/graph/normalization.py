@@ -36,11 +36,18 @@ from ea_node_editor.graph.subnode_contract import (
     SUBNODE_PIN_KIND_PROPERTY,
     is_subnode_pin_type,
 )
+from ea_node_editor.graph.port_locking import (
+    compute_initial_locked_ports,
+    is_port_lockable,
+    normalize_locked_ports_mapping,
+    property_value_triggers_lock,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
 
 GRAPH_FRAGMENT_KIND = "ea-node-editor/graph-fragment"
 GRAPH_FRAGMENT_VERSION = 1
+LOCKED_TARGET_PORT_MESSAGE = "Target port is locked and cannot accept incoming connections."
 
 
 def build_graph_fragment_payload(
@@ -151,6 +158,9 @@ def _normalize_fragment_node_entry(raw_node: Any) -> dict[str, Any] | None:
     raw_properties = raw_node.get("properties", {})
     if not isinstance(raw_properties, dict):
         return None
+    raw_locked_ports = raw_node.get("locked_ports")
+    if raw_locked_ports is not None and not isinstance(raw_locked_ports, Mapping):
+        return None
 
     raw_parent = raw_node.get("parent_node_id")
     parent_node_id: str | None = None
@@ -166,6 +176,7 @@ def _normalize_fragment_node_entry(raw_node: Any) -> dict[str, Any] | None:
         "y": y,
         "collapsed": bool(raw_node.get("collapsed", False)),
         "properties": copy.deepcopy(raw_properties),
+        "locked_ports": normalize_locked_ports_mapping(raw_locked_ports),
         "exposed_ports": normalized_exposed_ports,
         "visual_style": normalize_visual_style_payload(raw_node.get("visual_style")),
         "parent_node_id": parent_node_id,
@@ -301,6 +312,8 @@ class GraphInvariantKernel:
             return None
         if require_target_input and not port_supports_incoming_edge(target_port):
             return None
+        if require_target_input and target_port.locked:
+            return None
         if require_exposed_ports and (not source_port.exposed or not target_port.exposed):
             return None
         if require_compatible_ports and not are_port_kinds_compatible(source_port.kind, target_port.kind):
@@ -342,6 +355,8 @@ class GraphInvariantKernel:
             raise ValueError(f"Source port must support outgoing edges: {source_node_id}.{source_port_key}")
         if not port_supports_incoming_edge(target_port):
             raise ValueError(f"Target port must support incoming edges: {target_node_id}.{target_port_key}")
+        if target_port.locked:
+            raise ValueError(LOCKED_TARGET_PORT_MESSAGE)
         if not are_port_kinds_compatible(source_port.kind, target_port.kind):
             raise ValueError(
                 "Incompatible ports: "
@@ -418,6 +433,7 @@ class GraphInvariantKernel:
             collapsed=bool(node_payload.get("collapsed", False)),
             properties=dict(node_payload.get("properties", {})),
             exposed_ports=dict(node_payload.get("exposed_ports", {})),
+            locked_ports=normalize_locked_ports_mapping(node_payload.get("locked_ports")),
             visual_style=copy.deepcopy(node_payload.get("visual_style", {})),
             parent_node_id=node_payload.get("parent_node_id"),
             custom_width=float(node_payload["custom_width"]) if node_payload.get("custom_width") is not None else None,
@@ -479,7 +495,11 @@ class GraphInvariantKernel:
             )
             if source_port is None or target_port is None:
                 return False
-            if not port_supports_outgoing_edge(source_port) or not port_supports_incoming_edge(target_port):
+            if (
+                not port_supports_outgoing_edge(source_port)
+                or not port_supports_incoming_edge(target_port)
+                or target_port.locked
+            ):
                 return False
             mutually_exclusive_group = mutually_exclusive_target_input_group(
                 str(target_spec.type_id),
@@ -621,6 +641,7 @@ class ValidatedGraphMutation:
         y: float,
         properties: dict[str, object] | None = None,
         exposed_ports: dict[str, bool] | None = None,
+        locked_ports: dict[str, bool] | None = None,
         visual_style: dict[str, object] | None = None,
         parent_node_id: str | None = None,
     ) -> NodeInstance:
@@ -636,6 +657,11 @@ class ValidatedGraphMutation:
             for key, value in dict(exposed_ports or {}).items()
             if str(key).strip()
         }
+        normalized_locked_ports = compute_initial_locked_ports(
+            spec,
+            properties=normalized_properties,
+            authored_locked_ports=locked_ports,
+        )
         node = self.model.add_node(
             self.workspace_id,
             type_id=type_id,
@@ -646,6 +672,7 @@ class ValidatedGraphMutation:
             exposed_ports=requested_exposed_ports,
             visual_style=dict(visual_style or {}),
         )
+        node.locked_ports = normalized_locked_ports
         node.parent_node_id = self._validated_parent_node_id(node.node_id, parent_node_id)
         node.exposed_ports = self._normalized_exposed_ports(node.node_id)
         return node
@@ -726,8 +753,13 @@ class ValidatedGraphMutation:
         if key in node.properties and node.properties[key] == normalized:
             return normalized
         self.model.set_node_property(self.workspace_id, node_id, key, normalized)
+        affected_node_ids: set[str] = set()
+        if self._auto_lock_property_port_if_needed(node, key):
+            affected_node_ids.add(node.node_id)
         if self._property_change_affects_ports(node, key):
-            self._prune_edges_for_nodes(self._affected_node_ids_for_port_semantics(node))
+            affected_node_ids.update(self._affected_node_ids_for_port_semantics(node))
+        if affected_node_ids:
+            self._prune_edges_for_nodes(affected_node_ids)
         return normalized
 
     def set_node_properties(self, node_id: str, values: dict[str, object]) -> dict[str, object]:
@@ -748,8 +780,16 @@ class ValidatedGraphMutation:
             return {}
         for key, normalized in normalized_updates.items():
             self.model.set_node_property(self.workspace_id, node_id, key, normalized)
+        affected_node_ids: set[str] = set()
+        auto_locked_any = False
+        for key in normalized_updates:
+            auto_locked_any = self._auto_lock_property_port_if_needed(node, key) or auto_locked_any
+        if auto_locked_any:
+            affected_node_ids.add(node.node_id)
         if any(self._property_change_affects_ports(node, key) for key in normalized_updates):
-            self._prune_edges_for_nodes(self._affected_node_ids_for_port_semantics(node))
+            affected_node_ids.update(self._affected_node_ids_for_port_semantics(node))
+        if affected_node_ids:
+            self._prune_edges_for_nodes(affected_node_ids)
         return normalized_updates
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
@@ -761,6 +801,15 @@ class ValidatedGraphMutation:
         if not normalized_exposed:
             self._prune_edges_for_nodes({node_id})
         return True
+
+    def set_locked_port(self, node_id: str, key: str, locked: bool) -> bool:
+        node, spec, _port = self._resolved_port(node_id, key)
+        if not is_port_lockable(spec, key):
+            raise ValueError(f"Port is not lockable: {node_id}.{key}")
+        changed = self._set_locked_port_state(node, key, bool(locked))
+        if changed and bool(locked):
+            self._prune_edges_for_nodes({node_id})
+        return changed
 
     def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
         self.model.set_port_label(self.workspace_id, node_id, port_key, label)
@@ -817,6 +866,17 @@ class ValidatedGraphMutation:
             raise KeyError(f"Unknown parent node: {normalized_parent_id}")
         return normalized_parent_id
 
+    def _auto_lock_property_port_if_needed(self, node: NodeInstance, key: str) -> bool:
+        spec = self.registry.spec_or_none(node.type_id)
+        if spec is None or not is_port_lockable(spec, key):
+            return False
+        if bool(node.locked_ports.get(key, False)):
+            return False
+        port_data_type = next((port.data_type for port in spec.ports if port.key == key), "")
+        if not property_value_triggers_lock(port_data_type, node.properties.get(key)):
+            return False
+        return self._set_locked_port_state(node, key, True)
+
     @staticmethod
     def _property_change_affects_ports(node: NodeInstance, key: str) -> bool:
         if not is_subnode_pin_type(node.type_id):
@@ -830,6 +890,18 @@ class ValidatedGraphMutation:
         if parent_node_id:
             affected.add(parent_node_id)
         return affected
+
+    def _set_locked_port_state(self, node: NodeInstance, key: str, locked: bool) -> bool:
+        normalized_locked = bool(locked)
+        current_present = key in node.locked_ports
+        current_locked = bool(node.locked_ports.get(key, False))
+        if current_present and current_locked == normalized_locked:
+            return False
+        if not current_present and not normalized_locked:
+            return False
+        node.locked_ports[key] = normalized_locked
+        self.workspace.dirty = True
+        return True
 
     def _prune_edges_for_nodes(self, affected_node_ids: set[str]) -> list[str]:
         if not affected_node_ids:

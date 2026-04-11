@@ -14,6 +14,7 @@ from ea_node_editor.graph.comment_backdrop_geometry import (
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import normalize_scope_path, node_scope_path, scope_parent_id
 from ea_node_editor.graph.model import EdgeInstance, GraphModel, NodeInstance, ViewState, WorkspaceData
+from ea_node_editor.graph.port_locking import normalize_locked_ports_mapping
 from ea_node_editor.graph.transform_fragment_ops import _insert_graph_fragment_operation
 from ea_node_editor.graph.transform_grouping_ops import (
     GroupSubnodeResult,
@@ -140,6 +141,7 @@ class WorkspaceMutationService:
         y: float,
         properties: dict[str, object] | None = None,
         exposed_ports: dict[str, bool] | None = None,
+        locked_ports: dict[str, bool] | None = None,
         visual_style: dict[str, object] | None = None,
         parent_node_id: str | None = None,
     ) -> NodeInstance:
@@ -151,6 +153,7 @@ class WorkspaceMutationService:
             y=y,
             properties=properties,
             exposed_ports=exposed_ports,
+            locked_ports=locked_ports,
             visual_style=visual_style,
             parent_node_id=parent_node_id,
         )
@@ -169,6 +172,7 @@ class WorkspaceMutationService:
         y: float,
         properties: dict[str, object] | None = None,
         exposed_ports: dict[str, bool] | None = None,
+        locked_ports: dict[str, bool] | None = None,
         visual_style: dict[str, object] | None = None,
         parent_node_id: str | None = None,
     ) -> NodeInstance:
@@ -182,6 +186,7 @@ class WorkspaceMutationService:
             exposed_ports=None if exposed_ports is None else dict(exposed_ports),
             visual_style=None if visual_style is None else dict(visual_style),
         )
+        node.locked_ports = normalize_locked_ports_mapping(locked_ports)
         self._set_node_parent_record(node.node_id, parent_node_id)
         return node
 
@@ -272,6 +277,9 @@ class WorkspaceMutationService:
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
         return self._validated().set_exposed_port(node_id, key, exposed)
+
+    def set_locked_port(self, node_id: str, key: str, locked: bool) -> bool:
+        return self._validated().set_locked_port(node_id, key, locked)
 
     def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
         self.model.set_port_label(self.workspace_id, node_id, port_key, label)
