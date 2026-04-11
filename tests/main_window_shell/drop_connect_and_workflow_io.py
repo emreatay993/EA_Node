@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from ea_node_editor.nodes.category_paths import category_key
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
 
@@ -359,6 +360,54 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertFalse(opened)
         self.assertFalse(self.window.connection_quick_insert_open)
         self.assertEqual(self.window.connection_quick_insert_results, [])
+
+    def test_qml_nested_category_library_payload_filters_and_quick_insert_use_path_values(self) -> None:
+        self.window.set_library_query("")
+        self.window.set_library_direction("")
+        self.window.set_library_data_type("")
+        self.app.processEvents()
+
+        options_by_label = {
+            option["label"]: option
+            for option in self.window.library_category_options
+        }
+        self.assertEqual(options_by_label["Ansys DPF"]["value"], category_key(("Ansys DPF",)))
+        self.assertEqual(
+            options_by_label["Ansys DPF > Compute"]["value"],
+            category_key(("Ansys DPF", "Compute")),
+        )
+        self.assertEqual(
+            options_by_label["Ansys DPF > Viewer"]["value"],
+            category_key(("Ansys DPF", "Viewer")),
+        )
+
+        self.window.set_library_category(options_by_label["Ansys DPF"]["value"])
+        self.app.processEvents()
+        root_filtered_categories = {
+            item["category"]
+            for item in self.window.filtered_node_library_items
+        }
+        self.assertIn("Ansys DPF > Compute", root_filtered_categories)
+        self.assertIn("Ansys DPF > Viewer", root_filtered_categories)
+
+        self.window.set_library_category(options_by_label["Ansys DPF > Compute"]["value"])
+        self.app.processEvents()
+        compute_filtered = self.window.filtered_node_library_items
+        self.assertTrue(compute_filtered)
+        self.assertTrue(
+            all(item["category"] == "Ansys DPF > Compute" for item in compute_filtered)
+        )
+
+        self.window.request_open_canvas_quick_insert(320.0, 160.0, 420.0, 220.0)
+        self.window.set_connection_quick_insert_query("Ansys DPF > Compute")
+        self.app.processEvents()
+
+        results = self.window.connection_quick_insert_results
+        self.assertTrue(results)
+        self.assertTrue(all(item["category"] == "Ansys DPF > Compute" for item in results))
+        self.assertTrue(
+            all(item["category_key"] == category_key(("Ansys DPF", "Compute")) for item in results)
+        )
 
     def test_qml_custom_workflow_publish_appears_in_library_and_places_independent_snapshots(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
