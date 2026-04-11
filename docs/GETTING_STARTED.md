@@ -73,7 +73,8 @@ Before merge, inspect or run the full workflow:
 - The current architecture/docs closeout evidence is summarized in
   `ARCHITECTURE.md`, `docs/specs/INDEX.md`,
   `docs/specs/perf/ARCHITECTURE_REFACTOR_QA_MATRIX.md`,
-  `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`, and
+  `docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md`,
+  `docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md`, and
   `docs/specs/requirements/TRACEABILITY_MATRIX.md`.
 - The runner applies `QT_QPA_PLATFORM=offscreen` to its child verification
   commands.
@@ -137,6 +138,10 @@ Manual passive-media fixture:
 
 - Raw plugin drop-ins live directly under `%APPDATA%\COREX_Node_Editor\plugins\` as public `*.py` files. Files whose names start with `_` are ignored.
 - For new plugin modules or installed packages, prefer `PLUGIN_DESCRIPTORS` so loader registration and package export can use descriptor provenance instead of constructor probing. Legacy class discovery remains supported for older plugins.
+- Node authoring now uses `category_path=` rather than `category=` in `@node_type(...)` and direct `NodeTypeSpec(...)` construction. This is a breaking change for external plugins and `.eanp` packages; update single-segment categories to tuples such as `category_path=("Math",)` and nested categories to tuples such as `category_path=("Simulation", "Signals")`.
+- `category` is retained only as read-only display text on specs and library payloads. Filtering, grouping, collapse state, and registry discovery use normalized `category_path` values and `category_key` values instead.
+- The library displays nested paths with ` > `, as in `Ansys DPF > Compute`; that separator is display-only and intentionally avoids ambiguity with single labels such as `Input / Output`.
+- Parent category filters are descendant-inclusive. Selecting the `Ansys DPF` path includes the shipped `Ansys DPF > Compute` and `Ansys DPF > Viewer` nodes, while custom workflows remain under the one-segment `Custom Workflows` category.
 - Imported `.eanp` packages install as `%APPDATA%\COREX_Node_Editor\plugins\<package_name>\`. Each archive must contain `node_package.json` plus top-level `.py` files only; nested directories and non-Python payload files are rejected.
 - File > Export Node Package only exports sources already loaded from the user plugins directory. The shell can package one public root `.py` drop-in or one installed package directory at a time; it does not build an archive from arbitrary node selections or built-in nodes.
 - File > Import Node Package reloads user plugins after install. If the imported package replaces node types that were already loaded in the current session, restart the app before assuming the replacements took effect.
@@ -150,6 +155,7 @@ Manual passive-media fixture:
 - [docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md](./specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md): short manual passive-node validation pass
 - [docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md](./specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md): current graph-surface regression matrix and shell-module verification status
 - [docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md](./specs/perf/VERIFICATION_SPEED_QA_MATRIX.md): approved verification-runner modes, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
+- [docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md](./specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md): retained automated and manual evidence for the `category_path` node-authoring rollout
 - `docs/specs/INDEX.md` lists the retained work-packet manifests, status ledgers, and closeout QA matrices that stay canonical on this branch.
 
 ## Updating Architecture Diagrams
