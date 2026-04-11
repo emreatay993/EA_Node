@@ -27,6 +27,9 @@ class _GraphScenePayloadCache:
     backdrop_nodes: list[dict[str, Any]] = field(default_factory=list)
     minimap_nodes: list[dict[str, Any]] = field(default_factory=list)
     edges: list[dict[str, Any]] = field(default_factory=list)
+    active_view_id: str = ""
+    hide_locked_ports: bool = False
+    hide_optional_ports: bool = False
 
     def update(
         self,
@@ -35,11 +38,31 @@ class _GraphScenePayloadCache:
         backdrop_nodes: list[dict[str, Any]],
         minimap_nodes: list[dict[str, Any]],
         edges: list[dict[str, Any]],
+        active_view_id: str | None = None,
+        hide_locked_ports: bool | None = None,
+        hide_optional_ports: bool | None = None,
     ) -> None:
         self.nodes = nodes
         self.backdrop_nodes = backdrop_nodes
         self.minimap_nodes = minimap_nodes
         self.edges = edges
+        if active_view_id is not None:
+            self.active_view_id = str(active_view_id or "")
+        if hide_locked_ports is not None:
+            self.hide_locked_ports = bool(hide_locked_ports)
+        if hide_optional_ports is not None:
+            self.hide_optional_ports = bool(hide_optional_ports)
+
+    def set_active_view_filters(
+        self,
+        *,
+        active_view_id: str,
+        hide_locked_ports: bool,
+        hide_optional_ports: bool,
+    ) -> None:
+        self.active_view_id = str(active_view_id or "")
+        self.hide_locked_ports = bool(hide_locked_ports)
+        self.hide_optional_ports = bool(hide_optional_ports)
 
 
 class _GraphScenePendingSurfaceAction:
@@ -76,6 +99,52 @@ class GraphSceneBridgeBase(QObject):
             return None
         presenter = getattr(host, "graph_canvas_presenter", None)
         return presenter if presenter is not None else host
+
+    def _active_view_filter_state(self) -> tuple[str, bool, bool]:
+        workspace = self._workspace_or_none()
+        if workspace is None:
+            return "", False, False
+        active_view = workspace.views.get(workspace.active_view_id)
+        if active_view is None:
+            active_view = next(iter(workspace.views.values()), None)
+        if active_view is None:
+            return "", False, False
+        return (
+            str(active_view.view_id),
+            bool(active_view.hide_locked_ports),
+            bool(active_view.hide_optional_ports),
+        )
+
+    def _ensure_payload_cache_current(self) -> None:
+        active_view_id, hide_locked_ports, hide_optional_ports = self._active_view_filter_state()
+        if (
+            self._payload_cache.active_view_id == active_view_id
+            and self._payload_cache.hide_locked_ports == hide_locked_ports
+            and self._payload_cache.hide_optional_ports == hide_optional_ports
+        ):
+            return
+        (
+            nodes_payload,
+            backdrop_nodes_payload,
+            minimap_nodes_payload,
+            edges_payload,
+        ) = self._scene_context._payload_builder.rebuild_partitioned_models(
+            model=self._scene_context.model,
+            registry=self._scene_context.registry,
+            workspace_id=self._scene_context.workspace_id,
+            scope_path=self._scene_context.scope_path,
+            graph_theme_bridge=self._scene_context.graph_theme_bridge,
+            show_port_labels=self._scene_context.graphics_show_port_labels,
+        )
+        self._payload_cache.update(
+            nodes=nodes_payload,
+            backdrop_nodes=backdrop_nodes_payload,
+            minimap_nodes=minimap_nodes_payload,
+            edges=edges_payload,
+            active_view_id=active_view_id,
+            hide_locked_ports=hide_locked_ports,
+            hide_optional_ports=hide_optional_ports,
+        )
 
     @property
     def graphics_show_port_labels(self) -> bool:
@@ -136,14 +205,17 @@ class GraphSceneBridgeBase(QObject):
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def nodes_model(self) -> list[dict[str, Any]]:
+        self._ensure_payload_cache_current()
         return self._payload_cache.nodes
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def backdrop_nodes_model(self) -> list[dict[str, Any]]:
+        self._ensure_payload_cache_current()
         return self._payload_cache.backdrop_nodes
 
     @pyqtProperty("QVariantList", notify=edges_changed)
     def edges_model(self) -> list[dict[str, Any]]:
+        self._ensure_payload_cache_current()
         return self._payload_cache.edges
 
     @pyqtProperty(str, notify=pending_surface_action_changed)
@@ -160,6 +232,7 @@ class GraphSceneBridgeBase(QObject):
 
     @pyqtProperty("QVariantList", notify=nodes_changed)
     def minimap_nodes_model(self) -> list[dict[str, Any]]:
+        self._ensure_payload_cache_current()
         return self._payload_cache.minimap_nodes
 
     @pyqtProperty("QVariantMap", notify=nodes_changed)
@@ -405,6 +478,18 @@ class GraphSceneBridgeBase(QObject):
     @pyqtSlot(str)
     def clear_edge_visual_style(self, edge_id: str) -> None:
         self._command_bridge.clear_edge_visual_style(edge_id)
+
+    @pyqtSlot(str, str, bool, result=bool)
+    def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool:
+        return self._command_bridge.set_port_locked(node_id, key, locked)
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+        return self._command_bridge.set_hide_locked_ports(hide_locked_ports)
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+        return self._command_bridge.set_hide_optional_ports(hide_optional_ports)
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
         self._command_bridge.set_exposed_port(node_id, key, exposed)

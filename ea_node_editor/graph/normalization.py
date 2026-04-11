@@ -27,6 +27,7 @@ from ea_node_editor.graph.model import (
     GraphModel,
     NodeInstance,
     ProjectData,
+    ViewState,
     WorkspaceData,
     edge_instance_to_mapping,
     node_instance_to_mapping,
@@ -632,6 +633,15 @@ class ValidatedGraphMutation:
             workspace_edges=self.workspace.edges.values(),
         )
 
+    def _active_view_state(self) -> ViewState:
+        workspace = self.workspace
+        workspace.ensure_default_view()
+        view_state = workspace.views.get(workspace.active_view_id)
+        if view_state is None:
+            workspace.active_view_id = next(iter(workspace.views))
+            view_state = workspace.views[workspace.active_view_id]
+        return view_state
+
     def add_node(
         self,
         *,
@@ -810,6 +820,24 @@ class ValidatedGraphMutation:
         if changed and bool(locked):
             self._prune_edges_for_nodes({node_id})
         return changed
+
+    def set_view_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+        view_state = self._active_view_state()
+        normalized = bool(hide_locked_ports)
+        if bool(view_state.hide_locked_ports) == normalized:
+            return False
+        view_state.hide_locked_ports = normalized
+        self.workspace.dirty = True
+        return True
+
+    def set_view_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+        view_state = self._active_view_state()
+        normalized = bool(hide_optional_ports)
+        if bool(view_state.hide_optional_ports) == normalized:
+            return False
+        view_state.hide_optional_ports = normalized
+        self.workspace.dirty = True
+        return True
 
     def set_port_label(self, node_id: str, port_key: str, label: str) -> None:
         self.model.set_port_label(self.workspace_id, node_id, port_key, label)

@@ -132,6 +132,24 @@ class WorkspaceMutationService:
     def move_view(self, from_index: int, to_index: int) -> None:
         self.model.move_view(self.workspace_id, from_index, to_index)
 
+    def set_view_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+        view_state = self.active_view_state()
+        normalized = bool(hide_locked_ports)
+        if bool(view_state.hide_locked_ports) == normalized:
+            return False
+        view_state.hide_locked_ports = normalized
+        self.workspace.dirty = True
+        return True
+
+    def set_view_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+        view_state = self.active_view_state()
+        normalized = bool(hide_optional_ports)
+        if bool(view_state.hide_optional_ports) == normalized:
+            return False
+        view_state.hide_optional_ports = normalized
+        self.workspace.dirty = True
+        return True
+
     def add_node(
         self,
         *,

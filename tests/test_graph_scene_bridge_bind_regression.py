@@ -63,6 +63,46 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIn("GraphScenePolicyBridge", package_text)
         self.assertIn("GraphSceneReadBridge", package_text)
 
+    def test_scene_bridge_exposes_port_lock_and_view_filter_slots_through_split_command_surface(self) -> None:
+        package_root = _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene"
+        command_text = (package_root / "command_bridge.py").read_text(encoding="utf-8")
+        state_support_text = (package_root / "state_support.py").read_text(encoding="utf-8")
+        helper_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation_history.py"
+        ).read_text(encoding="utf-8")
+        selection_text = (
+            _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation" / "selection_and_scope_ops.py"
+        ).read_text(encoding="utf-8")
+
+        for snippet, text in (
+            ("def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool:", command_text),
+            ("def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:", command_text),
+            ("def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:", command_text),
+            ("def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool:", state_support_text),
+            ("def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:", state_support_text),
+            ("def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:", state_support_text),
+            ("GraphSceneMutationHistory.set_port_locked = _selection_ops.set_port_locked", helper_text),
+            ("GraphSceneMutationHistory.set_hide_locked_ports = _selection_ops.set_hide_locked_ports", helper_text),
+            ("GraphSceneMutationHistory.set_hide_optional_ports = _selection_ops.set_hide_optional_ports", helper_text),
+            ("def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool:", selection_text),
+            ("def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:", selection_text),
+            ("def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:", selection_text),
+        ):
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, text)
+
+        scene = GraphSceneBridge()
+        scene_meta = scene.metaObject()
+        command_meta = scene.command_bridge.metaObject()
+        for signature in (
+            b"set_port_locked(QString,QString,bool)",
+            b"set_hide_locked_ports(bool)",
+            b"set_hide_optional_ports(bool)",
+        ):
+            with self.subTest(signature=signature):
+                self.assertGreaterEqual(scene_meta.indexOfMethod(signature), 0)
+                self.assertGreaterEqual(command_meta.indexOfMethod(signature), 0)
+
     def test_mutation_history_collapses_property_geometry_structure_and_fragment_flows_into_one_boundary(self) -> None:
         helper_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene_mutation_history.py"

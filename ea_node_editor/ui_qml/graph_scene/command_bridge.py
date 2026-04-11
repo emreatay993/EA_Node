@@ -164,6 +164,18 @@ class GraphSceneCommandBridge(QObject):
     def clear_edge_visual_style(self, edge_id: str) -> None:
         self._authoring_boundary.clear_edge_visual_style(edge_id)
 
+    @pyqtSlot(str, str, bool, result=bool)
+    def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool:
+        return self._authoring_boundary.set_port_locked(node_id, key, locked)
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+        return self._authoring_boundary.set_hide_locked_ports(hide_locked_ports)
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+        return self._authoring_boundary.set_hide_optional_ports(hide_optional_ports)
+
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
         self._authoring_boundary.set_exposed_port(node_id, key, exposed)
 

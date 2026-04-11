@@ -275,7 +275,7 @@ class GraphSurfaceBoundaryContractTests(GraphSurfaceInputContractTestBase):
         spec = NodeTypeSpec(
             type_id="tests.render_quality_payload",
             display_name="Render Quality Payload",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(),
             properties=(),
@@ -368,6 +368,47 @@ class GraphSurfaceBoundaryContractTests(GraphSurfaceInputContractTestBase):
         self.assertEqual(excel_write_input_keys, ["exec_in", "rows", "path"])
         self.assertEqual(excel_write_output_keys, ["exec_out", "written_path"])
 
+    def test_graph_scene_payload_builder_projects_locked_and_optional_ports_and_applies_active_view_filters(self) -> None:
+        registry: NodeRegistry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        workspace = model.project.workspaces[workspace_id]
+        logger = model.validated_mutations(workspace_id, registry).add_node(
+            type_id="core.logger",
+            title="Logger",
+            x=80.0,
+            y=120.0,
+        )
+
+        builder = GraphScenePayloadBuilder()
+
+        def _logger_ports() -> list[dict[str, object]]:
+            nodes_payload, _minimap_payload, _edges_payload = builder.rebuild_models(
+                model=model,
+                registry=registry,
+                workspace_id=workspace_id,
+                scope_path=(),
+                graph_theme_bridge=None,
+            )
+            payload = next(item for item in nodes_payload if item["node_id"] == logger.node_id)
+            return payload["ports"]
+
+        ports_by_key = {str(port["key"]): port for port in _logger_ports()}
+        self.assertTrue(bool(ports_by_key["message"]["locked"]))
+        self.assertTrue(bool(ports_by_key["message"]["optional"]))
+        self.assertFalse(bool(ports_by_key["exec_in"]["locked"]))
+        self.assertFalse(bool(ports_by_key["exec_in"]["optional"]))
+
+        active_view = workspace.views[workspace.active_view_id]
+        active_view.hide_locked_ports = True
+        hidden_locked_keys = {str(port["key"]) for port in _logger_ports()}
+        self.assertEqual(hidden_locked_keys, {"exec_in", "exec_out"})
+
+        active_view.hide_locked_ports = False
+        active_view.hide_optional_ports = True
+        hidden_optional_keys = [str(port["key"]) for port in _logger_ports()]
+        self.assertEqual(hidden_optional_keys, ["exec_in"])
+
     def test_graph_node_host_render_quality_contract_exposes_reduced_quality_tier(self) -> None:
         self._run_qml_probe(
             "host-render-quality-contract",
@@ -423,5 +464,11 @@ class GraphSurfaceBoundaryContractTests(GraphSurfaceInputContractTestBase):
 
         bridge = GraphSceneBridge()
         meta_object = bridge.metaObject()
-        signature = b"set_node_property(QString,QString,QVariant)"
-        self.assertGreaterEqual(meta_object.indexOfMethod(signature), 0)
+        for signature in (
+            b"set_node_property(QString,QString,QVariant)",
+            b"set_port_locked(QString,QString,bool)",
+            b"set_hide_locked_ports(bool)",
+            b"set_hide_optional_ports(bool)",
+        ):
+            with self.subTest(signature=signature):
+                self.assertGreaterEqual(meta_object.indexOfMethod(signature), 0)

@@ -42,6 +42,25 @@ if TYPE_CHECKING:
     from ea_node_editor.graph.mutation_service import WorkspaceMutationService
 
 _MISSING = object()
+ACTION_TOGGLE_HIDE_LOCKED_PORTS = "toggle-hide-locked-ports"
+ACTION_TOGGLE_HIDE_OPTIONAL_PORTS = "toggle-hide-optional-ports"
+ACTION_TOGGLE_PORT_LOCKED = "toggle-port-locked"
+
+
+def _sync_payload_cache_view_filters(self) -> None:
+    workspace = self._scene_context.workspace_or_none()
+    if workspace is None:
+        return
+    active_view = workspace.views.get(workspace.active_view_id)
+    if active_view is None:
+        active_view = next(iter(workspace.views.values()), None)
+    if active_view is None:
+        return
+    self._scene_context._bridge._payload_cache.set_active_view_filters(
+        active_view_id=active_view.view_id,
+        hide_locked_ports=active_view.hide_locked_ports,
+        hide_optional_ports=active_view.hide_optional_ports,
+    )
 
 
 def add_node_from_type(self, type_id: str, x: float = 0.0, y: float = 0.0) -> str:
@@ -558,6 +577,78 @@ def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
     self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
 
 
+def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool:
+    model = self._scene_context.model
+    registry = self._scene_context.registry
+    if model is None or registry is None:
+        return False
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return False
+    node = workspace.nodes.get(node_id)
+    if node is None:
+        return False
+    spec = registry.get_spec(node.type_id)
+    port = find_port(
+        node=node,
+        spec=spec,
+        workspace_nodes=workspace.nodes,
+        port_key=key,
+    )
+    if port is None:
+        return False
+    normalized_locked = bool(locked)
+    if bool(port.locked) == normalized_locked:
+        return False
+    history_before = self._capture_history_snapshot()
+    try:
+        changed = self._mutation_boundary().set_locked_port(node_id, key, normalized_locked)
+    except ValueError:
+        return False
+    if not changed:
+        return False
+    self._scene_context.rebuild_models()
+    self.notify_selected_node_context_updated(node_id)
+    self._record_history(ACTION_TOGGLE_PORT_LOCKED, history_before)
+    return True
+
+
+def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+    model = self._scene_context.model
+    registry = self._scene_context.registry
+    if model is None or registry is None:
+        return False
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return False
+    history_before = self._capture_history_snapshot()
+    changed = self._mutation_boundary().set_view_hide_locked_ports(bool(hide_locked_ports))
+    if not changed:
+        return False
+    self._scene_context.rebuild_models()
+    _sync_payload_cache_view_filters(self)
+    self._record_history(ACTION_TOGGLE_HIDE_LOCKED_PORTS, history_before)
+    return True
+
+
+def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+    model = self._scene_context.model
+    registry = self._scene_context.registry
+    if model is None or registry is None:
+        return False
+    workspace = model.project.workspaces.get(self._scene_context.workspace_id)
+    if workspace is None:
+        return False
+    history_before = self._capture_history_snapshot()
+    changed = self._mutation_boundary().set_view_hide_optional_ports(bool(hide_optional_ports))
+    if not changed:
+        return False
+    self._scene_context.rebuild_models()
+    _sync_payload_cache_view_filters(self)
+    self._record_history(ACTION_TOGGLE_HIDE_OPTIONAL_PORTS, history_before)
+    return True
+
+
 def set_node_port_label(self, node_id: str, port_key: str, label: str) -> None:
     model = self._scene_context.model
     registry = self._scene_context.registry
@@ -625,10 +716,13 @@ __all__ = [
     "set_edge_label",
     "set_edge_visual_style",
     "set_exposed_port",
+    "set_hide_locked_ports",
+    "set_hide_optional_ports",
     "set_node_collapsed",
     "set_node_port_label",
     "set_node_properties",
     "set_node_property",
+    "set_port_locked",
     "set_node_title",
     "set_node_visual_style",
 ]

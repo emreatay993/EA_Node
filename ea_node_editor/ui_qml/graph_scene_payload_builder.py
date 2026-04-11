@@ -156,6 +156,8 @@ class _GraphSceneNodePayloadFactory:
         workspace_nodes: dict[str, Any],
         port_connection_counts: dict[tuple[str, str], int],
         graph_theme: GraphThemeDefinition,
+        hide_locked_ports: bool = False,
+        hide_optional_ports: bool = False,
         show_port_labels: bool = True,
         graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     ) -> dict[str, Any]:
@@ -203,6 +205,8 @@ class _GraphSceneNodePayloadFactory:
                 workspace=workspace,
                 workspace_nodes=workspace_nodes,
                 port_connection_counts=port_connection_counts,
+                hide_locked_ports=hide_locked_ports,
+                hide_optional_ports=hide_optional_ports,
             ),
             "inline_properties": inline_properties_payload,
         }
@@ -267,6 +271,8 @@ class _GraphSceneNodePayloadFactory:
         workspace: WorkspaceData,
         workspace_nodes: dict[str, Any],
         port_connection_counts: dict[tuple[str, str], int],
+        hide_locked_ports: bool,
+        hide_optional_ports: bool,
     ) -> list[dict[str, Any]]:
         ports_payload: list[dict[str, Any]] = []
         visible_ports = [
@@ -277,6 +283,8 @@ class _GraphSceneNodePayloadFactory:
                 workspace_nodes=workspace_nodes,
             )
             if port.exposed
+            and (not hide_locked_ports or not port.locked)
+            and (not hide_optional_ports or port.required)
         ]
         connected_input_port_keys = {
             str(port.key)
@@ -303,6 +311,8 @@ class _GraphSceneNodePayloadFactory:
                     "allow_multiple_connections": bool(port.allow_multiple_connections),
                     "connection_count": int(connection_count),
                     "connected": bool(connection_count),
+                    "locked": bool(port.locked),
+                    "optional": not bool(port.required),
                     "inactive": bool(inactive_source_key),
                     "inactive_source_key": inactive_source_key,
                     "inactive_reason": driven_by_input_reason(inactive_source_key),
@@ -350,6 +360,17 @@ class _GraphSceneBackdropPartitioner:
     def __init__(self, node_payload_factory: _GraphSceneNodePayloadFactory) -> None:
         self._node_payload_factory = node_payload_factory
 
+    @staticmethod
+    def active_view_port_filters(workspace: WorkspaceData) -> tuple[bool, bool]:
+        if not workspace.views:
+            return False, False
+        active_view = workspace.views.get(workspace.active_view_id)
+        if active_view is None:
+            active_view = next(iter(workspace.views.values()), None)
+        if active_view is None:
+            return False, False
+        return bool(active_view.hide_locked_ports), bool(active_view.hide_optional_ports)
+
     def build_payload_models(
         self,
         *,
@@ -364,6 +385,7 @@ class _GraphSceneBackdropPartitioner:
         workspace_edges = scope_edges(workspace, scope_path)
         port_connection_counts = self.port_connection_counts(workspace_edges)
         workspace_nodes = dict(workspace.nodes)
+        hide_locked_ports, hide_optional_ports = self.active_view_port_filters(workspace)
 
         nodes_payload: list[dict[str, Any]] = []
         backdrop_nodes_payload: list[dict[str, Any]] = []
@@ -393,6 +415,8 @@ class _GraphSceneBackdropPartitioner:
                 workspace_nodes=workspace_nodes,
                 port_connection_counts=port_connection_counts,
                 graph_theme=graph_theme,
+                hide_locked_ports=hide_locked_ports,
+                hide_optional_ports=hide_optional_ports,
                 show_port_labels=show_port_labels,
                 graph_label_pixel_size=graph_label_pixel_size,
             )

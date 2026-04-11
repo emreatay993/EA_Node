@@ -256,6 +256,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
     def test_qml_parallel_edges_between_same_nodes_use_distinct_lanes(self) -> None:
         source_id = self.window.scene.add_node_from_type("core.start", x=40.0, y=40.0)
         target_id = self.window.scene.add_node_from_type("core.logger", x=320.0, y=60.0)
+        self.assertTrue(self.window.scene.set_port_locked(target_id, "message", False))
         self.window.scene.set_node_collapsed(source_id, True)
         self.window.scene.set_node_collapsed(target_id, True)
         self.app.processEvents()
@@ -699,6 +700,127 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         updated_ports = {port["key"] for port in updated_payload["ports"]}
         self.assertEqual(updated_ports, {"trigger"})
 
+    def test_qml_node_payload_projects_locked_optional_state_and_manual_lock_toggle_roundtrips_undo_redo(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=80.0)
+        self.app.processEvents()
+
+        def ports_by_key() -> dict[str, dict[str, object]]:
+            payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
+            return {str(port["key"]): port for port in payload["ports"]}
+
+        self.assertTrue(bool(ports_by_key()["message"]["locked"]))
+        self.assertTrue(bool(ports_by_key()["message"]["optional"]))
+        self.assertFalse(bool(ports_by_key()["exec_in"]["optional"]))
+
+        self.window.runtime_history.clear_workspace(workspace_id)
+        self.assertTrue(self.window.scene.set_port_locked(node_id, "message", False))
+        self.app.processEvents()
+
+        self.assertFalse(bool(ports_by_key()["message"]["locked"]))
+        self.assertFalse(bool(workspace.nodes[node_id].locked_ports["message"]))
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+        self.window.action_undo.trigger()
+        wait_for_condition_or_raise(
+            lambda: bool(ports_by_key()["message"]["locked"]),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for locked-port undo payload refresh.",
+        )
+        self.assertTrue(bool(workspace.nodes[node_id].locked_ports["message"]))
+
+        self.window.action_redo.trigger()
+        wait_for_condition_or_raise(
+            lambda: not bool(ports_by_key()["message"]["locked"]),
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for locked-port redo payload refresh.",
+        )
+        self.assertFalse(bool(workspace.nodes[node_id].locked_ports["message"]))
+
+    def test_qml_view_hide_filters_are_view_local_and_filter_payload_ports(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        primary_view_id = workspace.active_view_id
+        node_id = self.window.scene.add_node_from_type("core.logger", x=240.0, y=120.0)
+        self.app.processEvents()
+
+        def port_keys() -> set[str]:
+            payload = next(item for item in self.window.scene.nodes_model if item["node_id"] == node_id)
+            return {str(port["key"]) for port in payload["ports"]}
+
+        self.assertEqual(port_keys(), {"exec_in", "exec_out", "message"})
+
+        self.window.runtime_history.clear_workspace(workspace_id)
+        self.assertTrue(self.window.scene.set_hide_locked_ports(True))
+        wait_for_condition_or_raise(
+            lambda: port_keys() == {"exec_in", "exec_out"},
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for hide-locked payload filtering.",
+        )
+        self.assertTrue(bool(workspace.views[primary_view_id].hide_locked_ports))
+        self.assertEqual(self.window.runtime_history.undo_depth(workspace_id), 1)
+
+        self.window.action_undo.trigger()
+        wait_for_condition_or_raise(
+            lambda: port_keys() == {"exec_in", "exec_out", "message"},
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for hide-locked undo payload refresh.",
+        )
+        self.assertFalse(bool(workspace.views[primary_view_id].hide_locked_ports))
+
+        self.window.action_redo.trigger()
+        wait_for_condition_or_raise(
+            lambda: port_keys() == {"exec_in", "exec_out"},
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for hide-locked redo payload refresh.",
+        )
+        self.assertTrue(bool(workspace.views[primary_view_id].hide_locked_ports))
+
+        secondary_view_id = self.window.workspace_manager.create_view(workspace_id, name="Filtered")
+        self.app.processEvents()
+        self.window.scene.set_hide_locked_ports(False)
+        self.window.scene.set_hide_optional_ports(True)
+        wait_for_condition_or_raise(
+            lambda: port_keys() == {"exec_in"},
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for hide-optional payload filtering.",
+        )
+        self.assertFalse(bool(workspace.views[secondary_view_id].hide_locked_ports))
+        self.assertTrue(bool(workspace.views[secondary_view_id].hide_optional_ports))
+
+        self.window.request_switch_view(primary_view_id)
+        wait_for_condition_or_raise(
+            lambda: port_keys() == {"exec_in", "exec_out"},
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for primary-view payload restore.",
+        )
+        self.assertTrue(bool(workspace.views[primary_view_id].hide_locked_ports))
+        self.assertFalse(bool(workspace.views[primary_view_id].hide_optional_ports))
+
+        self.window.request_switch_view(secondary_view_id)
+        wait_for_condition_or_raise(
+            lambda: port_keys() == {"exec_in"},
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for secondary-view payload restore.",
+        )
+
     def test_qml_node_payload_exposes_inline_property_metadata_for_supported_nodes(self) -> None:
         node_id = self.window.scene.add_node_from_type("core.logger", x=120.0, y=80.0)
         self.window.scene.focus_node(node_id)
@@ -716,6 +838,7 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         constant_id = self.window.scene.add_node_from_type("core.constant", x=20.0, y=120.0)
         self.window.scene.focus_node(logger_id)
         self.window.set_selected_node_property("message", "inline update")
+        self.assertTrue(self.window.scene.set_port_locked(logger_id, "message", False))
         self.window.request_connect_ports(constant_id, "as_text", logger_id, "message")
         self.app.processEvents()
 
