@@ -192,6 +192,13 @@ docs/specs/work_packets/global_gap_break_edge_crossing_variant/*
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P03_verification_docs_traceability_closeout.md
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_P03_verification_docs_traceability_closeout_PROMPT.md
 !docs/specs/work_packets/global_gap_break_edge_crossing_variant/P03_verification_docs_traceability_closeout_WRAPUP.md
+!docs/specs/work_packets/port_value_locking/
+docs/specs/work_packets/port_value_locking/*
+!docs/specs/work_packets/port_value_locking/PORT_VALUE_LOCKING_MANIFEST.md
+!docs/specs/work_packets/port_value_locking/PORT_VALUE_LOCKING_STATUS.md
+!docs/specs/work_packets/port_value_locking/PORT_VALUE_LOCKING_P*.md
+!docs/specs/work_packets/port_value_locking/PORT_VALUE_LOCKING_P*_PROMPT.md
+!docs/specs/work_packets/port_value_locking/P*_WRAPUP.md
 !docs/specs/work_packets/node_execution_visualization/
 docs/specs/work_packets/node_execution_visualization/*
 !docs/specs/work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_MANIFEST.md
@@ -278,6 +285,7 @@ docs/specs/perf/*
 !docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md
 !docs/specs/perf/NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md
 !docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
+!docs/specs/perf/PORT_VALUE_LOCKING_QA_MATRIX.md
 !docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md
 !docs/specs/perf/PYDPF_VIEWER_V1_QA_MATRIX.md
 !docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md
