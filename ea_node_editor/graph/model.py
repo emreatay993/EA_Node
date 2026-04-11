@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from importlib import import_module
 from typing import TYPE_CHECKING, Any
+
+from ea_node_editor.graph.port_locking import normalize_locked_ports_mapping
 from ea_node_editor.settings import SCHEMA_VERSION
 
 if TYPE_CHECKING:
@@ -78,6 +80,7 @@ def node_instance_from_mapping(payload: Mapping[str, Any]) -> NodeInstance | Non
         collapsed=bool(payload.get("collapsed", False)),
         properties=_as_mapping(payload.get("properties")),
         exposed_ports={key: bool(value) for key, value in _as_mapping(payload.get("exposed_ports")).items()},
+        locked_ports=normalize_locked_ports_mapping(payload.get("locked_ports")),
         port_labels={str(k): str(v) for k, v in _as_mapping(payload.get("port_labels")).items() if str(v).strip()},
         visual_style=_as_mapping(payload.get("visual_style")),
         parent_node_id=parent_node_id,
@@ -96,6 +99,7 @@ def node_instance_to_mapping(node: "NodeInstance") -> dict[str, Any]:
         "collapsed": node.collapsed,
         "properties": copy.deepcopy(node.properties),
         "exposed_ports": copy.deepcopy(node.exposed_ports),
+        "locked_ports": copy.deepcopy(node.locked_ports),
         "port_labels": copy.deepcopy(node.port_labels),
         "visual_style": copy.deepcopy(node.visual_style),
         "parent_node_id": node.parent_node_id,
@@ -145,6 +149,7 @@ class NodeInstance:
     collapsed: bool = False
     properties: dict[str, Any] = field(default_factory=dict)
     exposed_ports: dict[str, bool] = field(default_factory=dict)
+    locked_ports: dict[str, bool] = field(default_factory=dict)
     port_labels: dict[str, str] = field(default_factory=dict)
     visual_style: dict[str, Any] = field(default_factory=dict)
     parent_node_id: str | None = None
@@ -177,6 +182,8 @@ class ViewState:
     pan_x: float = 0.0
     pan_y: float = 0.0
     scope_path: list[str] = field(default_factory=list)
+    hide_locked_ports: bool = False
+    hide_optional_ports: bool = False
 
 @dataclass(eq=False)
 class WorkspaceSnapshot:
@@ -489,6 +496,8 @@ class GraphModel:
             pan_x=source_view.pan_x if source_view is not None else 0.0,
             pan_y=source_view.pan_y if source_view is not None else 0.0,
             scope_path=list(source_view.scope_path) if source_view is not None else [],
+            hide_locked_ports=source_view.hide_locked_ports if source_view is not None else False,
+            hide_optional_ports=source_view.hide_optional_ports if source_view is not None else False,
         )
         workspace.views[view.view_id] = view
         workspace.active_view_id = view.view_id

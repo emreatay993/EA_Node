@@ -44,6 +44,47 @@ _COMMENT_BACKDROP_RUNTIME_MEMBERSHIP_KEYS = (
     "contained_node_ids",
     "contained_backdrop_ids",
 )
+_VIEW_FILTER_STATE_METADATA_KEY = "port_locking_view_state"
+
+
+def _coerce_bool(value: Any, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "y", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "n", "off"}:
+            return False
+    return default
+
+
+def _view_filter_state_from_metadata(payload: Any) -> dict[str, dict[str, dict[str, bool]]]:
+    if not isinstance(payload, Mapping):
+        return {}
+    workspace_state: dict[str, dict[str, dict[str, bool]]] = {}
+    for raw_workspace_id, raw_workspace_payload in payload.items():
+        workspace_id = str(raw_workspace_id).strip()
+        if not workspace_id or not isinstance(raw_workspace_payload, Mapping):
+            continue
+        view_state: dict[str, dict[str, bool]] = {}
+        for raw_view_id, raw_view_payload in raw_workspace_payload.items():
+            view_id = str(raw_view_id).strip()
+            if not view_id or not isinstance(raw_view_payload, Mapping):
+                continue
+            hide_locked_ports = _coerce_bool(raw_view_payload.get("hide_locked_ports"), False)
+            hide_optional_ports = _coerce_bool(raw_view_payload.get("hide_optional_ports"), False)
+            if not hide_locked_ports and not hide_optional_ports:
+                continue
+            view_state[view_id] = {
+                "hide_locked_ports": hide_locked_ports,
+                "hide_optional_ports": hide_optional_ports,
+            }
+        if view_state:
+            workspace_state[workspace_id] = view_state
+    return workspace_state
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,9 +273,11 @@ class JsonProjectCodec:
         metadata["artifact_store"] = normalize_artifact_store_metadata(metadata.get("artifact_store"))
         metadata.pop(PERSISTENCE_ENVELOPE_KEY, None)
         metadata.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
+        metadata.pop(_VIEW_FILTER_STATE_METADATA_KEY, None)
 
         workspaces: list[dict[str, Any]] = []
         runtime_workspace_envelopes: dict[str, WorkspacePersistenceEnvelope] = {}
+        view_filter_state: dict[str, dict[str, dict[str, bool]]] = {}
         for workspace_id in ownership.workspace_order:
             workspace = project.workspaces[workspace_id]
             persistence_envelope = WorkspacePersistenceEnvelope.capture(workspace)
@@ -255,10 +298,22 @@ class JsonProjectCodec:
                         "pan_x": view.pan_x,
                         "pan_y": view.pan_y,
                         "scope_path": list(normalize_scope_path(workspace, view.scope_path)),
+                        "hide_locked_ports": view.hide_locked_ports,
+                        "hide_optional_ports": view.hide_optional_ports,
                     }
                     for view in workspace.views.values()
                 ],
             }
+            workspace_view_filter_state = {
+                view.view_id: {
+                    "hide_locked_ports": view.hide_locked_ports,
+                    "hide_optional_ports": view.hide_optional_ports,
+                }
+                for view in workspace.views.values()
+                if view.hide_locked_ports or view.hide_optional_ports
+            }
+            if workspace_view_filter_state:
+                view_filter_state[workspace.workspace_id] = workspace_view_filter_state
             if flavor is ProjectDocumentFlavor.AUTHORED:
                 workspace_doc["nodes"] = self._workspace_authored_node_docs(
                     workspace,
@@ -274,6 +329,8 @@ class JsonProjectCodec:
                 if not persistence_envelope.is_empty:
                     runtime_workspace_envelopes[workspace.workspace_id] = persistence_envelope
             workspaces.append(workspace_doc)
+        if view_filter_state:
+            metadata[_VIEW_FILTER_STATE_METADATA_KEY] = copy.deepcopy(view_filter_state)
         if flavor is ProjectDocumentFlavor.RUNTIME:
             runtime_envelope = ProjectPersistenceEnvelope.runtime(runtime_workspace_envelopes)
             metadata_value = runtime_envelope.metadata_value()
@@ -299,6 +356,7 @@ class JsonProjectCodec:
         )
         project.metadata.pop(PERSISTENCE_ENVELOPE_KEY, None)
         project.metadata.pop(LEGACY_RUNTIME_PERSISTENCE_KEY, None)
+        view_filter_state = _view_filter_state_from_metadata(project.metadata.pop(_VIEW_FILTER_STATE_METADATA_KEY, None))
         runtime_envelope = ProjectPersistenceEnvelope.from_document(payload)
         for ws_doc in payload.get("workspaces", []):
             if not isinstance(ws_doc, Mapping):
@@ -330,7 +388,19 @@ class JsonProjectCodec:
                         for item in view_doc.get("scope_path", [])
                         if str(item).strip()
                     ],
+                    hide_locked_ports=_coerce_bool(view_doc.get("hide_locked_ports"), False),
+                    hide_optional_ports=_coerce_bool(view_doc.get("hide_optional_ports"), False),
                 )
+                persisted_view_state = view_filter_state.get(workspace.workspace_id, {}).get(view.view_id)
+                if isinstance(persisted_view_state, Mapping):
+                    view.hide_locked_ports = _coerce_bool(
+                        persisted_view_state.get("hide_locked_ports"),
+                        view.hide_locked_ports,
+                    )
+                    view.hide_optional_ports = _coerce_bool(
+                        persisted_view_state.get("hide_optional_ports"),
+                        view.hide_optional_ports,
+                    )
                 workspace.views[view.view_id] = view
             workspace.ensure_default_view()
             if workspace.active_view_id not in workspace.views:

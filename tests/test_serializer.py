@@ -129,5 +129,71 @@ class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, Seriali
         self.assertEqual(payloads[backdrop.node_id]["member_node_ids"], [logger.node_id])
 
 
+class SerializerPortLockingTests(unittest.TestCase):
+    def test_persistent_document_round_trip_preserves_locked_ports_and_view_filters(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "core.logger",
+            "Logger",
+            120.0,
+            80.0,
+            properties={"message": "inline"},
+        )
+        node.locked_ports = {"message": True, "shadow": False}
+        view = workspace.views[workspace.active_view_id]
+        view.hide_locked_ports = True
+        view.hide_optional_ports = True
+
+        document = serializer.to_persistent_document(model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
+        view_doc = next(item for item in workspace_doc["views"] if item["view_id"] == view.view_id)
+
+        self.assertEqual(node_doc["locked_ports"], {"message": True, "shadow": False})
+        self.assertTrue(view_doc["hide_locked_ports"])
+        self.assertTrue(view_doc["hide_optional_ports"])
+
+        loaded = serializer.from_document(document)
+        loaded_workspace = loaded.workspaces[workspace.workspace_id]
+        loaded_node = loaded_workspace.nodes[node.node_id]
+        loaded_view = loaded_workspace.views[view.view_id]
+
+        self.assertEqual(loaded_node.locked_ports, {"message": True, "shadow": False})
+        self.assertTrue(loaded_view.hide_locked_ports)
+        self.assertTrue(loaded_view.hide_optional_ports)
+
+    def test_load_defaults_locked_ports_and_view_filters_when_fields_are_missing(self) -> None:
+        serializer = JsonProjectSerializer(build_default_registry())
+        model = GraphModel()
+        workspace = model.active_workspace
+        node = model.add_node(
+            workspace.workspace_id,
+            "core.logger",
+            "Logger",
+            40.0,
+            60.0,
+        )
+
+        document = serializer.to_persistent_document(model.project)
+        workspace_doc = next(ws for ws in document["workspaces"] if ws["workspace_id"] == workspace.workspace_id)
+        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == node.node_id)
+        view_doc = next(item for item in workspace_doc["views"] if item["view_id"] == workspace.active_view_id)
+        node_doc.pop("locked_ports", None)
+        view_doc.pop("hide_locked_ports", None)
+        view_doc.pop("hide_optional_ports", None)
+
+        loaded = serializer.from_document(document)
+        loaded_workspace = loaded.workspaces[workspace.workspace_id]
+        loaded_node = loaded_workspace.nodes[node.node_id]
+        loaded_view = loaded_workspace.views[workspace.active_view_id]
+
+        self.assertEqual(loaded_node.locked_ports, {})
+        self.assertFalse(loaded_view.hide_locked_ports)
+        self.assertFalse(loaded_view.hide_optional_ports)
+
+
 if __name__ == "__main__":
     unittest.main()

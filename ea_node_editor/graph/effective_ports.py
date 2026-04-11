@@ -29,6 +29,7 @@ class EffectivePort:
     required: bool = False
     exposed: bool = True
     allow_multiple_connections: bool = False
+    locked: bool = False
 
 
 PortLike = TypeVar("PortLike", EffectivePort, PortSpec)
@@ -120,6 +121,7 @@ def effective_ports(
             required=port.required,
             exposed=bool(node.exposed_ports.get(port.key, port.exposed)),
             allow_multiple_connections=bool(port.allow_multiple_connections),
+            locked=bool(node.locked_ports.get(port.key, False)),
         )
         for port in spec.ports
     )
@@ -389,6 +391,7 @@ def _subnode_shell_ports(
                 required=shell_direction == "in",
                 exposed=bool(node.exposed_ports.get(shell_key, True)),
                 allow_multiple_connections=False,
+                locked=bool(node.locked_ports.get(shell_key, False)),
             )
         )
     return tuple(ports)
@@ -408,6 +411,7 @@ def _subnode_pin_port(*, node: NodeInstance) -> EffectivePort:
         required=pin_definition.pin_port_direction == "in",
         exposed=bool(node.exposed_ports.get(SUBNODE_PIN_PORT_KEY, True)),
         allow_multiple_connections=False,
+        locked=bool(node.locked_ports.get(SUBNODE_PIN_PORT_KEY, False)),
     )
 
 
