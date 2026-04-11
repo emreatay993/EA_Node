@@ -6,8 +6,15 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
+from ea_node_editor.nodes.category_paths import (
+    category_display,
+    category_key,
+    normalize_category_path,
+)
+
 
 CUSTOM_WORKFLOW_LIBRARY_CATEGORY = "Custom Workflows"
+CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH = normalize_category_path((CUSTOM_WORKFLOW_LIBRARY_CATEGORY,))
 _CUSTOM_WORKFLOW_TYPE_PREFIX = "custom_workflow:"
 
 
@@ -85,13 +92,19 @@ def find_custom_workflow_definition(value: Any, workflow_id: object) -> dict[str
 
 def custom_workflow_library_items(value: Any) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
+    category_display_text = category_display(CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH)
+    category_key_text = category_key(CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH)
     for definition in normalize_custom_workflow_metadata(value):
         workflow_id = definition["workflow_id"]
         items.append(
             {
                 "type_id": custom_workflow_type_id(workflow_id),
                 "display_name": definition["name"],
-                "category": CUSTOM_WORKFLOW_LIBRARY_CATEGORY,
+                "category_path": CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH,
+                "category_key": category_key_text,
+                "category_display": category_display_text,
+                "root_category": CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH[0],
+                "category": category_display_text,
                 "icon": "account_tree",
                 "description": definition["description"],
                 "ports": copy.deepcopy(definition["ports"]),

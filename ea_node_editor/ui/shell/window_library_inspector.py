@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import importlib
+import json
 from collections.abc import Callable, Iterable, Mapping
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 from ea_node_editor.execution.dpf_runtime.optional_imports import load_dpf_module
+from ea_node_editor.nodes.category_paths import (
+    CategoryPath,
+    category_display,
+    category_key,
+    category_path_ancestors,
+    category_path_matches_prefix,
+    normalize_category_path,
+)
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_MESH_SELECTION_NAMED_SELECTION,
@@ -32,6 +41,8 @@ from ea_node_editor.nodes.types import (
 )
 
 _DPF_PATH_LIKE_PORT_KEYS = frozenset({"normalized_path", "written_path", "path"})
+_DEFAULT_LIBRARY_CATEGORY = "Other"
+_CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH = (CUSTOM_WORKFLOW_LIBRARY_CATEGORY,)
 
 
 def _project_root(project_path: str | None) -> Path | None:
@@ -283,12 +294,126 @@ def _dynamic_property_item_overrides(
     }
 
 
+def _category_sort_key(path: Iterable[str]) -> tuple[tuple[str, ...], CategoryPath]:
+    normalized_path = normalize_category_path(tuple(path))
+    return tuple(segment.casefold() for segment in normalized_path), normalized_path
+
+
+def _category_metadata(path: Iterable[str]) -> dict[str, Any]:
+    normalized_path = normalize_category_path(tuple(path))
+    display = category_display(normalized_path)
+    key = category_key(normalized_path)
+    return {
+        "category_path": normalized_path,
+        "category_key": key,
+        "category_display": display,
+        "root_category": normalized_path[0],
+        "category": display,
+    }
+
+
+def _category_path_from_item(item: Mapping[str, Any]) -> CategoryPath:
+    raw_path = item.get("category_path")
+    if raw_path is not None and not isinstance(raw_path, str):
+        try:
+            return normalize_category_path(tuple(raw_path))
+        except (TypeError, ValueError):
+            pass
+
+    fallback_category = str(
+        item.get("category_display")
+        or item.get("category")
+        or (
+            CUSTOM_WORKFLOW_LIBRARY_CATEGORY
+            if str(item.get("library_source", "")).strip() == "custom_workflow"
+            else _DEFAULT_LIBRARY_CATEGORY
+        )
+    ).strip()
+    return normalize_category_path((fallback_category or _DEFAULT_LIBRARY_CATEGORY,))
+
+
+def _project_library_item_payload(item: Mapping[str, Any]) -> dict[str, Any]:
+    payload = dict(item)
+    payload.update(_category_metadata(_category_path_from_item(payload)))
+    ports = payload.get("ports", [])
+    payload["ports"] = list(ports) if isinstance(ports, list) else []
+    return payload
+
+
+def _category_filter_prefix(value: str) -> CategoryPath | None:
+    normalized_value = str(value or "").strip()
+    if not normalized_value:
+        return None
+    try:
+        decoded = json.loads(normalized_value)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(decoded, list):
+        try:
+            return normalize_category_path(tuple(decoded))
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _item_matches_category_filter(item: Mapping[str, Any], category: str) -> bool:
+    normalized_category = str(category or "").strip()
+    if not normalized_category:
+        return True
+
+    item_path = _category_path_from_item(item)
+    prefix = _category_filter_prefix(normalized_category)
+    if prefix is not None:
+        return category_path_matches_prefix(item_path, prefix)
+
+    category_display_filter = normalized_category.casefold()
+    return any(
+        category_display(ancestor).casefold() == category_display_filter
+        for ancestor in category_path_ancestors(item_path)
+    )
+
+
+def _ancestor_category_keys(path: Iterable[str], *, include_self: bool) -> list[str]:
+    ancestors = list(category_path_ancestors(normalize_category_path(tuple(path))))
+    if not include_self:
+        ancestors = ancestors[:-1]
+    return [category_key(ancestor) for ancestor in ancestors]
+
+
+def _category_row(path: Iterable[str]) -> dict[str, Any]:
+    normalized_path = normalize_category_path(tuple(path))
+    payload = _category_metadata(normalized_path)
+    payload.update(
+        {
+            "kind": "category",
+            "label": normalized_path[-1],
+            "depth": len(normalized_path) - 1,
+            "ancestor_category_keys": _ancestor_category_keys(normalized_path, include_self=False),
+        }
+    )
+    return payload
+
+
+def _node_row(item: Mapping[str, Any]) -> dict[str, Any]:
+    payload = _project_library_item_payload(item)
+    category_path = _category_path_from_item(payload)
+    payload.update(
+        {
+            "kind": "node",
+            "label": str(payload.get("display_name", "")).strip(),
+            "depth": len(category_path),
+            "ancestor_category_keys": _ancestor_category_keys(category_path, include_self=True),
+        }
+    )
+    return payload
+
+
 def build_registry_library_items(*, registry_specs: Iterable[Any]) -> list[dict[str, Any]]:
     return [
         {
             "type_id": spec.type_id,
             "display_name": spec.display_name,
-            "category": spec.category,
+            **_category_metadata(spec.category_path),
             "icon": spec.icon,
             "description": spec.description,
             "library_source": "node_registry",
@@ -314,11 +439,11 @@ def build_combined_library_items(
     registry_items: Iterable[dict[str, Any]],
     custom_workflow_items: Iterable[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    items = list(registry_items)
-    items.extend(custom_workflow_items)
+    items = [_project_library_item_payload(item) for item in registry_items]
+    items.extend(_project_library_item_payload(item) for item in custom_workflow_items)
     items.sort(
         key=lambda item: (
-            str(item.get("category", "")).lower(),
+            _category_sort_key(_category_path_from_item(item)),
             str(item.get("display_name", "")).lower(),
             str(item.get("type_id", "")).lower(),
         )
@@ -334,8 +459,7 @@ def library_item_matches_filters(
     data_type: str,
     direction: str,
 ) -> bool:
-    item_category = str(item.get("category", "")).strip().lower()
-    if category and item_category != category:
+    if not _item_matches_category_filter(item, category):
         return False
 
     ports = item.get("ports", [])
@@ -364,6 +488,7 @@ def library_item_matches_filters(
             str(item.get("type_id", "")),
             str(item.get("display_name", "")),
             str(item.get("category", "")),
+            str(item.get("category_display", "")),
             str(item.get("description", "")),
             " ".join(str(port.get("key", "")) for port in normalized_ports if isinstance(port, dict)),
         ]
@@ -380,7 +505,7 @@ def build_filtered_library_items(
     direction: str,
 ) -> list[dict[str, Any]]:
     normalized_query = str(query).strip().lower()
-    normalized_category = str(category).strip().lower()
+    normalized_category = str(category).strip()
     normalized_data_type = str(data_type).strip().lower()
     normalized_direction = str(direction).strip().lower()
     return [
@@ -397,46 +522,86 @@ def build_filtered_library_items(
 
 
 def build_grouped_library_items(*, filtered_items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[str, list[dict[str, Any]]] = {}
+    trie: dict[str, Any] = {"path": (), "children": {}, "items": []}
     for item in filtered_items:
-        category = str(item.get("category", "Other"))
-        groups.setdefault(category, []).append(item)
+        payload = _project_library_item_payload(item)
+        node = trie
+        current_path: CategoryPath = ()
+        for segment in _category_path_from_item(payload):
+            current_path = (*current_path, segment)
+            children = node["children"]
+            node = children.setdefault(segment, {"path": current_path, "children": {}, "items": []})
+        node["items"].append(payload)
+
     payload: list[dict[str, Any]] = []
-    for category in sorted(groups):
-        payload.append({"kind": "category", "category": category, "label": category})
-        for node_item in groups[category]:
-            payload.append(
-                {
-                    "kind": "node",
-                    "category": category,
-                    "type_id": node_item["type_id"],
-                    "display_name": node_item["display_name"],
-                    "icon": node_item.get("icon", ""),
-                    "description": node_item["description"],
-                    "ports": list(node_item.get("ports", [])),
-                    "library_source": node_item.get("library_source", "node_registry"),
-                    "workflow_id": node_item.get("workflow_id", ""),
-                    "revision": node_item.get("revision", 1),
-                    "workflow_scope": node_item.get("workflow_scope", "local"),
-                }
-            )
+
+    def _append_node(node: dict[str, Any]) -> None:
+        path = node["path"]
+        if path:
+            payload.append(_category_row(path))
+        for child_segment in sorted(
+            node["children"],
+            key=lambda segment: (str(segment).casefold(), str(segment)),
+        ):
+            _append_node(node["children"][child_segment])
+        for node_item in sorted(
+            node["items"],
+            key=lambda item: (
+                str(item.get("display_name", "")).casefold(),
+                str(item.get("type_id", "")).casefold(),
+            ),
+        ):
+            payload.append(_node_row(node_item))
+
+    _append_node(trie)
     return payload
 
 
 def build_library_category_options(
     *,
     combined_items: Iterable[dict[str, Any]],
-    registry_categories: Iterable[str],
-) -> list[dict[str, str]]:
-    categories = {
-        str(item.get("category", "")).strip()
-        for item in combined_items
-        if str(item.get("category", "")).strip()
-    }
-    categories.update(str(category) for category in registry_categories)
-    categories.add(CUSTOM_WORKFLOW_LIBRARY_CATEGORY)
+    registry_categories: Iterable[Any],
+) -> list[dict[str, Any]]:
+    paths: set[CategoryPath] = set()
+    display_lookup: dict[str, set[CategoryPath]] = {}
+
+    def _add_path(path: Iterable[str]) -> None:
+        normalized_path = normalize_category_path(tuple(path))
+        for ancestor in category_path_ancestors(normalized_path):
+            paths.add(ancestor)
+            display_lookup.setdefault(category_display(ancestor).casefold(), set()).add(ancestor)
+
+    for item in combined_items:
+        _add_path(_category_path_from_item(item))
+
+    for raw_category in registry_categories:
+        if isinstance(raw_category, str):
+            normalized_category = raw_category.strip()
+            if not normalized_category:
+                continue
+            matched_paths = display_lookup.get(normalized_category.casefold())
+            if matched_paths:
+                for path in matched_paths:
+                    _add_path(path)
+            else:
+                _add_path((normalized_category,))
+            continue
+        try:
+            _add_path(tuple(raw_category))
+        except (TypeError, ValueError):
+            continue
+
+    _add_path(_CUSTOM_WORKFLOW_LIBRARY_CATEGORY_PATH)
     return [{"label": "All Categories", "value": ""}] + [
-        {"label": category, "value": category} for category in sorted(categories)
+        {
+            "label": category_display(path),
+            "value": category_key(path),
+            "category_path": path,
+            "category_key": category_key(path),
+            "depth": len(path) - 1,
+            "root_category": path[0],
+        }
+        for path in sorted(paths, key=_category_sort_key)
     ]
 
 
@@ -521,6 +686,12 @@ def build_selected_node_header_data(
 
     metadata_items: list[dict[str, str]] = []
     category = str(getattr(spec, "category", "")).strip()
+    category_path = getattr(spec, "category_path", None)
+    if category_path is not None:
+        try:
+            category = category_display(category_path)
+        except (TypeError, ValueError):
+            pass
     if category:
         metadata_items.append({"label": "Category", "value": category})
     metadata_items.append({"label": "ID", "value": str(instance_number)})
@@ -634,6 +805,7 @@ def _library_item_matches_query(item: dict[str, Any], *, query: str, compatible_
             str(item.get("type_id", "")),
             str(item.get("display_name", "")),
             str(item.get("category", "")),
+            str(item.get("category_display", "")),
             str(item.get("description", "")),
             " ".join(str(port.get("key", "")) for port in compatible_ports),
             " ".join(str(port.get("label", "")) for port in compatible_ports),
