@@ -5,16 +5,16 @@
 - Packet: `P02`
 - Branch Label: `codex/port-value-locking/p02-mutation-semantics-and-locked-port-invariants`
 - Commit Owner: `worker`
-- Commit SHA: `1fe2cd8e5e048261dadba6823a5966dd3a8bb280`
-- Changed Files: `docs/specs/work_packets/port_value_locking/P02_mutation_semantics_and_locked_port_invariants_WRAPUP.md`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/graph/transform_fragment_ops.py`, `ea_node_editor/ui/graph_interactions.py`, `tests/graph_track_b/scene_model_graph_scene_suite.py`, `tests/test_port_locking.py`
-- Artifacts Produced: `docs/specs/work_packets/port_value_locking/P02_mutation_semantics_and_locked_port_invariants_WRAPUP.md`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/graph/transform_fragment_ops.py`, `ea_node_editor/ui/graph_interactions.py`, `tests/graph_track_b/scene_model_graph_scene_suite.py`, `tests/test_port_locking.py`
+- Commit SHA: `1f513f155fbc3577cad82b5fee2168b9e1a908b3`
+- Changed Files: `docs/specs/work_packets/port_value_locking/P02_mutation_semantics_and_locked_port_invariants_WRAPUP.md`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/graph/transform_fragment_ops.py`, `ea_node_editor/ui/graph_interactions.py`, `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py`, `tests/graph_track_b/scene_model_graph_scene_suite.py`, `tests/test_port_locking.py`
+- Artifacts Produced: `docs/specs/work_packets/port_value_locking/P02_mutation_semantics_and_locked_port_invariants_WRAPUP.md`, `ea_node_editor/graph/mutation_service.py`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/graph/transform_fragment_ops.py`, `ea_node_editor/ui/graph_interactions.py`, `ea_node_editor/ui_qml/graph_scene_mutation/selection_and_scope_ops.py`, `tests/graph_track_b/scene_model_graph_scene_suite.py`, `tests/test_port_locking.py`
 
-P02 makes `locked_ports` enforceable in the validated mutation layer instead of keeping it as passive state. Node creation now seeds lock state from normalized defaults, property edits can auto-lock and prune now-illegal incoming edges, manual `set_locked_port` rejects non-lockable ports and preserves property values, backend edge validation rejects locked targets with a stable user-facing reason, and graph-fragment copy/paste preserves lock state through normalization and restore. The owned graph-scene tests were updated to use an explicit backend unlock where they intentionally wire into `core.logger.message`, and `GraphInteractions.connect_ports()` now returns the same locked-target rejection reason before attempting the scene mutation.
+P02 makes `locked_ports` enforceable in the validated mutation layer instead of keeping it as passive state. Node creation now seeds lock state from normalized defaults, property edits can auto-lock and prune now-illegal incoming edges, manual `set_locked_port` rejects non-lockable ports and preserves property values, backend edge validation rejects locked targets with a stable user-facing reason, and graph-fragment copy/paste preserves lock state through normalization and restore. The scene entry points now align on that same rejection reason: `GraphInteractions.connect_ports()` preflights locked targets directly, and `selection_and_scope_ops.connect_nodes()` now resolves compatible node-to-node port pairs before falling back so a specifically locked target reports `LOCKED_TARGET_PORT_MESSAGE` instead of the generic incompatible-ports error.
 
 ## Verification
 
-- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_port_locking.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q`
-- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_port_locking.py --ignore=venv -q`
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_port_locking.py tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q` (`64 passed`)
+- PASS: `.\venv\Scripts\python.exe -m pytest tests/test_port_locking.py --ignore=venv -q` (`14 passed`)
 
 - Final Verification Verdict: PASS
 
