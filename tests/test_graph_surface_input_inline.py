@@ -443,21 +443,20 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert loader is not None
 
             embedded_rects = variant_list(loader.property("embeddedInteractiveRects"))
-            assert len(embedded_rects) == 5, embedded_rects
+            assert len(embedded_rects) == 4, embedded_rects
 
             widths = [rect_field(rect, "width") for rect in embedded_rects]
             heights = [rect_field(rect, "height") for rect in embedded_rects]
             ys = [rect_field(rect, "y") for rect in embedded_rects]
 
-            assert widths[0] > 30.0, (widths, heights, ys, embedded_rects)
-            assert widths[0] + widths[1] > 100.0, (widths, heights, ys, embedded_rects)
-            assert widths[1] < 90.0, (widths, heights, ys, embedded_rects)
-            assert heights[2] > 60.0, (widths, heights, ys, embedded_rects)
+            assert widths[0] > 60.0, (widths, heights, ys, embedded_rects)
+            assert heights[0] >= 18.0, (widths, heights, ys, embedded_rects)
+            assert widths[1] > 120.0, (widths, heights, ys, embedded_rects)
+            assert heights[1] > 60.0, (widths, heights, ys, embedded_rects)
+            assert widths[2] < 90.0, (widths, heights, ys, embedded_rects)
             assert widths[3] < 90.0, (widths, heights, ys, embedded_rects)
-            assert widths[4] < 90.0, (widths, heights, ys, embedded_rects)
-            assert max(ys[:2]) - min(ys[:2]) <= 4.0, (widths, heights, ys, embedded_rects)
-            assert ys[2] > max(ys[:2]), (widths, heights, ys, embedded_rects)
-            assert max(ys[3:]) - min(ys[3:]) <= 1.0, (widths, heights, ys, embedded_rects)
+            assert ys[0] < ys[1] < ys[2], (widths, heights, ys, embedded_rects)
+            assert max(ys[2:]) - min(ys[2:]) <= 1.0, (widths, heights, ys, embedded_rects)
             """,
         )
 
@@ -683,6 +682,93 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             dispose_host_window(host, window)
             engine.deleteLater()
             app.processEvents()
+            """,
+        )
+
+    def test_locked_input_rows_publish_padlock_contract_without_changing_row_geometry(self) -> None:
+        self._run_qml_probe(
+            "locked-input-row-contract",
+            """
+            host = probe.findChild(QObject, "probeHost")
+            payload = variant_value(host.property("nodeData"))
+            payload["properties"] = {
+                "message": "Line one",
+                "count": 7,
+            }
+            payload["ports"] = [
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                    "locked": True,
+                    "allow_multiple_connections": False,
+                },
+                {
+                    "key": "count",
+                    "label": "Count",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "int",
+                    "connected": False,
+                    "locked": False,
+                    "allow_multiple_connections": False,
+                },
+                {
+                    "key": "result",
+                    "label": "Result",
+                    "direction": "out",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                    "allow_multiple_connections": False,
+                },
+            ]
+            payload["inline_properties"] = [
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "inline_editor": "text",
+                    "value": "Line one",
+                    "overridden_by_input": False,
+                    "input_port_label": "message",
+                },
+                {
+                    "key": "count",
+                    "label": "Count",
+                    "inline_editor": "number",
+                    "value": 7,
+                    "overridden_by_input": False,
+                    "input_port_label": "count",
+                },
+            ]
+            host.setProperty("nodeData", payload)
+            app.processEvents()
+
+            locked_row = named_item(probe, "graphNodeInputPortRow", "message")
+            unlocked_row = named_item(probe, "graphNodeInputPortRow", "count")
+            locked_tint = named_item(probe, "graphNodeInputPortLockedRowTint", "message")
+            unlocked_tint = named_item(probe, "graphNodeInputPortLockedRowTint", "count")
+            locked_label = named_item(probe, "graphNodeInputPortLabel", "message")
+            unlocked_label = named_item(probe, "graphNodeInputPortLabel", "count")
+            locked_padlock = named_item(probe, "graphNodeInputPortPadlock", "message")
+            unlocked_padlock = named_item(probe, "graphNodeInputPortPadlock", "count")
+            lock_toggle = named_item(probe, "graphNodeInputPortLockToggleMouseArea", "message")
+
+            assert bool(locked_row.property("lockableState")) is True
+            assert bool(locked_row.property("lockedState")) is True
+            assert bool(unlocked_row.property("lockableState")) is True
+            assert bool(unlocked_row.property("lockedState")) is False
+            assert abs(float(locked_row.height()) - float(unlocked_row.height())) < 0.5
+            assert bool(locked_tint.property("visible")) is True
+            assert bool(unlocked_tint.property("visible")) is False
+            assert float(locked_label.property("opacity")) < float(unlocked_label.property("opacity"))
+            assert bool(locked_padlock.property("visible")) is True
+            assert bool(unlocked_padlock.property("visible")) is True
+            assert float(locked_padlock.property("opacity")) > float(unlocked_padlock.property("opacity"))
+            assert bool(lock_toggle.property("visible")) is True
             """,
         )
 

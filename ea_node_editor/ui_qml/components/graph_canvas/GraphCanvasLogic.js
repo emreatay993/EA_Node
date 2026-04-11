@@ -145,6 +145,17 @@ function isNeutralFlowPort(portLike) {
         && (!dataType || dataType === "flow");
 }
 
+function isLockedInputPort(portLike) {
+    if (!portLike)
+        return false;
+    var direction = String(
+        portLike.direction !== undefined
+            ? portLike.direction
+            : (portLike.source_direction !== undefined ? portLike.source_direction : "")
+    ).trim().toLowerCase();
+    return direction === "in" && Boolean(portLike.locked);
+}
+
 function authoredConnection(sourceDrag, candidate) {
     var gestureOrderedNeutral = isNeutralFlowPort(sourceDrag) && isNeutralFlowPort(candidate);
     var sourceDirection = String(sourceDrag && sourceDrag.source_direction || "").trim().toLowerCase();
@@ -197,6 +208,8 @@ function isExactDuplicate(sourceDrag, candidate, edge) {
 
 function isDropAllowedWithCompatibility(sourceDrag, candidate, edges, kindsCompatible, typesCompatible) {
     if (!sourceDrag || !candidate)
+        return false;
+    if (isLockedInputPort(sourceDrag) || isLockedInputPort(candidate))
         return false;
     if (candidate.node_id === sourceDrag.node_id && candidate.port_key === sourceDrag.port_key)
         return false;

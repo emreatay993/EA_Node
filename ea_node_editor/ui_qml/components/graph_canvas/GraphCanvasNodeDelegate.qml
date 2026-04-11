@@ -144,6 +144,45 @@ GraphComponents.GraphNodeHost {
         if (canvasItem)
             canvasItem.handlePortClick(nodeId, portKey, direction, sceneX, sceneY);
     }
+    onPortDoubleClicked: function(nodeId, portKey, direction, locked) {
+        if (!canvasItem)
+            return;
+        var bridge = null;
+        var canvasBridge = canvasItem.canvasCommandBridge;
+        if (canvasBridge && canvasBridge.scene_command_source && canvasBridge.scene_command_source.set_port_locked)
+            bridge = canvasBridge.scene_command_source;
+        if (!bridge && canvasBridge && canvasBridge.scene_bridge && canvasBridge.scene_bridge.set_port_locked)
+            bridge = canvasBridge.scene_bridge;
+        if (
+            !bridge
+            && canvasBridge
+            && canvasBridge.scene_bridge
+            && canvasBridge.scene_bridge.command_bridge
+            && canvasBridge.scene_bridge.command_bridge.set_port_locked
+        ) {
+            bridge = canvasBridge.scene_bridge.command_bridge;
+        }
+        if (
+            !bridge
+            && canvasItem.canvasStateBridge
+            && canvasItem.canvasStateBridge.scene_bridge
+            && canvasItem.canvasStateBridge.scene_bridge.set_port_locked
+        ) {
+            bridge = canvasItem.canvasStateBridge.scene_bridge;
+        }
+        if (!bridge && canvasItem.sceneCommandBridge && canvasItem.sceneCommandBridge.set_port_locked)
+            bridge = canvasItem.sceneCommandBridge;
+        if (!bridge || !bridge.set_port_locked)
+            return;
+        if (bridge.set_port_locked(nodeId, portKey, !Boolean(locked))) {
+            canvasItem.clearPendingConnection();
+            canvasItem.cancelWireDrag();
+            canvasItem.hoveredPort = null;
+            if (canvasItem.requestEdgeRedraw)
+                canvasItem.requestEdgeRedraw();
+            canvasItem.forceActiveFocus();
+        }
+    }
     onPortDragStarted: function(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY) {
         if (canvasItem)
             canvasItem.beginPortWireDrag(nodeId, portKey, direction, sceneX, sceneY, screenX, screenY);
@@ -182,6 +221,7 @@ GraphComponents.GraphNodeHost {
                 "kind": hoveredPortData ? String(hoveredPortData.kind || "") : "",
                 "data_type": hoveredPortData ? String(hoveredPortData.data_type || "") : "",
                 "allow_multiple_connections": hoveredPortData ? Boolean(hoveredPortData.allow_multiple_connections) : false,
+                "locked": hoveredPortData ? Boolean(hoveredPortData.locked) : false,
                 "scene_x": sceneX,
                 "scene_y": sceneY,
                 "valid_drop": false

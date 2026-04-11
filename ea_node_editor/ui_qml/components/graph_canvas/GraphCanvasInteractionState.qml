@@ -93,6 +93,7 @@ QtObject {
             "kind": portData ? String(portData.kind || "") : "",
             "data_type": portData ? String(portData.data_type || "") : "",
             "allow_multiple_connections": portData ? Boolean(portData.allow_multiple_connections) : false,
+            "locked": portData ? Boolean(portData.locked) : false,
             "scene_x": sceneX,
             "scene_y": sceneY,
             "valid_drop": false
@@ -202,6 +203,7 @@ QtObject {
                     "kind": String(port.kind || ""),
                     "data_type": String(port.data_type || ""),
                     "allow_multiple_connections": Boolean(port.allow_multiple_connections),
+                    "locked": Boolean(port.locked),
                     "scene_x": point.x,
                     "scene_y": point.y,
                     "valid_drop": false
@@ -538,6 +540,7 @@ QtObject {
             "kind": sourcePort ? String(sourcePort.kind || "") : "",
             "data_type": sourcePort ? String(sourcePort.data_type || "") : "",
             "allow_multiple_connections": sourcePort ? Boolean(sourcePort.allow_multiple_connections) : false,
+            "locked": sourcePort ? Boolean(sourcePort.locked) : false,
             "start_x": state.start_x,
             "start_y": state.start_y,
             "cursor_x": state.cursor_x,
@@ -609,6 +612,7 @@ QtObject {
             "kind": String(pending.kind || ""),
             "data_type": String(pending.data_type || ""),
             "allow_multiple_connections": Boolean(pending.allow_multiple_connections),
+            "locked": Boolean(pending.locked),
             "start_x": pending.scene_x,
             "start_y": pending.scene_y,
             "cursor_x": hovered.scene_x,
@@ -676,6 +680,8 @@ QtObject {
         root._closeContextMenus();
         root.wireDropCandidate = null;
         var source = _authoringPortPayload(nodeId, portKey, direction, sceneX, sceneY);
+        if (GraphCanvasLogic.isLockedInputPort(source))
+            return;
         var state = {
             "node_id": source.node_id,
             "port_key": source.port_key,
@@ -826,6 +832,8 @@ QtObject {
         root.canvasItem.forceActiveFocus();
         root._closeContextMenus();
         var clicked = _authoringPortPayload(nodeId, portKey, direction, sceneX, sceneY);
+        if (GraphCanvasLogic.isLockedInputPort(clicked))
+            return;
 
         if (!root.pendingConnectionPort) {
             root.pendingConnectionPort = clicked;
@@ -858,6 +866,7 @@ QtObject {
             "kind": String(pending.kind || ""),
             "data_type": String(pending.data_type || ""),
             "allow_multiple_connections": Boolean(pending.allow_multiple_connections),
+            "locked": Boolean(pending.locked),
             "start_x": pending.scene_x,
             "start_y": pending.scene_y,
             "cursor_x": sceneX,

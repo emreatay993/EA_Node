@@ -7,6 +7,8 @@ import sys
 import textwrap
 import unittest
 
+from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
+
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -425,6 +427,381 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert widths[2] > 90.0
             assert widths[3] > 90.0
             assert ys == sorted(ys)
+            """,
+        )
+
+
+class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
+    def test_graph_canvas_port_double_click_signal_tracks_locked_state(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-port-double-click-signal",
+            """
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                scene_bridge=scene,
+                view_bridge=view,
+            )
+
+            node_id = scene.add_node_from_type("core.logger", 120.0, 120.0)
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            settle_events(4)
+
+            workspace = model.active_workspace
+            node = workspace.nodes[node_id]
+            canvas_command_bridge = variant_value(canvas.property("canvasCommandBridge"))
+            bridge = canvas_command_bridge.scene_command_source
+            assert bridge is not None
+            if not node.locked_ports.get("message"):
+                assert bridge.set_port_locked(node_id, "message", True) is True
+                settle_events(4)
+            assert node.locked_ports.get("message") is True, node.locked_ports
+
+            lock_toggle = named_item(canvas, "graphNodeInputPortLockToggleMouseArea", "message")
+            node_card = named_item(canvas, "graphNodeCard")
+            assert bool(lock_toggle.property("visible")) is True, variant_value(lock_toggle.property("visible"))
+            toggle_events = []
+            node_card.portDoubleClicked.connect(
+                lambda node_id, port_key, direction, locked: toggle_events.append(
+                    (node_id, port_key, direction, locked)
+                )
+            )
+            window = attach_host_to_window(canvas, 760, 520)
+
+            mouse_double_click(window, item_scene_point(lock_toggle))
+            settle_events(4)
+            assert toggle_events == [(node_id, "message", "in", True)], toggle_events
+
+            mouse_double_click(window, item_scene_point(lock_toggle))
+            settle_events(4)
+            assert toggle_events == [
+                (node_id, "message", "in", True),
+                (node_id, "message", "in", True),
+            ], toggle_events
+
+            dispose_host_window(canvas, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_suppresses_locked_input_candidates_for_click_and_wire_flows(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-locked-target-suppression",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            class PortLockShellBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.connect_calls = []
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(str, constant=True)
+                def graphics_performance_mode(self):
+                    return "full_fidelity"
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                @pyqtSlot(str, str, str, str, result=bool)
+                def request_connect_ports(self, node_a_id, port_a, node_b_id, port_b):
+                    self.connect_calls.append(
+                        (
+                            str(node_a_id or ""),
+                            str(port_a or ""),
+                            str(node_b_id or ""),
+                            str(port_b or ""),
+                        )
+                    )
+                    return True
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            shell_bridge = PortLockShellBridgeStub()
+
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
+
+            source_id = scene.add_node_from_type("core.constant", 24.0, 24.0)
+            target_id = scene.add_node_from_type("core.logger", 360.0, 140.0)
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            settle_events(4)
+
+            lock_toggle = named_item(canvas, "graphNodeInputPortLockToggleMouseArea", "message")
+            assert bool(lock_toggle.property("visible")) is True
+
+            window = attach_host_to_window(canvas, 760, 520)
+            message_dot = named_item(canvas, "graphNodeInputPortDot", "message")
+            message_point = item_scene_point(message_dot)
+
+            source_port = variant_value(canvas._scenePortData(source_id, "as_text"))
+            assert source_port is not None
+
+            source_drag = {
+                "node_id": source_id,
+                "port_key": "as_text",
+                "source_direction": str(source_port["direction"]),
+                "kind": str(source_port["kind"]),
+                "data_type": str(source_port["data_type"]),
+                "allow_multiple_connections": bool(source_port.get("allow_multiple_connections", False)),
+                "locked": bool(source_port.get("locked", False)),
+                "start_x": 0.0,
+                "start_y": 0.0,
+                "cursor_x": 0.0,
+                "cursor_y": 0.0,
+            }
+
+            assert variant_value(
+                canvas._nearestDropCandidateForWireDrag(
+                    message_point.x(),
+                    message_point.y(),
+                    source_drag,
+                    28.0,
+                )
+            ) is None
+
+            canvas.handlePortClick(source_id, "as_text", "out", 0.0, 0.0)
+            app.processEvents()
+
+            pending = variant_value(canvas.property("pendingConnectionPort"))
+            assert pending["node_id"] == source_id
+            assert pending["port_key"] == "as_text"
+
+            canvas.handlePortClick(target_id, "message", "in", 0.0, 0.0)
+            app.processEvents()
+
+            pending = variant_value(canvas.property("pendingConnectionPort"))
+            assert pending["node_id"] == source_id
+            assert pending["port_key"] == "as_text"
+            assert shell_bridge.connect_calls == []
+
+            assert scene.set_port_locked(target_id, "message", False) is True
+            settle_events(4)
+
+            candidate = variant_value(
+                canvas._nearestDropCandidateForWireDrag(
+                    message_point.x(),
+                    message_point.y(),
+                    source_drag,
+                    28.0,
+                )
+            )
+            assert candidate is not None
+            assert candidate["node_id"] == target_id
+            assert candidate["port_key"] == "message"
+            assert bool(candidate["valid_drop"]) is True
+
+            canvas.handlePortClick(target_id, "message", "in", 0.0, 0.0)
+            app.processEvents()
+
+            assert shell_bridge.connect_calls == [(source_id, "as_text", target_id, "message")]
+            assert canvas.property("pendingConnectionPort") is None
+
+            dispose_host_window(canvas, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+
+class GraphSurfaceLockedInputControlsTests(GraphSurfaceInputContractTestBase):
+    def test_locked_input_dot_uses_forbidden_cursor_and_suppresses_pointer_signals(self) -> None:
+        self._run_qml_probe(
+            "locked-input-pointer-controls",
+            """
+            payload = node_payload()
+            payload["node_id"] = "node_locked_controls"
+            payload["properties"] = {
+                "message": "log message",
+                "count": 1,
+            }
+            payload["ports"] = [
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                    "locked": True,
+                    "allow_multiple_connections": False,
+                },
+                {
+                    "key": "count",
+                    "label": "Count",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "int",
+                    "connected": False,
+                    "locked": False,
+                    "allow_multiple_connections": False,
+                },
+                {
+                    "key": "result",
+                    "label": "Result",
+                    "direction": "out",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                    "allow_multiple_connections": False,
+                },
+            ]
+            payload["inline_properties"] = [
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "inline_editor": "text",
+                    "value": "log message",
+                    "overridden_by_input": False,
+                    "input_port_label": "message",
+                },
+                {
+                    "key": "count",
+                    "label": "Count",
+                    "inline_editor": "number",
+                    "value": 1,
+                    "overridden_by_input": False,
+                    "input_port_label": "count",
+                },
+            ]
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            locked_row = named_item(host, "graphNodeInputPortRow", "message")
+            unlocked_row = named_item(host, "graphNodeInputPortRow", "count")
+            locked_mouse = named_item(host, "graphNodeInputPortMouseArea", "message")
+            unlocked_mouse = named_item(host, "graphNodeInputPortMouseArea", "count")
+
+            assert bool(locked_row.property("lockedState")) is True
+            assert bool(unlocked_row.property("lockedState")) is False
+            assert locked_mouse.property("cursorShape") == Qt.CursorShape.ForbiddenCursor
+            assert unlocked_mouse.property("cursorShape") == Qt.CursorShape.PointingHandCursor
+
+            click_events = []
+            hover_events = []
+            drag_start_events = []
+            drag_finish_events = []
+            host.portClicked.connect(
+                lambda node_id, port_key, direction, scene_x, scene_y: click_events.append(
+                    (node_id, port_key, direction)
+                )
+            )
+            host.portHoverChanged.connect(
+                lambda node_id, port_key, direction, scene_x, scene_y, hovered: hover_events.append(
+                    (node_id, port_key, direction, hovered)
+                )
+            )
+            host.portDragStarted.connect(
+                lambda node_id, port_key, direction, scene_x, scene_y, screen_x, screen_y: drag_start_events.append(
+                    (node_id, port_key, direction)
+                )
+            )
+            host.portDragFinished.connect(
+                lambda node_id, port_key, direction, scene_x, scene_y, screen_x, screen_y, drag_active: drag_finish_events.append(
+                    (node_id, port_key, direction, drag_active)
+                )
+            )
+
+            window = attach_host_to_window(host, 520, 320)
+            locked_point = item_scene_point(locked_mouse)
+            unlocked_point = item_scene_point(unlocked_mouse)
+
+            QTest.mouseMove(window, locked_point)
+            settle_events(4)
+            mouse_click(window, locked_point)
+            QTest.mousePress(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                locked_point,
+            )
+            QTest.mouseMove(window, QPoint(locked_point.x() + 24, locked_point.y()))
+            QTest.mouseRelease(
+                window,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                QPoint(locked_point.x() + 24, locked_point.y()),
+            )
+            settle_events(4)
+
+            assert click_events == []
+            assert hover_events == []
+            assert drag_start_events == []
+            assert drag_finish_events == []
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
             """,
         )
 
