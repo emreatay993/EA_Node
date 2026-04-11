@@ -238,7 +238,7 @@ from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 @node_type(
     type_id="custom.multiply",
     display_name="Multiply",
-    category="Math",
+    category_path=("Math",),
     icon="calculate",
     ports=(
         in_port("a", data_type="float"),
@@ -259,7 +259,21 @@ class MultiplyNode:
 ```
 
 Restart the application and the node will appear in the Node Library under the
-"Math" category.
+`Math` category path.
+
+Node authoring now uses `category_path=` instead of `category=`. This is a
+breaking change for external plugins and node packages: update decorator calls
+and direct `NodeTypeSpec` construction to pass a tuple of non-empty category
+segments, such as `("Math",)` or `("Simulation", "Signals")`. The legacy
+`category` value may still appear on specs and library payloads as read-only
+display text, but it is no longer the source of truth for grouping or filtering.
+
+Nested library categories are path-backed. Parent category filters include all
+descendants, the shipped Ansys DPF family appears under `Ansys DPF > Compute`
+and `Ansys DPF > Viewer`, and custom workflows remain under the single
+`Custom Workflows` segment. The rendered ` > ` separator is display-only and is
+chosen so existing single labels such as `Input / Output` are not confused with
+path segments; do not parse display text to recover category paths.
 
 For new plugin modules or installed packages, prefer exporting
 `PLUGIN_DESCRIPTORS` so the loader can register descriptors and provenance
@@ -420,6 +434,7 @@ Regenerate the committed app icon asset set with:
 - [Passive Visual Checklist](docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md) -- short manual pass for passive flowchart/media styling and reopen checks
 - [Graph Surface Input QA Matrix](docs/specs/perf/GRAPH_SURFACE_INPUT_QA_MATRIX.md) -- current host/inline/media/shell coverage and shell-module verification status
 - [Verification Speed QA Matrix](docs/specs/perf/VERIFICATION_SPEED_QA_MATRIX.md) -- approved `fast`/`gui`/`slow`/`full` workflow, dedicated shell-isolation phase, benchmark evidence, proof-audit command, and baseline-status notes
+- [Nested Node Categories QA Matrix](docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md) -- retained SDK, registry, library, QML, manual, and traceability evidence for `category_path` node authoring
 - The Spec Pack Index lists the retained work-packet manifests, status ledgers, and closeout QA matrices that remain canonical on this branch.
 
 Regenerate architecture diagrams after updating Mermaid blocks in `ARCHITECTURE.md`:

@@ -56,6 +56,7 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [NODE_EXECUTION_VISUALIZATION Status Ledger](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_STATUS.md)
 - [NESTED_NODE_CATEGORIES Work Packet Manifest](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md)
 - [NESTED_NODE_CATEGORIES Status Ledger](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md)
+- [NESTED_NODE_CATEGORIES QA Matrix](perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md)
 - [EXECUTION_EDGE_PROGRESS_VISUALIZATION Work Packet Manifest](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_MANIFEST.md)
 - [EXECUTION_EDGE_PROGRESS_VISUALIZATION Status Ledger](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_STATUS.md)
 - [PERSISTENT_NODE_ELAPSED_TIMES Work Packet Manifest](work_packets/persistent_node_elapsed_times/PERSISTENT_NODE_ELAPSED_TIMES_MANIFEST.md)

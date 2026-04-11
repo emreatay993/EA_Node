@@ -8,7 +8,7 @@
 - `REQ-UI-005`: Each view shall preserve independent pan/zoom state.
 
 ## Node Library
-- `REQ-UI-006`: Node library shall support text search and filtering by category, port direction, and data type.
+- `REQ-UI-006`: Node library shall support text search and filtering by normalized category path, port direction, and data type; category filters shall be descendant-inclusive for path prefixes, nested category rows shall remain on the existing flat `ListView` surface with `category_key` collapse state, and the rendered ` > ` delimiter shall stay display-only so labels such as `Input / Output` remain single unambiguous category segments.
 - `REQ-UI-007`: Double-click or button action shall add selected node to canvas.
 
 ## Node Inspector
@@ -54,6 +54,7 @@
 ## Acceptance
 - `AC-REQ-UI-002-01`: Tab actions operate without data loss for non-closed workspaces.
 - `AC-REQ-UI-005-01`: Switching views restores stored zoom and pan center.
+- `AC-REQ-UI-006-01`: Registry, library-payload, and QML-boundary regressions confirm nested category rows are synthesized from normalized paths, parent filters include descendants such as `Ansys DPF > Compute` and `Ansys DPF > Viewer`, category rows default collapsed, node rows remain draggable/addable, and retained proof is summarized in `docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md`.
 - `AC-REQ-UI-010-01`: Failure event visibly highlights failed node and displays error message.
 - `AC-REQ-UI-011-01`: QML shell and graph canvas visually match the Stitch baseline and remain fully functional.
 - `AC-REQ-UI-012-01`: Settings modal saves user edits to project metadata and subsequent run triggers include these values.
