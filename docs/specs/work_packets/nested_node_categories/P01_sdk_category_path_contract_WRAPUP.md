@@ -6,31 +6,8 @@
 - Branch Label: `codex/nested-node-categories/p01-sdk-category-path-contract`
 - Commit Owner: `worker`
 - Commit SHA: `00b41faba08e19d45648b519980feda1ed81d546`
-- Changed Files:
-  - `ea_node_editor/nodes/builtins/ansys_dpf_compute.py`
-  - `ea_node_editor/nodes/builtins/ansys_dpf_viewer.py`
-  - `ea_node_editor/nodes/builtins/core.py`
-  - `ea_node_editor/nodes/builtins/hpc.py`
-  - `ea_node_editor/nodes/builtins/integrations_email.py`
-  - `ea_node_editor/nodes/builtins/integrations_file_io.py`
-  - `ea_node_editor/nodes/builtins/integrations_process.py`
-  - `ea_node_editor/nodes/builtins/integrations_spreadsheet.py`
-  - `ea_node_editor/nodes/builtins/passive_annotation.py`
-  - `ea_node_editor/nodes/builtins/passive_flowchart.py`
-  - `ea_node_editor/nodes/builtins/passive_media.py`
-  - `ea_node_editor/nodes/builtins/passive_planning.py`
-  - `ea_node_editor/nodes/builtins/subnode.py`
-  - `ea_node_editor/nodes/category_paths.py`
-  - `ea_node_editor/nodes/decorators.py`
-  - `ea_node_editor/nodes/node_specs.py`
-  - `ea_node_editor/nodes/registry.py`
-  - `ea_node_editor/nodes/types.py`
-  - `tests/test_decorator_sdk.py`
-  - `tests/test_registry_validation.py`
-  - `docs/specs/work_packets/nested_node_categories/P01_sdk_category_path_contract_WRAPUP.md`
-- Artifacts Produced:
-  - `docs/specs/work_packets/nested_node_categories/P01_sdk_category_path_contract_WRAPUP.md`
-  - `ea_node_editor/nodes/category_paths.py`
+- Changed Files: `docs/specs/work_packets/nested_node_categories/P01_sdk_category_path_contract_WRAPUP.md`, `ea_node_editor/nodes/builtins/ansys_dpf_compute.py`, `ea_node_editor/nodes/builtins/ansys_dpf_viewer.py`, `ea_node_editor/nodes/builtins/core.py`, `ea_node_editor/nodes/builtins/hpc.py`, `ea_node_editor/nodes/builtins/integrations_email.py`, `ea_node_editor/nodes/builtins/integrations_file_io.py`, `ea_node_editor/nodes/builtins/integrations_process.py`, `ea_node_editor/nodes/builtins/integrations_spreadsheet.py`, `ea_node_editor/nodes/builtins/passive_annotation.py`, `ea_node_editor/nodes/builtins/passive_flowchart.py`, `ea_node_editor/nodes/builtins/passive_media.py`, `ea_node_editor/nodes/builtins/passive_planning.py`, `ea_node_editor/nodes/builtins/subnode.py`, `ea_node_editor/nodes/category_paths.py`, `ea_node_editor/nodes/decorators.py`, `ea_node_editor/nodes/node_specs.py`, `ea_node_editor/nodes/registry.py`, `ea_node_editor/nodes/types.py`, `tests/test_decorator_sdk.py`, `tests/test_registry_validation.py`
+- Artifacts Produced: `docs/specs/work_packets/nested_node_categories/P01_sdk_category_path_contract_WRAPUP.md`, `ea_node_editor/nodes/category_paths.py`
 
 P01 adds the packet-owned category path helper API, makes `NodeTypeSpec.category_path` the normalized authoritative category state, and preserves `NodeTypeSpec.category` as a read-only display property for packet-external consumers. The decorator SDK and all in-scope built-in node declarations now author categories with `category_path=`, while built-in families remain single-segment paths for P01. Packet regressions cover helper normalization/display/key/prefix behavior and 1-level, 10-level, 11-level, empty, and whitespace segment validation.
 
