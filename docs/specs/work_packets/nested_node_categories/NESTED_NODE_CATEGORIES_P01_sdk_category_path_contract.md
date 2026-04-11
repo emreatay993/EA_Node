@@ -16,7 +16,7 @@
 - `ea_node_editor/nodes/decorators.py`
 - `ea_node_editor/nodes/types.py`
 - `ea_node_editor/nodes/registry.py`
-- `ea_node_editor/nodes/builtins/**/*.py`
+- `ea_node_editor/nodes/builtins/*.py`
 - `tests/test_decorator_sdk.py`
 - `tests/test_registry_validation.py`
 
@@ -26,7 +26,7 @@
 - `ea_node_editor/nodes/decorators.py`
 - `ea_node_editor/nodes/types.py`
 - `ea_node_editor/nodes/registry.py`
-- `ea_node_editor/nodes/builtins/**/*.py`
+- `ea_node_editor/nodes/builtins/*.py`
 - `tests/test_decorator_sdk.py`
 - `tests/test_registry_validation.py`
 - `docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md`
