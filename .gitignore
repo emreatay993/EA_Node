@@ -211,6 +211,13 @@ docs/specs/work_packets/node_execution_visualization/*
 !docs/specs/work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_P04_verification_docs_traceability_closeout.md
 !docs/specs/work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_P04_verification_docs_traceability_closeout_PROMPT.md
 !docs/specs/work_packets/node_execution_visualization/P04_verification_docs_traceability_closeout_WRAPUP.md
+!docs/specs/work_packets/nested_node_categories/
+docs/specs/work_packets/nested_node_categories/*
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_P*.md
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_P*_PROMPT.md
+!docs/specs/work_packets/nested_node_categories/P*_WRAPUP.md
 !docs/specs/work_packets/execution_edge_progress_visualization/
 docs/specs/work_packets/execution_edge_progress_visualization/*
 !docs/specs/work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_MANIFEST.md
@@ -243,6 +250,13 @@ docs/specs/work_packets/cross_process_viewer_backend_framework/*
 !docs/specs/work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P06_verification_docs_traceability_closeout.md
 !docs/specs/work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_P06_verification_docs_traceability_closeout_PROMPT.md
 !docs/specs/work_packets/cross_process_viewer_backend_framework/P06_verification_docs_traceability_closeout_WRAPUP.md
+!docs/specs/work_packets/nested_node_categories/
+docs/specs/work_packets/nested_node_categories/*
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_P*.md
+!docs/specs/work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_P*_PROMPT.md
+!docs/specs/work_packets/nested_node_categories/P*_WRAPUP.md
 !docs/specs/requirements/
 docs/specs/requirements/*
 !docs/specs/requirements/20_UI_UX.md
@@ -261,6 +275,7 @@ docs/specs/perf/*
 !docs/specs/perf/ARCHITECTURE_FOLLOWUP_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/ARCHITECTURE_RESIDUAL_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md
+!docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md
 !docs/specs/perf/NODE_EXECUTION_VISUALIZATION_QA_MATRIX.md
 !docs/specs/perf/PASSIVE_NODES_VISUAL_CHECKLIST.md
 !docs/specs/perf/PROJECT_MANAGED_FILES_QA_MATRIX.md
@@ -269,6 +284,7 @@ docs/specs/perf/*
 !docs/specs/perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md
 !docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md
 !docs/specs/perf/UI_CONTEXT_SCALABILITY_FOLLOWUP_QA_MATRIX.md
+!docs/specs/perf/NESTED_NODE_CATEGORIES_QA_MATRIX.md
 !tests/fixtures/passive_nodes/reference_flowchart.sfe
 
 # Benchmark reference assets

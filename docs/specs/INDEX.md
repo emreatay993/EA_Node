@@ -54,6 +54,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [SHARED_GRAPH_TYPOGRAPHY_CONTROL QA Matrix](perf/SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.md)
 - [NODE_EXECUTION_VISUALIZATION Work Packet Manifest](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_MANIFEST.md)
 - [NODE_EXECUTION_VISUALIZATION Status Ledger](work_packets/node_execution_visualization/NODE_EXECUTION_VISUALIZATION_STATUS.md)
+- [NESTED_NODE_CATEGORIES Work Packet Manifest](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md)
+- [NESTED_NODE_CATEGORIES Status Ledger](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md)
 - [EXECUTION_EDGE_PROGRESS_VISUALIZATION Work Packet Manifest](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_MANIFEST.md)
 - [EXECUTION_EDGE_PROGRESS_VISUALIZATION Status Ledger](work_packets/execution_edge_progress_visualization/EXECUTION_EDGE_PROGRESS_VISUALIZATION_STATUS.md)
 - [PERSISTENT_NODE_ELAPSED_TIMES Work Packet Manifest](work_packets/persistent_node_elapsed_times/PERSISTENT_NODE_ELAPSED_TIMES_MANIFEST.md)
@@ -63,6 +65,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK Work Packet Manifest](work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_MANIFEST.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK Status Ledger](work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_STATUS.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK QA Matrix](perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md)
+- [NESTED_NODE_CATEGORIES Work Packet Manifest](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_MANIFEST.md)
+- [NESTED_NODE_CATEGORIES Status Ledger](work_packets/nested_node_categories/NESTED_NODE_CATEGORIES_STATUS.md)
 
 ## ADRs
 
