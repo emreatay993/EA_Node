@@ -171,7 +171,7 @@ class NodeRegistry:
             output.append(spec)
         output.sort(
             key=lambda spec: (
-                spec.category.lower(),
+                tuple(segment.lower() for segment in spec.category_path),
                 spec.display_name.lower(),
                 spec.type_id.lower(),
             )
@@ -222,8 +222,8 @@ class NodeRegistry:
             raise ValueError(f"Node type_id has unsupported characters: {spec.type_id}")
         if not spec.display_name.strip():
             raise ValueError(f"Node {spec.type_id} display_name must be non-empty")
-        if not spec.category.strip():
-            raise ValueError(f"Node {spec.type_id} category must be non-empty")
+        if not spec.category_path:
+            raise ValueError(f"Node {spec.type_id} category_path must be non-empty")
         if spec.runtime_behavior not in self._SUPPORTED_RUNTIME_BEHAVIORS:
             raise ValueError(
                 f"Node {spec.type_id} runtime_behavior has invalid value: {spec.runtime_behavior}"

@@ -4,6 +4,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from ea_node_editor.nodes.category_paths import (
+    CategoryPath,
+    category_display,
+    normalize_category_path,
+)
+
 PortDirection = Literal["in", "out", "neutral"]
 PortSide = Literal["", "top", "right", "bottom", "left"]
 PortKind = Literal["exec", "completed", "failed", "data", "flow"]
@@ -169,7 +175,7 @@ class NodeRenderQualitySpec:
 class NodeTypeSpec:
     type_id: str
     display_name: str
-    category: str
+    category_path: CategoryPath
     icon: str
     ports: tuple[PortSpec, ...]
     properties: tuple[PropertySpec, ...]
@@ -184,9 +190,18 @@ class NodeTypeSpec:
     def __post_init__(self) -> None:
         object.__setattr__(
             self,
+            "category_path",
+            normalize_category_path(self.category_path),
+        )
+        object.__setattr__(
+            self,
             "render_quality",
             NodeRenderQualitySpec.from_value(self.render_quality),
         )
+
+    @property
+    def category(self) -> str:
+        return category_display(self.category_path)
 
 
 def property_has_inline_editor(property_spec: PropertySpec) -> bool:
@@ -226,6 +241,7 @@ __all__ = [
     "DPF_RESULT_FILE_DATA_TYPE",
     "DPF_SCOPING_DATA_TYPE",
     "DPF_VIEW_SESSION_DATA_TYPE",
+    "CategoryPath",
     "InlineEditorType",
     "InspectorEditorType",
     "MaxPerformanceStrategy",

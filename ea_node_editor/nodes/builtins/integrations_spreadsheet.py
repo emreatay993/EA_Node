@@ -90,7 +90,7 @@ class ExcelReadNodePlugin:
         return NodeTypeSpec(
             type_id="io.excel_read",
             display_name="Excel Read",
-            category="Input / Output",
+    category_path=("Input / Output",),
             icon="table_view",
             description="Loads rows from Excel or CSV.",
             ports=(
@@ -165,7 +165,7 @@ class ExcelWriteNodePlugin:
         return NodeTypeSpec(
             type_id="io.excel_write",
             display_name="Excel Write",
-            category="Input / Output",
+    category_path=("Input / Output",),
             icon="download",
             description="Writes list[dict] rows to CSV/XLSX.",
             ports=(

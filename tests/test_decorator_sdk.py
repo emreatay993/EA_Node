@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.nodes.category_paths import (
+    category_display,
+    category_key,
+    category_path_matches_prefix,
+    normalize_category_path,
+)
 from ea_node_editor.nodes.decorators import (
     in_port,
     node_type,
@@ -20,7 +26,7 @@ from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 @node_type(
     type_id="tests.decorated",
     display_name="Decorated Node",
-    category="Tests",
+    category_path=("Tests",),
     icon="code",
     ports=(
         in_port("input_value", data_type="int", required=True),
@@ -40,6 +46,37 @@ class _DecoratedPlugin:
 
 
 class DecoratorSdkTests(unittest.TestCase):
+    def test_nested_category_sdk_decorator_accepts_single_level_path(self) -> None:
+        registry = NodeRegistry()
+
+        @node_type(
+            type_id="tests.decorated_single_category_path",
+            display_name="Decorated Single Category Path",
+            category_path=("  Tests  ",),
+            icon="code",
+            ports=(),
+            properties=(),
+        )
+        class _DecoratedSingleCategoryPathPlugin:
+            def execute(self, _ctx: ExecutionContext) -> NodeResult:
+                return NodeResult()
+
+        registry.register(lambda: _DecoratedSingleCategoryPathPlugin())
+        spec = registry.get_spec("tests.decorated_single_category_path")
+
+        self.assertEqual(spec.category_path, ("Tests",))
+        self.assertEqual(spec.category, "Tests")
+
+    def test_nested_category_sdk_helpers_normalize_display_key_and_prefix_match(self) -> None:
+        path = (" Parent ", "Child", "Leaf ")
+
+        self.assertEqual(normalize_category_path(path), ("Parent", "Child", "Leaf"))
+        self.assertEqual(category_display(path), "Parent > Child > Leaf")
+        self.assertEqual(category_key(path), category_key(("Parent", "Child", "Leaf")))
+        self.assertNotEqual(category_key(path), category_display(path))
+        self.assertTrue(category_path_matches_prefix(path, ("Parent", "Child")))
+        self.assertFalse(category_path_matches_prefix(path, ("Parent", "Other")))
+
     def test_port_helpers_preserve_direction_and_connection_flags(self) -> None:
         inbound = in_port("incoming", kind="flow", data_type="flow", allow_multiple_connections=True)
         outbound = out_port("outgoing", kind="failed", data_type="any", exposed=False)

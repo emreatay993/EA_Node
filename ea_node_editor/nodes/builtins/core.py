@@ -14,7 +14,7 @@ class StartNodePlugin:
         return NodeTypeSpec(
             type_id="core.start",
             display_name="Start",
-            category="Core",
+            category_path=("Core",),
             icon="play_arrow",
             description="Entry point for DAG execution.",
             ports=(
@@ -33,7 +33,7 @@ class EndNodePlugin:
         return NodeTypeSpec(
             type_id="core.end",
             display_name="End",
-            category="Core",
+            category_path=("Core",),
             icon="stop",
             description="Terminal node for DAG execution.",
             ports=(
@@ -50,7 +50,7 @@ class EndNodePlugin:
 @node_type(
     type_id="core.constant",
     display_name="Constant",
-    category="Core",
+    category_path=("Core",),
     icon="data_object",
     description="Produces a constant JSON value.",
     ports=(
@@ -76,7 +76,7 @@ class LoggerNodePlugin:
         return NodeTypeSpec(
             type_id="core.logger",
             display_name="Logger",
-            category="Core",
+            category_path=("Core",),
             icon="article",
             description="Writes a message into the run log.",
             ports=(
@@ -117,7 +117,7 @@ class PythonScriptNodePlugin:
         return NodeTypeSpec(
             type_id="core.python_script",
             display_name="Python Script",
-            category="Core",
+            category_path=("Core",),
             icon="code",
             description="Runs custom Python logic in trusted local mode.",
             ports=(
@@ -169,7 +169,7 @@ class OnFailureNodePlugin:
         return NodeTypeSpec(
             type_id="core.on_failure",
             display_name="On Failure",
-            category="Core",
+            category_path=("Core",),
             icon="error_outline",
             description="Runs when an upstream node fails. Connect the upstream node's 'failed' port to this node.",
             ports=(
@@ -189,7 +189,7 @@ class OnFailureNodePlugin:
 @node_type(
     type_id="core.branch",
     display_name="If / Else Branch",
-    category="Core",
+    category_path=("Core",),
     icon="call_split",
     description="Routes execution to 'true' or 'false' output based on a condition.",
     ports=(
