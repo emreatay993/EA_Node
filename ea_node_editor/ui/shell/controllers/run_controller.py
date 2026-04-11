@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Literal, Protocol
 
 from ea_node_editor.execution.runtime_snapshot import build_runtime_snapshot
@@ -111,6 +112,7 @@ class RunController:
             "workflow_settings": self._host.project_session_controller.workflow_settings_payload(),
             "runtime_snapshot": runtime_snapshot,
         }
+        viewer_preflight_reset = self._preflight_release_live_viewers_for_rerun()
         self._host.console_panel.clear_all()
         run_id = self._host.execution_client.start_run(
             project_path=self._host.project_path,
@@ -118,6 +120,8 @@ class RunController:
             trigger=trigger,
         )
         if not run_id:
+            if viewer_preflight_reset:
+                self._restore_live_viewers_after_failed_start()
             self._host.console_panel.append_log("error", "Failed to start workflow run.")
             self._host.update_notification_counters(
                 self._host.console_panel.warning_count,
@@ -129,6 +133,8 @@ class RunController:
         self._state.active_run_workspace_id = workspace_id
         self._run_start_runtime_snapshots[run_id] = runtime_snapshot
         self._invalidate_viewer_sessions_for_rerun(workspace_id=workspace_id, run_id=run_id)
+        if viewer_preflight_reset:
+            self._resume_live_viewers_after_preflight()
         self.set_run_ui_state("running", "Starting", 1, 0, 0, 0)
 
     def toggle_pause_resume(self) -> None:
@@ -341,3 +347,75 @@ class RunController:
         if not normalized_run_id:
             return None
         return self._run_start_runtime_snapshots.pop(normalized_run_id, None)
+
+    def _preflight_release_live_viewers_for_rerun(self) -> bool:
+        if not self._active_workspace_has_live_viewer_session():
+            return False
+        viewer_host_service = getattr(self._host, "viewer_host_service", None)
+        suspend_sync = getattr(viewer_host_service, "suspend_sync", None)
+        if callable(suspend_sync):
+            try:
+                suspend_sync(reason="workspace_rerun_preflight")
+            except Exception:  # noqa: BLE001
+                return False
+        reset = getattr(viewer_host_service, "reset", None)
+        if not callable(reset):
+            return False
+        try:
+            reset(reason="workspace_rerun_preflight")
+        except Exception:  # noqa: BLE001
+            return False
+        return True
+
+    def _resume_live_viewers_after_preflight(self) -> None:
+        viewer_host_service = getattr(self._host, "viewer_host_service", None)
+        resume_sync = getattr(viewer_host_service, "resume_sync", None)
+        if callable(resume_sync):
+            try:
+                resume_sync()
+            except Exception:  # noqa: BLE001
+                return
+            return
+        sync = getattr(viewer_host_service, "sync", None)
+        if not callable(sync):
+            return
+        try:
+            sync()
+        except Exception:  # noqa: BLE001
+            return
+
+    def _restore_live_viewers_after_failed_start(self) -> None:
+        self._resume_live_viewers_after_preflight()
+
+    def _active_workspace_has_live_viewer_session(self) -> bool:
+        viewer_session_bridge = getattr(self._host, "viewer_session_bridge", None)
+        sessions_model = getattr(viewer_session_bridge, "sessions_model", None)
+        if not isinstance(sessions_model, list):
+            return False
+        for projected_state in sessions_model:
+            session_model = self._session_model_payload(projected_state)
+            if str(session_model.get("phase", "")).strip() != "open":
+                continue
+            options = self._mapping(session_model.get("options"))
+            live_mode = str(session_model.get("live_mode") or options.get("live_mode") or "").strip().lower()
+            if live_mode != "full":
+                continue
+            live_open_status = str(
+                session_model.get("live_open_status")
+                or options.get("live_open_status")
+                or ""
+            ).strip().lower()
+            cache_state = str(session_model.get("cache_state") or options.get("cache_state") or "").strip().lower()
+            if live_open_status == "ready" or cache_state == "live_ready":
+                return True
+        return False
+
+    @staticmethod
+    def _mapping(value: Any) -> dict[str, Any]:
+        return dict(value) if isinstance(value, Mapping) else {}
+
+    @classmethod
+    def _session_model_payload(cls, projected_state: Any) -> dict[str, Any]:
+        payload = cls._mapping(projected_state)
+        session_model = cls._mapping(payload.get("session_model"))
+        return session_model if session_model else payload

@@ -179,6 +179,7 @@ class ViewerHostService(QObject):
         self._bound_overlays: dict[_OverlayKey, _BoundOverlay] = {}
         self._last_error = ""
         self._sync_queued = False
+        self._sync_suspended = False
         self._shutdown = False
 
         self._register_builtin_binders()
@@ -327,11 +328,27 @@ class ViewerHostService(QObject):
         self._set_last_error("")
         self.state_changed.emit()
 
+    def suspend_sync(self, *, reason: str = "") -> None:
+        if self._shutdown:
+            return
+        self._sync_suspended = True
+        if reason:
+            self._set_last_error("")
+
+    def resume_sync(self) -> None:
+        if self._shutdown:
+            return
+        if not self._sync_suspended:
+            return
+        self._sync_suspended = False
+        self._schedule_sync()
+
     def shutdown(self, *, reason: str = "") -> None:
         if self._shutdown:
             return
         self._shutdown = True
         self._sync_queued = False
+        self._sync_suspended = False
         self._release_all_bindings(reason=reason or "shutdown")
         overlay_manager = self._overlay_manager
         if overlay_manager is not None:
@@ -364,12 +381,15 @@ class ViewerHostService(QObject):
         if self._shutdown:
             self._sync_queued = False
             return
+        if self._sync_suspended:
+            self._sync_queued = False
+            return
         self._sync_queued = False
         self.sync()
 
     @pyqtSlot()
     def sync(self) -> None:
-        if self._shutdown:
+        if self._shutdown or self._sync_suspended:
             return
         overlay_manager = self._overlay_manager
         bridge = self._viewer_session_bridge

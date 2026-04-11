@@ -414,6 +414,45 @@ class ViewerHostServiceTests(MainWindowShellTestBase):
         self.assertEqual(self.host_service.active_overlay_count, 0)
         self.assertEqual(self.host_service.last_error, "")
 
+    def test_suspend_sync_keeps_preflight_reset_overlay_released_until_resume(self) -> None:
+        binder = _RecordingBinder()
+        self.host_service.register_binder("tests.viewer_backend", binder)
+        node_id = self._add_viewer_node()
+
+        self._emit_viewer_event(
+            event_type="viewer_data_materialized",
+            node_id=node_id,
+            transport_revision=1,
+        )
+        self.assertIsNotNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.host_service.active_overlay_count, 1)
+
+        self.host_service.suspend_sync(reason="workspace_rerun_preflight")
+        self.host_service.reset(reason="workspace_rerun_preflight")
+        self.app.processEvents()
+
+        self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.host_service.active_overlay_count, 0)
+
+        self.bridge.project_workspace_run_required(
+            self.workspace_id,
+            reason="workspace_rerun",
+            run_id="run_live",
+        )
+        self.app.processEvents()
+
+        self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.host_service.active_overlay_count, 0)
+
+        self.host_service.resume_sync()
+        self.app.processEvents()
+
+        self.assertIsNone(self.overlay_manager.overlay_widget(node_id, workspace_id=self.workspace_id))
+        self.assertEqual(self.host_service.active_overlay_count, 0)
+        self.assertEqual(len(binder.bind_calls), 1)
+        self.assertEqual(len(binder.release_calls), 1)
+        self.assertEqual(binder.release_calls[-1]["reason"], "workspace_rerun_preflight")
+
     def test_capture_overlay_camera_state_delegates_to_bound_binder(self) -> None:
         binder = _RecordingBinder(
             captured_camera_state={

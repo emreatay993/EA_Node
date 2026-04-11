@@ -154,6 +154,23 @@ class _ViewerExecutionClientStub:
         return None
 
 
+class _ViewerHostServiceStub:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    def suspend_sync(self, *, reason: str = "") -> None:
+        self.calls.append(("suspend_sync", str(reason)))
+
+    def resume_sync(self) -> None:
+        self.calls.append(("resume_sync", ""))
+
+    def reset(self, *, reason: str = "") -> None:
+        self.calls.append(("reset", str(reason)))
+
+    def sync(self) -> None:
+        self.calls.append(("sync", ""))
+
+
 def _viewer_opened_event(
     *,
     request_id: str,
@@ -1412,6 +1429,98 @@ class ShellRunControllerTests(MainWindowShellTestBase):
         self.assertEqual(state["summary"]["run_id"], "run_live")
         self.assertEqual(self.window.run_state.active_run_id, "run_live")
         self.assertEqual(self.window.run_state.active_run_workspace_id, workspace_id)
+
+    def test_rerun_preflight_resets_live_viewer_host_before_worker_start(self) -> None:
+        execution_client = _ViewerExecutionClientStub()
+        self.window.execution_client = execution_client
+        viewer_host_service = _ViewerHostServiceStub()
+        self.window.viewer_host_service = viewer_host_service
+
+        bridge = self.window.viewer_session_bridge
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=120.0, y=40.0)
+        session_id = bridge.open(
+            node_id,
+            {
+                "backend_id": "dpf_embedded",
+                "data_refs": {"fields": "fields_ref"},
+            },
+        )
+        open_call = execution_client.open_calls[-1]
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=session_id,
+                backend_id="dpf_embedded",
+                live_open_status="ready",
+                transport={"kind": "bundle", "backend_id": "dpf_embedded"},
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "full"},
+            )
+        )
+        self.app.processEvents()
+
+        self.window._run_workflow()
+        self.app.processEvents()
+
+        self.assertGreaterEqual(len(viewer_host_service.calls), 3)
+        self.assertEqual(
+            viewer_host_service.calls[:3],
+            [
+                ("suspend_sync", "workspace_rerun_preflight"),
+                ("reset", "workspace_rerun_preflight"),
+                ("resume_sync", ""),
+            ],
+        )
+        self.assertEqual(execution_client.start_calls[-1]["workspace_id"], workspace_id)
+
+    def test_failed_start_restores_live_viewer_host_after_preflight_reset(self) -> None:
+        execution_client = _ViewerExecutionClientStub()
+        execution_client.next_run_id = ""
+        self.window.execution_client = execution_client
+        viewer_host_service = _ViewerHostServiceStub()
+        self.window.viewer_host_service = viewer_host_service
+
+        bridge = self.window.viewer_session_bridge
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("dpf.viewer", x=120.0, y=40.0)
+        session_id = bridge.open(
+            node_id,
+            {
+                "backend_id": "dpf_embedded",
+                "data_refs": {"fields": "fields_ref"},
+            },
+        )
+        open_call = execution_client.open_calls[-1]
+        self.window.execution_event.emit(
+            _viewer_opened_event(
+                request_id=open_call["request_id"],
+                workspace_id=workspace_id,
+                node_id=node_id,
+                session_id=session_id,
+                backend_id="dpf_embedded",
+                live_open_status="ready",
+                transport={"kind": "bundle", "backend_id": "dpf_embedded"},
+                summary={"cache_state": "live_ready"},
+                options={"live_mode": "full"},
+            )
+        )
+        self.app.processEvents()
+
+        self.window._run_workflow()
+        self.app.processEvents()
+
+        self.assertEqual(
+            viewer_host_service.calls,
+            [
+                ("suspend_sync", "workspace_rerun_preflight"),
+                ("reset", "workspace_rerun_preflight"),
+                ("resume_sync", ""),
+            ],
+        )
+        self.assertEqual(self.window.run_state.engine_state_value, "error")
 
     def test_shell_context_bridge_fallbacks_wrap_shell_window_with_focused_sources(self) -> None:
         library_bridge = ShellLibraryBridge(self.window, shell_window=self.window)
