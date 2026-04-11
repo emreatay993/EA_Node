@@ -1,31 +1,23 @@
 import QtQuick 2.15
 import QtQuick.Controls 2.15
 
-ComboBox {
+FocusScope {
     id: control
     property var pane
+    property var model: []
     property string placeholderText: ""
     property string selectedValue: ""
+    property alias editText: editor.text
+    property int currentIndex: -1
     readonly property real popupMaxHeight: 240
     readonly property var optionValues: control._optionValues()
-    readonly property string activeFilterText: control.filterActive ? String(control.editText || "") : ""
+    readonly property string activeFilterText: String(editor.text || "")
     readonly property var filteredOptions: control._filteredOptionsFor(control.activeFilterText)
-    property bool filterActive: false
-    property bool suppressEditTextHandling: false
-    property bool suppressActivatedHandling: false
+    property bool suppressTextHandling: false
     implicitHeight: 34
-    editable: true
-    leftPadding: 8
-    rightPadding: 30
-    hoverEnabled: true
-    font.pixelSize: 11
-    palette.buttonText: pane.themePalette.input_fg
-    palette.text: pane.themePalette.input_fg
-    palette.highlight: pane.selectedSurfaceColor
-    palette.highlightedText: pane.themePalette.panel_title_fg
-    palette.base: pane.themePalette.input_bg
-    palette.window: pane.cardBackgroundColor
 
+    signal accepted()
+    signal activated(int index)
     signal valueActivated(string value)
 
     function _optionValues() {
@@ -86,81 +78,139 @@ ComboBox {
     }
 
     function _setEditTextSilently(value) {
-        control.suppressEditTextHandling = true
-        control.editText = String(value || "")
-        control.suppressEditTextHandling = false
+        control.suppressTextHandling = true
+        editor.text = String(value || "")
+        control.suppressTextHandling = false
     }
 
     function _syncSelectionFromValue() {
         var nextIndex = control._optionIndex(control.selectedValue)
-        control.suppressActivatedHandling = true
         if (control.currentIndex !== nextIndex)
             control.currentIndex = nextIndex
-        control.suppressActivatedHandling = false
-        if (!control.activeFocus) {
-            control.filterActive = false
+        if (!editor.activeFocus)
             control._setEditTextSilently(control.selectedValue)
-        }
     }
 
     function _syncCurrentIndexFromEditText() {
-        var nextIndex = control._optionIndex(control.editText)
-        control.suppressActivatedHandling = true
+        var nextIndex = control._optionIndex(editor.text)
         if (control.currentIndex !== nextIndex)
             control.currentIndex = nextIndex
-        control.suppressActivatedHandling = false
     }
 
-    function _refreshPopupForFilter() {
-        if (!control.activeFocus)
+    function _refreshPopup() {
+        if (!editor.activeFocus) {
+            popup.close()
             return
-        if (control.filteredOptions.length > 0)
-            control.popup.open()
-        else
-            control.popup.close()
+        }
+        if (control.filteredOptions.length > 0) {
+            popup.open()
+            optionsView.currentIndex = control._filteredIndexForSourceIndex(control.currentIndex)
+        } else {
+            popup.close()
+        }
     }
 
-    function _commitFilteredOption(option) {
+    function _commitOption(option) {
         if (!option)
             return
-        control.filterActive = false
-        control.suppressActivatedHandling = true
-        if (control.currentIndex !== option.sourceIndex)
-            control.currentIndex = option.sourceIndex
-        control.suppressActivatedHandling = false
-        control._setEditTextSilently(option.value)
-        control.popup.close()
-        control.valueActivated(String(option.value || ""))
+        var nextIndex = Number(option.sourceIndex)
+        var nextValue = String(option.value || "")
+        control.currentIndex = nextIndex
+        control._setEditTextSilently(nextValue)
+        popup.close()
+        control.activated(nextIndex)
+        control.valueActivated(nextValue)
+        editor.forceActiveFocus()
+        editor.selectAll()
     }
 
     Component.onCompleted: control._syncSelectionFromValue()
     onSelectedValueChanged: control._syncSelectionFromValue()
-    onEditTextChanged: {
-        if (control.suppressEditTextHandling)
-            return
-        control.filterActive = control.activeFocus
-        control._syncCurrentIndexFromEditText()
-        control._refreshPopupForFilter()
-    }
-    onAccepted: {
-        control.filterActive = false
-        control._syncCurrentIndexFromEditText()
-        control.popup.close()
-    }
-    onActivated: function(index) {
-        if (control.suppressActivatedHandling || index < 0 || index >= control.optionValues.length)
-            return
-        control.filterActive = false
-        control.valueActivated(control.optionValues[index])
+    onOptionValuesChanged: {
+        control._syncSelectionFromValue()
+        if (editor.activeFocus)
+            control._refreshPopup()
     }
     onActiveFocusChanged: {
-        if (!control.activeFocus) {
-            control.filterActive = false
-            control.popup.close()
+        if (!activeFocus)
+            popup.close()
+    }
+
+    Rectangle {
+        anchors.fill: parent
+        radius: 9
+        color: control.pane.themePalette.input_bg
+        border.color: control.activeFocus ? control.pane.themePalette.accent : control.pane.themePalette.input_border
+        border.width: 1
+    }
+
+    TextField {
+        id: editor
+        anchors.fill: parent
+        leftPadding: 8
+        rightPadding: 30
+        topPadding: 8
+        bottomPadding: 8
+        enabled: control.enabled
+        selectByMouse: true
+        color: control.pane.themePalette.input_fg
+        selectionColor: control.pane.selectedSurfaceColor
+        selectedTextColor: control.pane.themePalette.panel_title_fg
+        font.pixelSize: 11
+        verticalAlignment: Text.AlignVCenter
+        background: null
+
+        onTextChanged: {
+            if (control.suppressTextHandling)
+                return
+            control._syncCurrentIndexFromEditText()
+            control._refreshPopup()
+        }
+
+        onActiveFocusChanged: {
+            if (activeFocus) {
+                control._refreshPopup()
+            } else if (!popup.containsPress) {
+                popup.close()
+            }
+        }
+
+        onAccepted: {
+            popup.close()
+            control.accepted()
+        }
+
+        Keys.onPressed: function(event) {
+            if (event.key === Qt.Key_Down) {
+                control._refreshPopup()
+                if (popup.visible) {
+                    optionsView.forceActiveFocus()
+                    if (optionsView.currentIndex < 0 && control.filteredOptions.length > 0)
+                        optionsView.currentIndex = 0
+                    event.accepted = true
+                }
+            } else if (event.key === Qt.Key_Escape && popup.visible) {
+                popup.close()
+                event.accepted = true
+            }
         }
     }
 
-    indicator: Text {
+    Text {
+        anchors.left: parent.left
+        anchors.right: indicator.left
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.leftMargin: 8
+        anchors.rightMargin: 6
+        text: control.placeholderText
+        color: control.pane.themePalette.muted_fg
+        font.pixelSize: 11
+        elide: Text.ElideRight
+        visible: !String(editor.text || "").length && String(control.placeholderText || "").length > 0
+    }
+
+    Text {
+        id: indicator
         anchors.right: parent.right
         anchors.rightMargin: 10
         anchors.verticalCenter: parent.verticalCenter
@@ -170,34 +220,32 @@ ComboBox {
         font.bold: true
     }
 
-    background: Rectangle {
-        radius: 9
-        color: control.pane.themePalette.input_bg
-        border.color: control.activeFocus ? control.pane.themePalette.accent : control.pane.themePalette.input_border
-        border.width: 1
+    MouseArea {
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        width: 26
+        enabled: control.enabled
+        cursorShape: Qt.PointingHandCursor
+        onClicked: {
+            editor.forceActiveFocus()
+            if (popup.visible) {
+                popup.close()
+            } else {
+                control._refreshPopup()
+            }
+        }
     }
 
-    delegate: ItemDelegate {
-        width: ListView.view ? ListView.view.width : control.width
-        highlighted: ListView.isCurrentItem
-        contentItem: Text {
-            text: modelData.value
-            color: highlighted ? control.pane.themePalette.panel_title_fg : control.pane.themePalette.input_fg
-            font.pixelSize: 11
-            elide: Text.ElideRight
-            verticalAlignment: Text.AlignVCenter
-        }
-        background: Rectangle {
-            color: highlighted ? control.pane.selectedSurfaceColor : "transparent"
-            radius: 7
-        }
-        onClicked: control._commitFilteredOption(modelData)
-    }
-
-    popup: Popup {
+    Popup {
+        id: popup
+        property bool containsPress: false
         y: control.height + 4
         width: control.width
         padding: 4
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+
+        onClosed: containsPress = false
 
         background: Rectangle {
             radius: 9
@@ -207,30 +255,47 @@ ComboBox {
         }
 
         contentItem: ListView {
+            id: optionsView
             clip: true
             implicitHeight: Math.min(contentHeight, control.popupMaxHeight)
-            model: control.popup.visible ? control.filteredOptions : null
+            model: popup.visible ? control.filteredOptions : null
             currentIndex: control._filteredIndexForSourceIndex(control.currentIndex)
             boundsBehavior: Flickable.StopAtBounds
             ScrollBar.vertical: ScrollBar {
                 policy: ScrollBar.AsNeeded
                 interactive: true
             }
-        }
-    }
 
-    Text {
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.leftMargin: control.leftPadding
-        anchors.rightMargin: control.rightPadding
-        text: control.placeholderText
-        color: control.pane.themePalette.muted_fg
-        font.pixelSize: control.font.pixelSize
-        elide: Text.ElideRight
-        visible: control.editable
-            && !String(control.editText || "").length
-            && String(control.placeholderText || "").length > 0
+            delegate: ItemDelegate {
+                width: ListView.view ? ListView.view.width : control.width
+                highlighted: ListView.isCurrentItem
+                contentItem: Text {
+                    text: modelData.value
+                    color: highlighted ? control.pane.themePalette.panel_title_fg : control.pane.themePalette.input_fg
+                    font.pixelSize: 11
+                    elide: Text.ElideRight
+                    verticalAlignment: Text.AlignVCenter
+                }
+                background: Rectangle {
+                    color: highlighted ? control.pane.selectedSurfaceColor : "transparent"
+                    radius: 7
+                }
+                onPressed: popup.containsPress = true
+                onClicked: control._commitOption(modelData)
+            }
+
+            Keys.onPressed: function(event) {
+                if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
+                        && currentIndex >= 0
+                        && currentIndex < control.filteredOptions.length) {
+                    control._commitOption(control.filteredOptions[currentIndex])
+                    event.accepted = true
+                } else if (event.key === Qt.Key_Escape) {
+                    popup.close()
+                    editor.forceActiveFocus()
+                    event.accepted = true
+                }
+            }
+        }
     }
 }
