@@ -621,6 +621,17 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         workspace = self.model.project.workspaces[self.workspace_id]
         self.assertEqual(len(workspace.edges), 0)
 
+    def test_connect_nodes_rejects_locked_target_with_user_facing_reason(self) -> None:
+        source_id = self.scene.add_node_from_type("core.constant", 20.0, 30.0)
+        target_id = self.scene.add_node_from_type("core.logger", 360.0, 90.0)
+
+        with self.assertRaises(ValueError) as excinfo:
+            self.scene.connect_nodes(source_id, target_id)
+
+        self.assertEqual(str(excinfo.exception), LOCKED_TARGET_PORT_MESSAGE)
+        workspace = self.model.project.workspaces[self.workspace_id]
+        self.assertEqual(len(workspace.edges), 0)
+
     def test_planning_and_annotation_scene_payloads_publish_properties_and_keep_titles_synced(self) -> None:
         task_id = self.scene.add_node_from_type("passive.planning.task_card", 40.0, 60.0)
         note_id = self.scene.add_node_from_type("passive.annotation.sticky_note", 340.0, 80.0)

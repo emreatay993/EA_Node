@@ -4,9 +4,15 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from PyQt6.QtCore import QPointF
 
-from ea_node_editor.graph.effective_ports import find_port, preferred_connection_port
+from ea_node_editor.graph.effective_ports import (
+    find_port,
+    ports_compatible,
+    preferred_connection_port,
+    visible_ports,
+)
 from ea_node_editor.graph.hierarchy import is_node_in_scope, scope_parent_id
 from ea_node_editor.graph.model import NodeInstance
+from ea_node_editor.graph.normalization import LOCKED_TARGET_PORT_MESSAGE
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_LABEL_PROPERTY,
     SUBNODE_PIN_PORT_KEY,
@@ -114,6 +120,106 @@ def add_edge(self, source_node_id: str, source_port: str, target_node_id: str, t
     return edge.edge_id
 
 
+def _connection_port_candidates(
+    *,
+    node: NodeInstance,
+    spec,
+    workspace_nodes: dict[str, NodeInstance],
+    direction: str,
+    peer_node: NodeInstance,
+) -> tuple:
+    in_ports, out_ports = visible_ports(
+        node=node,
+        spec=spec,
+        workspace_nodes=workspace_nodes,
+    )
+    ports = out_ports if direction == "out" else in_ports
+    preferred_key = preferred_connection_port(
+        node=node,
+        spec=spec,
+        workspace_nodes=workspace_nodes,
+        direction=direction,
+        peer_node=peer_node,
+    )
+    ordered_ports = []
+    seen_keys: set[str] = set()
+    if preferred_key:
+        for port in ports:
+            if port.key != preferred_key:
+                continue
+            ordered_ports.append(port)
+            seen_keys.add(port.key)
+            break
+    for port in ports:
+        if port.key in seen_keys:
+            continue
+        ordered_ports.append(port)
+    return tuple(ordered_ports)
+
+
+def _preferred_connection_pair(
+    *,
+    source_node: NodeInstance,
+    source_spec,
+    target_node: NodeInstance,
+    target_spec,
+    workspace_nodes: dict[str, NodeInstance],
+) -> tuple[str, str] | None:
+    source_ports = _connection_port_candidates(
+        node=source_node,
+        spec=source_spec,
+        workspace_nodes=workspace_nodes,
+        direction="out",
+        peer_node=target_node,
+    )
+    target_ports = _connection_port_candidates(
+        node=target_node,
+        spec=target_spec,
+        workspace_nodes=workspace_nodes,
+        direction="in",
+        peer_node=source_node,
+    )
+    for source_port in source_ports:
+        for target_port in target_ports:
+            if not ports_compatible(source_port, target_port):
+                continue
+            if target_port.locked:
+                continue
+            return source_port.key, target_port.key
+    return None
+
+
+def _has_locked_target_candidate(
+    *,
+    source_node: NodeInstance,
+    source_spec,
+    target_node: NodeInstance,
+    target_spec,
+    workspace_nodes: dict[str, NodeInstance],
+) -> bool:
+    source_ports = _connection_port_candidates(
+        node=source_node,
+        spec=source_spec,
+        workspace_nodes=workspace_nodes,
+        direction="out",
+        peer_node=target_node,
+    )
+    target_ports = _connection_port_candidates(
+        node=target_node,
+        spec=target_spec,
+        workspace_nodes=workspace_nodes,
+        direction="in",
+        peer_node=source_node,
+    )
+    for source_port in source_ports:
+        for target_port in target_ports:
+            if not target_port.locked:
+                continue
+            if ports_compatible(source_port, target_port):
+                return True
+    return False
+
+
 def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
     model, registry = self._scene_context.require_bound()
     workspace = model.project.workspaces[self._scene_context.workspace_id]
@@ -128,41 +234,23 @@ def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
     spec_a = registry.get_spec(node_a.type_id)
     spec_b = registry.get_spec(node_b.type_id)
 
-    a_to_b = (
-        preferred_connection_port(
-            node=node_a,
-            spec=spec_a,
-            workspace_nodes=workspace.nodes,
-            direction="out",
-            peer_node=node_b,
-        ),
-        preferred_connection_port(
-            node=node_b,
-            spec=spec_b,
-            workspace_nodes=workspace.nodes,
-            direction="in",
-            peer_node=node_a,
-        ),
+    a_to_b = _preferred_connection_pair(
+        source_node=node_a,
+        source_spec=spec_a,
+        target_node=node_b,
+        target_spec=spec_b,
+        workspace_nodes=workspace.nodes,
     )
-    b_to_a = (
-        preferred_connection_port(
-            node=node_b,
-            spec=spec_b,
-            workspace_nodes=workspace.nodes,
-            direction="out",
-            peer_node=node_a,
-        ),
-        preferred_connection_port(
-            node=node_a,
-            spec=spec_a,
-            workspace_nodes=workspace.nodes,
-            direction="in",
-            peer_node=node_b,
-        ),
+    b_to_a = _preferred_connection_pair(
+        source_node=node_b,
+        source_spec=spec_b,
+        target_node=node_a,
+        target_spec=spec_a,
+        workspace_nodes=workspace.nodes,
     )
 
-    can_a_to_b = all(a_to_b)
-    can_b_to_a = all(b_to_a)
+    can_a_to_b = a_to_b is not None
+    can_b_to_a = b_to_a is not None
     prefer_a_to_b = float(node_a.x) < float(node_b.x) or (
         float(node_a.x) == float(node_b.x) and float(node_a.y) <= float(node_b.y)
     )
@@ -170,6 +258,20 @@ def connect_nodes(self, node_a_id: str, node_b_id: str) -> str:
         return self.add_edge(node_a_id, a_to_b[0], node_b_id, a_to_b[1])
     if can_b_to_a:
         return self.add_edge(node_b_id, b_to_a[0], node_a_id, b_to_a[1])
+    if _has_locked_target_candidate(
+        source_node=node_a,
+        source_spec=spec_a,
+        target_node=node_b,
+        target_spec=spec_b,
+        workspace_nodes=workspace.nodes,
+    ) or _has_locked_target_candidate(
+        source_node=node_b,
+        source_spec=spec_b,
+        target_node=node_a,
+        target_spec=spec_a,
+        workspace_nodes=workspace.nodes,
+    ):
+        raise ValueError(LOCKED_TARGET_PORT_MESSAGE)
     raise ValueError("Selected nodes do not have compatible out/in ports.")
 
 
