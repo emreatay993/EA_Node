@@ -4,9 +4,10 @@ from unittest.mock import patch
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.qt_wait import wait_for_condition_or_raise
-from PyQt6.QtCore import QObject, QMetaObject
+from PyQt6.QtCore import QObject, QMetaObject, QPoint, QPointF, Qt
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtQml import QJSValue
+from PyQt6.QtTest import QTest
 
 
 class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
@@ -14,6 +15,32 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         yield item
         for child in item.childItems():
             yield from self._walk_items(child)
+
+    def _pane_child_item(self, pane: QObject, object_name: str) -> QQuickItem:
+        self.assertIsInstance(pane, QQuickItem)
+        for item in self._walk_items(pane):
+            if item.objectName() == object_name:
+                return item
+        self.fail(f"Could not find {object_name!r} under pane {pane.objectName()!r}.")
+
+    def _item_widget_point(self, item: QQuickItem, x: float, y: float) -> QPoint:
+        item_window = item.window()
+        self.assertIsNotNone(item_window)
+        scene_point = item.mapToScene(QPointF(x, y))
+        global_point = item_window.mapToGlobal(
+            QPoint(round(scene_point.x()), round(scene_point.y()))
+        )
+        return self.window.quick_widget.mapFromGlobal(global_point)
+
+    def _move_mouse_to_shell_center(self) -> None:
+        QTest.mouseMove(
+            self.window.quick_widget,
+            QPoint(
+                self.window.quick_widget.width() // 2,
+                self.window.quick_widget.height() // 2,
+            ),
+        )
+        self.app.processEvents()
 
     def _inspector_object(self, name: str) -> QObject:
         root_object = self.window.quick_widget.rootObject()
@@ -110,6 +137,106 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
             )
             self.assertFalse(bool(pane.property("paneCollapsed")))
             self.assertGreater(float(pane.property("width")), 200.0)
+
+    def test_qml_collapsed_side_pane_handles_reveal_only_on_edge_hover(self) -> None:
+        root_object = self.window.quick_widget.rootObject()
+        self.assertIsNotNone(root_object)
+        library_pane = root_object.findChild(QObject, "libraryPane")
+        inspector_pane = root_object.findChild(QObject, "inspectorPane")
+
+        self.assertIsNotNone(library_pane)
+        self.assertIsNotNone(inspector_pane)
+
+        for pane in (library_pane, inspector_pane):
+            self._move_mouse_to_shell_center()
+            QMetaObject.invokeMethod(pane, "collapsePane")
+            wait_for_condition_or_raise(
+                lambda pane=pane: float(pane.property("width")) <= 1.0,
+                timeout_ms=2500,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message=lambda pane=pane: (
+                    f"Pane width did not satisfy predicate within 2500ms: {pane.property('width')}"
+                ),
+            )
+
+            handle = self._pane_child_item(pane, "collapsedSidePaneHandle")
+            reveal_zone = self._pane_child_item(pane, "collapsedSidePaneRevealZone")
+            edge_point = self._item_widget_point(
+                reveal_zone,
+                max(1.0, float(reveal_zone.width()) * 0.5),
+                float(reveal_zone.height()) * 0.5,
+            )
+
+            wait_for_condition_or_raise(
+                lambda pane=pane, handle=handle: (
+                    not bool(pane.property("collapsedHandleRevealed"))
+                    and float(handle.property("opacity")) < 0.05
+                ),
+                timeout_ms=600,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message="Collapsed side pane handle did not start hidden.",
+            )
+
+            QTest.mouseMove(self.window.quick_widget, edge_point)
+            wait_for_condition_or_raise(
+                lambda pane=pane, handle=handle: (
+                    bool(pane.property("collapsedHandleRevealed"))
+                    and float(handle.property("opacity")) > 0.8
+                ),
+                timeout_ms=800,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message="Collapsed side pane handle did not reveal near the edge.",
+            )
+
+            self._move_mouse_to_shell_center()
+            wait_for_condition_or_raise(
+                lambda pane=pane, handle=handle: (
+                    not bool(pane.property("collapsedHandleRevealed"))
+                    and float(handle.property("opacity")) < 0.1
+                ),
+                timeout_ms=800,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message="Collapsed side pane handle stayed visible away from the edge.",
+            )
+
+            QTest.mouseMove(self.window.quick_widget, edge_point)
+            wait_for_condition_or_raise(
+                lambda pane=pane, handle=handle: (
+                    bool(pane.property("collapsedHandleRevealed"))
+                    and float(handle.property("opacity")) > 0.8
+                ),
+                timeout_ms=800,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message="Collapsed side pane handle did not reveal before expanding.",
+            )
+            handle_point = self._item_widget_point(
+                handle,
+                float(handle.width()) * 0.5,
+                float(handle.height()) * 0.5,
+            )
+            QTest.mouseClick(
+                self.window.quick_widget,
+                Qt.MouseButton.LeftButton,
+                Qt.KeyboardModifier.NoModifier,
+                handle_point,
+            )
+            wait_for_condition_or_raise(
+                lambda pane=pane: (
+                    not bool(pane.property("paneCollapsed"))
+                    and float(pane.property("width")) > 200.0
+                ),
+                timeout_ms=2500,
+                poll_interval_ms=20,
+                app=self.app,
+                timeout_message=lambda pane=pane: (
+                    f"Pane did not expand from hover-revealed handle: {pane.property('width')}"
+                ),
+            )
 
     def test_qml_rect_selection_supports_replace_and_additive_modes(self) -> None:
         node_a = self.window.scene.add_node_from_type("core.start", x=20.0, y=20.0)

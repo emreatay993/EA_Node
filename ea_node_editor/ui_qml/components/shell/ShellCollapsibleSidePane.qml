@@ -12,6 +12,8 @@ Rectangle {
     property real maxExpandedWidth: 600
     property int collapsedRailWidth: 0
     property int collapsedHandleWidth: 30
+    property int collapsedEdgeRevealWidth: 8
+    property int collapsedHandleHiddenMargin: 8
     property int collapsedTabTopMargin: 112
     property int collapsedPaneZ: 10
     property int contentMargins: 10
@@ -25,10 +27,18 @@ Rectangle {
     readonly property bool isLeftSide: String(side || "").toLowerCase() === "left"
     readonly property string collapseButtonText: root.isLeftSide ? "‹" : "›"
     readonly property string collapseButtonIconName: root.isLeftSide ? "chevrons-left" : "chevrons-right"
+    readonly property bool collapsedHandleRevealed: root.paneCollapsed
+        && (collapsedEdgeHover.hovered || collapsedHandleHover.hovered)
     readonly property string expandHandleArrow: root.isLeftSide ? "›" : "‹"
     property real animatedPaneWidth: root.paneCollapsed ? root.collapsedRailWidth : root.expandedWidth
     property real expandedContentOpacity: root.paneCollapsed ? 0 : 1
-    property real collapsedHandleShift: root.paneCollapsed ? 0 : (root.isLeftSide ? -root.handleFadeShift : root.handleFadeShift)
+    property real collapsedHandleShift: root.paneCollapsed
+        ? (root.collapsedHandleRevealed
+            ? 0
+            : (root.isLeftSide
+                ? -(root.collapsedHandleWidth + root.collapsedHandleHiddenMargin)
+                : (root.collapsedHandleWidth + root.collapsedHandleHiddenMargin)))
+        : (root.isLeftSide ? -root.handleFadeShift : root.handleFadeShift)
 
     function refreshAncestorLayouts() {
         var candidate = root.parent
@@ -79,6 +89,25 @@ Rectangle {
         }
     }
 
+    Item {
+        id: collapsedRevealZone
+        objectName: "collapsedSidePaneRevealZone"
+        width: root.collapsedEdgeRevealWidth
+        height: collapsedHandle.height
+        anchors.top: parent.top
+        anchors.topMargin: root.collapsedTabTopMargin
+        anchors.left: root.isLeftSide ? parent.left : undefined
+        anchors.right: root.isLeftSide ? undefined : parent.right
+        visible: root.paneCollapsed
+        enabled: root.paneCollapsed
+        z: 1
+
+        HoverHandler {
+            id: collapsedEdgeHover
+            enabled: root.paneCollapsed
+        }
+    }
+
     Rectangle {
         id: collapsedHandle
         objectName: "collapsedSidePaneHandle"
@@ -93,7 +122,7 @@ Rectangle {
         color: root.themePalette.panel_bg
         border.color: root.themePalette.border
         radius: 10
-        opacity: root.paneCollapsed ? 1 : 0
+        opacity: root.paneCollapsed && root.collapsedHandleRevealed ? 1 : 0
 
         transform: Translate {
             x: root.collapsedHandleShift
@@ -155,14 +184,14 @@ Rectangle {
 
         HoverHandler {
             id: collapsedHandleHover
-            enabled: root.expandHandleTooltip.length > 0
+            enabled: root.paneCollapsed
         }
 
         ToolTip.visible: collapsedHandleHover.hovered && root.paneCollapsed && root.expandHandleTooltip.length > 0
         ToolTip.text: root.expandHandleTooltip
 
         TapHandler {
-            enabled: root.paneCollapsed
+            enabled: root.paneCollapsed && root.collapsedHandleRevealed
             onTapped: root.expandPane()
         }
     }
