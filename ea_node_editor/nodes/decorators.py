@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterable
 from typing import Any
 
 from ea_node_editor.nodes.node_specs import (
+    CategoryPath,
     NodeRenderQualitySpec,
     NodeTypeSpec,
     PortSpec,
@@ -178,7 +179,7 @@ def node_type(
     *,
     type_id: str,
     display_name: str,
-    category: str,
+    category_path: CategoryPath,
     icon: str,
     ports: tuple[PortSpec, ...] | list[PortSpec],
     properties: tuple[PropertySpec, ...] | list[PropertySpec],
@@ -192,7 +193,7 @@ def node_type(
     spec = NodeTypeSpec(
         type_id=type_id,
         display_name=display_name,
-        category=category,
+        category_path=category_path,
         icon=icon,
         ports=tuple(ports),
         properties=tuple(properties),

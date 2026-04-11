@@ -29,7 +29,7 @@ from ea_node_editor.nodes.execution_context import ExecutionContext, NodeResult
 @node_type(
     type_id=SUBNODE_TYPE_ID,
     display_name="Subnode",
-    category="Subnode",
+    category_path=("Subnode",),
     icon="account_tree",
     description="Container shell whose outer ports are derived from direct child pin nodes.",
     ports=(),
@@ -44,7 +44,7 @@ class SubnodeNodePlugin:
 @node_type(
     type_id=SUBNODE_INPUT_TYPE_ID,
     display_name="Subnode Input",
-    category="Subnode",
+    category_path=("Subnode",),
     icon="input",
     description="Pin node that exposes one input port on its parent subnode shell.",
     ports=(out_port(SUBNODE_PIN_PORT_KEY, kind="data", data_type="any"),),
@@ -68,7 +68,7 @@ class SubnodeInputNodePlugin:
 @node_type(
     type_id=SUBNODE_OUTPUT_TYPE_ID,
     display_name="Subnode Output",
-    category="Subnode",
+    category_path=("Subnode",),
     icon="output",
     description="Pin node that exposes one output port on its parent subnode shell.",
     ports=(in_port(SUBNODE_PIN_PORT_KEY, kind="data", data_type="any"),),

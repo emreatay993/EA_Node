@@ -188,7 +188,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.dup_ports",
             display_name="Dup Ports",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(
                 PortSpec("value", "out", "data", "any"),
@@ -204,7 +204,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.descriptor",
             display_name="Descriptor",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(),
@@ -260,12 +260,69 @@ class RegistryValidationTests(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
+    def test_nested_category_sdk_node_type_spec_accepts_one_level_path(self) -> None:
+        spec = NodeTypeSpec(
+            type_id="tests.category_one_level",
+            display_name="Category One Level",
+            category_path=("  Tests  ",),
+            icon="",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(),
+        )
+
+        self.assertEqual(spec.category_path, ("Tests",))
+        self.assertEqual(spec.category, "Tests")
+        self.assertIsInstance(type(spec).category, property)
+        self.assertIsNone(type(spec).category.fset)
+
+    def test_nested_category_sdk_node_type_spec_accepts_ten_level_path(self) -> None:
+        category_path = tuple(f"Level {index}" for index in range(1, 11))
+        spec = NodeTypeSpec(
+            type_id="tests.category_ten_level",
+            display_name="Category Ten Level",
+            category_path=category_path,
+            icon="",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(),
+        )
+
+        self.assertEqual(spec.category_path, category_path)
+        self.assertEqual(
+            spec.category,
+            "Level 1 > Level 2 > Level 3 > Level 4 > Level 5 > "
+            "Level 6 > Level 7 > Level 8 > Level 9 > Level 10",
+        )
+
+    def test_nested_category_sdk_node_type_spec_rejects_eleven_level_path(self) -> None:
+        with self.assertRaises(ValueError):
+            NodeTypeSpec(
+                type_id="tests.category_eleven_level",
+                display_name="Category Eleven Level",
+                category_path=tuple(f"Level {index}" for index in range(1, 12)),
+                icon="",
+                ports=(PortSpec("value", "out", "data", "any"),),
+                properties=(),
+            )
+
+    def test_nested_category_sdk_node_type_spec_rejects_empty_segments(self) -> None:
+        for category_path in ((), ("",), ("  ",), ("Tests", ""), ("Tests", "  ")):
+            with self.subTest(category_path=category_path):
+                with self.assertRaises(ValueError):
+                    NodeTypeSpec(
+                        type_id="tests.category_empty_segment",
+                        display_name="Category Empty Segment",
+                        category_path=category_path,
+                        icon="",
+                        ports=(PortSpec("value", "out", "data", "any"),),
+                        properties=(),
+                    )
+
     def test_register_rejects_invalid_enum_default(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(
             type_id="tests.bad_enum",
             display_name="Bad Enum",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(
@@ -286,7 +343,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.bad_json_default",
             display_name="Bad Json Default",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(PropertySpec("payload", "json", {"obj": object()}, "Payload"),),
@@ -299,7 +356,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.bad_surface",
             display_name="Bad Surface",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(),
@@ -314,7 +371,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.neutral_flowchart",
             display_name="Neutral Flowchart",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(
                 PortSpec(
@@ -351,7 +408,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.passive_neutral_annotation",
             display_name="Passive Neutral Annotation",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(
                 PortSpec(
@@ -379,7 +436,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.bad_neutral_active",
             display_name="Bad Neutral Active",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(
                 PortSpec(
@@ -403,7 +460,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.bad_neutral_side",
             display_name="Bad Neutral Side",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(
                 PortSpec(
@@ -427,7 +484,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.render_quality_defaults",
             display_name="Render Quality Defaults",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(),
@@ -444,7 +501,7 @@ class RegistryValidationTests(unittest.TestCase):
         @node_type(
             type_id="tests.decorated_render_quality",
             display_name="Decorated Render Quality",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(),
             properties=(),
@@ -470,7 +527,7 @@ class RegistryValidationTests(unittest.TestCase):
             NodeTypeSpec(
                 type_id="tests.bad_render_quality",
                 display_name="Bad Render Quality",
-                category="Tests",
+                category_path=("Tests",),
                 icon="",
                 ports=(PortSpec("value", "out", "data", "any"),),
                 properties=(),
@@ -482,7 +539,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.deep_copy",
             display_name="Deep Copy",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(PropertySpec("payload", "json", {"items": []}, "Payload"),),
@@ -500,7 +557,7 @@ class RegistryValidationTests(unittest.TestCase):
         spec = NodeTypeSpec(
             type_id="tests.normalize",
             display_name="Normalize",
-            category="Tests",
+            category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(

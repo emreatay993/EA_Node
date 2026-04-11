@@ -18,7 +18,7 @@ class _PassiveMediaNodePlugin:
 @node_type(
     type_id=PASSIVE_MEDIA_IMAGE_PANEL_TYPE_ID,
     display_name="Image Panel",
-    category=PASSIVE_MEDIA_CATEGORY,
+    category_path=(PASSIVE_MEDIA_CATEGORY,),
     icon="image",
     description="Passive local-image panel with caption and fit controls.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,
@@ -60,7 +60,7 @@ class PassiveMediaImagePanelNodePlugin(_PassiveMediaNodePlugin):
 @node_type(
     type_id=PASSIVE_MEDIA_PDF_PANEL_TYPE_ID,
     display_name="PDF Panel",
-    category=PASSIVE_MEDIA_CATEGORY,
+    category_path=(PASSIVE_MEDIA_CATEGORY,),
     icon="file",
     description="Passive local-PDF panel with single-page preview and caption.",
     ports=CARDINAL_PASSIVE_FLOW_PORTS,

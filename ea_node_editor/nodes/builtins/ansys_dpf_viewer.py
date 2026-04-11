@@ -25,7 +25,7 @@ from ea_node_editor.nodes.node_specs import (
 @node_type(
     type_id=DPF_VIEWER_NODE_TYPE_ID,
     display_name="DPF Viewer",
-    category=DPF_NODE_CATEGORY,
+    category_path=(DPF_NODE_CATEGORY,),
     icon="monitor",
     description="Caches a DPF viewer session and its proxy/live dataset state through the worker session service.",
     ports=(

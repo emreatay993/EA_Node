@@ -29,7 +29,7 @@ class FileReadNodePlugin:
         return NodeTypeSpec(
             type_id="io.file_read",
             display_name="File Read",
-            category="Input / Output",
+    category_path=("Input / Output",),
             icon="description",
             description="Reads a text file.",
             ports=(
@@ -56,7 +56,7 @@ class FileWriteNodePlugin:
         return NodeTypeSpec(
             type_id="io.file_write",
             display_name="File Write",
-            category="Input / Output",
+    category_path=("Input / Output",),
             icon="save",
             description="Writes text or JSON to a file.",
             ports=(
