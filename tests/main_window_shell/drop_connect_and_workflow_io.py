@@ -9,6 +9,15 @@ from unittest.mock import patch
 from ea_node_editor.nodes.category_paths import category_key
 from tests.main_window_shell.base import *  # noqa: F401,F403
 from tests.main_window_shell.base import _action_shortcuts
+from tests.main_window_shell.bridge_support import _named_child_items
+
+
+def _qml_variant_map(raw_value) -> dict[str, object]:  # noqa: ANN001
+    if hasattr(raw_value, "toVariant"):
+        raw_value = raw_value.toVariant()
+    if not isinstance(raw_value, dict):
+        return {}
+    return {str(key): value for key, value in raw_value.items()}
 
 
 class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase):
@@ -717,24 +726,28 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         ]
         self.assertTrue(custom_category_rows)
 
-    def test_qml_library_categories_start_collapsed_on_project_install(self) -> None:
+    def test_nested_category_qml_library_categories_start_collapsed_on_project_install(self) -> None:
         library_pane = self._library_pane_item()
         self.app.processEvents()
 
         def _collapsed_map() -> dict[str, bool]:
-            raw_value = library_pane.property("collapsedCategories")
-            if hasattr(raw_value, "toVariant"):
-                raw_value = raw_value.toVariant()
-            if not isinstance(raw_value, dict):
-                return {}
-            return {str(key): bool(value) for key, value in raw_value.items()}
+            return {
+                key: bool(value)
+                for key, value in _qml_variant_map(library_pane.property("collapsedCategories")).items()
+            }
 
-        for category in {
-            row["category"] for row in self.window.grouped_node_library_items if row.get("kind") == "category"
+        for category_key_value in {
+            row["category_key"] for row in self.window.grouped_node_library_items if row.get("kind") == "category"
         }:
-            self.assertTrue(_collapsed_map().get(category, False))
+            self.assertTrue(_collapsed_map().get(category_key_value, False))
 
-        library_pane.setProperty("collapsedCategories", {"Flow Control": False, "Custom Workflows": False})
+        library_pane.setProperty(
+            "collapsedCategories",
+            {
+                category_key(("Flow Control",)): False,
+                category_key(("Custom Workflows",)): False,
+            },
+        )
         self.app.processEvents()
 
         source_shell_id, _source_pin_id = self._create_publishable_subnode(
@@ -754,12 +767,79 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.app.processEvents()
 
         collapsed_categories = _collapsed_map()
-        restored_categories = {
-            row["category"] for row in self.window.grouped_node_library_items if row.get("kind") == "category"
+        restored_category_keys = {
+            row["category_key"] for row in self.window.grouped_node_library_items if row.get("kind") == "category"
         }
-        self.assertIn("Custom Workflows", restored_categories)
-        for category in restored_categories:
-            self.assertTrue(bool(collapsed_categories.get(category, False)))
+        self.assertIn(category_key(("Custom Workflows",)), restored_category_keys)
+        for category_key_value in restored_category_keys:
+            self.assertTrue(bool(collapsed_categories.get(category_key_value, False)))
+
+    def test_nested_category_qml_descendants_require_each_ancestor_expanded(self) -> None:
+        library_pane = self._library_pane_item()
+        self.app.processEvents()
+
+        root_key = category_key(("Ansys DPF",))
+        compute_key = category_key(("Ansys DPF", "Compute"))
+
+        def _collapsed_map() -> dict[str, bool]:
+            return {
+                key: bool(value)
+                for key, value in _qml_variant_map(library_pane.property("collapsedCategories")).items()
+            }
+
+        def _library_rows():
+            self.app.processEvents()
+            return _named_child_items(library_pane, "nodeLibraryRow")
+
+        def _category_row(category_key_value: str):
+            for row in _library_rows():
+                if (
+                    bool(row.property("isCategory"))
+                    and str(row.property("rowCategoryKey") or "") == category_key_value
+                ):
+                    return row
+            raise AssertionError(f"Missing library category row for {category_key_value}.")
+
+        def _node_row(type_id: str):
+            for row in _library_rows():
+                if str(row.property("rowTypeId") or "") == type_id:
+                    return row
+            raise AssertionError(f"Missing library node row for {type_id}.")
+
+        collapsed_categories = _collapsed_map()
+        self.assertTrue(collapsed_categories.get(root_key, False))
+        self.assertTrue(collapsed_categories.get(compute_key, False))
+
+        root_row = _category_row(root_key)
+        compute_row = _category_row(compute_key)
+        result_file_row = _node_row("dpf.result_file")
+        self.assertEqual(int(root_row.property("rowDepth")), 0)
+        self.assertEqual(int(compute_row.property("rowDepth")), 1)
+        self.assertEqual(int(result_file_row.property("rowDepth")), 2)
+        self.assertGreater(float(compute_row.property("rowIndent")), float(root_row.property("rowIndent")))
+        self.assertGreater(float(result_file_row.property("rowIndent")), float(compute_row.property("rowIndent")))
+        self.assertFalse(bool(root_row.property("hiddenByAncestors")))
+        self.assertTrue(bool(compute_row.property("hiddenByAncestors")))
+        self.assertTrue(bool(result_file_row.property("hiddenByAncestors")))
+
+        next_collapsed_categories = dict(collapsed_categories)
+        next_collapsed_categories[root_key] = False
+        library_pane.setProperty("collapsedCategories", next_collapsed_categories)
+        self.app.processEvents()
+
+        self.assertFalse(bool(_category_row(compute_key).property("hiddenByAncestors")))
+        self.assertTrue(_collapsed_map().get(compute_key, False))
+        self.assertTrue(bool(_node_row("dpf.result_file").property("hiddenByAncestors")))
+
+        next_collapsed_categories = _collapsed_map()
+        next_collapsed_categories[compute_key] = False
+        library_pane.setProperty("collapsedCategories", next_collapsed_categories)
+        self.app.processEvents()
+
+        visible_result_file_row = _node_row("dpf.result_file")
+        self.assertFalse(bool(visible_result_file_row.property("hiddenByAncestors")))
+        self.assertTrue(bool(visible_result_file_row.property("visible")))
+        self.assertEqual(float(visible_result_file_row.property("height")), 28.0)
 
     def test_qml_custom_workflow_update_changes_future_placements_only(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

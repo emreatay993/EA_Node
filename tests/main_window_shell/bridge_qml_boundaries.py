@@ -73,6 +73,47 @@ class ShellLibraryBridgeQmlBoundaryTests(unittest.TestCase):
                 with self.subTest(path=relative_path, snippet=snippet, expectation="present"):
                     self.assertIn(snippet, qml_text)
 
+    def test_nested_category_qml_library_pane_uses_flattened_row_metadata(self) -> None:
+        qml_path = _REPO_ROOT / "ea_node_editor/ui_qml/components/shell/NodeLibraryPane.qml"
+        qml_text = qml_path.read_text(encoding="utf-8")
+
+        present_snippets = (
+            "ListView {",
+            "function categoryKeyForRow(row) {",
+            "return String(row.category_key || \"\")",
+            "function depthForRow(row) {",
+            "function ancestorsExpanded(ancestorCategoryKeys) {",
+            "row.ancestor_category_keys || []",
+            'objectName: "nodeLibraryRow"',
+            "property string rowCategoryKey: root.categoryKeyForRow(modelData)",
+            "property int rowDepth: root.depthForRow(modelData)",
+            "property real rowIndent: root.rowIndentForRow(modelData)",
+            "property bool hiddenByAncestors: root.isRowHiddenByAncestors(modelData)",
+            "anchors.leftMargin: libraryRow.rowIndent",
+            "root.isCategoryCollapsed(libraryRow.rowCategoryKey)",
+            "root.setCategoryCollapsed(",
+            "libraryRow.rowCategoryKey,",
+            "Drag.active: !libraryRow.isCategory && mouseArea.drag.active",
+            "root.graphCanvasRef.updateLibraryDropPreview",
+            "root.graphCanvasRef.performLibraryDrop",
+            "root.shellLibraryBridgeRef.request_add_node_from_library(modelData.type_id)",
+        )
+        absent_snippets = (
+            "TreeView",
+            "modelData.category",
+            "split(\"",
+            "split('",
+            "collapsedCategories[normalizedCategory]",
+        )
+
+        for snippet in present_snippets:
+            with self.subTest(snippet=snippet, expectation="present"):
+                self.assertIn(snippet, qml_text)
+
+        for snippet in absent_snippets:
+            with self.subTest(snippet=snippet, expectation="absent"):
+                self.assertNotIn(snippet, qml_text)
+
 
 class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
     def test_inspector_pane_routes_owned_concerns_through_shell_inspector_bridge(self) -> None:

@@ -17,25 +17,64 @@ ShellCollapsibleSidePane {
     collapseButtonTooltip: "Collapse node library"
     expandHandleTooltip: "Expand node library"
 
-    function isCategoryCollapsed(category) {
-        var normalizedCategory = String(category || "")
-        if (!normalizedCategory.length)
+    function categoryKeyForRow(row) {
+        if (!row)
+            return ""
+        return String(row.category_key || "")
+    }
+
+    function depthForRow(row) {
+        if (!row || row.depth === undefined || row.depth === null)
+            return 0
+        var depth = Number(row.depth)
+        if (!isFinite(depth) || depth < 0)
+            return 0
+        return Math.floor(depth)
+    }
+
+    function rowIndentForRow(row) {
+        var baseIndent = 8 + (depthForRow(row) * 14)
+        if (row && row.kind !== "category")
+            return baseIndent + 10
+        return baseIndent
+    }
+
+    function isCategoryCollapsed(categoryKey) {
+        var normalizedCategoryKey = String(categoryKey || "")
+        if (!normalizedCategoryKey.length)
             return true
-        var value = collapsedCategories[normalizedCategory]
+        var value = collapsedCategories[normalizedCategoryKey]
         if (value === undefined)
             return true
         return !!value
     }
 
-    function setCategoryCollapsed(category, collapsed) {
-        var normalizedCategory = String(category || "")
-        if (!normalizedCategory.length)
+    function setCategoryCollapsed(categoryKey, collapsed) {
+        var normalizedCategoryKey = String(categoryKey || "")
+        if (!normalizedCategoryKey.length)
             return
         var nextMap = {}
         for (var key in collapsedCategories)
             nextMap[key] = collapsedCategories[key]
-        nextMap[normalizedCategory] = !!collapsed
+        nextMap[normalizedCategoryKey] = !!collapsed
         collapsedCategories = nextMap
+    }
+
+    function ancestorsExpanded(ancestorCategoryKeys) {
+        if (!ancestorCategoryKeys || ancestorCategoryKeys.length === undefined)
+            return true
+        for (var index = 0; index < ancestorCategoryKeys.length; ++index) {
+            var categoryKey = String(ancestorCategoryKeys[index] || "")
+            if (categoryKey.length && isCategoryCollapsed(categoryKey))
+                return false
+        }
+        return true
+    }
+
+    function isRowHiddenByAncestors(row) {
+        if (!row)
+            return true
+        return !ancestorsExpanded(row.ancestor_category_keys || [])
     }
 
     function ensureCollapsedDefaults(rows) {
@@ -49,10 +88,10 @@ ShellCollapsibleSidePane {
             var row = rows[index]
             if (!row || row.kind !== "category")
                 continue
-            var category = String(row.category || "")
-            if (!category.length || nextMap[category] !== undefined)
+            var categoryKey = categoryKeyForRow(row)
+            if (!categoryKey.length || nextMap[categoryKey] !== undefined)
                 continue
-            nextMap[category] = true
+            nextMap[categoryKey] = true
             changed = true
         }
         if (changed)
@@ -91,10 +130,15 @@ ShellCollapsibleSidePane {
 
             delegate: Rectangle {
                 id: libraryRow
+                objectName: "nodeLibraryRow"
                 property bool isCategory: modelData.kind === "category"
                 property bool isCustomWorkflow: !isCategory && String(modelData.library_source || "") === "custom_workflow"
                 property string workflowScope: String(modelData.workflow_scope || "local")
-                property bool hiddenByCategory: !isCategory && root.isCategoryCollapsed(modelData.category)
+                property string rowCategoryKey: root.categoryKeyForRow(modelData)
+                property string rowTypeId: isCategory ? "" : String(modelData.type_id || "")
+                property int rowDepth: root.depthForRow(modelData)
+                property real rowIndent: root.rowIndentForRow(modelData)
+                property bool hiddenByAncestors: root.isRowHiddenByAncestors(modelData)
                 property var dragPayload: isCategory ? null : {
                     "type_id": String(modelData.type_id || ""),
                     "display_name": String(modelData.display_name || ""),
@@ -105,11 +149,11 @@ ShellCollapsibleSidePane {
                     "workflow_scope": String(modelData.workflow_scope || "local")
                 }
                 width: ListView.view.width
-                height: hiddenByCategory ? 0 : (isCategory ? 32 : 28)
-                color: hiddenByCategory ? "transparent"
+                height: hiddenByAncestors ? 0 : (isCategory ? 32 : 28)
+                color: hiddenByAncestors ? "transparent"
                     : (mouseArea.containsMouse ? root.themePalette.hover : "transparent")
                 radius: 4
-                visible: !hiddenByCategory
+                visible: !hiddenByAncestors
 
                 Item {
                     id: dragProxy
@@ -135,7 +179,7 @@ ShellCollapsibleSidePane {
                 Row {
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.left: parent.left
-                    anchors.leftMargin: isCategory ? 8 : 18
+                    anchors.leftMargin: libraryRow.rowIndent
                     spacing: 6
 
                     Rectangle {
@@ -152,7 +196,7 @@ ShellCollapsibleSidePane {
 
                     Text {
                         text: isCategory
-                            ? ((root.isCategoryCollapsed(modelData.category) ? "▸ " : "▾ ") + modelData.label)
+                            ? ((root.isCategoryCollapsed(libraryRow.rowCategoryKey) ? "▸ " : "▾ ") + modelData.label)
                             : modelData.display_name
                         color: isCategory ? root.themePalette.group_title_fg : root.themePalette.app_fg
                         font.pixelSize: isCategory ? 12 : 11
@@ -234,8 +278,8 @@ ShellCollapsibleSidePane {
                         }
                         if (isCategory) {
                             root.setCategoryCollapsed(
-                                modelData.category,
-                                !root.isCategoryCollapsed(modelData.category)
+                                libraryRow.rowCategoryKey,
+                                !root.isCategoryCollapsed(libraryRow.rowCategoryKey)
                             )
                         } else {
                             root.shellLibraryBridgeRef.request_add_node_from_library(modelData.type_id)
