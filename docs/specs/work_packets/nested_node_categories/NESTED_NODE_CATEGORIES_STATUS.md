@@ -7,7 +7,7 @@
 
 | Packet | Branch Label | Status | Commit SHA | Commands | Tests | Artifacts | Residual Risks |
 |---|---|---|---|---|---|---|---|
-| P00 Bootstrap | `codex/nested-node-categories/p00-bootstrap` | PASS | `planner-bootstrap-uncommitted` | planner: `NESTED_NODE_CATEGORIES_P00_FILE_GATE_PASS`; planner review gate: `NESTED_NODE_CATEGORIES_P00_STATUS_PASS` | PASS (`NESTED_NODE_CATEGORIES_P00_FILE_GATE_PASS`; `NESTED_NODE_CATEGORIES_P00_STATUS_PASS`) | `docs/specs/INDEX.md`, `.gitignore`, `docs/specs/work_packets/nested_node_categories/*` | Bootstrap docs exist in the current checkout, but a worktree-based executor will need these docs committed onto the target merge branch before packet workers can inherit them |
+| P00 Bootstrap | `codex/nested-node-categories/p00-bootstrap` | PASS | `0f0ae69d378dd5b673a8621292babfcf718b8641` | planner: `NESTED_NODE_CATEGORIES_P00_FILE_GATE_PASS`; planner review gate: `NESTED_NODE_CATEGORIES_P00_STATUS_PASS` | PASS (`NESTED_NODE_CATEGORIES_P00_FILE_GATE_PASS`; `NESTED_NODE_CATEGORIES_P00_STATUS_PASS`) | `docs/specs/INDEX.md`, `.gitignore`, `docs/specs/work_packets/nested_node_categories/*` | Accepted bootstrap docs now live on `main`; later packet waves remain pending and unexecuted |
 | P01 SDK Category Path Contract | `codex/nested-node-categories/p01-sdk-category-path-contract` | PENDING | `-` | `-` | `-` | `-` | Waiting on Wave 1 |
 | P02 Registry Path Filters and DPF Taxonomy | `codex/nested-node-categories/p02-registry-path-filters-and-dpf-taxonomy` | PENDING | `-` | `-` | `-` | `-` | Blocked on `P01` |
 | P03 Library Tree Payload Projection | `codex/nested-node-categories/p03-library-tree-payload-projection` | PENDING | `-` | `-` | `-` | `-` | Blocked on `P02` |
