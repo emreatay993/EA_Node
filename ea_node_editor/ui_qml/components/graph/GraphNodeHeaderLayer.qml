@@ -15,6 +15,14 @@ Item {
     readonly property bool isCommentBackdropNode: host
         ? String(host.surfaceFamily || "") === "comment_backdrop"
         : false
+    readonly property bool commentTitleIconVisible: host
+        ? root.isCommentBackdropNode && host.isCollapsed
+        : false
+    readonly property int commentTitleIconSize: 14
+    readonly property int commentTitleIconSpacing: 6
+    readonly property real _commentTitleIconReserveWidth: root.commentTitleIconVisible
+        ? root.commentTitleIconSize + root.commentTitleIconSpacing
+        : 0
     readonly property real _headerBadgeReserveWidth: (root.host && root.host.canEnterScope ? 56 : 0)
         + (root.host && root.host.isFailedNode ? 70 : 0)
     readonly property string currentTitle: root.host && root.host.nodeData
@@ -28,6 +36,9 @@ Item {
             return "Comment";
         return title;
     }
+    readonly property string commentTitleIconSource: root.commentTitleIconVisible
+        ? uiIcons.sourceSized("comment", root.commentTitleIconSize, String(root.host ? root.host.headerTextColor : "#f0f4fb"))
+        : ""
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [titleEditorInteractionRegion.embeddedInteractiveRects, openBadgeInteractionRegion.embeddedInteractiveRects]
     )
@@ -133,10 +144,9 @@ Item {
         border.color: root.host ? root.host.outlineColor : "transparent"
     }
 
-    Text {
-        id: titleText
-        objectName: "graphNodeTitle"
-        property int effectiveRenderType: renderType
+    Item {
+        id: titleDisplay
+        objectName: "graphNodeTitleDisplay"
         visible: root.headerTitleVisible && !root.isEditing
         anchors.left: parent.left
         anchors.leftMargin: root.host ? root.host._titleLeftMargin : 0
@@ -144,27 +154,63 @@ Item {
         anchors.rightMargin: root.host ? root.host._titleRightMargin + root._headerBadgeReserveWidth : 0
         y: root.host ? root.host._titleTop : 0
         height: root.host ? root.host._titleHeight : 0
-        text: root.displayTitle
-        color: root.host ? root.host.headerTextColor : "#f0f4fb"
-        font.pixelSize: root.usesSharedTitleTypography
-            ? (root.graphSharedTypography ? root.graphSharedTypography.nodeTitlePixelSize : 12)
-            : (root.host ? root.host.passiveFontPixelSize : 12)
-        font.weight: root.host
-            ? (root.usesSharedTitleTypography
-                ? (root.graphSharedTypography ? root.graphSharedTypography.nodeTitleFontWeight : Font.Bold)
-                : root.host.passiveFontWeight)
-            : Font.Bold
-        horizontalAlignment: root.host && root.host._titleCentered ? Text.AlignHCenter : Text.AlignLeft
-        verticalAlignment: Text.AlignVCenter
-        elide: Text.ElideRight
-        renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+
+        Image {
+            id: commentTitleIcon
+            visible: root.commentTitleIconVisible && root.commentTitleIconSource.length > 0
+            source: root.commentTitleIconSource
+            x: root.host && root.host._titleCentered
+                ? Math.max(
+                    0,
+                    titleText.x
+                    + Math.max(0, (titleText.width - Math.min(titleText.contentWidth, titleText.width)) * 0.5)
+                    - width
+                    - root.commentTitleIconSpacing
+                )
+                : 0
+            y: Math.round((titleDisplay.height - height) * 0.5)
+            width: root.commentTitleIconSize
+            height: root.commentTitleIconSize
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+            sourceSize.width: root.commentTitleIconSize
+            sourceSize.height: root.commentTitleIconSize
+        }
+
+        Text {
+            id: titleText
+            objectName: "graphNodeTitle"
+            property int effectiveRenderType: renderType
+            x: root.commentTitleIconVisible
+                ? (root.host && root.host._titleCentered
+                    ? root._commentTitleIconReserveWidth * 0.5
+                    : root._commentTitleIconReserveWidth)
+                : 0
+            width: Math.max(0, titleDisplay.width - x)
+            height: titleDisplay.height
+            text: root.displayTitle
+            color: root.host ? root.host.headerTextColor : "#f0f4fb"
+            font.pixelSize: root.usesSharedTitleTypography
+                ? (root.graphSharedTypography ? root.graphSharedTypography.nodeTitlePixelSize : 12)
+                : (root.host ? root.host.passiveFontPixelSize : 12)
+            font.weight: root.host
+                ? (root.usesSharedTitleTypography
+                    ? (root.graphSharedTypography ? root.graphSharedTypography.nodeTitleFontWeight : Font.Bold)
+                    : root.host.passiveFontWeight)
+                : Font.Bold
+            horizontalAlignment: root.host && root.host._titleCentered ? Text.AlignHCenter : Text.AlignLeft
+            verticalAlignment: Text.AlignVCenter
+            elide: Text.ElideRight
+            renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
+        }
     }
 
     SurfaceControls.GraphSurfaceInteractiveRegion {
         id: titleHitRegion
         host: root.host
-        targetItem: titleText
-        enabled: root.sharedHeaderTitleEditable && titleText.visible
+        targetItem: titleDisplay
+        enabled: root.sharedHeaderTitleEditable && titleDisplay.visible
     }
 
     SurfaceControls.GraphSurfaceTextField {
@@ -172,10 +218,10 @@ Item {
         objectName: "graphNodeTitleEditor"
         visible: root.headerTitleVisible && root.isEditing
         host: root.host
-        x: titleText.x
-        y: titleText.y
-        width: titleText.width
-        height: titleText.height
+        x: titleDisplay.x
+        y: titleDisplay.y
+        width: titleDisplay.width
+        height: titleDisplay.height
         text: root.currentTitle
         font.pixelSize: titleText.font.pixelSize
         font.weight: titleText.font.weight
