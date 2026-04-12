@@ -62,8 +62,11 @@ def _missing_dpf_scene_payload() -> dict[str, object]:
                         "y": 0.0,
                         "collapsed": False,
                         "properties": {},
-                        "exposed_ports": {"result_file": True, "model": True},
-                        "port_labels": {"model": "Saved Model"},
+                        "exposed_ports": {"result_file": False, "model": True},
+                        "port_labels": {
+                            "result_file": "Hidden Saved Result File",
+                            "model": "Saved Model",
+                        },
                         "parent_node_id": None,
                     },
                 ],
@@ -115,6 +118,12 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             }["result_file"],
             "Saved Result File",
         )
+        model_ports = {
+            port["key"]: port["label"]
+            for port in nodes_by_id["node_model"]["ports"]
+        }
+        self.assertNotIn("result_file", model_ports)
+        self.assertEqual(model_ports["model"], "Saved Model")
 
     def test_scene_bridge_routes_fragment_and_delete_flows_through_authoring_boundary(self) -> None:
         support_text = (

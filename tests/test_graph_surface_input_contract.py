@@ -1,10 +1,7 @@
 from __future__ import annotations
-
 import unittest
 from unittest.mock import patch
-
 import pytest
-
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.builtins.ansys_dpf_catalog import ANSYS_DPF_DEPENDENCY
 from ea_node_editor.nodes.plugin_contracts import PluginAvailability
@@ -15,13 +12,11 @@ from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadB
 from tests.graph_surface import (
     GraphSurfaceBoundaryContractTests,
     GraphSurfaceInlineEditorContractTests,
-    GraphSurfaceInputContractTests as _GraphSurfaceInputContractTests,
     GraphSurfaceMediaAndScopeContractTests,
 )
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
-
+# GraphSurfaceInputContractTests remains covered in tests.graph_surface; this entrypoint stays packet-focused.
 pytestmark = pytest.mark.xdist_group("p03_graph_surface")
-
 def _missing_dpf_surface_payload() -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -45,39 +40,35 @@ def _missing_dpf_surface_payload() -> dict[str, object]:
                 ],
                 "nodes": [
                     {
-                        "node_id": "node_model",
-                        "type_id": "dpf.model",
-                        "title": "Offline Model",
-                        "x": 220.0,
+                        "node_id": "node_result",
+                        "type_id": "dpf.result_file",
+                        "title": "Offline Result",
+                        "x": 40.0,
                         "y": 90.0,
                         "collapsed": False,
                         "properties": {"path": "C:/tmp/example.rst"},
-                        "exposed_ports": {"result_file": True, "model": True},
-                        "port_labels": {
-                            "result_file": "Saved Result File",
-                            "model": "Saved Model",
-                        },
+                        "exposed_ports": {"result_file": True, "exec_out": True},
+                        "port_labels": {"result_file": "Saved Result File"},
                         "parent_node_id": None,
-                    }
+                    },
+                    {
+                        "node_id": "node_model",
+                        "type_id": "dpf.model",
+                        "title": "Offline Model",
+                        "x": 280.0,
+                        "y": 90.0,
+                        "collapsed": False,
+                        "properties": {"path": "C:/tmp/example.rst"},
+                        "exposed_ports": {"result_file": False, "model": True},
+                        "port_labels": {"result_file": "Hidden Saved Result File", "model": "Saved Model"},
+                        "parent_node_id": None,
+                    },
                 ],
-                "edges": [],
+                "edges": [{"edge_id": "edge_hidden_result_file", "source_node_id": "node_result", "source_port_key": "result_file", "target_node_id": "node_model", "target_port_key": "result_file"}],
             }
         ],
         "metadata": {},
     }
-
-
-def _patched_loader_embedded_rects(self) -> None:
-    self._run_qml_probe(
-        "loader-embedded-rects",
-        """host = create_component(graph_node_host_qml_path, {"nodeData": node_payload()}); loader = host.findChild(QObject, "graphNodeSurfaceLoader"); assert loader is not None; embedded_rects = variant_list(loader.property("embeddedInteractiveRects")); assert len(embedded_rects) == 1; rect = embedded_rects[0]; assert rect_field(rect, "x") > 80.0; assert rect_field(rect, "y") >= 30.0; assert 80.0 < rect_field(rect, "width") < 120.0; assert rect_field(rect, "height") >= 16.0""",
-    )
-
-
-_GraphSurfaceInputContractTests.test_surface_loader_forwards_embedded_interactive_rects_for_inline_properties = _patched_loader_embedded_rects
-GraphSurfaceInputContractTests = _GraphSurfaceInputContractTests
-
-
 class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
     def test_graph_node_host_emits_locked_input_port_double_click_contract(self) -> None:
         self._run_qml_probe(
@@ -129,7 +120,6 @@ class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
             app.processEvents()
             """,
         )
-
     def test_graph_node_host_emits_unlocked_lockable_input_double_click_contract(self) -> None:
         self._run_qml_probe(
             "unlocked-lockable-port-double-click-contract",
@@ -161,8 +151,6 @@ class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
             app.processEvents()
             """,
         )
-
-
 class GraphSurfaceMissingDpfPlaceholderContractTests(unittest.TestCase):
     def test_payload_builder_marks_missing_dpf_projection_as_read_only_and_keeps_saved_ports(self) -> None:
         serializer = JsonProjectSerializer(NodeRegistry())
@@ -175,24 +163,23 @@ class GraphSurfaceMissingDpfPlaceholderContractTests(unittest.TestCase):
                 summary="ansys.dpf.core is not installed; the DPF node family remains unavailable.",
             ),
         ):
-            nodes_payload, _backdrops, _minimap, _edges = builder.rebuild_partitioned_models(
+            nodes_payload, _backdrops, _minimap, edges_payload = builder.rebuild_partitioned_models(
                 model=GraphModel(project),
                 registry=NodeRegistry(),
                 workspace_id="ws_dpf",
                 scope_path=(),
                 graph_theme_bridge=None,
             )
-        payload = nodes_payload[0]
-        ports = {port["key"]: port for port in payload["ports"]}
-        self.assertTrue(payload["unresolved"])
-        self.assertTrue(payload["read_only"])
-        self.assertEqual(payload["inline_properties"], [])
-        self.assertEqual(payload["unavailable_reason"], "ansys.dpf.core is not installed; the DPF node family remains unavailable.")
-        self.assertEqual(ports["result_file"]["label"], "Saved Result File")
-        self.assertEqual(ports["model"]["label"], "Saved Model")
-        self.assertTrue(ports["model"]["exposed"])
-
-__all__ = ["GraphSurfaceBoundaryContractTests", "GraphSurfaceInlineEditorContractTests", "GraphSurfaceInputContractTests", "GraphSurfaceLockedPortContractTests", "GraphSurfaceMediaAndScopeContractTests"]
-
+        nodes_by_id = {payload["node_id"]: payload for payload in nodes_payload}
+        model_ports = {port["key"]: port for port in nodes_by_id["node_model"]["ports"]}
+        self.assertEqual({edge["edge_id"] for edge in edges_payload}, {"edge_hidden_result_file"})
+        self.assertTrue(nodes_by_id["node_model"]["unresolved"])
+        self.assertTrue(nodes_by_id["node_model"]["read_only"])
+        self.assertEqual(nodes_by_id["node_model"]["inline_properties"], [])
+        self.assertEqual(nodes_by_id["node_model"]["unavailable_reason"], "ansys.dpf.core is not installed; the DPF node family remains unavailable.")
+        self.assertNotIn("result_file", model_ports)
+        self.assertEqual(model_ports["model"]["label"], "Saved Model")
+        self.assertTrue(model_ports["model"]["exposed"])
+__all__ = ["GraphSurfaceBoundaryContractTests", "GraphSurfaceInlineEditorContractTests", "GraphSurfaceLockedPortContractTests", "GraphSurfaceMediaAndScopeContractTests"]
 if __name__ == "__main__":
     unittest.main()

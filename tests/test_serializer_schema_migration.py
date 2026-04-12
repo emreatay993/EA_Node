@@ -74,7 +74,7 @@ def _dpf_rebind_payload() -> dict[str, object]:
                         "y": 0.0,
                         "collapsed": False,
                         "properties": {},
-                        "exposed_ports": {"model": True, "exec_in": True},
+                        "exposed_ports": {"result_file": False, "model": True, "exec_in": True},
                         "parent_node_id": None,
                     },
                 ],
@@ -456,6 +456,7 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual(set(workspace.edges), {"edge_result_data", "edge_result_exec"})
         self.assertEqual(workspace.unresolved_node_docs, {})
         self.assertEqual(workspace.unresolved_edge_docs, {})
+        self.assertFalse(workspace.nodes["node_model"].exposed_ports["result_file"])
 
 
 if __name__ == "__main__":

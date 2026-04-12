@@ -535,6 +535,7 @@ class GraphInvariantKernel:
         """Normalize resolved content while preserving unresolved authored payloads."""
         for workspace in project.workspaces.values():
             persistence_state = workspace.capture_persistence_state()
+            placeholder_edge_ids = set(persistence_state.unresolved_edge_docs)
             cls._rebind_resolved_unresolved_content(
                 workspace=workspace,
                 persistence_state=persistence_state,
@@ -579,7 +580,7 @@ class GraphInvariantKernel:
                     resolved_nodes=resolved_nodes,
                     require_source_output=True,
                     require_target_input=True,
-                    require_exposed_ports=True,
+                    require_exposed_ports=edge_id not in placeholder_edge_ids,
                 )
                 if resolution is None or not cls.accept_registry_edge(
                     resolution,
