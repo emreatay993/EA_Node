@@ -12,6 +12,45 @@ Item {
     property real boxZoomPaddingPx: 24
     readonly property var themePalette: themeBridge.palette
 
+    function _hidePortFilterBridge() {
+        if (root.canvasItem && root.canvasItem.sceneBridge && root.canvasItem.sceneBridge.set_hide_locked_ports)
+            return root.canvasItem.sceneBridge;
+        if (root.sceneCommandBridge && root.sceneCommandBridge.set_hide_locked_ports)
+            return root.sceneCommandBridge;
+        return null;
+    }
+
+    function _toggleHideLockedPorts() {
+        var bridge = root._hidePortFilterBridge();
+        if (!bridge || !root.canvasItem)
+            return false;
+        return Boolean(bridge.set_hide_locked_ports(!Boolean(root.canvasItem.hideLockedPorts)));
+    }
+
+    function _toggleHideOptionalPorts() {
+        var bridge = root._hidePortFilterBridge();
+        if (!bridge || !root.canvasItem || !bridge.set_hide_optional_ports)
+            return false;
+        return Boolean(bridge.set_hide_optional_ports(!Boolean(root.canvasItem.hideOptionalPorts)));
+    }
+
+    function _handleHidePortChord(buttons, changedButton) {
+        var normalizedButtons = Number(buttons || 0);
+        if (!(normalizedButtons & Qt.MiddleButton))
+            return false;
+        if (changedButton === Qt.LeftButton)
+            return root._toggleHideLockedPorts();
+        if (changedButton === Qt.RightButton)
+            return root._toggleHideOptionalPorts();
+        if (changedButton === Qt.MiddleButton) {
+            if (normalizedButtons & Qt.LeftButton)
+                return root._toggleHideLockedPorts();
+            if (normalizedButtons & Qt.RightButton)
+                return root._toggleHideOptionalPorts();
+        }
+        return false;
+    }
+
     Keys.onDeletePressed: function(event) {
         if (root.shellCommandBridge && root.canvasItem)
             root.shellCommandBridge.request_delete_selected_graph_items(root.canvasItem.selectedEdgeIds);
@@ -91,6 +130,12 @@ Item {
             root.canvasItem.forceActiveFocus();
             if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
                 viewerSessionBridge.clear_viewer_focus();
+            if (root._handleHidePortChord(mouse.buttons, mouse.button)) {
+                resetGestureState();
+                panArea.cancelPanningForChord();
+                mouse.accepted = true;
+                return;
+            }
             startX = mouse.x;
             startY = mouse.y;
             currentX = mouse.x;
@@ -180,7 +225,14 @@ Item {
             resetGestureState();
             if (mouse.button !== Qt.LeftButton)
                 return;
-            if (!root.canvasItem || !root.shellCommandBridge)
+            if (!root.canvasItem)
+                return;
+            if (mouse.modifiers & Qt.ControlModifier) {
+                if (root._toggleHideLockedPorts())
+                    mouse.accepted = true;
+                return;
+            }
+            if (!root.shellCommandBridge)
                 return;
             var sceneX = root.canvasItem.screenToSceneX(mouse.x);
             var sceneY = root.canvasItem.screenToSceneY(mouse.y);
@@ -228,7 +280,21 @@ Item {
         property real lastX: 0
         property real lastY: 0
 
+        function cancelPanningForChord() {
+            if (!panning)
+                return;
+            panning = false;
+            if (root.canvasItem)
+                root.canvasItem.finishViewportInteractionSoon();
+        }
+
         onPressed: {
+            if (root._handleHidePortChord(mouse.buttons, mouse.button)) {
+                marqueeArea.resetGestureState();
+                panning = false;
+                mouse.accepted = true;
+                return;
+            }
             if (!root.viewStateBridge || !root.viewCommandBridge || !root.viewCommandBridge.pan_by)
                 return;
             panning = true;

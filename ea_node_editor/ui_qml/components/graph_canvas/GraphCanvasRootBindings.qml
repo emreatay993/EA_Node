@@ -51,6 +51,12 @@ QtObject {
     readonly property var completedNodeLookup: root._canvasStateBridgeRef
         ? root._canvasStateBridgeRef.completed_node_lookup
         : ({})
+    readonly property bool hideLockedPorts: root._canvasStateBridgeRef
+        ? Boolean(root._canvasStateBridgeRef.hide_locked_ports)
+        : false
+    readonly property bool hideOptionalPorts: root._canvasStateBridgeRef
+        ? Boolean(root._canvasStateBridgeRef.hide_optional_ports)
+        : false
     readonly property var runningNodeStartedAtMsLookup: root._canvasStateBridgeRef
         ? root._canvasStateBridgeRef.running_node_started_at_ms_lookup
         : ({})

@@ -32,6 +32,8 @@ Item {
     readonly property string failedNodeTitle: rootBindings.failedNodeTitle
     readonly property var runningNodeLookup: rootBindings.runningNodeLookup
     readonly property var completedNodeLookup: rootBindings.completedNodeLookup
+    readonly property bool hideLockedPorts: rootBindings.hideLockedPorts
+    readonly property bool hideOptionalPorts: rootBindings.hideOptionalPorts
     readonly property var runningNodeStartedAtMsLookup: rootBindings.runningNodeStartedAtMsLookup
     readonly property var nodeElapsedMsLookup: rootBindings.nodeElapsedMsLookup
     readonly property var progressedExecutionEdgeLookup: rootBindings.progressedExecutionEdgeLookup

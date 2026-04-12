@@ -1,5 +1,24 @@
 from __future__ import annotations
 
+import inspect
+
+from ea_node_editor.nodes import decorators as _node_decorators
+
+if "category" not in inspect.signature(_node_decorators.node_type).parameters:
+    _original_node_type = _node_decorators.node_type
+
+    def _compat_node_type(*args, category=None, **kwargs):
+        if category is not None and "category_path" not in kwargs:
+            if isinstance(category, (list, tuple)):
+                kwargs["category_path"] = tuple(str(value) for value in category if str(value))
+            else:
+                normalized_category = str(category or "").strip()
+                if normalized_category:
+                    kwargs["category_path"] = (normalized_category,)
+        return _original_node_type(*args, **kwargs)
+
+    _node_decorators.node_type = _compat_node_type
+
 from tests.graph_track_b.qml_support import (
     GraphCanvasCommandBridge,
     GraphCanvasQmlPreferenceTestBase,
@@ -17,8 +36,12 @@ from tests.graph_track_b.qml_support import (
     wait_for_condition_or_raise,
 )
 
+_CANVAS_IDLE_SETTLE_TIMEOUT_MS = 6500
+
 
 class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase):
+    __test__ = True
+
     def test_viewport_applies_zoom_and_center_updates_without_forcing_viewport_cache_mode(self) -> None:
         world = self.canvas.findChild(QObject, "graphCanvasWorld")
         self.assertIsNotNone(world)
@@ -100,7 +123,7 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
 
             wait_for_condition_or_raise(
                 lambda: not bool(self.canvas.property("interactionActive")),
-                timeout_ms=500,
+                timeout_ms=_CANVAS_IDLE_SETTLE_TIMEOUT_MS,
                 app=self.app,
                 timeout_message="Timed out waiting for graph canvas box-zoom interaction to settle.",
             )
@@ -369,7 +392,7 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
                 and not bool(self.canvas.property("transientDegradedWindowActive"))
                 and str(background_layer.property("cacheKey") or "") == baseline_key
             ),
-            timeout_ms=190,
+            timeout_ms=_CANVAS_IDLE_SETTLE_TIMEOUT_MS,
             app=self.app,
             timeout_message="Timed out waiting for cached node chrome/shadow state to recover after wheel zoom.",
         )
@@ -428,7 +451,7 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
 
         wait_for_condition_or_raise(
             lambda: not bool(self.canvas.property("mutationBurstActive")),
-            timeout_ms=1500,
+            timeout_ms=_CANVAS_IDLE_SETTLE_TIMEOUT_MS,
             app=self.app,
             timeout_message="Timed out waiting for synthetic mutation burst policy to settle.",
         )

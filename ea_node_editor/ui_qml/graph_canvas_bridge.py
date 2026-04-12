@@ -197,6 +197,14 @@ class GraphCanvasBridge(QObject):
     def visible_scene_rect_payload_cached(self) -> dict[str, Any]:
         return self._state_bridge.visible_scene_rect_payload_cached
 
+    @pyqtProperty(bool, notify=scene_nodes_changed)
+    def hide_locked_ports(self) -> bool:
+        return self._state_bridge.hide_locked_ports
+
+    @pyqtProperty(bool, notify=scene_nodes_changed)
+    def hide_optional_ports(self) -> bool:
+        return self._state_bridge.hide_optional_ports
+
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def nodes_model(self) -> list[dict]:
         return self._state_bridge.nodes_model
@@ -220,6 +228,14 @@ class GraphCanvasBridge(QObject):
     @pyqtProperty("QVariantMap", notify=scene_selection_changed)
     def selected_node_lookup(self) -> dict[str, bool]:
         return self._state_bridge.selected_node_lookup
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+        return self._state_bridge.set_hide_locked_ports(hide_locked_ports)
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+        return self._state_bridge.set_hide_optional_ports(hide_optional_ports)
 
     @pyqtSlot(bool)
     def set_graphics_minimap_expanded(self, expanded: bool) -> None:

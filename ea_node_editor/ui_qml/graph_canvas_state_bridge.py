@@ -46,6 +46,8 @@ class _GraphCanvasSceneStateSource(Protocol):
     workspace_scene_bounds_payload: dict[str, Any]
     edges_model: list[dict[str, Any]]
     selected_node_lookup: dict[str, bool]
+    hide_locked_ports: bool
+    hide_optional_ports: bool
 
 
 class _GraphCanvasScenePolicySource(Protocol):
@@ -73,6 +75,13 @@ def _invoke_bool(source: object | None, name: str, *args) -> bool:
     if not callable(callback):
         return False
     return bool(callback(*args))
+
+
+def _invoke_value(source: object | None, name: str, *args) -> Any:
+    callback = getattr(source, name, None) if source is not None else None
+    if not callable(callback):
+        return None
+    return callback(*args)
 
 
 def _connect_signal(source: object | None, name: str, slot) -> None:  # noqa: ANN001
@@ -265,6 +274,47 @@ class GraphCanvasStateBridge(QObject):
     def visible_scene_rect_payload_cached(self) -> dict[str, Any]:
         return self.visible_scene_rect_payload
 
+    def _active_view_filters(self) -> tuple[bool, bool]:
+        state_source = self._scene_state_source
+        hide_locked_ports = getattr(state_source, "hide_locked_ports", None) if state_source is not None else None
+        hide_optional_ports = getattr(state_source, "hide_optional_ports", None) if state_source is not None else None
+        if hide_locked_ports is not None or hide_optional_ports is not None:
+            return bool(hide_locked_ports), bool(hide_optional_ports)
+
+        workspace = _invoke_value(self._scene_bridge, "current_workspace")
+        if workspace is None:
+            return False, False
+        views = getattr(workspace, "views", None)
+        if not isinstance(views, dict) or not views:
+            return False, False
+        active_view_id = str(getattr(workspace, "active_view_id", "") or "")
+        active_view = views.get(active_view_id)
+        if active_view is None:
+            active_view = next(iter(views.values()), None)
+        if active_view is None:
+            return False, False
+        return (
+            bool(getattr(active_view, "hide_locked_ports", False)),
+            bool(getattr(active_view, "hide_optional_ports", False)),
+        )
+
+    def _set_active_view_filter(self, name: str, value: bool) -> bool:
+        scene_bridge = self._scene_bridge
+        if scene_bridge is None:
+            return False
+        command_source = getattr(scene_bridge, "command_bridge", scene_bridge)
+        return _invoke_bool(command_source, name, bool(value))
+
+    @pyqtProperty(bool, notify=scene_nodes_changed)
+    def hide_locked_ports(self) -> bool:
+        hide_locked_ports, _hide_optional_ports = self._active_view_filters()
+        return hide_locked_ports
+
+    @pyqtProperty(bool, notify=scene_nodes_changed)
+    def hide_optional_ports(self) -> bool:
+        _hide_locked_ports, hide_optional_ports = self._active_view_filters()
+        return hide_optional_ports
+
     @pyqtProperty("QVariantList", notify=scene_nodes_changed)
     def nodes_model(self) -> list[dict]:
         return _copy_list(_source_attr(self._scene_state_source, "nodes_model", []))
@@ -288,6 +338,14 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty("QVariantMap", notify=scene_selection_changed)
     def selected_node_lookup(self) -> dict[str, bool]:
         return _copy_dict(_source_attr(self._scene_state_source, "selected_node_lookup", {}))
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_locked_ports(self, hide_locked_ports: bool) -> bool:
+        return self._set_active_view_filter("set_hide_locked_ports", hide_locked_ports)
+
+    @pyqtSlot(bool, result=bool)
+    def set_hide_optional_ports(self, hide_optional_ports: bool) -> bool:
+        return self._set_active_view_filter("set_hide_optional_ports", hide_optional_ports)
 
     @pyqtProperty("QVariantMap", notify=failure_highlight_changed)
     def failed_node_lookup(self) -> dict[str, bool]:

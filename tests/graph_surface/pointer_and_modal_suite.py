@@ -532,3 +532,279 @@ class GraphSurfaceInputContractTests(GraphSurfaceInputContractTestBase):
             app.processEvents()
             """,
         )
+
+    def test_graph_canvas_projects_active_view_hide_filters_and_ctrl_double_click_keeps_plain_quick_insert(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-hide-filter-projection-and-ctrl-double-click",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty, pyqtSlot
+            from PyQt6.QtTest import QTest
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            class CanvasShellBridgeStub(QObject):
+                def __init__(self):
+                    super().__init__()
+                    self.quick_insert_calls = []
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(str, constant=True)
+                def graphics_grid_style(self):
+                    return "lines"
+
+                @pyqtProperty(str, constant=True)
+                def graphics_edge_crossing_style(self):
+                    return "none"
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_port_labels(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(str, constant=True)
+                def graphics_performance_mode(self):
+                    return "full_fidelity"
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+                @pyqtSlot(float, float, float, float)
+                def request_open_canvas_quick_insert(self, scene_x, scene_y, overlay_x, overlay_y):
+                    self.quick_insert_calls.append(
+                        (
+                            float(scene_x),
+                            float(scene_y),
+                            float(overlay_x),
+                            float(overlay_y),
+                        )
+                    )
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+            shell_bridge = CanvasShellBridgeStub()
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            window = attach_host_to_window(canvas, width=640, height=480)
+
+            try:
+                input_layers = canvas.findChild(QObject, "graphCanvasInputLayers")
+                marquee_area = canvas.findChild(QObject, "graphCanvasMarqueeArea")
+                assert input_layers is not None
+                assert marquee_area is not None
+                assert not bool(canvas.property("hideLockedPorts"))
+                assert not bool(canvas.property("hideOptionalPorts"))
+
+                scene.set_hide_locked_ports(True)
+                settle_events(3)
+                assert bool(canvas.property("hideLockedPorts"))
+                assert not bool(canvas.property("hideOptionalPorts"))
+
+                scene.set_hide_optional_ports(True)
+                settle_events(3)
+                assert bool(canvas.property("hideOptionalPorts"))
+
+                point = QPoint(160, 120)
+                QTest.mouseDClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.ControlModifier, point)
+                settle_events(3)
+
+                assert not bool(canvas.property("hideLockedPorts"))
+                assert bool(canvas.property("hideOptionalPorts"))
+                assert shell_bridge.quick_insert_calls == []
+
+                QTest.mouseDClick(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, point)
+                settle_events(3)
+
+                assert len(shell_bridge.quick_insert_calls) == 1
+                assert not bool(canvas.property("hideLockedPorts"))
+                assert bool(canvas.property("hideOptionalPorts"))
+            finally:
+                dispose_host_window(canvas, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
+
+    def test_graph_canvas_middle_button_chords_toggle_hide_filters_without_pan_or_box_zoom(self) -> None:
+        self._run_qml_probe(
+            "graph-canvas-hide-filter-middle-button-chords",
+            """
+            from PyQt6.QtCore import QObject, pyqtProperty
+            from PyQt6.QtTest import QTest
+
+            from ea_node_editor.graph.model import GraphModel
+            from ea_node_editor.nodes.bootstrap import build_default_registry
+            from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+            from ea_node_editor.ui_qml.viewport_bridge import ViewportBridge
+
+            class CanvasShellBridgeStub(QObject):
+                @pyqtProperty(bool, constant=True)
+                def graphics_minimap_expanded(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_grid(self):
+                    return True
+
+                @pyqtProperty(str, constant=True)
+                def graphics_grid_style(self):
+                    return "lines"
+
+                @pyqtProperty(str, constant=True)
+                def graphics_edge_crossing_style(self):
+                    return "none"
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_minimap(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_show_port_labels(self):
+                    return True
+
+                @pyqtProperty(bool, constant=True)
+                def graphics_node_shadow(self):
+                    return True
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_strength(self):
+                    return 70
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_softness(self):
+                    return 50
+
+                @pyqtProperty(int, constant=True)
+                def graphics_shadow_offset(self):
+                    return 4
+
+                @pyqtProperty(str, constant=True)
+                def graphics_performance_mode(self):
+                    return "full_fidelity"
+
+                @pyqtProperty(bool, constant=True)
+                def snap_to_grid_enabled(self):
+                    return False
+
+                @pyqtProperty(float, constant=True)
+                def snap_grid_size(self):
+                    return 20.0
+
+            model = GraphModel()
+            registry = build_default_registry()
+            scene = GraphSceneBridge()
+            scene.set_workspace(model, registry, model.active_workspace.workspace_id)
+            view = ViewportBridge()
+            view.set_viewport_size(640.0, 480.0)
+            view.set_view_state(1.0, 0.0, 0.0)
+            shell_bridge = CanvasShellBridgeStub()
+            canvas_state_bridge, canvas_command_bridge = build_canvas_bridges(
+                shell_bridge=shell_bridge,
+                scene_bridge=scene,
+                view_bridge=view,
+            )
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "canvasStateBridge": canvas_state_bridge,
+                    "canvasCommandBridge": canvas_command_bridge,
+                    "width": 640.0,
+                    "height": 480.0,
+                },
+            )
+            window = attach_host_to_window(canvas, width=640, height=480)
+
+            try:
+                pan_area = canvas.findChild(QObject, "graphCanvasPanArea")
+                marquee_area = canvas.findChild(QObject, "graphCanvasMarqueeArea")
+                assert pan_area is not None
+                assert marquee_area is not None
+
+                baseline_zoom = float(view.zoom_value)
+                baseline_center_x = float(view.center_x)
+                baseline_center_y = float(view.center_y)
+
+                left_point = QPoint(180, 160)
+                right_point = QPoint(240, 220)
+
+                QTest.mousePress(window, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, left_point)
+                QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, left_point)
+                settle_events(3)
+                QTest.mouseRelease(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, left_point)
+                QTest.mouseRelease(window, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, left_point)
+                settle_events(3)
+
+                assert bool(canvas.property("hideLockedPorts"))
+                assert not bool(canvas.property("hideOptionalPorts"))
+
+                QTest.mousePress(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, right_point)
+                QTest.mousePress(window, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, right_point)
+                settle_events(3)
+                QTest.mouseRelease(window, Qt.MouseButton.MiddleButton, Qt.KeyboardModifier.NoModifier, right_point)
+                QTest.mouseRelease(window, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier, right_point)
+                settle_events(3)
+
+                assert bool(canvas.property("hideLockedPorts"))
+                assert bool(canvas.property("hideOptionalPorts"))
+                assert not bool(marquee_area.property("selecting"))
+                assert not bool(pan_area.property("panning"))
+                assert float(view.zoom_value) == baseline_zoom
+                assert float(view.center_x) == baseline_center_x
+                assert float(view.center_y) == baseline_center_y
+            finally:
+                dispose_host_window(canvas, window)
+                engine.deleteLater()
+                app.processEvents()
+            """,
+        )
