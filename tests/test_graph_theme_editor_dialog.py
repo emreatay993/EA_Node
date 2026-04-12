@@ -6,7 +6,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QColor
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox, QWidget
 
 from ea_node_editor.settings import DEFAULT_APP_PREFERENCES
 from ea_node_editor.ui.dialogs.graph_theme_editor_dialog import GraphThemeEditorDialog
@@ -173,6 +176,42 @@ class GraphThemeEditorDialogTests(unittest.TestCase):
             dialog.close_button.click()
 
             self.assertEqual(dialog.result(), dialog.DialogCode.Accepted)
+        finally:
+            dialog.close()
+
+    def test_clicking_built_in_theme_swatch_duplicates_theme_and_updates_value(self) -> None:
+        dialog = GraphThemeEditorDialog(
+            initial_settings={
+                "follow_shell_theme": True,
+                "selected_theme_id": "graph_stitch_dark",
+                "custom_themes": [],
+            }
+        )
+        try:
+            swatch = dialog.findChild(QWidget, "node_tokens_card_bg_swatch")
+            field = dialog.findChild(QLineEdit, "node_tokens_card_bg_value")
+
+            self.assertIsNotNone(swatch)
+            self.assertIsNotNone(field)
+            self.assertEqual(dialog.theme_mode_field.text(), "Built-in theme (read-only)")
+            self.assertEqual(dialog.theme_tree.topLevelItem(1).childCount(), 0)
+
+            with patch(
+                "ea_node_editor.ui.dialogs.passive_style_controls.QColorDialog.getColor",
+                return_value=QColor("#AA5500"),
+            ) as get_color:
+                QTest.mouseClick(swatch, Qt.MouseButton.LeftButton)
+                self.app.processEvents()
+
+            get_color.assert_called_once()
+            self.assertEqual(dialog.theme_mode_field.text(), "Custom theme (editable)")
+            self.assertFalse(field.isReadOnly())
+            self.assertEqual(field.text(), "#AA5500")
+            self.assertEqual(dialog.theme_tree.topLevelItem(1).childCount(), 1)
+            self.assertEqual(
+                dialog.graph_theme_settings()["custom_themes"][0]["node_tokens"]["card_bg"],
+                "#AA5500",
+            )
         finally:
             dialog.close()
 

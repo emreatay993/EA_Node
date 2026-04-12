@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from PyQt6.QtCore import QRegularExpression, Qt, pyqtSignal
@@ -63,6 +63,7 @@ class ColorHexFieldControl(QWidget):
         super().__init__(parent)
         self._allow_empty = bool(allow_empty)
         self._color_dialog_title = str(color_dialog_title)
+        self._before_color_apply: Callable[[str], bool] | None = None
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -99,6 +100,9 @@ class ColorHexFieldControl(QWidget):
         self.line_edit.setObjectName(value_name)
         self.swatch.setObjectName(swatch_name)
 
+    def setBeforeColorApply(self, callback: Callable[[str], bool] | None) -> None:
+        self._before_color_apply = callback
+
     def is_valid(self) -> bool:
         return is_valid_hex_color(self.text(), allow_empty=self._allow_empty)
 
@@ -133,7 +137,10 @@ class ColorHexFieldControl(QWidget):
         )
         if not color.isValid():
             return
-        self.setText(color_to_hex(color))
+        selected_hex = color_to_hex(color)
+        if self._before_color_apply is not None and not self._before_color_apply(selected_hex):
+            return
+        self.setText(selected_hex)
 
 
 def color_to_hex(color: QColor) -> str:

@@ -35,7 +35,6 @@ from ea_node_editor.ui.graph_theme import (
     DEFAULT_GRAPH_THEME_ID,
     create_blank_custom_graph_theme,
     duplicate_graph_theme_as_custom,
-    is_custom_graph_theme_id,
     resolve_graph_theme,
     resolve_graph_theme_id,
     serialize_custom_graph_themes,
@@ -327,6 +326,7 @@ class GraphThemeEditorDialog(QDialog):
                     allow_empty=False,
                     color_dialog_title=f"Pick color for {token_label(token_name)}",
                 )
+                control.setBeforeColorApply(self._ensure_preview_theme_editable)
                 control.setObjectNames(
                     value_name=f"{section_name}_{token_name}_value",
                     swatch_name=f"{section_name}_{token_name}_swatch",
@@ -436,7 +436,7 @@ class GraphThemeEditorDialog(QDialog):
 
                     swatch = self._token_swatch_frames[section_name][token_name]
                     if hasattr(swatch, "editable"):
-                        swatch.editable = is_custom
+                        swatch.editable = True
                     self._set_token_swatch(section_name, token_name, token_value)
         finally:
             self._suppress_token_sync = False
@@ -600,6 +600,15 @@ class GraphThemeEditorDialog(QDialog):
             custom_graph_themes=self._custom_graph_themes,
             follow_shell_theme=self._follow_shell_theme,
         )
+
+    def _ensure_preview_theme_editable(self, _selected_color: str) -> bool:
+        theme_id = resolve_graph_theme_id(self._preview_theme_id, custom_themes=self._custom_graph_themes)
+        if custom_theme_index(self._custom_graph_themes, theme_id) >= 0:
+            return True
+        created_theme = duplicate_graph_theme_as_custom(theme_id, custom_themes=self._custom_graph_themes)
+        self._custom_graph_themes.append(created_theme.as_dict())
+        self._rebuild_theme_tree(selected_theme_id=created_theme.theme_id)
+        return True
 
     def _set_token_swatch(self, section_name: str, token_name: str, token_value: str) -> None:
         self._token_swatch_frames[section_name][token_name].setStyleSheet(swatch_style(token_value))
