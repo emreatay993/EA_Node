@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 from collections.abc import Callable
 
+from ea_node_editor.nodes.builtins.ansys_dpf_common import normalize_dpf_descriptor_spec
 from ea_node_editor.nodes.plugin_contracts import (
     NodePlugin,
     PluginAvailability,
@@ -59,7 +60,7 @@ def _load_ansys_dpf_node_plugin_factories() -> tuple[Callable[[], NodePlugin], .
 
 def load_ansys_dpf_plugin_descriptors() -> tuple[PluginDescriptor, ...]:
     return tuple(
-        PluginDescriptor(spec=factory().spec(), factory=factory)
+        PluginDescriptor(spec=normalize_dpf_descriptor_spec(factory().spec()), factory=factory)
         for factory in _load_ansys_dpf_node_plugin_factories()
     )
 

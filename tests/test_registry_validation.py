@@ -14,7 +14,12 @@ from ea_node_editor.graph.subnode_contract import (
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData, WorkspaceSnapshot
 from ea_node_editor.graph.normalization import normalize_project_for_registry
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.ansys_dpf_common import DPF_NODE_CATEGORY
+from ea_node_editor.nodes.builtins.ansys_dpf_common import (
+    DPF_FIELD_OPS_VARIANT_NORM,
+    DPF_NODE_CATEGORY,
+    DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
+    DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+)
 from ea_node_editor.nodes import execution_context as node_execution_context
 from ea_node_editor.nodes import node_specs, plugin_contracts, runtime_refs, types as node_types
 from ea_node_editor.nodes.decorators import node_type
@@ -23,6 +28,9 @@ from ea_node_editor.nodes.types import (
     DPF_MODEL_DATA_TYPE,
     DPF_RESULT_FILE_DATA_TYPE,
     DPF_SCOPING_DATA_TYPE,
+    DpfOperatorSourceSpec,
+    DpfOperatorVariantSpec,
+    DpfPinSourceSpec,
     NodeResult,
     NodeRenderQualitySpec,
     NodeTypeSpec,
@@ -238,6 +246,8 @@ class RegistryValidationTests(unittest.TestCase):
     def test_nodes_types_is_curated_sdk_surface_and_nodes_package_uses_focused_modules(self) -> None:
         self.assertEqual(node_types.NodeTypeSpec.__module__, "ea_node_editor.nodes.node_specs")
         self.assertEqual(node_types.PortSpec.__module__, "ea_node_editor.nodes.node_specs")
+        self.assertEqual(node_types.DpfOperatorSourceSpec.__module__, "ea_node_editor.nodes.node_specs")
+        self.assertEqual(node_types.DpfPinSourceSpec.__module__, "ea_node_editor.nodes.node_specs")
         self.assertEqual(node_types.ExecutionContext.__module__, "ea_node_editor.nodes.execution_context")
         self.assertEqual(node_types.NodeResult.__module__, "ea_node_editor.nodes.execution_context")
         self.assertEqual(node_types.RuntimeArtifactRef.__module__, "ea_node_editor.nodes.runtime_refs")
@@ -245,6 +255,8 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(node_types.PluginDescriptor.__module__, "ea_node_editor.nodes.plugin_contracts")
         self.assertEqual(node_types.PluginProvenance.__module__, "ea_node_editor.nodes.plugin_contracts")
         self.assertIs(node_types.NodeTypeSpec, node_specs.NodeTypeSpec)
+        self.assertIs(node_types.DpfOperatorSourceSpec, node_specs.DpfOperatorSourceSpec)
+        self.assertIs(node_types.DpfPinSourceSpec, node_specs.DpfPinSourceSpec)
         self.assertIs(node_types.ExecutionContext, node_execution_context.ExecutionContext)
         self.assertIs(node_types.RuntimeArtifactRef, runtime_refs.RuntimeArtifactRef)
         self.assertIs(node_types.PluginDescriptor, plugin_contracts.PluginDescriptor)
@@ -386,6 +398,170 @@ class RegistryValidationTests(unittest.TestCase):
 
         self.assertEqual(node_specs.property_inspector_editor(property_spec), "text")
         self.assertEqual(node_specs.inline_property_specs(spec), ())
+
+    def test_register_accepts_dpf_source_metadata_contract(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.dpf.result_field_metadata",
+            display_name="DPF Result Field Metadata",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec(
+                    "model",
+                    "in",
+                    "data",
+                    DPF_MODEL_DATA_TYPE,
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="data_sources",
+                        pin_direction="input",
+                        value_origin="port",
+                        value_key="model",
+                        data_type=DPF_MODEL_DATA_TYPE,
+                        presence="required",
+                        omission_semantics="disallowed",
+                    ),
+                ),
+                PortSpec(
+                    "time_scoping",
+                    "in",
+                    "data",
+                    DPF_SCOPING_DATA_TYPE,
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="time_scoping",
+                        pin_direction="input",
+                        value_origin="port",
+                        value_key="time_scoping",
+                        data_type=DPF_SCOPING_DATA_TYPE,
+                        exclusive_group=DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+                    ),
+                ),
+                PortSpec(
+                    "field",
+                    "out",
+                    "data",
+                    "dpf_field",
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="fields_container",
+                        pin_direction="output",
+                        value_origin="port",
+                        value_key="field",
+                        data_type="dpf_field",
+                        variant_keys=(DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,),
+                    ),
+                ),
+            ),
+            properties=(
+                PropertySpec(
+                    "location",
+                    "enum",
+                    "auto",
+                    "Location",
+                    enum_values=("auto", "nodal"),
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="requested_location",
+                        pin_direction="input",
+                        value_origin="property",
+                        value_key="location",
+                        data_type="dpf_field",
+                        omission_semantics="operator_default",
+                    ),
+                ),
+            ),
+            source_metadata=DpfOperatorSourceSpec(
+                variants=(
+                    DpfOperatorVariantSpec(
+                        key=DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
+                        operator_name_template="result.{result_name}",
+                    ),
+                ),
+            ),
+        )
+
+        registry.register(_factory(spec))
+
+        registered = registry.get_spec(spec.type_id)
+        self.assertEqual(
+            registered.source_metadata.variants[0].operator_name_template,
+            "result.{result_name}",
+        )
+        self.assertEqual(
+            registered.ports[1].source_metadata.exclusive_group,
+            DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+        )
+        self.assertEqual(
+            registered.properties[0].source_metadata.omission_semantics,
+            "operator_default",
+        )
+
+    def test_register_rejects_port_source_metadata_without_node_source_metadata(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.dpf.port_source_without_node_source",
+            display_name="DPF Port Source Without Node Source",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec(
+                    "model",
+                    "in",
+                    "data",
+                    DPF_MODEL_DATA_TYPE,
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="data_sources",
+                        pin_direction="input",
+                        value_origin="port",
+                        value_key="model",
+                        data_type=DPF_MODEL_DATA_TYPE,
+                        presence="required",
+                        omission_semantics="disallowed",
+                    ),
+                ),
+            ),
+            properties=(),
+        )
+
+        with self.assertRaises(ValueError):
+            registry.register(_factory(spec))
+
+    def test_register_rejects_invalid_dpf_source_metadata_shape(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.dpf.invalid_source_metadata",
+            display_name="DPF Invalid Source Metadata",
+            category_path=("Tests",),
+            icon="",
+            ports=(
+                PortSpec(
+                    "field",
+                    "in",
+                    "data",
+                    "dpf_field",
+                    source_metadata=DpfPinSourceSpec(
+                        pin_name="fields_container",
+                        pin_direction="input",
+                        value_origin="property",
+                        value_key="field",
+                        data_type="dpf_field",
+                        presence="required",
+                        omission_semantics="disallowed",
+                        variant_keys=(DPF_FIELD_OPS_VARIANT_NORM, "missing_variant"),
+                    ),
+                ),
+            ),
+            properties=(),
+            source_metadata=DpfOperatorSourceSpec(
+                variants=(
+                    DpfOperatorVariantSpec(
+                        key=DPF_FIELD_OPS_VARIANT_NORM,
+                        operator_name="math.norm_fc",
+                    ),
+                ),
+            ),
+        )
+
+        with self.assertRaises(ValueError):
+            registry.register(_factory(spec))
 
     def test_register_rejects_non_serializable_json_default(self) -> None:
         registry = NodeRegistry()

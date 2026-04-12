@@ -14,7 +14,7 @@ from .category_paths import (
     category_path_matches_prefix,
     normalize_category_path,
 )
-from .node_specs import NodeTypeSpec, PortSpec, PropertySpec
+from .node_specs import DpfOperatorSourceSpec, DpfPinSourceSpec, NodeTypeSpec, PortSpec, PropertySpec
 from .plugin_contracts import NodePlugin, PluginDescriptor, PluginProvenance
 
 
@@ -35,7 +35,7 @@ class NodeRegistryEntry:
 class NodeRegistry:
     _TYPE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     _SUPPORTED_PROPERTY_TYPES = {"str", "int", "float", "bool", "path", "enum", "json"}
-    _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum"}
+    _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum", "color"}
     _SUPPORTED_DIRECTIONS = {"in", "out", "neutral"}
     _SUPPORTED_PORT_SIDES = {"", "top", "right", "bottom", "left"}
     _SUPPORTED_KINDS = {"exec", "completed", "failed", "data", "flow"}
@@ -304,6 +304,7 @@ class NodeRegistry:
             if prop.key in property_keys:
                 raise ValueError(f"Node {spec.type_id} has duplicate property key: {prop.key}")
             property_keys.add(prop.key)
+        self._validate_source_metadata(spec)
 
     def _validate_port(self, spec: NodeTypeSpec, port: PortSpec) -> None:
         type_id = spec.type_id
@@ -382,6 +383,116 @@ class NodeRegistry:
         elif enum_values:
             raise ValueError(f"Node {type_id} non-enum property {prop.key} cannot define enum_values")
         self._coerce_property_value(prop, prop.default, strict=True)
+
+    def _validate_source_metadata(self, spec: NodeTypeSpec) -> None:
+        node_source = spec.source_metadata
+        if node_source is not None and not isinstance(node_source, DpfOperatorSourceSpec):
+            raise TypeError(f"Node {spec.type_id} source_metadata must be a DpfOperatorSourceSpec")
+
+        variant_keys = set(node_source.variant_keys) if node_source is not None else set()
+
+        for port in spec.ports:
+            source = port.source_metadata
+            if source is None:
+                continue
+            self._validate_port_source_metadata(
+                spec,
+                port,
+                source,
+                node_source=node_source,
+                variant_keys=variant_keys,
+            )
+
+        for prop in spec.properties:
+            source = prop.source_metadata
+            if source is None:
+                continue
+            self._validate_property_source_metadata(
+                spec,
+                prop,
+                source,
+                node_source=node_source,
+                variant_keys=variant_keys,
+            )
+
+    def _validate_port_source_metadata(
+        self,
+        spec: NodeTypeSpec,
+        port: PortSpec,
+        source: DpfPinSourceSpec,
+        *,
+        node_source: DpfOperatorSourceSpec | None,
+        variant_keys: set[str],
+    ) -> None:
+        if not isinstance(source, DpfPinSourceSpec):
+            raise TypeError(f"Node {spec.type_id} port {port.key} source_metadata must be DpfPinSourceSpec")
+        if node_source is None:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} source_metadata requires node source_metadata"
+            )
+        if source.value_origin != "port":
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} source_metadata must use a port value_origin"
+            )
+        if source.value_key != port.key:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} source_metadata value_key must match the port key"
+            )
+        if source.data_type != port.data_type:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} source_metadata data_type must match the port data_type"
+            )
+        if port.direction == "neutral":
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} neutral ports cannot publish DPF source metadata"
+            )
+        expected_pin_direction = "input" if port.direction == "in" else "output"
+        if source.pin_direction != expected_pin_direction:
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} source_metadata pin_direction must match the port direction"
+            )
+        unknown_variant_keys = set(source.variant_keys) - variant_keys
+        if unknown_variant_keys:
+            unknown_values = ", ".join(sorted(unknown_variant_keys))
+            raise ValueError(
+                f"Node {spec.type_id} port {port.key} references unknown DPF source variants: {unknown_values}"
+            )
+
+    def _validate_property_source_metadata(
+        self,
+        spec: NodeTypeSpec,
+        prop: PropertySpec,
+        source: DpfPinSourceSpec,
+        *,
+        node_source: DpfOperatorSourceSpec | None,
+        variant_keys: set[str],
+    ) -> None:
+        if not isinstance(source, DpfPinSourceSpec):
+            raise TypeError(
+                f"Node {spec.type_id} property {prop.key} source_metadata must be DpfPinSourceSpec"
+            )
+        if node_source is None:
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} source_metadata requires node source_metadata"
+            )
+        if source.value_origin != "property":
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} source_metadata must use a property value_origin"
+            )
+        if source.value_key != prop.key:
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} source_metadata value_key must match the property key"
+            )
+        if source.pin_direction != "input":
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} source_metadata pin_direction must be input"
+            )
+        unknown_variant_keys = set(source.variant_keys) - variant_keys
+        if unknown_variant_keys:
+            unknown_values = ", ".join(sorted(unknown_variant_keys))
+            raise ValueError(
+                f"Node {spec.type_id} property {prop.key} references unknown DPF source variants: {unknown_values}"
+            )
 
     @staticmethod
     def _coerce_property_value(prop: PropertySpec, value: Any, strict: bool) -> Any:
