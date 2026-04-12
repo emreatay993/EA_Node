@@ -27,6 +27,9 @@ UI_REGRESSION_PACKET_DOCS = (
     UI_PACKET_DOCS_ROOT / "GRAPH_SURFACE_TEST_PACKET.md",
     UI_PACKET_DOCS_ROOT / "TRACK_B_TEST_PACKET.md",
 )
+PLAN_TEMPLATE_PATH = REPO_ROOT / "PLANS_TO_IMPLEMENT" / "PLAN_TEMPLATE.md"
+PLAN_REPO_OVERLAY_PATH = REPO_ROOT / "PLANS_TO_IMPLEMENT" / "PLAN_REPO_OVERLAY.md"
+IN_PROGRESS_PLANS_ROOT = REPO_ROOT / "PLANS_TO_IMPLEMENT" / "in_progress"
 
 
 def load_module(module_name: str, module_path: Path):
@@ -105,21 +108,81 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
-    def test_architecture_registers_ui_packet_entry_path(self) -> None:
+    def test_architecture_registers_plan_template_and_overlay(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 
         self.assertIn(
-            "[UI subsystem packet index](docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md)",
+            "[plan template](PLANS_TO_IMPLEMENT/PLAN_TEMPLATE.md)",
             architecture_text,
         )
         self.assertIn(
-            "[UI feature packet template](docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md)",
+            "[planning overlay](PLANS_TO_IMPLEMENT/PLAN_REPO_OVERLAY.md)",
             architecture_text,
         )
         self.assertIn(
-            "owning source subsystem packet and the owning regression packet",
+            "one primary source owner and one primary regression owner",
             architecture_text,
         )
+
+    def test_plan_template_defines_task_and_packet_conversion_sections(self) -> None:
+        template_text = PLAN_TEMPLATE_PATH.read_text(encoding="utf-8-sig")
+
+        required_snippets = (
+            "## Required Authoring Rules",
+            "## Template Skeleton",
+            "## Execution Tasks",
+            "## Work Packet Conversion Map",
+            "Conservative write scope",
+            "Packetization notes",
+        )
+
+        for snippet in required_snippets:
+            self.assertIn(snippet, template_text)
+
+        self.assertNotIn("docs/specs/INDEX.md", template_text)
+        self.assertNotIn("ui_context_scalability_refactor", template_text)
+        self.assertEqual([], self.checker.audit_markdown_file(PLAN_TEMPLATE_PATH, REPO_ROOT))
+
+    def test_plan_repo_overlay_registers_local_packetization_anchors(self) -> None:
+        overlay_text = PLAN_REPO_OVERLAY_PATH.read_text(encoding="utf-8-sig")
+
+        required_snippets = (
+            "## Local Planning Entry Points",
+            "## Local Packetization Defaults",
+            "## Local Verification Defaults",
+            "## Local Ownership Notes",
+            "[docs/specs/INDEX.md](../docs/specs/INDEX.md)",
+            "[docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md]",
+            "[docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md]",
+        )
+
+        for snippet in required_snippets:
+            self.assertIn(snippet, overlay_text)
+
+        self.assertEqual([], self.checker.audit_markdown_file(PLAN_REPO_OVERLAY_PATH, REPO_ROOT))
+
+    def test_in_progress_plans_include_execution_tasks_and_packet_conversion_map(self) -> None:
+        required_headings = (
+            "## Summary",
+            "## Key Changes",
+            "## Public Interface Changes",
+            "## Execution Tasks",
+            "## Work Packet Conversion Map",
+            "## Test Plan",
+            "## Assumptions",
+        )
+
+        plan_paths = sorted(IN_PROGRESS_PLANS_ROOT.glob("*.md"))
+        self.assertGreater(len(plan_paths), 0)
+
+        for path in plan_paths:
+            with self.subTest(path=path.name):
+                text = path.read_text(encoding="utf-8-sig")
+
+                for heading in required_headings:
+                    self.assertIn(heading, text)
+
+                self.assertEqual([], self.checker.audit_markdown_file(path, REPO_ROOT))
 
     def test_ui_subsystem_packet_contract_docs_have_required_sections(self) -> None:
         required_headings = (
