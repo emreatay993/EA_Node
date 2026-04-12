@@ -1292,6 +1292,267 @@ SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX_TOKENS = (
     "## Residual Desktop-Only Validation",
     "## Residual Risks",
 )
+PORT_VALUE_LOCKING_QA_MATRIX = REPO_ROOT / "docs/specs/perf/PORT_VALUE_LOCKING_QA_MATRIX.md"
+PORT_VALUE_LOCKING_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_port_locking.py "
+    r"tests/test_serializer.py --ignore=venv -q"
+)
+PORT_VALUE_LOCKING_P02_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_port_locking.py "
+    r"tests/graph_track_b/scene_model_graph_scene_suite.py --ignore=venv -q"
+)
+PORT_VALUE_LOCKING_P03_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_graph_scene_bridge_bind_regression.py "
+    r"tests/main_window_shell/view_library_inspector.py "
+    r"tests/graph_surface/passive_host_boundary_suite.py --ignore=venv -q"
+)
+PORT_VALUE_LOCKING_P04_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_graph_surface_input_contract.py "
+    r"tests/test_graph_surface_input_controls.py "
+    r"tests/test_graph_surface_input_inline.py --ignore=venv -q"
+)
+PORT_VALUE_LOCKING_P05_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/graph_surface/pointer_and_modal_suite.py "
+    r"tests/graph_track_b/qml_preference_performance_suite.py --ignore=venv -q"
+)
+PORT_VALUE_LOCKING_TRACEABILITY_TEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+)
+PORT_VALUE_LOCKING_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+
+PORT_VALUE_LOCKING_INDEX_TOKENS = (
+    "PORT_VALUE_LOCKING QA Matrix",
+    "PORT_VALUE_LOCKING_QA_MATRIX.md",
+)
+
+PORT_VALUE_LOCKING_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-036": (
+            "lockable primitive input rows",
+            "locked rows keep their inline editors",
+            "lock affordance",
+            "suppress incoming-edge drop eligibility",
+            "only edge eligibility",
+        ),
+        "REQ-UI-037": (
+            "hide_locked_ports",
+            "hide_optional_ports",
+            "empty-canvas gestures",
+            "view-local persistence",
+        ),
+        "AC-REQ-UI-036-01": (
+            "graph-surface input",
+            "view-inspector",
+            "manual lock toggle undo/redo",
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+        "AC-REQ-UI-037-01": (
+            "scene-bridge",
+            "pointer/modal",
+            "view-switch plus undo/redo persistence",
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/30_GRAPH_MODEL.md": {
+        "REQ-GRAPH-019": (
+            "lockable primitive input data ports",
+            "one-way auto-lock",
+            "set_locked_port",
+            "without rewriting the property value",
+            "pruning now-illegal existing incoming edges",
+        ),
+        "REQ-GRAPH-020": (
+            "ViewState",
+            "hide_locked_ports",
+            "hide_optional_ports",
+            "project locked/optional metadata",
+            "hide only the active-view rows",
+        ),
+        "AC-REQ-GRAPH-019-01": (
+            "one-way auto-lock",
+            "locked-target rejection",
+            "manual toggle",
+            "fragment round-trip retention",
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+        "AC-REQ-GRAPH-020-01": (
+            "scene-bridge",
+            "passive-host",
+            "pointer/gesture",
+            "undo/redo-safe row filtering",
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-021": (
+            "NodeInstance.locked_ports",
+            "ViewState.hide_locked_ports",
+            "hide_optional_ports",
+            "one-way auto-lock outcomes",
+            "workspace duplication",
+        ),
+        "AC-REQ-PERSIST-021-01": (
+            "serializer and port-locking regressions",
+            "workspace snapshot restore",
+            "duplicate-workspace flows",
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/80_PERFORMANCE.md": {
+        "REQ-PERF-012": (
+            "existing graph-scene payload, host-row, and canvas-input seams",
+            "filter emitted rows instead of rebuilding graph topology",
+            "keep inline editors on the existing row surface",
+            "second view-filter invalidation path",
+            "edge hit geometry",
+        ),
+        "AC-REQ-PERF-012-01": (
+            "tests/test_graph_scene_bridge_bind_regression.py",
+            "tests/graph_surface/passive_host_boundary_suite.py",
+            "tests/graph_surface/pointer_and_modal_suite.py",
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-034": (
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+            "`P01` through `P05`",
+            "manual lock toggle",
+            "empty-canvas gestures",
+            "traceability gate",
+        ),
+        "AC-REQ-QA-034-01": (
+            PORT_VALUE_LOCKING_TRACEABILITY_TEST_COMMAND,
+            PORT_VALUE_LOCKING_TRACEABILITY_COMMAND,
+            "PORT_VALUE_LOCKING_QA_MATRIX.md",
+        ),
+    },
+}
+
+PORT_VALUE_LOCKING_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-UI-036": (
+        "GraphNodeHost.qml",
+        "GraphNodePortsLayer.qml",
+        "GraphCanvasNodeDelegate.qml",
+        "tests/test_graph_surface_input_controls.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-036-01": (
+        "tests/test_graph_surface_input_contract.py",
+        "tests/test_graph_surface_input_controls.py",
+        "tests/test_graph_surface_input_inline.py",
+        "tests/main_window_shell/view_library_inspector.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "REQ-UI-037": (
+        "graph_canvas_state_bridge.py",
+        "GraphCanvasRootBindings.qml",
+        "GraphCanvasInputLayers.qml",
+        "tests/graph_surface/pointer_and_modal_suite.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-037-01": (
+        "tests/test_graph_scene_bridge_bind_regression.py",
+        "tests/main_window_shell/view_library_inspector.py",
+        "tests/graph_track_b/qml_preference_performance_suite.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "REQ-GRAPH-019": (
+        "port_locking.py",
+        "mutation_service.py",
+        "scene_model_graph_scene_suite.py",
+        "tests/test_port_locking.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "AC-REQ-GRAPH-019-01": (
+        "tests/test_port_locking.py",
+        "tests/graph_track_b/scene_model_graph_scene_suite.py",
+        "tests/main_window_shell/view_library_inspector.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "REQ-GRAPH-020": (
+        "graph_scene_payload_builder.py",
+        "graph_scene_mutation_history.py",
+        "view_library_inspector.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "AC-REQ-GRAPH-020-01": (
+        "tests/test_graph_scene_bridge_bind_regression.py",
+        "tests/graph_surface/passive_host_boundary_suite.py",
+        "tests/graph_surface/pointer_and_modal_suite.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "REQ-PERSIST-021": (
+        "model.py",
+        "project_codec.py",
+        "tests/test_serializer.py",
+        "tests/test_port_locking.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERSIST-021-01": (
+        "tests/test_serializer.py",
+        "tests/test_port_locking.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "REQ-PERF-012": (
+        "graph_scene_payload_builder.py",
+        "GraphNodeHost.qml",
+        "GraphCanvasInputLayers.qml",
+        "tests/graph_surface/passive_host_boundary_suite.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERF-012-01": (
+        "tests/test_graph_scene_bridge_bind_regression.py",
+        "tests/graph_surface/passive_host_boundary_suite.py",
+        "tests/graph_surface/pointer_and_modal_suite.py",
+        "PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+    "REQ-QA-034": (
+        "docs/specs/INDEX.md",
+        "docs/specs/perf/PORT_VALUE_LOCKING_QA_MATRIX.md",
+        "docs/specs/requirements/20_UI_UX.md",
+        "docs/specs/requirements/30_GRAPH_MODEL.md",
+        "docs/specs/requirements/60_PERSISTENCE.md",
+        "docs/specs/requirements/80_PERFORMANCE.md",
+        "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+        "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-034-01": (
+        PORT_VALUE_LOCKING_TRACEABILITY_TEST_COMMAND,
+        PORT_VALUE_LOCKING_TRACEABILITY_COMMAND,
+        "docs/specs/perf/PORT_VALUE_LOCKING_QA_MATRIX.md",
+    ),
+}
+
+PORT_VALUE_LOCKING_QA_MATRIX_TOKENS = (
+    "Port Value Locking QA Matrix",
+    "## Locked Scope",
+    "one-way auto-lock",
+    "hide_locked_ports",
+    "hide_optional_ports",
+    "Ctrl-double-click",
+    PORT_VALUE_LOCKING_P01_COMMAND,
+    PORT_VALUE_LOCKING_P02_COMMAND,
+    PORT_VALUE_LOCKING_P03_COMMAND,
+    PORT_VALUE_LOCKING_P04_COMMAND,
+    PORT_VALUE_LOCKING_P05_COMMAND,
+    PORT_VALUE_LOCKING_TRACEABILITY_TEST_COMMAND,
+    PORT_VALUE_LOCKING_TRACEABILITY_COMMAND,
+    "Accepted `P01` packet commit `dfef8d2f5110d3893c09ba17a170853c8ead7cc6`",
+    "Accepted `P05` packet commit `0fd842953f464795190c1d6f199dcdcaae82cbad`",
+    "## Final Closeout Commands",
+    "## 2026-04-12 Execution Results",
+    "## Remaining Manual Smoke Checks",
+    "## Residual Desktop-Only Validation",
+    "## Residual Risks",
+)
 ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/ARCHITECTURE_MAINTAINABILITY_REFACTOR_QA_MATRIX.md"
 )
@@ -2203,6 +2464,31 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_shared_graph_typography_control_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in SHARED_GRAPH_TYPOGRAPHY_CONTROL_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_port_value_locking_spec_index_registers_qa_matrix(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in PORT_VALUE_LOCKING_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_port_value_locking_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, requirement_tokens in PORT_VALUE_LOCKING_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_port_value_locking_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in PORT_VALUE_LOCKING_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_port_value_locking_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = PORT_VALUE_LOCKING_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in PORT_VALUE_LOCKING_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_architecture_maintainability_refactor_docs_record_final_scope_tokens(self) -> None:

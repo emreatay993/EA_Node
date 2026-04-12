@@ -23,6 +23,8 @@
 - `REQ-GRAPH-016`: comment backdrop membership shall be derived from authored geometry, selecting the smallest fully containing backdrop in the same scope and parent chain, excluding partial overlap, and supporting nested backdrop ownership.
 - `REQ-GRAPH-017`: graph interactions shall reuse derived comment-backdrop membership for wrap-selection bounds plus descendant drag/resize propagation so moving or resizing a backdrop keeps contained nodes and nested backdrops coherent in scene payloads and undo history.
 - `REQ-GRAPH-018`: collapsed comment backdrops shall suppress descendant node/backdrop payloads from the active scene and minimap, reroute boundary edges to backdrop-perimeter proxies, and enforce explicit-only versus recursive descendant clipboard/delete semantics depending on expanded versus collapsed state while recomputing derived ownership after duplicate, paste, and load.
+- `REQ-GRAPH-019`: validated graph mutations shall treat lockable primitive input data ports as property-backed lock targets: meaningful inline/default values may one-way auto-lock them, manual `set_locked_port` may lock or unlock them without rewriting the property value, and newly locked targets shall reject new incoming edges while pruning now-illegal existing incoming edges.
+- `REQ-GRAPH-020`: `ViewState` shall carry view-local `hide_locked_ports` and `hide_optional_ports` decluttering flags, and scene payload/history flows shall project locked/optional metadata plus hide only the active-view rows without changing the underlying node/port definitions.
 
 ## Acceptance
 - `AC-REQ-GRAPH-004-01`: Node drag updates persisted model position.
@@ -38,3 +40,5 @@
 - `AC-REQ-GRAPH-016-01`: membership regressions confirm smallest-container ownership, same-scope containment, wrap-selection bounds, and nested backdrop derivation.
 - `AC-REQ-GRAPH-017-01`: interaction regressions confirm backdrop drag/resize moves descendants coherently and records grouped history without cross-scope leakage.
 - `AC-REQ-GRAPH-018-01`: collapse, clipboard, serializer, and shell workflow regressions confirm descendant suppression, boundary-edge proxy rerouting, expanded-versus-collapsed copy/delete semantics, and load-time ownership recompute.
+- `AC-REQ-GRAPH-019-01`: mutation, scene-model, and shell view-inspector regressions confirm one-way auto-lock, locked-target rejection, manual toggle, incoming-edge pruning, and fragment round-trip retention, with retained proof summarized in `docs/specs/perf/PORT_VALUE_LOCKING_QA_MATRIX.md`.
+- `AC-REQ-GRAPH-020-01`: scene-bridge, passive-host, shell view-inspector, and pointer/gesture regressions confirm view-local `hide_locked_ports` / `hide_optional_ports` state, payload projection, and undo/redo-safe row filtering, with retained proof summarized in `docs/specs/perf/PORT_VALUE_LOCKING_QA_MATRIX.md`.
