@@ -4,5 +4,16 @@
 - For this repository, the primary interpreter is `venv/Scripts/python.exe` because the project uses a Windows-style virtualenv layout even when accessed from `bash`.
 - Before claiming Python, PyQt6, Qt, `pytest`, or QML tooling is unavailable, verify them with the project venv first.
 - When running tests, startup smoke checks, or Qt/QML validation, try the project venv interpreter before falling back to system Python.
+- Use exploration subagents wherever practical for codebase discovery to reduce main-thread context usage.
+- For large codebases or broad search tasks, the parent thread should recognize when one wide exploration pass is likely to bloat context or risk compaction, split the work into focused scopes (for example by directory, subsystem, or feature area), and spawn multiple dedicated explorer subagents when helpful. Prefer several narrow, explicit passes such as `core`, `ui`, `tests`, or `build/config` over one catch-all exploration pass.
+- If the parent thread spawns an explorer subagent for repository exploration, treat that explorer as the active exploration pass. The parent thread must not interrupt, reprompt, or otherwise interfere with that explorer before it either returns output to the parent thread or terminates with an explicit terminal error.
+- Do not start editing, and do not send editing work to any subagent, until the active exploration subagent(s) have either returned output to the parent thread or ended with a terminating error, and their findings have been incorporated.
+- When spawning explorer subagents, set `model` and `reasoning_effort` explicitly. Do not rely on inherited defaults from the parent thread.
+- Use large wait windows for exploration subagents so parent threads do not repeatedly interrupt or crowd the exploration pass while it is still running. Prefer waits in the 180-300 second range or longer per exploration-agent invocation when the task scope justifies it.
+- Default explorer model selection:
+  - Use `gpt-5.3-codex-spark` with `xhigh` for quick, narrow lookups such as finding files, symbols, settings keys, or one focused feature path.
+  - Use `gpt-5.4-mini` with `xhigh` for broader repository scans that still mainly require search, enumeration, and light synthesis.
+  - Use `gpt-5.4` with `xhigh` only for genuinely deep exploration that needs substantial cross-module reasoning, ambiguous architecture tracing, or long-context synthesis across many files.
+- If the task is mostly "find where X is defined/used" or "list the places related to Y", default to `gpt-5.3-codex-spark` with `xhigh` first, and escalate only if the initial explorer cannot cover the scope cleanly.
 - In this workspace's PowerShell environment, the Codex-bundled `rg.exe` resolves on `PATH` but is not runnable and fails with `Access is denied`. Do not probe or prefer `rg` here unless a different working `rg.exe` is installed earlier on `PATH`; use PowerShell-native search commands (`Get-ChildItem`, `Select-String`) by default.
 - Do not bundle many large file additions into one patch.
