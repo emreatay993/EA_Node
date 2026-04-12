@@ -252,13 +252,27 @@ def browse_selected_node_property_path(self: "ShellWindow", key: str, current_pa
     return self.shell_inspector_presenter.browse_selected_node_property_path(key, current_path)
 
 
+@pyqtSlot(str, str, result=str)
+def pick_selected_node_property_color(self: "ShellWindow", key: str, current_value: str) -> str:
+    return self.shell_inspector_presenter.pick_selected_node_property_color(key, current_value)
+
+
 @pyqtSlot(str, str, str, result=str)
 def browse_node_property_path(self: "ShellWindow", node_id: str, key: str, current_path: str) -> str:
     return self.graph_canvas_presenter.browse_node_property_path(node_id, key, current_path)
 
 
+@pyqtSlot(str, str, str, result=str)
+def pick_node_property_color(self: "ShellWindow", node_id: str, key: str, current_value: str) -> str:
+    return self.graph_canvas_presenter.pick_node_property_color(node_id, key, current_value)
+
+
 def _browse_property_path_dialog(self: "ShellWindow", property_label: str, current_path: str) -> str:
     return self.shell_host_presenter.browse_property_path_dialog(property_label, current_path)
+
+
+def _pick_property_color_dialog(self: "ShellWindow", property_label: str, current_value: str) -> str:
+    return self.shell_host_presenter.pick_property_color_dialog(property_label, current_value)
 
 
 def _repair_property_path_dialog(

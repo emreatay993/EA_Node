@@ -9,9 +9,9 @@ from uuid import uuid4
 import weakref
 
 from PyQt6.QtCore import QObject, Qt
-from PyQt6.QtGui import QCursor
+from PyQt6.QtGui import QColor, QCursor
 from PyQt6.QtQuick import QQuickWindow, QSGRendererInterface
-from PyQt6.QtWidgets import QApplication, QFileDialog, QInputDialog
+from PyQt6.QtWidgets import QApplication, QColorDialog, QFileDialog, QInputDialog
 
 from ea_node_editor.graph.effective_ports import port_kind
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
@@ -24,6 +24,8 @@ from ea_node_editor.settings import (
 from ea_node_editor.telemetry.system_metrics import read_system_metrics
 from ea_node_editor.ui.media_preview_provider import set_media_preview_project_context_provider
 from ea_node_editor.ui.dialogs.passive_style_controls import (
+    color_to_hex,
+    is_valid_hex_color,
     normalize_flow_edge_style_payload,
     normalize_passive_node_style_payload,
 )
@@ -121,6 +123,19 @@ class ShellHostPresenter(QObject):
             selected_path=normalized_path,
         )
         return managed_ref or normalized_path
+
+    def pick_property_color_dialog(self, property_label: str, current_value: str) -> str:
+        normalized_current = str(current_value or "").strip()
+        initial_color = QColor(normalized_current) if is_valid_hex_color(normalized_current) else QColor("#FFFFFF")
+        selected = QColorDialog.getColor(
+            initial_color,
+            self._host,
+            f"Pick color for {property_label}",
+            QColorDialog.ColorDialogOption.ShowAlphaChannel,
+        )
+        if not selected.isValid():
+            return ""
+        return color_to_hex(selected)
 
     def prompt_text_value(
         self,

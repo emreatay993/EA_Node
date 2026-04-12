@@ -33,6 +33,8 @@ class _ShellInspectorSource(Protocol):
 
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str: ...
 
+    def pick_selected_node_property_color(self, key: str, current_value: str) -> str: ...
+
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None: ...
 
     def set_selected_port_label(self, key: str, label: str) -> bool: ...
@@ -180,6 +182,10 @@ class ShellInspectorBridge(QObject):
     @pyqtSlot(str, str, result=str)
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
         return str(self._inspector_source.browse_selected_node_property_path(key, current_path) or "")
+
+    @pyqtSlot(str, str, result=str)
+    def pick_selected_node_property_color(self, key: str, current_value: str) -> str:
+        return str(self._inspector_source.pick_selected_node_property_color(key, current_value) or "")
 
     @pyqtSlot(str, bool)
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:

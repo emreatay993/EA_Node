@@ -3,8 +3,10 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox
+from PyQt6.QtTest import QTest
+from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox, QWidget
 
 from ea_node_editor.ui.dialogs.passive_style_controls import color_to_hex
 from ea_node_editor.ui.dialogs.flow_edge_style_dialog import FlowEdgeStyleDialog
@@ -84,6 +86,27 @@ class PassiveNodeStyleDialogTests(unittest.TestCase):
             dialog.apply_button.click()
 
             self.assertEqual(dialog.result(), dialog.DialogCode.Accepted)
+        finally:
+            dialog.close()
+
+    def test_clicking_passive_node_color_swatch_opens_picker_and_updates_value(self) -> None:
+        dialog = PassiveNodeStyleDialog(initial_style={})
+        try:
+            swatch = dialog.findChild(QWidget, "fill_color_swatch")
+            field = dialog.findChild(QLineEdit, "fill_color_value")
+
+            self.assertIsNotNone(swatch)
+            self.assertIsNotNone(field)
+
+            with patch(
+                "ea_node_editor.ui.dialogs.passive_style_controls.QColorDialog.getColor",
+                return_value=QColor("#AA5500"),
+            ) as get_color:
+                QTest.mouseClick(swatch, Qt.MouseButton.LeftButton)
+                self.app.processEvents()
+
+            get_color.assert_called_once()
+            self.assertEqual(field.text(), "#AA5500")
         finally:
             dialog.close()
 
@@ -223,6 +246,27 @@ class FlowEdgeStyleDialogTests(unittest.TestCase):
             dialog.apply_button.click()
 
             self.assertEqual(dialog.result(), dialog.DialogCode.Accepted)
+        finally:
+            dialog.close()
+
+    def test_clicking_flow_edge_color_swatch_opens_picker_and_updates_value(self) -> None:
+        dialog = FlowEdgeStyleDialog(initial_style={})
+        try:
+            swatch = dialog.findChild(QWidget, "stroke_color_swatch")
+            field = dialog.findChild(QLineEdit, "stroke_color_value")
+
+            self.assertIsNotNone(swatch)
+            self.assertIsNotNone(field)
+
+            with patch(
+                "ea_node_editor.ui.dialogs.passive_style_controls.QColorDialog.getColor",
+                return_value=QColor("#224466"),
+            ) as get_color:
+                QTest.mouseClick(swatch, Qt.MouseButton.LeftButton)
+                self.app.processEvents()
+
+            get_color.assert_called_once()
+            self.assertEqual(field.text(), "#224466")
         finally:
             dialog.close()
 

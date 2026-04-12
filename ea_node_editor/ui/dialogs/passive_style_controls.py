@@ -78,6 +78,8 @@ class ColorHexFieldControl(QWidget):
         layout.addWidget(self.line_edit, stretch=1)
 
         self.refresh_swatch()
+        # Keep the swatch clickability aligned with the field editability.
+        self.setReadOnly(self.line_edit.isReadOnly())
 
     def text(self) -> str:
         return self.line_edit.text()

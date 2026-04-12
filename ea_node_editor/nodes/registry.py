@@ -35,7 +35,8 @@ class NodeRegistryEntry:
 class NodeRegistry:
     _TYPE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     _SUPPORTED_PROPERTY_TYPES = {"str", "int", "float", "bool", "path", "enum", "json"}
-    _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum"}
+    _SUPPORTED_INLINE_EDITORS = {"", "text", "number", "toggle", "enum", "path", "textarea", "color"}
+    _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum", "color"}
     _SUPPORTED_DIRECTIONS = {"in", "out", "neutral"}
     _SUPPORTED_PORT_SIDES = {"", "top", "right", "bottom", "left"}
     _SUPPORTED_KINDS = {"exec", "completed", "failed", "data", "flow"}
@@ -365,6 +366,13 @@ class NodeRegistry:
             raise ValueError(f"Node {type_id} property {prop.key} label must be non-empty")
         if not isinstance(prop.expose_port_toggle, bool):
             raise TypeError(f"Node {type_id} property {prop.key} expose_port_toggle must be bool")
+        inline_editor = str(prop.inline_editor).strip()
+        if inline_editor != prop.inline_editor:
+            raise ValueError(f"Node {type_id} property {prop.key} inline_editor must be trimmed")
+        if inline_editor not in self._SUPPORTED_INLINE_EDITORS:
+            raise ValueError(
+                f"Node {type_id} property {prop.key} inline_editor has invalid value: {inline_editor}"
+            )
         inspector_editor = str(prop.inspector_editor).strip()
         if inspector_editor != prop.inspector_editor:
             raise ValueError(f"Node {type_id} property {prop.key} inspector_editor must be trimmed")

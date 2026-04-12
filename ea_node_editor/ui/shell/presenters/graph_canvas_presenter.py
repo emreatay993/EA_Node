@@ -107,6 +107,9 @@ class GraphCanvasPresenter(QObject):
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return self._inspector_presenter.browse_node_property_path(node_id, key, current_path)
 
+    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
+        return self._inspector_presenter.pick_node_property_color(node_id, key, current_value)
+
     def request_drop_node_from_library(
         self,
         type_id: str,

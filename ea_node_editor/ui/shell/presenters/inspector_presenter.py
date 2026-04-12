@@ -13,6 +13,7 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_PIN_DATA_TYPE_PROPERTY,
     SUBNODE_TYPE_ID,
 )
+from ea_node_editor.nodes.types import property_inspector_editor
 from ea_node_editor.ui.shell.window_library_inspector import (
     build_pin_data_type_options,
     build_selected_node_header_data,
@@ -243,6 +244,18 @@ class ShellInspectorPresenter(QObject):
                 current_path=repair_request.current_value,
             )
         return self._host.shell_host_presenter.browse_property_path_dialog(property_spec.label, current_path)
+
+    def pick_selected_node_property_color(self, key: str, current_value: str) -> str:
+        property_spec = self._selected_node_property_spec(key)
+        if property_spec is None or property_inspector_editor(property_spec) != "color":
+            return ""
+        return self._host.shell_host_presenter.pick_property_color_dialog(property_spec.label, current_value)
+
+    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
+        property_spec = self._node_property_spec(node_id, key)
+        if property_spec is None or str(property_spec.inline_editor).strip() != "color":
+            return ""
+        return self._host.shell_host_presenter.pick_property_color_dialog(property_spec.label, current_value)
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
         self._host.workspace_library_controller.set_selected_port_exposed(key, exposed)
