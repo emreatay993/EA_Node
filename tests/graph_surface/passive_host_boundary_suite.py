@@ -395,8 +395,10 @@ class GraphSurfaceBoundaryContractTests(GraphSurfaceInputContractTestBase):
 
         ports_by_key = {str(port["key"]): port for port in _logger_ports()}
         self.assertTrue(bool(ports_by_key["message"]["locked"]))
+        self.assertTrue(bool(ports_by_key["message"]["lockable"]))
         self.assertTrue(bool(ports_by_key["message"]["optional"]))
         self.assertFalse(bool(ports_by_key["exec_in"]["locked"]))
+        self.assertFalse(bool(ports_by_key["exec_in"]["lockable"]))
         self.assertFalse(bool(ports_by_key["exec_in"]["optional"]))
 
         active_view = workspace.views[workspace.active_view_id]

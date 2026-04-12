@@ -81,14 +81,6 @@ Item {
         return String(portData && portData.key || "");
     }
 
-    function _isLockableInputPort(portData) {
-        return root.host ? root.host.isLockableInputPort(portData) : false;
-    }
-
-    function _isLockedInputPort(portData) {
-        return root.host ? root.host.isLockedInputPort(portData) : false;
-    }
-
     function beginPortLabelEdit(portKey, direction) {
         root.editingPortKey = portKey;
         root.editingPortDirection = direction;
@@ -124,8 +116,8 @@ Item {
             property int rowIndex: index
             property string propertyKey: root._portKey(modelData)
             readonly property string interactionDirection: root._interactionDirection(modelData, "in")
-            readonly property bool lockableState: root._isLockableInputPort(modelData)
-            readonly property bool lockedState: root._isLockedInputPort(modelData)
+            readonly property bool lockableState: Boolean(modelData && modelData.lockable)
+            readonly property bool lockedState: lockableState && Boolean(modelData && modelData.locked)
             readonly property var portPoint: root.host
                 ? root.host.localPortPoint("in", rowIndex)
                 : ({"x": 0.0, "y": 0.0})
@@ -395,41 +387,63 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 x: labelX
                 width: availableWidth
-                height: Math.max(inputLabelText.implicitHeight, lockGlyph.implicitHeight, 18)
+                height: Math.max(inputLabelText.implicitHeight, 18)
 
-                Item {
+                Canvas {
                     id: lockGlyph
                     objectName: "graphNodeInputPortPadlock"
                     property string propertyKey: inputLabelContainer.propertyKey
+                    readonly property bool lockedState: inputLabelContainer.lockedState
                     visible: inputLabelContainer.lockableState
                     anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
                     width: inputLabelContainer.lockGlyphWidth
                     height: 12
-                    implicitHeight: 12
-                    opacity: inputLabelContainer.lockedState ? 0.98 : 0.36
+                    implicitHeight: height
+                    antialiasing: true
 
-                    Rectangle {
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        y: 0
-                        width: 6
-                        height: 5
-                        radius: 3
-                        color: "transparent"
-                        border.width: 1
-                        border.color: Qt.rgba(1.0, 0.84, 0.45, lockGlyph.opacity)
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.clearRect(0, 0, width, height);
+                        if (!visible || width <= 0 || height <= 0)
+                            return;
+                        var strokeAlpha = lockedState ? 0.96 : 0.42;
+                        var fillAlpha = lockedState ? 0.24 : 0.12;
+                        ctx.lineWidth = 1.0;
+                        ctx.strokeStyle = Qt.rgba(1.0, 0.84, 0.45, strokeAlpha);
+                        ctx.fillStyle = Qt.rgba(1.0, 0.84, 0.45, fillAlpha);
+
+                        ctx.beginPath();
+                        ctx.arc(width * 0.5, 4.0, 2.6, Math.PI, 0, false);
+                        ctx.stroke();
+
+                        var bodyX = Math.round((width - 8) * 0.5);
+                        var bodyY = 5.0;
+                        var bodyWidth = 8.0;
+                        var bodyHeight = 6.0;
+                        var radius = 1.8;
+                        ctx.beginPath();
+                        ctx.moveTo(bodyX + radius, bodyY);
+                        ctx.lineTo(bodyX + bodyWidth - radius, bodyY);
+                        ctx.quadraticCurveTo(bodyX + bodyWidth, bodyY, bodyX + bodyWidth, bodyY + radius);
+                        ctx.lineTo(bodyX + bodyWidth, bodyY + bodyHeight - radius);
+                        ctx.quadraticCurveTo(
+                            bodyX + bodyWidth,
+                            bodyY + bodyHeight,
+                            bodyX + bodyWidth - radius,
+                            bodyY + bodyHeight
+                        );
+                        ctx.lineTo(bodyX + radius, bodyY + bodyHeight);
+                        ctx.quadraticCurveTo(bodyX, bodyY + bodyHeight, bodyX, bodyY + bodyHeight - radius);
+                        ctx.lineTo(bodyX, bodyY + radius);
+                        ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
+                        ctx.fill();
+                        ctx.stroke();
                     }
 
-                    Rectangle {
-                        anchors.bottom: parent.bottom
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: 8
-                        height: 7
-                        radius: 2
-                        color: Qt.rgba(1.0, 0.84, 0.45, inputLabelContainer.lockedState ? 0.24 : 0.12)
-                        border.width: 1
-                        border.color: Qt.rgba(1.0, 0.84, 0.45, inputLabelContainer.lockedState ? 0.96 : 0.42)
-                    }
+                    Component.onCompleted: requestPaint()
+                    onVisibleChanged: requestPaint()
+                    onLockedStateChanged: requestPaint()
                 }
 
                 MouseArea {

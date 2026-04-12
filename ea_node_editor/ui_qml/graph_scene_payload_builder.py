@@ -17,6 +17,7 @@ from ea_node_editor.graph.input_semantics import (
     inactive_input_source_key,
 )
 from ea_node_editor.graph.model import GraphModel, WorkspaceData
+from ea_node_editor.graph.port_locking import lockable_port_keys
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec
@@ -275,6 +276,7 @@ class _GraphSceneNodePayloadFactory:
         hide_optional_ports: bool,
     ) -> list[dict[str, Any]]:
         ports_payload: list[dict[str, Any]] = []
+        lockable_keys = frozenset(lockable_port_keys(spec))
         visible_ports = [
             port
             for port in effective_ports(
@@ -312,6 +314,7 @@ class _GraphSceneNodePayloadFactory:
                     "connection_count": int(connection_count),
                     "connected": bool(connection_count),
                     "locked": bool(port.locked),
+                    "lockable": str(port.key) in lockable_keys,
                     "optional": not bool(port.required),
                     "inactive": bool(inactive_source_key),
                     "inactive_source_key": inactive_source_key,

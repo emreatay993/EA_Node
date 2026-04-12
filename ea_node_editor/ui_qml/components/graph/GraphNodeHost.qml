@@ -411,42 +411,6 @@ Item {
             && card.dragSourcePort.direction === direction;
     }
 
-    function _hasInlinePropertyKey(portKey) {
-        var normalizedPortKey = String(portKey || "").trim();
-        if (!normalizedPortKey.length)
-            return false;
-        var properties = card.inlineProperties || [];
-        for (var index = 0; index < properties.length; index++) {
-            var propertyItem = properties[index];
-            if (String(propertyItem && propertyItem.key || "").trim() === normalizedPortKey)
-                return true;
-        }
-        return false;
-    }
-
-    function _hasNodePropertyKey(portKey) {
-        var normalizedPortKey = String(portKey || "").trim();
-        if (!normalizedPortKey.length || !card.nodeData || !card.nodeData.properties)
-            return false;
-        var properties = card.nodeData.properties;
-        return properties[normalizedPortKey] !== undefined;
-    }
-
-    function isLockableInputPort(portData) {
-        var direction = String(portData && portData.direction || "").trim().toLowerCase();
-        if (direction !== "in")
-            return false;
-        var dataType = String(portData && portData.data_type || "").trim().toLowerCase();
-        if (dataType !== "int" && dataType !== "float" && dataType !== "bool" && dataType !== "str")
-            return false;
-        return card._hasInlinePropertyKey(portData && portData.key)
-            || card._hasNodePropertyKey(portData && portData.key);
-    }
-
-    function isLockedInputPort(portData) {
-        return card.isLockableInputPort(portData) && Boolean(portData && portData.locked);
-    }
-
     function inlineEditorText(propertyData) {
         if (!propertyData)
             return "";

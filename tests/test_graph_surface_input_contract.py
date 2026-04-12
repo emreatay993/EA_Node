@@ -22,8 +22,8 @@ class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
             """
             payload = node_payload()
             payload["ports"] = [
-                {"key": "message", "label": "Message", "direction": "in", "kind": "data", "data_type": "str", "connected": False, "locked": True},
-                {"key": "details", "label": "Details", "direction": "in", "kind": "data", "data_type": "json", "connected": False, "locked": True},
+                {"key": "message", "label": "Message", "direction": "in", "kind": "data", "data_type": "str", "connected": False, "locked": True, "lockable": True},
+                {"key": "details", "label": "Details", "direction": "in", "kind": "data", "data_type": "json", "connected": False, "locked": True, "lockable": False},
             ]
             payload["inline_properties"] = [
                 {"key": "message", "label": "Message", "inline_editor": "text", "value": "locked text", "overridden_by_input": False, "input_port_label": "message"},

@@ -695,6 +695,7 @@ class GraphSurfaceLockedInputControlsTests(GraphSurfaceInputContractTestBase):
                     "data_type": "str",
                     "connected": False,
                     "locked": True,
+                    "lockable": True,
                     "allow_multiple_connections": False,
                 },
                 {
@@ -705,6 +706,7 @@ class GraphSurfaceLockedInputControlsTests(GraphSurfaceInputContractTestBase):
                     "data_type": "int",
                     "connected": False,
                     "locked": False,
+                    "lockable": True,
                     "allow_multiple_connections": False,
                 },
                 {
@@ -714,6 +716,7 @@ class GraphSurfaceLockedInputControlsTests(GraphSurfaceInputContractTestBase):
                     "kind": "data",
                     "data_type": "str",
                     "connected": False,
+                    "lockable": False,
                     "allow_multiple_connections": False,
                 },
             ]
