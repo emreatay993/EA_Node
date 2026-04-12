@@ -5,6 +5,7 @@ import time
 from typing import TYPE_CHECKING, Any, Iterable, Literal
 
 from PyQt6.QtCore import Qt, pyqtSlot
+from ea_node_editor.app_preferences import normalize_expand_collision_avoidance_settings
 from ea_node_editor.execution.runtime_snapshot import coerce_runtime_snapshot
 from ea_node_editor.ui.shell.runtime_history import history_action_invalidates_persistent_node_elapsed
 
@@ -63,6 +64,18 @@ def set_graphics_performance_mode(self: "ShellWindow", mode: str) -> None:
         {
             "performance": {
                 "mode": mode,
+            }
+        },
+        host=self,
+    )
+
+
+@pyqtSlot("QVariantMap")
+def set_graphics_expand_collision_avoidance(self: "ShellWindow", settings: dict[str, Any]) -> None:
+    self.app_preferences_controller.update_graphics_settings(
+        {
+            "interaction": {
+                "expand_collision_avoidance": normalize_expand_collision_avoidance_settings(settings),
             }
         },
         host=self,

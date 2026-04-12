@@ -34,6 +34,21 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertEqual(dialog.edge_crossing_style_combo.currentData(), "none")
             self.assertTrue(dialog.full_fidelity_mode_button.isChecked())
             self.assertFalse(dialog.max_performance_mode_button.isChecked())
+            self.assertTrue(dialog.expand_collision_enabled_check.isChecked())
+            self.assertEqual(
+                dialog.expand_collision_enabled_check.objectName(),
+                "graphicsSettingsExpandCollisionAvoidanceEnabledCheck",
+            )
+            self.assertEqual(
+                dialog.expand_collision_strategy_combo.objectName(),
+                "graphicsSettingsExpandCollisionAvoidanceStrategyCombo",
+            )
+            self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "nearest")
+            self.assertEqual(dialog.expand_collision_scope_combo.currentData(), "all_movable")
+            self.assertEqual(dialog.expand_collision_radius_mode_combo.currentData(), "local")
+            self.assertEqual(dialog.expand_collision_local_radius_preset_combo.currentData(), "medium")
+            self.assertEqual(dialog.expand_collision_gap_preset_combo.currentData(), "normal")
+            self.assertTrue(dialog.expand_collision_animate_check.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
 
@@ -44,6 +59,17 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             dialog.show_port_labels_check.setChecked(False)
             dialog.minimap_expanded_check.setChecked(False)
             dialog.snap_to_grid_check.setChecked(True)
+            dialog.expand_collision_enabled_check.setChecked(False)
+            dialog.expand_collision_radius_mode_combo.setCurrentIndex(
+                dialog.expand_collision_radius_mode_combo.findData("unbounded")
+            )
+            dialog.expand_collision_local_radius_preset_combo.setCurrentIndex(
+                dialog.expand_collision_local_radius_preset_combo.findData("large")
+            )
+            dialog.expand_collision_gap_preset_combo.setCurrentIndex(
+                dialog.expand_collision_gap_preset_combo.findData("tight")
+            )
+            dialog.expand_collision_animate_check.setChecked(False)
             dialog.max_performance_mode_button.setChecked(True)
             dialog.tab_strip_density_combo.setCurrentIndex(dialog.tab_strip_density_combo.findData("regular"))
             dialog.theme_combo.setCurrentIndex(dialog.theme_combo.findData("stitch_light"))
@@ -58,6 +84,15 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             expected["canvas"]["show_port_labels"] = False
             expected["canvas"]["minimap_expanded"] = False
             expected["interaction"]["snap_to_grid"] = True
+            expected["interaction"]["expand_collision_avoidance"] = {
+                "enabled": False,
+                "strategy": "nearest",
+                "scope": "all_movable",
+                "radius_mode": "unbounded",
+                "local_radius_preset": "large",
+                "gap_preset": "tight",
+                "animate": False,
+            }
             expected["performance"]["mode"] = "max_performance"
             expected["shell"]["tab_strip_density"] = "regular"
             expected["theme"]["theme_id"] = "stitch_light"
@@ -110,6 +145,15 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                 },
                 "interaction": {
                     "snap_to_grid": True,
+                    "expand_collision_avoidance": {
+                        "enabled": "yes",
+                        "strategy": "farthest",
+                        "scope": "selection",
+                        "radius_mode": "global",
+                        "local_radius_preset": "tiny",
+                        "gap_preset": "huge",
+                        "animate": "yes",
+                    },
                 },
                 "performance": {
                     "mode": "warp_speed",
@@ -134,6 +178,13 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertFalse(dialog.max_performance_mode_button.isChecked())
             self.assertTrue(dialog.follow_shell_theme_check.isChecked())
             self.assertFalse(dialog.graph_theme_combo.isEnabled())
+            self.assertTrue(dialog.expand_collision_enabled_check.isChecked())
+            self.assertEqual(dialog.expand_collision_strategy_combo.currentData(), "nearest")
+            self.assertEqual(dialog.expand_collision_scope_combo.currentData(), "all_movable")
+            self.assertEqual(dialog.expand_collision_radius_mode_combo.currentData(), "local")
+            self.assertEqual(dialog.expand_collision_local_radius_preset_combo.currentData(), "medium")
+            self.assertEqual(dialog.expand_collision_gap_preset_combo.currentData(), "normal")
+            self.assertTrue(dialog.expand_collision_animate_check.isChecked())
             self.assertFalse(dialog.show_port_labels_check.isChecked())
             self.assertEqual(dialog.grid_style_combo.currentData(), "lines")
             self.assertEqual(dialog.edge_crossing_style_combo.currentData(), "none")

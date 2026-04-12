@@ -42,6 +42,10 @@ _FLOW_EDGE_STYLE_CLIPBOARD_KIND = "flow-edge-style"
 _STYLE_CLIPBOARD_APP_PROPERTY = "eaNodeEditorStyleClipboard"
 
 
+def _qt_graphics_expand_collision_avoidance(self: "ShellWindow") -> dict[str, Any]:
+    return self.shell_workspace_presenter.graphics_expand_collision_avoidance
+
+
 class ShellWindow(QMainWindow):
     execution_event = pyqtSignal(dict)
     node_library_changed = pyqtSignal()
@@ -201,6 +205,11 @@ class ShellWindow(QMainWindow):
     graphics_edge_crossing_style = pyqtProperty(
         str,
         fget=state_helpers._qt_graphics_edge_crossing_style,
+        notify=graphics_preferences_changed,
+    )
+    graphics_expand_collision_avoidance = pyqtProperty(
+        "QVariantMap",
+        fget=_qt_graphics_expand_collision_avoidance,
         notify=graphics_preferences_changed,
     )
     graphics_graph_label_pixel_size = pyqtProperty(

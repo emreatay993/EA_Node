@@ -5,6 +5,7 @@ import unittest
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
@@ -38,6 +39,9 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         self._graphics_shadow_offset = 4
         self._graphics_performance_mode = "full_fidelity"
         self._graphics_graph_label_pixel_size = 10
+        self._graphics_expand_collision_avoidance = dict(
+            DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]
+        )
 
     @property
     def graphics_show_grid(self) -> bool:
@@ -87,11 +91,22 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
     def graphics_graph_label_pixel_size(self) -> int:
         return int(self._graphics_graph_label_pixel_size)
 
+    @property
+    def graphics_expand_collision_avoidance(self) -> dict[str, object]:
+        return dict(self._graphics_expand_collision_avoidance)
+
     def set_graphics_graph_label_pixel_size_value(self, value: int) -> None:
         normalized = max(8, min(int(value), 18))
         if self._graphics_graph_label_pixel_size == normalized:
             return
         self._graphics_graph_label_pixel_size = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_expand_collision_avoidance_value(self, value: dict[str, object]) -> None:
+        normalized = dict(value)
+        if self._graphics_expand_collision_avoidance == normalized:
+            return
+        self._graphics_expand_collision_avoidance = normalized
         self.graphics_preferences_changed.emit()
 
 
@@ -124,6 +139,40 @@ class GraphCanvasQmlPreferenceBindingTests(
             self.fail(f"Failed to instantiate {path.name}:\n{errors}")
         self.app.processEvents()
         return instance
+
+    def test_expand_collision_avoidance_bridge_projection_follows_preference_source(self) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        state_bridge = GraphCanvasStateBridge(
+            shell_window=preference_bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        seen = {"count": 0}
+        state_bridge.graphics_preferences_changed.connect(lambda: seen.__setitem__("count", seen["count"] + 1))
+
+        try:
+            self.assertEqual(
+                state_bridge.graphics_expand_collision_avoidance,
+                DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"],
+            )
+
+            updated = {
+                "enabled": False,
+                "strategy": "nearest",
+                "scope": "all_movable",
+                "radius_mode": "unbounded",
+                "local_radius_preset": "large",
+                "gap_preset": "tight",
+                "animate": False,
+            }
+            preference_bridge.set_graphics_expand_collision_avoidance_value(updated)
+            self.app.processEvents()
+
+            self.assertEqual(state_bridge.graphics_expand_collision_avoidance, updated)
+            self.assertEqual(seen["count"], 1)
+        finally:
+            state_bridge.deleteLater()
+            preference_bridge.deleteLater()
+            self.app.processEvents()
 
     def _assert_persistent_node_elapsed_footer_rendering(self) -> None:
         node_id = "node_execution_visualization"

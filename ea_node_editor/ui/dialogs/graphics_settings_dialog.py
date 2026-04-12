@@ -23,6 +23,11 @@ from PyQt6.QtWidgets import (
 from ea_node_editor.settings import (
     DEFAULT_GRAPHICS_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
@@ -255,6 +260,18 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             return
         grid_style_container.setVisible(self.show_grid_check.isChecked())
 
+    def _sync_expand_collision_radius_visibility(self, _index: int | None = None) -> None:
+        local_radius_row = getattr(self, "_expand_collision_local_radius_row", None)
+        if local_radius_row is None:
+            return
+        local_radius_row.setVisible(str(self.expand_collision_radius_mode_combo.currentData() or "") == "local")
+
+    def _sync_expand_collision_controls_enabled(self, _checked: bool | None = None) -> None:
+        enabled = self.expand_collision_enabled_check.isChecked()
+        for control in getattr(self, "_expand_collision_controls", ()):
+            control.setEnabled(enabled)
+        self._sync_expand_collision_radius_visibility()
+
     def _update_shadow_preview(self) -> None:
         preview = getattr(self, "_shadow_preview", None)
         if preview is None:
@@ -276,6 +293,87 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.snap_to_grid_check = QCheckBox("Snap nodes to grid during edits", card)
         card_lay.addWidget(self.snap_to_grid_check)
         outer.addWidget(card)
+
+        outer.addWidget(self._make_section_title("Expand Collision Avoidance", page))
+        collision_basic_card, collision_basic_lay = self._make_section_card(page)
+        self.expand_collision_enabled_check = QCheckBox(
+            "Avoid overlaps when expanding collapsed items",
+            collision_basic_card,
+        )
+        self.expand_collision_enabled_check.setObjectName("graphicsSettingsExpandCollisionAvoidanceEnabledCheck")
+        collision_basic_lay.addWidget(self.expand_collision_enabled_check)
+
+        collision_basic_form = QFormLayout()
+        collision_basic_form.setContentsMargins(20, 4, 0, 0)
+        collision_basic_form.setHorizontalSpacing(10)
+        collision_basic_form.setVerticalSpacing(8)
+        self.expand_collision_strategy_combo = QComboBox(collision_basic_card)
+        self.expand_collision_strategy_combo.setObjectName("graphicsSettingsExpandCollisionAvoidanceStrategyCombo")
+        for strategy_id, label in EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES:
+            self.expand_collision_strategy_combo.addItem(label, strategy_id)
+        collision_basic_form.addRow("Strategy", self.expand_collision_strategy_combo)
+        collision_basic_lay.addLayout(collision_basic_form)
+
+        self.expand_collision_animate_check = QCheckBox("Animate displaced items", collision_basic_card)
+        self.expand_collision_animate_check.setObjectName("graphicsSettingsExpandCollisionAvoidanceAnimateCheck")
+        self.expand_collision_animate_check.setContentsMargins(20, 0, 0, 0)
+        collision_basic_lay.addWidget(self.expand_collision_animate_check)
+        outer.addWidget(collision_basic_card)
+
+        outer.addWidget(self._make_section_title("Advanced Collision Avoidance", page))
+        collision_advanced_card, collision_advanced_lay = self._make_section_card(page)
+        collision_advanced_form = QFormLayout()
+        collision_advanced_form.setContentsMargins(0, 0, 0, 0)
+        collision_advanced_form.setHorizontalSpacing(10)
+        collision_advanced_form.setVerticalSpacing(8)
+
+        self.expand_collision_scope_combo = QComboBox(collision_advanced_card)
+        self.expand_collision_scope_combo.setObjectName("graphicsSettingsExpandCollisionAvoidanceScopeCombo")
+        for scope_id, label in EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES:
+            self.expand_collision_scope_combo.addItem(label, scope_id)
+        collision_advanced_form.addRow("Participation scope", self.expand_collision_scope_combo)
+
+        self.expand_collision_gap_preset_combo = QComboBox(collision_advanced_card)
+        self.expand_collision_gap_preset_combo.setObjectName("graphicsSettingsExpandCollisionAvoidanceGapPresetCombo")
+        for gap_id, label in EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_CHOICES:
+            self.expand_collision_gap_preset_combo.addItem(label, gap_id)
+        collision_advanced_form.addRow("Gap preset", self.expand_collision_gap_preset_combo)
+
+        self.expand_collision_radius_mode_combo = QComboBox(collision_advanced_card)
+        self.expand_collision_radius_mode_combo.setObjectName("graphicsSettingsExpandCollisionAvoidanceRadiusModeCombo")
+        for radius_mode_id, label in EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES:
+            self.expand_collision_radius_mode_combo.addItem(label, radius_mode_id)
+        self.expand_collision_radius_mode_combo.currentIndexChanged.connect(
+            self._sync_expand_collision_radius_visibility
+        )
+        collision_advanced_form.addRow("Reach mode", self.expand_collision_radius_mode_combo)
+
+        self._expand_collision_local_radius_row = QWidget(collision_advanced_card)
+        local_radius_lay = QFormLayout(self._expand_collision_local_radius_row)
+        local_radius_lay.setContentsMargins(0, 0, 0, 0)
+        local_radius_lay.setHorizontalSpacing(10)
+        local_radius_lay.setVerticalSpacing(0)
+        self.expand_collision_local_radius_preset_combo = QComboBox(self._expand_collision_local_radius_row)
+        self.expand_collision_local_radius_preset_combo.setObjectName(
+            "graphicsSettingsExpandCollisionAvoidanceLocalRadiusPresetCombo"
+        )
+        for radius_id, label in EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET_CHOICES:
+            self.expand_collision_local_radius_preset_combo.addItem(label, radius_id)
+        local_radius_lay.addRow("Local radius", self.expand_collision_local_radius_preset_combo)
+
+        collision_advanced_lay.addLayout(collision_advanced_form)
+        collision_advanced_lay.addWidget(self._expand_collision_local_radius_row)
+        outer.addWidget(collision_advanced_card)
+
+        self._expand_collision_controls = (
+            self.expand_collision_strategy_combo,
+            self.expand_collision_animate_check,
+            self.expand_collision_scope_combo,
+            self.expand_collision_gap_preset_combo,
+            self.expand_collision_radius_mode_combo,
+            self._expand_collision_local_radius_row,
+        )
+        self.expand_collision_enabled_check.toggled.connect(self._sync_expand_collision_controls_enabled)
 
         outer.addStretch(1)
         return page
@@ -484,6 +582,30 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.shadow_offset_slider.setValue(settings["canvas"]["shadow_offset"])
         self._sync_shadow_settings_visibility()
         self.snap_to_grid_check.setChecked(settings["interaction"]["snap_to_grid"])
+        expand_collision_avoidance = settings["interaction"]["expand_collision_avoidance"]
+        self.expand_collision_enabled_check.setChecked(expand_collision_avoidance["enabled"])
+        self._set_combo_current_data(
+            self.expand_collision_strategy_combo,
+            expand_collision_avoidance["strategy"],
+        )
+        self.expand_collision_animate_check.setChecked(expand_collision_avoidance["animate"])
+        self._set_combo_current_data(
+            self.expand_collision_scope_combo,
+            expand_collision_avoidance["scope"],
+        )
+        self._set_combo_current_data(
+            self.expand_collision_gap_preset_combo,
+            expand_collision_avoidance["gap_preset"],
+        )
+        self._set_combo_current_data(
+            self.expand_collision_radius_mode_combo,
+            expand_collision_avoidance["radius_mode"],
+        )
+        self._set_combo_current_data(
+            self.expand_collision_local_radius_preset_combo,
+            expand_collision_avoidance["local_radius_preset"],
+        )
+        self._sync_expand_collision_controls_enabled()
         self._set_graphics_performance_mode(settings["performance"]["mode"])
         density_id = settings["shell"]["tab_strip_density"]
         density_index = self.tab_strip_density_combo.findData(density_id)
@@ -517,6 +639,32 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "interaction": {
                     "snap_to_grid": self.snap_to_grid_check.isChecked(),
+                    "expand_collision_avoidance": {
+                        "enabled": self.expand_collision_enabled_check.isChecked(),
+                        "strategy": str(
+                            self.expand_collision_strategy_combo.currentData()
+                            or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]["strategy"]
+                        ),
+                        "scope": str(
+                            self.expand_collision_scope_combo.currentData()
+                            or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]["scope"]
+                        ),
+                        "radius_mode": str(
+                            self.expand_collision_radius_mode_combo.currentData()
+                            or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]["radius_mode"]
+                        ),
+                        "local_radius_preset": str(
+                            self.expand_collision_local_radius_preset_combo.currentData()
+                            or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"][
+                                "local_radius_preset"
+                            ]
+                        ),
+                        "gap_preset": str(
+                            self.expand_collision_gap_preset_combo.currentData()
+                            or DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]["gap_preset"]
+                        ),
+                        "animate": self.expand_collision_animate_check.isChecked(),
+                    },
                 },
                 "performance": {
                     "mode": self._graphics_performance_mode(),
@@ -540,6 +688,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
             button = self.performance_mode_buttons.get(DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
         if button is not None:
             button.setChecked(True)
+
+    @staticmethod
+    def _set_combo_current_data(combo: QComboBox, value: object) -> None:
+        index = combo.findData(str(value))
+        combo.setCurrentIndex(index if index >= 0 else 0)
 
     def _graphics_performance_mode(self) -> str:
         for mode_id, button in self.performance_mode_buttons.items():

@@ -13,6 +13,11 @@ from ea_node_editor.settings import (
     APP_PREFERENCES_VERSION,
     DEFAULT_APP_PREFERENCES,
     DEFAULT_EDGE_CROSSING_STYLE,
+    DEFAULT_EXPAND_COLLISION_AVOIDANCE_GAP_PRESET,
+    DEFAULT_EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET,
+    DEFAULT_EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE,
+    DEFAULT_EXPAND_COLLISION_AVOIDANCE_SCOPE,
+    DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY,
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     DEFAULT_GRAPHICS_PERFORMANCE_MODE,
     DEFAULT_GRID_OVERLAY_STYLE,
@@ -20,6 +25,11 @@ from ea_node_editor.settings import (
     DEFAULT_SOURCE_IMPORT_MODE,
     DEFAULT_SOURCE_IMPORT_SETTINGS,
     EDGE_CROSSING_STYLE_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES,
+    EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
@@ -45,6 +55,21 @@ _GRID_OVERLAY_STYLE_VALUES = {
 }
 _EDGE_CROSSING_STYLE_VALUES = {
     str(choice[0]).strip().lower() for choice in EDGE_CROSSING_STYLE_CHOICES
+}
+_EXPAND_COLLISION_AVOIDANCE_STRATEGY_VALUES = {
+    str(choice[0]).strip().lower() for choice in EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES
+}
+_EXPAND_COLLISION_AVOIDANCE_SCOPE_VALUES = {
+    str(choice[0]).strip().lower() for choice in EXPAND_COLLISION_AVOIDANCE_SCOPE_CHOICES
+}
+_EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_VALUES = {
+    str(choice[0]).strip().lower() for choice in EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_CHOICES
+}
+_EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET_VALUES = {
+    str(choice[0]).strip().lower() for choice in EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET_CHOICES
+}
+_EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_VALUES = {
+    str(choice[0]).strip().lower() for choice in EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_CHOICES
 }
 _SOURCE_IMPORT_MODE_VALUES = {
     str(choice[0]).strip().lower() for choice in SOURCE_IMPORT_MODE_CHOICES
@@ -72,6 +97,47 @@ def normalize_graph_theme_settings(payload: Any) -> dict[str, Any]:
         defaults["selected_theme_id"],
         custom_themes=normalized["custom_themes"],
     )
+    return normalized
+
+
+def normalize_expand_collision_avoidance_settings(payload: Any) -> dict[str, Any]:
+    defaults = DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]
+    if not isinstance(payload, Mapping):
+        return copy.deepcopy(defaults)
+
+    normalized = copy.deepcopy(defaults)
+    normalized["enabled"] = _normalize_bool(payload.get("enabled"), defaults["enabled"])
+    normalized["strategy"] = _normalize_choice(
+        payload.get("strategy"),
+        defaults["strategy"],
+        _EXPAND_COLLISION_AVOIDANCE_STRATEGY_VALUES,
+        DEFAULT_EXPAND_COLLISION_AVOIDANCE_STRATEGY,
+    )
+    normalized["scope"] = _normalize_choice(
+        payload.get("scope"),
+        defaults["scope"],
+        _EXPAND_COLLISION_AVOIDANCE_SCOPE_VALUES,
+        DEFAULT_EXPAND_COLLISION_AVOIDANCE_SCOPE,
+    )
+    normalized["radius_mode"] = _normalize_choice(
+        payload.get("radius_mode"),
+        defaults["radius_mode"],
+        _EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE_VALUES,
+        DEFAULT_EXPAND_COLLISION_AVOIDANCE_RADIUS_MODE,
+    )
+    normalized["local_radius_preset"] = _normalize_choice(
+        payload.get("local_radius_preset"),
+        defaults["local_radius_preset"],
+        _EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET_VALUES,
+        DEFAULT_EXPAND_COLLISION_AVOIDANCE_LOCAL_RADIUS_PRESET,
+    )
+    normalized["gap_preset"] = _normalize_choice(
+        payload.get("gap_preset"),
+        defaults["gap_preset"],
+        _EXPAND_COLLISION_AVOIDANCE_GAP_PRESET_VALUES,
+        DEFAULT_EXPAND_COLLISION_AVOIDANCE_GAP_PRESET,
+    )
+    normalized["animate"] = _normalize_bool(payload.get("animate"), defaults["animate"])
     return normalized
 
 
@@ -140,6 +206,11 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
         normalized["interaction"]["snap_to_grid"] = _normalize_bool(
             interaction_payload.get("snap_to_grid"),
             defaults["interaction"]["snap_to_grid"],
+        )
+        normalized["interaction"]["expand_collision_avoidance"] = (
+            normalize_expand_collision_avoidance_settings(
+                interaction_payload.get("expand_collision_avoidance")
+            )
         )
     if isinstance(performance_payload, Mapping):
         normalized["performance"]["mode"] = normalize_graphics_performance_mode(
@@ -292,6 +363,16 @@ def _normalize_tab_strip_density(value: Any, default: str) -> str:
     return str(DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
 
 
+def _normalize_choice(value: Any, default: str, choices: set[str], fallback: str) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in choices:
+        return normalized
+    resolved_default = str(default).strip().lower()
+    if resolved_default in choices:
+        return resolved_default
+    return fallback
+
+
 def normalize_graphics_performance_mode(value: Any, default: str = DEFAULT_GRAPHICS_PERFORMANCE_MODE) -> str:
     normalized = str(value).strip().lower()
     if normalized in _GRAPHICS_PERFORMANCE_MODE_VALUES:
@@ -337,6 +418,7 @@ __all__ = [
     "default_app_preferences_document",
     "normalize_app_preferences_document",
     "normalize_edge_crossing_style",
+    "normalize_expand_collision_avoidance_settings",
     "normalize_graph_theme_settings",
     "normalize_grid_overlay_style",
     "normalize_graphics_performance_mode",

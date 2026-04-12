@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import tempfile
 import unittest
@@ -85,6 +86,15 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                         },
                         "interaction": {
                             "snap_to_grid": True,
+                            "expand_collision_avoidance": {
+                                "enabled": "yes",
+                                "strategy": "farthest",
+                                "scope": "selected_only",
+                                "radius_mode": "global",
+                                "local_radius_preset": "tiny",
+                                "gap_preset": "huge",
+                                "animate": "true",
+                            },
                         },
                         "performance": {
                             "mode": "warp_speed",
@@ -122,6 +132,10 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(graphics["canvas"]["shadow_softness"], 25)
         self.assertEqual(graphics["canvas"]["shadow_offset"], DEFAULT_GRAPHICS_SETTINGS["canvas"]["shadow_offset"])
         self.assertEqual(graphics["interaction"]["snap_to_grid"], True)
+        self.assertEqual(
+            graphics["interaction"]["expand_collision_avoidance"],
+            DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"],
+        )
         self.assertEqual(graphics["performance"]["mode"], DEFAULT_GRAPHICS_SETTINGS["performance"]["mode"])
         self.assertEqual(graphics["shell"]["tab_strip_density"], DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
         self.assertEqual(graphics["theme"]["theme_id"], DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
@@ -151,6 +165,15 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
                 },
                 "interaction": {
                     "snap_to_grid": True,
+                    "expand_collision_avoidance": {
+                        "enabled": False,
+                        "strategy": " NEAREST ",
+                        "scope": " ALL_MOVABLE ",
+                        "radius_mode": " UNBOUNDED ",
+                        "local_radius_preset": " LARGE ",
+                        "gap_preset": " TIGHT ",
+                        "animate": False,
+                    },
                 },
                 "performance": {
                     "mode": " MAX_PERFORMANCE ",
@@ -175,12 +198,44 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(graphics["canvas"]["edge_crossing_style"], "gap_break")
         self.assertFalse(graphics["canvas"]["show_port_labels"])
         self.assertEqual(graphics["performance"]["mode"], "max_performance")
+        self.assertEqual(
+            graphics["interaction"]["expand_collision_avoidance"],
+            {
+                "enabled": False,
+                "strategy": "nearest",
+                "scope": "all_movable",
+                "radius_mode": "unbounded",
+                "local_radius_preset": "large",
+                "gap_preset": "tight",
+                "animate": False,
+            },
+        )
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
         self.assertEqual(persisted["kind"], APP_PREFERENCES_KIND)
         self.assertEqual(persisted["version"], APP_PREFERENCES_VERSION)
         self.assertEqual(persisted["graphics"], graphics)
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
+
+    def test_expand_collision_avoidance_preferences_default_and_partial_payloads(self) -> None:
+        defaults = self._controller.load()["graphics"]["interaction"]["expand_collision_avoidance"]
+
+        self.assertEqual(defaults, DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"])
+
+        current_graphics = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+        current_graphics["interaction"]["expand_collision_avoidance"] = {
+            "enabled": False,
+        }
+
+        graphics = self._controller.set_graphics_settings(current_graphics)
+
+        self.assertEqual(
+            graphics["interaction"]["expand_collision_avoidance"],
+            {
+                **DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"],
+                "enabled": False,
+            },
+        )
 
     def test_graph_typography_preferences_default_schema_and_legacy_payload_compatibility(self) -> None:
         defaults = self._controller.load()["graphics"]

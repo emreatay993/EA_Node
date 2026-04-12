@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from typing import Any
 
@@ -7,6 +8,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from ea_node_editor.app_preferences import (
     normalize_edge_crossing_style,
+    normalize_expand_collision_avoidance_settings,
     normalize_graphics_performance_mode,
     normalize_grid_overlay_style,
 )
@@ -37,6 +39,9 @@ class ShellWorkspacePresenter(QObject):
         super().__init__(_presenter_parent(host, parent))
         self._host = host
         self._ui_state = ui_state if ui_state is not None else host.workspace_ui_state
+        self._expand_collision_avoidance = normalize_expand_collision_avoidance_settings(
+            DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]
+        )
         host.project_meta_changed.connect(self.project_meta_changed.emit)
         host.workspace_state_changed.connect(self.workspace_state_changed.emit)
         host.graphics_preferences_changed.connect(self.graphics_preferences_changed.emit)
@@ -55,6 +60,10 @@ class ShellWorkspacePresenter(QObject):
 
     @property
     def graphics_edge_crossing_style(self) -> str: return str(self._ui_state.edge_crossing_style)
+
+    @property
+    def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
+        return copy.deepcopy(self._expand_collision_avoidance)
 
     @property
     def graphics_graph_label_pixel_size(self) -> int: return int(self._ui_state.graph_label_pixel_size)
@@ -215,6 +224,12 @@ class ShellWorkspacePresenter(QObject):
             performance.get("mode", self._ui_state.graphics_performance_mode),
             self._ui_state.graphics_performance_mode,
         )
+        if "expand_collision_avoidance" in interaction:
+            expand_collision_avoidance = normalize_expand_collision_avoidance_settings(
+                interaction.get("expand_collision_avoidance")
+            )
+        else:
+            expand_collision_avoidance = copy.deepcopy(self._expand_collision_avoidance)
         tab_strip_density = str(shell.get("tab_strip_density", self._ui_state.tab_strip_density))
         active_theme_id = self._host.shell_host_presenter.apply_theme(
             theme.get("theme_id", self._ui_state.active_theme_id)
@@ -277,6 +292,9 @@ class ShellWorkspacePresenter(QObject):
         if self._ui_state.graphics_performance_mode != graphics_performance_mode:
             self._ui_state.graphics_performance_mode = graphics_performance_mode
             changed = True
+        if self._expand_collision_avoidance != expand_collision_avoidance:
+            self._expand_collision_avoidance = copy.deepcopy(expand_collision_avoidance)
+            changed = True
         if self._ui_state.tab_strip_density != tab_strip_density:
             self._ui_state.tab_strip_density = tab_strip_density
             changed = True
@@ -308,6 +326,7 @@ class ShellWorkspacePresenter(QObject):
             },
             "interaction": {
                 "snap_to_grid": bool(self._host.search_scope_state.snap_to_grid_enabled),
+                "expand_collision_avoidance": copy.deepcopy(self._expand_collision_avoidance),
             },
             "performance": {
                 "mode": str(self._ui_state.graphics_performance_mode),

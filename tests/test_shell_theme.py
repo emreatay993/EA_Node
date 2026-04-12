@@ -382,6 +382,15 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         updated_graphics["canvas"]["show_minimap"] = False
         updated_graphics["canvas"]["minimap_expanded"] = False
         updated_graphics["interaction"]["snap_to_grid"] = True
+        updated_graphics["interaction"]["expand_collision_avoidance"] = {
+            "enabled": False,
+            "strategy": "nearest",
+            "scope": "all_movable",
+            "radius_mode": "unbounded",
+            "local_radius_preset": "large",
+            "gap_preset": "tight",
+            "animate": False,
+        }
         updated_graphics["performance"]["mode"] = "max_performance"
         updated_graphics["theme"]["theme_id"] = "stitch_light"
 
@@ -398,6 +407,15 @@ class ShellThemeTests(SharedMainWindowShellTestBase):
         self.assertFalse(self.window.graphics_minimap_expanded)
         self.assertTrue(self.window.snap_to_grid_enabled)
         self.assertTrue(self.window.action_snap_to_grid.isChecked())
+        self.assertEqual(
+            self.window.graphics_expand_collision_avoidance,
+            updated_graphics["interaction"]["expand_collision_avoidance"],
+        )
+        graph_canvas_state_bridge = self.window.quick_widget.rootContext().contextProperty("graphCanvasStateBridge")
+        self.assertEqual(
+            graph_canvas_state_bridge.graphics_expand_collision_avoidance,
+            updated_graphics["interaction"]["expand_collision_avoidance"],
+        )
         self.assertEqual(self.window.graphics_performance_mode, "max_performance")
         self.assertEqual(self.window.active_theme_id, "stitch_light")
 

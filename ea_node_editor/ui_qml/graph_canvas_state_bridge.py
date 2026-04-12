@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
-from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
+from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE, DEFAULT_GRAPHICS_SETTINGS
 
 if TYPE_CHECKING:
     from ea_node_editor.ui.shell.window import ShellWindow
@@ -30,6 +30,7 @@ class _GraphCanvasStateSource(Protocol):
     graphics_shadow_softness: int
     graphics_shadow_offset: int
     graphics_performance_mode: str
+    graphics_expand_collision_avoidance: dict[str, Any]
     snap_to_grid_enabled: bool
     snap_grid_size: float
 
@@ -242,6 +243,14 @@ class GraphCanvasStateBridge(QObject):
     @pyqtProperty(str, notify=graphics_preferences_changed)
     def graphics_performance_mode(self) -> str:
         return str(_source_attr(self._canvas_source, "graphics_performance_mode", "full_fidelity"))
+
+    @pyqtProperty("QVariantMap", notify=graphics_preferences_changed)
+    def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
+        default = DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]
+        value = _source_attr(self._canvas_source, "graphics_expand_collision_avoidance", None)
+        if value is None:
+            value = _source_attr(self._shell_window, "graphics_expand_collision_avoidance", default)
+        return _copy_dict(value)
 
     @pyqtProperty(bool, notify=snap_to_grid_changed)
     def snap_to_grid_enabled(self) -> bool:
