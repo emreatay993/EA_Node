@@ -126,7 +126,11 @@ Item {
             root.canvasItem.clearPendingConnection();
             handled = true;
         }
-        if (root.canvasItem.edgeContextVisible || root.canvasItem.nodeContextVisible) {
+        if (
+            root.canvasItem.edgeContextVisible
+            || root.canvasItem.nodeContextVisible
+            || root.canvasItem.selectionContextVisible
+        ) {
             root.canvasItem._closeContextMenus();
             handled = true;
         }
@@ -231,17 +235,26 @@ Item {
                     root.canvasItem.clearEdgeSelection();
                 }
             } else if (zoomGestureActive && root.canvasItem) {
-                root.canvasItem.noteViewportInteraction();
-                if (dx >= root.boxZoomDragThreshold && dy >= root.boxZoomDragThreshold) {
-                    root.canvasItem.frameScreenRect(
-                        startX,
-                        startY,
-                        currentX,
-                        currentY,
-                        root.boxZoomPaddingPx
-                    );
+                var openSelectionContext = dx < root.boxZoomDragThreshold
+                    && dy < root.boxZoomDragThreshold
+                    && root.canvasItem.selectedNodeIds().length > 1;
+                if (openSelectionContext) {
+                    if (root.canvasItem.interactionActive)
+                        root.canvasItem.finishViewportInteractionSoon();
+                    root.canvasItem._openSelectionContext(currentX, currentY);
+                } else {
+                    root.canvasItem.noteViewportInteraction();
+                    if (dx >= root.boxZoomDragThreshold && dy >= root.boxZoomDragThreshold) {
+                        root.canvasItem.frameScreenRect(
+                            startX,
+                            startY,
+                            currentX,
+                            currentY,
+                            root.boxZoomPaddingPx
+                        );
+                    }
+                    root.canvasItem.finishViewportInteractionSoon();
                 }
-                root.canvasItem.finishViewportInteractionSoon();
             }
             resetGestureState();
         }

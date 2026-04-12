@@ -720,6 +720,7 @@ class _GraphCanvasSceneBridgeStub(QObject):
             "move_nodes_by_delta": True,
             "consume_pending_surface_action": True,
             "set_node_properties": True,
+            "wrap_selected_nodes_in_comment_backdrop": True,
         }
 
     def _record(self, name: str, *args):
@@ -767,6 +768,9 @@ class _GraphCanvasSceneBridgeStub(QObject):
 
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
         self._record("set_node_geometry", node_id, x, y, width, height)
+
+    def wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return bool(self._record("wrap_selected_nodes_in_comment_backdrop"))
 
 
 class _GraphCanvasViewBridgeStub(QObject):
@@ -1484,6 +1488,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         bridge.move_node("node-1", 160.0, 220.0)
         bridge.resize_node("node-1", 320.0, 180.0)
         bridge.set_node_geometry("node-1", 150.0, 210.0, 340.0, 190.0)
+        self.assertTrue(bridge.request_wrap_selected_nodes_in_comment_backdrop())
         bridge.set_graph_cursor_shape(13)
         bridge.clear_graph_cursor_shape()
         self.assertEqual(
@@ -1568,6 +1573,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("move_node", ("node-1", 160.0, 220.0)),
                 ("resize_node", ("node-1", 320.0, 180.0)),
                 ("set_node_geometry", ("node-1", 150.0, 210.0, 340.0, 190.0)),
+                ("wrap_selected_nodes_in_comment_backdrop", ()),
             ],
         )
         self.assertEqual(
@@ -1701,6 +1707,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
         bridge.move_node("node-1", 160.0, 220.0)
         bridge.resize_node("node-1", 320.0, 180.0)
         bridge.set_node_geometry("node-1", 150.0, 210.0, 340.0, 190.0)
+        self.assertTrue(bridge.request_wrap_selected_nodes_in_comment_backdrop())
 
         self.assertEqual(
             host.calls,
@@ -1734,6 +1741,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("move_node", ("node-1", 160.0, 220.0)),
                 ("resize_node", ("node-1", 320.0, 180.0)),
                 ("set_node_geometry", ("node-1", 150.0, 210.0, 340.0, 190.0)),
+                ("wrap_selected_nodes_in_comment_backdrop", ()),
             ],
         )
         self.assertEqual(

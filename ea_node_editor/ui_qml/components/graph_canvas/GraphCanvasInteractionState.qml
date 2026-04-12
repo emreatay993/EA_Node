@@ -23,6 +23,7 @@ QtObject {
     property var wireDropCandidate: null
     property bool edgeContextVisible: false
     property bool nodeContextVisible: false
+    property bool selectionContextVisible: false
     property string edgeContextEdgeId: ""
     property string nodeContextNodeId: ""
     property real contextMenuX: 0
@@ -899,6 +900,7 @@ QtObject {
     function _closeContextMenus() {
         root.edgeContextVisible = false;
         root.nodeContextVisible = false;
+        root.selectionContextVisible = false;
         root.edgeContextEdgeId = "";
         root.nodeContextNodeId = "";
     }
@@ -929,6 +931,20 @@ QtObject {
         root.contextMenuX = position.x;
         root.contextMenuY = position.y;
         root.nodeContextVisible = true;
+    }
+
+    function _openSelectionContext(x, y) {
+        if (!root.canvasItem)
+            return;
+        var selectedNodeIds = root.canvasItem.selectedNodeIds ? root.canvasItem.selectedNodeIds() : [];
+        if (selectedNodeIds.length < 2)
+            return;
+        root.canvasItem.forceActiveFocus();
+        var position = root.canvasItem._clampMenuPosition(x, y, 206, 48);
+        root._closeContextMenus();
+        root.contextMenuX = position.x;
+        root.contextMenuY = position.y;
+        root.selectionContextVisible = true;
     }
 
     function beginViewportInteraction() {

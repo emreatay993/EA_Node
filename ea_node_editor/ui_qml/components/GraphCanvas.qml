@@ -184,6 +184,7 @@ Item {
     property alias wireDropCandidate: interactionState.wireDropCandidate
     property alias edgeContextVisible: interactionState.edgeContextVisible
     property alias nodeContextVisible: interactionState.nodeContextVisible
+    property alias selectionContextVisible: interactionState.selectionContextVisible
     property alias edgeContextEdgeId: interactionState.edgeContextEdgeId
     property alias nodeContextNodeId: interactionState.nodeContextNodeId
     property alias contextMenuX: interactionState.contextMenuX
@@ -343,6 +344,7 @@ Item {
     function _clampMenuPosition(x, y, menuWidth, menuHeight) { return GraphCanvasRootApi.clampMenuPosition(root, x, y, menuWidth, menuHeight); }
     function _openEdgeContext(edgeId, x, y) { GraphCanvasRootApi.invoke(interactionState, "_openEdgeContext", [edgeId, x, y]); }
     function _openNodeContext(nodeId, x, y) { GraphCanvasRootApi.invoke(interactionState, "_openNodeContext", [nodeId, x, y]); }
+    function _openSelectionContext(x, y) { GraphCanvasRootApi.invoke(interactionState, "_openSelectionContext", [x, y]); }
 
     GraphCanvasComponents.GraphCanvasRootLayers {
         id: rootLayers

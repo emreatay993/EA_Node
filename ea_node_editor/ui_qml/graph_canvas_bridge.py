@@ -440,6 +440,10 @@ class GraphCanvasBridge(QObject):
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None:
         self._command_bridge.set_node_geometry(node_id, x, y, width, height)
 
+    @pyqtSlot(result=bool)
+    def request_wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return self._command_bridge.request_wrap_selected_nodes_in_comment_backdrop()
+
     @pyqtSlot(int)
     def set_graph_cursor_shape(self, cursor_shape: int) -> None:
         self._command_bridge.set_graph_cursor_shape(cursor_shape)

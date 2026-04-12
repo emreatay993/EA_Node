@@ -63,7 +63,7 @@ class CommentBackdropGeometryTests(unittest.TestCase):
         self.assertIsNotNone(bounds)
         assert bounds is not None
         self.assertEqual(bounds.x, 5.0)
-        self.assertEqual(bounds.y, 135.0)
+        self.assertEqual(bounds.y, 115.0)
         self.assertEqual(bounds.width, 240.0)
         self.assertEqual(bounds.height, 160.0)
 
@@ -78,9 +78,9 @@ class CommentBackdropGeometryTests(unittest.TestCase):
         self.assertIsNotNone(bounds)
         assert bounds is not None
         self.assertEqual(bounds.x, 68.0)
-        self.assertEqual(bounds.y, 68.0)
+        self.assertEqual(bounds.y, 28.0)
         self.assertEqual(bounds.width, 554.0)
-        self.assertEqual(bounds.height, 346.0)
+        self.assertEqual(bounds.height, 386.0)
 
 
 class CommentBackdropSceneIntegrationTests(unittest.TestCase):

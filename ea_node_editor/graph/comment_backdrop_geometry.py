@@ -6,6 +6,7 @@ from typing import Sequence
 from ea_node_editor.graph.hierarchy import ScopePath
 
 COMMENT_BACKDROP_WRAP_PADDING = 32.0
+COMMENT_BACKDROP_WRAP_TOP_PADDING = 72.0
 COMMENT_BACKDROP_WRAP_MIN_WIDTH = 240.0
 COMMENT_BACKDROP_WRAP_MIN_HEIGHT = 160.0
 
@@ -160,6 +161,7 @@ def build_comment_backdrop_wrap_bounds(
     candidates: Sequence[CommentBackdropCandidate],
     *,
     padding: float = COMMENT_BACKDROP_WRAP_PADDING,
+    top_padding: float = COMMENT_BACKDROP_WRAP_TOP_PADDING,
     min_width: float = COMMENT_BACKDROP_WRAP_MIN_WIDTH,
     min_height: float = COMMENT_BACKDROP_WRAP_MIN_HEIGHT,
 ) -> CommentBackdropBounds | None:
@@ -172,9 +174,9 @@ def build_comment_backdrop_wrap_bounds(
     bottom = max(candidate.bottom for candidate in candidates)
 
     padded_x = float(left) - float(padding)
-    padded_y = float(top) - float(padding)
+    padded_y = float(top) - float(top_padding)
     padded_width = (float(right) - float(left)) + (float(padding) * 2.0)
-    padded_height = (float(bottom) - float(top)) + (float(padding) * 2.0)
+    padded_height = (float(bottom) - float(top)) + float(top_padding) + float(padding)
 
     final_width = max(float(min_width), padded_width)
     final_height = max(float(min_height), padded_height)
@@ -217,6 +219,7 @@ __all__ = [
     "COMMENT_BACKDROP_WRAP_MIN_HEIGHT",
     "COMMENT_BACKDROP_WRAP_MIN_WIDTH",
     "COMMENT_BACKDROP_WRAP_PADDING",
+    "COMMENT_BACKDROP_WRAP_TOP_PADDING",
     "CommentBackdropBounds",
     "CommentBackdropCandidate",
     "CommentBackdropMembership",

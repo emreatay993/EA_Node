@@ -55,7 +55,11 @@ Item {
             ? root.canvasItem.transientDegradedWindowActive
             : false
         edgeLabelSimplificationActive: root.canvasItem ? root.canvasItem.edgeLabelSimplificationActive : false
-        inputEnabled: !(root.canvasItem && (root.canvasItem.edgeContextVisible || root.canvasItem.nodeContextVisible))
+        inputEnabled: !(root.canvasItem && (
+            root.canvasItem.edgeContextVisible
+            || root.canvasItem.nodeContextVisible
+            || root.canvasItem.selectionContextVisible
+        ))
 
         onEdgeClicked: function(edgeId, additive) {
             if (!root.canvasItem)

@@ -115,4 +115,29 @@ Item {
             root.canvasItem._closeContextMenus()
         }
     }
+
+    ShellComponents.ShellContextMenu {
+        id: selectionContextPopup
+        objectName: "graphCanvasSelectionContextPopup"
+        visible: root.canvasItem ? root.canvasItem.selectionContextVisible : false
+        x: root.canvasItem ? root.canvasItem.contextMenuX : 0
+        y: root.canvasItem ? root.canvasItem.contextMenuY : 0
+        minimumWidth: 188
+        readonly property bool hasMultiNodeSelection: root.canvasItem
+            ? root.canvasItem.selectedNodeIds().length > 1
+            : false
+        actions: [
+            { "actionId": "wrap_into_frame", "text": "Wrap into frame", "visible": selectionContextPopup.hasMultiNodeSelection }
+        ]
+        onActionTriggered: function(actionId) {
+            if (!root.commandBridge || !root.canvasItem)
+                return
+            if (actionId === "wrap_into_frame") {
+                root.commandBridge.request_wrap_selected_nodes_in_comment_backdrop()
+            } else {
+                return
+            }
+            root.canvasItem._closeContextMenus()
+        }
+    }
 }

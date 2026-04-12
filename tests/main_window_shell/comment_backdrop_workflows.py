@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import gc
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 
@@ -11,6 +11,19 @@ from tests.qt_wait import wait_for_condition_or_raise
 
 COMMENT_BACKDROP_TYPE_ID = "passive.annotation.comment_backdrop"
 LOGGER_TYPE_ID = "core.logger"
+
+
+def _menu_action_texts(menu: QObject) -> list[str]:
+    actions = menu.property("visibleActions") or []
+    if hasattr(actions, "toVariant"):
+        actions = actions.toVariant()
+    texts: list[str] = []
+    for action in actions:
+        if hasattr(action, "toVariant"):
+            action = action.toVariant()
+        if isinstance(action, dict):
+            texts.append(str(action.get("text", "")))
+    return texts
 
 
 class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
@@ -157,6 +170,44 @@ class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
             min(float(workspace.nodes[first_id].y), float(workspace.nodes[second_id].y)),
         )
         self.assertEqual(self.window.scene.selected_node_lookup, {backdrop_id: True})
+
+    def test_multi_selection_canvas_context_menu_wraps_selection_in_comment_backdrop(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        graph_canvas = self._graph_canvas_item()
+        selection_context_popup = graph_canvas.findChild(QObject, "graphCanvasSelectionContextPopup")
+        self.assertIsNotNone(selection_context_popup)
+
+        first_id = self.window.scene.add_node_from_type(LOGGER_TYPE_ID, x=140.0, y=120.0)
+        second_id = self.window.scene.add_node_from_type(LOGGER_TYPE_ID, x=360.0, y=250.0)
+
+        self.window.scene.select_node(first_id, False)
+        self.app.processEvents()
+        self.assertNotIn("Wrap into frame", _menu_action_texts(selection_context_popup))
+
+        self.window.scene.select_node(second_id, True)
+        self.app.processEvents()
+        self.assertIn("Wrap into frame", _menu_action_texts(selection_context_popup))
+
+        before_ids = set(workspace.nodes)
+        graph_canvas.setProperty("selectionContextVisible", True)
+        selection_context_popup.actionTriggered.emit("wrap_into_frame")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: len(set(workspace.nodes) - before_ids) == 1,
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for the selection context menu to wrap nodes in a comment backdrop.",
+        )
+
+        added_ids = set(workspace.nodes) - before_ids
+        backdrop_id = next(iter(added_ids))
+        backdrop_node = workspace.nodes[backdrop_id]
+        self.assertEqual(backdrop_node.type_id, COMMENT_BACKDROP_TYPE_ID)
+        self.assertEqual(self.window.scene.selected_node_lookup, {backdrop_id: True})
+        self.assertFalse(bool(graph_canvas.property("selectionContextVisible")))
 
     def test_comment_backdrop_wrap_action_is_no_op_for_empty_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

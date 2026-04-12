@@ -135,6 +135,8 @@ class _GraphCanvasSceneCommandSource(Protocol):
 
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None: ...
 
+    def wrap_selected_nodes_in_comment_backdrop(self) -> bool: ...
+
     def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool: ...
 
 
@@ -585,6 +587,16 @@ class GraphCanvasCommandBridge(QObject):
             float(y),
             float(width),
             float(height),
+        )
+
+    @pyqtSlot(result=bool)
+    def request_wrap_selected_nodes_in_comment_backdrop(self) -> bool:
+        return bool(
+            _invoke(
+                self._scene_command_source,
+                "wrap_selected_nodes_in_comment_backdrop",
+                default=False,
+            )
         )
 
     @pyqtSlot(str, str, bool, result=bool)

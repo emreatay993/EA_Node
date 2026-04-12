@@ -32,6 +32,7 @@ _SHELL_TEST_MODULES = (
     "tests.main_window_shell.shell_basics_and_search",
     "tests.main_window_shell.drop_connect_and_workflow_io",
     "tests.main_window_shell.edit_clipboard_history",
+    "tests.main_window_shell.comment_backdrop_workflows",
     "tests.main_window_shell.passive_style_context_menus",
     "tests.main_window_shell.passive_property_editors",
     "tests.main_window_shell.passive_image_nodes",
