@@ -277,6 +277,12 @@ Item {
     readonly property real _minNodeWidth: Number(surfaceMetrics.min_width)
     readonly property real _minNodeHeight: Number(surfaceMetrics.min_height)
     readonly property real _resizeHandleSize: Number(surfaceMetrics.resize_handle_size)
+    readonly property real _resizeHandleHitSize: {
+        var size = Number(card._resizeHandleSize);
+        if (!isFinite(size) || size <= 0.0)
+            return 10.0;
+        return Math.max(6.0, Math.min(size, 10.0));
+    }
 
     readonly property real _inlineRowHeight: 26
     readonly property real _inlineRowSpacing: 4

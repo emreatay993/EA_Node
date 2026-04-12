@@ -22,6 +22,7 @@ QtObject {
             root.host.width,
             root.host.height,
             root.host._resizeHandleSize,
+            root.host._resizeHandleHitSize,
             root.host.nodeData ? Boolean(root.host.nodeData.collapsed) : true
         );
     }

@@ -150,6 +150,118 @@ class PassiveGraphSurfaceHostBoundaryTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_graph_node_host_keeps_bottom_corner_resize_targets_clear_of_nearby_ports(self) -> None:
+        self._run_qml_probe(
+            "host-bottom-corner-resize-clearance",
+            """
+            payload = node_payload()
+            payload["ports"] = [
+                {
+                    "key": "exec_in",
+                    "label": "Exec In",
+                    "direction": "in",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "direction": "in",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                    "allow_multiple_connections": False,
+                },
+                {
+                    "key": "exec_out",
+                    "label": "Exec Out",
+                    "direction": "out",
+                    "kind": "exec",
+                    "data_type": "exec",
+                    "connected": False,
+                },
+                {
+                    "key": "result",
+                    "label": "Result",
+                    "direction": "out",
+                    "kind": "data",
+                    "data_type": "str",
+                    "connected": False,
+                    "allow_multiple_connections": False,
+                },
+            ]
+            payload["inline_properties"] = [
+                {
+                    "key": "message",
+                    "label": "Message",
+                    "inline_editor": "text",
+                    "value": "log message",
+                    "overridden_by_input": False,
+                    "input_port_label": "message",
+                }
+            ]
+
+            host = create_component(graph_node_host_qml_path, {"nodeData": payload})
+            handles = named_child_items(host, "graphNodeResizeHandle")
+            assert len(handles) == 4
+            bottom_left_handle = next(handle for handle in handles if str(handle.property("cornerRole")) == "bottomLeft")
+            bottom_right_handle = next(
+                handle for handle in handles if str(handle.property("cornerRole")) == "bottomRight"
+            )
+            bottom_left_area = bottom_left_handle.findChild(QObject, "graphNodeResizeDragArea")
+            bottom_right_area = bottom_right_handle.findChild(QObject, "graphNodeResizeDragArea")
+            input_mouse = named_item(host, "graphNodeInputPortMouseArea", "message")
+            output_mouse = max(
+                named_child_items(host, "graphNodeOutputPortMouseArea"),
+                key=lambda item: item.mapToScene(QPointF(item.width() * 0.5, item.height() * 0.5)).y(),
+            )
+
+            assert bottom_left_area is not None
+            assert bottom_right_area is not None
+            assert float(bottom_left_area.width()) < float(bottom_left_handle.width())
+            assert float(bottom_right_area.width()) < float(bottom_right_handle.width())
+
+            window = attach_host_to_window(host, 520, 320)
+            hover_host_local_point(window, host, host.width() * 0.5, host.height() * 0.5)
+
+            assert bool(bottom_left_handle.property("visible")) is True
+            assert bool(bottom_right_handle.property("visible")) is True
+
+            input_center_in_host = input_mouse.mapToItem(
+                host,
+                QPointF(input_mouse.width() * 0.5, input_mouse.height() * 0.5),
+            )
+            output_center_in_host = output_mouse.mapToItem(
+                host,
+                QPointF(output_mouse.width() * 0.5, output_mouse.height() * 0.5),
+            )
+
+            assert host._isResizeHandlePoint(float(input_center_in_host.x()), float(input_center_in_host.y())) is False
+            assert host._isResizeHandlePoint(float(output_center_in_host.x()), float(output_center_in_host.y())) is False
+            assert host._isResizeHandlePoint(1.0, float(host.height()) - 1.0) is True
+            assert host._isResizeHandlePoint(float(host.width()) - 1.0, float(host.height()) - 1.0) is True
+            assert host._isResizeHandlePoint(8.0, float(host.height()) - 9.0) is False
+            assert host._isResizeHandlePoint(float(host.width()) - 8.0, float(host.height()) - 9.0) is False
+
+            clicked_ports = []
+            preview_events = []
+            host.portClicked.connect(
+                lambda node_id, port_key, direction, scene_x, scene_y: clicked_ports.append((port_key, direction))
+            )
+            host.resizePreviewChanged.connect(
+                lambda node_id, x, y, width, height, active: preview_events.append(active)
+            )
+
+            mouse_click(window, item_scene_point(input_mouse))
+            mouse_click(window, item_scene_point(output_mouse))
+
+            assert ("message", "in") in clicked_ports
+            assert ("result", "out") in clicked_ports
+            assert preview_events == []
+            """,
+        )
+
     def test_node_card_wrapper_preserves_standard_host_contract(self) -> None:
         self._run_qml_probe(
             "node-card-wrapper",

@@ -878,7 +878,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
                 for handle in named_child_items(host, "graphNodeResizeHandle")
                 if str(handle.property("cornerRole")) == "topLeft"
             ][0]
-            start_point = item_scene_point(top_left_handle)
+            start_point = item_scene_point(top_left_handle, 0.25, 0.25)
             end_point = QPoint(start_point.x() - 30, start_point.y() - 20)
 
             QTest.mousePress(window, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier, start_point)

@@ -1,11 +1,12 @@
 import QtQuick 2.15
+import "GraphNodeHostHitTesting.js" as GraphNodeHostHitTesting
 
 Item {
     id: root
     objectName: "graphNodeResizeHandle"
     property Item host: null
     property string cornerRole: "bottomRight"
-    readonly property bool containsMouse: resizeDragArea.containsMouse
+    readonly property bool containsMouse: resizeDragArea.triangleContainsMouse
     readonly property bool dragActive: resizeDragArea.pressed
     readonly property bool _leftCorner: cornerRole === "topLeft" || cornerRole === "bottomLeft"
     readonly property bool _rightCorner: cornerRole === "topRight" || cornerRole === "bottomRight"
@@ -49,17 +50,34 @@ Item {
     MouseArea {
         id: resizeDragArea
         objectName: "graphNodeResizeDragArea"
-        anchors.fill: parent
+        width: root.host ? root.host._resizeHandleHitSize : 0
+        height: root.host ? root.host._resizeHandleHitSize : 0
+        anchors.left: root._leftCorner ? parent.left : undefined
+        anchors.right: root._rightCorner ? parent.right : undefined
+        anchors.top: root._topCorner ? parent.top : undefined
+        anchors.bottom: root._bottomCorner ? parent.bottom : undefined
         enabled: root.host ? !root.host.surfaceInteractionLocked : false
         hoverEnabled: true
-        cursorShape: root._forwardDiagonal ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor
+        cursorShape: triangleContainsMouse || pressed
+            ? (root._forwardDiagonal ? Qt.SizeFDiagCursor : Qt.SizeBDiagCursor)
+            : Qt.ArrowCursor
         preventStealing: true
+        acceptedButtons: triangleContainsMouse || pressed ? Qt.LeftButton : Qt.NoButton
         property real pressGlobalX: 0
         property real pressGlobalY: 0
         property real pressX: 0
         property real pressY: 0
         property real pressWidth: 0
         property real pressHeight: 0
+        readonly property bool triangleContainsMouse: containsMouse
+            && GraphNodeHostHitTesting.cornerTriangleContainsPoint(
+                mouseX,
+                mouseY,
+                width,
+                height,
+                root._leftCorner,
+                root._topCorner
+            )
 
         function updatePreviewFromDelta(deltaX, deltaY, active) {
             if (!root.host || !root.host.nodeData)
@@ -112,6 +130,17 @@ Item {
         onPressed: function(mouse) {
             if (!root.host || !root.host.nodeData)
                 return;
+            if (!GraphNodeHostHitTesting.cornerTriangleContainsPoint(
+                mouse.x,
+                mouse.y,
+                resizeDragArea.width,
+                resizeDragArea.height,
+                root._leftCorner,
+                root._topCorner
+            )) {
+                mouse.accepted = false;
+                return;
+            }
             if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
                 viewerSessionBridge.clear_viewer_focus();
             var gp = mapToGlobal(mouse.x, mouse.y);

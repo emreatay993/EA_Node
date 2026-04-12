@@ -429,38 +429,53 @@ Item {
                         ctx.clearRect(0, 0, width, height);
                         if (!visible || width <= 0 || height <= 0)
                             return;
-                        var strokeAlpha = lockedState ? 0.96 : 0.42;
-                        var fillAlpha = lockedState ? 0.24 : 0.12;
-                        ctx.lineWidth = 1.0;
-                        ctx.strokeStyle = Qt.rgba(1.0, 0.84, 0.45, strokeAlpha);
-                        ctx.fillStyle = Qt.rgba(1.0, 0.84, 0.45, fillAlpha);
+                        var accentStrokeAlpha = lockedState ? 1.0 : 0.68;
+                        var accentFillAlpha = lockedState ? 0.38 : 0.18;
+                        var outlineAlpha = lockedState ? 0.92 : 0.58;
+                        var outlineStroke = Qt.rgba(0.10, 0.07, 0.03, outlineAlpha);
+                        var accentStroke = Qt.rgba(1.0, 0.82, 0.34, accentStrokeAlpha);
+                        var accentFill = Qt.rgba(1.0, 0.88, 0.52, accentFillAlpha);
 
-                        ctx.beginPath();
-                        ctx.arc(width * 0.5, 4.0, 2.6, Math.PI, 0, false);
-                        ctx.stroke();
+                        function drawShackle(strokeStyle, lineWidth) {
+                            ctx.beginPath();
+                            ctx.lineWidth = lineWidth;
+                            ctx.strokeStyle = strokeStyle;
+                            ctx.arc(width * 0.5, 4.0, 2.6, Math.PI, 0, false);
+                            ctx.stroke();
+                        }
 
                         var bodyX = Math.round((width - 8) * 0.5);
                         var bodyY = 5.0;
                         var bodyWidth = 8.0;
                         var bodyHeight = 6.0;
                         var radius = 1.8;
-                        ctx.beginPath();
-                        ctx.moveTo(bodyX + radius, bodyY);
-                        ctx.lineTo(bodyX + bodyWidth - radius, bodyY);
-                        ctx.quadraticCurveTo(bodyX + bodyWidth, bodyY, bodyX + bodyWidth, bodyY + radius);
-                        ctx.lineTo(bodyX + bodyWidth, bodyY + bodyHeight - radius);
-                        ctx.quadraticCurveTo(
-                            bodyX + bodyWidth,
-                            bodyY + bodyHeight,
-                            bodyX + bodyWidth - radius,
-                            bodyY + bodyHeight
-                        );
-                        ctx.lineTo(bodyX + radius, bodyY + bodyHeight);
-                        ctx.quadraticCurveTo(bodyX, bodyY + bodyHeight, bodyX, bodyY + bodyHeight - radius);
-                        ctx.lineTo(bodyX, bodyY + radius);
-                        ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
-                        ctx.fill();
-                        ctx.stroke();
+                        function drawBody(strokeStyle, fillStyle, lineWidth) {
+                            ctx.beginPath();
+                            ctx.lineWidth = lineWidth;
+                            ctx.strokeStyle = strokeStyle;
+                            ctx.fillStyle = fillStyle;
+                            ctx.moveTo(bodyX + radius, bodyY);
+                            ctx.lineTo(bodyX + bodyWidth - radius, bodyY);
+                            ctx.quadraticCurveTo(bodyX + bodyWidth, bodyY, bodyX + bodyWidth, bodyY + radius);
+                            ctx.lineTo(bodyX + bodyWidth, bodyY + bodyHeight - radius);
+                            ctx.quadraticCurveTo(
+                                bodyX + bodyWidth,
+                                bodyY + bodyHeight,
+                                bodyX + bodyWidth - radius,
+                                bodyY + bodyHeight
+                            );
+                            ctx.lineTo(bodyX + radius, bodyY + bodyHeight);
+                            ctx.quadraticCurveTo(bodyX, bodyY + bodyHeight, bodyX, bodyY + bodyHeight - radius);
+                            ctx.lineTo(bodyX, bodyY + radius);
+                            ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+
+                        drawShackle(outlineStroke, 2.6);
+                        drawBody(outlineStroke, Qt.rgba(0.0, 0.0, 0.0, 0.0), 2.6);
+                        drawShackle(accentStroke, 1.2);
+                        drawBody(accentStroke, accentFill, 1.2);
                     }
 
                     Component.onCompleted: requestPaint()
