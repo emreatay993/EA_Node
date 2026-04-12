@@ -91,6 +91,15 @@ class InspectorReflectionTests(unittest.TestCase):
         self.assertEqual(node.title, "Validate Input")
         self.assertEqual(node.properties["title"], "Validate Input")
 
+    def test_comment_backdrop_set_node_title_writes_back_title_property(self) -> None:
+        node_id = self.scene.add_node_from_type("passive.annotation.comment_backdrop", 0.0, 0.0)
+
+        self.scene.set_node_title(node_id, "Processing Group")
+
+        node = self.model.project.workspaces[self.workspace_id].nodes[node_id]
+        self.assertEqual(node.title, "Processing Group")
+        self.assertEqual(node.properties["title"], "Processing Group")
+
     def test_flowchart_body_property_update_preserves_canonical_title_metadata(self) -> None:
         node_id = self.scene.add_node_from_type("passive.flowchart.process", 0.0, 0.0)
 

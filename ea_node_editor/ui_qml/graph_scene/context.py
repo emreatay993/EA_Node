@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 def _surface_title_sync_enabled(spec: NodeTypeSpec) -> bool:
     family = str(spec.surface_family or "").strip()
-    return family in {"flowchart", "planning", "annotation"} and any(
+    return family in {"flowchart", "planning", "annotation", "comment_backdrop"} and any(
         prop.key == "title" for prop in spec.properties
     )
 

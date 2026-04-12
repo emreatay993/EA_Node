@@ -21,6 +21,7 @@ Item {
         ? String(root.host.nodeData.title || "")
         : ""
     readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
+    readonly property bool usesSharedTitleTypography: root.isCommentBackdropNode || !(root.host && root.host.isPassiveNode)
     readonly property string displayTitle: {
         var title = String(root.currentTitle || "");
         if (root.isCommentBackdropNode && title.trim() === "Comment Backdrop")
@@ -145,13 +146,13 @@ Item {
         height: root.host ? root.host._titleHeight : 0
         text: root.displayTitle
         color: root.host ? root.host.headerTextColor : "#f0f4fb"
-        font.pixelSize: root.host && root.host.isPassiveNode
-            ? root.host.passiveFontPixelSize
-            : (root.graphSharedTypography ? root.graphSharedTypography.nodeTitlePixelSize : 12)
+        font.pixelSize: root.usesSharedTitleTypography
+            ? (root.graphSharedTypography ? root.graphSharedTypography.nodeTitlePixelSize : 12)
+            : (root.host ? root.host.passiveFontPixelSize : 12)
         font.weight: root.host
-            ? (root.host.isPassiveNode
-                ? root.host.passiveFontWeight
-                : (root.graphSharedTypography ? root.graphSharedTypography.nodeTitleFontWeight : Font.Bold))
+            ? (root.usesSharedTitleTypography
+                ? (root.graphSharedTypography ? root.graphSharedTypography.nodeTitleFontWeight : Font.Bold)
+                : root.host.passiveFontWeight)
             : Font.Bold
         horizontalAlignment: root.host && root.host._titleCentered ? Text.AlignHCenter : Text.AlignLeft
         verticalAlignment: Text.AlignVCenter

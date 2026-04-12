@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gc
+from unittest.mock import patch
 
 from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtQuick import QQuickItem
@@ -208,6 +209,29 @@ class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
         self.assertEqual(backdrop_node.type_id, COMMENT_BACKDROP_TYPE_ID)
         self.assertEqual(self.window.scene.selected_node_lookup, {backdrop_id: True})
         self.assertFalse(bool(graph_canvas.property("selectionContextVisible")))
+
+    def test_comment_backdrop_context_menu_rename_updates_title_and_title_property(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        graph_canvas = self._graph_canvas_item()
+        node_context_popup = graph_canvas.findChild(QObject, "graphCanvasNodeContextPopup")
+        self.assertIsNotNone(node_context_popup)
+
+        backdrop_id = self._add_backdrop(160.0, 120.0, 380.0, 260.0)
+        self.app.processEvents()
+
+        graph_canvas.setProperty("nodeContextNodeId", backdrop_id)
+        graph_canvas.setProperty("nodeContextVisible", True)
+        self.app.processEvents()
+
+        with patch("PyQt6.QtWidgets.QInputDialog.getText", return_value=("Mesh Extraction", True)):
+            node_context_popup.actionTriggered.emit("rename_node")
+        self.app.processEvents()
+
+        backdrop = workspace.nodes[backdrop_id]
+        self.assertEqual(backdrop.title, "Mesh Extraction")
+        self.assertEqual(backdrop.properties["title"], "Mesh Extraction")
+        self.assertFalse(bool(graph_canvas.property("nodeContextVisible")))
 
     def test_comment_backdrop_wrap_action_is_no_op_for_empty_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
