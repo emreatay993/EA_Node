@@ -432,9 +432,9 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
 
 
 class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
-    def test_graph_canvas_port_double_click_signal_tracks_locked_state(self) -> None:
+    def test_graph_canvas_lock_toggle_hit_target_tracks_locked_state(self) -> None:
         self._run_qml_probe(
-            "graph-canvas-port-double-click-signal",
+            "graph-canvas-lock-toggle-hit-target",
             """
             from ea_node_editor.graph.model import GraphModel
             from ea_node_editor.nodes.bootstrap import build_default_registry
@@ -476,26 +476,31 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
             assert node.locked_ports.get("message") is True, node.locked_ports
 
             lock_toggle = named_item(canvas, "graphNodeInputPortLockToggleMouseArea", "message")
-            node_card = named_item(canvas, "graphNodeCard")
             assert bool(lock_toggle.property("visible")) is True, variant_value(lock_toggle.property("visible"))
-            toggle_events = []
-            node_card.portDoubleClicked.connect(
-                lambda node_id, port_key, direction, locked: toggle_events.append(
-                    (node_id, port_key, direction, locked)
-                )
-            )
+            input_layers = named_item(canvas, "graphCanvasInputLayers")
             window = attach_host_to_window(canvas, 760, 520)
 
-            mouse_double_click(window, item_scene_point(lock_toggle))
-            settle_events(4)
-            assert toggle_events == [(node_id, "message", "in", True)], toggle_events
+            lock_point = item_scene_point(lock_toggle)
+            hit_target = input_layers._lockToggleTargetAtScreen(lock_point.x(), lock_point.y())
+            assert hit_target is not None
+            assert str(hit_target.property("nodeId")) == node_id
+            assert str(hit_target.property("propertyKey")) == "message"
+            assert str(hit_target.property("portDirection")) == "in"
+            assert bool(hit_target.property("lockedState")) is True
 
-            mouse_double_click(window, item_scene_point(lock_toggle))
+            assert canvas.togglePortLock(node_id, "message", True) is True
             settle_events(4)
-            assert toggle_events == [
-                (node_id, "message", "in", True),
-                (node_id, "message", "in", True),
-            ], toggle_events
+            assert node.locked_ports.get("message") is False, node.locked_ports
+
+            lock_toggle = named_item(canvas, "graphNodeInputPortLockToggleMouseArea", "message")
+            lock_point = item_scene_point(lock_toggle)
+            hit_target = input_layers._lockToggleTargetAtScreen(lock_point.x(), lock_point.y())
+            assert hit_target is not None
+            assert bool(hit_target.property("lockedState")) is False
+
+            assert canvas.togglePortLock(node_id, "message", False) is True
+            settle_events(4)
+            assert node.locked_ports.get("message") is True, node.locked_ports
 
             dispose_host_window(canvas, window)
             engine.deleteLater()

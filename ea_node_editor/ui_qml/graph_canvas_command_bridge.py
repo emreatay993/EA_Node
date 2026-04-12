@@ -133,6 +133,8 @@ class _GraphCanvasSceneCommandSource(Protocol):
 
     def set_node_geometry(self, node_id: str, x: float, y: float, width: float, height: float) -> None: ...
 
+    def set_port_locked(self, node_id: str, key: str, locked: bool) -> bool: ...
+
 
 class _GraphCanvasScenePolicySource(Protocol):
     def are_port_kinds_compatible(self, source_kind: str, target_kind: str) -> bool: ...
@@ -567,6 +569,19 @@ class GraphCanvasCommandBridge(QObject):
             float(y),
             float(width),
             float(height),
+        )
+
+    @pyqtSlot(str, str, bool, result=bool)
+    def set_port_locked(self, node_id: str, port_key: str, locked: bool) -> bool:
+        return bool(
+            _invoke(
+                self._scene_command_source,
+                "set_port_locked",
+                node_id,
+                port_key,
+                bool(locked),
+                default=False,
+            )
         )
 
     @pyqtSlot(int)

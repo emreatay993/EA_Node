@@ -704,6 +704,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                     "data_type": "str",
                     "connected": False,
                     "locked": True,
+                    "lockable": True,
                     "allow_multiple_connections": False,
                 },
                 {
@@ -714,6 +715,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                     "data_type": "int",
                     "connected": False,
                     "locked": False,
+                    "lockable": True,
                     "allow_multiple_connections": False,
                 },
                 {
@@ -751,6 +753,7 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             unlocked_row = named_item(probe, "graphNodeInputPortRow", "count")
             locked_tint = named_item(probe, "graphNodeInputPortLockedRowTint", "message")
             unlocked_tint = named_item(probe, "graphNodeInputPortLockedRowTint", "count")
+            locked_dot = named_item(probe, "graphNodeInputPortDot", "message")
             locked_label = named_item(probe, "graphNodeInputPortLabel", "message")
             unlocked_label = named_item(probe, "graphNodeInputPortLabel", "count")
             locked_padlock = named_item(probe, "graphNodeInputPortPadlock", "message")
@@ -768,6 +771,9 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert bool(locked_padlock.property("visible")) is True
             assert bool(unlocked_padlock.property("visible")) is True
             assert float(locked_padlock.property("opacity")) > float(unlocked_padlock.property("opacity"))
+            assert abs(item_scene_point(locked_padlock).x() - item_scene_point(locked_dot).x()) < 1.0
+            assert abs(item_scene_point(locked_padlock).y() - item_scene_point(locked_dot).y()) < 1.0
+            assert float(locked_label.x()) < float(unlocked_label.x())
             assert bool(lock_toggle.property("visible")) is True
             """,
         )

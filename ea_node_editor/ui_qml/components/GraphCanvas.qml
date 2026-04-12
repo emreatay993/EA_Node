@@ -313,6 +313,27 @@ Item {
     function finishPortWireDrag(nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive) { GraphCanvasRootApi.invoke(interactionState, "finishPortWireDrag", [nodeId, portKey, direction, _sceneX, _sceneY, screenX, screenY, dragActive]); }
     function cancelWireDrag() { return GraphCanvasRootApi.invoke(interactionState, "cancelWireDrag", [], false); }
     function handlePortClick(nodeId, portKey, direction, sceneX, sceneY) { GraphCanvasRootApi.invoke(interactionState, "handlePortClick", [nodeId, portKey, direction, sceneX, sceneY]); }
+    function _portLockBridge() {
+        if (root.canvasCommandBridge && root.canvasCommandBridge.set_port_locked)
+            return root.canvasCommandBridge;
+        if (root.sceneCommandBridge && root.sceneCommandBridge.set_port_locked)
+            return root.sceneCommandBridge;
+        return null;
+    }
+    function togglePortLock(nodeId, portKey, locked) {
+        var bridge = _portLockBridge();
+        if (!bridge || !bridge.set_port_locked)
+            return false;
+        if (!bridge.set_port_locked(nodeId, portKey, !Boolean(locked)))
+            return false;
+        clearPendingConnection();
+        cancelWireDrag();
+        hoveredPort = null;
+        if (requestEdgeRedraw)
+            requestEdgeRedraw();
+        forceActiveFocus();
+        return true;
+    }
     function _syncEdgePayload() { GraphCanvasRootApi.invoke(sceneState, "syncEdgePayload"); }
     function requestEdgeRedraw() { GraphCanvasRootApi.invoke(sceneLifecycle, "requestEdgeRedraw"); }
     function requestViewStateRedraw() { GraphCanvasRootApi.invoke(viewportController, "requestViewStateRedraw"); }

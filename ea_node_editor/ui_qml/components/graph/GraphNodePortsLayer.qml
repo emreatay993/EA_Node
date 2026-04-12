@@ -159,6 +159,7 @@ Item {
                 property bool revealState: root._flowEdgePortRevealActive(modelData, attentionState, selectedState)
                 property bool connectedState: root.host ? root.host.isConnectedPort(modelData) : false
                 property color portColor: root.host ? root.host.basePortColor(modelData.kind) : "#7AA8FF"
+                property real lockedDiameter: 12
                 property real restDiameter: root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (connectedState ? root.host.flowchartConnectedPortDiameter : root.host.flowchartRestPortDiameter)
                     : 8
@@ -170,12 +171,12 @@ Item {
                     : (attentionState ? 18 : 12)
                 x: parent.portPoint.x - width * 0.5
                 anchors.verticalCenter: parent.verticalCenter
-                width: interactiveState ? activeDiameter : restDiameter
+                width: lockedState ? lockedDiameter : (interactiveState ? activeDiameter : restDiameter)
                 height: width
-                radius: width * 0.5
-                opacity: revealState ? (interactionBlockedState ? 0.72 : (inactiveState ? 0.46 : 1.0)) : 0.0
+                radius: lockedState ? 0 : width * 0.5
+                opacity: lockedState ? 1.0 : (revealState ? (interactionBlockedState ? 0.72 : (inactiveState ? 0.46 : 1.0)) : 0.0)
                 color: lockedState
-                    ? Qt.rgba(1.0, 0.84, 0.45, interactiveState ? 0.38 : 0.16)
+                    ? "transparent"
                     : (root.host && root.host.usesCardinalNeutralFlowHandles
                     ? (attentionState
                         ? root.host.portInteractiveFillColor
@@ -183,9 +184,11 @@ Item {
                     : (interactiveState
                         ? (root.host ? root.host.portInteractiveFillColor : "#FFDA6B")
                         : (connectedState ? portColor : "transparent")))
-                border.width: root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1)
+                border.width: lockedState
+                    ? 0
+                    : (root.host && root.host.usesCardinalNeutralFlowHandles ? (attentionState ? 1.8 : 1.1) : (interactiveState ? 2 : 1))
                 border.color: lockedState
-                    ? Qt.rgba(1.0, 0.84, 0.45, 0.92)
+                    ? "transparent"
                     : (attentionState
                     ? (root.host ? root.host.portInteractiveBorderColor : portColor)
                     : (root.host && root.host.usesCardinalNeutralFlowHandles && selectedState
@@ -251,7 +254,19 @@ Item {
                     ToolTip.delay: 400
 
                     onPressed: function(mouse) {
-                        if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton || inputDot.interactionBlockedState)
+                        if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
+                            return;
+                        if (inputDot.lockedState && inputDot.lockableState) {
+                            root.host.portDoubleClicked(
+                                root.host.nodeData.node_id,
+                                modelData.key,
+                                inputDot.interactionDirection,
+                                true
+                            );
+                            mouse.accepted = true;
+                            return;
+                        }
+                        if (inputDot.interactionBlockedState)
                             return;
                         pressStartX = mouse.x;
                         pressStartY = mouse.y;
@@ -318,6 +333,20 @@ Item {
                         movedState = false;
                     }
 
+                    onDoubleClicked: function(mouse) {
+                        if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
+                            return;
+                        if (!inputDot.lockableState || inputDot.lockedState || inputDot.inactiveState)
+                            return;
+                        root.host.portDoubleClicked(
+                            root.host.nodeData.node_id,
+                            modelData.key,
+                            inputDot.interactionDirection,
+                            false
+                        );
+                        mouse.accepted = true;
+                    }
+
                     onCanceled: {
                         if (!root.host || !root.host.nodeData)
                             return;
@@ -365,8 +394,8 @@ Item {
                 readonly property bool lockableState: inputPortRow.lockableState
                 readonly property bool lockedState: inputPortRow.lockedState
                 readonly property bool labelTextVisible: root.host ? root.host._portLabelsVisible : true
-                readonly property real lockGlyphWidth: lockableState ? 10 : 0
-                readonly property real lockGlyphGap: lockableState ? 4 : 0
+                readonly property real lockGlyphWidth: lockableState && !lockedState ? 10 : 0
+                readonly property real lockGlyphGap: lockableState && !lockedState ? 4 : 0
                 readonly property real textLeftInset: lockableState ? (lockGlyphWidth + lockGlyphGap) : 0
                 readonly property bool standardColumnsActive: root.host ? root.host._usesStandardPortLabelColumns : false
                 readonly property real labelX: Math.max(0, inputDot.x + inputDot.width + (root.host ? root.host._portLabelGap : 6))
@@ -394,13 +423,16 @@ Item {
                     objectName: "graphNodeInputPortPadlock"
                     property string propertyKey: inputLabelContainer.propertyKey
                     readonly property bool lockedState: inputLabelContainer.lockedState
+                    parent: inputLabelContainer.lockedState ? inputDot : inputLabelContainer
                     visible: inputLabelContainer.lockableState
-                    anchors.left: parent.left
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: inputLabelContainer.lockGlyphWidth
+                    x: inputLabelContainer.lockedState ? Math.round((parent.width - width) * 0.5) : 0
+                    y: Math.round((parent.height - height) * 0.5)
+                    width: 10
                     height: 12
                     implicitHeight: height
                     antialiasing: true
+                    opacity: lockedState ? 0.96 : 0.42
+                    z: 2
 
                     onPaint: {
                         var ctx = getContext("2d");
@@ -450,18 +482,27 @@ Item {
                     id: inputLockToggleMouse
                     objectName: "graphNodeInputPortLockToggleMouseArea"
                     property string propertyKey: inputLabelContainer.propertyKey
+                    property string nodeId: root.host && root.host.nodeData
+                        ? String(root.host.nodeData.node_id || "")
+                        : ""
+                    property string portDirection: inputPortRow.interactionDirection
+                    property bool lockedState: inputLabelContainer.lockedState
+                    property Item hostItem: root.host
+                    parent: inputLabelContainer.lockedState ? inputDot : inputLabelContainer
                     visible: inputLabelContainer.lockableState
-                    anchors.fill: lockGlyph
+                    x: lockGlyph.x
+                    y: lockGlyph.y
+                    width: lockGlyph.width
+                    height: lockGlyph.height
                     acceptedButtons: Qt.LeftButton
                     hoverEnabled: true
                     preventStealing: true
                     cursorShape: Qt.PointingHandCursor
+                    z: 3
 
-                    onClicked: function(mouse) {
-                        mouse.accepted = true;
-                    }
-
-                    onDoubleClicked: function(mouse) {
+                    onPressed: function(mouse) {
+                        if (mouse.button !== Qt.LeftButton)
+                            return;
                         if (!root.host || !root.host.nodeData)
                             return;
                         root.host.portDoubleClicked(
@@ -470,6 +511,14 @@ Item {
                             inputPortRow.interactionDirection,
                             inputLabelContainer.lockedState
                         );
+                        mouse.accepted = true;
+                    }
+
+                    onClicked: function(mouse) {
+                        mouse.accepted = true;
+                    }
+
+                    onDoubleClicked: function(mouse) {
                         mouse.accepted = true;
                     }
                 }

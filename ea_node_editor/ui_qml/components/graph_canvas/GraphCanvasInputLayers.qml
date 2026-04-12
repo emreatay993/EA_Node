@@ -51,6 +51,38 @@ Item {
         return false;
     }
 
+    function _lockToggleTargetAtScreen(screenX, screenY) {
+        if (!root.canvasItem)
+            return null;
+        return _lockToggleTargetInItem(root.canvasItem, Number(screenX), Number(screenY));
+    }
+
+    function _lockToggleTargetInItem(item, screenX, screenY) {
+        if (!item || item.visible === false)
+            return null;
+
+        var children = item.children || [];
+        for (var i = children.length - 1; i >= 0; --i) {
+            var child = children[i];
+            if (!child || child.mapFromItem === undefined)
+                continue;
+            var nested = _lockToggleTargetInItem(child, screenX, screenY);
+            if (nested)
+                return nested;
+        }
+
+        if (
+            item.objectName === "graphNodeInputPortLockToggleMouseArea"
+            && item.enabled !== false
+            && String(item.nodeId || "").length > 0
+        ) {
+            var local = item.mapFromItem(root.canvasItem, screenX, screenY);
+            if (local.x >= 0 && local.x <= item.width && local.y >= 0 && local.y <= item.height)
+                return item;
+        }
+        return null;
+    }
+
     Keys.onDeletePressed: function(event) {
         if (root.shellCommandBridge && root.canvasItem)
             root.shellCommandBridge.request_delete_selected_graph_items(root.canvasItem.selectedEdgeIds);
@@ -135,6 +167,28 @@ Item {
                 panArea.cancelPanningForChord();
                 mouse.accepted = true;
                 return;
+            }
+            if (mouse.button === Qt.LeftButton) {
+                var lockToggleTarget = root._lockToggleTargetAtScreen(mouse.x, mouse.y);
+                if (lockToggleTarget) {
+                    if (lockToggleTarget.hostItem && lockToggleTarget.hostItem.portDoubleClicked) {
+                        lockToggleTarget.hostItem.portDoubleClicked(
+                            lockToggleTarget.nodeId,
+                            lockToggleTarget.propertyKey,
+                            lockToggleTarget.portDirection,
+                            Boolean(lockToggleTarget.lockedState)
+                        );
+                    } else if (root.canvasItem && root.canvasItem.togglePortLock) {
+                        root.canvasItem.togglePortLock(
+                            lockToggleTarget.nodeId,
+                            lockToggleTarget.propertyKey,
+                            Boolean(lockToggleTarget.lockedState)
+                        );
+                    }
+                    resetGestureState();
+                    mouse.accepted = true;
+                    return;
+                }
             }
             startX = mouse.x;
             startY = mouse.y;
