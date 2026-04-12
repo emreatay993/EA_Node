@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
+from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from ea_node_editor.graph.comment_backdrop_geometry import (
@@ -16,11 +19,21 @@ from ea_node_editor.graph.input_semantics import (
     driven_by_input_reason,
     inactive_input_source_key,
 )
-from ea_node_editor.graph.model import GraphModel, WorkspaceData
+from ea_node_editor.graph.model import (
+    GraphModel,
+    WorkspaceData,
+    edge_instance_from_mapping,
+    node_instance_from_mapping,
+)
 from ea_node_editor.graph.port_locking import lockable_port_keys
+from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
+    ANSYS_DPF_DEPENDENCY,
+    get_ansys_dpf_plugin_availability,
+    load_ansys_dpf_plugin_descriptors,
+)
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
 from ea_node_editor.settings import (
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
@@ -85,6 +98,195 @@ def _graph_label_pixel_size(graph_theme_bridge: GraphThemeBridge | None) -> int:
 def _is_standard_surface(spec: NodeTypeSpec) -> bool:
     family = str(spec.surface_family or "standard").strip() or "standard"
     return family == "standard"
+
+
+@dataclass(slots=True, frozen=True)
+class _PlaceholderNodeContext:
+    spec: NodeTypeSpec
+    unavailable_reason: str
+
+
+def _placeholder_unavailable_reason() -> str:
+    availability = get_ansys_dpf_plugin_availability()
+    if availability.is_available:
+        return ""
+    if availability.summary:
+        return availability.summary
+    if availability.missing_dependencies:
+        return ", ".join(availability.missing_dependencies)
+    return f"{ANSYS_DPF_DEPENDENCY} is unavailable."
+
+
+def _placeholder_spec_from_live_spec(spec: NodeTypeSpec) -> NodeTypeSpec:
+    return NodeTypeSpec(
+        type_id=spec.type_id,
+        display_name=spec.display_name,
+        category_path=spec.category_path,
+        icon=spec.icon,
+        ports=spec.ports,
+        properties=(),
+        collapsible=spec.collapsible,
+        description=spec.description,
+        runtime_behavior="passive",
+        surface_family="standard",
+    )
+
+
+@lru_cache(maxsize=1)
+def _dpf_placeholder_specs_by_type_id() -> dict[str, NodeTypeSpec]:
+    try:
+        return {
+            descriptor.spec.type_id: _placeholder_spec_from_live_spec(descriptor.spec)
+            for descriptor in load_ansys_dpf_plugin_descriptors()
+        }
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _fallback_placeholder_spec(
+    *,
+    node_id: str,
+    node_doc: Mapping[str, Any],
+    unresolved_edge_docs: Mapping[str, Mapping[str, Any]],
+) -> NodeTypeSpec:
+    port_labels = {
+        str(key).strip(): str(value).strip()
+        for key, value in dict(node_doc.get("port_labels", {})).items()
+        if str(key).strip() and str(value).strip()
+    }
+    exposed_ports = {
+        str(key).strip(): bool(value)
+        for key, value in dict(node_doc.get("exposed_ports", {})).items()
+        if str(key).strip()
+    }
+    incoming_port_keys: set[str] = set()
+    outgoing_port_keys: set[str] = set()
+    for edge_doc in unresolved_edge_docs.values():
+        if str(edge_doc.get("source_node_id", "")).strip() == node_id:
+            port_key = str(edge_doc.get("source_port_key", "")).strip()
+            if port_key:
+                outgoing_port_keys.add(port_key)
+        if str(edge_doc.get("target_node_id", "")).strip() == node_id:
+            port_key = str(edge_doc.get("target_port_key", "")).strip()
+            if port_key:
+                incoming_port_keys.add(port_key)
+
+    port_specs: list[PortSpec] = []
+    port_keys = sorted(set(port_labels) | set(exposed_ports) | incoming_port_keys | outgoing_port_keys)
+    for port_key in port_keys:
+        direction = "in" if port_key in incoming_port_keys and port_key not in outgoing_port_keys else "out"
+        port_specs.append(
+            PortSpec(
+                key=port_key,
+                direction=direction,
+                kind="data",
+                data_type="any",
+                label=port_labels.get(port_key, port_key),
+                exposed=exposed_ports.get(port_key, port_key in incoming_port_keys or port_key in outgoing_port_keys),
+                allow_multiple_connections=direction != "in",
+                side="left" if direction == "in" else "right",
+            )
+        )
+
+    title = str(node_doc.get("title", "")).strip()
+    type_id = str(node_doc.get("type_id", "")).strip() or f"dpf.placeholder.{node_id}"
+    return NodeTypeSpec(
+        type_id=type_id,
+        display_name=title or type_id,
+        category_path=("Ansys DPF",),
+        icon="warning",
+        ports=tuple(port_specs),
+        properties=(),
+        runtime_behavior="passive",
+        surface_family="standard",
+    )
+
+
+def _placeholder_context_for_node(
+    *,
+    node_id: str,
+    node_doc: Mapping[str, Any],
+    unresolved_edge_docs: Mapping[str, Mapping[str, Any]],
+) -> _PlaceholderNodeContext | None:
+    type_id = str(node_doc.get("type_id", "")).strip()
+    if not type_id:
+        return None
+    spec = _dpf_placeholder_specs_by_type_id().get(type_id)
+    if spec is None and not type_id.casefold().startswith("dpf."):
+        return None
+    if spec is None:
+        spec = _fallback_placeholder_spec(
+            node_id=node_id,
+            node_doc=node_doc,
+            unresolved_edge_docs=unresolved_edge_docs,
+        )
+    return _PlaceholderNodeContext(
+        spec=spec,
+        unavailable_reason=_placeholder_unavailable_reason(),
+    )
+
+
+def _payload_workspace_projection(
+    workspace: WorkspaceData,
+) -> tuple[WorkspaceData, dict[str, _PlaceholderNodeContext]]:
+    persistence_state = workspace.capture_persistence_state()
+    if not (
+        persistence_state.unresolved_node_docs
+        or persistence_state.unresolved_edge_docs
+        or persistence_state.authored_node_overrides
+    ):
+        return workspace, {}
+
+    payload_workspace = WorkspaceData(
+        workspace_id=workspace.workspace_id,
+        name=workspace.name,
+        nodes={node_id: node.clone() for node_id, node in workspace.nodes.items()},
+        edges={edge_id: edge.clone() for edge_id, edge in workspace.edges.items()},
+        views=copy.deepcopy(workspace.views),
+        active_view_id=workspace.active_view_id,
+        dirty=workspace.dirty,
+    )
+    placeholder_context_by_id: dict[str, _PlaceholderNodeContext] = {}
+
+    for node_id, node_doc in persistence_state.unresolved_node_docs.items():
+        if node_id in payload_workspace.nodes or not isinstance(node_doc, Mapping):
+            continue
+        context = _placeholder_context_for_node(
+            node_id=node_id,
+            node_doc=node_doc,
+            unresolved_edge_docs=persistence_state.unresolved_edge_docs,
+        )
+        if context is None:
+            continue
+        node = node_instance_from_mapping(node_doc)
+        if node is None:
+            continue
+        if not str(node.title).strip():
+            node.title = context.spec.display_name
+        payload_workspace.nodes[node.node_id] = node
+        placeholder_context_by_id[node.node_id] = context
+
+    for node in payload_workspace.nodes.values():
+        override_doc = persistence_state.authored_node_overrides.get(node.node_id)
+        if not isinstance(override_doc, Mapping):
+            continue
+        parent_node_id = str(override_doc.get("parent_node_id", "")).strip() or None
+        if parent_node_id is None or parent_node_id == node.node_id:
+            continue
+        if parent_node_id in payload_workspace.nodes:
+            node.parent_node_id = parent_node_id
+
+    for edge_id, edge_doc in persistence_state.unresolved_edge_docs.items():
+        if edge_id in payload_workspace.edges or not isinstance(edge_doc, Mapping):
+            continue
+        edge = edge_instance_from_mapping(edge_doc)
+        if edge is None:
+            continue
+        if edge.source_node_id not in payload_workspace.nodes or edge.target_node_id not in payload_workspace.nodes:
+            continue
+        payload_workspace.edges[edge.edge_id] = edge
+
+    return payload_workspace, placeholder_context_by_id
 
 
 class _GraphSceneNodePayloadFactory:
@@ -157,6 +359,7 @@ class _GraphSceneNodePayloadFactory:
         workspace_nodes: dict[str, Any],
         port_connection_counts: dict[tuple[str, str], int],
         graph_theme: GraphThemeDefinition,
+        placeholder_context: _PlaceholderNodeContext | None = None,
         hide_locked_ports: bool = False,
         hide_optional_ports: bool = False,
         show_port_labels: bool = True,
@@ -175,12 +378,14 @@ class _GraphSceneNodePayloadFactory:
             workspace_nodes,
             show_port_labels=show_port_labels,
         )
-        inline_properties_payload = build_inline_property_items(
-            node=node,
-            spec=spec,
-            workspace_nodes=workspace_nodes,
-            port_connection_counts=port_connection_counts,
-        )
+        inline_properties_payload = []
+        if placeholder_context is None:
+            inline_properties_payload = build_inline_property_items(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace_nodes,
+                port_connection_counts=port_connection_counts,
+            )
         payload = {
             "node_id": node.node_id,
             "type_id": node.type_id,
@@ -200,6 +405,13 @@ class _GraphSceneNodePayloadFactory:
             "surface_metrics": surface_metrics.to_payload(),
             "visual_style": copy.deepcopy(node.visual_style),
             "can_enter_scope": is_subnode_shell_type(node.type_id),
+            "unresolved": placeholder_context is not None,
+            "read_only": placeholder_context is not None,
+            "unavailable_reason": (
+                placeholder_context.unavailable_reason
+                if placeholder_context is not None
+                else ""
+            ),
             "ports": self.build_ports_payload(
                 node=node,
                 spec=spec,
@@ -381,6 +593,7 @@ class _GraphSceneBackdropPartitioner:
         registry: NodeRegistry,
         scope_path: ScopePath,
         graph_theme: GraphThemeDefinition,
+        placeholder_context_by_id: Mapping[str, _PlaceholderNodeContext] | None = None,
         graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
@@ -388,6 +601,7 @@ class _GraphSceneBackdropPartitioner:
         workspace_edges = scope_edges(workspace, scope_path)
         port_connection_counts = self.port_connection_counts(workspace_edges)
         workspace_nodes = dict(workspace.nodes)
+        placeholder_context_by_id = dict(placeholder_context_by_id or {})
         hide_locked_ports, hide_optional_ports = self.active_view_port_filters(workspace)
 
         nodes_payload: list[dict[str, Any]] = []
@@ -401,7 +615,12 @@ class _GraphSceneBackdropPartitioner:
 
         for node_id in visible_node_ids:
             node = workspace.nodes[node_id]
-            spec = registry.get_spec(node.type_id)
+            placeholder_context = placeholder_context_by_id.get(node_id)
+            spec = registry.spec_or_none(node.type_id)
+            if spec is None and placeholder_context is not None:
+                spec = placeholder_context.spec
+            if spec is None:
+                continue
             node_specs[node_id] = spec
             payload_node = self._node_payload_factory._resolved_payload_node(
                 node=node,
@@ -418,6 +637,7 @@ class _GraphSceneBackdropPartitioner:
                 workspace_nodes=workspace_nodes,
                 port_connection_counts=port_connection_counts,
                 graph_theme=graph_theme,
+                placeholder_context=placeholder_context,
                 hide_locked_ports=hide_locked_ports,
                 hide_optional_ports=hide_optional_ports,
                 show_port_labels=show_port_labels,
@@ -464,6 +684,8 @@ class _GraphSceneBackdropPartitioner:
         )
         for node_id in visible_node_ids:
             if collapsed_proxy_backdrop_by_node_id.get(node_id):
+                continue
+            if node_id not in node_payload_by_id or node_id not in minimap_payload_by_id:
                 continue
             node_payload = node_payload_by_id[node_id]
             is_comment_backdrop = node_id in comment_backdrop_ids
@@ -561,12 +783,13 @@ class GraphScenePayloadBuilder:
         scope_path: ScopePath,
         edge_id: str,
     ) -> dict[str, Any] | None:
-        edge = workspace.edges.get(edge_id)
+        payload_workspace, _placeholder_context_by_id = _payload_workspace_projection(workspace)
+        edge = payload_workspace.edges.get(edge_id)
         if edge is None:
             return None
-        if not is_node_in_scope(workspace, edge.source_node_id, scope_path):
+        if not is_node_in_scope(payload_workspace, edge.source_node_id, scope_path):
             return None
-        if not is_node_in_scope(workspace, edge.target_node_id, scope_path):
+        if not is_node_in_scope(payload_workspace, edge.target_node_id, scope_path):
             return None
         return {
             "edge_id": edge.edge_id,
@@ -611,13 +834,16 @@ class GraphScenePayloadBuilder:
         if model is None or registry is None or not workspace_id:
             return [], [], [], []
 
-        workspace = model.project.workspaces[workspace_id]
+        workspace, placeholder_context_by_id = _payload_workspace_projection(
+            model.project.workspaces[workspace_id]
+        )
         graph_label_pixel_size = _graph_label_pixel_size(graph_theme_bridge)
         return self._backdrop_partitioner.build_payload_models(
             workspace=workspace,
             registry=registry,
             scope_path=scope_path,
             graph_theme=self.active_graph_theme(graph_theme_bridge),
+            placeholder_context_by_id=placeholder_context_by_id,
             graph_label_pixel_size=graph_label_pixel_size,
             show_port_labels=show_port_labels,
         )

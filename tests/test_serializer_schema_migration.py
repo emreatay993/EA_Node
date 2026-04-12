@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import unittest
 
+from ea_node_editor.graph.normalization import normalize_project_for_registry
+from ea_node_editor.nodes.builtins.ansys_dpf_compute import (
+    DpfModelNodePlugin,
+    DpfResultFileNodePlugin,
+)
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
 
@@ -24,6 +30,73 @@ def _workspace_doc(workspace_id: str, name: str) -> dict[str, object]:
         ],
         "nodes": [],
         "edges": [],
+    }
+
+
+def _dpf_rebind_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_dpf_rebind",
+        "name": "DPF Rebind",
+        "active_workspace_id": "ws_dpf",
+        "workspace_order": ["ws_dpf"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_dpf",
+                "name": "Workspace DPF",
+                "active_view_id": "view_dpf",
+                "views": [
+                    {
+                        "view_id": "view_dpf",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_result",
+                        "type_id": "dpf.result_file",
+                        "title": "Result File",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {"path": "C:/tmp/example.rst"},
+                        "exposed_ports": {"result_file": True, "exec_out": True},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_model",
+                        "type_id": "dpf.model",
+                        "title": "Model",
+                        "x": 280.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"model": True, "exec_in": True},
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_result_data",
+                        "source_node_id": "node_result",
+                        "source_port_key": "result_file",
+                        "target_node_id": "node_model",
+                        "target_port_key": "result_file",
+                    },
+                    {
+                        "edge_id": "edge_result_exec",
+                        "source_node_id": "node_result",
+                        "source_port_key": "exec_out",
+                        "target_node_id": "node_model",
+                        "target_port_key": "exec_in",
+                    },
+                ],
+            }
+        ],
+        "metadata": {},
     }
 
 
@@ -361,6 +434,28 @@ class SerializerSchemaMigrationTests(unittest.TestCase):
         self.assertEqual(nodes_by_id["node_unknown"], payload["workspaces"][0]["nodes"][1])
         self.assertEqual(edges_by_id["edge_unknown"], payload["workspaces"][0]["edges"][0])
         self.assertEqual(set(edges_by_id), {"edge_unknown"})
+
+    def test_normalize_project_for_registry_rebinds_previously_unresolved_dpf_nodes_and_edges(self) -> None:
+        missing_registry = NodeRegistry()
+        serializer = JsonProjectSerializer(missing_registry)
+        project = serializer.from_document(_dpf_rebind_payload())
+        workspace = project.workspaces["ws_dpf"]
+
+        self.assertEqual(workspace.nodes, {})
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_result", "node_model"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_result_data", "edge_result_exec"})
+
+        rebind_registry = NodeRegistry()
+        rebind_registry.register(DpfResultFileNodePlugin)
+        rebind_registry.register(DpfModelNodePlugin)
+
+        normalize_project_for_registry(project, rebind_registry)
+        workspace = project.workspaces["ws_dpf"]
+
+        self.assertEqual(set(workspace.nodes), {"node_result", "node_model"})
+        self.assertEqual(set(workspace.edges), {"edge_result_data", "edge_result_exec"})
+        self.assertEqual(workspace.unresolved_node_docs, {})
+        self.assertEqual(workspace.unresolved_edge_docs, {})
 
 
 if __name__ == "__main__":

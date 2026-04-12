@@ -7,7 +7,12 @@ from unittest.mock import patch
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService, create_workspace_mutation_service
+from ea_node_editor.nodes.builtins.ansys_dpf_catalog import ANSYS_DPF_DEPENDENCY
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.plugin_contracts import PluginAvailability
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.persistence.serializer import JsonProjectSerializer
+from ea_node_editor.settings import SCHEMA_VERSION
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -15,7 +20,102 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def _missing_dpf_scene_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_missing_dpf_scene",
+        "name": "Missing DPF Scene",
+        "active_workspace_id": "ws_dpf",
+        "workspace_order": ["ws_dpf"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_dpf",
+                "name": "Workspace DPF",
+                "active_view_id": "view_dpf",
+                "views": [
+                    {
+                        "view_id": "view_dpf",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_result",
+                        "type_id": "dpf.result_file",
+                        "title": "Result File",
+                        "x": 0.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {"path": "C:/tmp/example.rst"},
+                        "exposed_ports": {"result_file": True, "exec_out": True},
+                        "port_labels": {"result_file": "Saved Result File"},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_model",
+                        "type_id": "dpf.model",
+                        "title": "Model",
+                        "x": 320.0,
+                        "y": 0.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"result_file": True, "model": True},
+                        "port_labels": {"model": "Saved Model"},
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_result_data",
+                        "source_node_id": "node_result",
+                        "source_port_key": "result_file",
+                        "target_node_id": "node_model",
+                        "target_port_key": "result_file",
+                    }
+                ],
+            }
+        ],
+        "metadata": {},
+    }
+
+
 class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
+    def test_scene_bridge_projects_missing_dpf_nodes_as_read_only_placeholder_payloads(self) -> None:
+        serializer = JsonProjectSerializer(NodeRegistry())
+        project = serializer.from_document(_missing_dpf_scene_payload())
+        model = GraphModel(project)
+        scene = GraphSceneBridge()
+
+        with patch(
+            "ea_node_editor.ui_qml.graph_scene_payload_builder.get_ansys_dpf_plugin_availability",
+            return_value=PluginAvailability.missing_dependency(
+                ANSYS_DPF_DEPENDENCY,
+                summary="ansys.dpf.core is not installed; the DPF node family remains unavailable.",
+            ),
+        ):
+            scene.set_workspace(model, NodeRegistry(), "ws_dpf")
+            nodes_by_id = {payload["node_id"]: payload for payload in scene.nodes_model}
+            edges_by_id = {payload["edge_id"]: payload for payload in scene.edges_model}
+
+        self.assertEqual(set(nodes_by_id), {"node_model", "node_result"})
+        self.assertEqual(set(edges_by_id), {"edge_result_data"})
+        self.assertTrue(nodes_by_id["node_model"]["unresolved"])
+        self.assertTrue(nodes_by_id["node_model"]["read_only"])
+        self.assertEqual(
+            nodes_by_id["node_model"]["unavailable_reason"],
+            "ansys.dpf.core is not installed; the DPF node family remains unavailable.",
+        )
+        self.assertEqual(
+            {
+                port["key"]: port["label"]
+                for port in nodes_by_id["node_result"]["ports"]
+            }["result_file"],
+            "Saved Result File",
+        )
+
     def test_scene_bridge_routes_fragment_and_delete_flows_through_authoring_boundary(self) -> None:
         support_text = (
             _REPO_ROOT / "ea_node_editor" / "ui_qml" / "graph_scene" / "state_support.py"
