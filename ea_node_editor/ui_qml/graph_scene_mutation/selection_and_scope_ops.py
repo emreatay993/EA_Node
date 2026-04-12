@@ -572,7 +572,9 @@ def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> None:
     if current_exposed == normalized_exposed:
         return
     history_before = self._capture_history_snapshot()
-    self._mutation_boundary().set_exposed_port(node_id, key, normalized_exposed)
+    changed = self._mutation_boundary().set_exposed_port(node_id, key, normalized_exposed)
+    if not changed:
+        return
     self._scene_context.rebuild_models()
     self._record_history(ACTION_TOGGLE_EXPOSED_PORT, history_before)
 

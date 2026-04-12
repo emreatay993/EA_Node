@@ -119,7 +119,7 @@ def effective_ports(
             data_type=port.data_type,
             side=port.side,
             required=port.required,
-            exposed=bool(node.exposed_ports.get(port.key, port.exposed)),
+            exposed=bool(port.required or node.exposed_ports.get(port.key, port.exposed)),
             allow_multiple_connections=bool(port.allow_multiple_connections),
             locked=bool(node.locked_ports.get(port.key, False)),
         )

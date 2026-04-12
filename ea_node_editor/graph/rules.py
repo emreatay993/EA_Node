@@ -52,14 +52,14 @@ def is_port_exposed(node: NodeInstance, spec: NodeTypeSpec, port_key: str) -> bo
     port = find_port(spec, port_key)
     if port is None:
         raise KeyError(f"Port {port_key} not found on node type {spec.type_id}")
-    return bool(node.exposed_ports.get(port.key, port.exposed))
+    return bool(port.required or node.exposed_ports.get(port.key, port.exposed))
 
 
 def default_port(node: NodeInstance, spec: NodeTypeSpec, direction: str) -> str | None:
     for port in spec.ports:
         if port_layout_direction(port) != direction:
             continue
-        if bool(node.exposed_ports.get(port.key, port.exposed)):
+        if bool(port.required or node.exposed_ports.get(port.key, port.exposed)):
             return port.key
     return None
 
@@ -68,7 +68,7 @@ def visible_ports(node: NodeInstance, spec: NodeTypeSpec) -> tuple[list[PortSpec
     in_ports: list[PortSpec] = []
     out_ports: list[PortSpec] = []
     for port in spec.ports:
-        if not bool(node.exposed_ports.get(port.key, port.exposed)):
+        if not bool(port.required or node.exposed_ports.get(port.key, port.exposed)):
             continue
         if port_layout_direction(port) == "in":
             in_ports.append(port)

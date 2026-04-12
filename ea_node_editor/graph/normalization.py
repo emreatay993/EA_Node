@@ -265,7 +265,7 @@ class GraphInvariantKernel:
 
     def normalized_exposed_ports(self, resolution: RegistryNodeResolution) -> dict[str, bool]:
         return {
-            port.key: bool(resolution.node.exposed_ports.get(port.key, port.exposed))
+            port.key: bool(port.required or resolution.node.exposed_ports.get(port.key, port.exposed))
             for port in effective_ports(
                 node=resolution.node,
                 spec=resolution.spec,
@@ -803,8 +803,10 @@ class ValidatedGraphMutation:
         return normalized_updates
 
     def set_exposed_port(self, node_id: str, key: str, exposed: bool) -> bool:
-        node, _spec, _port = self._resolved_port(node_id, key)
+        node, _spec, port = self._resolved_port(node_id, key)
         normalized_exposed = bool(exposed)
+        if port.required and not normalized_exposed:
+            return False
         if key in node.exposed_ports and bool(node.exposed_ports[key]) == normalized_exposed:
             return False
         self.model.set_exposed_port(self.workspace_id, node_id, key, normalized_exposed)

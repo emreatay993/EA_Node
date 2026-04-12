@@ -9,6 +9,7 @@ from ea_node_editor.graph.normalization import (
     build_graph_fragment_payload,
     normalize_graph_fragment_payload,
 )
+from ea_node_editor.graph.rules import is_port_exposed
 from ea_node_editor.graph.port_locking import (
     compute_initial_locked_ports,
     is_lockable_data_type,
@@ -189,6 +190,24 @@ def test_validated_add_node_seeds_locked_ports_from_meaningful_default_propertie
     node = mutations.add_node(type_id="core.logger", title="Logger", x=10.0, y=20.0)
 
     assert node.locked_ports == {"message": True}
+
+
+def test_required_ports_remain_exposed_even_with_false_override_or_hide_request() -> None:
+    registry = build_default_registry()
+    model = GraphModel()
+    workspace = model.active_workspace
+    mutations = model.validated_mutations(workspace.workspace_id, registry)
+
+    node = mutations.add_node(type_id="core.logger", title="Logger", x=10.0, y=20.0)
+    spec = registry.get_spec(node.type_id)
+    node.exposed_ports["exec_in"] = False
+
+    assert is_port_exposed(node, spec, "exec_in") is True
+    ports_by_key = {port.key: port for port in effective_ports(node=node, spec=spec, workspace_nodes=workspace.nodes)}
+    assert ports_by_key["exec_in"].exposed is True
+    assert mutations.set_exposed_port(node.node_id, "exec_in", False) is False
+    assert mutations.set_exposed_port(node.node_id, "message", False) is True
+    assert is_port_exposed(node, spec, "message") is False
 
 
 def test_set_node_property_auto_locks_and_prunes_incoming_edges_without_auto_unlock() -> None:

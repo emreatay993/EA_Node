@@ -443,16 +443,45 @@ class MainWindowShellViewLibraryInspectorTests(SharedMainWindowShellTestBase):
         self.assertIn("message", property_keys)
         port_keys = {item["key"] for item in self.window.selected_node_port_items}
         self.assertIn("exec_in", port_keys)
+        self.assertIn("message", port_keys)
 
         self.window.set_selected_node_property("message", "updated in qml inspector")
-        self.window.set_selected_port_exposed("exec_in", False)
+        self.window.set_selected_port_exposed("message", False)
         self.window.set_selected_node_collapsed(True)
         self.app.processEvents()
 
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         self.assertEqual(node.properties["message"], "updated in qml inspector")
-        self.assertFalse(node.exposed_ports["exec_in"])
+        self.assertFalse(node.exposed_ports["message"])
         self.assertTrue(node.collapsed)
+
+    def test_qml_inspector_required_port_toggle_is_disabled_and_noops(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("core.logger", x=80.0, y=60.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        inspector_pane = self._inspector_object("inspectorPane")
+        toggles_by_key = {
+            str(item.property("portKey")): item
+            for item in self._walk_items(inspector_pane)
+            if item.objectName() == "inspectorPortExposedToggle"
+        }
+
+        self.assertIn("exec_in", toggles_by_key)
+        self.assertIn("message", toggles_by_key)
+        self.assertFalse(bool(toggles_by_key["exec_in"].property("enabled")))
+        self.assertTrue(bool(toggles_by_key["exec_in"].property("checked")))
+        self.assertTrue(bool(toggles_by_key["message"].property("enabled")))
+
+        self.window.set_selected_port_exposed("exec_in", False)
+        self.app.processEvents()
+
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertTrue(bool(node.exposed_ports.get("exec_in", True)))
+        port_items = {item["key"]: item for item in self.window.selected_node_port_items}
+        self.assertTrue(bool(port_items["exec_in"]["required"]))
+        self.assertTrue(bool(port_items["exec_in"]["exposed"]))
 
     def test_qml_inspector_cards_swap_between_empty_and_selected_states(self) -> None:
         empty_card = self._inspector_object("inspectorEmptyStateCard")

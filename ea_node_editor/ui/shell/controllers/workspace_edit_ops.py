@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from PyQt6.QtCore import QMimeData
 
-from ea_node_editor.graph.effective_ports import is_subnode_pin_type
+from ea_node_editor.graph.effective_ports import find_port as find_effective_port, is_subnode_pin_type
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_INPUT_TYPE_ID,
@@ -96,8 +96,25 @@ class WorkspaceEditOps:
         selected = self._controller.selected_node_context()
         if selected is None:
             return
-        node, _spec = selected
-        self._controller.on_port_exposed_changed(node.node_id, str(key), bool(exposed))
+        node, spec = selected
+        workspace = self._controller.active_workspace()
+        if workspace is None:
+            return
+        normalized_key = str(key or "").strip()
+        if not normalized_key:
+            return
+        port = find_effective_port(
+            node=node,
+            spec=spec,
+            workspace_nodes=workspace.nodes,
+            port_key=normalized_key,
+        )
+        if port is None:
+            return
+        normalized_exposed = bool(exposed)
+        if port.required and not normalized_exposed:
+            return
+        self._controller.on_port_exposed_changed(node.node_id, normalized_key, normalized_exposed)
 
     def set_selected_node_collapsed(self, collapsed: bool) -> None:
         selected = self._controller.selected_node_context()

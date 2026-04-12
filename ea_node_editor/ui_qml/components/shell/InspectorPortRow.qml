@@ -30,9 +30,12 @@ Rectangle {
             Layout.alignment: Qt.AlignVCenter
             objectName: "inspectorPortExposedToggle"
             property string portKey: portRow.portKey
-            checked: !!portRow.portItem.exposed
+            enabled: !Boolean(portRow.portItem.required)
+            checked: Boolean(portRow.portItem.required || portRow.portItem.exposed)
             onClicked: pane.selectPort(portRow.portKey)
             onToggled: {
+                if (Boolean(portRow.portItem.required))
+                    return
                 if (portRow.pane.inspectorBridgeRef)
                     portRow.pane.inspectorBridgeRef.set_selected_port_exposed(portRow.portKey, checked)
             }
