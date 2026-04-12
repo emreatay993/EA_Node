@@ -6,6 +6,7 @@
 - When running tests, startup smoke checks, or Qt/QML validation, try the project venv interpreter before falling back to system Python.
 - Use exploration subagents wherever practical for codebase discovery to reduce main-thread context usage.
 - Frame each exploration subagent task as one concrete question with an explicit scope, expected output, and stopping point. Prefer asks like "find the owner of X under `ea_node_editor/graph` and list up to 3 relevant files" over open-ended "understand X across the repo" prompts.
+- If a prompt asks for more than one deliverable such as location plus owner plus insertion point plus existence check, treat it as a multi-step exploration task and start with `gpt-5.4-mini` instead of Spark.
 - For large codebases or broad search tasks, the parent thread should recognize when one wide exploration pass is likely to bloat context or risk compaction, split the work into focused scopes (for example by directory, subsystem, or feature area), and spawn multiple dedicated explorer subagents when helpful. Prefer several narrow, explicit passes such as `core`, `ui`, `tests`, or `build/config` over one catch-all exploration pass.
 - Unless explicitly requested, exploration should ignore duplicated or generated trees such as `.claude/worktrees`, `build`, `artifacts`, `venv`, `__pycache__`, and `*.egg-info` so searches stay on the live source tree.
 - For `gpt-5.3-codex-spark` exploration, keep each agent to one exact lookup target in one already-identified area. Do not ask Spark for repo-wide synthesis, broad architecture tracing, completeness passes, ownership tracing across modules, or any task where the search area is still uncertain.
@@ -19,13 +20,16 @@
   - Use `gpt-5.4` with `xhigh` only for genuinely deep exploration that needs substantial cross-module reasoning, ambiguous architecture tracing, or long-context synthesis across many files.
 - Operational rules for `gpt-5.3-codex-spark` explorers:
   - Require a compact response shape: direct answer first, then relevant files/symbols, then uncertainties or an escalation note.
+  - Spark is only for one factual lookup. If the prompt asks both "where is it" and "where should I insert a change" or asks for likely ownership, use `gpt-5.4-mini`.
   - Use Spark only when the parent can name the likely directory, subsystem, or file family up front. If the search space is still unknown, start with `gpt-5.4-mini`.
   - Use Spark only when the expected result is small and crisp. If the likely answer needs comparison, synthesis, or ranking across multiple candidates, start with `gpt-5.4-mini`.
-  - Do not use Spark for "find all uses", "understand the flow", "which module owns this behavior", "trace this feature", or anything likely to fan out across directories.
+  - Do not use Spark for "find all uses", "understand the flow", "which module owns this behavior", "trace this feature", "where is the action wiring", "what is the likely insertion point", or anything likely to fan out across directories.
+  - Do not use Spark for cross-layer questions that may touch more than one stack such as QML plus Python, UI plus command bridge, or menu declaration plus action dispatch.
   - Search first and sample snippets second; avoid whole-file reads unless a file is short and clearly central.
   - Return as soon as the first useful answer is supported. Do not keep searching for exhaustive coverage after the main hits are found.
   - Keep the working set very small: target 1 directory, at most 4 file opens, or roughly 250 total lines read per Spark pass.
   - If the first search produces many hits, multiple plausible owners, or results across subsystem boundaries, stop immediately and escalate to `gpt-5.4-mini` instead of continuing.
 - If the task is mostly "find where X is defined/used" or "list the places related to Y", use `gpt-5.4-mini` by default unless the parent already knows the exact directory or a very small file family to search.
+- Questions like "where is the context menu or action wiring for comment nodes or graph items defined, and what is the likely insertion point for a comment-node-only action?" must start with `gpt-5.4-mini`, not Spark.
 - In this workspace's PowerShell environment, the Codex-bundled `rg.exe` resolves on `PATH` but is not runnable and fails with `Access is denied`. Do not probe or prefer `rg` here unless a different working `rg.exe` is installed earlier on `PATH`; use PowerShell-native search commands (`Get-ChildItem`, `Select-String`) by default.
 - Do not bundle many large file additions into one patch.
