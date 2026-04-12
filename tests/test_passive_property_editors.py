@@ -61,6 +61,7 @@ class PassivePropertyEditorModeTests(unittest.TestCase):
 
         self.assertEqual(items["notes_blob"]["editor_mode"], "textarea")
         self.assertEqual(items["media_ref"]["editor_mode"], "path")
+        self.assertEqual(items["accent_color"]["editor_mode"], "color")
         self.assertEqual(items["caption"]["editor_mode"], "text")
 
     def test_existing_logger_property_editor_modes_remain_text_and_enum(self) -> None:

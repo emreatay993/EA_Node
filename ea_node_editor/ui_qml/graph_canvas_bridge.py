@@ -281,6 +281,10 @@ class GraphCanvasBridge(QObject):
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return self._command_bridge.browse_node_property_path(node_id, key, current_path)
 
+    @pyqtSlot(str, str, str, result=str)
+    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
+        return self._command_bridge.pick_node_property_color(node_id, key, current_value)
+
     @pyqtSlot(
         str,
         float,

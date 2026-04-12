@@ -130,7 +130,9 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                         id: canvasProxy
                         objectName: "canvasProxy"
                         property string browseResultPath: ""
+                        property string colorResult: ""
                         property var lastBrowseCall: ({})
+                        property var lastColorPickCall: ({})
 
                         function browseNodePropertyPath(nodeId, key, currentPath) {
                             lastBrowseCall = {
@@ -139,6 +141,15 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
                                 "currentPath": String(currentPath || "")
                             };
                             return browseResultPath;
+                        }
+
+                        function pickNodePropertyColor(nodeId, key, currentValue) {
+                            lastColorPickCall = {
+                                "nodeId": String(nodeId || ""),
+                                "key": String(key || ""),
+                                "currentValue": String(currentValue || "")
+                            };
+                            return colorResult;
                         }
                     }
 
@@ -596,6 +607,56 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             assert browse_call["currentPath"] == "/fixtures/original.txt"
             assert interactions == ["node_inline_test"]
             assert commits == [("node_inline_test", "source_path", "/tmp/selected-path.png")]
+
+            dispose_host_window(host, window)
+            engine.deleteLater()
+            app.processEvents()
+            """,
+        )
+
+    def test_inline_color_picker_routes_by_node_id_and_commits_selected_color(self) -> None:
+        self._run_qml_probe(
+            "inline-color-picker",
+            """
+            host = probe.findChild(QObject, "probeHost")
+            canvas_proxy = probe.findChild(QObject, "canvasProxy")
+            payload = variant_value(host.property("nodeData"))
+            payload["properties"] = {
+                "accent_color": "#336699"
+            }
+            payload["inline_properties"] = [
+                {
+                    "key": "accent_color",
+                    "label": "Accent",
+                    "inline_editor": "color",
+                    "value": "#336699",
+                    "overridden_by_input": False,
+                    "input_port_label": "accent_color"
+                }
+            ]
+            host.setProperty("nodeData", payload)
+            app.processEvents()
+
+            color_field = named_item(probe, "graphNodeInlineColorEditor", "accent_color")
+            pick_button = named_item(probe, "graphNodeInlineColorPickerButton", "accent_color")
+
+            interactions = []
+            commits = []
+            host.surfaceControlInteractionStarted.connect(lambda node_id: interactions.append(node_id))
+            host.inlinePropertyCommitted.connect(lambda node_id, key, value: commits.append((node_id, key, value)))
+            canvas_proxy.setProperty("colorResult", "#80336699")
+
+            window = attach_host_to_window(host, 520, 420)
+
+            mouse_click(window, item_scene_point(pick_button))
+
+            pick_call = variant_value(canvas_proxy.property("lastColorPickCall"))
+            assert pick_call["nodeId"] == "node_inline_test"
+            assert pick_call["key"] == "accent_color"
+            assert pick_call["currentValue"] == "#336699"
+            assert str(color_field.property("text")) == "#80336699"
+            assert interactions == ["node_inline_test"]
+            assert commits == [("node_inline_test", "accent_color", "#80336699")]
 
             dispose_host_window(host, window)
             engine.deleteLater()

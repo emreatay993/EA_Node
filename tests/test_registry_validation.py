@@ -338,6 +338,55 @@ class RegistryValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             registry.register(_factory(spec))
 
+    def test_explicit_color_editor_metadata_resolves_to_color(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.color_editor",
+            display_name="Color Editor",
+            category_path=("Tests",),
+            icon="",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(
+                PropertySpec(
+                    "accent_color",
+                    "str",
+                    "#336699",
+                    "Accent Color",
+                    inline_editor="color",
+                    inspector_editor="color",
+                ),
+            ),
+            runtime_behavior="passive",
+            surface_family="annotation",
+        )
+
+        registry.register(_factory(spec))
+
+        registered = registry.get_spec(spec.type_id)
+        property_spec = registered.properties[0]
+        self.assertEqual(node_specs.property_inspector_editor(property_spec), "color")
+        self.assertEqual(node_specs.inline_property_specs(registered), (property_spec,))
+        self.assertEqual(node_specs.inline_property_specs(registered)[0].inline_editor, "color")
+
+    def test_untagged_string_properties_still_resolve_to_text_editor(self) -> None:
+        property_spec = PropertySpec(
+            "accent_color",
+            "str",
+            "#336699",
+            "Accent Color",
+        )
+        spec = NodeTypeSpec(
+            type_id="tests.untyped_color_text",
+            display_name="Untagged Color Text",
+            category_path=("Tests",),
+            icon="",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(property_spec,),
+        )
+
+        self.assertEqual(node_specs.property_inspector_editor(property_spec), "text")
+        self.assertEqual(node_specs.inline_property_specs(spec), ())
+
     def test_register_rejects_non_serializable_json_default(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(

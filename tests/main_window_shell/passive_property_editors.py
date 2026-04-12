@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PyQt6.QtCore import QMetaObject
+from PyQt6.QtGui import QColor
 from PyQt6.QtQuick import QQuickItem
 
 from tests.main_window_shell.base import *  # noqa: F401,F403
@@ -73,3 +74,54 @@ class MainWindowShellPassivePropertyEditorsTests(SharedMainWindowShellTestBase):
         node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
         self.assertEqual(node.properties["media_ref"], str(picked_path))
         self.assertEqual(str(path_editor.property("text")), str(picked_path))
+
+    def test_qml_color_editor_picker_commits_selected_hex(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        property_items = {
+            str(item["key"]): item
+            for item in self.window.selected_node_property_items
+        }
+        self.assertEqual(
+            property_items["accent_color"]["editor_mode"],
+            "color",
+        )
+
+        color_editor = self._inspector_property_object("inspectorColorEditor", "accent_color")
+        pick_button = self._inspector_property_object("inspectorColorPickerButton", "accent_color")
+
+        with patch(
+            "ea_node_editor.ui.shell.host_presenter.QColorDialog.getColor",
+            return_value=QColor("#AA5500"),
+        ):
+            QMetaObject.invokeMethod(pick_button, "click")
+            self.app.processEvents()
+
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+        self.assertEqual(node.properties["accent_color"], "#AA5500")
+        self.assertEqual(str(color_editor.property("text")), "#AA5500")
+
+    def test_qml_color_editor_manual_hex_entry_commits_rgb_and_argb_values(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        node_id = self.window.scene.add_node_from_type("tests.passive_editor_fixture", x=120.0, y=80.0)
+        self.window.scene.focus_node(node_id)
+        self.app.processEvents()
+
+        color_editor = self._inspector_property_object("inspectorColorEditor", "accent_color")
+        node = self.window.model.project.workspaces[workspace_id].nodes[node_id]
+
+        color_editor.setProperty("text", "#112233")
+        self.app.processEvents()
+        QMetaObject.invokeMethod(color_editor, "editingFinished")
+        self.app.processEvents()
+        self.assertEqual(node.properties["accent_color"], "#112233")
+
+        color_editor = self._inspector_property_object("inspectorColorEditor", "accent_color")
+        color_editor.setProperty("text", "#80112233")
+        self.app.processEvents()
+        QMetaObject.invokeMethod(color_editor, "editingFinished")
+        self.app.processEvents()
+        self.assertEqual(node.properties["accent_color"], "#80112233")

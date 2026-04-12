@@ -47,6 +47,14 @@ QtObject {
         );
     }
 
+    function pickNodePropertyColor(key, currentValue) {
+        if (!root.host || !root.host.nodeData || !root.host.canvasItem || !root.host.canvasItem.pickNodePropertyColor)
+            return "";
+        return String(
+            root.host.canvasItem.pickNodePropertyColor(root.host.nodeData.node_id, key, currentValue) || ""
+        );
+    }
+
     function currentViewportZoom() {
         var viewBridge = root.host && root.host.canvasItem ? root.host.canvasItem._canvasViewStateBridgeRef : null;
         var zoom = viewBridge ? Number(viewBridge.zoom_value) : 1.0;

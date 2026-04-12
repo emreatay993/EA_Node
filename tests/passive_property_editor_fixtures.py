@@ -10,7 +10,7 @@ class PassiveEditorFixturePlugin:
         return NodeTypeSpec(
             type_id=PASSIVE_EDITOR_FIXTURE_TYPE_ID,
             display_name="Passive Editor Fixture",
-            category="Tests",
+            category_path=("Tests",),
             icon="article",
             description="Test-only node for inspector property editor coverage.",
             runtime_behavior="passive",
@@ -25,6 +25,14 @@ class PassiveEditorFixturePlugin:
                     inspector_editor="textarea",
                 ),
                 PropertySpec("media_ref", "path", "", "Media Reference"),
+                PropertySpec(
+                    "accent_color",
+                    "str",
+                    "#336699",
+                    "Accent Color",
+                    inline_editor="color",
+                    inspector_editor="color",
+                ),
                 PropertySpec("caption", "str", "Short caption", "Caption"),
             ),
         )

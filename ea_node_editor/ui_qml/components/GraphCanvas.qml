@@ -259,6 +259,7 @@ Item {
     function clearNodeSurfaceCursorShape() { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "clearNodeSurfaceCursorShape", [], false); }
     function describeNodeSurfacePdfPreview(source, pageNumber) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "describeNodeSurfacePdfPreview", [source, pageNumber], ({})); }
     function browseNodePropertyPath(nodeId, key, currentPath) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "browseNodePropertyPath", [nodeId, key, currentPath], ""); }
+    function pickNodePropertyColor(nodeId, key, currentValue) { return GraphCanvasRootApi.invoke(nodeSurfaceBridge, "pickNodePropertyColor", [nodeId, key, currentValue], ""); }
     function selectedNodeIds() { return GraphCanvasRootApi.invoke(sceneState, "selectedNodeIds", [], []); }
     function _appendUniqueDragNodeId(nodeIds, seenNodeIds, nodeId) { GraphCanvasRootApi.invoke(sceneState, "_appendUniqueDragNodeId", [nodeIds, seenNodeIds, nodeId]); }
     function _payloadNodeIdList(payload, key) { return GraphCanvasRootApi.invoke(sceneState, "_payloadNodeIdList", [payload, key], []); }

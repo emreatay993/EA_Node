@@ -21,6 +21,8 @@ class _GraphCanvasCommandSource(Protocol):
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str: ...
 
+    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str: ...
+
     def request_drop_node_from_library(
         self,
         type_id: str,
@@ -319,6 +321,20 @@ class GraphCanvasCommandBridge(QObject):
                 node_id,
                 key,
                 current_path,
+                default="",
+            )
+            or ""
+        )
+
+    @pyqtSlot(str, str, str, result=str)
+    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
+        return str(
+            _invoke(
+                self._canvas_source,
+                "pick_node_property_color",
+                node_id,
+                key,
+                current_value,
                 default="",
             )
             or ""

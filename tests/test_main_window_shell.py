@@ -807,6 +807,8 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 "function requestOpenSubnodeScope(nodeId) {",
                 "function commitNodeSurfaceProperties(nodeId, properties) {",
                 "function browseNodePropertyPath(nodeId, key, currentPath) {",
+                "function pickNodePropertyColor(nodeId, key, currentValue) {",
+                "bridge.pick_node_property_color",
                 "return hostInteraction.sceneSelectionBridge();",
                 "hostInteraction.resetSurfaceInteractionState();",
             ),
@@ -840,6 +842,20 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 text=qml_text,
                 present_snippets=present_snippets,
             )
+
+    def test_graph_canvas_root_exposes_color_picker_helper_through_node_surface_bridge(self) -> None:
+        relative_path = "ea_node_editor/ui_qml/components/GraphCanvas.qml"
+        qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+        _assert_text_snippets(
+            self,
+            label=relative_path,
+            text=qml_text,
+            present_snippets=(
+                "function pickNodePropertyColor(nodeId, key, currentValue) {",
+                'GraphCanvasRootApi.invoke(nodeSurfaceBridge, "pickNodePropertyColor", [nodeId, key, currentValue], "")',
+            ),
+        )
 
     def test_overlay_host_item_plumbing_remains_live_for_canvas_overlay_paths(self) -> None:
         expectations = {

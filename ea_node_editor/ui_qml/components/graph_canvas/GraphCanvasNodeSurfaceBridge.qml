@@ -186,4 +186,20 @@ Item {
             String(currentPath || "")
         ) || "");
     }
+
+    function pickNodePropertyColor(nodeId, key, currentValue) {
+        if (!root.canvasItem)
+            return "";
+        var normalizedNodeId = String(nodeId || "").trim();
+        var normalizedKey = String(key || "").trim();
+        var bridge = root.canvasItem._canvasShellCommandBridgeRef;
+        if (!normalizedNodeId || !normalizedKey || !bridge || !bridge.pick_node_property_color)
+            return "";
+        root.prepareNodeSurfaceControlInteraction(normalizedNodeId);
+        return String(bridge.pick_node_property_color(
+            normalizedNodeId,
+            normalizedKey,
+            String(currentValue || "")
+        ) || "");
+    }
 }

@@ -187,6 +187,7 @@ class _ShellInspectorHostStub(QObject):
         self.pin_data_type_options = ["any", "text"]
         self._return_values = {
             "browse_selected_node_property_path": "C:/temp/selected.txt",
+            "pick_selected_node_property_color": "#AA5500",
             "set_selected_port_label": True,
             "request_ungroup_selected_nodes": True,
             "request_add_selected_subnode_pin": "port-1",
@@ -217,6 +218,9 @@ class _ShellInspectorHostStub(QObject):
 
     def browse_selected_node_property_path(self, key: str, current_path: str) -> str:
         return str(self._record("browse_selected_node_property_path", key, current_path) or "")
+
+    def pick_selected_node_property_color(self, key: str, current_value: str) -> str:
+        return str(self._record("pick_selected_node_property_color", key, current_value) or "")
 
     def set_selected_port_exposed(self, key: str, exposed: bool) -> None:
         self._record("set_selected_port_exposed", key, exposed)
@@ -498,6 +502,7 @@ class _GraphCanvasShellHostStub(QObject):
         self._return_values = {
             "request_open_subnode_scope": True,
             "browse_node_property_path": "C:/temp/from-canvas-bridge.txt",
+            "pick_node_property_color": "#AA5500",
             "request_drop_node_from_library": True,
             "request_connect_ports": True,
             "request_open_connection_quick_insert": True,
@@ -541,6 +546,9 @@ class _GraphCanvasShellHostStub(QObject):
 
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return str(self._record("browse_node_property_path", node_id, key, current_path) or "")
+
+    def pick_node_property_color(self, node_id: str, key: str, current_value: str) -> str:
+        return str(self._record("pick_node_property_color", node_id, key, current_value) or "")
 
     def request_drop_node_from_library(
         self,
@@ -1074,6 +1082,10 @@ class ShellInspectorBridgeTests(unittest.TestCase):
             bridge.browse_selected_node_property_path("source_path", "C:/temp"),
             "C:/temp/selected.txt",
         )
+        self.assertEqual(
+            bridge.pick_selected_node_property_color("accent_color", "#336699"),
+            "#AA5500",
+        )
         bridge.set_selected_port_exposed("exec_in", False)
 
         self.assertEqual(
@@ -1086,6 +1098,7 @@ class ShellInspectorBridgeTests(unittest.TestCase):
                 ("request_ungroup_selected_nodes", ()),
                 ("set_selected_node_property", ("message", "updated from bridge")),
                 ("browse_selected_node_property_path", ("source_path", "C:/temp")),
+                ("pick_selected_node_property_color", ("accent_color", "#336699")),
                 ("set_selected_port_exposed", ("exec_in", False)),
             ],
         )
@@ -1427,6 +1440,10 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             bridge.browse_node_property_path("node-1", "source_path", "C:/temp/current.txt"),
             "C:/temp/from-canvas-bridge.txt",
         )
+        self.assertEqual(
+            bridge.pick_node_property_color("node-1", "accent_color", "#336699"),
+            "#AA5500",
+        )
         self.assertTrue(
             bridge.request_drop_node_from_library(
                 "core.logger",
@@ -1497,6 +1514,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("set_graphics_minimap_expanded", (False,)),
                 ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
+                ("pick_node_property_color", ("node-1", "accent_color", "#336699")),
                 (
                     "request_drop_node_from_library",
                     ("core.logger", 120.0, 240.0, "port", "node-1", "exec_in", "edge-1"),
@@ -1649,6 +1667,10 @@ class GraphCanvasBridgeTests(unittest.TestCase):
             bridge.browse_node_property_path("node-1", "source_path", "C:/temp/current.txt"),
             "C:/temp/from-canvas-bridge.txt",
         )
+        self.assertEqual(
+            bridge.pick_node_property_color("node-1", "accent_color", "#336699"),
+            "#AA5500",
+        )
         self.assertTrue(
             bridge.request_drop_node_from_library(
                 "core.logger",
@@ -1688,6 +1710,7 @@ class GraphCanvasBridgeTests(unittest.TestCase):
                 ("set_graphics_performance_mode", ("max_performance",)),
                 ("request_open_subnode_scope", ("subnode-1",)),
                 ("browse_node_property_path", ("node-1", "source_path", "C:/temp/current.txt")),
+                ("pick_node_property_color", ("node-1", "accent_color", "#336699")),
                 (
                     "request_drop_node_from_library",
                     ("core.logger", 120.0, 240.0, "port", "node-1", "exec_in", "edge-1"),

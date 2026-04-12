@@ -181,6 +181,10 @@ class ShellInspectorBridgeQmlBoundaryTests(unittest.TestCase):
                     "propertyEditor.pane.inspectorBridgeRef.browse_selected_node_property_path",
                 ),
             ),
+            "ea_node_editor/ui_qml/components/shell/InspectorColorField.qml": (
+                ("mainWindowRef.pick_selected_node_property_color",),
+                ("root.pane.inspectorBridgeRef.pick_selected_node_property_color",),
+            ),
             "ea_node_editor/ui_qml/components/shell/InspectorPortRow.qml": (
                 ("mainWindowRef.set_selected_port_exposed",),
                 ("portRow.pane.inspectorBridgeRef.set_selected_port_exposed",),
@@ -625,6 +629,8 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 "function requestOpenSubnodeScope(nodeId) {",
                 "function commitNodeSurfaceProperties(nodeId, properties) {",
                 "function browseNodePropertyPath(nodeId, key, currentPath) {",
+                "function pickNodePropertyColor(nodeId, key, currentValue) {",
+                "bridge.pick_node_property_color",
                 "return hostInteraction.sceneSelectionBridge();",
                 "hostInteraction.resetSurfaceInteractionState();",
             ),
@@ -655,6 +661,18 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
             for snippet in present_snippets:
                 with self.subTest(path=relative_path, snippet=snippet):
                     self.assertIn(snippet, qml_text)
+
+    def test_graph_canvas_root_exposes_color_picker_helper_through_node_surface_bridge(self) -> None:
+        qml_text = (_REPO_ROOT / "ea_node_editor/ui_qml/components/GraphCanvas.qml").read_text(encoding="utf-8")
+
+        present_snippets = (
+            "function pickNodePropertyColor(nodeId, key, currentValue) {",
+            'GraphCanvasRootApi.invoke(nodeSurfaceBridge, "pickNodePropertyColor", [nodeId, key, currentValue], "")',
+        )
+
+        for snippet in present_snippets:
+            with self.subTest(snippet=snippet):
+                self.assertIn(snippet, qml_text)
 
     def test_overlay_host_item_plumbing_remains_live_for_canvas_overlay_paths(self) -> None:
         expectations = {

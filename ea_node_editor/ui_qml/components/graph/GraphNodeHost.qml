@@ -437,6 +437,10 @@ Item {
         return sceneAccess.browseNodePropertyPath(key, currentPath);
     }
 
+    function pickNodePropertyColor(key, currentValue) {
+        return sceneAccess.pickNodePropertyColor(key, currentValue);
+    }
+
     function _styleString(value) {
         if (value === undefined || value === null)
             return "";

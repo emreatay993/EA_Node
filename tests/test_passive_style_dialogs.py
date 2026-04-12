@@ -3,8 +3,10 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox
 
+from ea_node_editor.ui.dialogs.passive_style_controls import color_to_hex
 from ea_node_editor.ui.dialogs.flow_edge_style_dialog import FlowEdgeStyleDialog
 from ea_node_editor.ui.dialogs.passive_node_style_dialog import PassiveNodeStyleDialog
 
@@ -12,6 +14,14 @@ from ea_node_editor.ui.dialogs.passive_node_style_dialog import PassiveNodeStyle
 class PassiveNodeStyleDialogTests(unittest.TestCase):
     def setUp(self) -> None:
         self.app = QApplication.instance() or QApplication([])
+
+    def test_color_serialization_preserves_uppercase_rgb_and_argb_formats(self) -> None:
+        rgb = QColor("#aa5500")
+        argb = QColor("#336699")
+        argb.setAlpha(0x80)
+
+        self.assertEqual(color_to_hex(rgb), "#AA5500")
+        self.assertEqual(color_to_hex(argb), "#80336699")
 
     def test_dialog_loads_and_saves_normalized_passive_node_style(self) -> None:
         dialog = PassiveNodeStyleDialog(

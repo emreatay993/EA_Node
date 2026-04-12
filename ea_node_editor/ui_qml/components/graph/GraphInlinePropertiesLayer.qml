@@ -132,6 +132,7 @@ Item {
                             enumEditor.embeddedInteractiveRects,
                             valueEditor.embeddedInteractiveRects,
                             pathEditor.embeddedInteractiveRects,
+                            colorEditor.embeddedInteractiveRects,
                             textareaEditor.embeddedInteractiveRects
                         ]
                     );
@@ -256,6 +257,27 @@ Item {
                             if (!host || !host.browseNodePropertyPath)
                                 return "";
                             return host.browseNodePropertyPath(modelData.key, currentPath);
+                        }
+                        onControlStarted: root._beginInteraction()
+                        onCommitRequested: function(value) {
+                            root._commitInlineProperty(modelData.key, value);
+                        }
+                    }
+
+                    SurfaceControls.GraphSurfaceColorEditor {
+                        id: colorEditor
+                        visible: modelData.inline_editor === "color"
+                        Layout.fillWidth: true
+                        enabled: !modelData.overridden_by_input
+                        host: root.host
+                        propertyKey: String(modelData.key || "")
+                        committedText: host ? host.inlineEditorText(modelData) : ""
+                        fieldObjectName: "graphNodeInlineColorEditor"
+                        pickButtonObjectName: "graphNodeInlineColorPickerButton"
+                        colorResolver: function(currentValue) {
+                            if (!host || !host.pickNodePropertyColor)
+                                return "";
+                            return host.pickNodePropertyColor(modelData.key, currentValue);
                         }
                         onControlStarted: root._beginInteraction()
                         onCommitRequested: function(value) {

@@ -387,6 +387,15 @@ Column {
         }
     }
 
+    InspectorColorField {
+        pane: propertyEditor.pane
+        width: parent.width
+        visible: !pinDataTypeEditor.visible && propertyEditor.editorMode === "color"
+        enabled: !propertyEditor.overriddenByInput
+        propertyKey: propertyEditor.propertyKey
+        committedText: MainShellUtils.toEditorText(propertyEditor.propertyItem)
+    }
+
     InspectorTextField {
         pane: propertyEditor.pane
         width: parent.width
