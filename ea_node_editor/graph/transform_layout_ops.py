@@ -34,6 +34,33 @@ class LayoutNodeBounds:
     def bottom(self) -> float:
         return self.y + self.height
 
+    @property
+    def center_x(self) -> float:
+        return self.x + (self.width * 0.5)
+
+    @property
+    def center_y(self) -> float:
+        return self.y + (self.height * 0.5)
+
+    def translated(self, dx: float, dy: float) -> "LayoutNodeBounds":
+        return LayoutNodeBounds(
+            node_id=self.node_id,
+            x=self.x + float(dx),
+            y=self.y + float(dy),
+            width=self.width,
+            height=self.height,
+        )
+
+    def inflated(self, amount: float) -> "LayoutNodeBounds":
+        normalized = max(0.0, float(amount))
+        return LayoutNodeBounds(
+            node_id=self.node_id,
+            x=self.x - normalized,
+            y=self.y - normalized,
+            width=self.width + (normalized * 2.0),
+            height=self.height + (normalized * 2.0),
+        )
+
 
 def collect_layout_node_bounds(
     *,
@@ -159,10 +186,135 @@ def normalize_layout_position_updates(
     return final_positions
 
 
+def build_expand_collision_avoidance_position_updates(
+    *,
+    fixed_bounds: LayoutNodeBounds,
+    movable_bounds: Sequence[LayoutNodeBounds],
+    gap: float,
+    reach_radius: float | None = None,
+) -> dict[str, tuple[float, float]]:
+    normalized_gap = max(0.0, float(gap))
+    reach_bounds = fixed_bounds.inflated(float(reach_radius)) if reach_radius is not None else None
+    remaining = {
+        bounds.node_id: bounds
+        for bounds in movable_bounds
+        if bounds.node_id and bounds.width > 0.0 and bounds.height > 0.0
+    }
+    resolved_bounds = [fixed_bounds]
+    updates: dict[str, tuple[float, float]] = {}
+
+    while remaining:
+        colliding = [
+            (
+                _bounds_distance(bounds, fixed_bounds),
+                bounds.node_id,
+                bounds,
+            )
+            for bounds in remaining.values()
+            if (reach_bounds is None or _rects_intersect(bounds, reach_bounds))
+            and _first_intersecting_bounds(bounds, resolved_bounds, normalized_gap) is not None
+        ]
+        if not colliding:
+            break
+        _distance, node_id, bounds = min(colliding, key=lambda item: (item[0], item[1]))
+        final_bounds = _separate_from_bounds(bounds, resolved_bounds, normalized_gap)
+        if final_bounds.x != bounds.x or final_bounds.y != bounds.y:
+            updates[node_id] = (final_bounds.x, final_bounds.y)
+        resolved_bounds.append(final_bounds)
+        remaining.pop(node_id, None)
+    return updates
+
+
+def _separate_from_bounds(
+    bounds: LayoutNodeBounds,
+    blockers: Sequence[LayoutNodeBounds],
+    gap: float,
+) -> LayoutNodeBounds:
+    resolved = bounds
+    for _attempt in range(max(1, len(blockers) * 4)):
+        blocker = _first_intersecting_bounds(resolved, blockers, gap)
+        if blocker is None:
+            return resolved
+        dx, dy = _nearest_separation_delta(resolved, blocker, gap)
+        if dx == 0.0 and dy == 0.0:
+            return resolved
+        resolved = resolved.translated(dx, dy)
+    return resolved
+
+
+def _first_intersecting_bounds(
+    bounds: LayoutNodeBounds,
+    blockers: Sequence[LayoutNodeBounds],
+    gap: float,
+) -> LayoutNodeBounds | None:
+    candidates = [
+        blocker
+        for blocker in blockers
+        if blocker.node_id != bounds.node_id and _rects_intersect(bounds, blocker.inflated(gap))
+    ]
+    if not candidates:
+        return None
+    return min(
+        candidates,
+        key=lambda blocker: (
+            _bounds_distance(bounds, blocker),
+            blocker.node_id,
+        ),
+    )
+
+
+def _nearest_separation_delta(
+    bounds: LayoutNodeBounds,
+    blocker: LayoutNodeBounds,
+    gap: float,
+) -> tuple[float, float]:
+    moves = [
+        ("left", blocker.left - gap - bounds.right, 0.0),
+        ("right", blocker.right + gap - bounds.left, 0.0),
+        ("up", 0.0, blocker.top - gap - bounds.bottom),
+        ("down", 0.0, blocker.bottom + gap - bounds.top),
+    ]
+    preferred = _preferred_separation_sides(bounds, blocker)
+    side, dx, dy = min(
+        moves,
+        key=lambda item: (
+            abs(item[1]) + abs(item[2]),
+            0 if item[0] in preferred else 1,
+            item[0],
+        ),
+    )
+    del side
+    return float(dx), float(dy)
+
+
+def _preferred_separation_sides(bounds: LayoutNodeBounds, blocker: LayoutNodeBounds) -> set[str]:
+    dx = bounds.center_x - blocker.center_x
+    dy = bounds.center_y - blocker.center_y
+    preferred = {"right" if dx >= 0.0 else "left"}
+    preferred.add("down" if dy >= 0.0 else "up")
+    return preferred
+
+
+def _rects_intersect(first: LayoutNodeBounds, second: LayoutNodeBounds) -> bool:
+    return (
+        first.left < second.right
+        and first.right > second.left
+        and first.top < second.bottom
+        and first.bottom > second.top
+    )
+
+
+def _bounds_distance(first: LayoutNodeBounds, second: LayoutNodeBounds) -> float:
+    dx = first.center_x - second.center_x
+    dy = first.center_y - second.center_y
+    return (dx * dx) + (dy * dy)
+
+
 __all__ = [
     "LayoutNodeBounds",
     "build_alignment_position_updates",
     "build_distribution_position_updates",
+    "build_expand_collision_avoidance_position_updates",
     "collect_layout_node_bounds",
     "normalize_layout_position_updates",
     "snap_coordinate",

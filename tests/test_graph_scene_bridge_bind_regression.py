@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from PyQt6.QtCore import QObject
+
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.graph.mutation_service import WorkspaceMutationService, create_workspace_mutation_service
 from ea_node_editor.nodes.builtins.ansys_dpf_catalog import ANSYS_DPF_DEPENDENCY
@@ -13,11 +15,20 @@ from ea_node_editor.nodes.plugin_contracts import PluginAvailability
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.persistence.serializer import JsonProjectSerializer
 from ea_node_editor.settings import SCHEMA_VERSION
+from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_canvas_command_bridge import GraphCanvasCommandBridge
 from ea_node_editor.ui_qml.graph_canvas_state_bridge import GraphCanvasStateBridge
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+COMMENT_BACKDROP_TYPE_ID = "passive.annotation.comment_backdrop"
+LOGGER_TYPE_ID = "core.logger"
+
+
+class _ExpandCollisionPreferenceSource(QObject):
+    def __init__(self, settings: dict[str, object]) -> None:
+        super().__init__()
+        self.graphics_expand_collision_avoidance = dict(settings)
 
 
 def _missing_dpf_scene_payload() -> dict[str, object]:
@@ -241,6 +252,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             "selection_and_scope_ops.py": package_root / "selection_and_scope_ops.py",
             "clipboard_and_fragment_ops.py": package_root / "clipboard_and_fragment_ops.py",
             "alignment_and_distribution_ops.py": package_root / "alignment_and_distribution_ops.py",
+            "collision_avoidance_ops.py": package_root / "collision_avoidance_ops.py",
             "grouping_and_subnode_ops.py": package_root / "grouping_and_subnode_ops.py",
             "comment_backdrop_ops.py": package_root / "comment_backdrop_ops.py",
         }
@@ -251,6 +263,7 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             "graph_scene_mutation.selection_and_scope_ops",
             "graph_scene_mutation.clipboard_and_fragment_ops",
             "graph_scene_mutation.alignment_and_distribution_ops",
+            "graph_scene_mutation.collision_avoidance_ops",
             "graph_scene_mutation.grouping_and_subnode_ops",
             "graph_scene_mutation.comment_backdrop_ops",
         ):
@@ -274,6 +287,10 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertEqual(
             module.GraphSceneMutationHistory.move_node.__module__,
             "ea_node_editor.ui_qml.graph_scene_mutation.alignment_and_distribution_ops",
+        )
+        self.assertEqual(
+            module.GraphSceneMutationHistory.expand_collision_avoidance_updates.__module__,
+            "ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops",
         )
         self.assertEqual(
             module.GraphSceneMutationHistory.group_selected_nodes.__module__,
@@ -524,6 +541,125 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
             self.assertTrue(scene.ungroup_selected_subnode())
 
         self.assertEqual(calls, [(workspace_id, str(shell_id))])
+
+    def test_expand_collision_avoidance_moves_nearby_objects_in_toggle_history_group(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        scene = GraphSceneBridge()
+        scene.set_workspace(model, registry, workspace_id)
+        history = RuntimeGraphHistory()
+        scene.bind_runtime_history(history)
+
+        backdrop_id = scene.add_node_from_type(COMMENT_BACKDROP_TYPE_ID, 100.0, 100.0)
+        scene.set_node_geometry(backdrop_id, 100.0, 100.0, 420.0, 260.0)
+        inner_id = scene.add_node_from_type(LOGGER_TYPE_ID, 160.0, 160.0)
+        blocker_id = scene.add_node_from_type(LOGGER_TYPE_ID, 470.0, 180.0)
+        scene.set_node_collapsed(backdrop_id, True)
+        history.clear_workspace(workspace_id)
+
+        workspace = model.project.workspaces[workspace_id]
+        inner_before = (float(workspace.nodes[inner_id].x), float(workspace.nodes[inner_id].y))
+        blocker_before = (float(workspace.nodes[blocker_id].x), float(workspace.nodes[blocker_id].y))
+
+        scene.set_node_collapsed(backdrop_id, False)
+
+        self.assertFalse(workspace.nodes[backdrop_id].collapsed)
+        self.assertEqual(history.undo_depth(workspace_id), 1)
+        self.assertAlmostEqual(float(workspace.nodes[backdrop_id].x), 100.0, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[backdrop_id].y), 100.0, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[inner_id].x), inner_before[0], places=6)
+        self.assertAlmostEqual(float(workspace.nodes[inner_id].y), inner_before[1], places=6)
+        self.assertGreater(float(workspace.nodes[blocker_id].x), blocker_before[0] + 10.0)
+
+        blocker_after_expand = (float(workspace.nodes[blocker_id].x), float(workspace.nodes[blocker_id].y))
+        self.assertIsNotNone(history.undo_workspace(workspace_id, workspace))
+        scene.refresh_workspace_from_model(workspace_id)
+        self.assertTrue(workspace.nodes[backdrop_id].collapsed)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].x), blocker_before[0], places=6)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].y), blocker_before[1], places=6)
+
+        self.assertIsNotNone(history.redo_workspace(workspace_id, workspace))
+        scene.refresh_workspace_from_model(workspace_id)
+        self.assertFalse(workspace.nodes[backdrop_id].collapsed)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].x), blocker_after_expand[0], places=6)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].y), blocker_after_expand[1], places=6)
+
+        scene.set_node_collapsed(backdrop_id, True)
+        self.assertTrue(workspace.nodes[backdrop_id].collapsed)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].x), blocker_after_expand[0], places=6)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].y), blocker_after_expand[1], places=6)
+
+    def test_expand_collision_avoidance_respects_disabled_preference(self) -> None:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        preferences = _ExpandCollisionPreferenceSource({"enabled": False})
+        scene = GraphSceneBridge(preferences)
+        scene.set_workspace(model, registry, workspace_id)
+
+        expanding_id = scene.add_node_from_type(LOGGER_TYPE_ID, 100.0, 100.0)
+        blocker_id = scene.add_node_from_type(LOGGER_TYPE_ID, 240.0, 100.0)
+        scene.set_node_collapsed(expanding_id, True)
+        workspace = model.project.workspaces[workspace_id]
+        blocker_before = (float(workspace.nodes[blocker_id].x), float(workspace.nodes[blocker_id].y))
+
+        scene.set_node_collapsed(expanding_id, False)
+
+        self.assertFalse(workspace.nodes[expanding_id].collapsed)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].x), blocker_before[0], places=6)
+        self.assertAlmostEqual(float(workspace.nodes[blocker_id].y), blocker_before[1], places=6)
+
+    def test_expand_collision_avoidance_reach_setting_controls_chain_displacement(self) -> None:
+        local_workspace = self._expand_collision_reach_workspace(
+            {
+                "enabled": True,
+                "strategy": "nearest",
+                "scope": "all_movable",
+                "radius_mode": "local",
+                "local_radius_preset": "small",
+                "gap_preset": "normal",
+                "animate": False,
+            }
+        )
+        unbounded_workspace = self._expand_collision_reach_workspace(
+            {
+                "enabled": True,
+                "strategy": "nearest",
+                "scope": "all_movable",
+                "radius_mode": "unbounded",
+                "local_radius_preset": "small",
+                "gap_preset": "normal",
+                "animate": False,
+            }
+        )
+
+        self.assertAlmostEqual(float(local_workspace["far_after_x"]), float(local_workspace["far_before_x"]), places=6)
+        self.assertGreater(float(unbounded_workspace["far_after_x"]), float(unbounded_workspace["far_before_x"]) + 10.0)
+
+    def _expand_collision_reach_workspace(self, settings: dict[str, object]) -> dict[str, float]:
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        preferences = _ExpandCollisionPreferenceSource(settings)
+        scene = GraphSceneBridge(preferences)
+        scene.set_workspace(model, registry, workspace_id)
+
+        expanding_id = scene.add_node_from_type(COMMENT_BACKDROP_TYPE_ID, 100.0, 100.0)
+        scene.set_node_geometry(expanding_id, 100.0, 100.0, 420.0, 260.0)
+        wide_blocker_id = scene.add_node_from_type(COMMENT_BACKDROP_TYPE_ID, 470.0, 180.0)
+        scene.set_node_geometry(wide_blocker_id, 470.0, 180.0, 700.0, 180.0)
+        far_blocker_id = scene.add_node_from_type(LOGGER_TYPE_ID, 1100.0, 200.0)
+        scene.set_node_collapsed(expanding_id, True)
+
+        workspace = model.project.workspaces[workspace_id]
+        far_before_x = float(workspace.nodes[far_blocker_id].x)
+        scene.set_node_collapsed(expanding_id, False)
+
+        return {
+            "far_before_x": far_before_x,
+            "far_after_x": float(workspace.nodes[far_blocker_id].x),
+        }
 
 
 if __name__ == "__main__":

@@ -190,6 +190,23 @@ def build_comment_backdrop_wrap_bounds(
     )
 
 
+def build_comment_backdrop_occupied_bounds(
+    backdrop: CommentBackdropCandidate,
+    direct_members: Sequence[CommentBackdropCandidate],
+) -> CommentBackdropBounds:
+    candidates = [backdrop, *list(direct_members)]
+    left = min(candidate.x for candidate in candidates)
+    top = min(candidate.y for candidate in candidates)
+    right = max(candidate.right for candidate in candidates)
+    bottom = max(candidate.bottom for candidate in candidates)
+    return CommentBackdropBounds(
+        x=float(left),
+        y=float(top),
+        width=float(right) - float(left),
+        height=float(bottom) - float(top),
+    )
+
+
 def _can_directly_own(owner: CommentBackdropCandidate, candidate: CommentBackdropCandidate) -> bool:
     if not owner.is_backdrop or owner.node_id == candidate.node_id:
         return False
@@ -224,6 +241,7 @@ __all__ = [
     "CommentBackdropCandidate",
     "CommentBackdropMembership",
     "CommentBackdropWrapResult",
+    "build_comment_backdrop_occupied_bounds",
     "build_comment_backdrop_wrap_bounds",
     "compute_comment_backdrop_membership",
 ]

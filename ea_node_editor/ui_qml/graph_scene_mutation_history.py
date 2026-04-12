@@ -7,6 +7,7 @@ from PyQt6.QtCore import QRectF
 
 import ea_node_editor.ui_qml.graph_scene_mutation.alignment_and_distribution_ops as _alignment_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.clipboard_and_fragment_ops as _clipboard_ops
+import ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops as _collision_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.comment_backdrop_ops as _comment_backdrop_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.grouping_and_subnode_ops as _grouping_ops
 import ea_node_editor.ui_qml.graph_scene_mutation.policy as _policy
@@ -298,6 +299,7 @@ GraphSceneMutationHistory.remove_node = _selection_ops.remove_node
 GraphSceneMutationHistory.remove_workspace_node = _selection_ops.remove_workspace_node
 GraphSceneMutationHistory.focus_node = _selection_ops.focus_node
 GraphSceneMutationHistory.set_node_collapsed = _selection_ops.set_node_collapsed
+GraphSceneMutationHistory.expand_collision_avoidance_updates = _collision_ops.expand_collision_avoidance_updates
 GraphSceneMutationHistory.set_node_properties = _selection_ops.set_node_properties
 GraphSceneMutationHistory.normalize_node_visual_style = staticmethod(_selection_ops.normalize_node_visual_style)
 GraphSceneMutationHistory.set_node_visual_style = _selection_ops.set_node_visual_style

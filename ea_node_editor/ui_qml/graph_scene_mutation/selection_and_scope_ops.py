@@ -19,6 +19,9 @@ from ea_node_editor.nodes.builtins.subnode import (
     is_subnode_pin_type,
     is_subnode_shell_type,
 )
+from ea_node_editor.ui_qml.graph_scene_mutation.collision_avoidance_ops import (
+    expand_collision_avoidance_updates,
+)
 from ea_node_editor.ui.shell.runtime_clipboard import (
     normalize_edge_label as _normalize_edge_label,
     normalize_visual_style_payload,
@@ -365,10 +368,18 @@ def set_node_collapsed(self, node_id: str, collapsed: bool) -> None:
     normalized_collapsed = bool(collapsed)
     if bool(node.collapsed) == normalized_collapsed:
         return
-    history_before = self._capture_history_snapshot()
-    self._mutation_boundary().set_node_collapsed(node_id, normalized_collapsed)
+    collision_updates = {}
+    if bool(node.collapsed) and not normalized_collapsed:
+        collision_updates = expand_collision_avoidance_updates(self, node_id)
+    history_group = self._scene_context.grouped_history_action(ACTION_TOGGLE_COLLAPSED, workspace)
+    mutations = self._mutation_boundary()
+    with history_group:
+        mutations.set_node_collapsed(node_id, normalized_collapsed)
+        for moved_node_id, (final_x, final_y) in collision_updates.items():
+            if moved_node_id not in workspace.nodes:
+                continue
+            mutations.set_node_position(moved_node_id, final_x, final_y)
     self._scene_context.rebuild_models()
-    self._record_history(ACTION_TOGGLE_COLLAPSED, history_before)
 
 
 def set_node_property(self, node_id: str, key: str, value: Any) -> None:

@@ -225,6 +225,23 @@ class CommentBackdropSceneIntegrationTests(unittest.TestCase):
             ):
                 self.assertNotIn(key, node_doc)
 
+    def test_collapsed_backdrop_payload_projects_expanded_occupied_bounds(self) -> None:
+        logger_id = self.scene.add_node_from_type(LOGGER_TYPE_ID, 180.0, 150.0)
+        backdrop_id = self.scene.add_node_from_type(COMMENT_BACKDROP_TYPE_ID, 100.0, 100.0)
+        self.scene.set_node_geometry(backdrop_id, 100.0, 100.0, 460.0, 300.0)
+        self.assertEqual(self._scene_payload(logger_id)["owner_backdrop_id"], backdrop_id)
+
+        self.scene.set_node_collapsed(backdrop_id, True)
+
+        backdrop_payload = self._scene_payload(backdrop_id)
+        occupied = backdrop_payload["expanded_occupied_bounds"]
+        self.assertGreater(float(occupied["width"]), float(backdrop_payload["width"]))
+        self.assertGreater(float(occupied["height"]), float(backdrop_payload["height"]))
+        self.assertAlmostEqual(float(occupied["x"]), 100.0, places=6)
+        self.assertAlmostEqual(float(occupied["y"]), 100.0, places=6)
+        self.assertAlmostEqual(float(occupied["width"]), 460.0, places=6)
+        self.assertAlmostEqual(float(occupied["height"]), 300.0, places=6)
+
     def test_wrap_selection_transaction_rejects_cross_scope_node_sets(self) -> None:
         root_logger_id = self._add_workspace_node(LOGGER_TYPE_ID, 40.0, 40.0)
         shell_id = self._add_workspace_node(SUBNODE_TYPE_ID, 220.0, 120.0)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager, nullcontext
 from typing import TYPE_CHECKING, Any
 
+from ea_node_editor.app_preferences import normalize_expand_collision_avoidance_settings
 from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.model import GraphModel, NodeInstance, WorkspaceData
 from ea_node_editor.nodes.registry import NodeRegistry
@@ -64,6 +65,12 @@ class _GraphSceneContext:
     @property
     def graphics_show_port_labels(self) -> bool:
         return self._bridge.graphics_show_port_labels
+
+    @property
+    def graphics_expand_collision_avoidance(self) -> dict[str, Any]:
+        source = self._bridge._graphics_preference_source()
+        value = None if source is None else getattr(source, "graphics_expand_collision_avoidance", None)
+        return normalize_expand_collision_avoidance_settings(value)
 
     @property
     def backdrop_nodes_payload(self) -> list[dict[str, Any]]:

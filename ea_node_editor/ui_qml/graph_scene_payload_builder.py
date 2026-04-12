@@ -9,12 +9,14 @@ from typing import TYPE_CHECKING, Any
 from ea_node_editor.graph.comment_backdrop_geometry import (
     CommentBackdropCandidate,
     CommentBackdropMembership,
+    build_comment_backdrop_occupied_bounds,
     compute_comment_backdrop_membership,
 )
 from ea_node_editor.graph.boundary_adapters import GraphBoundaryAdapters, fallback_graph_boundary_adapters
 from ea_node_editor.graph.hierarchy import ScopePath
 from ea_node_editor.graph.effective_ports import effective_ports, ordered_ports_for_display
 from ea_node_editor.graph.hierarchy import is_node_in_scope, node_scope_path, scope_edges, scope_node_ids
+from ea_node_editor.graph.transform_layout_ops import LayoutNodeBounds
 from ea_node_editor.graph.input_semantics import (
     driven_by_input_reason,
     inactive_input_source_key,
@@ -570,6 +572,43 @@ class _GraphSceneNodePayloadFactory:
         height = node.custom_height if node.custom_height is not None else surface_metrics.default_height
         return max(float(surface_metrics.min_width), float(width)), float(height)
 
+    def layout_bounds(
+        self,
+        *,
+        node,
+        spec: NodeTypeSpec,
+        workspace_nodes: dict[str, Any],
+        show_port_labels: bool = True,
+        graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        expanded: bool = False,
+    ) -> LayoutNodeBounds:
+        payload_node = node.clone()
+        if expanded:
+            payload_node.collapsed = False
+        scoped_nodes = dict(workspace_nodes)
+        scoped_nodes[node.node_id] = payload_node
+        resolved_node = self._resolved_payload_node(
+            node=payload_node,
+            spec=spec,
+            workspace_nodes=scoped_nodes,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
+        scoped_nodes[node.node_id] = resolved_node
+        width, height = self._boundary_adapters.node_size(
+            resolved_node,
+            spec,
+            scoped_nodes,
+            show_port_labels=show_port_labels,
+        )
+        return LayoutNodeBounds(
+            node_id=node.node_id,
+            x=float(node.x),
+            y=float(node.y),
+            width=max(1.0, float(width)),
+            height=max(1.0, float(height)),
+        )
+
 
 class _GraphSceneBackdropPartitioner:
     def __init__(self, node_payload_factory: _GraphSceneNodePayloadFactory) -> None:
@@ -676,6 +715,16 @@ class _GraphSceneBackdropPartitioner:
             )
 
         membership_by_node_id = compute_comment_backdrop_membership(membership_candidates)
+        self.apply_expanded_occupied_bounds_payload(
+            node_payload_by_id=node_payload_by_id,
+            node_specs=node_specs,
+            workspace=workspace,
+            workspace_nodes=workspace_nodes,
+            membership_by_node_id=membership_by_node_id,
+            comment_backdrop_ids=comment_backdrop_ids,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+        )
         collapsed_proxy_backdrop_by_node_id = self.collapsed_proxy_backdrop_by_node_id(
             visible_node_ids=visible_node_ids,
             membership_by_node_id=membership_by_node_id,
@@ -757,6 +806,100 @@ class _GraphSceneBackdropPartitioner:
         node_payload["member_backdrop_ids"] = list(membership.member_backdrop_ids)
         node_payload["contained_node_ids"] = list(membership.contained_node_ids)
         node_payload["contained_backdrop_ids"] = list(membership.contained_backdrop_ids)
+
+    def apply_expanded_occupied_bounds_payload(
+        self,
+        *,
+        node_payload_by_id: dict[str, dict[str, Any]],
+        node_specs: dict[str, NodeTypeSpec],
+        workspace: WorkspaceData,
+        workspace_nodes: dict[str, Any],
+        membership_by_node_id: dict[str, CommentBackdropMembership],
+        comment_backdrop_ids: set[str],
+        show_port_labels: bool,
+        graph_label_pixel_size: int,
+    ) -> None:
+        for node_id, node_payload in node_payload_by_id.items():
+            node = workspace.nodes.get(node_id)
+            spec = node_specs.get(node_id)
+            if node is None or spec is None:
+                continue
+            bounds = self._node_payload_factory.layout_bounds(
+                node=node,
+                spec=spec,
+                workspace_nodes=workspace_nodes,
+                show_port_labels=show_port_labels,
+                graph_label_pixel_size=graph_label_pixel_size,
+                expanded=True,
+            )
+            if node_id in comment_backdrop_ids:
+                membership = membership_by_node_id.get(node_id)
+                direct_member_ids = (
+                    []
+                    if membership is None
+                    else [*membership.member_node_ids, *membership.member_backdrop_ids]
+                )
+                member_candidates = [
+                    self._payload_candidate(
+                        member_payload,
+                        is_backdrop=str(member_id) in comment_backdrop_ids,
+                        workspace=workspace,
+                    )
+                    for member_id in direct_member_ids
+                    if (member_payload := node_payload_by_id.get(member_id)) is not None
+                ]
+                occupied = build_comment_backdrop_occupied_bounds(
+                    self._bounds_candidate(bounds, is_backdrop=True, workspace=workspace),
+                    member_candidates,
+                )
+                node_payload["expanded_occupied_bounds"] = {
+                    "x": float(occupied.x),
+                    "y": float(occupied.y),
+                    "width": float(occupied.width),
+                    "height": float(occupied.height),
+                }
+                continue
+            node_payload["expanded_occupied_bounds"] = {
+                "x": float(bounds.x),
+                "y": float(bounds.y),
+                "width": float(bounds.width),
+                "height": float(bounds.height),
+            }
+
+    @staticmethod
+    def _bounds_candidate(
+        bounds: LayoutNodeBounds,
+        *,
+        is_backdrop: bool,
+        workspace: WorkspaceData,
+    ) -> CommentBackdropCandidate:
+        return CommentBackdropCandidate(
+            node_id=str(bounds.node_id),
+            scope_path=node_scope_path(workspace, str(bounds.node_id)),
+            is_backdrop=is_backdrop,
+            x=float(bounds.x),
+            y=float(bounds.y),
+            width=float(bounds.width),
+            height=float(bounds.height),
+        )
+
+    @staticmethod
+    def _payload_candidate(
+        node_payload: dict[str, Any],
+        *,
+        is_backdrop: bool,
+        workspace: WorkspaceData,
+    ) -> CommentBackdropCandidate:
+        node_id = str(node_payload.get("node_id", ""))
+        return CommentBackdropCandidate(
+            node_id=node_id,
+            scope_path=node_scope_path(workspace, node_id),
+            is_backdrop=is_backdrop,
+            x=float(node_payload.get("x", 0.0)),
+            y=float(node_payload.get("y", 0.0)),
+            width=float(node_payload.get("width", 1.0)),
+            height=float(node_payload.get("height", 1.0)),
+        )
 
     @staticmethod
     def port_connection_counts(workspace_edges: list[Any]) -> dict[tuple[str, str], int]:

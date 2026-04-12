@@ -30,7 +30,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 @node_type(
     type_id=TEST_NODE_TYPE_ID,
     display_name="Comment Backdrop Collapse Node",
-    category="Tests",
+    category_path=("Tests",),
     icon="branch",
     ports=(
         in_port("exec_in", kind="exec"),
