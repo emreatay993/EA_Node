@@ -14,8 +14,8 @@ PortDirection = Literal["in", "out", "neutral"]
 PortSide = Literal["", "top", "right", "bottom", "left"]
 PortKind = Literal["exec", "completed", "failed", "data", "flow"]
 PropertyType = Literal["str", "int", "float", "bool", "path", "enum", "json"]
-InlineEditorType = Literal["", "text", "number", "toggle", "enum", "path", "textarea", "color"]
-InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum", "color"]
+InlineEditorType = Literal["", "text", "number", "toggle", "enum", "path", "textarea"]
+InspectorEditorType = Literal["", "text", "textarea", "path", "toggle", "enum"]
 RuntimeBehavior = Literal["active", "passive", "compile_only"]
 SurfaceFamily = Literal[
     "standard",

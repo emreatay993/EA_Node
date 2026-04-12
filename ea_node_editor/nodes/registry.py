@@ -35,7 +35,7 @@ class NodeRegistryEntry:
 class NodeRegistry:
     _TYPE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
     _SUPPORTED_PROPERTY_TYPES = {"str", "int", "float", "bool", "path", "enum", "json"}
-    _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum", "color"}
+    _SUPPORTED_INSPECTOR_EDITORS = {"", "text", "textarea", "path", "toggle", "enum"}
     _SUPPORTED_DIRECTIONS = {"in", "out", "neutral"}
     _SUPPORTED_PORT_SIDES = {"", "top", "right", "bottom", "left"}
     _SUPPORTED_KINDS = {"exec", "completed", "failed", "data", "flow"}

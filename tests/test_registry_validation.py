@@ -350,22 +350,22 @@ class RegistryValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             registry.register(_factory(spec))
 
-    def test_explicit_color_editor_metadata_resolves_to_color(self) -> None:
+    def test_explicit_text_editor_metadata_preserves_supported_editor(self) -> None:
         registry = NodeRegistry()
         spec = NodeTypeSpec(
-            type_id="tests.color_editor",
-            display_name="Color Editor",
+            type_id="tests.text_editor",
+            display_name="Text Editor",
             category_path=("Tests",),
             icon="",
             ports=(PortSpec("value", "out", "data", "any"),),
             properties=(
                 PropertySpec(
-                    "accent_color",
+                    "notes",
                     "str",
-                    "#336699",
-                    "Accent Color",
-                    inline_editor="color",
-                    inspector_editor="color",
+                    "Ready",
+                    "Notes",
+                    inline_editor="text",
+                    inspector_editor="text",
                 ),
             ),
             runtime_behavior="passive",
@@ -376,9 +376,9 @@ class RegistryValidationTests(unittest.TestCase):
 
         registered = registry.get_spec(spec.type_id)
         property_spec = registered.properties[0]
-        self.assertEqual(node_specs.property_inspector_editor(property_spec), "color")
+        self.assertEqual(node_specs.property_inspector_editor(property_spec), "text")
         self.assertEqual(node_specs.inline_property_specs(registered), (property_spec,))
-        self.assertEqual(node_specs.inline_property_specs(registered)[0].inline_editor, "color")
+        self.assertEqual(node_specs.inline_property_specs(registered)[0].inline_editor, "text")
 
     def test_untagged_string_properties_still_resolve_to_text_editor(self) -> None:
         property_spec = PropertySpec(
