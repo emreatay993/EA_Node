@@ -5,7 +5,7 @@
 - Packet: `P04`
 - Branch Label: `codex/dpf-operator-plugin-backend-refactor/p04-missing-plugin-placeholder-portability`
 - Commit Owner: `worker`
-- Commit SHA: `bbad2b16af8137f8989f0595cc2246cce7ce5f28`
+- Commit SHA: `cf89ffe5dc66a6749d30776488d6d0c6da9cdb8f`
 - Changed Files: `ea_node_editor/graph/normalization.py`, `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_graph_scene_bridge_bind_regression.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_serializer.py`, `tests/test_serializer_schema_migration.py`, `docs/specs/work_packets/dpf_operator_plugin_backend_refactor/P04_missing_plugin_placeholder_portability_WRAPUP.md`
 - Artifacts Produced: `docs/specs/work_packets/dpf_operator_plugin_backend_refactor/P04_missing_plugin_placeholder_portability_WRAPUP.md`, `ea_node_editor/graph/normalization.py`, `ea_node_editor/persistence/project_codec.py`, `ea_node_editor/ui_qml/graph_scene_payload_builder.py`, `tests/test_graph_scene_bridge_bind_regression.py`, `tests/test_graph_surface_input_contract.py`, `tests/test_serializer.py`, `tests/test_serializer_schema_migration.py`
 
@@ -21,12 +21,14 @@
 Ready for manual testing.
 
 1. With `ansys.dpf.core` unavailable, open a saved project containing `dpf.*` nodes and confirm the nodes remain visible as read-only placeholders, retain saved port labels, and keep saved edges visible.
-2. With the DPF plugin available, reopen the same project and confirm those placeholders rebind into live DPF nodes and restore saved hierarchy/edge connectivity without data loss.
+2. Hide a saved DPF placeholder port in the authored document, then reopen without the plugin and confirm the hidden port stays hidden while its saved edge still remains visible.
+3. With the DPF plugin available, reopen the same project and confirm those placeholders rebind into live DPF nodes and restore saved hierarchy and edge connectivity without data loss.
 
 ## Residual Risks
 
 - Unknown historic `dpf.*` node types without saved port labels, exposure metadata, or unresolved edges can only receive a minimal placeholder until the real plugin is available to supply the authoritative spec.
+- Normal interactive live-graph edits still prune hidden-port edges through the existing mutation rules; this packet only preserves authored hidden-port connectivity through missing-plugin placeholder persistence and rebind.
 
 ## Ready for Integration
 
-- Yes: packet-owned backend normalization, persistence, and scene payload handling now preserve missing DPF nodes portably and pass the required verification set.
+- Yes: packet-owned backend normalization, persistence, and scene payload handling now preserve missing DPF placeholders, saved exposure state, and hidden-port connectivity across reopen and rebind.
