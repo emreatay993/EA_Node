@@ -7,6 +7,14 @@ import sys
 import textwrap
 import unittest
 
+from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
+    node_surface_metrics,
+    standard_inline_body_height,
+    standard_inline_row_height,
+    standard_inline_textarea_row_height,
+)
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +42,14 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
                     y: 8
                     width: 200
                     height: 120
+                    property int graphFontSize: 15
+                    property int graphFontWeight: Font.DemiBold
+                    property var graphSharedTypography: ({
+                        "inlinePropertyPixelSize": graphFontSize,
+                        "inlinePropertyFontWeight": graphFontWeight,
+                        "badgePixelSize": Math.max(9, graphFontSize - 1),
+                        "badgeFontWeight": Font.Bold
+                    })
                     property color inlineInputBackgroundColor: "#223344"
                     property color inlineInputBorderColor: "#556677"
                     property color inlineInputTextColor: "#ddeeff"
@@ -202,7 +218,7 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
                 from pathlib import Path
 
                 from PyQt6.QtCore import QMetaObject, QObject, QPoint, QPointF, Qt, QUrl
-                from PyQt6.QtGui import QColor
+                from PyQt6.QtGui import QColor, QFont
                 from PyQt6.QtQml import QQmlComponent, QQmlEngine
                 from PyQt6.QtQuick import QQuickItem, QQuickWindow
                 from PyQt6.QtTest import QTest
@@ -329,6 +345,7 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert abs(rect_field(button_rects[0], "x") - 62.0) < 0.5
             assert abs(rect_field(button_rects[0], "y") - 28.0) < 0.5
             assert color_name(button.property("resolvedForegroundColor")) == "#f7f7f0"
+            assert button.property("font").pixelSize() == 15
 
             field_rects = variant_list(field.property("embeddedInteractiveRects"))
             assert len(field_rects) == 1
@@ -336,6 +353,8 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert abs(rect_field(field_rects[0], "y") - 56.0) < 0.5
             assert color_name(field.property("resolvedBackgroundColor")) == "#223344"
             assert color_name(field.property("resolvedBorderColor")) == "#556677"
+            assert field.property("font").pixelSize() == 15
+            assert field.property("font").weight() == int(QFont.Weight.DemiBold)
 
             button_starts = []
             field_starts = []
@@ -358,6 +377,11 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert button_starts == ["started"]
             assert field_starts == ["started"]
             assert color_name(field.property("resolvedBorderColor")) == "#66ccff"
+            host = named_item(root, "probeHost")
+            host.setProperty("graphFontSize", 17)
+            app.processEvents()
+            assert button.property("font").pixelSize() == 17
+            assert field.property("font").pixelSize() == 17
             window.close()
             app.processEvents()
             """,
@@ -370,10 +394,14 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             root = load_probe()
             combo = named_item(root, "probeCombo")
             check = named_item(root, "probeCheck")
+            host = named_item(root, "probeHost")
 
             assert color_name(combo.property("resolvedTextColor")) == "#ddeeff"
             assert color_name(combo.property("resolvedBackgroundColor")) == "#223344"
             assert color_name(check.property("resolvedIndicatorBorderColor")) == "#66ccff"
+            assert combo.property("font").pixelSize() == 15
+            assert combo.property("font").weight() == int(QFont.Weight.DemiBold)
+            assert check.property("font").pixelSize() == 15
             assert len(variant_list(combo.property("embeddedInteractiveRects"))) == 1
             assert len(variant_list(check.property("embeddedInteractiveRects"))) == 1
 
@@ -402,6 +430,10 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
 
             assert combo_starts == ["started"]
             assert check_starts == ["started"]
+            host.setProperty("graphFontSize", 17)
+            app.processEvents()
+            assert combo.property("font").pixelSize() == 17
+            assert check.property("font").pixelSize() == 17
             window.close()
             app.processEvents()
             """,
@@ -429,6 +461,34 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
             assert ys == sorted(ys)
             """,
         )
+
+
+class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
+    def test_standard_inline_surface_metrics_follow_graph_label_size(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("core.logger")
+
+        default_body_height = standard_inline_body_height(spec, graph_label_pixel_size=10)
+        large_body_height = standard_inline_body_height(spec, graph_label_pixel_size=16)
+
+        self.assertEqual(standard_inline_row_height(10), 26.0)
+        self.assertEqual(standard_inline_textarea_row_height(10), 104.0)
+        self.assertEqual(standard_inline_row_height(16), 32.0)
+        self.assertEqual(standard_inline_textarea_row_height(16), 128.0)
+        self.assertEqual(default_body_height, 64.0)
+        self.assertEqual(large_body_height, 76.0)
+        self.assertGreater(large_body_height, default_body_height)
+
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        node = model.add_node(workspace_id, "core.logger", "Logger", 32.0, 48.0)
+
+        default_metrics = node_surface_metrics(node, spec, graph_label_pixel_size=10)
+        large_metrics = node_surface_metrics(node, spec, graph_label_pixel_size=16)
+
+        self.assertEqual(default_metrics.body_height, 64.0)
+        self.assertEqual(large_metrics.body_height, 76.0)
+        self.assertGreater(large_metrics.default_height, default_metrics.default_height)
 
 
 class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):

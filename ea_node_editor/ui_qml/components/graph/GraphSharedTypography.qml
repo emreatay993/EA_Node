@@ -12,6 +12,9 @@ QtObject {
     readonly property int portLabelPixelSize: root._basePixelSize
     readonly property int elapsedFooterPixelSize: root._basePixelSize
     readonly property int inlinePropertyPixelSize: root._basePixelSize
+    readonly property int inlineRowHeight: Math.max(24, root.inlinePropertyPixelSize + 16)
+    readonly property int inlineTextareaRowHeight: Math.max(96, root.inlineRowHeight * 4)
+    readonly property int inlineTextareaFieldHeight: Math.max(74, root.inlineTextareaRowHeight - 30)
     readonly property int badgePixelSize: Math.max(9, root._basePixelSize - 1)
     readonly property int edgeLabelPixelSize: root._basePixelSize + 1
     readonly property int edgePillPixelSize: root._basePixelSize + 2

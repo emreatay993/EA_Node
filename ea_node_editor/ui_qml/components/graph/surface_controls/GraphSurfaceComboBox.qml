@@ -17,6 +17,15 @@ ComboBox {
     readonly property color resolvedTextColor: enabled ? textColor : disabledTextColor
     readonly property color resolvedBackgroundColor: fillColor
     readonly property color resolvedBorderColor: (visualFocus || popup.visible) ? focusBorderColor : borderColor
+    readonly property var typography: host && host.graphSharedTypography ? host.graphSharedTypography : null
+    readonly property int inlineFontPixelSize: {
+        var numeric = Number(typography ? typography.inlinePropertyPixelSize : NaN);
+        return isFinite(numeric) ? Math.round(numeric) : 10;
+    }
+    readonly property int inlineFontWeight: {
+        var numeric = Number(typography ? typography.inlinePropertyFontWeight : NaN);
+        return isFinite(numeric) ? Math.round(numeric) : Font.Normal;
+    }
     readonly property var interactiveRect: SurfaceControlGeometry.rectFromItem(rectItem, host)
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(interactiveRect)
 
@@ -25,6 +34,8 @@ ComboBox {
     padding: 0
     leftPadding: 8
     rightPadding: 24
+    font.pixelSize: inlineFontPixelSize
+    font.weight: inlineFontWeight
     hoverEnabled: true
 
     onPressedChanged: {
@@ -37,7 +48,8 @@ ComboBox {
         rightPadding: control.rightPadding
         text: control.displayText
         color: control.resolvedTextColor
-        font.pixelSize: 10
+        font.pixelSize: control.font.pixelSize
+        font.weight: control.font.weight
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
         renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering
@@ -46,7 +58,8 @@ ComboBox {
     indicator: Text {
         text: "\u25BE"
         color: control.resolvedTextColor
-        font.pixelSize: 10
+        font.pixelSize: control.font.pixelSize
+        font.weight: control.font.weight
         anchors.right: parent.right
         anchors.rightMargin: 8
         anchors.verticalCenter: parent.verticalCenter
@@ -66,7 +79,8 @@ ComboBox {
         contentItem: Text {
             text: modelData
             color: control.resolvedTextColor
-            font.pixelSize: 10
+            font.pixelSize: control.font.pixelSize
+            font.weight: control.font.weight
             elide: Text.ElideRight
             verticalAlignment: Text.AlignVCenter
             renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering

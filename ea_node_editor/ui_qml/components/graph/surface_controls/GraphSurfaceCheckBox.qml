@@ -15,6 +15,15 @@ CheckBox {
     readonly property color resolvedTextColor: enabled ? textColor : disabledTextColor
     readonly property color resolvedIndicatorFillColor: checked ? accentColor : fillColor
     readonly property color resolvedIndicatorBorderColor: checked ? accentColor : borderColor
+    readonly property var typography: host && host.graphSharedTypography ? host.graphSharedTypography : null
+    readonly property int inlineFontPixelSize: {
+        var numeric = Number(typography ? typography.inlinePropertyPixelSize : NaN);
+        return isFinite(numeric) ? Math.round(numeric) : 10;
+    }
+    readonly property int inlineFontWeight: {
+        var numeric = Number(typography ? typography.inlinePropertyFontWeight : NaN);
+        return isFinite(numeric) ? Math.round(numeric) : Font.Normal;
+    }
     readonly property var interactiveRect: SurfaceControlGeometry.rectFromItem(rectItem, host)
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.rectList(interactiveRect)
 
@@ -22,6 +31,8 @@ CheckBox {
 
     spacing: 6
     padding: 0
+    font.pixelSize: inlineFontPixelSize
+    font.weight: inlineFontWeight
     hoverEnabled: true
 
     onPressedChanged: {
@@ -43,7 +54,7 @@ CheckBox {
             visible: control.checked
             text: "\u2713"
             color: control.indicatorCheckColor
-            font.pixelSize: 10
+            font.pixelSize: Math.max(8, control.font.pixelSize - 1)
             font.bold: true
             renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering
         }
@@ -52,7 +63,8 @@ CheckBox {
     contentItem: Text {
         text: control.text
         color: control.resolvedTextColor
-        font.pixelSize: 10
+        font.pixelSize: control.font.pixelSize
+        font.weight: control.font.weight
         leftPadding: control.indicator.width + control.spacing
         verticalAlignment: Text.AlignVCenter
         renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering

@@ -113,7 +113,9 @@ Item {
                 verticalAlignment: Text.AlignVCenter
                 text: root.dirty ? "Ctrl+Enter to commit" : "Committed"
                 color: root.host ? root.host.inlineDrivenTextColor : "#bdc5d3"
-                font.pixelSize: 10
+                font.pixelSize: root.host && root.host.graphSharedTypography
+                    ? root.host.graphSharedTypography.inlinePropertyPixelSize
+                    : 10
                 elide: Text.ElideRight
                 renderType: root.host ? root.host.nodeTextRenderType : Text.CurveRendering
             }

@@ -10,7 +10,10 @@ Item {
     property Item host: null
     readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
     readonly property var inlineProperties: host ? host.inlineProperties : []
-    readonly property real _textareaRowHeight: 104
+    readonly property real _textareaRowHeight: {
+        var numeric = Number(root.graphSharedTypography ? root.graphSharedTypography.inlineTextareaRowHeight : NaN);
+        return isFinite(numeric) ? numeric : 104;
+    }
     readonly property real _interactiveRectGeometryKey: {
         var total = inlinePropertyRepeater.count;
         total += inlineControlsColumn.x + inlineControlsColumn.y + inlineControlsColumn.width + inlineControlsColumn.height;
@@ -51,7 +54,7 @@ Item {
 
     function _rowHeightFor(modelData) {
         if (modelData && modelData.inline_editor === "textarea")
-            return root._textareaRowHeight;
+            return host ? host._inlineTextareaRowHeight : root._textareaRowHeight;
         return host ? host._inlineRowHeight : 26;
     }
 

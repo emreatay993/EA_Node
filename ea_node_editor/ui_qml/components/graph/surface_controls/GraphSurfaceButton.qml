@@ -37,6 +37,11 @@ Button {
         ? pressedBorderColor
         : (hoverVisualActive ? hoverBorderColor : baseBorderColor)
     readonly property real resolvedBorderWidth: hoverVisualActive ? hoverBorderWidth : idleBorderWidth
+    readonly property var typography: host && host.graphSharedTypography ? host.graphSharedTypography : null
+    readonly property int inlineFontPixelSize: {
+        var numeric = Number(typography ? typography.inlinePropertyPixelSize : NaN);
+        return isFinite(numeric) ? Math.round(numeric) : 10;
+    }
     readonly property string resolvedIconSource: {
         if (typeof iconSourceResolver !== "function")
             return "";
@@ -65,6 +70,7 @@ Button {
         contentRow.implicitWidth + contentHorizontalPadding * 2
     )
     padding: 0
+    font.pixelSize: inlineFontPixelSize
     hoverEnabled: true
     focusPolicy: Qt.NoFocus
     ToolTip.visible: hovered && resolvedTooltipText.length > 0
@@ -102,8 +108,8 @@ Button {
                 visible: control.labelVisible
                 text: control.text
                 color: control.resolvedForegroundColor
-                font.pixelSize: 10
-                font.bold: true
+                font.pixelSize: control.font.pixelSize
+                font.weight: Font.DemiBold
                 verticalAlignment: Text.AlignVCenter
                 renderType: control.host ? control.host.nodeTextRenderType : Text.CurveRendering
             }

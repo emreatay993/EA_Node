@@ -26,10 +26,8 @@ from .surface_contract import (
     STANDARD_DEFAULT_WIDTH,
     STANDARD_HEADER_HEIGHT,
     STANDARD_HEADER_TOP_MARGIN,
-    STANDARD_INLINE_ROW_HEIGHT,
     STANDARD_INLINE_ROW_SPACING,
     STANDARD_INLINE_SECTION_PADDING,
-    STANDARD_INLINE_TEXTAREA_ROW_HEIGHT,
     STANDARD_MIN_HEIGHT,
     STANDARD_PORT_CENTER_OFFSET,
     STANDARD_PORT_DOT_RADIUS,
@@ -53,21 +51,35 @@ _STANDARD_TEXT_WIDTH_PADDING = 2.0
 _STANDARD_SUBNODE_SCOPE_BADGE_RESERVE = 56.0
 
 
-def standard_inline_body_height(spec: NodeTypeSpec) -> float:
+def standard_inline_row_height(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> float:
+    return float(max(24, standard_inline_property_pixel_size(value) + 16))
+
+
+def standard_inline_textarea_row_height(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> float:
+    return float(max(96, int(round(standard_inline_row_height(value) * 4.0))))
+
+
+def standard_inline_body_height(
+    spec: NodeTypeSpec,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> float:
     inline_specs = inline_property_specs(spec)
     if len(inline_specs) <= 0:
         return 0.0
-    row_height = 0.0
+    inline_row_height = standard_inline_row_height(graph_label_pixel_size)
+    textarea_row_height = standard_inline_textarea_row_height(graph_label_pixel_size)
+    total_row_height = 0.0
     for property_spec in inline_specs:
         editor = str(property_spec.inline_editor or "").strip().lower()
-        row_height += (
-            STANDARD_INLINE_TEXTAREA_ROW_HEIGHT
+        total_row_height += (
+            textarea_row_height
             if editor == "textarea"
-            else STANDARD_INLINE_ROW_HEIGHT
+            else inline_row_height
         )
     return (
         STANDARD_INLINE_SECTION_PADDING
-        + row_height
+        + total_row_height
         + max(0, len(inline_specs) - 1) * STANDARD_INLINE_ROW_SPACING
     )
 
@@ -246,7 +258,10 @@ def _standard_surface_metrics(
     from .surface_contract import _visible_port_count
 
     port_count = _visible_port_count(node, spec, workspace_nodes)
-    body_height = standard_inline_body_height(spec)
+    body_height = standard_inline_body_height(
+        spec,
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
     default_height = STANDARD_HEADER_HEIGHT + body_height + port_count * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
     width_contract = _standard_surface_min_width_contract(
         node,

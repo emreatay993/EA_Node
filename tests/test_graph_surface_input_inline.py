@@ -466,24 +466,51 @@ class GraphSurfaceInputInlineTests(unittest.TestCase):
             """
             host = probe.findChild(QObject, "probeHost")
             typography = host.findChild(QObject, "graphSharedTypography")
+            loader = host.findChild(QObject, "graphNodeSurfaceLoader")
             source_label = named_item(probe, "graphNodeInlinePropertyLabel", "source_path")
             status_chip_label = named_item(probe, "graphNodeInlineStatusChipLabel", "source_path")
+            path_field = named_item(probe, "graphNodeInlinePathEditor", "source_path")
+            textarea = named_item(probe, "graphNodeInlineTextareaEditor", "caption")
 
             assert typography is not None
+            assert loader is not None
+            assert float(host.property("_inlineRowHeight")) == float(typography.property("inlineRowHeight"))
+            assert float(host.property("_inlineTextareaRowHeight")) == float(typography.property("inlineTextareaRowHeight"))
+
+            rects_before = variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(rects_before) == 4, rects_before
+            path_y_before = rect_field(rects_before[0], "y")
+
             assert source_label.property("font").pixelSize() == int(typography.property("inlinePropertyPixelSize"))
             assert source_label.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
             assert status_chip_label.property("font").pixelSize() == int(typography.property("badgePixelSize"))
             assert status_chip_label.property("font").weight() == int(typography.property("badgeFontWeight"))
+            assert path_field.property("font").pixelSize() == int(typography.property("inlinePropertyPixelSize"))
+            assert path_field.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
+            assert textarea.property("font").pixelSize() == int(typography.property("inlinePropertyPixelSize"))
+            assert textarea.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
 
             host.setProperty("graphLabelPixelSize", 16)
             app.processEvents()
 
             assert int(typography.property("inlinePropertyPixelSize")) == 16
             assert int(typography.property("badgePixelSize")) == 15
+            assert int(typography.property("inlineRowHeight")) == 32
+            assert int(typography.property("inlineTextareaRowHeight")) == 128
+            assert float(host.property("_inlineRowHeight")) == 32.0
+            assert float(host.property("_inlineTextareaRowHeight")) == 128.0
             assert source_label.property("font").pixelSize() == 16
             assert source_label.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
             assert status_chip_label.property("font").pixelSize() == 15
             assert status_chip_label.property("font").weight() == int(typography.property("badgeFontWeight"))
+            assert path_field.property("font").pixelSize() == 16
+            assert path_field.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
+            assert textarea.property("font").pixelSize() == 16
+            assert textarea.property("font").weight() == int(typography.property("inlinePropertyFontWeight"))
+
+            rects_after = variant_list(loader.property("embeddedInteractiveRects"))
+            assert len(rects_after) == 4, rects_after
+            assert rect_field(rects_after[0], "y") > path_y_before
             """,
         )
 

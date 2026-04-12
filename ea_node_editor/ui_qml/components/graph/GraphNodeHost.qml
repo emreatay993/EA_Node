@@ -284,7 +284,14 @@ Item {
         return Math.max(6.0, Math.min(size, 10.0));
     }
 
-    readonly property real _inlineRowHeight: 26
+    readonly property real _inlineRowHeight: {
+        var numeric = Number(card.graphSharedTypography ? card.graphSharedTypography.inlineRowHeight : NaN);
+        return isFinite(numeric) ? numeric : 26;
+    }
+    readonly property real _inlineTextareaRowHeight: {
+        var numeric = Number(card.graphSharedTypography ? card.graphSharedTypography.inlineTextareaRowHeight : NaN);
+        return isFinite(numeric) ? numeric : 104;
+    }
     readonly property real _inlineRowSpacing: 4
     readonly property var inlineProperties: {
         if (!card.nodeData || !card.nodeData.inline_properties)

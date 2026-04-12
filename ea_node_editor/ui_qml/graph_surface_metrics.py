@@ -6,6 +6,7 @@ from typing import Any
 
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 
 from ea_node_editor.ui_qml.graph_geometry.anchors import (
     flowchart_anchor_local_point as _flowchart_anchor_local_point_impl,
@@ -50,8 +51,15 @@ class _FlowchartMetricLayoutState:
     port_top: float
 
 
-def standard_inline_body_height(spec: NodeTypeSpec) -> float:
-    return _standard_inline_body_height_impl(spec)
+def standard_inline_body_height(
+    spec: NodeTypeSpec,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> float:
+    return _standard_inline_body_height_impl(
+        spec,
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
 
 
 def normalize_flowchart_variant(variant: str) -> str:
@@ -169,6 +177,7 @@ def resolved_node_surface_size(
     show_port_labels: bool = True,
     surface_metrics: GraphNodeSurfaceMetrics | None = None,
     clamp_height: bool = False,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> tuple[float, float]:
     return _resolved_node_surface_size_impl(
         node,
@@ -177,6 +186,7 @@ def resolved_node_surface_size(
         show_port_labels=show_port_labels,
         surface_metrics=surface_metrics,
         clamp_height=clamp_height,
+        graph_label_pixel_size=graph_label_pixel_size,
     )
 
 
@@ -186,12 +196,14 @@ def node_surface_metrics(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     *,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> GraphNodeSurfaceMetrics:
     return _node_surface_metrics_impl(
         node,
         spec,
         workspace_nodes,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
     )
 
 
