@@ -281,7 +281,12 @@ class GraphCanvasStateBridge(QObject):
         if hide_locked_ports is not None or hide_optional_ports is not None:
             return bool(hide_locked_ports), bool(hide_optional_ports)
 
-        workspace = _invoke_value(self._scene_bridge, "current_workspace")
+        workspace = _invoke_value(self._scene_bridge, "_workspace_or_none")
+        if workspace is None:
+            try:
+                workspace = _invoke_value(self._scene_bridge, "current_workspace")
+            except RuntimeError:
+                return False, False
         if workspace is None:
             return False, False
         views = getattr(workspace, "views", None)

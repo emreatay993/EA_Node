@@ -218,6 +218,13 @@ class GraphSceneBridgeBindRegressionTests(unittest.TestCase):
         self.assertIs(canvas_command_bridge.scene_command_source, scene.command_bridge)
         self.assertIs(canvas_command_bridge.scene_policy_source, scene.policy_bridge)
 
+    def test_graph_canvas_state_bridge_defaults_view_filters_before_scene_binding(self) -> None:
+        scene = GraphSceneBridge()
+        canvas_state_bridge = GraphCanvasStateBridge(scene_bridge=scene)
+
+        self.assertFalse(canvas_state_bridge.hide_locked_ports)
+        self.assertFalse(canvas_state_bridge.hide_optional_ports)
+
     def test_set_workspace_does_not_mutate_node_properties_or_exposed_ports(self) -> None:
         registry = build_default_registry()
         model = GraphModel()
