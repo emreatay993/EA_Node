@@ -168,28 +168,6 @@ Item {
                 mouse.accepted = true;
                 return;
             }
-            if (mouse.button === Qt.LeftButton) {
-                var lockToggleTarget = root._lockToggleTargetAtScreen(mouse.x, mouse.y);
-                if (lockToggleTarget) {
-                    if (lockToggleTarget.hostItem && lockToggleTarget.hostItem.portDoubleClicked) {
-                        lockToggleTarget.hostItem.portDoubleClicked(
-                            lockToggleTarget.nodeId,
-                            lockToggleTarget.propertyKey,
-                            lockToggleTarget.portDirection,
-                            Boolean(lockToggleTarget.lockedState)
-                        );
-                    } else if (root.canvasItem && root.canvasItem.togglePortLock) {
-                        root.canvasItem.togglePortLock(
-                            lockToggleTarget.nodeId,
-                            lockToggleTarget.propertyKey,
-                            Boolean(lockToggleTarget.lockedState)
-                        );
-                    }
-                    resetGestureState();
-                    mouse.accepted = true;
-                    return;
-                }
-            }
             startX = mouse.x;
             startY = mouse.y;
             currentX = mouse.x;

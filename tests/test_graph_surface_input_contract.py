@@ -16,9 +16,9 @@ pytestmark = pytest.mark.xdist_group("p03_graph_surface")
 
 
 class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
-    def test_graph_node_host_emits_locked_input_port_click_contract(self) -> None:
+    def test_graph_node_host_emits_locked_input_port_double_click_contract(self) -> None:
         self._run_qml_probe(
-            "locked-port-click-contract",
+            "locked-port-double-click-contract",
             """
             payload = node_payload()
             payload["ports"] = [
@@ -53,6 +53,10 @@ class GraphSurfaceLockedPortContractTests(GraphSurfaceInputContractTestBase):
             )
             window = attach_host_to_window(host, 480, 360)
             mouse_click(window, item_scene_point(lock_toggle))
+            settle_events(4)
+            assert events == [], events
+
+            mouse_double_click(window, item_scene_point(lock_toggle))
             settle_events(4)
 
             assert events == [("node_surface_contract_test", "message", "in", True)], events

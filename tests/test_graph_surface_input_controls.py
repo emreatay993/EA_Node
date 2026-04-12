@@ -493,10 +493,9 @@ class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
             assert node.locked_ports.get("message") is False, node.locked_ports
 
             lock_toggle = named_item(canvas, "graphNodeInputPortLockToggleMouseArea", "message")
-            lock_point = item_scene_point(lock_toggle)
+            assert bool(lock_toggle.property("visible")) is False
             hit_target = input_layers._lockToggleTargetAtScreen(lock_point.x(), lock_point.y())
-            assert hit_target is not None
-            assert bool(hit_target.property("lockedState")) is False
+            assert hit_target is None
 
             assert canvas.togglePortLock(node_id, "message", False) is True
             settle_events(4)

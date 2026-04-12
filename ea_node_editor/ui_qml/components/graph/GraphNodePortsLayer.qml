@@ -256,16 +256,6 @@ Item {
                     onPressed: function(mouse) {
                         if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
                             return;
-                        if (inputDot.lockedState && inputDot.lockableState) {
-                            root.host.portDoubleClicked(
-                                root.host.nodeData.node_id,
-                                modelData.key,
-                                inputDot.interactionDirection,
-                                true
-                            );
-                            mouse.accepted = true;
-                            return;
-                        }
                         if (inputDot.interactionBlockedState)
                             return;
                         pressStartX = mouse.x;
@@ -336,13 +326,13 @@ Item {
                     onDoubleClicked: function(mouse) {
                         if (!root.host || !root.host.nodeData || mouse.button !== Qt.LeftButton)
                             return;
-                        if (!inputDot.lockableState || inputDot.lockedState || inputDot.inactiveState)
+                        if (!inputDot.lockableState || inputDot.inactiveState)
                             return;
                         root.host.portDoubleClicked(
                             root.host.nodeData.node_id,
                             modelData.key,
                             inputDot.interactionDirection,
-                            false
+                            inputDot.lockedState
                         );
                         mouse.accepted = true;
                     }
@@ -394,9 +384,9 @@ Item {
                 readonly property bool lockableState: inputPortRow.lockableState
                 readonly property bool lockedState: inputPortRow.lockedState
                 readonly property bool labelTextVisible: root.host ? root.host._portLabelsVisible : true
-                readonly property real lockGlyphWidth: lockableState && !lockedState ? 10 : 0
-                readonly property real lockGlyphGap: lockableState && !lockedState ? 4 : 0
-                readonly property real textLeftInset: lockableState ? (lockGlyphWidth + lockGlyphGap) : 0
+                readonly property real lockGlyphWidth: 0
+                readonly property real lockGlyphGap: 0
+                readonly property real textLeftInset: 0
                 readonly property bool standardColumnsActive: root.host ? root.host._usesStandardPortLabelColumns : false
                 readonly property real labelX: Math.max(0, inputDot.x + inputDot.width + (root.host ? root.host._portLabelGap : 6))
                 readonly property real rawAvailableWidth: Math.max(0, (root.host ? root.host.width : 0) - labelX - 4)
@@ -412,7 +402,7 @@ Item {
                     )
                     : 0.0
                 readonly property real availableWidth: standardColumnsActive ? standardAvailableWidth : rawAvailableWidth
-                visible: root.host ? (root.host._portLabelsVisible || lockableState) : true
+                visible: root.host ? (root.host._portLabelsVisible || lockedState) : true
                 anchors.verticalCenter: parent.verticalCenter
                 x: labelX
                 width: availableWidth
@@ -424,7 +414,7 @@ Item {
                     property string propertyKey: inputLabelContainer.propertyKey
                     readonly property bool lockedState: inputLabelContainer.lockedState
                     parent: inputLabelContainer.lockedState ? inputDot : inputLabelContainer
-                    visible: inputLabelContainer.lockableState
+                    visible: inputLabelContainer.lockedState
                     x: inputLabelContainer.lockedState ? Math.round((parent.width - width) * 0.5) : 0
                     y: Math.round((parent.height - height) * 0.5)
                     width: 10
@@ -489,7 +479,7 @@ Item {
                     property bool lockedState: inputLabelContainer.lockedState
                     property Item hostItem: root.host
                     parent: inputLabelContainer.lockedState ? inputDot : inputLabelContainer
-                    visible: inputLabelContainer.lockableState
+                    visible: inputLabelContainer.lockedState
                     x: lockGlyph.x
                     y: lockGlyph.y
                     width: lockGlyph.width
@@ -500,7 +490,11 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                     z: 3
 
-                    onPressed: function(mouse) {
+                    onClicked: function(mouse) {
+                        mouse.accepted = true;
+                    }
+
+                    onDoubleClicked: function(mouse) {
                         if (mouse.button !== Qt.LeftButton)
                             return;
                         if (!root.host || !root.host.nodeData)
@@ -511,14 +505,6 @@ Item {
                             inputPortRow.interactionDirection,
                             inputLabelContainer.lockedState
                         );
-                        mouse.accepted = true;
-                    }
-
-                    onClicked: function(mouse) {
-                        mouse.accepted = true;
-                    }
-
-                    onDoubleClicked: function(mouse) {
                         mouse.accepted = true;
                     }
                 }
