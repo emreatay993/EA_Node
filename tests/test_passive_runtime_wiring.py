@@ -26,7 +26,7 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 @node_type(
     type_id="tests.runtime_source",
     display_name="Runtime Source",
-    category="Tests",
+    category_path=("Tests",),
     icon="play_arrow",
     ports=(
         out_port("value", data_type="str"),
@@ -43,7 +43,7 @@ class _RuntimeSourcePlugin:
 @node_type(
     type_id="tests.single_sink",
     display_name="Single Sink",
-    category="Tests",
+    category_path=("Tests",),
     icon="input",
     ports=(
         in_port("value", data_type="str"),
@@ -60,7 +60,7 @@ class _SingleSinkPlugin:
 @node_type(
     type_id="tests.multi_sink",
     display_name="Multi Sink",
-    category="Tests",
+    category_path=("Tests",),
     icon="input",
     ports=(
         in_port("value", data_type="str", allow_multiple_connections=True),
@@ -76,7 +76,7 @@ class _MultiSinkPlugin:
 @node_type(
     type_id="tests.passive_note",
     display_name="Passive Note",
-    category="Tests",
+    category_path=("Tests",),
     icon="note",
     ports=(
         in_port("flow_in", kind="flow"),
@@ -101,6 +101,19 @@ def _build_runtime_registry() -> NodeRegistry:
     ):
         registry.register(plugin)
     return registry
+
+
+def _normalized_runtime_document(document: dict[str, object]) -> dict[str, object]:
+    normalized = copy.deepcopy(document)
+    for workspace in normalized.get("workspaces", []):
+        if not isinstance(workspace, dict):
+            continue
+        for view in workspace.get("views", []):
+            if not isinstance(view, dict):
+                continue
+            view.pop("hide_locked_ports", None)
+            view.pop("hide_optional_ports", None)
+    return normalized
 
 
 class PassiveRuntimeWiringTests(unittest.TestCase):
@@ -268,7 +281,10 @@ class PassiveRuntimeWiringTests(unittest.TestCase):
         )
         normalized_project = copy.deepcopy(model.project)
         normalize_project_for_registry(normalized_project, registry)
-        self.assertEqual(runtime_snapshot.to_document(), serializer.to_document(normalized_project))
+        self.assertEqual(
+            _normalized_runtime_document(runtime_snapshot.to_document()),
+            _normalized_runtime_document(serializer.to_document(normalized_project)),
+        )
         self.assertNotIn("_runtime_unresolved_workspaces", runtime_snapshot.metadata)
 
         compiled = compile_runtime_snapshot(

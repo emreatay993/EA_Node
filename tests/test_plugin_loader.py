@@ -5,6 +5,12 @@ import logging
 from pathlib import Path
 
 from ea_node_editor.nodes import plugin_loader
+from ea_node_editor.nodes.node_specs import NodeTypeSpec
+from ea_node_editor.nodes.plugin_contracts import (
+    PluginAvailability,
+    PluginBackendDescriptor,
+    PluginDescriptor,
+)
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.runtime_contracts import RuntimeArtifactRef
 
@@ -27,7 +33,7 @@ class {class_name}:
         return NodeTypeSpec(
             type_id={type_id!r},
             display_name={display_name!r},
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -38,6 +44,26 @@ class {class_name}:
 """.strip()
         + "\n",
     )
+
+
+def _packet_descriptor(type_id: str, display_name: str) -> PluginDescriptor:
+    class PacketBackendPlugin:
+        def spec(self):
+            return NodeTypeSpec(
+                type_id=type_id,
+                display_name=display_name,
+                category_path=("Packet Tests",),
+                icon="packet",
+                ports=(),
+                properties=(),
+            )
+
+        def execute(self, ctx):
+            from ea_node_editor.nodes.types import NodeResult
+
+            return NodeResult()
+
+    return PluginDescriptor(spec=PacketBackendPlugin().spec(), factory=PacketBackendPlugin)
 
 
 def test_discover_and_load_plugins_preserves_root_py_dropins(
@@ -82,7 +108,7 @@ class PackagePlugin:
         return NodeTypeSpec(
             type_id="packet.package",
             display_name=DISPLAY_NAME,
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -124,7 +150,7 @@ class PackagePlugin:
         return NodeTypeSpec(
             type_id="packet.package.single",
             display_name=DISPLAY_NAME,
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -193,7 +219,7 @@ class DescriptorPlugin:
         return NodeTypeSpec(
             type_id="packet.descriptor",
             display_name="Descriptor Plugin",
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -208,7 +234,7 @@ PLUGIN_DESCRIPTORS = (
         NodeTypeSpec(
             type_id="packet.descriptor",
             display_name="Descriptor Plugin",
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -243,7 +269,7 @@ def test_discover_and_load_plugins_preserves_entry_point_loading(
             return NodeTypeSpec(
                 type_id="packet.entry-point",
                 display_name="Entry Point",
-                category="Packet Tests",
+                category_path=("Packet Tests",),
                 icon="packet",
                 ports=(),
                 properties=(),
@@ -299,7 +325,7 @@ class RuntimeContractPlugin:
         return NodeTypeSpec(
             type_id="packet.runtime_contracts",
             display_name="Runtime Contracts",
-            category="Packet Tests",
+            category_path=("Packet Tests",),
             icon="packet",
             ports=(),
             properties=(),
@@ -325,3 +351,44 @@ class RuntimeContractPlugin:
 
     assert isinstance(result.outputs["artifact"], RuntimeArtifactRef)
     assert result.outputs["artifact"].artifact_id == "packet_runtime_contract"
+
+
+def test_register_plugin_backends_skips_missing_dependency_backends_without_loading_descriptors() -> None:
+    descriptor_loader_called = False
+
+    def load_descriptors() -> tuple[PluginDescriptor, ...]:
+        nonlocal descriptor_loader_called
+        descriptor_loader_called = True
+        return (_packet_descriptor("packet.optional", "Optional Backend"),)
+
+    backend = PluginBackendDescriptor(
+        plugin_id="packet.optional",
+        display_name="Optional Backend",
+        get_availability=lambda: PluginAvailability.missing_dependency(
+            "packet.optional.dep",
+            summary="optional dependency missing",
+        ),
+        load_descriptors=load_descriptors,
+    )
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.register_plugin_backends((backend,), registry, "packet.optional")
+
+    assert loaded == []
+    assert descriptor_loader_called is False
+    assert registry.spec_or_none("packet.optional") is None
+
+
+def test_register_plugin_backends_loads_available_backends() -> None:
+    backend = PluginBackendDescriptor(
+        plugin_id="packet.available",
+        display_name="Available Backend",
+        get_availability=lambda: PluginAvailability.available("available"),
+        load_descriptors=lambda: (_packet_descriptor("packet.available", "Available Backend"),),
+    )
+
+    registry = NodeRegistry()
+    loaded = plugin_loader.register_plugin_backends((backend,), registry, "packet.available")
+
+    assert loaded == ["packet.available"]
+    assert registry.get_spec("packet.available").display_name == "Available Backend"

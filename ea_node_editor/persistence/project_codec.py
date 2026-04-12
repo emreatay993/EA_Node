@@ -536,7 +536,9 @@ class JsonProjectCodec:
     ) -> None:
         edge_id = str(edge_doc.get("edge_id", "")).strip()
         source_node_id = str(edge_doc.get("source_node_id", "")).strip()
+        source_port_key = str(edge_doc.get("source_port_key", "")).strip()
         target_node_id = str(edge_doc.get("target_node_id", "")).strip()
+        target_port_key = str(edge_doc.get("target_port_key", "")).strip()
         if not edge_id or not source_node_id or not target_node_id:
             return
         if edge_id in workspace.edges or edge_id in persistence_envelope.unresolved_edge_docs:
@@ -551,6 +553,12 @@ class JsonProjectCodec:
             )
         ):
             persistence_envelope.unresolved_edge_docs[edge_id] = self._copy_mapping(edge_doc)
+            return
+        source_node = workspace.nodes.get(source_node_id)
+        target_node = workspace.nodes.get(target_node_id)
+        if source_node is not None and not source_node.exposed_ports.get(source_port_key, True):
+            return
+        if target_node is not None and not target_node.exposed_ports.get(target_port_key, True):
             return
         edge = edge_instance_from_mapping(edge_doc)
         if edge is None:

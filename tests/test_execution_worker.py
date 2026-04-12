@@ -50,7 +50,7 @@ _WAIT_NODE_RELEASE = threading.Event()
 @node_type(
     type_id="tests.passive_note",
     display_name="Passive Note",
-    category="Tests",
+    category_path=("Tests",),
     icon="note",
     ports=(),
     properties=(),
@@ -65,7 +65,7 @@ class _PassiveNotePlugin:
 @node_type(
     type_id="tests.artifact_source",
     display_name="Artifact Source",
-    category="Tests",
+    category_path=("Tests",),
     icon="upload",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -89,7 +89,7 @@ class _ArtifactSourcePlugin:
 @node_type(
     type_id="tests.artifact_sink",
     display_name="Artifact Sink",
-    category="Tests",
+    category_path=("Tests",),
     icon="download",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -118,7 +118,7 @@ class _ArtifactSinkPlugin:
 @node_type(
     type_id="tests.handle_source",
     display_name="Handle Source",
-    category="Tests",
+    category_path=("Tests",),
     icon="memory",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -136,7 +136,7 @@ class _HandleSourcePlugin:
 @node_type(
     type_id="tests.persistent_handle_source",
     display_name="Persistent Handle Source",
-    category="Tests",
+    category_path=("Tests",),
     icon="database",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -158,7 +158,7 @@ class _PersistentHandleSourcePlugin:
 @node_type(
     type_id="tests.viewer_source",
     display_name="Viewer Source",
-    category="Tests",
+    category_path=("Tests",),
     icon="image",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -190,7 +190,7 @@ class _ViewerSourcePlugin:
 @node_type(
     type_id="tests.viewer_wait",
     display_name="Viewer Wait",
-    category="Tests",
+    category_path=("Tests",),
     icon="hourglass",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -211,7 +211,7 @@ class _ViewerWaitPlugin:
 @node_type(
     type_id="tests.handle_sink",
     display_name="Handle Sink",
-    category="Tests",
+    category_path=("Tests",),
     icon="download",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),

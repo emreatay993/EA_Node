@@ -108,6 +108,30 @@ class MarkdownHygieneTests(unittest.TestCase):
         self.assertEqual([], self.checker.audit_markdown_file(spec_index_path, REPO_ROOT))
         self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
 
+    def test_readme_links_dpf_operator_backend_closeout_docs(self) -> None:
+        readme_path = REPO_ROOT / "README.md"
+        readme_text = readme_path.read_text(encoding="utf-8-sig")
+        review_path = REPO_ROOT / "docs" / "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md"
+        review_text = review_path.read_text(encoding="utf-8-sig")
+        matrix_path = (
+            REPO_ROOT / "docs" / "specs" / "perf" / "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md"
+        )
+        matrix_text = matrix_path.read_text(encoding="utf-8-sig")
+
+        self.assertIn(
+            "[DPF Operator Backend Review](docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md)",
+            readme_text,
+        )
+        self.assertIn(
+            "[DPF Operator Backend QA Matrix](docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md)",
+            readme_text,
+        )
+        self.assertTrue(review_text.startswith("# DPF Operator Plugin Backend Review 2026-04-12"))
+        self.assertTrue(matrix_text.startswith("# DPF Operator Plugin Backend Refactor QA Matrix"))
+        self.assertEqual([], self.checker.audit_markdown_file(readme_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(review_path, REPO_ROOT))
+        self.assertEqual([], self.checker.audit_markdown_file(matrix_path, REPO_ROOT))
+
     def test_architecture_registers_plan_template_and_overlay(self) -> None:
         architecture_text = (REPO_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8-sig")
 

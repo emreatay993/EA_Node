@@ -16,7 +16,12 @@ from typing import Any
 
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.node_specs import NodeTypeSpec
-from ea_node_editor.nodes.plugin_contracts import NodePlugin, PluginDescriptor, PluginProvenance
+from ea_node_editor.nodes.plugin_contracts import (
+    NodePlugin,
+    PluginBackendDescriptor,
+    PluginDescriptor,
+    PluginProvenance,
+)
 from ea_node_editor.settings import plugins_dir
 
 logger = logging.getLogger(__name__)
@@ -50,6 +55,22 @@ def _coerce_plugin_descriptor(raw_descriptor: object) -> PluginDescriptor:
     raise TypeError(
         "PLUGIN_DESCRIPTORS entries must be PluginDescriptor values or (spec, factory) pairs",
     )
+
+
+def _coerce_plugin_backend(raw_backend: object) -> PluginBackendDescriptor:
+    if isinstance(raw_backend, PluginBackendDescriptor):
+        return raw_backend
+    raise TypeError("PLUGIN_BACKENDS entries must be PluginBackendDescriptor values")
+
+
+def _module_plugin_backends(module: Any) -> tuple[PluginBackendDescriptor, ...] | None:
+    raw_backends = getattr(module, "PLUGIN_BACKENDS", None)
+    if raw_backends is None:
+        return None
+    try:
+        return tuple(_coerce_plugin_backend(item) for item in raw_backends)
+    except TypeError as exc:
+        raise TypeError("PLUGIN_BACKENDS must be an iterable of plugin backends") from exc
 
 
 def _module_plugin_descriptors(module: Any) -> tuple[PluginDescriptor, ...] | None:
@@ -183,6 +204,58 @@ def _register_plugin_descriptors(
     return loaded
 
 
+def _register_plugin_backend(
+    backend: PluginBackendDescriptor,
+    registry: NodeRegistry,
+    source: Path | str,
+    *,
+    provenance: PluginProvenance | None = None,
+) -> list[str]:
+    availability = backend.get_availability()
+    if not availability.is_available:
+        logger.info(
+            "Skipping unavailable plugin backend %s from %s: %s",
+            backend.plugin_id,
+            source,
+            availability.summary or ", ".join(availability.missing_dependencies),
+        )
+        return []
+    return _register_plugin_descriptors(
+        backend.load_descriptors(),
+        registry,
+        source,
+        provenance=backend.provenance if backend.provenance is not None else provenance,
+    )
+
+
+def register_plugin_backends(
+    backends: tuple[PluginBackendDescriptor, ...] | list[PluginBackendDescriptor],
+    registry: NodeRegistry,
+    source: Path | str,
+    *,
+    provenance: PluginProvenance | None = None,
+) -> list[str]:
+    loaded: list[str] = []
+    for backend in backends:
+        try:
+            loaded.extend(
+                _register_plugin_backend(
+                    backend,
+                    registry,
+                    source,
+                    provenance=provenance,
+                )
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "Failed to load plugin backend %s from %s",
+                backend.plugin_id,
+                source,
+                exc_info=True,
+            )
+    return loaded
+
+
 def _register_plugin_classes(
     module: Any,
     registry: NodeRegistry,
@@ -217,6 +290,14 @@ def _register_module_plugins(
     provenance: PluginProvenance | None = None,
     preferred_descriptors: tuple[PluginDescriptor, ...] | None = None,
 ) -> list[str]:
+    backends = _module_plugin_backends(module)
+    if backends is not None:
+        return register_plugin_backends(
+            backends,
+            registry,
+            source,
+            provenance=provenance,
+        )
     descriptors = preferred_descriptors
     if descriptors is None:
         descriptors = _module_plugin_descriptors(module)
@@ -359,6 +440,17 @@ def _load_plugins_from_entry_points(registry: NodeRegistry) -> list[str]:
         provenance = _entry_point_plugin_provenance(ep)
         try:
             plugin_target = ep.load()
+            backends = _module_plugin_backends(plugin_target)
+            if backends is not None:
+                loaded.extend(
+                    register_plugin_backends(
+                        backends,
+                        registry,
+                        ep.name,
+                        provenance=provenance,
+                    )
+                )
+                continue
             descriptors = _module_plugin_descriptors(plugin_target)
             if descriptors is not None:
                 loaded.extend(
@@ -404,4 +496,5 @@ __all__ = [
     "ENTRY_POINT_GROUP",
     "discover_and_load_plugins",
     "discover_package_plugins",
+    "register_plugin_backends",
 ]

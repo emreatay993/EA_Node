@@ -5,11 +5,127 @@ import unittest
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.persistence.project_codec import ProjectPersistenceEnvelope
 from ea_node_editor.persistence.serializer import JsonProjectSerializer, ProjectSessionMetadata
+from ea_node_editor.settings import SCHEMA_VERSION
 from tests.serializer.round_trip_cases import SerializerRoundTripMixin
 from tests.serializer.schema_cases import SerializerSchemaMixin
 from tests.serializer.workflow_cases import SerializerWorkflowMixin
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
+
+
+def _dpf_placeholder_round_trip_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_dpf_placeholder_round_trip",
+        "name": "DPF Placeholder Round Trip",
+        "active_workspace_id": "ws_dpf",
+        "workspace_order": ["ws_dpf"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_dpf",
+                "name": "Workspace DPF",
+                "active_view_id": "view_dpf",
+                "views": [
+                    {
+                        "view_id": "view_dpf",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_dpf_model",
+                        "type_id": "dpf.model",
+                        "title": "Saved DPF Model",
+                        "x": 180.0,
+                        "y": 60.0,
+                        "collapsed": True,
+                        "properties": {"path": "C:/tmp/example.rst"},
+                        "exposed_ports": {"result_file": True, "model": True},
+                        "port_labels": {
+                            "result_file": "Saved Result File",
+                            "model": "Saved Model",
+                        },
+                        "visual_style": {"fill": "#334455"},
+                        "custom_width": 312.0,
+                        "custom_height": 144.0,
+                        "parent_node_id": None,
+                    }
+                ],
+                "edges": [],
+            }
+        ],
+        "metadata": {},
+    }
+
+
+def _dpf_hidden_edge_placeholder_payload() -> dict[str, object]:
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "project_id": "proj_dpf_hidden_edge_placeholder",
+        "name": "DPF Hidden Edge Placeholder",
+        "active_workspace_id": "ws_dpf",
+        "workspace_order": ["ws_dpf"],
+        "workspaces": [
+            {
+                "workspace_id": "ws_dpf",
+                "name": "Workspace DPF",
+                "active_view_id": "view_dpf",
+                "views": [
+                    {
+                        "view_id": "view_dpf",
+                        "name": "V1",
+                        "zoom": 1.0,
+                        "pan_x": 0.0,
+                        "pan_y": 0.0,
+                    }
+                ],
+                "nodes": [
+                    {
+                        "node_id": "node_result",
+                        "type_id": "dpf.result_file",
+                        "title": "Saved Result",
+                        "x": 60.0,
+                        "y": 40.0,
+                        "collapsed": False,
+                        "properties": {"path": "C:/tmp/example.rst"},
+                        "exposed_ports": {"result_file": True, "exec_out": True},
+                        "port_labels": {"result_file": "Saved Result File"},
+                        "parent_node_id": None,
+                    },
+                    {
+                        "node_id": "node_model",
+                        "type_id": "dpf.model",
+                        "title": "Saved Model",
+                        "x": 320.0,
+                        "y": 40.0,
+                        "collapsed": False,
+                        "properties": {},
+                        "exposed_ports": {"result_file": False, "model": True},
+                        "port_labels": {
+                            "result_file": "Hidden Saved Result File",
+                            "model": "Saved Model",
+                        },
+                        "parent_node_id": None,
+                    },
+                ],
+                "edges": [
+                    {
+                        "edge_id": "edge_hidden_result_file",
+                        "source_node_id": "node_result",
+                        "source_port_key": "result_file",
+                        "target_node_id": "node_model",
+                        "target_port_key": "result_file",
+                    }
+                ],
+            }
+        ],
+        "metadata": {},
+    }
 
 
 class SerializerTests(SerializerRoundTripMixin, SerializerWorkflowMixin, SerializerSchemaMixin, unittest.TestCase):
@@ -193,6 +309,56 @@ class SerializerPortLockingTests(unittest.TestCase):
         self.assertEqual(loaded_node.locked_ports, {})
         self.assertFalse(loaded_view.hide_locked_ports)
         self.assertFalse(loaded_view.hide_optional_ports)
+
+
+class SerializerDpfPlaceholderTests(unittest.TestCase):
+    def test_persistent_document_round_trip_preserves_unresolved_dpf_node_payload(self) -> None:
+        serializer = JsonProjectSerializer(NodeRegistry())
+        payload = _dpf_placeholder_round_trip_payload()
+
+        project = serializer.from_document(copy.deepcopy(payload))
+        workspace = project.workspaces["ws_dpf"]
+
+        self.assertEqual(workspace.nodes, {})
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_dpf_model"})
+
+        authored_document = serializer.to_persistent_document(project)
+        workspace_doc = authored_document["workspaces"][0]
+        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_dpf_model")
+        self.assertEqual(node_doc, payload["workspaces"][0]["nodes"][0])
+
+        runtime_document = serializer.to_document(project)
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_node_docs),
+            {"node_dpf_model"},
+        )
+
+    def test_persistent_document_round_trip_preserves_hidden_port_edges_for_unresolved_dpf_nodes(self) -> None:
+        serializer = JsonProjectSerializer(NodeRegistry())
+        payload = _dpf_hidden_edge_placeholder_payload()
+
+        project = serializer.from_document(copy.deepcopy(payload))
+        workspace = project.workspaces["ws_dpf"]
+
+        self.assertEqual(workspace.nodes, {})
+        self.assertEqual(set(workspace.unresolved_node_docs), {"node_model", "node_result"})
+        self.assertEqual(set(workspace.unresolved_edge_docs), {"edge_hidden_result_file"})
+        self.assertFalse(workspace.unresolved_node_docs["node_model"]["exposed_ports"]["result_file"])
+
+        authored_document = serializer.to_persistent_document(project)
+        workspace_doc = authored_document["workspaces"][0]
+        node_doc = next(item for item in workspace_doc["nodes"] if item["node_id"] == "node_model")
+        edge_doc = next(item for item in workspace_doc["edges"] if item["edge_id"] == "edge_hidden_result_file")
+        self.assertFalse(node_doc["exposed_ports"]["result_file"])
+        self.assertEqual(edge_doc, payload["workspaces"][0]["edges"][0])
+
+        runtime_document = serializer.to_document(project)
+        runtime_envelope = ProjectPersistenceEnvelope.from_document(runtime_document)
+        self.assertEqual(
+            set(runtime_envelope.workspace_envelope("ws_dpf").unresolved_edge_docs),
+            {"edge_hidden_result_file"},
+        )
 
 
 if __name__ == "__main__":

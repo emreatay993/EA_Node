@@ -29,7 +29,9 @@ from ea_node_editor.graph.model import (
     ProjectData,
     ViewState,
     WorkspaceData,
+    edge_instance_from_mapping,
     edge_instance_to_mapping,
+    node_instance_from_mapping,
     node_instance_to_mapping,
     sanitize_workspace_parent_links,
 )
@@ -533,6 +535,12 @@ class GraphInvariantKernel:
         """Normalize resolved content while preserving unresolved authored payloads."""
         for workspace in project.workspaces.values():
             persistence_state = workspace.capture_persistence_state()
+            placeholder_edge_ids = set(persistence_state.unresolved_edge_docs)
+            cls._rebind_resolved_unresolved_content(
+                workspace=workspace,
+                persistence_state=persistence_state,
+                registry=registry,
+            )
             kernel = cls(registry=registry, workspace_nodes=workspace.nodes, workspace_edges=workspace.edges.values())
             resolved_nodes = kernel.resolve_registry_nodes()
             unknown_node_ids = set(workspace.nodes) - set(resolved_nodes)
@@ -572,7 +580,7 @@ class GraphInvariantKernel:
                     resolved_nodes=resolved_nodes,
                     require_source_output=True,
                     require_target_input=True,
-                    require_exposed_ports=True,
+                    require_exposed_ports=edge_id not in placeholder_edge_ids,
                 )
                 if resolution is None or not cls.accept_registry_edge(
                     resolution,
@@ -581,6 +589,56 @@ class GraphInvariantKernel:
                 ):
                     workspace.edges.pop(edge_id, None)
             workspace.restore_persistence_state(persistence_state)
+
+    @staticmethod
+    def _rebind_resolved_unresolved_content(
+        *,
+        workspace: WorkspaceData,
+        persistence_state,
+        registry: NodeRegistry,
+    ) -> None:
+        for node_id, node_doc in list(persistence_state.unresolved_node_docs.items()):
+            if node_id in workspace.nodes:
+                persistence_state.unresolved_node_docs.pop(node_id, None)
+                continue
+            type_id = str(node_doc.get("type_id", "")).strip()
+            if not type_id:
+                continue
+            spec = registry.spec_or_none(type_id)
+            if spec is None:
+                continue
+            rebound_node_doc = copy.deepcopy(dict(node_doc))
+            if not str(rebound_node_doc.get("title", "")).strip():
+                rebound_node_doc["title"] = spec.display_name
+            node = node_instance_from_mapping(rebound_node_doc)
+            if node is None:
+                continue
+            workspace.nodes[node.node_id] = node
+            persistence_state.unresolved_node_docs.pop(node.node_id, None)
+
+        for node_id, override_doc in list(persistence_state.authored_node_overrides.items()):
+            node = workspace.nodes.get(node_id)
+            if node is None or not isinstance(override_doc, Mapping):
+                continue
+            parent_node_id = str(override_doc.get("parent_node_id", "")).strip() or None
+            if parent_node_id is None or parent_node_id == node.node_id:
+                continue
+            if parent_node_id in workspace.nodes:
+                node.parent_node_id = parent_node_id
+
+        for edge_id, edge_doc in list(persistence_state.unresolved_edge_docs.items()):
+            if edge_id in workspace.edges:
+                persistence_state.unresolved_edge_docs.pop(edge_id, None)
+                continue
+            source_node_id = str(edge_doc.get("source_node_id", "")).strip()
+            target_node_id = str(edge_doc.get("target_node_id", "")).strip()
+            if source_node_id not in workspace.nodes or target_node_id not in workspace.nodes:
+                continue
+            edge = edge_instance_from_mapping(edge_doc)
+            if edge is None:
+                continue
+            workspace.edges[edge.edge_id] = edge
+            persistence_state.unresolved_edge_docs.pop(edge.edge_id, None)
 
     def _resolved_port(self, node_id: str, port_key: str) -> tuple[NodeInstance, NodeTypeSpec, EffectivePort]:
         node = self.workspace_nodes[node_id]

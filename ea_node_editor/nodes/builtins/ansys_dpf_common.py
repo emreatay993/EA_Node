@@ -6,7 +6,7 @@ import json
 import math
 import re
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,20 @@ from ea_node_editor.execution.dpf_runtime_service import (
     DPF_TIME_SCOPING_HANDLE_KIND,
 )
 from ea_node_editor.nodes.execution_context import ExecutionContext
-from ea_node_editor.nodes.node_specs import PropertySpec
+from ea_node_editor.nodes.node_specs import (
+    DPF_FIELD_DATA_TYPE,
+    DPF_MESH_DATA_TYPE,
+    DPF_MODEL_DATA_TYPE,
+    DPF_RESULT_FILE_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
+    DPF_VIEW_SESSION_DATA_TYPE,
+    DpfOperatorSelectorCondition,
+    DpfOperatorSourceSpec,
+    DpfOperatorVariantSpec,
+    DpfPinSourceSpec,
+    NodeTypeSpec,
+    PropertySpec,
+)
 from ea_node_editor.runtime_contracts import RuntimeHandleRef
 
 DPF_NODE_CATEGORY = "Ansys DPF"
@@ -112,6 +125,235 @@ class ResolvedActiveSet:
     set_id: int
     time_value: float | None
     time_scoping_ref: RuntimeHandleRef | None = None
+
+
+DPF_TIME_SELECTION_EXCLUSIVE_GROUP = "time_selection"
+DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY = "result"
+DPF_FIELD_OPS_VARIANT_NORM = "norm"
+DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL = "convert_location.nodal"
+DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL = "convert_location.elemental"
+DPF_FIELD_OPS_VARIANT_MIN_MAX = "min_max"
+
+DPF_NODE_SOURCE_METADATA_BY_TYPE_ID: dict[str, DpfOperatorSourceSpec] = {
+    DPF_RESULT_FIELD_NODE_TYPE_ID: DpfOperatorSourceSpec(
+        variants=(
+            DpfOperatorVariantSpec(
+                key=DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
+                operator_name_template="result.{result_name}",
+            ),
+        ),
+    ),
+    DPF_FIELD_OPS_NODE_TYPE_ID: DpfOperatorSourceSpec(
+        variants=(
+            DpfOperatorVariantSpec(
+                key=DPF_FIELD_OPS_VARIANT_NORM,
+                operator_name="math.norm_fc",
+                selector_conditions=(
+                    DpfOperatorSelectorCondition(
+                        property_key="operation",
+                        values=(DPF_FIELD_OP_NORM,),
+                    ),
+                ),
+            ),
+            DpfOperatorVariantSpec(
+                key=DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                operator_name="averaging.to_nodal_fc",
+                selector_conditions=(
+                    DpfOperatorSelectorCondition(
+                        property_key="operation",
+                        values=(DPF_FIELD_OP_CONVERT_LOCATION,),
+                    ),
+                    DpfOperatorSelectorCondition(
+                        property_key="location",
+                        values=("nodal",),
+                    ),
+                ),
+            ),
+            DpfOperatorVariantSpec(
+                key=DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+                operator_name="averaging.to_elemental_fc",
+                selector_conditions=(
+                    DpfOperatorSelectorCondition(
+                        property_key="operation",
+                        values=(DPF_FIELD_OP_CONVERT_LOCATION,),
+                    ),
+                    DpfOperatorSelectorCondition(
+                        property_key="location",
+                        values=("elemental",),
+                    ),
+                ),
+            ),
+            DpfOperatorVariantSpec(
+                key=DPF_FIELD_OPS_VARIANT_MIN_MAX,
+                operator_name="min_max.min_max_fc",
+                selector_conditions=(
+                    DpfOperatorSelectorCondition(
+                        property_key="operation",
+                        values=(DPF_FIELD_OP_MIN_MAX,),
+                    ),
+                ),
+            ),
+        ),
+    ),
+}
+
+DPF_PORT_SOURCE_METADATA_BY_TYPE_ID: dict[str, dict[str, DpfPinSourceSpec]] = {
+    DPF_RESULT_FIELD_NODE_TYPE_ID: {
+        "model": DpfPinSourceSpec(
+            pin_name="data_sources",
+            pin_direction="input",
+            value_origin="port",
+            value_key="model",
+            data_type=DPF_MODEL_DATA_TYPE,
+            presence="required",
+            omission_semantics="disallowed",
+        ),
+        "mesh_scoping": DpfPinSourceSpec(
+            pin_name="mesh_scoping",
+            pin_direction="input",
+            value_origin="port",
+            value_key="mesh_scoping",
+            data_type=DPF_SCOPING_DATA_TYPE,
+            presence="optional",
+            omission_semantics="skip",
+        ),
+        "time_scoping": DpfPinSourceSpec(
+            pin_name="time_scoping",
+            pin_direction="input",
+            value_origin="port",
+            value_key="time_scoping",
+            data_type=DPF_SCOPING_DATA_TYPE,
+            presence="optional",
+            omission_semantics="skip",
+            exclusive_group=DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+        ),
+        "field": DpfPinSourceSpec(
+            pin_name="fields_container",
+            pin_direction="output",
+            value_origin="port",
+            value_key="field",
+            data_type=DPF_FIELD_DATA_TYPE,
+        ),
+    },
+    DPF_FIELD_OPS_NODE_TYPE_ID: {
+        "field": DpfPinSourceSpec(
+            pin_name="fields_container",
+            pin_direction="input",
+            value_origin="port",
+            value_key="field",
+            data_type=DPF_FIELD_DATA_TYPE,
+            presence="required",
+            omission_semantics="disallowed",
+            variant_keys=(
+                DPF_FIELD_OPS_VARIANT_NORM,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+                DPF_FIELD_OPS_VARIANT_MIN_MAX,
+            ),
+        ),
+        "model": DpfPinSourceSpec(
+            pin_name="mesh",
+            pin_direction="input",
+            value_origin="port",
+            value_key="model",
+            data_type=DPF_MODEL_DATA_TYPE,
+            presence="required",
+            omission_semantics="disallowed",
+            variant_keys=(
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+            ),
+        ),
+        "field_out": DpfPinSourceSpec(
+            pin_name="fields_container",
+            pin_direction="output",
+            value_origin="port",
+            value_key="field_out",
+            data_type=DPF_FIELD_DATA_TYPE,
+            variant_keys=(
+                DPF_FIELD_OPS_VARIANT_NORM,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+            ),
+        ),
+        "field_min": DpfPinSourceSpec(
+            pin_name="field_min",
+            pin_direction="output",
+            value_origin="port",
+            value_key="field_min",
+            data_type=DPF_FIELD_DATA_TYPE,
+            variant_keys=(DPF_FIELD_OPS_VARIANT_MIN_MAX,),
+        ),
+        "field_max": DpfPinSourceSpec(
+            pin_name="field_max",
+            pin_direction="output",
+            value_origin="port",
+            value_key="field_max",
+            data_type=DPF_FIELD_DATA_TYPE,
+            variant_keys=(DPF_FIELD_OPS_VARIANT_MIN_MAX,),
+        ),
+    },
+}
+
+DPF_PROPERTY_SOURCE_METADATA_BY_TYPE_ID: dict[str, dict[str, DpfPinSourceSpec]] = {
+    DPF_RESULT_FIELD_NODE_TYPE_ID: {
+        "location": DpfPinSourceSpec(
+            pin_name="requested_location",
+            pin_direction="input",
+            value_origin="property",
+            value_key="location",
+            data_type=DPF_FIELD_DATA_TYPE,
+            presence="optional",
+            omission_semantics="operator_default",
+        ),
+        "set_ids": DpfPinSourceSpec(
+            pin_name="time_scoping",
+            pin_direction="input",
+            value_origin="property",
+            value_key="set_ids",
+            data_type=DPF_SCOPING_DATA_TYPE,
+            presence="optional",
+            omission_semantics="skip",
+            exclusive_group=DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+        ),
+        "time_values": DpfPinSourceSpec(
+            pin_name="time_scoping",
+            pin_direction="input",
+            value_origin="property",
+            value_key="time_values",
+            data_type=DPF_SCOPING_DATA_TYPE,
+            presence="optional",
+            omission_semantics="skip",
+            exclusive_group=DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+        ),
+    },
+}
+
+
+def normalize_dpf_descriptor_spec(spec: NodeTypeSpec) -> NodeTypeSpec:
+    node_source = DPF_NODE_SOURCE_METADATA_BY_TYPE_ID.get(spec.type_id)
+    port_sources = DPF_PORT_SOURCE_METADATA_BY_TYPE_ID.get(spec.type_id, {})
+    property_sources = DPF_PROPERTY_SOURCE_METADATA_BY_TYPE_ID.get(spec.type_id, {})
+    if node_source is None and not port_sources and not property_sources:
+        return spec
+    return replace(
+        spec,
+        ports=tuple(
+            replace(
+                port,
+                source_metadata=port_sources.get(port.key, port.source_metadata),
+            )
+            for port in spec.ports
+        ),
+        properties=tuple(
+            replace(
+                prop,
+                source_metadata=property_sources.get(prop.key, prop.source_metadata),
+            )
+            for prop in spec.properties
+        ),
+        source_metadata=node_source if node_source is not None else spec.source_metadata,
+    )
 
 
 def dpf_output_mode_property(*, default: str = DPF_OUTPUT_MODE_MEMORY) -> PropertySpec:
@@ -836,6 +1078,10 @@ def _runtime_handle_ref(value: Any) -> RuntimeHandleRef | None:
 __all__ = [
     "DPF_EXPORT_FORMAT_VALUES",
     "DPF_EXPORT_NODE_TYPE_ID",
+    "DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL",
+    "DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL",
+    "DPF_FIELD_OPS_VARIANT_MIN_MAX",
+    "DPF_FIELD_OPS_VARIANT_NORM",
     "DPF_FIELD_LOCATION_ELEMENTAL_NODAL",
     "DPF_FIELD_OPERATION_VALUES",
     "DPF_FIELD_OP_CONVERT_LOCATION",
@@ -866,12 +1112,17 @@ __all__ = [
     "DPF_VIEWER_NODE_TYPE_ID",
     "DPF_VIEWER_CATEGORY_PATH",
     "DPF_RESULT_FIELD_LOCATION_VALUES",
+    "DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY",
     "DPF_RESULT_FIELD_NODE_TYPE_ID",
     "DPF_RESULT_FILE_NODE_TYPE_ID",
     "DPF_SCOPING_KIND_MESH",
     "DPF_SCOPING_KIND_TIME",
     "DPF_TARGET_FIELD_LOCATION_VALUES",
+    "DPF_TIME_SELECTION_EXCLUSIVE_GROUP",
     "DPF_TIME_SCOPING_NODE_TYPE_ID",
+    "DPF_NODE_SOURCE_METADATA_BY_TYPE_ID",
+    "DPF_PORT_SOURCE_METADATA_BY_TYPE_ID",
+    "DPF_PROPERTY_SOURCE_METADATA_BY_TYPE_ID",
     "ResolvedActiveSet",
     "ResolvedTimeSelection",
     "build_mesh_scoping_metadata",
@@ -893,6 +1144,7 @@ __all__ = [
     "normalize_int_values",
     "normalize_location_choice",
     "normalize_mesh_selection_mode",
+    "normalize_dpf_descriptor_spec",
     "normalize_result_file_path",
     "normalize_result_field_location",
     "normalize_target_field_location",

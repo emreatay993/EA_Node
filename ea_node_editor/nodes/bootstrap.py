@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ea_node_editor.nodes.builtins.ansys_dpf import ANSYS_DPF_NODE_PLUGINS
 from ea_node_editor.nodes.builtins.core import (
     BranchNodePlugin,
     ConstantNodePlugin,
@@ -59,8 +58,6 @@ def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeR
     registry.register(SubnodeNodePlugin)
     registry.register(SubnodeInputNodePlugin)
     registry.register(SubnodeOutputNodePlugin)
-    for plugin in ANSYS_DPF_NODE_PLUGINS:
-        registry.register(plugin)
     for plugin in PASSIVE_FLOWCHART_NODE_PLUGINS:
         registry.register(plugin)
     for plugin in PASSIVE_PLANNING_NODE_PLUGINS:
@@ -70,7 +67,13 @@ def build_default_registry(extra_plugin_dirs: list[Path] | None = None) -> NodeR
     for plugin in PASSIVE_MEDIA_NODE_PLUGINS:
         registry.register(plugin)
 
-    from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins
+    from ea_node_editor.nodes.builtins.ansys_dpf_catalog import PLUGIN_BACKENDS as ANSYS_DPF_PLUGIN_BACKENDS
+    from ea_node_editor.nodes.plugin_loader import discover_and_load_plugins, register_plugin_backends
 
+    register_plugin_backends(
+        ANSYS_DPF_PLUGIN_BACKENDS,
+        registry,
+        "ea_node_editor.nodes.builtins.ansys_dpf",
+    )
     discover_and_load_plugins(registry, extra_dirs=extra_plugin_dirs)
     return registry

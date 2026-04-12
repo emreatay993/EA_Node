@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 _TESTS_ROOT = Path(__file__).resolve().parent
 if str(_TESTS_ROOT) not in sys.path:
@@ -21,32 +22,30 @@ from ea_node_editor.execution.dpf_runtime_service import (
 )
 from ea_node_editor.execution.worker_services import WorkerServices
 from ea_node_editor.nodes.bootstrap import build_default_registry
-from ea_node_editor.nodes.builtins.ansys_dpf import (
-    ANSYS_DPF_NODE_PLUGINS,
-    ANSYS_DPF_PLUGIN_DESCRIPTORS,
-    DpfExportNodePlugin,
-    DpfFieldOpsNodePlugin,
-    DpfMeshExtractNodePlugin,
-    DpfMeshScopingNodePlugin,
-    DpfModelNodePlugin,
-    DpfResultFieldNodePlugin,
-    DpfResultFileNodePlugin,
-    DpfTimeScopingNodePlugin,
-    DpfViewerNodePlugin,
-)
+from ea_node_editor.nodes.builtins import ansys_dpf as ansys_dpf_module
+from ea_node_editor.nodes.builtins import ansys_dpf_catalog
 from ea_node_editor.nodes.builtins.ansys_dpf_common import (
     DPF_COMPUTE_CATEGORY_PATH,
     DPF_EXPORT_NODE_TYPE_ID,
     DPF_FIELD_OPS_NODE_TYPE_ID,
+    DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+    DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+    DPF_FIELD_OPS_VARIANT_MIN_MAX,
+    DPF_FIELD_OPS_VARIANT_NORM,
     DPF_MESH_EXTRACT_NODE_TYPE_ID,
     DPF_MESH_SCOPING_NODE_TYPE_ID,
     DPF_MODEL_NODE_TYPE_ID,
     DPF_NODE_CATEGORY,
     DPF_NODE_CATEGORY_PATH,
+    DPF_NODE_SOURCE_METADATA_BY_TYPE_ID,
     DPF_OUTPUT_MODE_MEMORY,
     DPF_OUTPUT_MODE_STORED,
+    DPF_PORT_SOURCE_METADATA_BY_TYPE_ID,
+    DPF_PROPERTY_SOURCE_METADATA_BY_TYPE_ID,
     DPF_RESULT_FIELD_NODE_TYPE_ID,
+    DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
     DPF_RESULT_FILE_NODE_TYPE_ID,
+    DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
     DPF_TIME_SCOPING_NODE_TYPE_ID,
     DPF_VIEWER_NODE_TYPE_ID,
     DPF_VIEWER_CATEGORY_PATH,
@@ -66,6 +65,16 @@ from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolv
 
 if dpf is not None:
     from ansys_dpf_core.fixture_paths import STATIC_ANALYSIS_RST
+
+DpfExportNodePlugin = ansys_dpf_module.DpfExportNodePlugin
+DpfFieldOpsNodePlugin = ansys_dpf_module.DpfFieldOpsNodePlugin
+DpfMeshExtractNodePlugin = ansys_dpf_module.DpfMeshExtractNodePlugin
+DpfMeshScopingNodePlugin = ansys_dpf_module.DpfMeshScopingNodePlugin
+DpfModelNodePlugin = ansys_dpf_module.DpfModelNodePlugin
+DpfResultFieldNodePlugin = ansys_dpf_module.DpfResultFieldNodePlugin
+DpfResultFileNodePlugin = ansys_dpf_module.DpfResultFileNodePlugin
+DpfTimeScopingNodePlugin = ansys_dpf_module.DpfTimeScopingNodePlugin
+DpfViewerNodePlugin = ansys_dpf_module.DpfViewerNodePlugin
 
 
 _EXPECTED_DPF_SPECS = {
@@ -198,6 +207,30 @@ class DpfNodeCatalogTests(unittest.TestCase):
         )
         self.assertNotIn(DPF_RESULT_FILE_DATA_TYPE, DPF_PUBLIC_DATA_TYPES)
 
+    def test_dpf_plugin_availability_reports_missing_dependency_without_crashing(self) -> None:
+        with patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
+            availability = ansys_dpf_catalog.get_ansys_dpf_plugin_availability()
+
+        self.assertFalse(availability.is_available)
+        self.assertEqual(availability.state, "missing_dependency")
+        self.assertEqual(availability.missing_dependencies, (ansys_dpf_catalog.ANSYS_DPF_DEPENDENCY,))
+
+    def test_ansys_dpf_lazy_exports_are_empty_when_dependency_is_missing(self) -> None:
+        with patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
+            self.assertEqual(getattr(ansys_dpf_catalog, "ANSYS_DPF_PLUGIN_DESCRIPTORS"), ())
+            self.assertEqual(getattr(ansys_dpf_module, "ANSYS_DPF_PLUGIN_DESCRIPTORS"), ())
+            self.assertEqual(getattr(ansys_dpf_module, "ANSYS_DPF_NODE_PLUGINS"), ())
+
+    def test_default_registry_keeps_non_dpf_nodes_when_backend_is_missing(self) -> None:
+        with patch.object(ansys_dpf_catalog, "_find_spec", return_value=None):
+            registry = build_default_registry()
+
+        self.assertIsNotNone(registry.spec_or_none("core.start"))
+        self.assertEqual(registry.filter_nodes(category=DPF_NODE_CATEGORY), [])
+        self.assertNotIn(DPF_NODE_CATEGORY_PATH, registry.category_paths())
+        self.assertIsNone(registry.spec_or_none(DPF_RESULT_FILE_NODE_TYPE_ID))
+
+    @unittest.skipIf(dpf is None, "ansys.dpf.core is not installed")
     def test_default_registry_registers_foundational_dpf_nodes(self) -> None:
         for type_id, expected in _EXPECTED_DPF_SPECS.items():
             spec = self.registry.get_spec(type_id)
@@ -230,6 +263,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
             for port_key, data_type in expected["output_types"].items():
                 self.assertEqual(ports_by_key[port_key].data_type, data_type)
 
+    @unittest.skipIf(dpf is None, "ansys.dpf.core is not installed")
     def test_nested_category_registry_dpf_catalog_publishes_compute_and_viewer_paths(self) -> None:
         for type_id in _EXPECTED_DPF_SPECS:
             expected_path = (
@@ -242,20 +276,126 @@ class DpfNodeCatalogTests(unittest.TestCase):
                 self.assertEqual(spec.category_path, expected_path)
                 self.assertEqual(spec.category, category_display(expected_path))
 
-    def test_dpf_catalog_descriptors_remain_authoritative_and_stable(self) -> None:
-        expected_type_ids = tuple(_EXPECTED_DPF_SPECS)
+    def test_operator_backed_dpf_descriptors_publish_normalized_source_metadata_contract(self) -> None:
+        descriptors = {
+            descriptor.spec.type_id: descriptor.spec
+            for descriptor in ansys_dpf_catalog.load_ansys_dpf_plugin_descriptors()
+        }
 
+        result_field = descriptors[DPF_RESULT_FIELD_NODE_TYPE_ID]
+        self.assertEqual(result_field.source_metadata.backend, "ansys.dpf.core")
+        self.assertEqual(len(result_field.source_metadata.variants), 1)
         self.assertEqual(
-            tuple(descriptor.spec.type_id for descriptor in ANSYS_DPF_PLUGIN_DESCRIPTORS),
-            expected_type_ids,
+            result_field.source_metadata.variants[0].key,
+            DPF_RESULT_FIELD_OPERATOR_VARIANT_KEY,
         )
         self.assertEqual(
-            tuple(descriptor.factory for descriptor in ANSYS_DPF_PLUGIN_DESCRIPTORS),
-            ANSYS_DPF_NODE_PLUGINS,
+            result_field.source_metadata.variants[0].operator_name_template,
+            "result.{result_name}",
         )
+        result_ports = {port.key: port for port in result_field.ports}
+        self.assertEqual(result_ports["model"].source_metadata.pin_name, "data_sources")
+        self.assertEqual(result_ports["model"].source_metadata.presence, "required")
+        self.assertEqual(result_ports["time_scoping"].source_metadata.pin_name, "time_scoping")
+        self.assertEqual(
+            result_ports["time_scoping"].source_metadata.exclusive_group,
+            DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+        )
+        self.assertEqual(result_ports["field"].source_metadata.pin_name, "fields_container")
+        self.assertEqual(result_ports["field"].source_metadata.pin_direction, "output")
+        result_properties = {prop.key: prop for prop in result_field.properties}
+        self.assertEqual(result_properties["location"].source_metadata.pin_name, "requested_location")
+        self.assertEqual(
+            result_properties["location"].source_metadata.omission_semantics,
+            "operator_default",
+        )
+        self.assertEqual(result_properties["set_ids"].source_metadata.pin_name, "time_scoping")
+        self.assertEqual(result_properties["time_values"].source_metadata.pin_name, "time_scoping")
+        self.assertEqual(
+            result_properties["set_ids"].source_metadata.exclusive_group,
+            DPF_TIME_SELECTION_EXCLUSIVE_GROUP,
+        )
+
+        field_ops = descriptors[DPF_FIELD_OPS_NODE_TYPE_ID]
+        self.assertEqual(
+            {variant.key for variant in field_ops.source_metadata.variants},
+            {
+                DPF_FIELD_OPS_VARIANT_NORM,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+                DPF_FIELD_OPS_VARIANT_MIN_MAX,
+            },
+        )
+        field_ops_ports = {port.key: port for port in field_ops.ports}
+        self.assertEqual(field_ops_ports["field"].source_metadata.pin_name, "fields_container")
+        self.assertEqual(
+            set(field_ops_ports["field"].source_metadata.variant_keys),
+            {
+                DPF_FIELD_OPS_VARIANT_NORM,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+                DPF_FIELD_OPS_VARIANT_MIN_MAX,
+            },
+        )
+        self.assertEqual(field_ops_ports["model"].source_metadata.pin_name, "mesh")
+        self.assertEqual(
+            set(field_ops_ports["model"].source_metadata.variant_keys),
+            {
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_NODAL,
+                DPF_FIELD_OPS_VARIANT_CONVERT_LOCATION_ELEMENTAL,
+            },
+        )
+        self.assertEqual(field_ops_ports["field_out"].source_metadata.pin_name, "fields_container")
+        self.assertEqual(field_ops_ports["field_min"].source_metadata.pin_name, "field_min")
+        self.assertEqual(field_ops_ports["field_max"].source_metadata.pin_name, "field_max")
+
+        self.assertIsNone(descriptors[DPF_MODEL_NODE_TYPE_ID].source_metadata)
+        self.assertIsNone(descriptors[DPF_EXPORT_NODE_TYPE_ID].source_metadata)
+        self.assertIsNone(descriptors[DPF_VIEWER_NODE_TYPE_ID].source_metadata)
+
+    def test_dpf_source_metadata_tables_cover_operator_backed_descriptor_keys(self) -> None:
+        self.assertEqual(
+            set(DPF_NODE_SOURCE_METADATA_BY_TYPE_ID),
+            {DPF_RESULT_FIELD_NODE_TYPE_ID, DPF_FIELD_OPS_NODE_TYPE_ID},
+        )
+        self.assertEqual(
+            set(DPF_PORT_SOURCE_METADATA_BY_TYPE_ID[DPF_RESULT_FIELD_NODE_TYPE_ID]),
+            {"model", "mesh_scoping", "time_scoping", "field"},
+        )
+        self.assertEqual(
+            set(DPF_PROPERTY_SOURCE_METADATA_BY_TYPE_ID[DPF_RESULT_FIELD_NODE_TYPE_ID]),
+            {"location", "set_ids", "time_values"},
+        )
+        self.assertEqual(
+            set(DPF_PORT_SOURCE_METADATA_BY_TYPE_ID[DPF_FIELD_OPS_NODE_TYPE_ID]),
+            {"field", "model", "field_out", "field_min", "field_max"},
+        )
+        self.assertNotIn(DPF_FIELD_OPS_NODE_TYPE_ID, DPF_PROPERTY_SOURCE_METADATA_BY_TYPE_ID)
+
+    def test_dpf_catalog_descriptors_remain_authoritative_and_stable(self) -> None:
+        descriptors = getattr(ansys_dpf_catalog, "ANSYS_DPF_PLUGIN_DESCRIPTORS")
+        node_plugins = getattr(ansys_dpf_module, "ANSYS_DPF_NODE_PLUGINS")
+
+        if dpf is None:
+            self.assertEqual(descriptors, ())
+            self.assertEqual(node_plugins, ())
+            return
+
+        expected_type_ids = tuple(_EXPECTED_DPF_SPECS)
+        self.assertEqual(tuple(descriptor.spec.type_id for descriptor in descriptors), expected_type_ids)
+        self.assertEqual(tuple(descriptor.factory for descriptor in descriptors), node_plugins)
 
     def test_default_registry_exposes_dpf_category_and_scoping_ports(self) -> None:
         dpf_specs = self.registry.filter_nodes(category=DPF_NODE_CATEGORY)
+
+        if dpf is None:
+            self.assertEqual(dpf_specs, [])
+            self.assertNotIn(DPF_NODE_CATEGORY_PATH, self.registry.category_paths())
+            self.assertEqual(
+                self.registry.filter_nodes(data_type=DPF_SCOPING_DATA_TYPE, direction="out"),
+                [],
+            )
+            return
 
         self.assertEqual({spec.type_id for spec in dpf_specs}, set(_EXPECTED_DPF_SPECS))
         self.assertEqual(
@@ -381,7 +521,7 @@ class DpfNodeCatalogTests(unittest.TestCase):
         self.assertEqual(time_ref.metadata["set_ids"], [1, 2])
         self.assertEqual(time_ref.metadata["time_values"], [2.0])
         self.assertEqual([int(value) for value in time_scoping.ids], [1, 2])
-        self.assertEqual(time_scoping.location, "TimeFreq")
+        self.assertEqual(time_scoping.location, "TimeFreq_steps")
 
 
 if __name__ == "__main__":

@@ -348,6 +348,192 @@ CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX_TOKENS = (
     "transport_revision",
     "## Residual Desktop-Only Validation",
 )
+
+DPF_OPERATOR_PLUGIN_BACKEND_REVIEW = (
+    REPO_ROOT / "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_plugin_loader.py "
+    r"tests/test_dpf_node_catalog.py --ignore=venv -q"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
+    r"tests/test_registry_validation.py tests/test_registry_filters.py --ignore=venv -q"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_compute_nodes.py "
+    r"tests/test_dpf_runtime_service.py tests/test_passive_runtime_wiring.py "
+    r"tests/test_execution_worker.py --ignore=venv -q"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_serializer.py "
+    r"tests/test_serializer_schema_migration.py "
+    r"tests/test_graph_scene_bridge_bind_regression.py "
+    r"tests/test_graph_surface_input_contract.py --ignore=venv -q"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py "
+    r"tests/test_markdown_hygiene.py --ignore=venv -q"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_markdown_links.py"
+)
+
+DPF_OPERATOR_PLUGIN_BACKEND_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
+    "README.md": (
+        "DPF operator backend review",
+        "DPF operator backend QA matrix",
+        "ansys-dpf-core",
+        "read-only missing-plugin placeholders",
+    ),
+    "ARCHITECTURE.md": (
+        "## DPF operator backend preparation",
+        "`ansys-dpf-core` remains optional",
+        "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
+        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+        "read-only missing-plugin placeholders",
+    ),
+    "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md": (
+        "## Delivered Backend Contract",
+        "## Explicit Deferrals For Later Operator Rollout",
+        "plugin_loader.py",
+        "ansys_dpf_catalog.py",
+        "graph_scene_payload_builder.py",
+        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+        "Non-operator `ansys.dpf.core` reflection",
+    ),
+}
+
+DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/70_INTEGRATIONS.md": {
+        "REQ-INT-009": (
+            "ansys-dpf-core",
+            "lazily register",
+            "normalize operator metadata",
+            "generic DPF runtime adapter",
+            "read-only missing-plugin placeholders",
+            "non-operator `ansys.dpf.core` reflection",
+        ),
+        "AC-REQ-INT-009-01": (
+            "DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
+            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+            "plugin-loader",
+            "missing-plugin placeholder portability",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-035": (
+            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR",
+            "optional plugin lifecycle",
+            "operator metadata and generated ports",
+            "generic operator-backed runtime invocation",
+            "missing-plugin placeholder portability",
+        ),
+        "REQ-QA-036": (
+            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+            "`P01` through `P04`",
+            "traceability, markdown-hygiene, and markdown-link",
+            "manual DPF availability or reopen smoke checks",
+            "later operator-rollout packet set",
+        ),
+        "AC-REQ-QA-035-01": (
+            DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND,
+            DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND,
+            DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND,
+            DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND,
+            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+        ),
+        "AC-REQ-QA-036-01": (
+            DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND,
+            DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND,
+            DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
+            "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+        ),
+    },
+}
+
+DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-INT-009": (
+        "plugin_loader.py",
+        "plugin_contracts.py",
+        "ansys_dpf_catalog.py",
+        "operations.py",
+        "project_codec.py",
+        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+    ),
+    "AC-REQ-INT-009-01": (
+        "tests/test_plugin_loader.py",
+        "tests/test_dpf_node_catalog.py",
+        "tests/test_dpf_compute_nodes.py",
+        "tests/test_dpf_runtime_service.py",
+        "tests/test_serializer_schema_migration.py",
+        "DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+    ),
+    "REQ-QA-035": (
+        "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
+        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+        "tests/test_plugin_loader.py",
+        "tests/test_dpf_node_catalog.py",
+        "tests/test_dpf_compute_nodes.py",
+        "tests/test_dpf_runtime_service.py",
+        "tests/test_serializer_schema_migration.py",
+        "scripts/check_traceability.py",
+    ),
+    "REQ-QA-036": (
+        "ARCHITECTURE.md",
+        "README.md",
+        "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
+        "docs/specs/requirements/70_INTEGRATIONS.md",
+        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "tests/test_markdown_hygiene.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-035-01": (
+        DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND,
+        DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND,
+        DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND,
+        DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND,
+        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+    ),
+    "AC-REQ-QA-036-01": (
+        DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND,
+        DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND,
+        DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
+        "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+    ),
+}
+
+DPF_OPERATOR_PLUGIN_BACKEND_QA_MATRIX_TOKENS = (
+    "DPF Operator Plugin Backend Refactor QA Matrix",
+    "## Locked Scope",
+    "## Retained Automated Verification",
+    "## Final Closeout Commands",
+    "## 2026-04-12 Execution Results",
+    "## Retained Manual Evidence",
+    "## Residual Risks",
+    "ansys-dpf-core",
+    "generated-port semantics",
+    "read-only missing-plugin placeholders",
+    "tests/ansys_dpf_core/example_outputs/",
+    "ElementalNodal",
+    "P01_optional_dpf_plugin_lifecycle_WRAPUP.md",
+    "P04_missing_plugin_placeholder_portability_WRAPUP.md",
+    DPF_OPERATOR_PLUGIN_BACKEND_P01_COMMAND,
+    DPF_OPERATOR_PLUGIN_BACKEND_P02_COMMAND,
+    DPF_OPERATOR_PLUGIN_BACKEND_P03_COMMAND,
+    DPF_OPERATOR_PLUGIN_BACKEND_P04_COMMAND,
+    DPF_OPERATOR_PLUGIN_BACKEND_CLOSEOUT_PYTEST_COMMAND,
+    DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_COMMAND,
+    DPF_OPERATOR_PLUGIN_BACKEND_MARKDOWN_COMMAND,
+)
+
 GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX = (
     REPO_ROOT / "docs/specs/perf/GLOBAL_GAP_BREAK_EDGE_CROSSING_VARIANT_QA_MATRIX.md"
 )
@@ -1939,6 +2125,14 @@ class TraceabilityCheckerTests(unittest.TestCase):
             "docs/specs/perf/UI_CONTEXT_SCALABILITY_REFACTOR_QA_MATRIX.md",
             self.checker.REQUIRED_ARTIFACTS,
         )
+        self.assertIn(
+            "docs/DPF_OPERATOR_PLUGIN_BACKEND_REVIEW_2026-04-12.md",
+            self.checker.REQUIRED_ARTIFACTS,
+        )
+        self.assertIn(
+            "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+            self.checker.REQUIRED_ARTIFACTS,
+        )
         self.assertEqual(
             (
                 "docs/specs/work_packets/ui_context_scalability_refactor/CONTEXT_BUDGET_RULES.json",
@@ -1969,6 +2163,7 @@ class TraceabilityCheckerTests(unittest.TestCase):
         )
         required_paths.update(self.checker.P08_REQUIRED_ARTIFACTS)
         required_paths.update(self.checker.P10_REQUIREMENT_DOC_TOKENS.keys())
+        required_paths.update(DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS.keys())
         for relative_path in required_paths:
             source = REPO_ROOT / relative_path
             target = root / relative_path
@@ -2317,6 +2512,56 @@ class TraceabilityCheckerTests(unittest.TestCase):
             issues,
         )
 
+    def test_audit_repository_reports_dpf_backend_closeout_regression(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            self.make_repo_fixture(repo_root)
+
+            replace_text(
+                repo_root / "README.md",
+                "DPF operator backend QA matrix",
+                "DPF operator backend proof",
+            )
+            remove_token_from_requirement_line(
+                repo_root / "docs/specs/requirements/70_INTEGRATIONS.md",
+                "REQ-INT-009",
+                "generic DPF runtime adapter",
+            )
+            replace_text(
+                repo_root / "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md",
+                "generated-port semantics",
+                "generated port semantics",
+            )
+            remove_token_from_traceability_row(
+                repo_root / self.manifest.TRACEABILITY_MATRIX_DOC,
+                "REQ-QA-036",
+                "tests/test_markdown_hygiene.py",
+            )
+
+            issues = self.checker.audit_repository(repo_root)
+
+        self.assertIn(
+            "README.md: readme dpf backend closeout missing fact: "
+            "DPF operator backend QA matrix",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/requirements/70_INTEGRATIONS.md: requirement REQ-INT-009 missing fact: "
+            "generic DPF runtime adapter",
+            issues,
+        )
+        self.assertIn(
+            "docs/specs/perf/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.md: "
+            "dpf-operator-plugin-backend-refactor qa matrix missing fact: "
+            "generated-port semantics",
+            issues,
+        )
+        self.assertIn(
+            f"{self.manifest.TRACEABILITY_MATRIX_DOC}: row REQ-QA-036 missing implementation "
+            "artifact text: tests/test_markdown_hygiene.py",
+            issues,
+        )
+
     def test_project_managed_files_docs_record_final_scope_tokens(self) -> None:
         for relative_path, requirement_tokens in PROJECT_MANAGED_FILES_REQUIREMENT_TOKENS.items():
             path = REPO_ROOT / relative_path
@@ -2362,6 +2607,31 @@ class TraceabilityCheckerTests(unittest.TestCase):
     ) -> None:
         text = CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_dpf_operator_plugin_backend_docs_record_closeout_scope_tokens(self) -> None:
+        for relative_path, tokens in DPF_OPERATOR_PLUGIN_BACKEND_PUBLIC_DOC_TOKENS.items():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8-sig")
+            for token in tokens:
+                self.assertIn(token, text, msg=f"{relative_path} missing token {token!r}")
+
+        for relative_path, requirement_tokens in DPF_OPERATOR_PLUGIN_BACKEND_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_dpf_operator_plugin_backend_traceability_rows_reference_packet_artifacts(self) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in DPF_OPERATOR_PLUGIN_BACKEND_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_dpf_operator_plugin_backend_qa_matrix_records_commands_and_manual_checks(self) -> None:
+        text = DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in DPF_OPERATOR_PLUGIN_BACKEND_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_global_gap_break_edge_crossing_variant_docs_record_closeout_scope_tokens(self) -> None:
