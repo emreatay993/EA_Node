@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from ea_node_editor.execution.dpf_runtime.base import DpfRuntimeBase
@@ -13,12 +13,114 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
     DPF_RESULT_FILE_HANDLE_KIND,
     DPF_TIME_SCOPING_HANDLE_KIND,
     DpfFieldRange,
+    DpfOperatorInvocationError,
+    DpfOperatorInvocationResult,
     DpfResultFile,
 )
 from ea_node_editor.nodes.types import RuntimeHandleRef, coerce_runtime_handle_ref
 
+_DPF_RESULT_FIELD_NODE_TYPE_ID = "dpf.result_field"
+_DPF_FIELD_OPS_NODE_TYPE_ID = "dpf.field_ops"
+
 
 class DpfRuntimeOperationsMixin(DpfRuntimeBase):
+    def invoke_operator(
+        self,
+        type_id: str,
+        *,
+        inputs: Mapping[str, Any] | None = None,
+        properties: Mapping[str, Any] | None = None,
+    ) -> DpfOperatorInvocationResult:
+        normalized_inputs = dict(inputs or {})
+        normalized_properties = dict(properties or {})
+        spec = self._operator_spec(type_id)
+        variant = self._select_operator_variant(spec, properties=normalized_properties)
+        operator_name = self._render_operator_name(
+            spec,
+            variant,
+            properties=normalized_properties,
+        )
+
+        try:
+            operator = self._resolve_operator_factory(operator_name)()
+            bound_inputs = []
+            bound_pins: dict[str, str] = {}
+            for source, raw_value in self._iter_input_sources(
+                spec,
+                variant_key=variant.key,
+                inputs=normalized_inputs,
+                properties=normalized_properties,
+            ):
+                omitted = self._source_value_is_omitted(raw_value)
+                if omitted:
+                    if source.presence == "required" or source.omission_semantics == "disallowed":
+                        raise ValueError(
+                            f"Node type {spec.type_id!r} requires a value for DPF input "
+                            f"{source.value_key!r}."
+                        )
+                    bound_inputs.append(self._binding_record(source, omitted=True))
+                    continue
+
+                existing_pin = bound_pins.get(source.pin_name)
+                if existing_pin is not None:
+                    group = source.exclusive_group.strip()
+                    if group:
+                        raise ValueError(
+                            f"Node type {spec.type_id!r} received multiple explicit values for "
+                            f"mutually exclusive DPF input group {group!r}."
+                        )
+                    raise ValueError(
+                        f"Node type {spec.type_id!r} received multiple explicit values for "
+                        f"DPF input pin {source.pin_name!r}."
+                    )
+
+                input_accessor = getattr(operator.inputs, source.pin_name, None)
+                if input_accessor is None or not callable(input_accessor):
+                    raise DpfOperatorInvocationError(
+                        f"DPF operator {operator_name!r} does not expose input pin "
+                        f"{source.pin_name!r} for node type {spec.type_id!r}."
+                    )
+                input_accessor(
+                    self._materialize_operator_input(
+                        source,
+                        raw_value,
+                        inputs=normalized_inputs,
+                        properties=normalized_properties,
+                    )
+                )
+                bound_inputs.append(self._binding_record(source, omitted=False))
+                bound_pins[source.pin_name] = source.value_key
+
+            outputs: dict[str, Any] = {}
+            output_sources = tuple(self._iter_output_sources(spec, variant_key=variant.key))
+            if not output_sources:
+                raise DpfOperatorInvocationError(
+                    f"Node type {spec.type_id!r} does not publish DPF operator outputs for "
+                    f"variant {variant.key!r}."
+                )
+            for port_key, source in output_sources:
+                output_accessor = getattr(operator.outputs, source.pin_name, None)
+                if output_accessor is None or not callable(output_accessor):
+                    raise DpfOperatorInvocationError(
+                        f"DPF operator {operator_name!r} does not expose output pin "
+                        f"{source.pin_name!r} for node type {spec.type_id!r}."
+                    )
+                outputs[port_key] = output_accessor()
+
+            return DpfOperatorInvocationResult(
+                node_type_id=spec.type_id,
+                variant_key=variant.key,
+                operator_name=operator_name,
+                outputs=outputs,
+                bound_inputs=tuple(bound_inputs),
+            )
+        except (DpfOperatorInvocationError, TypeError, ValueError):
+            raise
+        except Exception as exc:
+            raise DpfOperatorInvocationError(
+                f"DPF operator {operator_name!r} failed for node type {spec.type_id!r}: {exc}"
+            ) from exc
+
     def load_result_file(self, value: Any) -> RuntimeHandleRef:
         runtime_ref = coerce_runtime_handle_ref(value)
         if runtime_ref is not None:
@@ -158,34 +260,30 @@ class DpfRuntimeOperationsMixin(DpfRuntimeBase):
         run_id: str = "",
         owner_scope: str = "",
     ) -> RuntimeHandleRef:
-        dpf = self._dpf_module()
         normalized_result_name = self._normalize_result_name(result_name)
         resolved_owner_scope = self._resolve_handle_owner_scope(run_id=run_id, owner_scope=owner_scope)
         model_ref, resolved_model = self._resolve_model_handle_and_object(model)
-        operator_factory = getattr(dpf.operators.result, normalized_result_name, None)
-        if operator_factory is None:
-            raise ValueError(f"Unsupported DPF result operator: {normalized_result_name}")
-
-        operator = operator_factory()
-        operator.inputs.data_sources(resolved_model.metadata.data_sources)
-
-        resolved_time_scoping = self._resolve_time_scoping_input(
-            time_scoping,
-            set_ids=set_ids,
-            model=model_ref,
-        )
-        if resolved_time_scoping is not None and hasattr(operator.inputs, "time_scoping"):
-            operator.inputs.time_scoping(resolved_time_scoping)
-
-        resolved_mesh_scoping = self._resolve_mesh_scoping_input(mesh_scoping)
-        if resolved_mesh_scoping is not None and hasattr(operator.inputs, "mesh_scoping"):
-            operator.inputs.mesh_scoping(resolved_mesh_scoping)
-
         requested_location = self._normalize_field_location(location, allow_empty=True)
-        if requested_location and hasattr(operator.inputs, "requested_location"):
-            operator.inputs.requested_location(requested_location)
-
-        fields_container = operator.outputs.fields_container()
+        normalized_set_ids = self._normalize_ids("set_ids", set_ids) if set_ids is not None else ()
+        invocation = self.invoke_operator(
+            _DPF_RESULT_FIELD_NODE_TYPE_ID,
+            inputs={
+                "model": model_ref,
+                "mesh_scoping": mesh_scoping,
+                "time_scoping": time_scoping,
+            },
+            properties={
+                "result_name": normalized_result_name,
+                "location": requested_location,
+                "set_ids": () if time_scoping is not None else normalized_set_ids,
+                "time_values": (),
+            },
+        )
+        fields_container = invocation.outputs.get("field")
+        if fields_container is None:
+            raise DpfOperatorInvocationError(
+                "Descriptor-driven DPF result-field invocation did not produce a field output."
+            )
         if requested_location and self._fields_container_location(fields_container) != requested_location:
             fields_container = self._convert_fields_container_location(
                 fields_container,
@@ -221,11 +319,26 @@ class DpfRuntimeOperationsMixin(DpfRuntimeBase):
             return fields_ref
 
         model_ref, resolved_model = self._resolve_model_handle_and_object(model)
-        converted = self._convert_fields_container_location(
-            fields_container,
-            location=normalized_location,
-            mesh=resolved_model.metadata.meshed_region,
-        )
+        if normalized_location == "ElementalNodal":
+            converted = self._convert_fields_container_location(
+                fields_container,
+                location=normalized_location,
+                mesh=resolved_model.metadata.meshed_region,
+            )
+        else:
+            invocation = self.invoke_operator(
+                _DPF_FIELD_OPS_NODE_TYPE_ID,
+                inputs={"field": fields_ref, "model": model_ref},
+                properties={
+                    "operation": "convert_location",
+                    "location": normalized_location,
+                },
+            )
+            converted = invocation.outputs.get("field_out")
+            if converted is None:
+                raise DpfOperatorInvocationError(
+                    "Descriptor-driven DPF field-ops invocation did not produce a field_out output."
+                )
         metadata = dict(fields_ref.metadata)
         metadata.update(
             self._build_fields_container_metadata(
@@ -253,11 +366,17 @@ class DpfRuntimeOperationsMixin(DpfRuntimeBase):
         run_id: str = "",
         owner_scope: str = "",
     ) -> RuntimeHandleRef:
-        dpf = self._dpf_module()
         fields_ref, fields_container = self._resolve_fields_container_handle_and_object(value)
-        operator = dpf.operators.math.norm_fc()
-        operator.inputs.fields_container(fields_container)
-        normalized = operator.outputs.fields_container()
+        invocation = self.invoke_operator(
+            _DPF_FIELD_OPS_NODE_TYPE_ID,
+            inputs={"field": fields_ref},
+            properties={"operation": "norm", "location": ""},
+        )
+        normalized = invocation.outputs.get("field_out")
+        if normalized is None:
+            raise DpfOperatorInvocationError(
+                "Descriptor-driven DPF field-ops invocation did not produce a field_out output."
+            )
         metadata = dict(fields_ref.metadata)
         metadata.update(
             self._build_fields_container_metadata(
@@ -281,18 +400,24 @@ class DpfRuntimeOperationsMixin(DpfRuntimeBase):
         run_id: str = "",
         owner_scope: str = "",
     ) -> DpfFieldRange:
-        dpf = self._dpf_module()
-        fields_ref, fields_container = self._resolve_fields_container_handle_and_object(value)
-        operator = dpf.operators.min_max.min_max_fc()
-        operator.inputs.fields_container(fields_container)
+        fields_ref, _ = self._resolve_fields_container_handle_and_object(value)
+        invocation = self.invoke_operator(
+            _DPF_FIELD_OPS_NODE_TYPE_ID,
+            inputs={"field": fields_ref},
+            properties={"operation": "min_max", "location": ""},
+        )
         resolved_owner_scope = self._resolve_handle_owner_scope(run_id=run_id, owner_scope=owner_scope)
         base_metadata = {
             "source_handle_id": fields_ref.handle_id,
             "operation": "min_max",
             "result_name": str(fields_ref.metadata.get("result_name", "")).strip(),
         }
-        minimum_field = operator.outputs.field_min()
-        maximum_field = operator.outputs.field_max()
+        minimum_field = invocation.outputs.get("field_min")
+        maximum_field = invocation.outputs.get("field_max")
+        if minimum_field is None or maximum_field is None:
+            raise DpfOperatorInvocationError(
+                "Descriptor-driven DPF field-ops invocation did not produce both field_min and field_max outputs."
+            )
         minimum = self._worker_services.register_handle(
             minimum_field,
             kind=DPF_FIELD_HANDLE_KIND,

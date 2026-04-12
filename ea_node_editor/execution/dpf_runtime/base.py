@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping, Sequence
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING, Any
 
@@ -9,6 +10,7 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
     DEFAULT_EXPORT_SUBDIRECTORY,
     DEFAULT_TIME_SCOPING_LOCATION,
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
+    DPF_FIELD_HANDLE_KIND,
     DPF_MESH_HANDLE_KIND,
     DPF_MESH_SCOPING_HANDLE_KIND,
     DPF_MODEL_HANDLE_KIND,
@@ -20,14 +22,40 @@ from ea_node_editor.execution.dpf_runtime.contracts import (
     SUPPORTED_EXPORT_FORMATS,
     SUPPORTED_OUTPUT_PROFILES,
     SUPPORTED_RESULT_EXTENSIONS,
+    DpfOperatorBinding,
+    DpfOperatorInvocationError,
     DpfResultFile,
     UnsupportedDpfResultFileError,
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
+from ea_node_editor.nodes.node_specs import (
+    DPF_FIELD_DATA_TYPE,
+    DPF_MODEL_DATA_TYPE,
+    DPF_SCOPING_DATA_TYPE,
+    DpfOperatorVariantSpec,
+    DpfPinSourceSpec,
+    NodeTypeSpec,
+)
 from ea_node_editor.runtime_contracts import RuntimeHandleRef, coerce_runtime_handle_ref
 
 if TYPE_CHECKING:
     from ea_node_editor.execution.worker_services import WorkerServices
+
+
+@lru_cache(maxsize=1)
+def _dpf_operator_descriptor_specs() -> dict[str, NodeTypeSpec]:
+    from ea_node_editor.nodes.builtins.ansys_dpf_catalog import load_ansys_dpf_plugin_descriptors
+
+    return {
+        descriptor.spec.type_id: descriptor.spec
+        for descriptor in load_ansys_dpf_plugin_descriptors()
+        if descriptor.spec.source_metadata is not None
+    }
+
+
+class _OperatorTemplateValues(dict[str, str]):
+    def __missing__(self, key: str) -> str:
+        raise KeyError(key)
 
 
 class DpfRuntimeBase:
@@ -76,6 +104,253 @@ class DpfRuntimeBase:
         ]
         for cache_key in stale_keys:
             cache.pop(cache_key, None)
+
+    def _operator_spec(self, type_id: str) -> NodeTypeSpec:
+        spec = _dpf_operator_descriptor_specs().get(str(type_id).strip())
+        if spec is None or spec.source_metadata is None:
+            raise DpfOperatorInvocationError(
+                f"Node type {type_id!r} does not publish normalized DPF operator source metadata."
+            )
+        return spec
+
+    @staticmethod
+    def _selector_matches(
+        property_key: str,
+        expected_values: Sequence[str],
+        properties: Mapping[str, Any],
+    ) -> bool:
+        candidate = str(properties.get(property_key, "")).strip().casefold()
+        return candidate in {str(value).strip().casefold() for value in expected_values}
+
+    def _select_operator_variant(
+        self,
+        spec: NodeTypeSpec,
+        *,
+        properties: Mapping[str, Any],
+    ) -> DpfOperatorVariantSpec:
+        node_source = spec.source_metadata
+        if node_source is None:
+            raise DpfOperatorInvocationError(
+                f"Node type {spec.type_id!r} does not define DPF operator variants."
+            )
+
+        matching = [
+            variant
+            for variant in node_source.variants
+            if all(
+                self._selector_matches(condition.property_key, condition.values, properties)
+                for condition in variant.selector_conditions
+            )
+        ]
+        if len(matching) == 1:
+            return matching[0]
+        if not matching:
+            raise DpfOperatorInvocationError(
+                f"Node type {spec.type_id!r} does not have a matching DPF operator variant."
+            )
+        variant_keys = ", ".join(variant.key for variant in matching)
+        raise DpfOperatorInvocationError(
+            f"Node type {spec.type_id!r} resolved multiple DPF operator variants: {variant_keys}"
+        )
+
+    @staticmethod
+    def _render_operator_name(
+        spec: NodeTypeSpec,
+        variant: DpfOperatorVariantSpec,
+        *,
+        properties: Mapping[str, Any],
+    ) -> str:
+        if variant.operator_name:
+            return variant.operator_name
+        template_values = _OperatorTemplateValues(
+            {
+                key: str(value).strip()
+                for key, value in properties.items()
+                if value is not None
+            }
+        )
+        try:
+            operator_name = variant.operator_name_template.format_map(template_values)
+        except KeyError as exc:
+            missing_key = str(exc.args[0]).strip() or "unknown"
+            raise DpfOperatorInvocationError(
+                f"Node type {spec.type_id!r} cannot render DPF operator template "
+                f"{variant.operator_name_template!r}; missing property {missing_key!r}."
+            ) from exc
+        operator_name = str(operator_name).strip()
+        if not operator_name:
+            raise DpfOperatorInvocationError(
+                f"Node type {spec.type_id!r} rendered an empty DPF operator name."
+            )
+        return operator_name
+
+    def _resolve_operator_factory(self, operator_name: str) -> Any:
+        current = getattr(self._dpf_module(), "operators", None)
+        if current is None:
+            raise DpfOperatorInvocationError("ansys.dpf.core does not expose an operators namespace.")
+
+        current_path = "operators"
+        for segment in operator_name.split("."):
+            current = getattr(current, segment, None)
+            current_path = f"{current_path}.{segment}"
+            if current is None:
+                raise DpfOperatorInvocationError(
+                    f"DPF operator {operator_name!r} could not be resolved at {current_path!r}."
+                )
+        if not callable(current):
+            raise DpfOperatorInvocationError(
+                f"DPF operator {operator_name!r} did not resolve to a callable factory."
+            )
+        return current
+
+    @staticmethod
+    def _source_applies_to_variant(source: DpfPinSourceSpec, variant_key: str) -> bool:
+        return not source.variant_keys or variant_key in source.variant_keys
+
+    def _iter_input_sources(
+        self,
+        spec: NodeTypeSpec,
+        *,
+        variant_key: str,
+        inputs: Mapping[str, Any],
+        properties: Mapping[str, Any],
+    ) -> Iterable[tuple[DpfPinSourceSpec, Any]]:
+        for port in spec.ports:
+            source = port.source_metadata
+            if source is None or source.pin_direction != "input":
+                continue
+            if not self._source_applies_to_variant(source, variant_key):
+                continue
+            yield source, inputs.get(source.value_key)
+        for prop in spec.properties:
+            source = prop.source_metadata
+            if source is None or source.pin_direction != "input":
+                continue
+            if not self._source_applies_to_variant(source, variant_key):
+                continue
+            yield source, properties.get(source.value_key)
+
+    def _iter_output_sources(
+        self,
+        spec: NodeTypeSpec,
+        *,
+        variant_key: str,
+    ) -> Iterable[tuple[str, DpfPinSourceSpec]]:
+        for port in spec.ports:
+            source = port.source_metadata
+            if source is None or source.pin_direction != "output":
+                continue
+            if not self._source_applies_to_variant(source, variant_key):
+                continue
+            yield port.key, source
+
+    @staticmethod
+    def _binding_record(source: DpfPinSourceSpec, *, omitted: bool) -> DpfOperatorBinding:
+        return DpfOperatorBinding(
+            value_key=source.value_key,
+            pin_name=source.pin_name,
+            value_origin=source.value_origin,
+            omission_semantics=source.omission_semantics,
+            exclusive_group=source.exclusive_group,
+            omitted=omitted,
+        )
+
+    @staticmethod
+    def _source_value_is_omitted(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return not value.strip()
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return len(value) == 0
+        return False
+
+    @staticmethod
+    def _field_set_id_from_metadata(metadata: Mapping[str, Any]) -> int:
+        set_id = metadata.get("set_id")
+        if set_id is not None:
+            try:
+                return int(set_id)
+            except (TypeError, ValueError):
+                pass
+        set_ids = metadata.get("set_ids")
+        if (
+            isinstance(set_ids, Sequence)
+            and not isinstance(set_ids, (str, bytes, bytearray))
+            and set_ids
+        ):
+            try:
+                return int(set_ids[0])
+            except (TypeError, ValueError):
+                pass
+        return 1
+
+    def _single_field_container(self, field_value: Any, *, set_id: int) -> Any:
+        dpf = self._dpf_module()
+        fields_container = dpf.FieldsContainer()
+        fields_container.set_labels(["time"])
+        fields_container.add_field({"time": int(set_id)}, field_value)
+        return fields_container
+
+    def _resolve_fields_container_binding(self, value: Any) -> Any:
+        runtime_ref = coerce_runtime_handle_ref(value)
+        if runtime_ref is not None:
+            if runtime_ref.kind == DPF_FIELDS_CONTAINER_HANDLE_KIND:
+                return self._worker_services.resolve_handle(
+                    runtime_ref,
+                    expected_kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+                )
+            if runtime_ref.kind == DPF_FIELD_HANDLE_KIND:
+                field_value = self._worker_services.resolve_handle(
+                    runtime_ref,
+                    expected_kind=DPF_FIELD_HANDLE_KIND,
+                )
+                return self._single_field_container(
+                    field_value,
+                    set_id=self._field_set_id_from_metadata(runtime_ref.metadata),
+                )
+            raise TypeError(
+                "DPF operator fields_container bindings require dpf.fields_container or dpf.field handles."
+            )
+
+        if hasattr(value, "get_label_space") and hasattr(value, "__len__"):
+            return value
+        if hasattr(value, "component_count") and hasattr(value, "scoping"):
+            return self._single_field_container(value, set_id=1)
+        raise TypeError(
+            "DPF operator fields_container bindings require a DPF fields container, field, or runtime handle."
+        )
+
+    def _materialize_operator_input(
+        self,
+        source: DpfPinSourceSpec,
+        raw_value: Any,
+        *,
+        inputs: Mapping[str, Any],
+        properties: Mapping[str, Any],
+    ) -> Any:
+        if source.pin_name == "data_sources" and source.data_type == DPF_MODEL_DATA_TYPE:
+            _, model = self._resolve_model_handle_and_object(raw_value)
+            return model.metadata.data_sources
+        if source.pin_name == "mesh" and source.data_type == DPF_MODEL_DATA_TYPE:
+            _, model = self._resolve_model_handle_and_object(raw_value)
+            return model.metadata.meshed_region
+        if source.pin_name == "fields_container" and source.data_type == DPF_FIELD_DATA_TYPE:
+            return self._resolve_fields_container_binding(raw_value)
+        if source.pin_name == "mesh_scoping" and source.data_type == DPF_SCOPING_DATA_TYPE:
+            return self._resolve_mesh_scoping_input(raw_value)
+        if source.pin_name == "time_scoping" and source.data_type == DPF_SCOPING_DATA_TYPE:
+            model_value = inputs.get("model")
+            if source.value_origin == "property":
+                if source.value_key == "set_ids":
+                    return self._resolve_time_scoping_input(None, set_ids=raw_value, model=model_value)
+                raise DpfOperatorInvocationError(
+                    f"Node value {source.value_key!r} must be resolved to set_ids before DPF operator binding."
+                )
+            return self._resolve_time_scoping_input(raw_value, set_ids=None, model=model_value)
+        if source.pin_name == "requested_location":
+            return self._normalize_field_location(raw_value)
+        return raw_value
 
     def _coerce_result_path(self, value: Any) -> Path:
         if isinstance(value, DpfResultFile):

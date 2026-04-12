@@ -43,6 +43,10 @@ class DpfRuntimeUnavailableError(RuntimeError):
     """Raised when optional ansys.dpf.core dependencies are not available."""
 
 
+class DpfOperatorInvocationError(RuntimeError):
+    """Raised when descriptor-driven DPF operator execution cannot complete."""
+
+
 class UnsupportedDpfResultFileError(ValueError):
     """Raised when a requested result file is not a supported Mechanical result."""
 
@@ -58,6 +62,25 @@ class DpfResultFile:
 class DpfFieldRange:
     minimum: RuntimeHandleRef
     maximum: RuntimeHandleRef
+
+
+@dataclass(slots=True, frozen=True)
+class DpfOperatorBinding:
+    value_key: str
+    pin_name: str
+    value_origin: str
+    omission_semantics: str
+    exclusive_group: str = ""
+    omitted: bool = False
+
+
+@dataclass(slots=True, frozen=True)
+class DpfOperatorInvocationResult:
+    node_type_id: str
+    variant_key: str
+    operator_name: str
+    outputs: dict[str, Any] = field(default_factory=dict)
+    bound_inputs: tuple[DpfOperatorBinding, ...] = ()
 
 
 @dataclass(slots=True, frozen=True)
@@ -79,6 +102,9 @@ __all__ = [
     "DPF_VIEWER_DATASET_HANDLE_KIND",
     "DpfFieldRange",
     "DpfMaterializationResult",
+    "DpfOperatorBinding",
+    "DpfOperatorInvocationError",
+    "DpfOperatorInvocationResult",
     "DpfResultFile",
     "DpfRuntimeUnavailableError",
     "UnsupportedDpfResultFileError",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -14,6 +15,7 @@ if str(_TESTS_ROOT) not in sys.path:
 dpf = pytest.importorskip("ansys.dpf.core")
 
 from ansys_dpf_core.fixture_paths import MODAL_ANALYSIS_RST, STATIC_ANALYSIS_RST, THERMAL_ANALYSIS_RTH
+from ea_node_editor.execution.dpf_runtime.contracts import DpfOperatorInvocationError
 from ea_node_editor.execution.dpf_runtime_service import (
     DPF_FIELDS_CONTAINER_HANDLE_KIND,
     DPF_FIELD_HANDLE_KIND,
@@ -27,6 +29,109 @@ from ea_node_editor.execution.dpf_runtime_service import (
 )
 from ea_node_editor.execution.handle_registry import StaleHandleError
 from ea_node_editor.execution.worker_services import WorkerServices
+
+
+class _FakeScoping:
+    def __init__(self, *, ids: list[int], location: str) -> None:
+        self.ids = list(ids)
+        self.location = location
+
+
+class _FakeFieldsContainer:
+    def __init__(self, fields: list[object] | tuple[object, ...], label_spaces: list[dict[str, int]]) -> None:
+        self._fields = list(fields)
+        self._label_spaces = [dict(item) for item in label_spaces]
+        self.labels = ("time",)
+
+    def __len__(self) -> int:
+        return len(self._fields)
+
+    def __getitem__(self, index: int) -> object:
+        return self._fields[index]
+
+    def get_label_space(self, index: int) -> dict[str, int]:
+        return dict(self._label_spaces[index])
+
+
+class _FakeFieldsContainerBuilder(_FakeFieldsContainer):
+    def __init__(self) -> None:
+        super().__init__(fields=(), label_spaces=[])
+        self.labels = ()
+
+    def set_labels(self, labels: list[str]) -> None:
+        self.labels = tuple(labels)
+
+    def add_field(self, label_space: dict[str, int], field: object) -> None:
+        self._fields.append(field)
+        self._label_spaces.append(dict(label_space))
+
+
+class _FakeBindingNamespace:
+    def __init__(self) -> None:
+        self.calls: dict[str, object] = {}
+
+    def __getattr__(self, name: str):
+        def binder(value: object) -> None:
+            self.calls[name] = value
+
+        return binder
+
+
+class _FakeOutputNamespace:
+    def __init__(self, outputs: dict[str, object]) -> None:
+        self._outputs = dict(outputs)
+
+    def __getattr__(self, name: str):
+        if name not in self._outputs:
+            raise AttributeError(name)
+
+        def getter() -> object:
+            value = self._outputs[name]
+            if isinstance(value, Exception):
+                raise value
+            return value
+
+        return getter
+
+
+class _FakeOperator:
+    def __init__(self, outputs: dict[str, object]) -> None:
+        self.inputs = _FakeBindingNamespace()
+        self.outputs = _FakeOutputNamespace(outputs)
+
+
+def _capturing_factory(capture: dict[str, object], outputs: dict[str, object]):
+    def factory() -> _FakeOperator:
+        operator = _FakeOperator(outputs)
+        capture["operator"] = operator
+        return operator
+
+    return factory
+
+
+def _fake_dpf_module(*, result_factory=None, min_max_factory=None):
+    return SimpleNamespace(
+        Scoping=lambda ids, location: _FakeScoping(ids=list(ids), location=location),
+        FieldsContainer=_FakeFieldsContainerBuilder,
+        operators=SimpleNamespace(
+            result=SimpleNamespace(displacement=result_factory),
+            min_max=SimpleNamespace(min_max_fc=min_max_factory),
+        ),
+    )
+
+
+def _fake_model(*, location: str = "TimeFreq") -> SimpleNamespace:
+    return SimpleNamespace(
+        metadata=SimpleNamespace(
+            data_sources="fake_data_sources",
+            meshed_region="fake_mesh",
+            time_freq_support=SimpleNamespace(
+                time_frequencies=SimpleNamespace(
+                    scoping=SimpleNamespace(location=location),
+                )
+            ),
+        )
+    )
 
 
 class DpfRuntimeServiceTests(unittest.TestCase):
@@ -201,6 +306,107 @@ class DpfRuntimeServiceTests(unittest.TestCase):
         self.assertEqual(temperature_fields[0].location, "Nodal")
         self.assertEqual(temperature_fields[0].component_count, 1)
         self.assertGreater(temperature_fields[0].scoping.size, 1000)
+
+    def test_invoke_operator_uses_descriptor_bindings_and_preserves_omitted_defaults(self) -> None:
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+        capture: dict[str, object] = {}
+        output_field = SimpleNamespace(
+            location="Nodal",
+            component_count=3,
+            scoping=SimpleNamespace(size=4),
+            unit="m",
+        )
+        output_fields = _FakeFieldsContainer([output_field], [{"time": 2}])
+        fake_dpf = _fake_dpf_module(
+            result_factory=_capturing_factory(capture, {"fields_container": output_fields}),
+        )
+        model_ref = services.register_handle(
+            _fake_model(),
+            kind=DPF_MODEL_HANDLE_KIND,
+            owner_scope="run:invoke_operator",
+        )
+
+        with mock.patch.object(service, "_dpf_module", return_value=fake_dpf):
+            invocation = service.invoke_operator(
+                "dpf.result_field",
+                inputs={
+                    "model": model_ref,
+                    "mesh_scoping": None,
+                    "time_scoping": None,
+                },
+                properties={
+                    "result_name": "displacement",
+                    "location": "",
+                    "set_ids": [2],
+                    "time_values": (),
+                },
+            )
+
+        self.assertEqual(invocation.variant_key, "result")
+        self.assertEqual(invocation.operator_name, "result.displacement")
+        self.assertIs(invocation.outputs["field"], output_fields)
+
+        bindings = {binding.value_key: binding for binding in invocation.bound_inputs}
+        self.assertFalse(bindings["model"].omitted)
+        self.assertFalse(bindings["set_ids"].omitted)
+        self.assertTrue(bindings["location"].omitted)
+        self.assertTrue(bindings["mesh_scoping"].omitted)
+        self.assertTrue(bindings["time_scoping"].omitted)
+        self.assertTrue(bindings["time_values"].omitted)
+
+        operator = capture["operator"]
+        self.assertIsInstance(operator, _FakeOperator)
+        self.assertEqual(operator.inputs.calls["data_sources"], "fake_data_sources")
+        self.assertIn("time_scoping", operator.inputs.calls)
+        self.assertNotIn("requested_location", operator.inputs.calls)
+        self.assertEqual(operator.inputs.calls["time_scoping"].ids, [2])
+        self.assertEqual(operator.inputs.calls["time_scoping"].location, "TimeFreq")
+
+    def test_invoke_operator_wraps_output_failures_with_operator_context(self) -> None:
+        services = WorkerServices()
+        service = services.dpf_runtime_service
+        fields_ref = services.register_handle(
+            _FakeFieldsContainer(
+                [
+                    SimpleNamespace(
+                        location="Nodal",
+                        component_count=1,
+                        scoping=SimpleNamespace(size=1),
+                        unit="m",
+                    )
+                ],
+                [{"time": 1}],
+            ),
+            kind=DPF_FIELDS_CONTAINER_HANDLE_KIND,
+            owner_scope="run:invoke_operator_failure",
+        )
+        fake_dpf = _fake_dpf_module(
+            min_max_factory=_capturing_factory(
+                {},
+                {
+                    "field_min": SimpleNamespace(
+                        location="Nodal",
+                        component_count=1,
+                        scoping=SimpleNamespace(size=1),
+                        unit="m",
+                    ),
+                    "field_max": RuntimeError("boom"),
+                },
+            ),
+        )
+
+        with mock.patch.object(service, "_dpf_module", return_value=fake_dpf):
+            with self.assertRaises(DpfOperatorInvocationError) as exc_info:
+                service.invoke_operator(
+                    "dpf.field_ops",
+                    inputs={"field": fields_ref},
+                    properties={"operation": "min_max", "location": ""},
+                )
+
+        self.assertIn("min_max.min_max_fc", str(exc_info.exception))
+        self.assertIn("dpf.field_ops", str(exc_info.exception))
+        self.assertIn("boom", str(exc_info.exception))
 
 
 if __name__ == "__main__":

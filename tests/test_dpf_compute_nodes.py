@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import pytest
@@ -116,6 +117,37 @@ class DpfComputeNodeTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "exactly one active set"):
             DpfResultFieldNodePlugin().execute(invalid_ctx)
+
+    def test_result_field_routes_operator_binding_through_generic_runtime_adapter(self) -> None:
+        services = WorkerServices()
+        model_ref = DpfModelNodePlugin().execute(
+            self._execution_context(
+                DPF_MODEL_NODE_TYPE_ID,
+                inputs={"path": str(STATIC_ANALYSIS_RST)},
+                services=services,
+            )[0]
+        ).outputs["model"]
+        result_ctx, _ = self._execution_context(
+            DPF_RESULT_FIELD_NODE_TYPE_ID,
+            inputs={"model": model_ref},
+            properties={"result_name": "displacement", "set_ids": "1"},
+            services=services,
+        )
+
+        with mock.patch.object(
+            services.dpf_runtime_service,
+            "invoke_operator",
+            wraps=services.dpf_runtime_service.invoke_operator,
+        ) as invoke_operator:
+            field_ref = DpfResultFieldNodePlugin().execute(result_ctx).outputs["field"]
+
+        self.assertEqual(invoke_operator.call_count, 1)
+        self.assertEqual(invoke_operator.call_args.args[0], "dpf.result_field")
+        self.assertEqual(invoke_operator.call_args.kwargs["properties"]["location"], "")
+        self.assertEqual(tuple(invoke_operator.call_args.kwargs["properties"]["set_ids"]), (1,))
+        self.assertIs(invoke_operator.call_args.kwargs["inputs"]["model"], model_ref)
+        self.assertEqual(field_ref.metadata["result_name"], "displacement")
+        self.assertEqual(field_ref.metadata["set_id"], 1)
 
     def test_field_ops_norm_location_conversion_and_min_max_preserve_single_field_handles(self) -> None:
         services = WorkerServices()
