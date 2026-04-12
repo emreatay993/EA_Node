@@ -19,7 +19,7 @@ Extended Graphics Settings with basic controls for enablement, strategy, and ani
 
 - PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py tests/test_shell_theme.py tests/graph_track_b/qml_preference_bindings.py --ignore=venv -q` (65 passed, 32 subtests passed)
 - PASS: `$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py --ignore=venv -q` (24 passed, 9 subtests passed)
-Final Verification Verdict: PASS
+- Final Verification Verdict: PASS
 
 ## Manual Test Directives
 
@@ -37,4 +37,4 @@ Ready for manual testing.
 
 ## Ready for Integration
 
-Yes: P01 is packet-scope complete, verified, committed, and does not change runtime collapse or expand behavior.
+- Yes: P01 is packet-scope complete, verified, committed, and does not change runtime collapse or expand behavior.
