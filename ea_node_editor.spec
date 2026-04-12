@@ -16,6 +16,7 @@ BASE_PACKAGE_PROFILE = "base"
 VIEWER_PACKAGE_PROFILE = "viewer"
 VIEWER_RUNTIME_HIDDENIMPORT_PACKAGES = (
     "ansys.dpf.core",
+    "ansys.dpf.post",
     "ansys.dpf.gate",
     "ansys.grpc.dpf",
     "pyvista",
@@ -25,6 +26,7 @@ VIEWER_RUNTIME_HIDDENIMPORT_PACKAGES = (
 )
 VIEWER_RUNTIME_METADATA_DISTRIBUTIONS = (
     "ansys-dpf-core",
+    "ansys-dpf-post",
     "pyvista",
     "pyvistaqt",
     "vtk",

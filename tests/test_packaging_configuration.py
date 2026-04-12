@@ -41,7 +41,10 @@ def test_optional_dependency_groups_wire_ansys_and_viewer_into_all_and_dev() -> 
     pyproject = _load_pyproject()
     optional_dependencies = pyproject["project"]["optional-dependencies"]
 
-    expected_ansys = {"ansys-dpf-core>=0.15"}
+    expected_ansys = {
+        "ansys-dpf-core>=0.15",
+        "ansys-dpf-post>=0.11",
+    }
     expected_viewer = {"pyvista>=0.47", "pyvistaqt>=0.11", "vtk>=9.6"}
 
     assert set(optional_dependencies["ansys"]) == expected_ansys
@@ -61,12 +64,14 @@ def test_spec_declares_viewer_profile_hooks_and_runtime_assets() -> None:
     assert assignments["VIEWER_PACKAGE_PROFILE"] == "viewer"
     assert {
         "ansys.dpf.core",
+        "ansys.dpf.post",
         "pyvista",
         "pyvistaqt",
         "vtkmodules",
     }.issubset(set(assignments["VIEWER_RUNTIME_HIDDENIMPORT_PACKAGES"]))
     assert {
         "ansys-dpf-core",
+        "ansys-dpf-post",
         "pyvista",
         "pyvistaqt",
         "vtk",
