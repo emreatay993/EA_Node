@@ -66,6 +66,8 @@ Selected work-packet manifests and status ledgers under `docs/specs/work_packets
 - [PORT_VALUE_LOCKING Work Packet Manifest](work_packets/port_value_locking/PORT_VALUE_LOCKING_MANIFEST.md)
 - [PORT_VALUE_LOCKING Status Ledger](work_packets/port_value_locking/PORT_VALUE_LOCKING_STATUS.md)
 - [PORT_VALUE_LOCKING QA Matrix](perf/PORT_VALUE_LOCKING_QA_MATRIX.md)
+- [DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR Work Packet Manifest](work_packets/dpf_operator_plugin_backend_refactor/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_MANIFEST.md)
+- [DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR Status Ledger](work_packets/dpf_operator_plugin_backend_refactor/DPF_OPERATOR_PLUGIN_BACKEND_REFACTOR_STATUS.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK Work Packet Manifest](work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_MANIFEST.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK Status Ledger](work_packets/cross_process_viewer_backend_framework/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_STATUS.md)
 - [CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK QA Matrix](perf/CROSS_PROCESS_VIEWER_BACKEND_FRAMEWORK_QA_MATRIX.md)
