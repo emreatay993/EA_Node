@@ -8,7 +8,7 @@ Keep the core plan shape in the portable template. Put only repo-local execution
 - Canonical packet/spec index: [docs/specs/INDEX.md](../docs/specs/INDEX.md)
 - UI packet ownership map: [docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md](../docs/specs/work_packets/ui_context_scalability_refactor/SUBSYSTEM_PACKET_INDEX.md)
 - UI packet authoring template: [docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md](../docs/specs/work_packets/ui_context_scalability_refactor/FEATURE_PACKET_TEMPLATE.md)
-- Multi-thread packet planning skill: [.agents/skills/work-packet-planner/SKILL.md](../.agents/skills/work-packet-planner/SKILL.md)
+- Multi-thread packet planning skill: `.agents/skills/work-packet-planner/SKILL.md` (local Codex skill path; not a tracked repo artifact)
 
 ## Local Packetization Defaults
 
