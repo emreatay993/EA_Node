@@ -162,6 +162,25 @@ function _executionFlashProgress(edgeLayer, edgeId, edge, nowMs) {
     return Math.max(0.0, 1.0 - (elapsedMs / durationMs));
 }
 
+function _cloneObjectArray(values) {
+    var source = values || [];
+    var cloned = [];
+    for (var i = 0; i < source.length; i++) {
+        var entry = source[i];
+        if (!entry || typeof entry !== "object") {
+            cloned.push(entry);
+            continue;
+        }
+        var copy = {};
+        for (var key in entry) {
+            if (Object.prototype.hasOwnProperty.call(entry, key))
+                copy[key] = entry[key];
+        }
+        cloned.push(copy);
+    }
+    return cloned;
+}
+
 function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision) {
     var snapshots = [];
     var snapshotById = {};
@@ -170,6 +189,12 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
     var viewportBounds = expandedVisibleSceneBounds(edgeLayer);
     var viewportTransform = EdgeViewportMath.viewportTransform(edgeLayer);
     var nowMs = Date.now();
+    var previousSnapshotById = edgeLayer._visibleEdgeSnapshotById || ({});
+    var reuseCrossingMetadata = Boolean(
+        canvasLayer
+        && canvasLayer.shouldReuseCrossingMetadata
+        && canvasLayer.shouldReuseCrossingMetadata()
+    );
 
     for (var i = 0; i < edgesList.length; i++) {
         var edge = edgesList[i];
@@ -183,6 +208,13 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
         var previewed = Boolean(edgeLayer.previewEdgeId && edgeLayer.previewEdgeId === edgeId);
         var executionEdge = _isExecutionEdge(edge);
         var executionProgressed = executionEdge && Boolean(_progressedExecutionLookup(edgeLayer)[edgeId]);
+        var previousSnapshot = previousSnapshotById[edgeId];
+        var preserveCurrentCrossingMetadata = reuseCrossingMetadata
+            && !selected
+            && !previewed
+            && previousSnapshot
+            && !previousSnapshot.culled
+            && previousSnapshot.geometry;
         var snapshot = {
             "revision": revision,
             "edgeId": edgeId,
@@ -200,8 +232,12 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
             "labelText": labelLayer.edgeLabelText(edge),
             "labelMode": labelMode,
             "drawOrderIndex": i,
-            "crossingBreaks": [],
-            "crossingSamplePoints": [],
+            "crossingBreaks": preserveCurrentCrossingMetadata
+                ? _cloneObjectArray(previousSnapshot.crossingBreaks)
+                : [],
+            "crossingSamplePoints": preserveCurrentCrossingMetadata
+                ? _cloneObjectArray(previousSnapshot.crossingSamplePoints)
+                : [],
             "labelAnchorScene": labelMode !== "hidden" && geometry
                 ? labelLayer.flowLabelAnchorScene(geometry)
                 : null
@@ -210,7 +246,10 @@ function buildVisibleEdgeSnapshots(edgeLayer, canvasLayer, labelLayer, revision)
         snapshotById[edgeId] = snapshot;
     }
 
-    snapshots = canvasLayer.applyCrossingMetadata(snapshots, viewportTransform);
+    if (reuseCrossingMetadata && canvasLayer.orderSnapshotsForDraw)
+        snapshots = canvasLayer.orderSnapshotsForDraw(snapshots, true);
+    else
+        snapshots = canvasLayer.applyCrossingMetadata(snapshots, viewportTransform);
     return {"snapshots": snapshots, "snapshotById": snapshotById};
 }
 

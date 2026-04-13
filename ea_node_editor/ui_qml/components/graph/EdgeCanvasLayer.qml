@@ -330,27 +330,36 @@ Item {
     function decorationEnabled() {
         return root.edgeLayer.edgeCrossingStyle === "gap_break"
             && root.edgeLayer.performanceMode === "full_fidelity"
-            && !root.edgeLayer.transientPerformanceActivityActive
             && !root.edgeLayer.transientDegradedWindowActive;
     }
 
-    function _resetSnapshot(snapshot) {
+    function shouldReuseCrossingMetadata() {
+        return root.edgeLayer.edgeCrossingStyle === "gap_break"
+            && root.edgeLayer.performanceMode === "full_fidelity"
+            && root.edgeLayer.viewportInteractionActive
+            && !root.edgeLayer.transientDegradedWindowActive;
+    }
+
+    function _resetSnapshot(snapshot, preserveCrossingMetadata) {
         if (!snapshot)
             return;
-        snapshot.crossingBreaks = [];
-        snapshot.crossingSamplePoints = [];
+        if (!preserveCrossingMetadata) {
+            snapshot.crossingBreaks = [];
+            snapshot.crossingSamplePoints = [];
+        }
         snapshot.drawOrderIndex = -1;
     }
 
-    function orderSnapshotsForDraw(snapshots) {
+    function orderSnapshotsForDraw(snapshots, preserveCrossingMetadata) {
         var background = [];
         var elevated = [];
         var sourceSnapshots = snapshots || [];
+        var preserve = Boolean(preserveCrossingMetadata);
         for (var i = 0; i < sourceSnapshots.length; i++) {
             var snapshot = sourceSnapshots[i];
             if (!snapshot)
                 continue;
-            _resetSnapshot(snapshot);
+            _resetSnapshot(snapshot, preserve);
             if (snapshot.previewed || snapshot.selected)
                 elevated.push(snapshot);
             else
@@ -430,7 +439,7 @@ Item {
     }
 
     function applyCrossingMetadata(snapshots, viewportTransform) {
-        var ordered = orderSnapshotsForDraw(snapshots);
+        var ordered = orderSnapshotsForDraw(snapshots, false);
         if (!decorationEnabled())
             return ordered;
 

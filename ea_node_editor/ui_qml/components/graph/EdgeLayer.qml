@@ -31,6 +31,7 @@ Item {
     property string edgeCrossingStyle: "none"
     property string performanceMode: "full_fidelity"
     property bool transientPerformanceActivityActive: false
+    property bool viewportInteractionActive: false
     property bool transientDegradedWindowActive: false
     property bool edgeLabelSimplificationActive: false
     property bool inputEnabled: true

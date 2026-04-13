@@ -547,6 +547,35 @@ class GraphCanvasQmlPreferencePerformanceTests(GraphCanvasQmlPreferenceTestBase)
         self.assertIn("centerX", decorated_under["crossingBreaks"][0])
         self.assertIn("tangentX", decorated_under["crossingBreaks"][0])
 
+        self.view.set_zoom(2.0)
+        edge_layer.setProperty("viewportInteractionActive", True)
+        edge_layer.setProperty("transientPerformanceActivityActive", True)
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        active_under = edge_layer._visibleEdgeSnapshot(plain_edge_id).toVariant()
+        active_selected = edge_layer._visibleEdgeSnapshot(selected_edge_id).toVariant()
+        self.assertEqual(active_under["crossingBreaks"], decorated_under["crossingBreaks"])
+        self.assertEqual(active_under["crossingSamplePoints"], decorated_under["crossingSamplePoints"])
+        self.assertEqual(active_selected["crossingBreaks"], [])
+
+        edge_layer.setProperty("viewportInteractionActive", False)
+        edge_layer.setProperty("transientPerformanceActivityActive", False)
+        self.app.processEvents()
+        edge_layer.requestRedraw()
+        self.app.processEvents()
+
+        settled_under = edge_layer._visibleEdgeSnapshot(plain_edge_id).toVariant()
+        settled_selected = edge_layer._visibleEdgeSnapshot(selected_edge_id).toVariant()
+        self.assertGreaterEqual(len(settled_under["crossingBreaks"]), 1)
+        self.assertNotEqual(
+            settled_under["crossingBreaks"][0]["startDistance"],
+            decorated_under["crossingBreaks"][0]["startDistance"],
+        )
+        self.assertNotEqual(settled_under["crossingSamplePoints"], decorated_under["crossingSamplePoints"])
+        self.assertEqual(settled_selected["crossingBreaks"], [])
+
         edge_layer.setProperty("performanceMode", "max_performance")
         self.app.processEvents()
         edge_layer.requestRedraw()

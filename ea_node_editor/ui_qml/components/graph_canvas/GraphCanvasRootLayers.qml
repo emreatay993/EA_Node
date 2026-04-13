@@ -51,6 +51,9 @@ Item {
         transientPerformanceActivityActive: root.canvasItem
             ? root.canvasItem.transientPerformanceActivityActive
             : false
+        viewportInteractionActive: root.canvasItem
+            ? root.canvasItem.viewportInteractionWorldCacheActive
+            : false
         transientDegradedWindowActive: root.canvasItem
             ? root.canvasItem.transientDegradedWindowActive
             : false
