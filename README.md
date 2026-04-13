@@ -229,37 +229,117 @@ docs/specs/
 Drop a public Python file into the plugins folder at `%APPDATA%/COREX_Node_Editor/plugins/`
 (or the fallback user-data directory returned by `ea_node_editor.settings.plugins_dir()`).
 The loader reads top-level `*.py` files whose filenames do not start with `_`.
-The file should define one or more classes that follow the `NodePlugin` protocol:
+The file should define one or more classes that follow the `NodePlugin` protocol.
+The example below assumes `numpy` and `scipy` are installed in the same virtual
+environment as the application:
 
 ```python
-from ea_node_editor.nodes import node_type, in_port, out_port, prop_float
+import numpy as np
+from scipy import signal
+
+from ea_node_editor.nodes import (
+    in_port,
+    node_type,
+    out_port,
+    prop_enum,
+    prop_float,
+    prop_int,
+)
 from ea_node_editor.nodes.types import ExecutionContext, NodeResult
 
+
+def _signal_packet(ctx: ExecutionContext, key: str = "signal") -> tuple[np.ndarray, float]:
+    packet = dict(ctx.inputs.get(key) or {})
+    samples = np.asarray(packet.get("samples", ()), dtype=np.float64)
+    if samples.ndim != 1:
+        raise ValueError("signal packets must provide a 1D 'samples' array.")
+    sample_rate_hz = float(packet.get("sample_rate_hz", 48000.0))
+    return samples, sample_rate_hz
+
+
 @node_type(
-    type_id="custom.multiply",
-    display_name="Multiply",
-    category_path=("Math",),
-    icon="calculate",
+    type_id="custom.bandpass_filter",
+    display_name="Bandpass Filter",
+    category_path=("Signal Processing", "Filters", "Bandpass"),
+    icon="tune",
     ports=(
-        in_port("a", data_type="float"),
-        in_port("b", data_type="float"),
-        out_port("result", data_type="float"),
+        in_port("signal", data_type="dsp.signal", required=True),
+        out_port("filtered_signal", data_type="dsp.signal"),
     ),
     properties=(
-        prop_float("factor", 1.0, "Scale Factor"),
+        prop_float("low_cut_hz", 300.0, "Low Cut (Hz)"),
+        prop_float("high_cut_hz", 3400.0, "High Cut (Hz)"),
+        prop_int("filter_order", 4, "Filter Order"),
     ),
-    description="Multiplies two numbers and applies a scale factor.",
+    description="Applies a zero-phase SciPy bandpass filter to a signal packet.",
 )
-class MultiplyNode:
+class BandpassFilterNode:
     def execute(self, ctx: ExecutionContext) -> NodeResult:
-        a = float(ctx.inputs.get("a", 0))
-        b = float(ctx.inputs.get("b", 0))
-        factor = float(ctx.properties.get("factor", 1.0))
-        return NodeResult(outputs={"result": a * b * factor})
+        samples, sample_rate_hz = _signal_packet(ctx)
+        low_cut_hz = float(ctx.properties.get("low_cut_hz", 300.0))
+        high_cut_hz = float(ctx.properties.get("high_cut_hz", 3400.0))
+        filter_order = int(ctx.properties.get("filter_order", 4))
+        nyquist_hz = 0.5 * sample_rate_hz
+        sos = signal.butter(
+            filter_order,
+            [low_cut_hz / nyquist_hz, high_cut_hz / nyquist_hz],
+            btype="bandpass",
+            output="sos",
+        )
+        filtered = signal.sosfiltfilt(sos, samples)
+        return NodeResult(
+            outputs={
+                "filtered_signal": {
+                    "samples": filtered,
+                    "sample_rate_hz": sample_rate_hz,
+                }
+            }
+        )
+
+
+@node_type(
+    type_id="custom.magnitude_spectrum",
+    display_name="Magnitude Spectrum",
+    category_path=("Signal Processing", "Analysis", "FFT"),
+    icon="show_chart",
+    ports=(
+        in_port("signal", data_type="dsp.signal", required=True),
+        out_port("spectrum", data_type="dsp.spectrum"),
+    ),
+    properties=(
+        prop_int("fft_size", 2048, "FFT Size"),
+        prop_enum("window", "hann", "Window", values=("hann", "hamming", "blackman")),
+    ),
+    description="Computes a NumPy/SciPy windowed FFT and emits a spectrum packet.",
+)
+class MagnitudeSpectrumNode:
+    def execute(self, ctx: ExecutionContext) -> NodeResult:
+        samples, sample_rate_hz = _signal_packet(ctx)
+        fft_size = int(ctx.properties.get("fft_size", 2048))
+        window_name = str(ctx.properties.get("window", "hann"))
+        clipped = samples[:fft_size]
+        if clipped.size < fft_size:
+            clipped = np.pad(clipped, (0, fft_size - clipped.size))
+        window = signal.get_window(window_name, fft_size, fftbins=True)
+        spectrum = np.fft.rfft(clipped * window)
+        frequencies_hz = np.fft.rfftfreq(fft_size, d=1.0 / sample_rate_hz)
+        magnitude_db = 20.0 * np.log10(np.maximum(np.abs(spectrum), 1e-12))
+        return NodeResult(
+            outputs={
+                "spectrum": {
+                    "frequencies_hz": frequencies_hz,
+                    "magnitude_db": magnitude_db,
+                    "sample_rate_hz": sample_rate_hz,
+                }
+            }
+        )
 ```
 
-Restart the application and the node will appear in the Node Library under the
-`Math` category path.
+Restart the application and the nodes will appear in the Node Library under
+`Signal Processing > Filters > Bandpass` and
+`Signal Processing > Analysis > FFT`. The `dsp.signal` and `dsp.spectrum`
+values are custom `data_type` labels; use the same spelling on downstream ports
+if you want them to connect directly.
 
 Node authoring now uses `category_path=` instead of `category=`. This is a
 breaking change for external plugins and node packages: update decorator calls
