@@ -507,6 +507,9 @@ def apply_graphics_preferences(self: "ShellWindow", graphics: Any) -> dict[str, 
     previous_graph_label_pixel_size = int(
         getattr(getattr(self, "workspace_ui_state", None), "graph_label_pixel_size", 10)
     )
+    previous_node_title_icon_pixel_size = int(
+        getattr(getattr(self, "workspace_ui_state", None), "node_title_icon_pixel_size", previous_graph_label_pixel_size)
+    )
     resolved = self.shell_workspace_presenter.apply_graphics_preferences(graphics)
     canvas = resolved.get("canvas", {}) if isinstance(resolved, dict) else {}
     typography = resolved.get("typography", {}) if isinstance(resolved, dict) else {}
@@ -514,10 +517,14 @@ def apply_graphics_preferences(self: "ShellWindow", graphics: Any) -> dict[str, 
     current_graph_label_pixel_size = int(
         typography.get("graph_label_pixel_size", previous_graph_label_pixel_size)
     )
+    current_node_title_icon_pixel_size = int(
+        self.shell_workspace_presenter.graphics_node_title_icon_pixel_size
+    )
     self._sync_graphics_show_port_labels_action(current_show_port_labels)
     if (
         previous_show_port_labels != current_show_port_labels
         or previous_graph_label_pixel_size != current_graph_label_pixel_size
+        or previous_node_title_icon_pixel_size != current_node_title_icon_pixel_size
     ):
         self._refresh_active_workspace_scene_payload()
     return resolved

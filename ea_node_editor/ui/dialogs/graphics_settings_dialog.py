@@ -522,9 +522,25 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.graph_label_pixel_size_spin.setObjectName("graphicsSettingsGraphLabelPixelSizeSpin")
         self.graph_label_pixel_size_spin.setRange(GRAPH_LABEL_PIXEL_SIZE_MIN, GRAPH_LABEL_PIXEL_SIZE_MAX)
         typography_form.addRow("Graph label size", self.graph_label_pixel_size_spin)
+        self.graph_node_icon_size_override_check = QCheckBox("Custom", typography_card)
+        self.graph_node_icon_size_override_check.setObjectName("graphicsSettingsGraphNodeIconSizeOverrideCheck")
+        self.graph_node_icon_pixel_size_spin = QSpinBox(typography_card)
+        self.graph_node_icon_pixel_size_spin.setObjectName("graphicsSettingsGraphNodeIconPixelSizeOverrideSpin")
+        self.graph_node_icon_pixel_size_spin.setRange(GRAPH_LABEL_PIXEL_SIZE_MIN, GRAPH_LABEL_PIXEL_SIZE_MAX)
+        graph_node_icon_size_row = QWidget(typography_card)
+        graph_node_icon_size_layout = QHBoxLayout(graph_node_icon_size_row)
+        graph_node_icon_size_layout.setContentsMargins(0, 0, 0, 0)
+        graph_node_icon_size_layout.setSpacing(8)
+        graph_node_icon_size_layout.addWidget(self.graph_node_icon_size_override_check, stretch=0)
+        graph_node_icon_size_layout.addWidget(self.graph_node_icon_pixel_size_spin, stretch=0)
+        graph_node_icon_size_layout.addStretch(1)
+        typography_form.addRow("Title icon size", graph_node_icon_size_row)
         typography_lay.addLayout(typography_form)
         outer.addWidget(typography_card)
 
+        self.graph_node_icon_size_override_check.toggled.connect(
+            self._sync_graph_node_icon_size_override_enabled
+        )
         self._sync_graph_theme_combo_enabled()
 
         outer.addStretch(1)
@@ -613,7 +629,17 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         theme_id = settings["theme"]["theme_id"]
         index = self.theme_combo.findData(theme_id)
         self.theme_combo.setCurrentIndex(index if index >= 0 else 0)
-        self.graph_label_pixel_size_spin.setValue(int(settings["typography"]["graph_label_pixel_size"]))
+        graph_label_pixel_size = int(settings["typography"]["graph_label_pixel_size"])
+        self.graph_label_pixel_size_spin.setValue(graph_label_pixel_size)
+        graph_node_icon_pixel_size_override = settings["typography"].get("graph_node_icon_pixel_size_override")
+        has_graph_node_icon_size_override = graph_node_icon_pixel_size_override is not None
+        self.graph_node_icon_size_override_check.setChecked(has_graph_node_icon_size_override)
+        self.graph_node_icon_pixel_size_spin.setValue(
+            int(graph_node_icon_pixel_size_override)
+            if has_graph_node_icon_size_override
+            else graph_label_pixel_size
+        )
+        self._sync_graph_node_icon_size_override_enabled()
         self._apply_graph_theme_settings(settings["graph_theme"])
 
     def values(self) -> dict[str, Any]:
@@ -677,6 +703,11 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
                 },
                 "typography": {
                     "graph_label_pixel_size": int(self.graph_label_pixel_size_spin.value()),
+                    "graph_node_icon_pixel_size_override": (
+                        int(self.graph_node_icon_pixel_size_spin.value())
+                        if self.graph_node_icon_size_override_check.isChecked()
+                        else None
+                    ),
                 },
                 "graph_theme": self._current_graph_theme_settings(),
             }
@@ -711,6 +742,9 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
 
     def _sync_graph_theme_combo_enabled(self, _checked: bool | None = None) -> None:
         self.graph_theme_combo.setEnabled(not self.follow_shell_theme_check.isChecked())
+
+    def _sync_graph_node_icon_size_override_enabled(self, _checked: bool | None = None) -> None:
+        self.graph_node_icon_pixel_size_spin.setEnabled(self.graph_node_icon_size_override_check.isChecked())
 
     def _update_graph_theme_preview(self) -> None:
         preview = getattr(self, "_graph_theme_preview", None)

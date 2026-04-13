@@ -150,6 +150,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "typography": {
         "graph_label_pixel_size": DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+        "graph_node_icon_pixel_size_override": None,
     },
     "graph_theme": {
         "follow_shell_theme": True,

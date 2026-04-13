@@ -457,6 +457,91 @@ class MainWindowGraphTypographyBridgeTests(SharedMainWindowShellTestBase):
             },
         )
 
+    def test_graph_node_icon_size_bridge_shell_window_and_canvas_state_bridge_project_effective_size(self) -> None:
+        context = self.window.quick_widget.rootContext()
+        graph_canvas_state_bridge = context.contextProperty("graphCanvasStateBridge")
+        seen = {
+            "window_graphics_preferences_changed": 0,
+            "bridge_graphics_preferences_changed": 0,
+        }
+        self.window.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "window_graphics_preferences_changed",
+                seen["window_graphics_preferences_changed"] + 1,
+            )
+        )
+        graph_canvas_state_bridge.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "bridge_graphics_preferences_changed",
+                seen["bridge_graphics_preferences_changed"] + 1,
+            )
+        )
+
+        self.assertGreaterEqual(
+            self.window.metaObject().indexOfProperty("graphics_graph_node_icon_pixel_size_override"),
+            0,
+        )
+        self.assertGreaterEqual(
+            self.window.metaObject().indexOfProperty("graphics_node_title_icon_pixel_size"),
+            0,
+        )
+        self.assertIsNone(self.window.workspace_ui_state.graph_node_icon_pixel_size_override)
+        self.assertEqual(self.window.workspace_ui_state.node_title_icon_pixel_size, 10)
+        self.assertIsNone(self.window.graphics_graph_node_icon_pixel_size_override)
+        self.assertEqual(self.window.graphics_node_title_icon_pixel_size, 10)
+        self.assertIsNone(graph_canvas_state_bridge.graphics_graph_node_icon_pixel_size_override)
+        self.assertEqual(graph_canvas_state_bridge.graphics_node_title_icon_pixel_size, 10)
+
+        resolved = self.window.app_preferences_controller.update_graphics_settings(
+            {
+                "typography": {
+                    "graph_label_pixel_size": 16,
+                    "graph_node_icon_pixel_size_override": 12,
+                }
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 16)
+        self.assertEqual(resolved["typography"]["graph_node_icon_pixel_size_override"], 12)
+        self.assertEqual(self.window.workspace_ui_state.graph_label_pixel_size, 16)
+        self.assertEqual(self.window.workspace_ui_state.graph_node_icon_pixel_size_override, 12)
+        self.assertEqual(self.window.workspace_ui_state.node_title_icon_pixel_size, 12)
+        self.assertEqual(self.window.shell_workspace_presenter.graphics_node_title_icon_pixel_size, 12)
+        self.assertEqual(self.window.graphics_node_title_icon_pixel_size, 12)
+        self.assertEqual(graph_canvas_state_bridge.graphics_node_title_icon_pixel_size, 12)
+        self.assertEqual(
+            seen,
+            {
+                "window_graphics_preferences_changed": 1,
+                "bridge_graphics_preferences_changed": 1,
+            },
+        )
+
+        resolved = self.window.app_preferences_controller.update_graphics_settings(
+            {
+                "typography": {
+                    "graph_node_icon_pixel_size_override": None,
+                }
+            },
+            host=self.window,
+        )
+        self.app.processEvents()
+
+        self.assertIsNone(resolved["typography"]["graph_node_icon_pixel_size_override"])
+        self.assertEqual(self.window.graphics_graph_label_pixel_size, 16)
+        self.assertEqual(self.window.graphics_node_title_icon_pixel_size, 16)
+        self.assertIsNone(graph_canvas_state_bridge.graphics_graph_node_icon_pixel_size_override)
+        self.assertEqual(graph_canvas_state_bridge.graphics_node_title_icon_pixel_size, 16)
+        self.assertEqual(
+            seen,
+            {
+                "window_graphics_preferences_changed": 2,
+                "bridge_graphics_preferences_changed": 2,
+            },
+        )
+
 
 class ShellWorkspaceBridgeQmlBoundaryTests(unittest.TestCase):
     def test_workspace_run_title_and_console_qml_routes_owned_concerns_through_shell_workspace_bridge(self) -> None:
