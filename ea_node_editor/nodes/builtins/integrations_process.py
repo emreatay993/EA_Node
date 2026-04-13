@@ -80,7 +80,7 @@ class ProcessRunNodePlugin:
             type_id="io.process_run",
             display_name="Process Run",
     category_path=("Input / Output",),
-            icon="terminal",
+            icon="integrations/terminal.svg",
             description="Executes an external command and captures stdout/stderr.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),

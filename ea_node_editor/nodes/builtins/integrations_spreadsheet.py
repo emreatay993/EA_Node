@@ -91,7 +91,7 @@ class ExcelReadNodePlugin:
             type_id="io.excel_read",
             display_name="Excel Read",
     category_path=("Input / Output",),
-            icon="table_view",
+            icon="integrations/table_view.svg",
             description="Loads rows from Excel or CSV.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -166,7 +166,7 @@ class ExcelWriteNodePlugin:
             type_id="io.excel_write",
             display_name="Excel Write",
     category_path=("Input / Output",),
-            icon="download",
+            icon="integrations/download.svg",
             description="Writes list[dict] rows to CSV/XLSX.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),

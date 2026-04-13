@@ -168,7 +168,15 @@ datas += collect_data_files(
 )
 datas += collect_data_files(
     "ea_node_editor",
-    includes=["assets/app_icon/*.svg", "assets/app_icon/*.png", "assets/app_icon/*.ico"],
+    includes=[
+        "assets/app_icon/*.svg",
+        "assets/app_icon/*.png",
+        "assets/app_icon/*.ico",
+        "assets/node_title_icons/**/*.svg",
+        "assets/node_title_icons/**/*.png",
+        "assets/node_title_icons/**/*.jpg",
+        "assets/node_title_icons/**/*.jpeg",
+    ],
 )
 binaries = []
 

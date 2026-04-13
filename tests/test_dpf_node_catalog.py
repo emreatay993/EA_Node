@@ -61,6 +61,7 @@ from ea_node_editor.nodes.types import (
     DPF_VIEW_SESSION_DATA_TYPE,
     ExecutionContext,
 )
+from ea_node_editor.ui_qml.node_title_icon_sources import NODE_TITLE_ICON_ASSET_ROOT, title_icon_source_for_node_payload
 from ea_node_editor.persistence.artifact_resolution import ProjectArtifactResolver
 
 if dpf is not None:
@@ -167,6 +168,18 @@ _EXPECTED_DPF_SPECS = {
             "supported_quality_tiers": ("full", "proxy"),
         },
     },
+}
+
+_EXPECTED_DPF_TITLE_ICON_PATHS = {
+    DPF_RESULT_FILE_NODE_TYPE_ID: "dpf/database.svg",
+    DPF_MODEL_NODE_TYPE_ID: "dpf/cube.svg",
+    DPF_MESH_SCOPING_NODE_TYPE_ID: "dpf/filter.svg",
+    DPF_TIME_SCOPING_NODE_TYPE_ID: "dpf/clock.svg",
+    DPF_RESULT_FIELD_NODE_TYPE_ID: "dpf/query_stats.svg",
+    DPF_FIELD_OPS_NODE_TYPE_ID: "dpf/calculate.svg",
+    DPF_MESH_EXTRACT_NODE_TYPE_ID: "dpf/hub.svg",
+    DPF_EXPORT_NODE_TYPE_ID: "dpf/download.svg",
+    DPF_VIEWER_NODE_TYPE_ID: "dpf/monitor.svg",
 }
 
 
@@ -384,6 +397,25 @@ class DpfNodeCatalogTests(unittest.TestCase):
         expected_type_ids = tuple(_EXPECTED_DPF_SPECS)
         self.assertEqual(tuple(descriptor.spec.type_id for descriptor in descriptors), expected_type_ids)
         self.assertEqual(tuple(descriptor.factory for descriptor in descriptors), node_plugins)
+
+    def test_title_icon_dpf_specs_use_packaged_relative_assets(self) -> None:
+        for plugin_factory in (
+            DpfResultFileNodePlugin,
+            DpfModelNodePlugin,
+            DpfMeshScopingNodePlugin,
+            DpfTimeScopingNodePlugin,
+            DpfResultFieldNodePlugin,
+            DpfFieldOpsNodePlugin,
+            DpfMeshExtractNodePlugin,
+            DpfExportNodePlugin,
+            DpfViewerNodePlugin,
+        ):
+            spec = plugin_factory().spec()
+            expected_icon = _EXPECTED_DPF_TITLE_ICON_PATHS[spec.type_id]
+            asset_path = NODE_TITLE_ICON_ASSET_ROOT / expected_icon
+
+            self.assertEqual(spec.icon, expected_icon)
+            self.assertEqual(title_icon_source_for_node_payload(spec), asset_path.resolve().as_uri())
 
     def test_default_registry_exposes_dpf_category_and_scoping_ports(self) -> None:
         dpf_specs = self.registry.filter_nodes(category=DPF_NODE_CATEGORY)
