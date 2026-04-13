@@ -689,6 +689,69 @@ class PassiveGraphSurfaceInlineEditorTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_title_icon_hit_region_opens_shared_header_editor(self) -> None:
+        self._run_qml_probe(
+            "title-icon-shared-header-editor-host",
+            """
+            from pathlib import Path
+
+            icon_source = (Path.cwd() / "ea_node_editor" / "assets" / "app_icon" / "corex_app_minimal.svg").as_uri()
+            canvas_item = create_surface_canvas_item()
+            canvas_item.setProperty("nodeTitleIconPixelSize", 11)
+
+            payload = node_payload()
+            payload["icon_source"] = icon_source
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "canvasItem": canvas_item,
+                },
+            )
+            window = attach_host_to_window(host, width=640, height=480)
+            try:
+                title_icon = host.findChild(QObject, "graphNodeTitleIcon")
+                title_item = host.findChild(QObject, "graphNodeTitle")
+                editor = host.findChild(QObject, "graphNodeTitleEditor")
+                assert title_icon is not None
+                assert title_item is not None
+                assert editor is not None
+                assert bool(title_icon.property("visible"))
+
+                events = host_pointer_events(host)
+                committed = []
+                host.inlinePropertyCommitted.connect(
+                    lambda node_id, key, value: committed.append((node_id, key, variant_value(value)))
+                )
+
+                mouse_double_click(window, item_scene_point(title_icon))
+                settle_events(5)
+
+                assert bool(editor.property("visible"))
+                assert events["opened"] == []
+                assert events["contexts"] == []
+                assert str(editor.property("text") or "") == "Logger"
+
+                editor.setProperty("text", " Icon Logger ")
+                app.processEvents()
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                )
+                app.sendEvent(
+                    editor,
+                    QKeyEvent(QEvent.Type.KeyRelease, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier),
+                )
+                settle_events(5)
+
+                assert committed == [("node_surface_host_test", "title", "Icon Logger")]
+                assert not bool(editor.property("visible"))
+            finally:
+                dispose_host_window(host, window)
+            """,
+        )
+
 class GraphSurfaceInlineEditorContractTests(GraphSurfaceInputContractTestBase):
     def test_graph_canvas_routes_surface_control_edits_by_explicit_node_id(self) -> None:
         self._run_qml_probe(
