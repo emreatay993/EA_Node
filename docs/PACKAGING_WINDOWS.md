@@ -22,6 +22,11 @@ Base package with the default startup smoke check:
 .\scripts\build_windows_package.ps1 -PackageProfile base -Clean
 ```
 
+Use this as the default Windows packaging command. A successful run builds the
+`COREX_Node_Editor.exe` folder payload and then performs a 5-second offscreen
+startup smoke check against the packaged executable. Treat a smoke-test failure
+as a broken packaged app, not as a successful build.
+
 Viewer-enabled package without the startup smoke check:
 
 ```powershell
@@ -46,6 +51,16 @@ Useful flags:
 The build script sets `EA_NODE_EDITOR_PACKAGE_PROFILE` for the PyInstaller run,
 verifies the expected executable exists, and by default launches it under
 `QT_QPA_PLATFORM=offscreen` for a short liveness smoke test.
+
+The PyInstaller output is a folder payload, not a single self-contained `.exe`.
+Keep `COREX_Node_Editor.exe` next to its `_internal\` directory and launch it
+from the generated `COREX_Node_Editor\` folder.
+
+Open the packaged app directly from the repo root with:
+
+```powershell
+& .\artifacts\pyinstaller\dist\base\COREX_Node_Editor\COREX_Node_Editor.exe
+```
 
 ## Installer Pipeline
 
@@ -72,6 +87,25 @@ and include:
 
 The installer script validates install, offscreen startup, and uninstall before
 reporting `PASS`.
+
+To hand the app to another Windows user, distribute the generated installer
+bundle zip, extract it, and run:
+
+```powershell
+.\scripts\Install-COREX_Node_Editor.ps1
+```
+
+That installs the packaged folder under
+`%LOCALAPPDATA%\COREX_Node_Editor\COREX_Node_Editor\`. The installed app opens
+from:
+
+- `%LOCALAPPDATA%\COREX_Node_Editor\COREX_Node_Editor\COREX_Node_Editor.exe`
+
+Remove an installed bundle with:
+
+```powershell
+.\scripts\Uninstall-COREX_Node_Editor.ps1
+```
 
 ## Signing and Verification
 

@@ -38,6 +38,7 @@ py -3.10 -m venv venv
 ```
 
 - For a fuller setup and orientation guide, see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md).
+- The `main.py` command above is the source/dev launch path. For packaged Windows builds and installer bundles, use [docs/PACKAGING_WINDOWS.md](docs/PACKAGING_WINDOWS.md).
 - On Windows, user data lives under `%APPDATA%\COREX_Node_Editor\`; public single-file plugin drop-ins live directly in `%APPDATA%\COREX_Node_Editor\plugins\`, and imported `.eanp` packages install as subdirectories beneath that same root.
 - The console entry point installed by editable mode is `corex-node-editor`.
 - PowerShell examples are shown here. If you still open the repo from `bash`, use the same `venv/Scripts/python.exe` interpreter with `./...` path syntax.

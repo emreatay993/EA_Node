@@ -35,11 +35,25 @@ Start the application from the repository root:
 .\venv\Scripts\python.exe .\main.py
 ```
 
+This section covers the source/dev launch path. If you need a packaged Windows
+build that opens without the repository checkout, follow
+[`docs/PACKAGING_WINDOWS.md`](./PACKAGING_WINDOWS.md).
+
 You should see:
 
 - The QML main shell with library, canvas, inspector, workspace tabs, and console areas
 - The default shell theme and graph theme resolved from `app_preferences.json`
 - An empty workspace ready for either executable nodes or passive visual nodes
+
+For a packaged build, the validated base flow is:
+
+```powershell
+.\scripts\build_windows_package.ps1 -PackageProfile base -Clean
+```
+
+That command writes the packaged app under
+`artifacts\pyinstaller\dist\base\COREX_Node_Editor\` and runs the packaged exe
+under `QT_QPA_PLATFORM=offscreen` for a short startup smoke check.
 
 ## Useful First Checks
 
