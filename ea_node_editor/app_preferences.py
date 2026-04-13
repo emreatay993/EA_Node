@@ -32,6 +32,7 @@ from ea_node_editor.settings import (
     EXPAND_COLLISION_AVOIDANCE_STRATEGY_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
+    GRAPH_NODE_ICON_PIXEL_SIZE_MAX,
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRID_OVERLAY_STYLE_CHOICES,
     SOURCE_IMPORT_MODE_CHOICES,
@@ -343,7 +344,7 @@ def normalize_graph_node_icon_pixel_size_override(value: Any) -> int | None:
     if value is None or isinstance(value, bool):
         return None
     if isinstance(value, int):
-        return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(value, GRAPH_LABEL_PIXEL_SIZE_MAX))
+        return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(value, GRAPH_NODE_ICON_PIXEL_SIZE_MAX))
     return None
 
 

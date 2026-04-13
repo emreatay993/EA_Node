@@ -113,7 +113,7 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         self.graphics_preferences_changed.emit()
 
     def set_graphics_graph_node_icon_pixel_size_override_value(self, value: int | None) -> None:
-        normalized = None if value is None else max(8, min(int(value), 18))
+        normalized = None if value is None else max(8, min(int(value), 50))
         if self._graphics_graph_node_icon_pixel_size_override == normalized:
             return
         self._graphics_graph_node_icon_pixel_size_override = normalized

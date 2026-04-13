@@ -1803,7 +1803,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
             "`uiIcons` / `comment.svg`",
             "`graph_node_icon_pixel_size_override`",
             "`null` mode follows `graph_label_pixel_size`",
-            "`8..18`",
+            "`8..50`",
         ),
         "AC-REQ-UI-038-01": (
             "active and `compile_only` headers render the path-backed icon",
@@ -1837,7 +1837,7 @@ TITLE_ICONS_FOR_NON_PASSIVE_NODES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[
             "`graphics.typography.graph_node_icon_pixel_size_override`",
             "nullable app-global integer",
             "`null` mode follows `graph_label_pixel_size`",
-            "`8..18`",
+            "`8..50`",
         ),
         "AC-REQ-PERSIST-022-01": (
             "payload-contract",

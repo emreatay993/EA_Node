@@ -90,17 +90,18 @@ QtObject {
     readonly property int graphLabelPixelSize: {
         if (!root._canvasStateBridgeRef)
             return 10;
-        return root._normalizePixelSize(root._canvasStateBridgeRef.graphics_graph_label_pixel_size, 10);
+        return root._normalizePixelSize(root._canvasStateBridgeRef.graphics_graph_label_pixel_size, 10, 18);
     }
     readonly property var graphNodeIconPixelSizeOverride: root._canvasStateBridgeRef
-        ? root._normalizeNullablePixelSize(root._canvasStateBridgeRef.graphics_graph_node_icon_pixel_size_override)
+        ? root._normalizeNullablePixelSize(root._canvasStateBridgeRef.graphics_graph_node_icon_pixel_size_override, 50)
         : null
     readonly property int nodeTitleIconPixelSize: {
         if (!root._canvasStateBridgeRef)
             return root.graphLabelPixelSize;
         return root._normalizePixelSize(
             root._canvasStateBridgeRef.graphics_node_title_icon_pixel_size,
-            root.graphLabelPixelSize
+            root.graphLabelPixelSize,
+            50
         );
     }
     readonly property string edgeCrossingStyle: root._canvasStateBridgeRef
@@ -169,21 +170,21 @@ QtObject {
         ? String(root._canvasStateBridgeRef.graphics_grid_style || "lines")
         : "lines"
 
-    function _normalizePixelSize(value, fallback) {
+    function _normalizePixelSize(value, fallback, maxValue) {
         if (typeof value === "boolean")
             return fallback;
         var numeric = Math.round(Number(value));
         if (!isFinite(numeric))
             return fallback;
-        return Math.max(8, Math.min(18, numeric));
+        return Math.max(8, Math.min(maxValue, numeric));
     }
 
-    function _normalizeNullablePixelSize(value) {
+    function _normalizeNullablePixelSize(value, maxValue) {
         if (value === null || value === undefined || typeof value === "boolean")
             return null;
         var numeric = Math.round(Number(value));
         if (!isFinite(numeric))
             return null;
-        return Math.max(8, Math.min(18, numeric));
+        return Math.max(8, Math.min(maxValue, numeric));
     }
 }

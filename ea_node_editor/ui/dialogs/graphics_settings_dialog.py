@@ -31,6 +31,7 @@ from ea_node_editor.settings import (
     GRAPHICS_PERFORMANCE_MODE_CHOICES,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
+    GRAPH_NODE_ICON_PIXEL_SIZE_MAX,
     GRID_OVERLAY_STYLE_CHOICES,
     TAB_STRIP_DENSITY_CHOICES,
 )
@@ -526,7 +527,7 @@ class GraphicsSettingsDialog(SectionedSettingsDialog):
         self.graph_node_icon_size_override_check.setObjectName("graphicsSettingsGraphNodeIconSizeOverrideCheck")
         self.graph_node_icon_pixel_size_spin = QSpinBox(typography_card)
         self.graph_node_icon_pixel_size_spin.setObjectName("graphicsSettingsGraphNodeIconPixelSizeOverrideSpin")
-        self.graph_node_icon_pixel_size_spin.setRange(GRAPH_LABEL_PIXEL_SIZE_MIN, GRAPH_LABEL_PIXEL_SIZE_MAX)
+        self.graph_node_icon_pixel_size_spin.setRange(GRAPH_LABEL_PIXEL_SIZE_MIN, GRAPH_NODE_ICON_PIXEL_SIZE_MAX)
         graph_node_icon_size_row = QWidget(typography_card)
         graph_node_icon_size_layout = QHBoxLayout(graph_node_icon_size_row)
         graph_node_icon_size_layout.setContentsMargins(0, 0, 0, 0)

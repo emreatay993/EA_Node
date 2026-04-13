@@ -51,7 +51,7 @@ Item {
             numeric = Number(card.graphLabelPixelSize);
         if (!isFinite(numeric))
             numeric = 10;
-        return Math.max(8, Math.min(18, Math.round(numeric)));
+        return Math.max(8, Math.min(50, Math.round(numeric)));
     }
 
     GraphNodeHostTheme {

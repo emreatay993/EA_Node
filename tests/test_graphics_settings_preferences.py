@@ -353,22 +353,36 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
 
         self.assertEqual(graphics["typography"]["graph_label_pixel_size"], 12)
-        self.assertEqual(graphics["typography"]["graph_node_icon_pixel_size_override"], 18)
-        self.assertEqual(effective_graph_node_icon_pixel_size(12, 18), 18)
+        self.assertEqual(graphics["typography"]["graph_node_icon_pixel_size_override"], 27)
+        self.assertEqual(effective_graph_node_icon_pixel_size(12, 27), 27)
         self.assertEqual(
             persisted["graphics"]["typography"],
             {
                 "graph_label_pixel_size": 12,
-                "graph_node_icon_pixel_size_override": 18,
+                "graph_node_icon_pixel_size_override": 27,
             },
         )
         self.assertEqual(
             AppPreferencesController(store=self._store).load()["graphics"]["typography"],
             {
                 "graph_label_pixel_size": 12,
-                "graph_node_icon_pixel_size_override": 18,
+                "graph_node_icon_pixel_size_override": 27,
             },
         )
+
+    def test_graph_node_icon_size_preferences_clamp_high_values_to_fifty(self) -> None:
+        graphics = self._controller.set_graphics_settings(
+            {
+                "typography": {
+                    "graph_label_pixel_size": 12,
+                    "graph_node_icon_pixel_size_override": 72,
+                },
+            }
+        )
+
+        self.assertEqual(graphics["typography"]["graph_label_pixel_size"], 12)
+        self.assertEqual(graphics["typography"]["graph_node_icon_pixel_size_override"], 50)
+        self.assertEqual(effective_graph_node_icon_pixel_size(12, 72), 50)
 
     def test_graph_node_icon_size_preferences_automatic_effective_size_follows_graph_label_size(self) -> None:
         graphics = self._controller.set_graphics_settings(

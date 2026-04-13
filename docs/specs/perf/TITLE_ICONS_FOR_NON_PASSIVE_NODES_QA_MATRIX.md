@@ -11,7 +11,7 @@
 - Built-in relative icon paths resolve from the repo-managed node-title icon asset root, while file/package plugin relative paths resolve only from safe provenance roots and safe absolute plugin paths remain allowed when the file exists.
 - `icon_source` remains a derived live graph payload field, is populated only for `active` and `compile_only` nodes when local resolution succeeds, and is not persisted into `.sfe` project files.
 - Passive nodes remain title-iconless even when their specs carry authored `icon` metadata, and the collapsed comment-backdrop title glyph stays on the existing `uiIcons` / `comment.svg` path instead of converting to this image-path contract.
-- `graphics.typography.graph_node_icon_pixel_size_override` remains a nullable app-global integer preference: `null` follows `graph_label_pixel_size`, explicit values clamp to `8..18`, and QML uses authored image colors without theme tinting.
+- `graphics.typography.graph_node_icon_pixel_size_override` remains a nullable app-global integer preference: `null` follows `graph_label_pixel_size`, explicit values clamp to `8..50`, and QML uses authored image colors without theme tinting.
 - The shipped feature excludes node-library tiles, inspector rendering, remote image loading, and symbolic icon-name rendering in node headers.
 
 ## Retained Automated Verification
@@ -46,13 +46,13 @@
 2. Local PNG/JPG/JPEG fixture check: on the same desktop session, use a file/package plugin or local test node spec that points `icon` at a reachable local PNG file such as `ea_node_editor/assets/app_icon/corex_app_minimal_32.png`, then repeat with JPG/JPEG fixtures where available locally; confirm each supported suffix renders in the title row, while unsupported or missing local files still show no icon.
 3. Passive exclusion and comment-backdrop exception check: inspect a passive node that still carries authored `icon` metadata and confirm the header remains iconless, then collapse a comment backdrop and confirm the existing `uiIcons` comment glyph remains unchanged.
 4. Centering, elision, and shared-header editing check: with long and short node titles, confirm title text stays visually centered around the displayed icon/title band, elides cleanly when narrow, and still opens the shared inline title editor when double-clicking from the icon/title area.
-5. Automatic versus explicit icon-size check: open `Settings > Graphics Settings > Theme > Typography`, leave the title icon size in automatic mode while changing `Graph label size`, confirm the effective icon size follows it, then enable Custom, pick explicit values at the `8` and `18` bounds, and confirm the header icon size persists and updates without tinting or layout breakage.
+5. Automatic versus explicit icon-size check: open `Settings > Graphics Settings > Theme > Typography`, leave the title icon size in automatic mode while changing `Graph label size`, confirm the effective icon size follows it, then enable Custom, pick explicit values at the `8` and `50` bounds, and confirm the header icon size persists and updates without tinting or layout breakage.
 
 ## Residual Desktop-Only Validation
 
 - Automated coverage validates the contract offscreen, but a real Windows desktop compositor is still needed to judge final rasterization quality, anti-aliasing, and perceived balance between the leading icon and centered title text.
 - The shipped built-in inventory is SVG-only; PNG/JPG/JPEG title-icon coverage depends on local file or plugin fixtures and should still be exercised on a real desktop where those fixtures are available.
-- Graphics Settings and bridge regressions validate the nullable override contract, but manual desktop checks should still confirm the automatic/custom control feels coherent alongside other `Theme > Typography` settings and does not introduce visual crowding at the `8` and `18` bounds.
+- Graphics Settings and bridge regressions validate the nullable override contract, but manual desktop checks should still confirm the automatic/custom control feels coherent alongside other `Theme > Typography` settings and does not introduce visual crowding at the `8` and `50` bounds.
 
 ## Residual Risks
 

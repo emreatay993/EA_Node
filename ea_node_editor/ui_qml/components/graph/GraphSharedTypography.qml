@@ -4,13 +4,18 @@ import QtQml 2.15
 QtObject {
     id: root
     objectName: "graphSharedTypography"
+    readonly property int _graphLabelPixelSizeMax: 18
+    readonly property int _graphNodeIconPixelSizeMax: 50
     property int graphLabelPixelSize: 10
     property int graphNodeIconPixelSize: root.graphLabelPixelSize
 
-    readonly property int _basePixelSize: _normalizeBasePixelSize(root.graphLabelPixelSize)
+    readonly property int _basePixelSize: _normalizePixelSize(root.graphLabelPixelSize, root._graphLabelPixelSizeMax)
 
     readonly property int nodeTitlePixelSize: root._basePixelSize + 2
-    readonly property int nodeTitleIconPixelSize: _normalizeBasePixelSize(root.graphNodeIconPixelSize)
+    readonly property int nodeTitleIconPixelSize: _normalizePixelSize(
+        root.graphNodeIconPixelSize,
+        root._graphNodeIconPixelSizeMax
+    )
     readonly property int portLabelPixelSize: root._basePixelSize
     readonly property int elapsedFooterPixelSize: root._basePixelSize
     readonly property int inlinePropertyPixelSize: root._basePixelSize
@@ -30,10 +35,10 @@ QtObject {
     readonly property int edgePillFontWeight: Font.DemiBold
     readonly property int execArrowPortFontWeight: Font.Black
 
-    function _normalizeBasePixelSize(value) {
+    function _normalizePixelSize(value, maxValue) {
         var numeric = Math.round(Number(value));
         if (!isFinite(numeric))
             numeric = 10;
-        return Math.max(8, Math.min(18, numeric));
+        return Math.max(8, Math.min(maxValue, numeric));
     }
 }

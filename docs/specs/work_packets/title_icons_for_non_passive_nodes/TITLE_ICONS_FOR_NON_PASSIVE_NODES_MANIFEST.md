@@ -51,7 +51,7 @@
 - Passive nodes remain title-iconless even when their specs carry `icon` metadata.
 - The existing collapsed comment-backdrop title icon stays on the current `uiIcons` / `comment.svg` path and is not converted to this feature's image-path contract.
 - `graphics.typography.graph_node_icon_pixel_size_override` is a nullable app-global integer preference. `null` means the effective icon size follows the current `graph_label_pixel_size`.
-- Non-null icon-size overrides clamp with the same inclusive `8..18` bounds used by `graph_label_pixel_size`.
+- Non-null icon-size overrides clamp with an inclusive `8..50` range while `graph_label_pixel_size` continues to clamp independently at `8..18`.
 - QML rendering uses authored image colors and no theme tinting.
 - The feature scope excludes node-library tiles, inspector rendering, remote image loading, and symbolic icon-name rendering in node headers.
 - P01 and P02 may run in parallel because their source write scopes are disjoint. P03 must wait for both. P04 must wait for P01 but may run alongside P03. P05 must wait for every implementation packet.

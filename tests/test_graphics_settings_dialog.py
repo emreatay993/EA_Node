@@ -429,7 +429,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
             self.assertFalse(dialog.graph_node_icon_size_override_check.isChecked())
             self.assertFalse(dialog.graph_node_icon_pixel_size_spin.isEnabled())
             self.assertEqual(dialog.graph_node_icon_pixel_size_spin.minimum(), 8)
-            self.assertEqual(dialog.graph_node_icon_pixel_size_spin.maximum(), 18)
+            self.assertEqual(dialog.graph_node_icon_pixel_size_spin.maximum(), 50)
             self.assertEqual(dialog.graph_node_icon_pixel_size_spin.value(), 10)
             self.assertIsNone(dialog.values()["typography"]["graph_node_icon_pixel_size_override"])
         finally:
@@ -481,7 +481,7 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         cases = (
             ("boolean", True, False, 13, None),
             ("low", 2, True, 8, 8),
-            ("high", 42, True, 18, 18),
+            ("high", 84, True, 50, 50),
         )
 
         for label, override, checked, spin_value, expected_override in cases:
