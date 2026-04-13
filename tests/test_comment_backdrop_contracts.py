@@ -245,6 +245,39 @@ class CommentBackdropSurfaceQmlTests(unittest.TestCase):
             """,
         )
 
+    def test_collapsed_comment_backdrop_ignores_node_icon_source_for_title_contract(self) -> None:
+        self._run_qml_probe(
+            "comment-backdrop-title-icon-contract",
+            """
+            from pathlib import Path
+
+            payload = comment_backdrop_payload(
+                {
+                    "title": "Comment Backdrop",
+                    "body": "Cluster related nodes here.",
+                }
+            )
+            payload["collapsed"] = True
+            payload["icon_source"] = (
+                Path.cwd() / "ea_node_editor" / "assets" / "app_icon" / "corex_app_minimal.svg"
+            ).as_uri()
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                },
+            )
+            title_text = host.findChild(QObject, "graphNodeTitle")
+            title_icon = host.findChild(QObject, "graphNodeTitleIcon")
+
+            assert title_text is not None, "missing title text"
+            assert title_icon is not None, "missing title icon"
+            assert not bool(title_icon.property("visible")), f"title icon visible: {title_icon.property('visible')!r}"
+            assert title_text.property("text") == "Comment", f"unexpected title text: {title_text.property('text')!r}"
+            """,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

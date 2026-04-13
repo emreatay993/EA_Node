@@ -222,6 +222,98 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_title_icon_renders_for_non_passive_titles_and_uses_centered_reserve(self) -> None:
+        self._run_qml_probe(
+            "title-icon-non-passive-host",
+            """
+            from pathlib import Path
+
+            def normalized_source(value):
+                if hasattr(value, "toString"):
+                    return str(value.toString())
+                return str(value or "")
+
+            icon_source = (Path.cwd() / "ea_node_editor" / "assets" / "app_icon" / "corex_app_minimal.svg").as_uri()
+
+            active_canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_graph_label_pixel_size": 16,
+                        "graphics_graph_node_icon_pixel_size_override": 12,
+                        "graphics_node_title_icon_pixel_size": 12,
+                    },
+                },
+            )
+
+            active_payload = node_payload()
+            active_payload["title"] = "Archive Session"
+            active_payload["surface_metrics"]["title_centered"] = True
+            active_payload["icon_source"] = icon_source
+
+            active_host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": active_payload,
+                    "canvasItem": active_canvas,
+                },
+            )
+            active_typography = active_host.findChild(QObject, "graphSharedTypography")
+            active_display = active_host.findChild(QObject, "graphNodeTitleDisplay")
+            active_title = active_host.findChild(QObject, "graphNodeTitle")
+            active_icon = active_host.findChild(QObject, "graphNodeTitleIcon")
+            active_comment_icon = active_host.findChild(QObject, "graphNodeCommentTitleIcon")
+
+            assert active_typography is not None
+            assert active_display is not None
+            assert active_title is not None
+            assert active_icon is not None
+            assert active_comment_icon is not None
+            assert int(active_host.property("effectiveNodeTitleIconPixelSize")) == 12
+            assert int(active_typography.property("nodeTitleIconPixelSize")) == 12
+            assert bool(active_icon.property("visible"))
+            assert not bool(active_comment_icon.property("visible"))
+            assert normalized_source(active_icon.property("source")) == icon_source
+            assert int(active_icon.property("width")) == 12
+            assert int(active_icon.property("height")) == 12
+            assert bool(active_icon.property("smooth"))
+            assert bool(active_icon.property("mipmap"))
+            assert float(active_title.x()) > 0.0
+            assert float(active_title.width()) < float(active_display.width())
+
+            passive_canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_graph_label_pixel_size": 16,
+                        "graphics_graph_node_icon_pixel_size_override": 12,
+                        "graphics_node_title_icon_pixel_size": 12,
+                    },
+                },
+            )
+
+            passive_payload = node_payload()
+            passive_payload["runtime_behavior"] = "passive"
+            passive_payload["surface_metrics"]["title_centered"] = True
+            passive_payload["icon_source"] = icon_source
+
+            passive_host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": passive_payload,
+                    "canvasItem": passive_canvas,
+                },
+            )
+            passive_title = passive_host.findChild(QObject, "graphNodeTitle")
+            passive_icon = passive_host.findChild(QObject, "graphNodeTitleIcon")
+
+            assert passive_title is not None
+            assert passive_icon is not None
+            assert not bool(passive_icon.property("visible"))
+            assert abs(float(passive_title.x()) - 0.0) < 0.5
+            """,
+        )
+
     def test_standard_host_consumes_metric_backed_label_columns_without_overlap(self) -> None:
         self._run_qml_probe(
             "port-label-width-contract-host",

@@ -39,6 +39,20 @@ Item {
             numeric = 10;
         return Math.max(8, Math.min(18, Math.round(numeric)));
     }
+    readonly property int effectiveNodeTitleIconPixelSize: {
+        var numeric = NaN;
+        if (card.canvasItem && card.canvasItem.nodeTitleIconPixelSize !== undefined)
+            numeric = Number(card.canvasItem.nodeTitleIconPixelSize);
+        if (!isFinite(numeric) && card.canvasItem && card.canvasItem._canvasStateBridgeRef)
+            numeric = Number(card.canvasItem._canvasStateBridgeRef.graphics_node_title_icon_pixel_size);
+        if (!isFinite(numeric))
+            numeric = Number(card.effectiveGraphLabelPixelSize);
+        if (!isFinite(numeric))
+            numeric = Number(card.graphLabelPixelSize);
+        if (!isFinite(numeric))
+            numeric = 10;
+        return Math.max(8, Math.min(18, Math.round(numeric)));
+    }
 
     GraphNodeHostTheme {
         id: themeState
@@ -48,6 +62,7 @@ Item {
     GraphSharedTypography {
         id: sharedTypographyState
         graphLabelPixelSize: card.effectiveGraphLabelPixelSize
+        graphNodeIconPixelSize: card.effectiveNodeTitleIconPixelSize
     }
 
     GraphNodeHostLayout {
