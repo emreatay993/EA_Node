@@ -335,11 +335,12 @@ def _standard_surface_metrics(
         graph_label_pixel_size=graph_label_pixel_size,
     )
     min_width = width_contract.min_width_with_labels if show_port_labels else width_contract.min_width_without_labels
+    min_height = max(float(STANDARD_MIN_HEIGHT), float(default_height))
     return GraphNodeSurfaceMetrics(
         default_width=STANDARD_DEFAULT_WIDTH,
         default_height=default_height,
         min_width=min_width,
-        min_height=STANDARD_MIN_HEIGHT,
+        min_height=min_height,
         collapsed_width=STANDARD_COLLAPSED_WIDTH,
         collapsed_height=STANDARD_COLLAPSED_HEIGHT,
         header_height=header_height,
@@ -400,7 +401,7 @@ def resolved_node_surface_size(
         default_height=metrics.default_height,
     )
     resolved_width = max(float(metrics.min_width), float(width))
-    resolved_height = float(height)
+    resolved_height = max(float(metrics.min_height), float(height))
     if clamp_height:
         resolved_height = max(float(metrics.min_height), resolved_height)
     return resolved_width, resolved_height

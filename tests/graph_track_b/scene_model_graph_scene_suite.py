@@ -282,11 +282,10 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
         self.scene.resize_node(node_id, 10.0, 5.0)
 
         node = workspace.nodes[node_id]
+        payload = next(item for item in self.scene.nodes_model if item["node_id"] == node_id)
         self.assertEqual(history.undo_depth(self.workspace_id), 1)
         self.assertGreaterEqual(float(node.custom_width or 0.0), 120.0)
-        self.assertGreaterEqual(float(node.custom_height or 0.0), 50.0)
-
-        payload = next(item for item in self.scene.nodes_model if item["node_id"] == node_id)
+        self.assertAlmostEqual(float(node.custom_height or 0.0), float(payload["surface_metrics"]["min_height"]), places=6)
         self.assertAlmostEqual(payload["width"], float(node.custom_width or 0.0), places=6)
         self.assertAlmostEqual(payload["height"], float(node.custom_height or 0.0), places=6)
 
@@ -334,7 +333,7 @@ class GraphSceneBridgeTrackBTests(unittest.TestCase):
             ),
             places=6,
         )
-        self.assertEqual(surface_metrics["min_height"], 50.0)
+        self.assertEqual(surface_metrics["min_height"], surface_metrics["default_height"])
         self.assertEqual(surface_metrics["standard_left_label_width"], 0.0)
         self.assertGreater(surface_metrics["standard_right_label_width"], 0.0)
         self.assertEqual(surface_metrics["standard_port_gutter"], 21.5)

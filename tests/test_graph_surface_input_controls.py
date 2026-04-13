@@ -17,6 +17,7 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     node_surface_metrics,
+    resolved_node_surface_size,
     standard_inline_body_height,
     standard_inline_row_height,
     standard_inline_textarea_row_height,
@@ -639,6 +640,40 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["header_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
+
+    def test_standard_surface_size_clamps_stale_custom_height_when_header_grows(self) -> None:
+        registry = build_default_registry()
+        spec = registry.get_spec("core.logger")
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        node = model.add_node(workspace_id, "core.logger", "Logger", 32.0, 48.0)
+
+        baseline_height = resolved_node_surface_size(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+        )[1]
+        node.custom_height = float(baseline_height)
+
+        grown_metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+        grown_size = resolved_node_surface_size(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+
+        self.assertGreater(grown_metrics.default_height, baseline_height)
+        self.assertEqual(grown_metrics.min_height, grown_metrics.default_height)
+        self.assertEqual(grown_size[1], grown_metrics.default_height)
 
     def test_graph_scene_bridge_rebuilds_standard_node_metrics_when_icon_size_changes(self) -> None:
         class _SceneHost(QObject):
