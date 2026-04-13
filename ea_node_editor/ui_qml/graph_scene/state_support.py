@@ -97,12 +97,37 @@ class GraphSceneBridgeBase(QObject):
     selection_changed = pyqtSignal()
     pending_surface_action_changed = pyqtSignal()
 
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._graphics_preference_signal_source: object | None = None
+        self._bind_graphics_preference_signal_source()
+
     def _graphics_preference_source(self) -> object | None:
         host = self.parent()
         if host is None:
             return None
         presenter = getattr(host, "graph_canvas_presenter", None)
         return presenter if presenter is not None else host
+
+    def _bind_graphics_preference_signal_source(self) -> None:
+        source = self._graphics_preference_source()
+        if self._graphics_preference_signal_source is source:
+            return
+        if self._graphics_preference_signal_source is not None:
+            try:
+                self._graphics_preference_signal_source.graphics_preferences_changed.disconnect(
+                    self._on_graphics_preferences_changed
+                )
+            except (AttributeError, RuntimeError, TypeError):
+                pass
+        self._graphics_preference_signal_source = source
+        if self._graphics_preference_signal_source is not None:
+            try:
+                self._graphics_preference_signal_source.graphics_preferences_changed.connect(
+                    self._on_graphics_preferences_changed
+                )
+            except AttributeError:
+                self._graphics_preference_signal_source = None
 
     def _active_view_filter_state(self) -> tuple[str, bool, bool]:
         workspace = self._workspace_or_none()
@@ -322,6 +347,7 @@ class GraphSceneBridgeBase(QObject):
         self._history = history
 
     def bind_graph_theme_bridge(self, graph_theme_bridge: GraphThemeBridge | None) -> None:
+        self._bind_graphics_preference_signal_source()
         if self._graph_theme_bridge is graph_theme_bridge:
             return
         if self._graph_theme_bridge is not None:
@@ -335,6 +361,9 @@ class GraphSceneBridgeBase(QObject):
         self._scene_context.rebuild_models()
 
     def _on_graph_theme_changed(self) -> None:
+        self._scene_context.rebuild_models()
+
+    def _on_graphics_preferences_changed(self) -> None:
         self._scene_context.rebuild_models()
 
     def set_workspace(self, model: GraphModel, registry: NodeRegistry, workspace_id: str) -> None:

@@ -7,8 +7,11 @@ import sys
 import textwrap
 import unittest
 
+from PyQt6.QtCore import QObject, pyqtSignal
+
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     node_surface_metrics,
@@ -17,6 +20,7 @@ from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     standard_inline_textarea_row_height,
 )
 from ea_node_editor.ui_qml.graph_surface_metrics import surface_port_local_point
+from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -555,6 +559,44 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
         self.assertGreater(payload["height"], 50.0)
+
+    def test_graph_scene_bridge_rebuilds_standard_node_metrics_when_icon_size_changes(self) -> None:
+        class _SceneHost(QObject):
+            graphics_preferences_changed = pyqtSignal()
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.graph_canvas_presenter = None
+                self.graphics_graph_label_pixel_size = 16
+                self.graphics_graph_node_icon_pixel_size_override = None
+                self.graphics_node_title_icon_pixel_size = 16
+                self.graphics_show_port_labels = True
+
+        registry = build_default_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(workspace_id, "core.logger", "Logger", 32.0, 48.0)
+
+        host = _SceneHost()
+        scene = GraphSceneBridge(host)
+        scene.bind_graph_theme_bridge(GraphThemeBridge(host, theme_id="stitch_dark"))
+        scene.set_workspace(model, registry, workspace_id)
+
+        initial_payload = scene.nodes_model[0]
+        self.assertEqual(initial_payload["surface_metrics"]["header_height"], 24.0)
+
+        rebuild_events: list[str] = []
+        scene.nodes_changed.connect(lambda: rebuild_events.append("nodes"))
+
+        host.graphics_node_title_icon_pixel_size = 50
+        host.graphics_preferences_changed.emit()
+
+        updated_payload = scene.nodes_model[0]
+        self.assertGreaterEqual(len(rebuild_events), 1)
+        self.assertEqual(updated_payload["surface_metrics"]["header_height"], 54.0)
+        self.assertEqual(updated_payload["surface_metrics"]["title_height"], 54.0)
+        self.assertEqual(updated_payload["surface_metrics"]["body_top"], 60.0)
+        self.assertGreater(updated_payload["height"], initial_payload["height"])
 
 
 class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):
