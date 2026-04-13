@@ -117,6 +117,8 @@ def _resolved_edge_endpoints(
     source_proxy_backdrop_id: str,
     target_proxy_backdrop_id: str,
     show_port_labels: bool,
+    graph_label_pixel_size: object | None,
+    graph_node_icon_pixel_size: object | None,
 ) -> tuple[_ResolvedEdgeEndpoint, _ResolvedEdgeEndpoint]:
     source_endpoint = _resolve_edge_endpoint(
         node_id=edge.source_node_id,
@@ -132,8 +134,12 @@ def _resolved_edge_endpoints(
             edge.target_port_key,
             workspace_nodes,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         ),
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     target_endpoint = _resolve_edge_endpoint(
         node_id=edge.target_node_id,
@@ -145,6 +151,8 @@ def _resolved_edge_endpoints(
         hidden_by_backdrop_id=target_proxy_backdrop_id,
         opposite_point=source_endpoint.point,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     if source_proxy_backdrop_id:
         source_endpoint = _resolve_edge_endpoint(
@@ -157,6 +165,8 @@ def _resolved_edge_endpoints(
             hidden_by_backdrop_id=source_proxy_backdrop_id,
             opposite_point=target_endpoint.point,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
     if target_proxy_backdrop_id:
         target_endpoint = _resolve_edge_endpoint(
@@ -169,6 +179,8 @@ def _resolved_edge_endpoints(
             hidden_by_backdrop_id=target_proxy_backdrop_id,
             opposite_point=source_endpoint.point,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
     if source_proxy_backdrop_id:
         source_endpoint = _resolve_edge_endpoint(
@@ -181,6 +193,8 @@ def _resolved_edge_endpoints(
             hidden_by_backdrop_id=source_proxy_backdrop_id,
             opposite_point=target_endpoint.point,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
     return source_endpoint, target_endpoint
 
@@ -193,6 +207,8 @@ def _resolve_edge_payload_context(
     collapsed_proxy_backdrop_by_node_id: Mapping[str, str],
     lane_offsets: _EdgeLaneOffsets,
     show_port_labels: bool,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> _ResolvedEdgePayloadContext | None:
     source_node = workspace_nodes.get(edge.source_node_id)
     target_node = workspace_nodes.get(edge.target_node_id)
@@ -219,6 +235,8 @@ def _resolve_edge_payload_context(
         source_proxy_backdrop_id=source_proxy_backdrop_id,
         target_proxy_backdrop_id=target_proxy_backdrop_id,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
     pair_lane, source_fan, target_fan = lane_offsets.values_for(edge.edge_id)
@@ -368,6 +386,8 @@ def _build_edge_payload_item(
     collapsed_proxy_backdrop_by_node_id: Mapping[str, str],
     lane_offsets: _EdgeLaneOffsets,
     show_port_labels: bool,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> dict[str, Any] | None:
     context = _resolve_edge_payload_context(
         edge=edge,
@@ -376,6 +396,8 @@ def _build_edge_payload_item(
         collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
         lane_offsets=lane_offsets,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     if context is None:
         return None
@@ -453,6 +475,8 @@ def build_edge_payload(
     node_specs: dict[str, NodeTypeSpec],
     collapsed_proxy_backdrop_by_node_id: Mapping[str, str] | None = None,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> list[dict[str, Any]]:
     collapsed_proxy_backdrop_by_node_id = collapsed_proxy_backdrop_by_node_id or {}
     lane_offsets = _edge_payload_lane_offsets(workspace_edges)
@@ -467,6 +491,8 @@ def build_edge_payload(
             collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
             lane_offsets=lane_offsets,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
         if payload_item is not None:
             edges_payload.append(payload_item)

@@ -141,6 +141,8 @@ def port_scene_pos(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     *,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> QPointF:
     return _port_scene_pos_impl(
         node,
@@ -148,6 +150,8 @@ def port_scene_pos(
         port_key,
         workspace_nodes,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
 
@@ -221,6 +225,8 @@ def _resolve_edge_payload_context(
     collapsed_proxy_backdrop_by_node_id: Mapping[str, str],
     lane_offsets: _EdgeLaneOffsets,
     show_port_labels: bool,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> _ResolvedEdgePayloadContext | None:
     impl_lane_offsets = _EdgeLaneOffsetsImpl(
         pair_by_edge_id=lane_offsets.pair_by_edge_id,
@@ -235,6 +241,8 @@ def _resolve_edge_payload_context(
             collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
             lane_offsets=impl_lane_offsets,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
     )
 
@@ -272,6 +280,8 @@ def _build_edge_payload_item(
     collapsed_proxy_backdrop_by_node_id: Mapping[str, str],
     lane_offsets: _EdgeLaneOffsets,
     show_port_labels: bool,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> dict[str, Any] | None:
     impl_lane_offsets = _EdgeLaneOffsetsImpl(
         pair_by_edge_id=lane_offsets.pair_by_edge_id,
@@ -286,6 +296,8 @@ def _build_edge_payload_item(
         collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
         lane_offsets=impl_lane_offsets,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
 
@@ -297,6 +309,8 @@ def build_edge_payload(
     node_specs: dict[str, NodeTypeSpec],
     collapsed_proxy_backdrop_by_node_id: Mapping[str, str] | None = None,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> list[dict[str, Any]]:
     return _build_edge_payload_impl(
         graph_theme=graph_theme,
@@ -305,6 +319,8 @@ def build_edge_payload(
         node_specs=node_specs,
         collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
 

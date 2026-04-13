@@ -230,6 +230,8 @@ def surface_port_local_point(
     width: float | None = None,
     height: float | None = None,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> tuple[float, float]:
     scoped_nodes = workspace_nodes or {node.node_id: node}
     metrics = node_surface_metrics(
@@ -237,6 +239,8 @@ def surface_port_local_point(
         spec,
         scoped_nodes,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     resolved_width, resolved_height = _resolved_dimensions(
         node,

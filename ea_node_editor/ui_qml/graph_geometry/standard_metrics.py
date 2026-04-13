@@ -12,6 +12,7 @@ from ea_node_editor.settings import (
     DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
     GRAPH_LABEL_PIXEL_SIZE_MAX,
     GRAPH_LABEL_PIXEL_SIZE_MIN,
+    GRAPH_NODE_ICON_PIXEL_SIZE_MAX,
 )
 
 from .surface_contract import (
@@ -49,6 +50,14 @@ _STANDARD_WIDE_TEXT_CHARS = frozenset("MWQG@#%&wm")
 _STANDARD_PUNCTUATION_TEXT_CHARS = frozenset("_-/\\+=*~^()[]{}")
 _STANDARD_TEXT_WIDTH_PADDING = 2.0
 _STANDARD_SUBNODE_SCOPE_BADGE_RESERVE = 56.0
+_STANDARD_HEADER_BODY_GAP = max(
+    0.0,
+    STANDARD_BODY_TOP - (STANDARD_HEADER_TOP_MARGIN + STANDARD_HEADER_HEIGHT),
+)
+_STANDARD_HEADER_CONTENT_VERTICAL_PADDING = max(
+    0.0,
+    STANDARD_HEADER_HEIGHT - float(GRAPH_LABEL_PIXEL_SIZE_MAX + 2),
+)
 
 
 def standard_inline_row_height(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> float:
@@ -112,6 +121,53 @@ def standard_graph_label_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SI
 
 def standard_node_title_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
     return standard_graph_label_pixel_size(value) + 2
+
+
+def standard_node_title_icon_pixel_size(
+    value: object | None = None,
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+) -> int:
+    fallback = standard_graph_label_pixel_size(graph_label_pixel_size)
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        return fallback
+    return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(numeric, GRAPH_NODE_ICON_PIXEL_SIZE_MAX))
+
+
+def standard_header_height(
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
+) -> float:
+    title_pixel_size = standard_node_title_pixel_size(graph_label_pixel_size)
+    icon_pixel_size = standard_node_title_icon_pixel_size(
+        graph_node_icon_pixel_size,
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
+    content_height = max(title_pixel_size, icon_pixel_size)
+    return float(
+        max(
+            STANDARD_HEADER_HEIGHT,
+            content_height + _STANDARD_HEADER_CONTENT_VERTICAL_PADDING,
+        )
+    )
+
+
+def standard_body_top(
+    *,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
+) -> float:
+    return float(
+        STANDARD_HEADER_TOP_MARGIN
+        + standard_header_height(
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+        )
+        + _STANDARD_HEADER_BODY_GAP
+    )
 
 
 def standard_port_label_pixel_size(value: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE) -> int:
@@ -254,15 +310,24 @@ def _standard_surface_metrics(
     *,
     show_port_labels: bool = True,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> GraphNodeSurfaceMetrics:
     from .surface_contract import _visible_port_count
 
     port_count = _visible_port_count(node, spec, workspace_nodes)
+    header_height = standard_header_height(
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+    )
+    body_top = standard_body_top(
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+    )
     body_height = standard_inline_body_height(
         spec,
         graph_label_pixel_size=graph_label_pixel_size,
     )
-    default_height = STANDARD_HEADER_HEIGHT + body_height + port_count * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
+    default_height = header_height + body_height + port_count * STANDARD_PORT_HEIGHT + STANDARD_BOTTOM_PADDING
     width_contract = _standard_surface_min_width_contract(
         node,
         spec,
@@ -277,18 +342,18 @@ def _standard_surface_metrics(
         min_height=STANDARD_MIN_HEIGHT,
         collapsed_width=STANDARD_COLLAPSED_WIDTH,
         collapsed_height=STANDARD_COLLAPSED_HEIGHT,
-        header_height=STANDARD_HEADER_HEIGHT,
+        header_height=header_height,
         header_top_margin=STANDARD_HEADER_TOP_MARGIN,
-        body_top=STANDARD_BODY_TOP,
+        body_top=body_top,
         body_height=body_height,
-        port_top=STANDARD_BODY_TOP + body_height,
+        port_top=body_top + body_height,
         port_height=STANDARD_PORT_HEIGHT,
         port_center_offset=STANDARD_PORT_CENTER_OFFSET,
         port_side_margin=STANDARD_PORT_SIDE_MARGIN,
         port_dot_radius=STANDARD_PORT_DOT_RADIUS,
         resize_handle_size=STANDARD_RESIZE_HANDLE_SIZE,
         title_top=STANDARD_HEADER_TOP_MARGIN,
-        title_height=STANDARD_HEADER_HEIGHT,
+        title_height=header_height,
         title_left_margin=STANDARD_TITLE_LEFT_MARGIN,
         title_right_margin=STANDARD_TITLE_RIGHT_MARGIN,
         title_centered=False,
@@ -316,6 +381,7 @@ def resolved_node_surface_size(
     surface_metrics: GraphNodeSurfaceMetrics | None = None,
     clamp_height: bool = False,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> tuple[float, float]:
     metrics = surface_metrics or node_surface_metrics(
         node,
@@ -323,6 +389,7 @@ def resolved_node_surface_size(
         workspace_nodes,
         show_port_labels=show_port_labels,
         graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     if node.collapsed:
         return float(metrics.collapsed_width), float(metrics.collapsed_height)
@@ -346,6 +413,7 @@ def node_surface_metrics(
     *,
     show_port_labels: bool = True,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> GraphNodeSurfaceMetrics:
     family = str(spec.surface_family or "standard").strip() or "standard"
     if family == "flowchart":
@@ -383,4 +451,5 @@ def node_surface_metrics(
         workspace_nodes,
         show_port_labels=show_port_labels,
         graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )

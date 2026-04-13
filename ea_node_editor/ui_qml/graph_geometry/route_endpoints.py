@@ -48,6 +48,8 @@ def port_scene_pos(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     *,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> QPointF:
     scoped_nodes = workspace_nodes or {node.node_id: node}
     metrics = node_surface_metrics(
@@ -55,6 +57,8 @@ def port_scene_pos(
         spec,
         scoped_nodes,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     width, height = node_size(
         node,
@@ -77,6 +81,8 @@ def port_scene_pos(
         width=width,
         height=height,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
     return QPointF(node.x + local_x, node.y + local_y)
 
@@ -189,6 +195,8 @@ def _resolve_edge_endpoint(
     hidden_by_backdrop_id: str = "",
     opposite_point: QPointF | None = None,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object | None = None,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> _ResolvedEdgeEndpoint:
     normalized_hidden_by_backdrop_id = str(hidden_by_backdrop_id or "").strip()
     if normalized_hidden_by_backdrop_id:
@@ -224,6 +232,8 @@ def _resolve_edge_endpoint(
             port_key,
             workspace_nodes,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         ),
         bounds=_node_bounds(
             node,

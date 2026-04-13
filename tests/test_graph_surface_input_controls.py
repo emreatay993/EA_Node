@@ -9,12 +9,14 @@ import unittest
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
     node_surface_metrics,
     standard_inline_body_height,
     standard_inline_row_height,
     standard_inline_textarea_row_height,
 )
+from ea_node_editor.ui_qml.graph_surface_metrics import surface_port_local_point
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -485,10 +487,74 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
 
         default_metrics = node_surface_metrics(node, spec, graph_label_pixel_size=10)
         large_metrics = node_surface_metrics(node, spec, graph_label_pixel_size=16)
+        large_icon_metrics = node_surface_metrics(
+            node,
+            spec,
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+        first_input_port_key = next(port.key for port in spec.ports if port.direction == "in")
+        baseline_port_point = surface_port_local_point(
+            node,
+            spec,
+            first_input_port_key,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+        )
+        large_icon_port_point = surface_port_local_point(
+            node,
+            spec,
+            first_input_port_key,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
 
         self.assertEqual(default_metrics.body_height, 64.0)
         self.assertEqual(large_metrics.body_height, 76.0)
         self.assertGreater(large_metrics.default_height, default_metrics.default_height)
+        self.assertEqual(large_icon_metrics.header_height, 54.0)
+        self.assertEqual(large_icon_metrics.title_height, 54.0)
+        self.assertEqual(large_icon_metrics.body_top - large_metrics.body_top, 30.0)
+        self.assertEqual(large_icon_metrics.port_top - large_metrics.port_top, 30.0)
+        self.assertEqual(large_icon_metrics.default_height - large_metrics.default_height, 30.0)
+        self.assertEqual(large_icon_port_point[1] - baseline_port_point[1], 30.0)
+
+    def test_scene_payload_builder_applies_title_icon_size_to_standard_nodes(self) -> None:
+        class _ThemeSource:
+            graphics_graph_label_pixel_size = 16
+            graphics_node_title_icon_pixel_size = 50
+
+        class _ThemeBridge:
+            theme = "stitch_dark"
+
+            def __init__(self, parent: object) -> None:
+                self._parent = parent
+
+            def parent(self) -> object:
+                return self._parent
+
+        model = GraphModel()
+        registry = build_default_registry()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(workspace_id, "core.logger", "Logger", 32.0, 48.0)
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, backdrop_nodes_payload, _minimap_nodes_payload, _edges_payload = builder.rebuild_partitioned_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+        )
+
+        self.assertEqual(len(backdrop_nodes_payload), 0)
+        self.assertEqual(len(nodes_payload), 1)
+        payload = nodes_payload[0]
+        self.assertEqual(payload["surface_metrics"]["header_height"], 54.0)
+        self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
+        self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
+        self.assertGreater(payload["height"], 50.0)
 
 
 class GraphSurfaceLockedPortCanvasTests(GraphSurfaceInputContractTestBase):

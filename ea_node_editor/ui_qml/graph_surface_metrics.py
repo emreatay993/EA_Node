@@ -178,6 +178,7 @@ def resolved_node_surface_size(
     surface_metrics: GraphNodeSurfaceMetrics | None = None,
     clamp_height: bool = False,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> tuple[float, float]:
     return _resolved_node_surface_size_impl(
         node,
@@ -187,6 +188,7 @@ def resolved_node_surface_size(
         surface_metrics=surface_metrics,
         clamp_height=clamp_height,
         graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
 
@@ -197,6 +199,7 @@ def node_surface_metrics(
     *,
     show_port_labels: bool = True,
     graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> GraphNodeSurfaceMetrics:
     return _node_surface_metrics_impl(
         node,
@@ -204,6 +207,7 @@ def node_surface_metrics(
         workspace_nodes,
         show_port_labels=show_port_labels,
         graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
 
@@ -229,6 +233,8 @@ def surface_port_local_point(
     width: float | None = None,
     height: float | None = None,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> tuple[float, float]:
     return _surface_port_local_point_impl(
         node,
@@ -238,6 +244,8 @@ def surface_port_local_point(
         width=width,
         height=height,
         show_port_labels=show_port_labels,
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
     )
 
 

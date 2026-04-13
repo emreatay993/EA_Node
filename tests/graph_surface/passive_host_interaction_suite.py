@@ -314,7 +314,7 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
-    def test_title_icon_large_override_stays_within_title_row_bounds(self) -> None:
+    def test_title_icon_large_override_expands_title_row_and_stays_within_bounds(self) -> None:
         self._run_qml_probe(
             "title-icon-large-override-header-bounds",
             """
@@ -335,6 +335,12 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
 
             payload = node_payload()
             payload["title"] = "Archive Session"
+            payload["height"] = 80.0
+            payload["surface_metrics"]["default_height"] = 80.0
+            payload["surface_metrics"]["header_height"] = 54.0
+            payload["surface_metrics"]["title_height"] = 54.0
+            payload["surface_metrics"]["body_top"] = 60.0
+            payload["surface_metrics"]["port_top"] = 60.0
             payload["surface_metrics"]["title_centered"] = True
             payload["icon_source"] = icon_source
 
@@ -352,10 +358,13 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             assert title_icon is not None
             assert int(host.property("effectiveNodeTitleIconPixelSize")) == 50
             assert bool(title_icon.property("visible"))
+            assert float(title_display.property("height")) > 24.0
+            assert float(host.property("height")) > 50.0
+            assert float(title_icon.property("width")) == 50.0
             assert float(title_icon.property("height")) <= float(title_display.property("height"))
             assert float(title_icon.property("y")) >= 0.0
             assert float(title_icon.property("y")) + float(title_icon.property("height")) <= float(title_display.property("height")) + 0.5
-            assert float(title_icon.property("height")) < float(host.property("effectiveNodeTitleIconPixelSize"))
+            assert float(title_icon.property("height")) == float(host.property("effectiveNodeTitleIconPixelSize"))
             """,
         )
 
