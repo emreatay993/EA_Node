@@ -54,7 +54,7 @@ class HPCSubmitNodePlugin:
             type_id="hpc.submit",
             display_name="HPC Submit Job",
     category_path=("HPC",),
-            icon="cloud_upload",
+            icon="hpc/cloud_upload.svg",
             description="Submits a job to an HPC cluster scheduler and outputs the job ID.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -117,7 +117,7 @@ class HPCMonitorNodePlugin:
             type_id="hpc.monitor",
             display_name="HPC Monitor Job",
     category_path=("HPC",),
-            icon="monitor_heart",
+            icon="hpc/monitor_heart.svg",
             description="Polls a running HPC job until it completes or fails.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -263,7 +263,7 @@ class HPCOnStatusNodePlugin:
             type_id="hpc.on_status",
             display_name="HPC On Status",
     category_path=("HPC",),
-            icon="alt_route",
+            icon="hpc/alt_route.svg",
             description="Routes to different outputs based on job status (completed, failed, other).",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -300,7 +300,7 @@ class HPCFetchResultNodePlugin:
             type_id="hpc.fetch_result",
             display_name="HPC Fetch Results",
     category_path=("HPC",),
-            icon="cloud_download",
+            icon="hpc/cloud_download.svg",
             description="Copies output files from a remote HPC host to a local directory.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),

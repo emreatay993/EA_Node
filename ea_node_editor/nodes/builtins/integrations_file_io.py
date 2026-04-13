@@ -30,7 +30,7 @@ class FileReadNodePlugin:
             type_id="io.file_read",
             display_name="File Read",
     category_path=("Input / Output",),
-            icon="description",
+            icon="integrations/description.svg",
             description="Reads a text file.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -57,7 +57,7 @@ class FileWriteNodePlugin:
             type_id="io.file_write",
             display_name="File Write",
     category_path=("Input / Output",),
-            icon="save",
+            icon="integrations/save.svg",
             description="Writes text or JSON to a file.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
