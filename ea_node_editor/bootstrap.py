@@ -49,6 +49,9 @@ def _preferred_python(repo_root: Path) -> Path | None:
 
 
 def _bootstrap_python() -> None:
+    if getattr(sys, "frozen", False):
+        return
+
     if os.environ.get(_BOOTSTRAP_SENTINEL) == "1":
         return
 

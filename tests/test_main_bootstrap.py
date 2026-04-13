@@ -111,6 +111,15 @@ class MainBootstrapTests(unittest.TestCase):
 
             execvpe_mock.assert_not_called()
 
+    def test_bootstrap_skips_reexec_for_frozen_package_runs(self) -> None:
+        with patch.object(bootstrap_module.sys, "frozen", True, create=True), patch.object(
+            bootstrap_module, "_preferred_python"
+        ) as preferred_python_mock, patch.object(bootstrap_module.os, "execvpe") as execvpe_mock:
+            bootstrap_module._bootstrap_python()
+
+        preferred_python_mock.assert_not_called()
+        execvpe_mock.assert_not_called()
+
 
 class AppBootstrapTests(unittest.TestCase):
     def setUp(self) -> None:
