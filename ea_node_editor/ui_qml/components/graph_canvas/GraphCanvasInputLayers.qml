@@ -34,6 +34,12 @@ Item {
         return Boolean(bridge.set_hide_optional_ports(!Boolean(root.canvasItem.hideOptionalPorts)));
     }
 
+    function _closeCommentPeekIfActive() {
+        if (!root.shellCommandBridge || !root.shellCommandBridge.request_close_comment_peek)
+            return false;
+        return Boolean(root.shellCommandBridge.request_close_comment_peek());
+    }
+
     function _handleHidePortChord(buttons, changedButton) {
         var normalizedButtons = Number(buttons || 0);
         if (!(normalizedButtons & Qt.MiddleButton))
@@ -134,6 +140,8 @@ Item {
             root.canvasItem._closeContextMenus();
             handled = true;
         }
+        if (root._closeCommentPeekIfActive())
+            handled = true;
         if (handled)
             event.accepted = true;
     }
@@ -166,6 +174,14 @@ Item {
             root.canvasItem.forceActiveFocus();
             if (typeof viewerSessionBridge !== "undefined" && viewerSessionBridge && viewerSessionBridge.clear_viewer_focus)
                 viewerSessionBridge.clear_viewer_focus();
+            if (
+                (mouse.button === Qt.LeftButton || mouse.button === Qt.RightButton)
+                && root._closeCommentPeekIfActive()
+            ) {
+                resetGestureState();
+                mouse.accepted = true;
+                return;
+            }
             if (root._handleHidePortChord(mouse.buttons, mouse.button)) {
                 resetGestureState();
                 panArea.cancelPanningForChord();

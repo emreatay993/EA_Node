@@ -43,6 +43,7 @@ class _GraphSceneContext:
         self._payload_builder = payload_builder
         self.workspace_id = ""
         self.scope_path: ScopePath = ()
+        self.comment_peek_node_id = ""
         self.selected_node_ids: list[str] = []
         self.selected_node_lookup: dict[str, bool] = {}
 
@@ -144,6 +145,7 @@ class _GraphSceneContext:
             registry=self.registry,
             workspace_id=self.workspace_id,
             scope_path=self.scope_path,
+            comment_peek_node_id=self._validated_comment_peek_node_id(),
             graph_theme_bridge=self.graph_theme_bridge,
             show_port_labels=self.graphics_show_port_labels,
         )
@@ -152,6 +154,7 @@ class _GraphSceneContext:
             backdrop_nodes=backdrop_nodes_payload,
             minimap_nodes=minimap_nodes_payload,
             edges=edges_payload,
+            comment_peek_node_id=self.comment_peek_node_id,
         )
         self._bridge.nodes_changed.emit()
         self._bridge.edges_changed.emit()
@@ -167,6 +170,15 @@ class _GraphSceneContext:
 
     def active_graph_theme(self) -> GraphThemeDefinition:
         return self._payload_builder.active_graph_theme(self.graph_theme_bridge)
+
+    def _validated_comment_peek_node_id(self) -> str:
+        scope_selection = getattr(self._bridge, "_scope_selection", None)
+        if scope_selection is None:
+            return ""
+        validator = getattr(scope_selection, "validated_comment_peek_node_id", None)
+        if not callable(validator):
+            return ""
+        return str(validator() or "")
 
     def capture_history_snapshot(self) -> WorkspaceSnapshot | None:
         workspace = self.workspace_or_none()

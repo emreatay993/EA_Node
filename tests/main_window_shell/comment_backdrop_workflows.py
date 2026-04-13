@@ -3,7 +3,7 @@ from __future__ import annotations
 import gc
 from unittest.mock import patch
 
-from PyQt6.QtCore import QObject, Qt
+from PyQt6.QtCore import QObject, QPoint, QPointF, Qt
 from PyQt6.QtQuick import QQuickItem
 from PyQt6.QtTest import QTest
 
@@ -81,6 +81,10 @@ class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
         node_id = self.window.scene.add_node_from_type(COMMENT_BACKDROP_TYPE_ID, x=x, y=y)
         self.window.scene.set_node_geometry(node_id, x, y, width, height)
         return node_id
+
+    @staticmethod
+    def _payload_node_ids(payloads: list[dict[str, object]]) -> set[str]:
+        return {str(item.get("node_id", "")) for item in payloads}
 
     def test_comment_backdrop_library_and_drop_creation_paths_place_backdrops(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
@@ -232,6 +236,116 @@ class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
         self.assertEqual(backdrop.title, "Mesh Extraction")
         self.assertEqual(backdrop.properties["title"], "Mesh Extraction")
         self.assertFalse(bool(graph_canvas.property("nodeContextVisible")))
+
+    def test_comment_backdrop_context_menu_peek_inside_is_only_for_collapsed_backdrops(self) -> None:
+        graph_canvas = self._graph_canvas_item()
+        node_context_popup = graph_canvas.findChild(QObject, "graphCanvasNodeContextPopup")
+        self.assertIsNotNone(node_context_popup)
+
+        backdrop_id = self._add_backdrop(160.0, 120.0, 380.0, 260.0)
+        logger_id = self.window.scene.add_node_from_type(LOGGER_TYPE_ID, x=720.0, y=180.0)
+        self.app.processEvents()
+
+        graph_canvas.setProperty("nodeContextNodeId", backdrop_id)
+        self.app.processEvents()
+        self.assertNotIn("Peek Inside", _menu_action_texts(node_context_popup))
+
+        self.window.scene.set_node_collapsed(backdrop_id, True)
+        self.app.processEvents()
+        graph_canvas.setProperty("nodeContextNodeId", backdrop_id)
+        self.app.processEvents()
+        self.assertIn("Peek Inside", _menu_action_texts(node_context_popup))
+
+        graph_canvas.setProperty("nodeContextNodeId", logger_id)
+        self.app.processEvents()
+        self.assertNotIn("Peek Inside", _menu_action_texts(node_context_popup))
+
+    def test_comment_peek_shows_direct_members_only_remains_editable_and_exits(self) -> None:
+        workspace_id = self.window.workspace_manager.active_workspace_id()
+        workspace = self.window.model.project.workspaces[workspace_id]
+        active_view = workspace.views[workspace.active_view_id]
+        graph_canvas = self._graph_canvas_item()
+        node_context_popup = graph_canvas.findChild(QObject, "graphCanvasNodeContextPopup")
+        self.assertIsNotNone(node_context_popup)
+
+        outer_id = self._add_backdrop(60.0, 60.0, 760.0, 520.0)
+        inner_id = self._add_backdrop(170.0, 150.0, 320.0, 240.0)
+        direct_logger_id = self.window.scene.add_node_from_type(LOGGER_TYPE_ID, x=520.0, y=240.0)
+        nested_logger_id = self.window.scene.add_node_from_type(LOGGER_TYPE_ID, x=230.0, y=220.0)
+        outside_logger_id = self.window.scene.add_node_from_type(LOGGER_TYPE_ID, x=980.0, y=240.0)
+        self.window.scene.set_node_collapsed(outer_id, True)
+        self.app.processEvents()
+
+        self.assertEqual(self.window.scene.active_scope_path, [])
+        self.assertEqual(active_view.scope_path, [])
+
+        graph_canvas.setProperty("nodeContextNodeId", outer_id)
+        graph_canvas.setProperty("nodeContextVisible", True)
+        self.app.processEvents()
+        self.assertIn("Peek Inside", _menu_action_texts(node_context_popup))
+        node_context_popup.actionTriggered.emit("peek_comment")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: self.window.scene.active_comment_peek_node_id == outer_id,
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for comment peek to activate.",
+        )
+
+        visible_nodes = self._payload_node_ids(self.window.scene.nodes_model)
+        visible_backdrops = self._payload_node_ids(self.window.scene.backdrop_nodes_model)
+        self.assertEqual(visible_nodes, {direct_logger_id})
+        self.assertEqual(visible_backdrops, {outer_id, inner_id})
+        self.assertNotIn(nested_logger_id, visible_nodes)
+        self.assertNotIn(outside_logger_id, visible_nodes)
+        self.assertEqual(self.window.scene.active_scope_path, [])
+        self.assertEqual(active_view.scope_path, [])
+
+        self.window.scene.move_node(direct_logger_id, 540.0, 260.0)
+        self.app.processEvents()
+        self.assertAlmostEqual(float(workspace.nodes[direct_logger_id].x), 540.0, places=6)
+        self.assertAlmostEqual(float(workspace.nodes[direct_logger_id].y), 260.0, places=6)
+        self.assertEqual(self.window.scene.active_comment_peek_node_id, outer_id)
+
+        graph_canvas.setProperty("nodeContextNodeId", outer_id)
+        graph_canvas.setProperty("nodeContextVisible", True)
+        self.app.processEvents()
+        self.assertIn("Exit Peek", _menu_action_texts(node_context_popup))
+        node_context_popup.actionTriggered.emit("exit_comment_peek")
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: self.window.scene.active_comment_peek_node_id == "",
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for explicit comment peek exit.",
+        )
+        self.assertIn(outside_logger_id, self._payload_node_ids(self.window.scene.nodes_model))
+
+        self.assertTrue(self.window.scene.open_comment_peek(outer_id))
+        self.app.processEvents()
+        self.assertEqual(self.window.scene.active_comment_peek_node_id, outer_id)
+        scene_point = graph_canvas.mapToScene(QPointF(12.0, 12.0))
+        QTest.mouseClick(
+            self.window.quick_widget,
+            Qt.MouseButton.LeftButton,
+            Qt.KeyboardModifier.NoModifier,
+            QPoint(round(scene_point.x()), round(scene_point.y())),
+        )
+        self.app.processEvents()
+
+        wait_for_condition_or_raise(
+            lambda: self.window.scene.active_comment_peek_node_id == "",
+            timeout_ms=1500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for comment peek click-away dismissal.",
+        )
+        self.assertEqual(self.window.scene.active_scope_path, [])
+        self.assertEqual(active_view.scope_path, [])
 
     def test_comment_backdrop_wrap_action_is_no_op_for_empty_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()

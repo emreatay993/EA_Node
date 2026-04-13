@@ -314,6 +314,22 @@ class GraphCanvasCommandBridge(QObject):
             )
         )
 
+    @pyqtSlot(str, result=bool)
+    def can_open_comment_peek(self, node_id: str) -> bool:
+        return bool(_invoke(self._scene_bridge, "can_open_comment_peek", node_id, default=False))
+
+    @pyqtSlot(str, result=bool)
+    def request_open_comment_peek(self, node_id: str) -> bool:
+        return bool(_invoke(self._scene_bridge, "open_comment_peek", node_id, default=False))
+
+    @pyqtSlot(result=bool)
+    def request_close_comment_peek(self) -> bool:
+        return bool(_invoke(self._scene_bridge, "close_comment_peek", default=False))
+
+    @pyqtSlot(result=str)
+    def active_comment_peek_node_id(self) -> str:
+        return str(getattr(self._scene_bridge, "active_comment_peek_node_id", "") or "")
+
     @pyqtSlot(str, str, str, result=str)
     def browse_node_property_path(self, node_id: str, key: str, current_path: str) -> str:
         return str(

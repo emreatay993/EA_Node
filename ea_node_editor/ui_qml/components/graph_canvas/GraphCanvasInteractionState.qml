@@ -918,13 +918,46 @@ QtObject {
         root.edgeContextVisible = true;
     }
 
+    function _activeCommentPeekNodeId() {
+        if (!root.shellBridge || !root.shellBridge.active_comment_peek_node_id)
+            return "";
+        return String(root.shellBridge.active_comment_peek_node_id() || "").trim();
+    }
+
+    function _nodeCanPeekInside(nodeId) {
+        var normalized = String(nodeId || "").trim();
+        if (!normalized || !root.canvasItem || root._activeCommentPeekNodeId() === normalized)
+            return false;
+        var payload = root.canvasItem._sceneNodePayload(normalized);
+        if (
+            !payload
+            || String(payload.surface_family || "").trim() !== "comment_backdrop"
+            || !Boolean(payload.collapsed)
+        )
+            return false;
+        if (root.shellBridge && root.shellBridge.can_open_comment_peek)
+            return Boolean(root.shellBridge.can_open_comment_peek(normalized));
+        return true;
+    }
+
+    function _nodeContextMenuHeight(nodeId) {
+        var rowCount = 2; // Rename and remove are always available.
+        if (root.canvasItem._nodeCanEnterScope(nodeId))
+            rowCount += 3;
+        if (root.canvasItem._nodeSupportsPassiveStyle(nodeId))
+            rowCount += 4;
+        if (root._nodeCanPeekInside(nodeId))
+            rowCount += 1;
+        if (root._activeCommentPeekNodeId() === String(nodeId || "").trim())
+            rowCount += 1;
+        return 20 + (rowCount * 34) + Math.max(0, rowCount - 1);
+    }
+
     function _openNodeContext(nodeId, x, y) {
         if (!nodeId || !root.canvasItem)
             return;
         root.canvasItem.forceActiveFocus();
-        var menuHeight = root.canvasItem._nodeSupportsPassiveStyle(nodeId)
-            ? (root.canvasItem._nodeCanEnterScope(nodeId) ? 340 : 232)
-            : (root.canvasItem._nodeCanEnterScope(nodeId) ? 188 : 80);
+        var menuHeight = root._nodeContextMenuHeight(nodeId);
         var position = root.canvasItem._clampMenuPosition(x, y, 206, menuHeight);
         root._closeContextMenus();
         root.nodeContextNodeId = nodeId;

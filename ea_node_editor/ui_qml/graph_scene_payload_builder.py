@@ -632,11 +632,13 @@ class _GraphSceneBackdropPartitioner:
         registry: NodeRegistry,
         scope_path: ScopePath,
         graph_theme: GraphThemeDefinition,
+        comment_peek_node_id: str = "",
         placeholder_context_by_id: Mapping[str, _PlaceholderNodeContext] | None = None,
         graph_label_pixel_size: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         visible_node_ids = scope_node_ids(workspace, scope_path)
+        comment_peek_node_id = str(comment_peek_node_id or "").strip()
         workspace_edges = scope_edges(workspace, scope_path)
         port_connection_counts = self.port_connection_counts(workspace_edges)
         workspace_nodes = dict(workspace.nodes)
@@ -715,6 +717,14 @@ class _GraphSceneBackdropPartitioner:
             )
 
         membership_by_node_id = compute_comment_backdrop_membership(membership_candidates)
+        comment_peek_visible_node_ids = self.comment_peek_visible_node_ids(
+            comment_peek_node_id=comment_peek_node_id,
+            visible_node_ids=visible_node_ids,
+            membership_by_node_id=membership_by_node_id,
+            workspace=workspace,
+            comment_backdrop_ids=comment_backdrop_ids,
+        )
+        render_node_ids = set(comment_peek_visible_node_ids) if comment_peek_visible_node_ids else set(visible_node_ids)
         self.apply_expanded_occupied_bounds_payload(
             node_payload_by_id=node_payload_by_id,
             node_specs=node_specs,
@@ -730,8 +740,11 @@ class _GraphSceneBackdropPartitioner:
             membership_by_node_id=membership_by_node_id,
             workspace=workspace,
             comment_backdrop_ids=comment_backdrop_ids,
+            comment_peek_node_id=comment_peek_node_id if comment_peek_visible_node_ids else "",
         )
         for node_id in visible_node_ids:
+            if node_id not in render_node_ids:
+                continue
             if collapsed_proxy_backdrop_by_node_id.get(node_id):
                 continue
             if node_id not in node_payload_by_id or node_id not in minimap_payload_by_id:
@@ -749,9 +762,14 @@ class _GraphSceneBackdropPartitioner:
                 nodes_payload.append(node_payload)
             minimap_nodes_payload.append(minimap_payload_by_id[node_id])
 
+        render_workspace_edges = [
+            edge
+            for edge in workspace_edges
+            if edge.source_node_id in render_node_ids and edge.target_node_id in render_node_ids
+        ]
         edges_payload = build_edge_payload(
             graph_theme=graph_theme,
-            workspace_edges=workspace_edges,
+            workspace_edges=render_workspace_edges,
             workspace_nodes=workspace_nodes,
             node_specs=node_specs,
             collapsed_proxy_backdrop_by_node_id=collapsed_proxy_backdrop_by_node_id,
@@ -760,18 +778,45 @@ class _GraphSceneBackdropPartitioner:
         return nodes_payload, backdrop_nodes_payload, minimap_nodes_payload, edges_payload
 
     @staticmethod
+    def comment_peek_visible_node_ids(
+        *,
+        comment_peek_node_id: str,
+        visible_node_ids: list[str],
+        membership_by_node_id: dict[str, CommentBackdropMembership],
+        workspace: WorkspaceData,
+        comment_backdrop_ids: set[str],
+    ) -> set[str]:
+        normalized = str(comment_peek_node_id or "").strip()
+        if not normalized or normalized not in visible_node_ids or normalized not in comment_backdrop_ids:
+            return set()
+        node = workspace.nodes.get(normalized)
+        if node is None or not bool(node.collapsed):
+            return set()
+        membership = membership_by_node_id.get(normalized)
+        direct_member_ids = [] if membership is None else [*membership.member_node_ids, *membership.member_backdrop_ids]
+        visible_set = set(visible_node_ids)
+        return {
+            node_id
+            for node_id in [normalized, *direct_member_ids]
+            if node_id in visible_set and node_id in workspace.nodes
+        }
+
+    @staticmethod
     def collapsed_proxy_backdrop_by_node_id(
         *,
         visible_node_ids: list[str],
         membership_by_node_id: dict[str, CommentBackdropMembership],
         workspace: WorkspaceData,
         comment_backdrop_ids: set[str],
+        comment_peek_node_id: str = "",
     ) -> dict[str, str]:
         collapsed_backdrop_ids = {
             node_id
             for node_id in comment_backdrop_ids
             if bool(workspace.nodes.get(node_id) is not None and workspace.nodes[node_id].collapsed)
         }
+        if comment_peek_node_id:
+            collapsed_backdrop_ids.discard(str(comment_peek_node_id))
         owner_backdrop_by_node_id = {
             node_id: str(membership.owner_backdrop_id or "")
             for node_id, membership in membership_by_node_id.items()
@@ -952,6 +997,7 @@ class GraphScenePayloadBuilder:
         workspace_id: str,
         scope_path: ScopePath,
         graph_theme_bridge: GraphThemeBridge | None,
+        comment_peek_node_id: str = "",
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         nodes_payload, _backdrop_nodes_payload, minimap_nodes_payload, edges_payload = self.rebuild_partitioned_models(
@@ -959,6 +1005,7 @@ class GraphScenePayloadBuilder:
             registry=registry,
             workspace_id=workspace_id,
             scope_path=scope_path,
+            comment_peek_node_id=comment_peek_node_id,
             graph_theme_bridge=graph_theme_bridge,
             show_port_labels=show_port_labels,
         )
@@ -972,6 +1019,7 @@ class GraphScenePayloadBuilder:
         workspace_id: str,
         scope_path: ScopePath,
         graph_theme_bridge: GraphThemeBridge | None,
+        comment_peek_node_id: str = "",
         show_port_labels: bool = True,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
         if model is None or registry is None or not workspace_id:
@@ -985,6 +1033,7 @@ class GraphScenePayloadBuilder:
             workspace=workspace,
             registry=registry,
             scope_path=scope_path,
+            comment_peek_node_id=comment_peek_node_id,
             graph_theme=self.active_graph_theme(graph_theme_bridge),
             placeholder_context_by_id=placeholder_context_by_id,
             graph_label_pixel_size=graph_label_pixel_size,

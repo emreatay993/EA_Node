@@ -90,8 +90,120 @@ class GraphSceneScopeSelection:
             str(node_id): bool(selected) for node_id, selected in dict(value or {}).items()
         }
 
+    @property
+    def comment_peek_node_id(self) -> str:
+        return self._scene_context.comment_peek_node_id
+
+    @comment_peek_node_id.setter
+    def comment_peek_node_id(self, value: str) -> None:
+        self._scene_context.comment_peek_node_id = str(value or "").strip()
+
     def workspace_or_none(self) -> WorkspaceData | None:
         return self._scene_context.workspace_or_none()
+
+    @staticmethod
+    def _is_comment_backdrop_spec(spec: NodeTypeSpec) -> bool:
+        return str(spec.surface_family or "").strip() == "comment_backdrop"
+
+    def _is_collapsed_comment_backdrop(self, workspace: WorkspaceData, node_id: str) -> bool:
+        registry = self._scene_context.registry
+        if registry is None:
+            return False
+        node = workspace.nodes.get(node_id)
+        if node is None or not bool(node.collapsed):
+            return False
+        spec = registry.spec_or_none(node.type_id)
+        return spec is not None and self._is_comment_backdrop_spec(spec)
+
+    def _can_open_comment_peek_in_workspace(self, workspace: WorkspaceData, node_id: str) -> bool:
+        normalized = str(node_id or "").strip()
+        if not normalized or normalized not in workspace.nodes:
+            return False
+        if not is_node_in_scope(workspace, normalized, self.scope_path):
+            return False
+        return self._is_collapsed_comment_backdrop(workspace, normalized)
+
+    def can_open_comment_peek(self, node_id: str) -> bool:
+        workspace = self.workspace_or_none()
+        if workspace is None:
+            return False
+        return self._can_open_comment_peek_in_workspace(workspace, node_id)
+
+    def _comment_peek_payload(self, node_id: str) -> dict[str, object] | None:
+        normalized = str(node_id or "").strip()
+        if not normalized:
+            return None
+        for payload in self._scene_context.backdrop_nodes_payload:
+            if str(payload.get("node_id", "")).strip() == normalized:
+                return payload
+        return None
+
+    @staticmethod
+    def _payload_node_id_list(payload: dict[str, object] | None, key: str) -> list[str]:
+        if payload is None:
+            return []
+        value = payload.get(key)
+        if value is None:
+            return []
+        if isinstance(value, (str, bytes)):
+            values = [value]
+        else:
+            try:
+                values = list(value)  # type: ignore[arg-type]
+            except TypeError:
+                values = [value]
+        return [str(item).strip() for item in values if str(item).strip()]
+
+    def _comment_peek_visible_node_set(self, workspace: WorkspaceData) -> set[str]:
+        peek_node_id = self.comment_peek_node_id
+        if not self._can_open_comment_peek_in_workspace(workspace, peek_node_id):
+            return set(scope_node_ids(workspace, self.scope_path))
+        payload = self._comment_peek_payload(peek_node_id)
+        visible_ids = {peek_node_id}
+        visible_ids.update(self._payload_node_id_list(payload, "member_node_ids"))
+        visible_ids.update(self._payload_node_id_list(payload, "member_backdrop_ids"))
+        scope_ids = set(scope_node_ids(workspace, self.scope_path))
+        return {node_id for node_id in visible_ids if node_id in workspace.nodes and node_id in scope_ids}
+
+    def visible_node_ids(self, workspace: WorkspaceData) -> list[str]:
+        scoped_ids = scope_node_ids(workspace, self.scope_path)
+        if not self.comment_peek_node_id:
+            return scoped_ids
+        visible_set = self._comment_peek_visible_node_set(workspace)
+        return [node_id for node_id in scoped_ids if node_id in visible_set]
+
+    def validated_comment_peek_node_id(self) -> str:
+        workspace = self.workspace_or_none()
+        if workspace is None or not self.comment_peek_node_id:
+            return ""
+        if self._can_open_comment_peek_in_workspace(workspace, self.comment_peek_node_id):
+            return self.comment_peek_node_id
+        self.comment_peek_node_id = ""
+        return ""
+
+    def open_comment_peek(self, node_id: str) -> bool:
+        workspace = self.workspace_or_none()
+        if workspace is None:
+            return False
+        normalized = str(node_id or "").strip()
+        if not self._can_open_comment_peek_in_workspace(workspace, normalized):
+            return False
+        if self.comment_peek_node_id == normalized:
+            return True
+        self.comment_peek_node_id = normalized
+        self.set_selected_node_ids([normalized], workspace=workspace)
+        self._scene_context.rebuild_models()
+        return True
+
+    def close_comment_peek(self) -> bool:
+        if not self.comment_peek_node_id:
+            return False
+        workspace = self.workspace_or_none()
+        self.comment_peek_node_id = ""
+        if workspace is not None:
+            self.set_selected_node_ids(self.selected_node_ids, workspace=workspace)
+        self._scene_context.rebuild_models()
+        return True
 
     @staticmethod
     def active_view_state(workspace: WorkspaceData) -> ViewState | None:
@@ -107,6 +219,7 @@ class GraphSceneScopeSelection:
     ) -> list[str]:
         if workspace is None:
             return []
+        visible_ids = set(self.visible_node_ids(workspace))
         normalized: list[str] = []
         seen: set[str] = set()
         for node_id in node_ids:
@@ -115,7 +228,7 @@ class GraphSceneScopeSelection:
                 continue
             if normalized_node_id not in workspace.nodes:
                 continue
-            if not is_node_in_scope(workspace, normalized_node_id, self.scope_path):
+            if normalized_node_id not in visible_ids:
                 continue
             seen.add(normalized_node_id)
             normalized.append(normalized_node_id)
@@ -156,6 +269,8 @@ class GraphSceneScopeSelection:
     ) -> bool:
         normalized_scope = normalize_scope_path(workspace, scope_path)
         changed = normalized_scope != self.scope_path
+        if changed:
+            self.comment_peek_node_id = ""
         self.scope_path = normalized_scope
         if persist:
             view_state = self.active_view_state(workspace)
@@ -242,6 +357,7 @@ class GraphSceneScopeSelection:
         if model is None:
             return
         workspace = model.project.workspaces[self.workspace_id]
+        self.comment_peek_node_id = ""
         self.restore_scope_path_from_view(workspace)
         self.set_selected_node_ids([], workspace=workspace)
         self._scene_context.rebuild_models()
@@ -268,6 +384,7 @@ class GraphSceneScopeSelection:
             )
             self._scene_context.emit_scope_changed()
         else:
+            self.validated_comment_peek_node_id()
             self.set_selected_node_ids(self.selected_node_ids, workspace=workspace)
             self._scene_context.rebuild_models()
 
@@ -275,17 +392,19 @@ class GraphSceneScopeSelection:
         workspace = self.workspace_or_none()
         if workspace is None:
             return None
+        visible_ids = set(self.visible_node_ids(workspace))
         for node_id in reversed(self.selected_node_ids):
-            if node_id in workspace.nodes and is_node_in_scope(workspace, node_id, self.scope_path):
+            if node_id in workspace.nodes and node_id in visible_ids:
                 return node_id
         return None
 
     def selected_items(self) -> list[_SelectedNodeProxy]:
         workspace = self._scene_context.current_workspace()
         selected: list[_SelectedNodeProxy] = []
+        visible_ids = set(self.visible_node_ids(workspace))
         for node_id in self.selected_node_ids:
             node = workspace.nodes.get(node_id)
-            if node is not None and is_node_in_scope(workspace, node_id, self.scope_path):
+            if node is not None and node_id in visible_ids:
                 selected.append(_SelectedNodeProxy(node=node))
         return selected
 
@@ -293,7 +412,7 @@ class GraphSceneScopeSelection:
         workspace = self.workspace_or_none()
         if workspace is None:
             return None
-        visible_node_ids = scope_node_ids(workspace, self.scope_path)
+        visible_node_ids = self.visible_node_ids(workspace)
         if not visible_node_ids:
             return None
         return self.bounds_for_node_ids(visible_node_ids)
@@ -373,7 +492,7 @@ class GraphSceneScopeSelection:
             return
 
         workspace = self._scene_context.current_workspace()
-        visible_node_ids = set(scope_node_ids(workspace, self.scope_path))
+        visible_node_ids = set(self.visible_node_ids(workspace))
         min_x = min(float(x1), float(x2))
         max_x = max(float(x1), float(x2))
         min_y = min(float(y1), float(y2))
@@ -421,7 +540,7 @@ class GraphSceneScopeSelection:
         node = workspace.nodes.get(node_id)
         if node is None:
             return None
-        if not is_node_in_scope(workspace, node_id, self.scope_path):
+        if node_id not in set(self.visible_node_ids(workspace)):
             return None
         spec = registry.get_spec(node.type_id)
         return _NodeItemProxy(node=node, spec=spec, workspace_nodes=workspace.nodes)
@@ -450,7 +569,7 @@ class GraphSceneScopeSelection:
         for node_id in self.selected_node_ids:
             if node_id not in workspace.nodes or node_id in selected_node_set:
                 continue
-            if not is_node_in_scope(workspace, node_id, self.scope_path):
+            if node_id not in set(self.visible_node_ids(workspace)):
                 continue
             selected_node_set.add(node_id)
             selected_node_ids.append(node_id)

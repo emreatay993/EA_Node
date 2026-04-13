@@ -30,6 +30,7 @@ class _GraphScenePayloadCache:
     active_view_id: str = ""
     hide_locked_ports: bool = False
     hide_optional_ports: bool = False
+    comment_peek_node_id: str = ""
 
     def update(
         self,
@@ -41,6 +42,7 @@ class _GraphScenePayloadCache:
         active_view_id: str | None = None,
         hide_locked_ports: bool | None = None,
         hide_optional_ports: bool | None = None,
+        comment_peek_node_id: str | None = None,
     ) -> None:
         self.nodes = nodes
         self.backdrop_nodes = backdrop_nodes
@@ -52,6 +54,8 @@ class _GraphScenePayloadCache:
             self.hide_locked_ports = bool(hide_locked_ports)
         if hide_optional_ports is not None:
             self.hide_optional_ports = bool(hide_optional_ports)
+        if comment_peek_node_id is not None:
+            self.comment_peek_node_id = str(comment_peek_node_id or "")
 
     def set_active_view_filters(
         self,
@@ -117,10 +121,12 @@ class GraphSceneBridgeBase(QObject):
 
     def _ensure_payload_cache_current(self) -> None:
         active_view_id, hide_locked_ports, hide_optional_ports = self._active_view_filter_state()
+        comment_peek_node_id = self._scope_selection.validated_comment_peek_node_id()
         if (
             self._payload_cache.active_view_id == active_view_id
             and self._payload_cache.hide_locked_ports == hide_locked_ports
             and self._payload_cache.hide_optional_ports == hide_optional_ports
+            and self._payload_cache.comment_peek_node_id == comment_peek_node_id
         ):
             return
         (
@@ -133,6 +139,7 @@ class GraphSceneBridgeBase(QObject):
             registry=self._scene_context.registry,
             workspace_id=self._scene_context.workspace_id,
             scope_path=self._scene_context.scope_path,
+            comment_peek_node_id=comment_peek_node_id,
             graph_theme_bridge=self._scene_context.graph_theme_bridge,
             show_port_labels=self._scene_context.graphics_show_port_labels,
         )
@@ -144,6 +151,7 @@ class GraphSceneBridgeBase(QObject):
             active_view_id=active_view_id,
             hide_locked_ports=hide_locked_ports,
             hide_optional_ports=hide_optional_ports,
+            comment_peek_node_id=comment_peek_node_id,
         )
 
     @property
@@ -263,6 +271,14 @@ class GraphSceneBridgeBase(QObject):
     def can_navigate_scope_parent(self) -> bool:
         return bool(self._scope_path)
 
+    @pyqtProperty(str, notify=nodes_changed)
+    def active_comment_peek_node_id(self) -> str:
+        return self._scope_selection.validated_comment_peek_node_id()
+
+    @pyqtProperty(bool, notify=nodes_changed)
+    def comment_peek_active(self) -> bool:
+        return bool(self.active_comment_peek_node_id)
+
     def _workspace_or_none(self) -> WorkspaceData | None:
         return self._scene_context.workspace_or_none()
 
@@ -273,6 +289,18 @@ class GraphSceneBridgeBase(QObject):
     @pyqtSlot(str, result=bool)
     def open_subnode_scope(self, node_id: str) -> bool:
         return self._scope_selection.open_subnode_scope(node_id)
+
+    @pyqtSlot(str, result=bool)
+    def can_open_comment_peek(self, node_id: str) -> bool:
+        return self._scope_selection.can_open_comment_peek(node_id)
+
+    @pyqtSlot(str, result=bool)
+    def open_comment_peek(self, node_id: str) -> bool:
+        return self._scope_selection.open_comment_peek(node_id)
+
+    @pyqtSlot(result=bool)
+    def close_comment_peek(self) -> bool:
+        return self._scope_selection.close_comment_peek()
 
     @pyqtSlot(str, result=bool)
     def open_scope_for_node(self, node_id: str) -> bool:
