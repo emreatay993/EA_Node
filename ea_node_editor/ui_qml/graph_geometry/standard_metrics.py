@@ -402,6 +402,20 @@ def resolved_node_surface_size(
     )
     resolved_width = max(float(metrics.min_width), float(width))
     resolved_height = max(float(metrics.min_height), float(height))
+    family = str(spec.surface_family or "standard").strip() or "standard"
+    if family == "viewer" and node.custom_height is not None:
+        baseline_node = node.clone()
+        baseline_node.custom_height = None
+        baseline_metrics = node_surface_metrics(
+            baseline_node,
+            spec,
+            workspace_nodes,
+            show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=None,
+        )
+        if abs(float(node.custom_height) - float(baseline_metrics.default_height)) <= 0.01:
+            resolved_height = max(float(resolved_height), float(metrics.default_height))
     if clamp_height:
         resolved_height = max(float(metrics.min_height), resolved_height)
     return resolved_width, resolved_height
@@ -445,6 +459,8 @@ def node_surface_metrics(
             spec,
             workspace_nodes,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
     return _standard_surface_metrics(
         node,

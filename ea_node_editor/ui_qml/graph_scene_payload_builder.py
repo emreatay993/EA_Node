@@ -122,6 +122,11 @@ def _is_standard_surface(spec: NodeTypeSpec) -> bool:
     return family == "standard"
 
 
+def _uses_dynamic_title_band_surface(spec: NodeTypeSpec) -> bool:
+    family = str(spec.surface_family or "standard").strip() or "standard"
+    return family in {"standard", "viewer"}
+
+
 @dataclass(slots=True, frozen=True)
 class _PlaceholderNodeContext:
     spec: NodeTypeSpec
@@ -339,6 +344,8 @@ class _GraphSceneNodePayloadFactory:
             spec,
             workspace_nodes,
             show_port_labels=show_port_labels,
+            graph_label_pixel_size=graph_label_pixel_size,
+            graph_node_icon_pixel_size=graph_node_icon_pixel_size,
         )
 
     def _resolved_payload_node(
@@ -352,7 +359,7 @@ class _GraphSceneNodePayloadFactory:
         graph_node_icon_pixel_size: int,
     ):
         payload_node = self.payload_node(node, spec)
-        if not _is_standard_surface(spec):
+        if not _uses_dynamic_title_band_surface(spec):
             return payload_node
         if payload_node is node:
             payload_node = node.clone()

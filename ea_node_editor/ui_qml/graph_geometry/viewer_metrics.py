@@ -5,12 +5,17 @@ from typing import Any
 
 from ea_node_editor.graph.model import NodeInstance
 from ea_node_editor.nodes.types import NodeTypeSpec
+from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE
 
-from .standard_metrics import _standard_surface_min_width_contract, standard_inline_body_height
+from .standard_metrics import (
+    _standard_surface_min_width_contract,
+    standard_body_top,
+    standard_header_height,
+    standard_inline_body_height,
+)
 from .surface_contract import (
     STANDARD_COLLAPSED_HEIGHT,
     STANDARD_COLLAPSED_WIDTH,
-    STANDARD_HEADER_HEIGHT,
     STANDARD_HEADER_TOP_MARGIN,
     STANDARD_PORT_CENTER_OFFSET,
     STANDARD_PORT_DOT_RADIUS,
@@ -24,7 +29,6 @@ from .surface_contract import (
     VIEWER_BODY_BOTTOM_PADDING,
     VIEWER_BODY_LEFT_MARGIN,
     VIEWER_BODY_RIGHT_MARGIN,
-    VIEWER_BODY_TOP,
     VIEWER_DEFAULT_BODY_HEIGHT,
     VIEWER_DEFAULT_WIDTH,
     VIEWER_MIN_BODY_HEIGHT,
@@ -43,18 +47,31 @@ def _viewer_surface_metrics(
     workspace_nodes: Mapping[str, NodeInstance] | None = None,
     *,
     show_port_labels: bool = True,
+    graph_label_pixel_size: object = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
+    graph_node_icon_pixel_size: object | None = None,
 ) -> GraphNodeSurfaceMetrics:
     port_count = _visible_port_count(node, spec, workspace_nodes)
-    inline_body_height = standard_inline_body_height(spec)
+    header_height = standard_header_height(
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+    )
+    body_top = standard_body_top(
+        graph_label_pixel_size=graph_label_pixel_size,
+        graph_node_icon_pixel_size=graph_node_icon_pixel_size,
+    )
+    inline_body_height = standard_inline_body_height(
+        spec,
+        graph_label_pixel_size=graph_label_pixel_size,
+    )
     default_body_height = max(VIEWER_DEFAULT_BODY_HEIGHT, inline_body_height)
     min_body_height = max(VIEWER_MIN_BODY_HEIGHT, inline_body_height)
-    default_height = VIEWER_BODY_TOP + default_body_height + port_count * STANDARD_PORT_HEIGHT + VIEWER_BODY_BOTTOM_PADDING
+    default_height = body_top + default_body_height + port_count * STANDARD_PORT_HEIGHT + VIEWER_BODY_BOTTOM_PADDING
     width_contract = _standard_surface_min_width_contract(node, spec, workspace_nodes)
     min_width = max(
         VIEWER_MIN_WIDTH,
         width_contract.min_width_with_labels if show_port_labels else width_contract.min_width_without_labels,
     )
-    min_height = VIEWER_BODY_TOP + min_body_height + port_count * STANDARD_PORT_HEIGHT + VIEWER_BODY_BOTTOM_PADDING
+    min_height = body_top + min_body_height + port_count * STANDARD_PORT_HEIGHT + VIEWER_BODY_BOTTOM_PADDING
     _active_width, active_height = _resolved_dimensions(
         node,
         default_width=VIEWER_DEFAULT_WIDTH,
@@ -62,7 +79,7 @@ def _viewer_surface_metrics(
     )
     body_height = max(
         default_body_height,
-        active_height - VIEWER_BODY_TOP - port_count * STANDARD_PORT_HEIGHT - VIEWER_BODY_BOTTOM_PADDING,
+        active_height - body_top - port_count * STANDARD_PORT_HEIGHT - VIEWER_BODY_BOTTOM_PADDING,
     )
     return GraphNodeSurfaceMetrics(
         default_width=VIEWER_DEFAULT_WIDTH,
@@ -71,18 +88,18 @@ def _viewer_surface_metrics(
         min_height=min_height,
         collapsed_width=STANDARD_COLLAPSED_WIDTH,
         collapsed_height=STANDARD_COLLAPSED_HEIGHT,
-        header_height=STANDARD_HEADER_HEIGHT,
+        header_height=header_height,
         header_top_margin=STANDARD_HEADER_TOP_MARGIN,
-        body_top=VIEWER_BODY_TOP,
+        body_top=body_top,
         body_height=body_height,
-        port_top=VIEWER_BODY_TOP + body_height,
+        port_top=body_top + body_height,
         port_height=STANDARD_PORT_HEIGHT,
         port_center_offset=STANDARD_PORT_CENTER_OFFSET,
         port_side_margin=STANDARD_PORT_SIDE_MARGIN,
         port_dot_radius=STANDARD_PORT_DOT_RADIUS,
         resize_handle_size=STANDARD_RESIZE_HANDLE_SIZE,
         title_top=STANDARD_HEADER_TOP_MARGIN,
-        title_height=STANDARD_HEADER_HEIGHT,
+        title_height=header_height,
         title_left_margin=STANDARD_TITLE_LEFT_MARGIN,
         title_right_margin=VIEWER_TITLE_RIGHT_MARGIN,
         title_centered=False,

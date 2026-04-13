@@ -9,8 +9,10 @@ import unittest
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from ea_node_editor.graph.model import GraphModel
+from ea_node_editor.graph.model import GraphModel, NodeInstance
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.nodes.registry import NodeRegistry
+from ea_node_editor.nodes.types import NodeRenderQualitySpec, NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
 from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
@@ -27,6 +29,37 @@ from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
 from tests.graph_surface.environment import GraphSurfaceInputContractTestBase
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _ViewerSurfacePlugin:
+    def __init__(self, spec: NodeTypeSpec) -> None:
+        self._spec = spec
+
+    def spec(self) -> NodeTypeSpec:
+        return self._spec
+
+    def execute(self, _ctx) -> NodeResult:  # noqa: ANN001
+        return NodeResult()
+
+
+def _viewer_surface_spec() -> NodeTypeSpec:
+    return NodeTypeSpec(
+        type_id="tests.viewer_surface_input_controls",
+        display_name="Viewer Controls",
+        category_path=("Tests",),
+        icon="",
+        ports=(
+            PortSpec("field", "in", "data", "dpf_field"),
+            PortSpec("session", "out", "data", "dpf_view_session"),
+        ),
+        properties=(),
+        surface_family="viewer",
+        render_quality=NodeRenderQualitySpec(
+            weight_class="heavy",
+            max_performance_strategy="proxy_surface",
+            supported_quality_tiers=("full", "proxy"),
+        ),
+    )
 
 
 class GraphSurfaceInputControlsTests(unittest.TestCase):
@@ -473,6 +506,12 @@ class GraphSurfaceInputControlsTests(unittest.TestCase):
 
 
 class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
+    def _viewer_registry(self) -> tuple[NodeRegistry, NodeTypeSpec]:
+        spec = _viewer_surface_spec()
+        registry = NodeRegistry()
+        registry.register(lambda: _ViewerSurfacePlugin(spec))
+        return registry, spec
+
     def test_standard_inline_surface_metrics_follow_graph_label_size(self) -> None:
         registry = build_default_registry()
         spec = registry.get_spec("core.logger")
@@ -527,6 +566,55 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(large_icon_metrics.default_height - large_metrics.default_height, 30.0)
         self.assertEqual(large_icon_port_point[1] - baseline_port_point[1], 30.0)
 
+    def test_viewer_surface_metrics_follow_graph_title_icon_size(self) -> None:
+        spec = _viewer_surface_spec()
+        node = NodeInstance(
+            node_id="node_viewer_surface_input_controls",
+            type_id=spec.type_id,
+            title="Viewer Controls",
+            x=32.0,
+            y=48.0,
+        )
+
+        default_metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+        )
+        large_icon_metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+        baseline_port_point = surface_port_local_point(
+            node,
+            spec,
+            "field",
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+        )
+        large_icon_port_point = surface_port_local_point(
+            node,
+            spec,
+            "field",
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+
+        self.assertEqual(default_metrics.header_height, 24.0)
+        self.assertEqual(default_metrics.body_top, 30.0)
+        self.assertEqual(large_icon_metrics.header_height, 54.0)
+        self.assertEqual(large_icon_metrics.title_height, 54.0)
+        self.assertEqual(large_icon_metrics.body_top - default_metrics.body_top, 30.0)
+        self.assertEqual(large_icon_metrics.port_top - default_metrics.port_top, 30.0)
+        self.assertEqual(large_icon_metrics.default_height - default_metrics.default_height, 30.0)
+        self.assertEqual(large_icon_metrics.body_height, default_metrics.body_height)
+        self.assertEqual(large_icon_port_point[1] - baseline_port_point[1], 30.0)
+
     def test_scene_payload_builder_applies_title_icon_size_to_standard_nodes(self) -> None:
         class _ThemeSource:
             graphics_graph_label_pixel_size = 16
@@ -562,6 +650,45 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
         self.assertGreater(payload["height"], 50.0)
+
+    def test_scene_payload_builder_applies_title_icon_size_to_viewer_nodes(self) -> None:
+        class _ThemeSource:
+            graphics_graph_label_pixel_size = 16
+            graphics_node_title_icon_pixel_size = 50
+
+        class _ThemeBridge:
+            theme = "stitch_dark"
+
+            def __init__(self, parent: object) -> None:
+                self._parent = parent
+
+            def parent(self) -> object:
+                return self._parent
+
+        registry, spec = self._viewer_registry()
+        model = GraphModel()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(workspace_id, spec.type_id, spec.display_name, 32.0, 48.0)
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, backdrop_nodes_payload, _minimap_nodes_payload, _edges_payload = builder.rebuild_partitioned_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=_ThemeBridge(_ThemeSource()),
+        )
+
+        self.assertEqual(len(backdrop_nodes_payload), 0)
+        self.assertEqual(len(nodes_payload), 1)
+        payload = nodes_payload[0]
+        self.assertEqual(payload["surface_family"], "viewer")
+        self.assertEqual(payload["surface_metrics"]["header_height"], 54.0)
+        self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
+        self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["y"], 60.0)
+        self.assertEqual(payload["viewer_surface"]["live_rect"]["height"], 176.0)
+        self.assertEqual(payload["height"], 266.0)
 
     def test_scene_payload_builder_reads_title_icon_size_from_graph_canvas_presenter(self) -> None:
         class _SearchScopeState:
@@ -640,6 +767,43 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["header_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
+
+    def test_viewer_surface_size_clamps_stale_custom_height_when_header_grows(self) -> None:
+        spec = _viewer_surface_spec()
+        node = NodeInstance(
+            node_id="node_viewer_surface_input_controls",
+            type_id=spec.type_id,
+            title="Viewer Controls",
+            x=32.0,
+            y=48.0,
+        )
+
+        baseline_height = resolved_node_surface_size(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+        )[1]
+        node.custom_height = float(baseline_height)
+
+        grown_metrics = node_surface_metrics(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+        grown_size = resolved_node_surface_size(
+            node,
+            spec,
+            {node.node_id: node},
+            graph_label_pixel_size=16,
+            graph_node_icon_pixel_size=50,
+        )
+
+        self.assertGreater(grown_metrics.default_height, baseline_height)
+        self.assertLess(grown_metrics.min_height, grown_metrics.default_height)
+        self.assertEqual(grown_size[1], grown_metrics.default_height)
 
     def test_standard_surface_size_clamps_stale_custom_height_when_header_grows(self) -> None:
         registry = build_default_registry()

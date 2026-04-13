@@ -32,7 +32,7 @@ def _viewer_surface_spec() -> NodeTypeSpec:
     return NodeTypeSpec(
         type_id="tests.viewer_surface_contract",
         display_name="Viewer Contract",
-        category="Tests",
+        category_path=("Tests",),
         icon="",
         ports=(
             PortSpec("fields", "in", "data", "dpf_field"),
