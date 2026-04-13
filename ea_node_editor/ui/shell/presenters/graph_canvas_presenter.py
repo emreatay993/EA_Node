@@ -53,6 +53,14 @@ class GraphCanvasPresenter(QObject):
         return int(self._host.workspace_ui_state.graph_label_pixel_size)
 
     @property
+    def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
+        return self._host.workspace_ui_state.graph_node_icon_pixel_size_override
+
+    @property
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        return int(self._host.workspace_ui_state.node_title_icon_pixel_size)
+
+    @property
     def graphics_show_port_labels(self) -> bool: return bool(self._host.workspace_ui_state.show_port_labels)
 
     @property

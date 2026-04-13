@@ -11,6 +11,8 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui.shell.presenters.graph_canvas_presenter import GraphCanvasPresenter
+from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 from ea_node_editor.ui_qml.graph_scene_payload_builder import GraphScenePayloadBuilder
 from ea_node_editor.ui_qml.graph_geometry.standard_metrics import (
@@ -559,6 +561,84 @@ class GraphSurfaceInlineMetricTypographyTests(unittest.TestCase):
         self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
         self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
         self.assertGreater(payload["height"], 50.0)
+
+    def test_scene_payload_builder_reads_title_icon_size_from_graph_canvas_presenter(self) -> None:
+        class _SearchScopeState:
+            graphics_minimap_expanded = True
+            snap_to_grid_enabled = False
+
+        class _SearchScopeController:
+            def set_snap_to_grid_enabled(self, enabled: bool) -> None:
+                self.snap_to_grid_enabled = bool(enabled)
+
+            def set_graphics_minimap_expanded(self, expanded: bool) -> None:
+                self.graphics_minimap_expanded = bool(expanded)
+
+            def navigate_scope(self, callback):
+                return callback()
+
+        class _Host(QObject):
+            graphics_preferences_changed = pyqtSignal()
+            snap_to_grid_changed = pyqtSignal()
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.workspace_ui_state = build_default_shell_workspace_ui_state(
+                    {
+                        "typography": {
+                            "graph_label_pixel_size": 16,
+                            "graph_node_icon_pixel_size_override": 50,
+                        }
+                    }
+                )
+                self.search_scope_state = _SearchScopeState()
+                self.search_scope_controller = _SearchScopeController()
+                self.app_preferences_controller = object()
+                self.scene = object()
+                self.workspace_library_controller = object()
+                self.graph_canvas_presenter = GraphCanvasPresenter(
+                    self,
+                    workspace_presenter=object(),
+                    library_presenter=object(),
+                    inspector_presenter=object(),
+                )
+
+            def show_graph_hint(self, message: str, timeout_ms: int = 3600) -> None:
+                del message, timeout_ms
+
+            def clear_graph_hint(self) -> None:
+                return
+
+        class _ThemeBridge:
+            theme = "stitch_dark"
+
+            def __init__(self, parent: object) -> None:
+                self._parent = parent
+
+            def parent(self) -> object:
+                return self._parent
+
+        host = _Host()
+        model = GraphModel()
+        registry = build_default_registry()
+        workspace_id = model.active_workspace.workspace_id
+        model.add_node(workspace_id, "core.logger", "Logger", 32.0, 48.0)
+
+        builder = GraphScenePayloadBuilder()
+        nodes_payload, _backdrop_nodes_payload, _minimap_nodes_payload, _edges_payload = builder.rebuild_partitioned_models(
+            model=model,
+            registry=registry,
+            workspace_id=workspace_id,
+            scope_path=(),
+            graph_theme_bridge=_ThemeBridge(host),
+        )
+
+        self.assertEqual(len(nodes_payload), 1)
+        payload = nodes_payload[0]
+        self.assertEqual(host.graph_canvas_presenter.graphics_node_title_icon_pixel_size, 50)
+        self.assertEqual(payload["surface_metrics"]["header_height"], 54.0)
+        self.assertEqual(payload["surface_metrics"]["title_height"], 54.0)
+        self.assertEqual(payload["surface_metrics"]["body_top"], 60.0)
 
     def test_graph_scene_bridge_rebuilds_standard_node_metrics_when_icon_size_changes(self) -> None:
         class _SceneHost(QObject):
