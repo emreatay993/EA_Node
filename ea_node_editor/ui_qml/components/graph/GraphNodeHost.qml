@@ -27,6 +27,9 @@ Item {
     property int graphLabelPixelSize: 10
     property string surfaceFamilyOverride: ""
     property string surfaceVariantOverride: ""
+    readonly property bool highQualityRendering: card.canvasItem
+        ? Boolean(card.canvasItem.highQualityRendering)
+        : true
     readonly property int effectiveGraphLabelPixelSize: {
         var numeric = NaN;
         if (card.canvasItem && card.canvasItem.graphLabelPixelSize !== undefined)

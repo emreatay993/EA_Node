@@ -314,6 +314,64 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_title_icon_filtering_follows_canvas_render_quality(self) -> None:
+        self._run_qml_probe(
+            "title-icon-filtering-follows-canvas-render-quality",
+            """
+            from pathlib import Path
+
+            def normalized_source(value):
+                if hasattr(value, "toString"):
+                    return str(value.toString())
+                return str(value or "")
+
+            icon_source = (Path.cwd() / "ea_node_editor" / "assets" / "app_icon" / "corex_app_minimal.svg").as_uri()
+
+            canvas = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_graph_label_pixel_size": 16,
+                        "graphics_graph_node_icon_pixel_size_override": 12,
+                        "graphics_node_title_icon_pixel_size": 12,
+                    },
+                    "width": 1280.0,
+                    "height": 720.0,
+                },
+            )
+            payload = node_payload()
+            payload["title"] = "Archive Session"
+            payload["surface_metrics"]["title_centered"] = True
+            payload["icon_source"] = icon_source
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "canvasItem": canvas,
+                },
+            )
+            title_icon = host.findChild(QObject, "graphNodeTitleIcon")
+
+            assert title_icon is not None
+            assert normalized_source(title_icon.property("source")) == icon_source
+            assert bool(canvas.property("highQualityRendering"))
+            assert bool(host.property("highQualityRendering"))
+            assert bool(title_icon.property("smooth"))
+            assert bool(title_icon.property("mipmap"))
+
+            canvas.beginViewportInteraction()
+            canvas.finishViewportInteractionSoon()
+            app.processEvents()
+
+            assert bool(canvas.property("interactionActive"))
+            assert not bool(canvas.property("highQualityRendering"))
+            assert not bool(host.property("highQualityRendering"))
+            assert not bool(title_icon.property("smooth"))
+            assert not bool(title_icon.property("mipmap"))
+            """,
+        )
+
     def test_title_icon_large_override_expands_title_row_and_stays_within_bounds(self) -> None:
         self._run_qml_probe(
             "title-icon-large-override-header-bounds",

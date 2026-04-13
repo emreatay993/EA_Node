@@ -60,6 +60,9 @@ Item {
         ? String(root.host.nodeData.title || "")
         : ""
     readonly property var graphSharedTypography: root.host ? root.host.graphSharedTypography : null
+    readonly property bool highQualityRendering: root.host
+        ? root.host.highQualityRendering
+        : true
     readonly property bool usesSharedTitleTypography: root.isCommentBackdropNode || !(root.host && root.host.isPassiveNode)
     readonly property string displayTitle: {
         var title = String(root.currentTitle || "");
@@ -219,8 +222,8 @@ Item {
             width: root.nodeTitleIconRenderSize
             height: root.nodeTitleIconRenderSize
             fillMode: Image.PreserveAspectFit
-            smooth: true
-            mipmap: true
+            smooth: root.highQualityRendering
+            mipmap: root.highQualityRendering
             sourceSize.width: root.nodeTitleIconRenderSize
             sourceSize.height: root.nodeTitleIconRenderSize
         }
@@ -237,8 +240,8 @@ Item {
             width: root.commentTitleIconRenderSize
             height: root.commentTitleIconRenderSize
             fillMode: Image.PreserveAspectFit
-            smooth: true
-            mipmap: true
+            smooth: root.highQualityRendering
+            mipmap: root.highQualityRendering
             sourceSize.width: root.commentTitleIconRenderSize
             sourceSize.height: root.commentTitleIconRenderSize
         }
