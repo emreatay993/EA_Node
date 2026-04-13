@@ -415,6 +415,95 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
         finally:
             dialog.close()
 
+    def test_graph_node_icon_size_dialog_defaults_to_automatic_graph_label_size(self) -> None:
+        dialog = GraphicsSettingsDialog()
+        try:
+            self.assertEqual(
+                dialog.graph_node_icon_size_override_check.objectName(),
+                "graphicsSettingsGraphNodeIconSizeOverrideCheck",
+            )
+            self.assertEqual(
+                dialog.graph_node_icon_pixel_size_spin.objectName(),
+                "graphicsSettingsGraphNodeIconPixelSizeOverrideSpin",
+            )
+            self.assertFalse(dialog.graph_node_icon_size_override_check.isChecked())
+            self.assertFalse(dialog.graph_node_icon_pixel_size_spin.isEnabled())
+            self.assertEqual(dialog.graph_node_icon_pixel_size_spin.minimum(), 8)
+            self.assertEqual(dialog.graph_node_icon_pixel_size_spin.maximum(), 18)
+            self.assertEqual(dialog.graph_node_icon_pixel_size_spin.value(), 10)
+            self.assertIsNone(dialog.values()["typography"]["graph_node_icon_pixel_size_override"])
+        finally:
+            dialog.close()
+
+    def test_graph_node_icon_size_dialog_roundtrips_explicit_override(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "typography": {
+                    "graph_label_pixel_size": 14,
+                    "graph_node_icon_pixel_size_override": 17,
+                }
+            }
+        )
+        try:
+            self.assertTrue(dialog.graph_node_icon_size_override_check.isChecked())
+            self.assertTrue(dialog.graph_node_icon_pixel_size_spin.isEnabled())
+            self.assertEqual(dialog.graph_label_pixel_size_spin.value(), 14)
+            self.assertEqual(dialog.graph_node_icon_pixel_size_spin.value(), 17)
+
+            dialog.graph_node_icon_pixel_size_spin.setValue(15)
+
+            values = dialog.values()
+            self.assertEqual(values["typography"]["graph_label_pixel_size"], 14)
+            self.assertEqual(values["typography"]["graph_node_icon_pixel_size_override"], 15)
+        finally:
+            dialog.close()
+
+    def test_graph_node_icon_size_dialog_can_disable_override_without_changing_label_size(self) -> None:
+        dialog = GraphicsSettingsDialog(
+            initial_settings={
+                "typography": {
+                    "graph_label_pixel_size": 16,
+                    "graph_node_icon_pixel_size_override": 12,
+                }
+            }
+        )
+        try:
+            dialog.graph_node_icon_size_override_check.setChecked(False)
+
+            values = dialog.values()
+            self.assertFalse(dialog.graph_node_icon_pixel_size_spin.isEnabled())
+            self.assertEqual(values["typography"]["graph_label_pixel_size"], 16)
+            self.assertIsNone(values["typography"]["graph_node_icon_pixel_size_override"])
+        finally:
+            dialog.close()
+
+    def test_graph_node_icon_size_dialog_normalizes_invalid_and_clamped_initial_settings(self) -> None:
+        cases = (
+            ("boolean", True, False, 13, None),
+            ("low", 2, True, 8, 8),
+            ("high", 42, True, 18, 18),
+        )
+
+        for label, override, checked, spin_value, expected_override in cases:
+            with self.subTest(case=label):
+                dialog = GraphicsSettingsDialog(
+                    initial_settings={
+                        "typography": {
+                            "graph_label_pixel_size": 13,
+                            "graph_node_icon_pixel_size_override": override,
+                        }
+                    }
+                )
+                try:
+                    self.assertEqual(dialog.graph_node_icon_size_override_check.isChecked(), checked)
+                    self.assertEqual(dialog.graph_node_icon_pixel_size_spin.value(), spin_value)
+                    self.assertEqual(
+                        dialog.values()["typography"]["graph_node_icon_pixel_size_override"],
+                        expected_override,
+                    )
+                finally:
+                    dialog.close()
+
     def test_graph_typography_dialog_normalizes_missing_and_invalid_payloads(self) -> None:
         cases = (
             ("missing-block", {}, 10),

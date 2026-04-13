@@ -7,8 +7,11 @@ from typing import Any
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from ea_node_editor.app_preferences import (
+    effective_graph_node_icon_pixel_size,
     normalize_edge_crossing_style,
     normalize_expand_collision_avoidance_settings,
+    normalize_graph_label_pixel_size,
+    normalize_graph_node_icon_pixel_size_override,
     normalize_graphics_performance_mode,
     normalize_grid_overlay_style,
 )
@@ -20,7 +23,7 @@ from ea_node_editor.ui.shell.run_flow import (
 from ea_node_editor.ui.graph_theme import resolve_graph_theme_id, serialize_custom_graph_themes
 
 from .contracts import _ShellWorkspacePresenterHostProtocol, _presenter_parent
-from .state import ShellWorkspaceUiState, _normalize_graph_label_pixel_size
+from .state import ShellWorkspaceUiState
 
 
 class ShellWorkspacePresenter(QObject):
@@ -67,6 +70,14 @@ class ShellWorkspacePresenter(QObject):
 
     @property
     def graphics_graph_label_pixel_size(self) -> int: return int(self._ui_state.graph_label_pixel_size)
+
+    @property
+    def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
+        return self._ui_state.graph_node_icon_pixel_size_override
+
+    @property
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        return int(self._ui_state.node_title_icon_pixel_size)
 
     @property
     def active_theme_id(self) -> str: return str(self._ui_state.active_theme_id)
@@ -207,9 +218,16 @@ class ShellWorkspacePresenter(QObject):
             canvas.get("edge_crossing_style", self._ui_state.edge_crossing_style),
             self._ui_state.edge_crossing_style,
         )
-        graph_label_pixel_size = _normalize_graph_label_pixel_size(
+        graph_label_pixel_size = normalize_graph_label_pixel_size(
             typography.get("graph_label_pixel_size", self._ui_state.graph_label_pixel_size),
             self._ui_state.graph_label_pixel_size,
+        )
+        graph_node_icon_pixel_size_override = normalize_graph_node_icon_pixel_size_override(
+            typography.get("graph_node_icon_pixel_size_override", self._ui_state.graph_node_icon_pixel_size_override)
+        )
+        node_title_icon_pixel_size = effective_graph_node_icon_pixel_size(
+            graph_label_pixel_size,
+            graph_node_icon_pixel_size_override,
         )
         show_minimap = bool(canvas.get("show_minimap", self._ui_state.show_minimap))
         show_port_labels = bool(canvas.get("show_port_labels", self._ui_state.show_port_labels))
@@ -267,6 +285,12 @@ class ShellWorkspacePresenter(QObject):
             changed = True
         if self._ui_state.graph_label_pixel_size != graph_label_pixel_size:
             self._ui_state.graph_label_pixel_size = graph_label_pixel_size
+            changed = True
+        if self._ui_state.graph_node_icon_pixel_size_override != graph_node_icon_pixel_size_override:
+            self._ui_state.graph_node_icon_pixel_size_override = graph_node_icon_pixel_size_override
+            changed = True
+        if self._ui_state.node_title_icon_pixel_size != node_title_icon_pixel_size:
+            self._ui_state.node_title_icon_pixel_size = node_title_icon_pixel_size
             changed = True
         if self._ui_state.show_minimap != show_minimap:
             self._ui_state.show_minimap = show_minimap
@@ -339,6 +363,7 @@ class ShellWorkspacePresenter(QObject):
             },
             "typography": {
                 "graph_label_pixel_size": int(self._ui_state.graph_label_pixel_size),
+                "graph_node_icon_pixel_size_override": self._ui_state.graph_node_icon_pixel_size_override,
             },
             "graph_theme": {
                 "follow_shell_theme": bool(follow_shell_theme),

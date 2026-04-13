@@ -217,6 +217,16 @@ class ShellWindow(QMainWindow):
         fget=state_helpers._qt_graphics_graph_label_pixel_size,
         notify=graphics_preferences_changed,
     )
+    graphics_graph_node_icon_pixel_size_override = pyqtProperty(
+        "QVariant",
+        fget=state_helpers._qt_graphics_graph_node_icon_pixel_size_override,
+        notify=graphics_preferences_changed,
+    )
+    graphics_node_title_icon_pixel_size = pyqtProperty(
+        int,
+        fget=state_helpers._qt_graphics_node_title_icon_pixel_size,
+        notify=graphics_preferences_changed,
+    )
     graphics_show_minimap = pyqtProperty(
         bool,
         fget=state_helpers._qt_graphics_show_minimap,

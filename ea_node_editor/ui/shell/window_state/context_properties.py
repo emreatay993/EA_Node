@@ -281,6 +281,14 @@ def _qt_graphics_graph_label_pixel_size(self: "ShellWindow") -> int:
     return self.graph_canvas_presenter.graphics_graph_label_pixel_size
 
 
+def _qt_graphics_graph_node_icon_pixel_size_override(self: "ShellWindow") -> int | None:
+    return self.shell_workspace_presenter.graphics_graph_node_icon_pixel_size_override
+
+
+def _qt_graphics_node_title_icon_pixel_size(self: "ShellWindow") -> int:
+    return self.shell_workspace_presenter.graphics_node_title_icon_pixel_size
+
+
 def _qt_graphics_show_minimap(self: "ShellWindow") -> bool:
     return self.graph_canvas_presenter.graphics_show_minimap
 
