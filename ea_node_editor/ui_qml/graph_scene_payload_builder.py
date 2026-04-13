@@ -34,6 +34,7 @@ from ea_node_editor.nodes.builtins.ansys_dpf_catalog import (
     load_ansys_dpf_plugin_descriptors,
 )
 from ea_node_editor.nodes.builtins.subnode import is_subnode_shell_type
+from ea_node_editor.nodes.plugin_contracts import PluginProvenance
 from ea_node_editor.nodes.registry import NodeRegistry
 from ea_node_editor.nodes.types import NodeTypeSpec, PortSpec
 from ea_node_editor.settings import (
@@ -57,6 +58,7 @@ from ea_node_editor.ui_qml.graph_surface_metrics import (
     node_surface_metrics as default_node_surface_metrics,
     viewer_surface_contract_payload,
 )
+from ea_node_editor.ui_qml.node_title_icon_sources import title_icon_source_for_node_payload
 
 if TYPE_CHECKING:
     from ea_node_editor.ui_qml.graph_theme_bridge import GraphThemeBridge
@@ -357,6 +359,7 @@ class _GraphSceneNodePayloadFactory:
         *,
         node,
         spec: NodeTypeSpec,
+        provenance: PluginProvenance | None,
         workspace: WorkspaceData,
         workspace_nodes: dict[str, Any],
         port_connection_counts: dict[tuple[str, str], int],
@@ -401,6 +404,10 @@ class _GraphSceneNodePayloadFactory:
             "accent": resolve_category_accent(graph_theme, spec.category_path),
             "collapsed": bool(node.collapsed),
             "runtime_behavior": spec.runtime_behavior,
+            "icon_source": title_icon_source_for_node_payload(
+                spec,
+                provenance=provenance,
+            ),
             "surface_family": spec.surface_family,
             "surface_variant": spec.surface_variant,
             "render_quality": spec.render_quality.to_payload(),
@@ -657,7 +664,14 @@ class _GraphSceneBackdropPartitioner:
         for node_id in visible_node_ids:
             node = workspace.nodes[node_id]
             placeholder_context = placeholder_context_by_id.get(node_id)
-            spec = registry.spec_or_none(node.type_id)
+            provenance = None
+            descriptor_or_none = getattr(registry, "descriptor_or_none", None)
+            descriptor = descriptor_or_none(node.type_id) if callable(descriptor_or_none) else None
+            spec = descriptor.spec if descriptor is not None else None
+            if descriptor is not None:
+                provenance = descriptor.provenance
+            if spec is None:
+                spec = registry.spec_or_none(node.type_id)
             if spec is None and placeholder_context is not None:
                 spec = placeholder_context.spec
             if spec is None:
@@ -674,6 +688,7 @@ class _GraphSceneBackdropPartitioner:
             node_payload = self._node_payload_factory.build_node_payload(
                 node=payload_node,
                 spec=spec,
+                provenance=provenance,
                 workspace=workspace,
                 workspace_nodes=workspace_nodes,
                 port_connection_counts=port_connection_counts,
