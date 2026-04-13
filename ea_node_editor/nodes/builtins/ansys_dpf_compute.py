@@ -82,7 +82,7 @@ from ea_node_editor.nodes.node_specs import (
     type_id=DPF_RESULT_FILE_NODE_TYPE_ID,
     display_name="DPF Result File",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/database.svg",
+    icon="dpf/ansys.svg",
     description="Normalizes a Mechanical result-file path and returns a worker-local DPF handle.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -114,7 +114,7 @@ class DpfResultFileNodePlugin:
     type_id=DPF_MODEL_NODE_TYPE_ID,
     display_name="DPF Model",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/cube.svg",
+    icon="dpf/ansys.svg",
     description="Loads a DPF model from a Mechanical result-file handle or path.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -145,7 +145,7 @@ class DpfModelNodePlugin:
     type_id=DPF_MESH_SCOPING_NODE_TYPE_ID,
     display_name="DPF Mesh Scoping",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/filter.svg",
+    icon="dpf/ansys.svg",
     description="Builds a worker-local DPF mesh scoping from named selections or raw mesh ids.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -258,7 +258,7 @@ class DpfMeshScopingNodePlugin:
     type_id=DPF_TIME_SCOPING_NODE_TYPE_ID,
     display_name="DPF Time Scoping",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/clock.svg",
+    icon="dpf/ansys.svg",
     description="Builds a worker-local DPF time scoping from set ids or explicit time values.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -314,7 +314,7 @@ class DpfTimeScopingNodePlugin:
     type_id=DPF_RESULT_FIELD_NODE_TYPE_ID,
     display_name="DPF Result Field",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/query_stats.svg",
+    icon="dpf/ansys.svg",
     description="Extracts a single active-set DPF field from a Mechanical result model.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -403,7 +403,7 @@ class DpfResultFieldNodePlugin:
     type_id=DPF_FIELD_OPS_NODE_TYPE_ID,
     display_name="DPF Field Ops",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/calculate.svg",
+    icon="dpf/ansys.svg",
     description="Applies norm, location conversion, or min/max reductions to a single DPF field.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -509,7 +509,7 @@ class DpfFieldOpsNodePlugin:
     type_id=DPF_MESH_EXTRACT_NODE_TYPE_ID,
     display_name="DPF Mesh Extract",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/hub.svg",
+    icon="dpf/ansys.svg",
     description="Extracts a worker-local DPF mesh from a model, optionally using a mesh scoping.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),
@@ -540,7 +540,7 @@ class DpfMeshExtractNodePlugin:
     type_id=DPF_EXPORT_NODE_TYPE_ID,
     display_name="DPF Export",
     category_path=DPF_COMPUTE_CATEGORY_PATH,
-    icon="dpf/download.svg",
+    icon="dpf/ansys.svg",
     description="Materializes a single DPF field into staged export artifacts and optional in-memory datasets.",
     ports=(
         PortSpec("exec_in", "in", "exec", "exec", required=False),

@@ -171,15 +171,15 @@ _EXPECTED_DPF_SPECS = {
 }
 
 _EXPECTED_DPF_TITLE_ICON_PATHS = {
-    DPF_RESULT_FILE_NODE_TYPE_ID: "dpf/database.svg",
-    DPF_MODEL_NODE_TYPE_ID: "dpf/cube.svg",
-    DPF_MESH_SCOPING_NODE_TYPE_ID: "dpf/filter.svg",
-    DPF_TIME_SCOPING_NODE_TYPE_ID: "dpf/clock.svg",
-    DPF_RESULT_FIELD_NODE_TYPE_ID: "dpf/query_stats.svg",
-    DPF_FIELD_OPS_NODE_TYPE_ID: "dpf/calculate.svg",
-    DPF_MESH_EXTRACT_NODE_TYPE_ID: "dpf/hub.svg",
-    DPF_EXPORT_NODE_TYPE_ID: "dpf/download.svg",
-    DPF_VIEWER_NODE_TYPE_ID: "dpf/monitor.svg",
+    DPF_RESULT_FILE_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_MODEL_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_MESH_SCOPING_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_TIME_SCOPING_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_RESULT_FIELD_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_FIELD_OPS_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_MESH_EXTRACT_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_EXPORT_NODE_TYPE_ID: "dpf/ansys.svg",
+    DPF_VIEWER_NODE_TYPE_ID: "dpf/ansys.svg",
 }
 
 

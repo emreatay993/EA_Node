@@ -77,15 +77,15 @@ _MIGRATED_TITLE_ICON_SPECS = {
     SUBNODE_TYPE_ID: (SubnodeNodePlugin, "subnode/account_tree.svg"),
     SUBNODE_INPUT_TYPE_ID: (SubnodeInputNodePlugin, "subnode/input.svg"),
     SUBNODE_OUTPUT_TYPE_ID: (SubnodeOutputNodePlugin, "subnode/output.svg"),
-    "dpf.result_file": (DpfResultFileNodePlugin, "dpf/database.svg"),
-    "dpf.model": (DpfModelNodePlugin, "dpf/cube.svg"),
-    "dpf.scoping.mesh": (DpfMeshScopingNodePlugin, "dpf/filter.svg"),
-    "dpf.scoping.time": (DpfTimeScopingNodePlugin, "dpf/clock.svg"),
-    "dpf.result_field": (DpfResultFieldNodePlugin, "dpf/query_stats.svg"),
-    "dpf.field_ops": (DpfFieldOpsNodePlugin, "dpf/calculate.svg"),
-    "dpf.mesh_extract": (DpfMeshExtractNodePlugin, "dpf/hub.svg"),
-    "dpf.export": (DpfExportNodePlugin, "dpf/download.svg"),
-    "dpf.viewer": (DpfViewerNodePlugin, "dpf/monitor.svg"),
+    "dpf.result_file": (DpfResultFileNodePlugin, "dpf/ansys.svg"),
+    "dpf.model": (DpfModelNodePlugin, "dpf/ansys.svg"),
+    "dpf.scoping.mesh": (DpfMeshScopingNodePlugin, "dpf/ansys.svg"),
+    "dpf.scoping.time": (DpfTimeScopingNodePlugin, "dpf/ansys.svg"),
+    "dpf.result_field": (DpfResultFieldNodePlugin, "dpf/ansys.svg"),
+    "dpf.field_ops": (DpfFieldOpsNodePlugin, "dpf/ansys.svg"),
+    "dpf.mesh_extract": (DpfMeshExtractNodePlugin, "dpf/ansys.svg"),
+    "dpf.export": (DpfExportNodePlugin, "dpf/ansys.svg"),
+    "dpf.viewer": (DpfViewerNodePlugin, "dpf/ansys.svg"),
 }
 
 _LEGACY_SYMBOLIC_ICON_NAMES = frozenset(
@@ -128,7 +128,6 @@ _EXPECTED_PACKAGE_DATA_PATTERNS = {
     "assets/node_title_icons/**/*.jpeg",
 }
 
-
 class NodeTitleIconAssetTests(unittest.TestCase):
     def test_title_icon_assets_exist_for_all_migrated_non_passive_builtins(self) -> None:
         self.assertEqual(NODE_TITLE_ICON_ASSET_ROOT, PROJECT_ROOT / "ea_node_editor" / "assets" / "node_title_icons")
@@ -157,7 +156,8 @@ class NodeTitleIconAssetTests(unittest.TestCase):
             if asset_path.is_file()
         }
 
-        self.assertEqual(inventory, {expected_path for _factory, expected_path in _MIGRATED_TITLE_ICON_SPECS.values()})
+        expected_inventory = {expected_path for _factory, expected_path in _MIGRATED_TITLE_ICON_SPECS.values()}
+        self.assertEqual(inventory, expected_inventory)
         self.assertTrue(all(Path(relative_path).suffix.casefold() in SUPPORTED_NODE_TITLE_ICON_SUFFIXES for relative_path in inventory))
 
     def test_title_icon_symbolic_icon_names_remain_unrendered_without_local_asset_paths(self) -> None:
