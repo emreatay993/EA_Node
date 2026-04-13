@@ -243,6 +243,34 @@ class RegistryValidationTests(unittest.TestCase):
         self.assertEqual(registry.create("tests.descriptor").spec().type_id, "tests.descriptor")
         self.assertEqual(factory_calls, 1)
 
+    def test_title_icon_contract_keeps_icon_authoring_field_and_descriptor_provenance(self) -> None:
+        registry = NodeRegistry()
+        spec = NodeTypeSpec(
+            type_id="tests.title_icon_descriptor",
+            display_name="Title Icon Descriptor",
+            category_path=("Tests",),
+            icon="icons/title.svg",
+            ports=(PortSpec("value", "out", "data", "any"),),
+            properties=(),
+        )
+        provenance = PluginProvenance(
+            kind="file",
+            source_path=Path("C:/packet/tests/plugin.py"),
+        )
+
+        registry.register_descriptor(
+            PluginDescriptor(
+                spec=spec,
+                factory=_factory(spec),
+                provenance=provenance,
+            )
+        )
+
+        descriptor = registry.get_descriptor(spec.type_id)
+        self.assertEqual(registry.get_spec(spec.type_id).icon, "icons/title.svg")
+        self.assertEqual(descriptor.spec.icon, "icons/title.svg")
+        self.assertEqual(descriptor.provenance, provenance)
+
     def test_nodes_types_is_curated_sdk_surface_and_nodes_package_uses_focused_modules(self) -> None:
         self.assertEqual(node_types.NodeTypeSpec.__module__, "ea_node_editor.nodes.node_specs")
         self.assertEqual(node_types.PortSpec.__module__, "ea_node_editor.nodes.node_specs")
