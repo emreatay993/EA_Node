@@ -5,6 +5,7 @@ import unittest
 from ea_node_editor.graph.effective_ports import effective_ports
 from ea_node_editor.graph.model import GraphModel
 from ea_node_editor.nodes.bootstrap import build_default_registry
+from ea_node_editor.ui_qml.node_title_icon_sources import title_icon_source_for_node_payload
 
 _EXPECTED_CARDINAL_PORTS = (
     ("top", "neutral", True, "top"),
@@ -152,6 +153,14 @@ class PassiveFlowchartCatalogTests(unittest.TestCase):
         )
         self.assertFalse(any(port.key in {"branch_a", "branch_b"} for port in spec.ports))
         self.assertFalse(any(port.key.lower() in {"yes", "no"} for port in spec.ports))
+
+    def test_title_icon_flowchart_specs_keep_symbolic_icon_metadata(self) -> None:
+        registry = build_default_registry()
+
+        for type_id in _EXPECTED_FLOWCHART_SPECS:
+            spec = registry.get_spec(type_id)
+            self.assertFalse(spec.icon.endswith((".svg", ".png", ".jpg", ".jpeg")))
+            self.assertEqual(title_icon_source_for_node_payload(spec), "")
 
 
 if __name__ == "__main__":

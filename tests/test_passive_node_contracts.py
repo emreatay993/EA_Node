@@ -34,6 +34,7 @@ from ea_node_editor.nodes.builtins.passive_planning import (
     PASSIVE_PLANNING_TASK_CARD_TYPE_ID,
 )
 from ea_node_editor.nodes.types import ExecutionContext
+from ea_node_editor.ui_qml.node_title_icon_sources import title_icon_source_for_node_payload
 
 _EXPECTED_CARDINAL_PASSIVE_PORTS = ("top", "right", "bottom", "left")
 
@@ -161,6 +162,18 @@ class PassiveNodeContractsTests(unittest.TestCase):
         self.assertEqual(image_defaults["fit_mode"], "contain")
         self.assertEqual(image_defaults["crop_w"], 1.0)
         self.assertEqual(pdf_defaults["page_number"], 1)
+
+    def test_title_icon_passive_plugins_remain_ineligible(self) -> None:
+        for plugin_cls in (
+            *PASSIVE_FLOWCHART_NODE_PLUGINS,
+            *PASSIVE_PLANNING_NODE_PLUGINS,
+            *PASSIVE_ANNOTATION_NODE_PLUGINS,
+            *PASSIVE_MEDIA_NODE_PLUGINS,
+        ):
+            spec = plugin_cls().spec()
+            self.assertEqual(spec.runtime_behavior, "passive")
+            self.assertTrue(spec.icon)
+            self.assertEqual(title_icon_source_for_node_payload(spec), "")
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ class StartNodePlugin:
             type_id="core.start",
             display_name="Start",
             category_path=("Core",),
-            icon="play_arrow",
+            icon="core/play_arrow.svg",
             description="Entry point for DAG execution.",
             ports=(
                 PortSpec("exec_out", "out", "exec", "exec", exposed=True),
@@ -34,7 +34,7 @@ class EndNodePlugin:
             type_id="core.end",
             display_name="End",
             category_path=("Core",),
-            icon="stop",
+            icon="core/stop.svg",
             description="Terminal node for DAG execution.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=True),
@@ -51,7 +51,7 @@ class EndNodePlugin:
     type_id="core.constant",
     display_name="Constant",
     category_path=("Core",),
-    icon="data_object",
+    icon="core/data_object.svg",
     description="Produces a constant JSON value.",
     ports=(
         out_port("value", kind="data", data_type="any", exposed=True),
@@ -77,7 +77,7 @@ class LoggerNodePlugin:
             type_id="core.logger",
             display_name="Logger",
             category_path=("Core",),
-            icon="article",
+            icon="core/article.svg",
             description="Writes a message into the run log.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=True),
@@ -118,7 +118,7 @@ class PythonScriptNodePlugin:
             type_id="core.python_script",
             display_name="Python Script",
             category_path=("Core",),
-            icon="code",
+            icon="core/code.svg",
             description="Runs custom Python logic in trusted local mode.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=True),
@@ -170,7 +170,7 @@ class OnFailureNodePlugin:
             type_id="core.on_failure",
             display_name="On Failure",
             category_path=("Core",),
-            icon="error_outline",
+            icon="core/error_outline.svg",
             description="Runs when an upstream node fails. Connect the upstream node's 'failed' port to this node.",
             ports=(
                 PortSpec("failed_in", "in", "failed", "any", required=True),
@@ -190,7 +190,7 @@ class OnFailureNodePlugin:
     type_id="core.branch",
     display_name="If / Else Branch",
     category_path=("Core",),
-    icon="call_split",
+    icon="core/call_split.svg",
     description="Routes execution to 'true' or 'false' output based on a condition.",
     ports=(
         in_port("exec_in", kind="exec", data_type="exec"),

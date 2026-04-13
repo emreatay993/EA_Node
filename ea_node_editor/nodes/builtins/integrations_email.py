@@ -18,7 +18,7 @@ class EmailSendNodePlugin:
             type_id="io.email_send",
             display_name="Email Send",
     category_path=("Input / Output",),
-            icon="mail",
+            icon="integrations/mail.svg",
             description="Sends a plaintext email using SMTP.",
             ports=(
                 PortSpec("exec_in", "in", "exec", "exec", required=False),
