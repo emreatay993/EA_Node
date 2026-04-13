@@ -228,10 +228,15 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             defaults["theme"]["theme_id"],
         )
     if isinstance(typography_payload, Mapping):
-        normalized["typography"]["graph_label_pixel_size"] = _normalize_graph_label_pixel_size(
+        graph_label_pixel_size = normalize_graph_label_pixel_size(
             typography_payload.get("graph_label_pixel_size"),
             defaults["typography"]["graph_label_pixel_size"],
         )
+        graph_node_icon_pixel_size_override = normalize_graph_node_icon_pixel_size_override(
+            typography_payload.get("graph_node_icon_pixel_size_override")
+        )
+        normalized["typography"]["graph_label_pixel_size"] = graph_label_pixel_size
+        normalized["typography"]["graph_node_icon_pixel_size_override"] = graph_node_icon_pixel_size_override
     normalized["graph_theme"] = normalize_graph_theme_settings(graph_theme_payload)
     return normalized
 
@@ -323,7 +328,7 @@ def _normalize_int(value: Any, default: int, lo: int, hi: int) -> int:
     return default
 
 
-def _normalize_graph_label_pixel_size(
+def normalize_graph_label_pixel_size(
     value: Any,
     default: int = DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
 ) -> int:
@@ -332,6 +337,26 @@ def _normalize_graph_label_pixel_size(
     if isinstance(value, int):
         return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(value, GRAPH_LABEL_PIXEL_SIZE_MAX))
     return default
+
+
+def normalize_graph_node_icon_pixel_size_override(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return max(GRAPH_LABEL_PIXEL_SIZE_MIN, min(value, GRAPH_LABEL_PIXEL_SIZE_MAX))
+    return None
+
+
+def effective_graph_node_icon_pixel_size(
+    graph_label_pixel_size: Any,
+    graph_node_icon_pixel_size_override: Any,
+) -> int:
+    normalized_override = normalize_graph_node_icon_pixel_size_override(
+        graph_node_icon_pixel_size_override
+    )
+    if normalized_override is not None:
+        return normalized_override
+    return normalize_graph_label_pixel_size(graph_label_pixel_size)
 
 
 def _normalize_theme_id(value: Any, default: str) -> str:
@@ -419,6 +444,9 @@ __all__ = [
     "normalize_app_preferences_document",
     "normalize_edge_crossing_style",
     "normalize_expand_collision_avoidance_settings",
+    "normalize_graph_label_pixel_size",
+    "effective_graph_node_icon_pixel_size",
+    "normalize_graph_node_icon_pixel_size_override",
     "normalize_graph_theme_settings",
     "normalize_grid_overlay_style",
     "normalize_graphics_performance_mode",

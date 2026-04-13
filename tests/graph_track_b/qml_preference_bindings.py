@@ -39,6 +39,7 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         self._graphics_shadow_offset = 4
         self._graphics_performance_mode = "full_fidelity"
         self._graphics_graph_label_pixel_size = 10
+        self._graphics_graph_node_icon_pixel_size_override: int | None = None
         self._graphics_expand_collision_avoidance = dict(
             DEFAULT_GRAPHICS_SETTINGS["interaction"]["expand_collision_avoidance"]
         )
@@ -92,6 +93,15 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         return int(self._graphics_graph_label_pixel_size)
 
     @property
+    def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
+        return self._graphics_graph_node_icon_pixel_size_override
+
+    @property
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        override = self._graphics_graph_node_icon_pixel_size_override
+        return int(self._graphics_graph_label_pixel_size if override is None else override)
+
+    @property
     def graphics_expand_collision_avoidance(self) -> dict[str, object]:
         return dict(self._graphics_expand_collision_avoidance)
 
@@ -100,6 +110,13 @@ class _GraphCanvasTypographyPreferenceBridge(_rendering_suite.QObject):
         if self._graphics_graph_label_pixel_size == normalized:
             return
         self._graphics_graph_label_pixel_size = normalized
+        self.graphics_preferences_changed.emit()
+
+    def set_graphics_graph_node_icon_pixel_size_override_value(self, value: int | None) -> None:
+        normalized = None if value is None else max(8, min(int(value), 18))
+        if self._graphics_graph_node_icon_pixel_size_override == normalized:
+            return
+        self._graphics_graph_node_icon_pixel_size_override = normalized
         self.graphics_preferences_changed.emit()
 
     def set_graphics_expand_collision_avoidance_value(self, value: dict[str, object]) -> None:
@@ -661,6 +678,64 @@ class GraphCanvasQmlPreferenceBindingTests(
             root_bindings.deleteLater()
             self.app.processEvents()
 
+    def test_graph_node_icon_size_qml_bindings_project_effective_size_without_text_role_drift(self) -> None:
+        preference_bridge = _GraphCanvasTypographyPreferenceBridge()
+        state_bridge = GraphCanvasStateBridge(
+            shell_window=preference_bridge,  # type: ignore[arg-type]
+            view_bridge=self.view,
+        )
+        root_bindings = self._create_component(
+            _GRAPH_CANVAS_ROOT_BINDINGS_QML_PATH,
+            {"canvasStateBridge": state_bridge},
+        )
+        typography = self._create_component(
+            _GRAPH_SHARED_TYPOGRAPHY_QML_PATH,
+            {
+                "graphLabelPixelSize": int(root_bindings.property("graphLabelPixelSize")),
+                "graphNodeIconPixelSize": int(root_bindings.property("nodeTitleIconPixelSize")),
+            },
+        )
+
+        try:
+            self.assertEqual(int(root_bindings.property("graphLabelPixelSize")), 10)
+            self.assertIsNone(root_bindings.property("graphNodeIconPixelSizeOverride"))
+            self.assertEqual(int(root_bindings.property("nodeTitleIconPixelSize")), 10)
+            self.assertEqual(int(typography.property("nodeTitleIconPixelSize")), 10)
+            self.assertEqual(int(typography.property("nodeTitlePixelSize")), 12)
+
+            preference_bridge.set_graphics_graph_label_pixel_size_value(16)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: int(root_bindings.property("nodeTitleIconPixelSize")) == 16,
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for automatic node title icon size to follow graph label size.",
+            )
+            typography.setProperty("graphLabelPixelSize", int(root_bindings.property("graphLabelPixelSize")))
+            typography.setProperty("graphNodeIconPixelSize", int(root_bindings.property("nodeTitleIconPixelSize")))
+            self.app.processEvents()
+
+            self.assertEqual(int(typography.property("nodeTitleIconPixelSize")), 16)
+            self.assertEqual(int(typography.property("nodeTitlePixelSize")), 18)
+
+            preference_bridge.set_graphics_graph_node_icon_pixel_size_override_value(12)
+            _rendering_suite.wait_for_condition_or_raise(
+                lambda: int(root_bindings.property("nodeTitleIconPixelSize")) == 12
+                and int(root_bindings.property("graphNodeIconPixelSizeOverride")) == 12,
+                timeout_ms=200,
+                app=self.app,
+                timeout_message="Timed out waiting for explicit node title icon size override projection.",
+            )
+            typography.setProperty("graphNodeIconPixelSize", int(root_bindings.property("nodeTitleIconPixelSize")))
+            self.app.processEvents()
+
+            self.assertEqual(int(typography.property("nodeTitleIconPixelSize")), 12)
+            self.assertEqual(int(typography.property("nodeTitlePixelSize")), 18)
+            self.assertEqual(int(typography.property("portLabelPixelSize")), 16)
+        finally:
+            typography.deleteLater()
+            root_bindings.deleteLater()
+            self.app.processEvents()
+
     def test_graph_typography_qml_contract_scene_refresh_updates_standard_metrics_and_edge_geometry(
         self,
     ) -> None:
@@ -849,6 +924,14 @@ class GraphCanvasQmlPreferenceBindingTests(
             @_rendering_suite.pyqtProperty(int, notify=graphics_preferences_changed)
             def graphics_graph_label_pixel_size(self) -> int:
                 return int(self._preference_bridge.graphics_graph_label_pixel_size)
+
+            @_rendering_suite.pyqtProperty("QVariant", notify=graphics_preferences_changed)
+            def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
+                return self._preference_bridge.graphics_graph_node_icon_pixel_size_override
+
+            @_rendering_suite.pyqtProperty(int, notify=graphics_preferences_changed)
+            def graphics_node_title_icon_pixel_size(self) -> int:
+                return int(self._preference_bridge.graphics_node_title_icon_pixel_size)
 
             @_rendering_suite.pyqtProperty("QVariantList", notify=scene_nodes_changed)
             def nodes_model(self) -> list[dict[str, object]]:

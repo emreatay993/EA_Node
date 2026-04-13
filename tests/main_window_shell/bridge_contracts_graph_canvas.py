@@ -84,6 +84,80 @@ class GraphCanvasBridgeTests(_GraphCanvasBridgeTests):
             },
         )
 
+    def test_graph_node_icon_size_bridge_workspace_presenter_projects_nullable_override_and_effective_size(self) -> None:
+        host = _bridge_support._ShellWorkspacePresenterHostStub()
+        presenter = ShellWorkspacePresenter(host, ui_state=host.workspace_ui_state)
+        seen = {"graphics_preferences_changed": 0}
+        presenter.graphics_preferences_changed.connect(
+            lambda: seen.__setitem__(
+                "graphics_preferences_changed",
+                seen["graphics_preferences_changed"] + 1,
+            )
+        )
+
+        resolved = presenter.apply_graphics_preferences(
+            {
+                "typography": {
+                    "graph_label_pixel_size": 16,
+                    "graph_node_icon_pixel_size_override": None,
+                }
+            },
+        )
+
+        self.assertEqual(resolved["typography"]["graph_label_pixel_size"], 16)
+        self.assertIsNone(resolved["typography"]["graph_node_icon_pixel_size_override"])
+        self.assertEqual(host.workspace_ui_state.node_title_icon_pixel_size, 16)
+        self.assertEqual(presenter.graphics_node_title_icon_pixel_size, 16)
+        self.assertEqual(seen["graphics_preferences_changed"], 1)
+
+        resolved = presenter.apply_graphics_preferences(
+            {
+                "typography": {
+                    "graph_label_pixel_size": 16,
+                    "graph_node_icon_pixel_size_override": 3,
+                }
+            },
+        )
+
+        self.assertEqual(resolved["typography"]["graph_node_icon_pixel_size_override"], 8)
+        self.assertEqual(host.workspace_ui_state.node_title_icon_pixel_size, 8)
+        self.assertEqual(presenter.graphics_graph_node_icon_pixel_size_override, 8)
+        self.assertEqual(presenter.graphics_node_title_icon_pixel_size, 8)
+        self.assertEqual(seen["graphics_preferences_changed"], 2)
+
+    def test_graph_node_icon_size_bridge_state_and_legacy_bridges_share_effective_size_property(self) -> None:
+        host = _bridge_support._GraphCanvasShellHostStub()
+        host.graphics_graph_label_pixel_size = 16
+        host.graphics_graph_node_icon_pixel_size_override = None
+        host.graphics_node_title_icon_pixel_size = 16
+        presenter = _bridge_support._GraphCanvasShellHostStub()
+        presenter.graphics_graph_label_pixel_size = 16
+        scene = _bridge_support._GraphCanvasSceneBridgeStub()
+        view = _bridge_support._GraphCanvasViewBridgeStub()
+        bridge = _bridge_support._build_explicit_graph_canvas_bridge(
+            parent=host,
+            shell_window=host,
+            canvas_source=presenter,
+            host_source=host,
+            scene_bridge=scene,
+            view_bridge=view,
+        )
+        state_bridge = bridge.state_bridge
+
+        self.assertIsNone(state_bridge.graphics_graph_node_icon_pixel_size_override)
+        self.assertIsNone(bridge.graphics_graph_node_icon_pixel_size_override)
+        self.assertEqual(state_bridge.graphics_node_title_icon_pixel_size, 16)
+        self.assertEqual(bridge.graphics_node_title_icon_pixel_size, 16)
+
+        host.graphics_graph_node_icon_pixel_size_override = 13
+        host.graphics_node_title_icon_pixel_size = 13
+        host.graphics_preferences_changed.emit()
+
+        self.assertEqual(state_bridge.graphics_graph_node_icon_pixel_size_override, 13)
+        self.assertEqual(bridge.graphics_graph_node_icon_pixel_size_override, 13)
+        self.assertEqual(state_bridge.graphics_node_title_icon_pixel_size, 13)
+        self.assertEqual(bridge.graphics_node_title_icon_pixel_size, 13)
+
     def test_graph_canvas_command_bridge_routes_comment_peek_to_scene_bridge_layer(self) -> None:
         host = _bridge_support._GraphCanvasShellHostStub()
         scene = _bridge_support._GraphCanvasSceneBridgeStub()

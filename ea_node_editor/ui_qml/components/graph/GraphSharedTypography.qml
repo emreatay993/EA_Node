@@ -5,10 +5,12 @@ QtObject {
     id: root
     objectName: "graphSharedTypography"
     property int graphLabelPixelSize: 10
+    property int graphNodeIconPixelSize: root.graphLabelPixelSize
 
     readonly property int _basePixelSize: _normalizeBasePixelSize(root.graphLabelPixelSize)
 
     readonly property int nodeTitlePixelSize: root._basePixelSize + 2
+    readonly property int nodeTitleIconPixelSize: _normalizeBasePixelSize(root.graphNodeIconPixelSize)
     readonly property int portLabelPixelSize: root._basePixelSize
     readonly property int elapsedFooterPixelSize: root._basePixelSize
     readonly property int inlinePropertyPixelSize: root._basePixelSize
