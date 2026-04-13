@@ -3,6 +3,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from PyQt6.QtCore import QObject, pyqtProperty, pyqtSignal, pyqtSlot
+from ea_node_editor.app_preferences import (
+    effective_graph_node_icon_pixel_size,
+    normalize_graph_node_icon_pixel_size_override,
+)
 from ea_node_editor.settings import DEFAULT_GRAPH_LABEL_PIXEL_SIZE, DEFAULT_GRAPHICS_SETTINGS
 
 if TYPE_CHECKING:
@@ -23,6 +27,8 @@ class _GraphCanvasStateSource(Protocol):
     graphics_grid_style: str
     graphics_edge_crossing_style: str
     graphics_graph_label_pixel_size: int
+    graphics_graph_node_icon_pixel_size_override: int | None
+    graphics_node_title_icon_pixel_size: int
     graphics_show_minimap: bool
     graphics_show_port_labels: bool
     graphics_node_shadow: bool
@@ -214,6 +220,27 @@ class GraphCanvasStateBridge(QObject):
                 "graphics_graph_label_pixel_size",
                 DEFAULT_GRAPH_LABEL_PIXEL_SIZE,
             )
+        )
+
+    @pyqtProperty("QVariant", notify=graphics_preferences_changed)
+    def graphics_graph_node_icon_pixel_size_override(self) -> int | None:
+        value = _source_attr(
+            self._canvas_source,
+            "graphics_graph_node_icon_pixel_size_override",
+            _source_attr(self._shell_window, "graphics_graph_node_icon_pixel_size_override", None),
+        )
+        return normalize_graph_node_icon_pixel_size_override(value)
+
+    @pyqtProperty(int, notify=graphics_preferences_changed)
+    def graphics_node_title_icon_pixel_size(self) -> int:
+        value = _source_attr(
+            self._canvas_source,
+            "graphics_node_title_icon_pixel_size",
+            _source_attr(self._shell_window, "graphics_node_title_icon_pixel_size", None),
+        )
+        return effective_graph_node_icon_pixel_size(
+            self.graphics_graph_label_pixel_size,
+            self.graphics_graph_node_icon_pixel_size_override if value is None else value,
         )
 
     @pyqtProperty(bool, notify=graphics_preferences_changed)

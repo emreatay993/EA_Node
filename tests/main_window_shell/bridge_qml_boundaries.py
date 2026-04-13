@@ -573,6 +573,26 @@ class GraphCanvasQmlBoundaryTests(unittest.TestCase):
                 with self.subTest(path=relative_path, snippet=snippet):
                     self.assertIn(snippet, qml_text)
 
+    def test_graph_node_icon_size_qml_contract_exposes_canvas_binding_and_shared_role_name(self) -> None:
+        expectations = {
+            "ea_node_editor/ui_qml/components/graph_canvas/GraphCanvasRootBindings.qml": (
+                "readonly property var graphNodeIconPixelSizeOverride",
+                "readonly property int nodeTitleIconPixelSize",
+                "graphics_graph_node_icon_pixel_size_override",
+                "graphics_node_title_icon_pixel_size",
+            ),
+            "ea_node_editor/ui_qml/components/graph/GraphSharedTypography.qml": (
+                "property int graphNodeIconPixelSize",
+                "readonly property int nodeTitleIconPixelSize",
+            ),
+        }
+
+        for relative_path, present_snippets in expectations.items():
+            qml_text = (_REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            for snippet in present_snippets:
+                with self.subTest(path=relative_path, snippet=snippet):
+                    self.assertIn(snippet, qml_text)
+
     def test_persistent_node_elapsed_canvas_qml_properties_bind_only_to_state_bridge_execution_contract(
         self,
     ) -> None:
