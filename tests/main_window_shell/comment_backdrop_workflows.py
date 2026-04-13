@@ -260,6 +260,44 @@ class MainWindowShellCommentBackdropWorkflowTests(MainWindowShellTestBase):
         self.app.processEvents()
         self.assertNotIn("Peek Inside", _menu_action_texts(node_context_popup))
 
+    def test_title_icon_collapsed_comment_backdrop_keeps_ui_icon_comment_source(self) -> None:
+        backdrop_id = self._add_backdrop(160.0, 120.0, 380.0, 260.0)
+        self.window.scene.set_node_collapsed(backdrop_id, True)
+        self.app.processEvents()
+
+        title_text = self._graph_node_child(
+            backdrop_id,
+            card_object_name="graphNodeCard",
+            child_object_name="graphNodeTitle",
+        )
+        comment_icon = self._graph_node_child(
+            backdrop_id,
+            card_object_name="graphNodeCard",
+            child_object_name="graphNodeCommentTitleIcon",
+        )
+        title_icon = self._graph_node_child(
+            backdrop_id,
+            card_object_name="graphNodeCard",
+            child_object_name="graphNodeTitleIcon",
+        )
+
+        wait_for_condition_or_raise(
+            lambda: bool(comment_icon.property("visible")),
+            timeout_ms=500,
+            poll_interval_ms=20,
+            app=self.app,
+            timeout_message="Timed out waiting for the collapsed comment-backdrop header icon.",
+        )
+
+        source = comment_icon.property("source")
+        if hasattr(source, "toString"):
+            source = source.toString()
+
+        self.assertEqual(str(title_text.property("text") or ""), "Comment")
+        self.assertTrue(bool(comment_icon.property("visible")))
+        self.assertFalse(bool(title_icon.property("visible")))
+        self.assertTrue(str(source).startswith("image://ui-icons/comment?size=14&color="))
+
     def test_comment_peek_shows_direct_members_only_remains_editable_and_exits(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         workspace = self.window.model.project.workspaces[workspace_id]

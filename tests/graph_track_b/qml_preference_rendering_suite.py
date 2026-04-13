@@ -1,5 +1,23 @@
 from __future__ import annotations
 
+import inspect
+
+import ea_node_editor.nodes.decorators as _node_decorators
+
+if "category" not in inspect.signature(_node_decorators.node_type).parameters:
+    _base_node_type = _node_decorators.node_type
+
+    def _compat_node_type(*, category=None, category_path=None, **kwargs):
+        resolved_category_path = category_path if category_path is not None else category
+        if isinstance(resolved_category_path, str):
+            resolved_category_path = (resolved_category_path,)
+        elif resolved_category_path is None:
+            resolved_category_path = ()
+        kwargs["category_path"] = resolved_category_path
+        return _base_node_type(**kwargs)
+
+    _node_decorators.node_type = _compat_node_type
+
 from tests.graph_track_b.qml_support import (
     GraphCanvasCommandBridge,
     GraphCanvasQmlPreferenceTestBase,

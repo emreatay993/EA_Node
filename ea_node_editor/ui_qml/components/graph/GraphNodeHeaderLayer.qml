@@ -20,9 +20,27 @@ Item {
         : false
     readonly property int commentTitleIconSize: 14
     readonly property int commentTitleIconSpacing: 6
+    readonly property int nodeTitleIconSize: root.graphSharedTypography
+        ? root.graphSharedTypography.nodeTitleIconPixelSize
+        : 10
+    readonly property int nodeTitleIconSpacing: 6
     readonly property real _commentTitleIconReserveWidth: root.commentTitleIconVisible
         ? root.commentTitleIconSize + root.commentTitleIconSpacing
         : 0
+    readonly property string nodeTitleIconSource: root.host && root.host.nodeData
+        ? String(root.host.nodeData.icon_source || "")
+        : ""
+    readonly property bool nodeTitleIconEligible: root.headerTitleVisible
+        && !!root.host
+        && !root.host.isPassiveNode
+        && root.nodeTitleIconSource.length > 0
+    readonly property bool nodeTitleIconVisible: root.nodeTitleIconEligible && !root.isEditing
+    readonly property real _nodeTitleIconReserveWidth: root.nodeTitleIconEligible
+        ? root.nodeTitleIconSize + root.nodeTitleIconSpacing
+        : 0
+    readonly property real _titleLeadingIconReserveWidth: root.commentTitleIconVisible
+        ? root._commentTitleIconReserveWidth
+        : root._nodeTitleIconReserveWidth
     readonly property real _headerBadgeReserveWidth: (root.host && root.host.canEnterScope ? 56 : 0)
         + (root.host && root.host.isFailedNode ? 70 : 0)
     readonly property string currentTitle: root.host && root.host.nodeData
@@ -39,10 +57,33 @@ Item {
     readonly property string commentTitleIconSource: root.commentTitleIconVisible
         ? uiIcons.sourceSized("comment", root.commentTitleIconSize, String(root.host ? root.host.headerTextColor : "#f0f4fb"))
         : ""
+    readonly property real _titleEditorLeftPadding: root.host && root.host._titleCentered
+        ? 6 + (root._titleLeadingIconReserveWidth * 0.5)
+        : 6 + root._titleLeadingIconReserveWidth
+    readonly property real _titleEditorRightPadding: root.host && root.host._titleCentered
+        ? 6 + (root._titleLeadingIconReserveWidth * 0.5)
+        : 6
     readonly property var embeddedInteractiveRects: SurfaceControlGeometry.combineRectLists(
         [titleEditorInteractionRegion.embeddedInteractiveRects, openBadgeInteractionRegion.embeddedInteractiveRects]
     )
     z: 3
+
+    function _centeredTitleTextDisplayStart() {
+        if (!(root.host && root.host._titleCentered))
+            return Number(titleText ? titleText.x : 0);
+        var availableWidth = Math.max(0, Number(titleText ? titleText.width : 0));
+        var displayWidth = Math.min(availableWidth, Math.max(0, Number(titleText ? titleText.contentWidth : 0)));
+        return Number(titleText ? titleText.x : 0) + Math.max(0, (availableWidth - displayWidth) * 0.5);
+    }
+
+    function _titleLeadingIconX(iconWidth, spacing) {
+        if (!(root.host && root.host._titleCentered))
+            return 0;
+        return Math.max(
+            0,
+            root._centeredTitleTextDisplayStart() - Math.max(0, Number(iconWidth)) - Math.max(0, Number(spacing))
+        );
+    }
 
     function _beginTitleEdit() {
         if (!root.sharedHeaderTitleEditable || root.isEditing || !root.host || !root.host.nodeData)
@@ -156,18 +197,27 @@ Item {
         height: root.host ? root.host._titleHeight : 0
 
         Image {
+            id: nodeTitleIcon
+            objectName: "graphNodeTitleIcon"
+            visible: root.nodeTitleIconVisible
+            source: root.nodeTitleIconSource
+            x: root._titleLeadingIconX(width, root.nodeTitleIconSpacing)
+            y: Math.round((titleDisplay.height - height) * 0.5)
+            width: root.nodeTitleIconSize
+            height: root.nodeTitleIconSize
+            fillMode: Image.PreserveAspectFit
+            smooth: true
+            mipmap: true
+            sourceSize.width: root.nodeTitleIconSize
+            sourceSize.height: root.nodeTitleIconSize
+        }
+
+        Image {
             id: commentTitleIcon
+            objectName: "graphNodeCommentTitleIcon"
             visible: root.commentTitleIconVisible && root.commentTitleIconSource.length > 0
             source: root.commentTitleIconSource
-            x: root.host && root.host._titleCentered
-                ? Math.max(
-                    0,
-                    titleText.x
-                    + Math.max(0, (titleText.width - Math.min(titleText.contentWidth, titleText.width)) * 0.5)
-                    - width
-                    - root.commentTitleIconSpacing
-                )
-                : 0
+            x: root._titleLeadingIconX(width, root.commentTitleIconSpacing)
             y: Math.round((titleDisplay.height - height) * 0.5)
             width: root.commentTitleIconSize
             height: root.commentTitleIconSize
@@ -182,10 +232,10 @@ Item {
             id: titleText
             objectName: "graphNodeTitle"
             property int effectiveRenderType: renderType
-            x: root.commentTitleIconVisible
+            x: root._titleLeadingIconReserveWidth > 0
                 ? (root.host && root.host._titleCentered
-                    ? root._commentTitleIconReserveWidth * 0.5
-                    : root._commentTitleIconReserveWidth)
+                    ? root._titleLeadingIconReserveWidth * 0.5
+                    : root._titleLeadingIconReserveWidth)
                 : 0
             width: Math.max(0, titleDisplay.width - x)
             height: titleDisplay.height
@@ -231,8 +281,8 @@ Item {
         focusBorderColor: root.host ? root.host.selectedOutlineColor : "#2C85BF"
         topPadding: 0
         bottomPadding: 0
-        leftPadding: 6
-        rightPadding: 6
+        leftPadding: root._titleEditorLeftPadding
+        rightPadding: root._titleEditorRightPadding
         horizontalAlignment: root.host && root.host._titleCentered
             ? TextInput.AlignHCenter
             : TextInput.AlignLeft
