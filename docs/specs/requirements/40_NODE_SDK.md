@@ -19,6 +19,7 @@
 - `REQ-NODE-021`: node SDK and built-in catalog shall define `passive.annotation.comment_backdrop` as a zero-port, collapsible, passive annotation node with `surface_family="comment_backdrop"` and `surface_variant="comment_backdrop"`, while sticky note, callout, and section header remain connectable note-style annotations instead of grouping items.
 - `REQ-NODE-022`: execution-facing SDK contracts shall support `RuntimeArtifactRef` values plus `ExecutionContext.resolve_path_value()` and `ExecutionContext.runtime_artifact_ref()` helpers so node authors can emit or consume project-managed file refs without reimplementing queue serialization or path resolution.
 - `REQ-NODE-025`: the node SDK and built-in catalog shall define `dpf.viewer` as the canonical viewer-family DPF node with `surface_family="viewer"`, `output_mode` defaulting to `both`, and `viewer_live_policy` constrained to `focus_only|keep_live`, while upstream DPF compute nodes continue to exchange handle-backed data rather than live viewer payloads.
+- `REQ-NODE-028`: `NodeTypeSpec.icon` remains the authoring field, but the node-title icon contract shall treat it as a local image-path reference only: built-in relative paths resolve from the repo-managed node-title icon asset root, file/package plugin relative paths resolve only from safe provenance roots, safe absolute plugin paths remain allowed when the file exists, supported suffixes are `.svg`, `.png`, `.jpg`, and `.jpeg` case-insensitive, empty values, symbolic icon names, remote/data URLs, missing or unreadable files, unsupported suffixes, and unsafe entry-point cwd fallbacks resolve to no title icon, the built-in non-passive catalog ships repo-managed asset paths instead of symbolic header-icon names, and the derived live `icon_source` payload is populated only for `active` and `compile_only` nodes when local resolution succeeds.
 
 Example:
 
@@ -29,7 +30,7 @@ from ea_node_editor.nodes.decorators import node_type, in_port, out_port, prop_i
     type_id="demo.scale",
     display_name="Scale",
     category_path=("Core",),
-    icon="functions",
+    icon="icons/scale.svg",
     ports=(in_port("value", data_type="float"), out_port("scaled", data_type="float")),
     properties=(prop_int("factor", 2, "Factor"),),
 )
@@ -54,3 +55,4 @@ to avoid ambiguity with existing single labels such as `Input / Output`.
 - `AC-REQ-NODE-021-01`: registry and graph-surface contract regressions confirm the locked comment-backdrop type id, zero-port catalog contract, dedicated surface family/variant, and backdrop-specific surface metrics and host loading.
 - `AC-REQ-NODE-022-01`: runtime-artifact protocol and integration regressions confirm nodes can emit `RuntimeArtifactRef` outputs, downstream path-taking nodes resolve them in-run, and legacy inline path/string behavior still works when no managed ref is involved.
 - `AC-REQ-NODE-025-01`: DPF node-catalog and viewer-node regressions confirm `dpf.viewer` stays part of the canonical built-in family, publishes the locked viewer surface metadata, and preserves the packet-owned live-policy defaults.
+- `AC-REQ-NODE-028-01`: node-title icon resolver, registry/payload, built-in asset, DPF catalog, and passive-node regressions confirm the local-file-only contract, supported suffix handling, safe provenance resolution, built-in asset-path packaging, active/`compile_only` live payload population, and passive icon exclusion, with retained proof summarized in `docs/specs/perf/TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md`.

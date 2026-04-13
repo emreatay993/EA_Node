@@ -1083,7 +1083,7 @@ NESTED_NODE_CATEGORIES_INDEX_TOKENS = (
 
 NESTED_NODE_CATEGORIES_PUBLIC_DOC_TOKENS: dict[str, tuple[str, ...]] = {
     "README.md": (
-        "category_path=(\"Math\",)",
+        "(\"Math\",)",
         "breaking change for external plugins",
         "Ansys DPF > Compute",
         "Input / Output",
@@ -1735,6 +1735,259 @@ PORT_VALUE_LOCKING_QA_MATRIX_TOKENS = (
     "Accepted `P05` packet commit `0fd842953f464795190c1d6f199dcdcaae82cbad`",
     "## Final Closeout Commands",
     "## 2026-04-12 Execution Results",
+    "## Remaining Manual Smoke Checks",
+    "## Residual Desktop-Only Validation",
+    "## Residual Risks",
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX = (
+    REPO_ROOT / "docs/specs/perf/TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P01_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_node_title_icon_sources.py "
+    r"tests/test_registry_validation.py tests/test_passive_visual_metadata.py "
+    r"-k title_icon --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P02_DIALOG_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/test_graphics_settings_preferences.py tests/test_graphics_settings_dialog.py "
+    r"-k graph_node_icon_size --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P02_BRIDGE_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/bridge_contracts_graph_canvas.py "
+    r"tests/main_window_shell/bridge_qml_boundaries.py tests/test_main_window_shell.py "
+    r"tests/test_shell_run_controller.py tests/graph_track_b/qml_preference_bindings.py "
+    r"-k graph_node_icon_size --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P03_HEADER_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/graph_surface/inline_editor_suite.py "
+    r"tests/graph_surface/passive_host_interaction_suite.py "
+    r"tests/graph_track_b/qml_preference_rendering_suite.py "
+    r"-k title_icon --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P03_COMMENT_COMMAND = (
+    r"$env:QT_QPA_PLATFORM='offscreen'; .\venv\Scripts\python.exe -m pytest "
+    r"tests/main_window_shell/comment_backdrop_workflows.py "
+    r"tests/main_window_shell/shell_runtime_contracts.py "
+    r"tests/test_icon_registry.py tests/test_comment_backdrop_contracts.py "
+    r"-k title_icon --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P04_ASSET_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_node_title_icon_assets.py "
+    r"tests/test_registry_validation.py -k title_icon --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_P04_CATALOG_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_dpf_node_catalog.py "
+    r"tests/test_passive_node_contracts.py tests/test_passive_flowchart_catalog.py "
+    r"-k title_icon --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_TEST_COMMAND = (
+    r".\venv\Scripts\python.exe -m pytest tests/test_traceability_checker.py --ignore=venv -q"
+)
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_COMMAND = (
+    r".\venv\Scripts\python.exe scripts/check_traceability.py"
+)
+
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_INDEX_TOKENS = (
+    "TITLE_ICONS_FOR_NON_PASSIVE_NODES QA Matrix",
+    "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+)
+
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_REQUIREMENT_TOKENS: dict[str, dict[str, tuple[str, ...]]] = {
+    "docs/specs/requirements/20_UI_UX.md": {
+        "REQ-UI-038": (
+            "leading local title icon only for `active` and `compile_only` nodes",
+            "supported local `.svg`, `.png`, `.jpg`, or `.jpeg` file",
+            "passive nodes remain iconless",
+            "`uiIcons` / `comment.svg`",
+            "`graph_node_icon_pixel_size_override`",
+            "`null` mode follows `graph_label_pixel_size`",
+            "`8..18`",
+        ),
+        "AC-REQ-UI-038-01": (
+            "active and `compile_only` headers render the path-backed icon",
+            "passive titles stay iconless",
+            "centered/elided title behavior",
+            "automatic/custom icon-size modes",
+            "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/40_NODE_SDK.md": {
+        "REQ-NODE-028": (
+            "`NodeTypeSpec.icon` remains the authoring field",
+            "local image-path reference only",
+            "repo-managed node-title icon asset root",
+            "safe provenance roots",
+            "symbolic icon names",
+            "derived live `icon_source` payload",
+            "`active` and `compile_only`",
+        ),
+        "AC-REQ-NODE-028-01": (
+            "node-title icon resolver",
+            "safe provenance resolution",
+            "built-in asset-path packaging",
+            "passive icon exclusion",
+            "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/60_PERSISTENCE.md": {
+        "REQ-PERSIST-022": (
+            "derived live `icon_source` values shall not serialize into `.sfe` project files",
+            "`graphics.typography.graph_node_icon_pixel_size_override`",
+            "nullable app-global integer",
+            "`null` mode follows `graph_label_pixel_size`",
+            "`8..18`",
+        ),
+        "AC-REQ-PERSIST-022-01": (
+            "payload-contract",
+            "app preferences",
+            "does not widen `.sfe` persistence",
+            "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/80_PERFORMANCE.md": {
+        "REQ-PERF-013": (
+            "existing graph-scene payload, shared header, and shared typography seams",
+            "already-derived local `icon_source` plus the effective node-title icon size",
+            "centered/elided title reserve math",
+            "collapsed comment-backdrop exception",
+            "authored image colors without theme tinting",
+            "remote image loading",
+            "second icon-specific invalidation path",
+        ),
+        "AC-REQ-PERF-013-01": (
+            "tests/graph_surface/inline_editor_suite.py",
+            "tests/graph_surface/passive_host_interaction_suite.py",
+            "tests/main_window_shell/comment_backdrop_workflows.py",
+            "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+        ),
+    },
+    "docs/specs/requirements/90_QA_ACCEPTANCE.md": {
+        "REQ-QA-037": (
+            "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+            "`P01` through `P04`",
+            "canonical `docs/specs/INDEX.md` registration",
+            "SVG plus PNG/JPG/JPEG fixture coverage where available",
+            "collapsed comment-backdrop icon preservation",
+            "traceability gate",
+        ),
+        "AC-REQ-QA-037-01": (
+            TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_TEST_COMMAND,
+            TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_COMMAND,
+            "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+        ),
+    },
+}
+
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_ROW_TOKENS: dict[str, tuple[str, ...]] = {
+    "REQ-UI-038": (
+        "graphics_settings_dialog.py",
+        "graph_canvas_state_bridge.py",
+        "GraphNodeHeaderLayer.qml",
+        "GraphNodeHost.qml",
+        "GraphSharedTypography.qml",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "AC-REQ-UI-038-01": (
+        "tests/test_graphics_settings_dialog.py",
+        "tests/test_graphics_settings_preferences.py",
+        "tests/main_window_shell/bridge_contracts_graph_canvas.py",
+        "tests/graph_surface/inline_editor_suite.py",
+        "tests/graph_surface/passive_host_interaction_suite.py",
+        "tests/graph_track_b/qml_preference_rendering_suite.py",
+        "tests/main_window_shell/comment_backdrop_workflows.py",
+        "tests/test_comment_backdrop_contracts.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "REQ-NODE-028": (
+        "node_title_icon_sources.py",
+        "graph_scene_payload_builder.py",
+        "assets/node_title_icons",
+        "tests/test_node_title_icon_sources.py",
+        "tests/test_node_title_icon_assets.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "AC-REQ-NODE-028-01": (
+        "tests/test_node_title_icon_sources.py",
+        "tests/test_registry_validation.py",
+        "tests/test_passive_visual_metadata.py",
+        "tests/test_node_title_icon_assets.py",
+        "tests/test_dpf_node_catalog.py",
+        "tests/test_passive_node_contracts.py",
+        "tests/test_passive_flowchart_catalog.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "REQ-PERSIST-022": (
+        "app_preferences.py",
+        "settings.py",
+        "graph_scene_payload_builder.py",
+        "tests/test_graphics_settings_preferences.py",
+        "tests/test_node_title_icon_sources.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERSIST-022-01": (
+        "tests/test_graphics_settings_preferences.py",
+        "tests/main_window_shell/bridge_contracts_graph_canvas.py",
+        "tests/test_main_window_shell.py",
+        "tests/test_node_title_icon_sources.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "REQ-PERF-013": (
+        "GraphNodeHeaderLayer.qml",
+        "GraphNodeHost.qml",
+        "GraphSharedTypography.qml",
+        "node_title_icon_sources.py",
+        "tests/graph_track_b/qml_preference_rendering_suite.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "AC-REQ-PERF-013-01": (
+        "tests/graph_surface/inline_editor_suite.py",
+        "tests/graph_surface/passive_host_interaction_suite.py",
+        "tests/graph_track_b/qml_preference_rendering_suite.py",
+        "tests/main_window_shell/comment_backdrop_workflows.py",
+        "tests/test_comment_backdrop_contracts.py",
+        "TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+    "REQ-QA-037": (
+        "docs/specs/INDEX.md",
+        "docs/specs/perf/TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+        "docs/specs/requirements/20_UI_UX.md",
+        "docs/specs/requirements/40_NODE_SDK.md",
+        "docs/specs/requirements/60_PERSISTENCE.md",
+        "docs/specs/requirements/80_PERFORMANCE.md",
+        "docs/specs/requirements/90_QA_ACCEPTANCE.md",
+        "docs/specs/requirements/TRACEABILITY_MATRIX.md",
+        "tests/test_traceability_checker.py",
+        "scripts/check_traceability.py",
+    ),
+    "AC-REQ-QA-037-01": (
+        TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_TEST_COMMAND,
+        TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_COMMAND,
+        "docs/specs/perf/TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.md",
+    ),
+}
+
+TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX_TOKENS = (
+    "Title Icons for Non-Passive Nodes QA Matrix",
+    "## Locked Scope",
+    "`NodeTypeSpec.icon` remains the authoring field",
+    "`uiIcons` / `comment.svg`",
+    "`graphics.typography.graph_node_icon_pixel_size_override`",
+    "node-library tiles",
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P01_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P02_DIALOG_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P02_BRIDGE_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P03_HEADER_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P03_COMMENT_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P04_ASSET_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_P04_CATALOG_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_TEST_COMMAND,
+    TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_COMMAND,
+    "Accepted `P01` packet commit `bfb953365082f1d96371fe919e92e995875b43f0`",
+    "Accepted `P04` packet commit `33090d22b59e01b45fb37521cd283cc53dce8548`",
+    "## Final Closeout Commands",
+    "## 2026-04-13 Execution Results",
     "## Remaining Manual Smoke Checks",
     "## Residual Desktop-Only Validation",
     "## Residual Risks",
@@ -2759,6 +3012,38 @@ class TraceabilityCheckerTests(unittest.TestCase):
     def test_port_value_locking_qa_matrix_records_commands_and_manual_checks(self) -> None:
         text = PORT_VALUE_LOCKING_QA_MATRIX.read_text(encoding="utf-8-sig")
         for token in PORT_VALUE_LOCKING_QA_MATRIX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_title_icons_for_non_passive_nodes_spec_index_registers_qa_matrix(self) -> None:
+        text = (REPO_ROOT / "docs/specs/INDEX.md").read_text(encoding="utf-8-sig")
+        for token in TITLE_ICONS_FOR_NON_PASSIVE_NODES_INDEX_TOKENS:
+            self.assertIn(token, text)
+
+    def test_title_icons_for_non_passive_nodes_docs_record_closeout_scope_tokens(self) -> None:
+        for (
+            relative_path,
+            requirement_tokens,
+        ) in TITLE_ICONS_FOR_NON_PASSIVE_NODES_REQUIREMENT_TOKENS.items():
+            path = REPO_ROOT / relative_path
+            for requirement_id, tokens in requirement_tokens.items():
+                body = requirement_line(path, requirement_id)
+                for token in tokens:
+                    self.assertIn(token, body, msg=f"{relative_path} {requirement_id} missing token {token!r}")
+
+    def test_title_icons_for_non_passive_nodes_traceability_rows_reference_packet_artifacts(
+        self,
+    ) -> None:
+        traceability_path = REPO_ROOT / "docs/specs/requirements/TRACEABILITY_MATRIX.md"
+        for row_id, tokens in TITLE_ICONS_FOR_NON_PASSIVE_NODES_TRACEABILITY_ROW_TOKENS.items():
+            row_text = traceability_row(traceability_path, row_id)
+            for token in tokens:
+                self.assertIn(token, row_text, msg=f"traceability row {row_id} missing token {token!r}")
+
+    def test_title_icons_for_non_passive_nodes_qa_matrix_records_commands_and_manual_checks(
+        self,
+    ) -> None:
+        text = TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX.read_text(encoding="utf-8-sig")
+        for token in TITLE_ICONS_FOR_NON_PASSIVE_NODES_QA_MATRIX_TOKENS:
             self.assertIn(token, text)
 
     def test_architecture_maintainability_refactor_docs_record_final_scope_tokens(self) -> None:
