@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 from ea_node_editor.graph.model import GraphModel
@@ -7,7 +9,7 @@ from ea_node_editor.graph.transforms import build_subnode_custom_workflow_snapsh
 from ea_node_editor.nodes.bootstrap import build_default_registry
 from ea_node_editor.nodes.decorators import in_port, node_type, out_port
 from ea_node_editor.nodes.registry import NodeRegistry
-from ea_node_editor.nodes.types import ExecutionContext, NodeResult
+from ea_node_editor.nodes.types import ExecutionContext, NodeResult, NodeTypeSpec, PortSpec
 from ea_node_editor.ui.shell.runtime_history import RuntimeGraphHistory
 from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 
@@ -15,7 +17,7 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
 @node_type(
     type_id="tests.passive_note",
     display_name="Passive Note",
-    category="Tests",
+    category_path=("Tests",),
     icon="note",
     ports=(
         in_port("flow_in", kind="flow"),
@@ -27,6 +29,17 @@ from ea_node_editor.ui_qml.graph_scene_bridge import GraphSceneBridge
     surface_variant="sticky_note",
 )
 class _PassiveNotePlugin:
+    def execute(self, _ctx: ExecutionContext) -> NodeResult:
+        return NodeResult(outputs={})
+
+
+class _PassiveIconPlugin:
+    def __init__(self, spec: NodeTypeSpec) -> None:
+        self._spec = spec
+
+    def spec(self) -> NodeTypeSpec:
+        return self._spec
+
     def execute(self, _ctx: ExecutionContext) -> NodeResult:
         return NodeResult(outputs={})
 
@@ -80,6 +93,28 @@ class PassiveVisualMetadataTests(unittest.TestCase):
         )
         self.assertEqual(edge_payload[edge_id]["source_port_kind"], "flow")
         self.assertEqual(edge_payload[edge_id]["target_port_kind"], "flow")
+
+    def test_title_icon_source_stays_empty_for_passive_payloads_with_valid_icon_path(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            icon_path = Path(temp_dir) / "passive.svg"
+            icon_path.write_bytes(b"icon")
+            spec = NodeTypeSpec(
+                type_id="tests.title_icon.passive_visual",
+                display_name="Passive Visual",
+                category_path=("Tests",),
+                icon=str(icon_path),
+                ports=(PortSpec("flow_out", "out", "flow", "flow"),),
+                properties=(),
+                runtime_behavior="passive",
+                surface_family="annotation",
+            )
+            self.registry.register_descriptor(spec, lambda: _PassiveIconPlugin(spec))
+
+            node_id = self.scene.add_node_from_type(spec.type_id, 40.0, 60.0)
+            node_payload = {item["node_id"]: item for item in self.scene.nodes_model}
+
+            self.assertEqual(node_payload[node_id]["runtime_behavior"], "passive")
+            self.assertEqual(node_payload[node_id]["icon_source"], "")
 
     def test_visual_metadata_mutation_apis_normalize_and_history_roundtrip(self) -> None:
         history = RuntimeGraphHistory()
