@@ -16,7 +16,8 @@ def _icon_path(name: str) -> str:
 def build_app_stylesheet(tokens: ThemeTokens) -> str:
     # Resolve icon file paths based on the theme's icon variant
     check_icon = _icon_path(f"check-{tokens.icon_variant}.svg")
-    chevron_icon = _icon_path(f"chevron-down-{tokens.icon_variant}.svg")
+    chevron_down_icon = _icon_path(f"chevron-down-{tokens.icon_variant}.svg")
+    chevron_up_icon = _icon_path(f"chevron-up-{tokens.icon_variant}.svg")
 
     return f"""
 QMainWindow {{
@@ -97,8 +98,6 @@ QLabel#zoomLabel {{
 }}
 QLineEdit,
 QComboBox,
-QSpinBox,
-QDoubleSpinBox,
 QPlainTextEdit,
 QListWidget,
 QTreeWidget {{
@@ -108,6 +107,55 @@ QTreeWidget {{
     padding: 3px;
     selection-background-color: {tokens.accent_strong};
 }}
+QSpinBox,
+QDoubleSpinBox {{
+    background: {tokens.input_bg};
+    border: 1px solid {tokens.input_border};
+    color: {tokens.input_fg};
+    padding: 3px 27px 3px 3px;
+    selection-background-color: {tokens.accent_strong};
+}}
+QSpinBox::up-button,
+QDoubleSpinBox::up-button {{
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 24px;
+    border-left: 1px solid {tokens.input_border};
+    border-bottom: 1px solid {tokens.input_border};
+    background: transparent;
+}}
+QSpinBox::down-button,
+QDoubleSpinBox::down-button {{
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 24px;
+    border-left: 1px solid {tokens.input_border};
+    background: transparent;
+}}
+QSpinBox::up-button:hover,
+QSpinBox::down-button:hover,
+QDoubleSpinBox::up-button:hover,
+QDoubleSpinBox::down-button:hover {{
+    background: {tokens.hover};
+}}
+QSpinBox::up-button:pressed,
+QSpinBox::down-button:pressed,
+QDoubleSpinBox::up-button:pressed,
+QDoubleSpinBox::down-button:pressed {{
+    background: {tokens.pressed};
+}}
+QSpinBox::up-arrow,
+QDoubleSpinBox::up-arrow {{
+    image: url({chevron_up_icon});
+    width: 12px;
+    height: 12px;
+}}
+QSpinBox::down-arrow,
+QDoubleSpinBox::down-arrow {{
+    image: url({chevron_down_icon});
+    width: 12px;
+    height: 12px;
+}}
 QComboBox::drop-down {{
     subcontrol-origin: padding;
     subcontrol-position: center right;
@@ -116,7 +164,7 @@ QComboBox::drop-down {{
     background: transparent;
 }}
 QComboBox::down-arrow {{
-    image: url({chevron_icon});
+    image: url({chevron_down_icon});
     width: 12px;
     height: 12px;
 }}
