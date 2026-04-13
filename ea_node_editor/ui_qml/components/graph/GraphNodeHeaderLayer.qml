@@ -20,12 +20,22 @@ Item {
         : false
     readonly property int commentTitleIconSize: 14
     readonly property int commentTitleIconSpacing: 6
+    readonly property real _titleBandHeight: root.host ? Math.max(0, Number(root.host._titleHeight)) : 0
     readonly property int nodeTitleIconSize: root.graphSharedTypography
         ? root.graphSharedTypography.nodeTitleIconPixelSize
         : 10
+    readonly property int nodeTitleIconRenderSize: Math.max(
+        0,
+        Math.floor(Math.min(root.nodeTitleIconSize, root._titleBandHeight))
+    )
+    readonly property int commentTitleIconRenderSize: Math.max(
+        0,
+        Math.floor(Math.min(root.commentTitleIconSize, root._titleBandHeight))
+    )
     readonly property int nodeTitleIconSpacing: 6
     readonly property real _commentTitleIconReserveWidth: root.commentTitleIconVisible
-        ? root.commentTitleIconSize + root.commentTitleIconSpacing
+        && root.commentTitleIconRenderSize > 0
+        ? root.commentTitleIconRenderSize + root.commentTitleIconSpacing
         : 0
     readonly property string nodeTitleIconSource: root.host && root.host.nodeData
         ? String(root.host.nodeData.icon_source || "")
@@ -34,9 +44,12 @@ Item {
         && !!root.host
         && !root.host.isPassiveNode
         && root.nodeTitleIconSource.length > 0
-    readonly property bool nodeTitleIconVisible: root.nodeTitleIconEligible && !root.isEditing
+    readonly property bool nodeTitleIconVisible: root.nodeTitleIconEligible
+        && root.nodeTitleIconRenderSize > 0
+        && !root.isEditing
     readonly property real _nodeTitleIconReserveWidth: root.nodeTitleIconEligible
-        ? root.nodeTitleIconSize + root.nodeTitleIconSpacing
+        && root.nodeTitleIconRenderSize > 0
+        ? root.nodeTitleIconRenderSize + root.nodeTitleIconSpacing
         : 0
     readonly property real _titleLeadingIconReserveWidth: root.commentTitleIconVisible
         ? root._commentTitleIconReserveWidth
@@ -203,29 +216,31 @@ Item {
             source: root.nodeTitleIconSource
             x: root._titleLeadingIconX(width, root.nodeTitleIconSpacing)
             y: Math.round((titleDisplay.height - height) * 0.5)
-            width: root.nodeTitleIconSize
-            height: root.nodeTitleIconSize
+            width: root.nodeTitleIconRenderSize
+            height: root.nodeTitleIconRenderSize
             fillMode: Image.PreserveAspectFit
             smooth: true
             mipmap: true
-            sourceSize.width: root.nodeTitleIconSize
-            sourceSize.height: root.nodeTitleIconSize
+            sourceSize.width: root.nodeTitleIconRenderSize
+            sourceSize.height: root.nodeTitleIconRenderSize
         }
 
         Image {
             id: commentTitleIcon
             objectName: "graphNodeCommentTitleIcon"
-            visible: root.commentTitleIconVisible && root.commentTitleIconSource.length > 0
+            visible: root.commentTitleIconVisible
+                && root.commentTitleIconRenderSize > 0
+                && root.commentTitleIconSource.length > 0
             source: root.commentTitleIconSource
             x: root._titleLeadingIconX(width, root.commentTitleIconSpacing)
             y: Math.round((titleDisplay.height - height) * 0.5)
-            width: root.commentTitleIconSize
-            height: root.commentTitleIconSize
+            width: root.commentTitleIconRenderSize
+            height: root.commentTitleIconRenderSize
             fillMode: Image.PreserveAspectFit
             smooth: true
             mipmap: true
-            sourceSize.width: root.commentTitleIconSize
-            sourceSize.height: root.commentTitleIconSize
+            sourceSize.width: root.commentTitleIconRenderSize
+            sourceSize.height: root.commentTitleIconRenderSize
         }
 
         Text {

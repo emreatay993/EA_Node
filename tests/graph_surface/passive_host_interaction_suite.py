@@ -314,6 +314,51 @@ class PassiveGraphSurfaceHostTests(PassiveGraphSurfaceHostTestBase):
             """,
         )
 
+    def test_title_icon_large_override_stays_within_title_row_bounds(self) -> None:
+        self._run_qml_probe(
+            "title-icon-large-override-header-bounds",
+            """
+            from pathlib import Path
+
+            icon_source = (Path.cwd() / "ea_node_editor" / "assets" / "app_icon" / "corex_app_minimal.svg").as_uri()
+
+            canvas_item = create_component(
+                graph_canvas_qml_path,
+                {
+                    "mainWindowBridge": {
+                        "graphics_graph_label_pixel_size": 16,
+                        "graphics_graph_node_icon_pixel_size_override": 50,
+                        "graphics_node_title_icon_pixel_size": 50,
+                    },
+                },
+            )
+
+            payload = node_payload()
+            payload["title"] = "Archive Session"
+            payload["surface_metrics"]["title_centered"] = True
+            payload["icon_source"] = icon_source
+
+            host = create_component(
+                graph_node_host_qml_path,
+                {
+                    "nodeData": payload,
+                    "canvasItem": canvas_item,
+                },
+            )
+            title_display = host.findChild(QObject, "graphNodeTitleDisplay")
+            title_icon = host.findChild(QObject, "graphNodeTitleIcon")
+
+            assert title_display is not None
+            assert title_icon is not None
+            assert int(host.property("effectiveNodeTitleIconPixelSize")) == 50
+            assert bool(title_icon.property("visible"))
+            assert float(title_icon.property("height")) <= float(title_display.property("height"))
+            assert float(title_icon.property("y")) >= 0.0
+            assert float(title_icon.property("y")) + float(title_icon.property("height")) <= float(title_display.property("height")) + 0.5
+            assert float(title_icon.property("height")) < float(host.property("effectiveNodeTitleIconPixelSize"))
+            """,
+        )
+
     def test_standard_host_consumes_metric_backed_label_columns_without_overlap(self) -> None:
         self._run_qml_probe(
             "port-label-width-contract-host",
