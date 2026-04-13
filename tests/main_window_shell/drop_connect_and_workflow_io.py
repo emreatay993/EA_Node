@@ -227,12 +227,12 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
 
     def test_qml_request_drop_node_from_library_port_target_ambiguous_uses_prompt_selection(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
-        target_id = self.window.scene.add_node_from_type("core.logger", x=360.0, y=40.0)
+        target_id = self.window.scene.add_node_from_type("core.python_script", x=360.0, y=40.0)
         self.app.processEvents()
 
         with patch(
             "PyQt6.QtWidgets.QInputDialog.getItem",
-            return_value=("Constant.as_text -> Logger.message", True),
+            return_value=("Constant.as_text -> Python Script.payload", True),
         ):
             created = self.window.request_drop_node_from_library(
                 "core.constant",
@@ -240,7 +240,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
                 90.0,
                 "port",
                 target_id,
-                "message",
+                "payload",
                 "",
             )
         self.assertTrue(created)
@@ -250,7 +250,7 @@ class MainWindowShellDropConnectAndWorkflowIOTests(SharedMainWindowShellTestBase
         self.assertEqual(len(workspace.edges), 1)
         edge = next(iter(workspace.edges.values()))
         self.assertEqual(edge.target_node_id, target_id)
-        self.assertEqual(edge.target_port_key, "message")
+        self.assertEqual(edge.target_port_key, "payload")
         self.assertEqual(edge.source_port_key, "as_text")
 
     def test_qml_request_drop_node_from_library_edge_target_inserts_inline(self) -> None:

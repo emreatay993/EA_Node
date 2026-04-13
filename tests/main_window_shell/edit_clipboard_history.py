@@ -233,13 +233,13 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
     def test_qml_request_group_and_ungroup_selected_nodes_are_single_undoable_actions(self) -> None:
         workspace_id = self.window.workspace_manager.active_workspace_id()
         source_id = self.window.scene.add_node_from_type("core.start", x=20.0, y=40.0)
-        grouped_logger_id = self.window.scene.add_node_from_type("core.logger", x=320.0, y=60.0)
+        grouped_script_id = self.window.scene.add_node_from_type("core.python_script", x=320.0, y=60.0)
         grouped_constant_id = self.window.scene.add_node_from_type("core.constant", x=220.0, y=190.0)
         target_id = self.window.scene.add_node_from_type("core.end", x=640.0, y=90.0)
         external_script_id = self.window.scene.add_node_from_type("core.python_script", x=700.0, y=230.0)
-        self.window.scene.add_edge(source_id, "exec_out", grouped_logger_id, "exec_in")
-        self.window.scene.add_edge(grouped_constant_id, "as_text", grouped_logger_id, "message")
-        self.window.scene.add_edge(grouped_logger_id, "exec_out", target_id, "exec_in")
+        self.window.scene.add_edge(source_id, "exec_out", grouped_script_id, "exec_in")
+        self.window.scene.add_edge(grouped_constant_id, "as_text", grouped_script_id, "payload")
+        self.window.scene.add_edge(grouped_script_id, "exec_out", target_id, "exec_in")
         self.window.scene.add_edge(grouped_constant_id, "value", external_script_id, "payload")
         self.app.processEvents()
         workspace = self.window.model.project.workspaces[workspace_id]
@@ -248,7 +248,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
             for edge in workspace.edges.values()
         }
 
-        self.window.scene.select_node(grouped_logger_id, False)
+        self.window.scene.select_node(grouped_script_id, False)
         self.window.scene.select_node(grouped_constant_id, True)
         initial_state = self._workspace_state()
         self.window.runtime_history.clear_workspace(workspace_id)
@@ -285,7 +285,7 @@ class MainWindowShellEditClipboardHistoryTests(SharedMainWindowShellTestBase):
             for edge in workspace.edges.values()
         }
         self.assertEqual(ungrouped_edge_signature, initial_edge_signature)
-        self.assertEqual(workspace.nodes[grouped_logger_id].parent_node_id, None)
+        self.assertEqual(workspace.nodes[grouped_script_id].parent_node_id, None)
         self.assertEqual(workspace.nodes[grouped_constant_id].parent_node_id, None)
         remaining_subnode_types = {
             node.type_id for node in workspace.nodes.values() if node.type_id.startswith("core.subnode")
