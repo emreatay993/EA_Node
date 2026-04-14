@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 from ea_node_editor.app_preferences import (
     effective_graph_node_icon_pixel_size,
@@ -19,6 +20,11 @@ from ea_node_editor.ui.shell.controllers.app_preferences_controller import (
     AppPreferencesController,
     AppPreferencesStore,
 )
+from ea_node_editor.ui.shell.presenters.state import build_default_shell_workspace_ui_state
+from ea_node_editor.ui.shell.presenters.workspace_presenter import ShellWorkspacePresenter
+from ea_node_editor.ui.shell.tooltip_manager import TooltipManager
+from ea_node_editor.ui.shell.window_state import context_properties as shell_context_properties
+from ea_node_editor.ui.shell.window_state import run_and_style_state as shell_run_and_style_state
 
 
 class _RecordingHost:
@@ -27,6 +33,98 @@ class _RecordingHost:
 
     def apply_graphics_preferences(self, graphics: dict[str, object]) -> None:
         self.applied_graphics.append(graphics)
+
+
+class _Signal:
+    def __init__(self) -> None:
+        self._slots: list[object] = []
+
+    def connect(self, slot) -> None:  # noqa: ANN001
+        self._slots.append(slot)
+
+    def emit(self) -> None:
+        for slot in tuple(self._slots):
+            slot()
+
+
+class _SearchScopeController:
+    def __init__(self, state: SimpleNamespace) -> None:
+        self._state = state
+
+    def set_snap_to_grid_enabled(self, enabled: bool, *, persist: bool = True) -> None:  # noqa: ARG002
+        self._state.snap_to_grid_enabled = bool(enabled)
+
+
+class _ShellHostPresenter:
+    def __init__(self) -> None:
+        self.active_theme_id = str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
+
+    def apply_theme(self, theme_id: object) -> str:
+        normalized = str(theme_id or "").strip()
+        self.active_theme_id = normalized or str(DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])
+        return self.active_theme_id
+
+
+class _GraphThemeBridge:
+    def __init__(self) -> None:
+        self.theme_id = str(DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"])
+        self.last_settings: dict[str, object] | None = None
+
+    def apply_settings(self, *, shell_theme_id: str, graph_theme_settings: dict[str, object]) -> None:
+        self.last_settings = {
+            "shell_theme_id": str(shell_theme_id),
+            "graph_theme_settings": copy.deepcopy(graph_theme_settings),
+        }
+        self.theme_id = str(
+            graph_theme_settings.get(
+                "selected_theme_id",
+                DEFAULT_GRAPHICS_SETTINGS["graph_theme"]["selected_theme_id"],
+            )
+        )
+
+
+class _RuntimeTooltipHost:
+    def __init__(self, controller: AppPreferencesController | None = None) -> None:
+        self.project_meta_changed = _Signal()
+        self.workspace_state_changed = _Signal()
+        self.graphics_preferences_changed = _Signal()
+        self.run_controls_changed = _Signal()
+        self.project_path = ""
+        self.workspace_ui_state = build_default_shell_workspace_ui_state(copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS))
+        self.search_scope_state = SimpleNamespace(
+            graphics_minimap_expanded=bool(DEFAULT_GRAPHICS_SETTINGS["canvas"]["minimap_expanded"]),
+            snap_to_grid_enabled=bool(DEFAULT_GRAPHICS_SETTINGS["interaction"]["snap_to_grid"]),
+        )
+        self.search_scope_controller = _SearchScopeController(self.search_scope_state)
+        self.shell_host_presenter = _ShellHostPresenter()
+        self.graph_theme_bridge = _GraphThemeBridge()
+        self.workspace_manager = SimpleNamespace()
+        self.model = SimpleNamespace()
+        self.scene = SimpleNamespace()
+        self.run_state = SimpleNamespace()
+        self.run_controller = SimpleNamespace()
+        self.project_session_controller = SimpleNamespace()
+        self.workspace_library_controller = SimpleNamespace()
+        self.tooltip_manager = TooltipManager(
+            info_tooltips_enabled=self.workspace_ui_state.graphics_show_tooltips
+        )
+        self._synced_show_port_labels: list[bool] = []
+        self._synced_show_tooltips: list[bool] = []
+        self._scene_refresh_count = 0
+        self.app_preferences_controller = controller
+        self.shell_workspace_presenter = ShellWorkspacePresenter(self, ui_state=self.workspace_ui_state)
+
+    def _sync_graphics_show_port_labels_action(self, show_port_labels: bool) -> None:
+        self._synced_show_port_labels.append(bool(show_port_labels))
+
+    def _sync_graphics_show_tooltips_action(self, show_tooltips: bool) -> None:
+        self._synced_show_tooltips.append(bool(show_tooltips))
+
+    def _refresh_active_workspace_scene_payload(self) -> None:
+        self._scene_refresh_count += 1
+
+    def apply_graphics_preferences(self, graphics: dict[str, object]) -> dict[str, object]:
+        return shell_run_and_style_state.apply_graphics_preferences(self, graphics)
 
 
 class GraphicsSettingsPreferencesTests(unittest.TestCase):
@@ -219,6 +317,116 @@ class GraphicsSettingsPreferencesTests(unittest.TestCase):
         self.assertEqual(persisted["graphics"], graphics)
         reloaded = AppPreferencesController(store=self._store).load()
         self.assertEqual(reloaded, persisted)
+
+    def test_tooltip_preferences_missing_key_defaults_true(self) -> None:
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "canvas": {
+                            "show_grid": False,
+                        },
+                        "shell": {
+                            "tab_strip_density": "regular",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        graphics = self._controller.load()["graphics"]
+
+        self.assertFalse(graphics["canvas"]["show_grid"])
+        self.assertEqual(graphics["shell"]["tab_strip_density"], "regular")
+        self.assertTrue(graphics["shell"]["show_tooltips"])
+
+    def test_tooltip_preferences_invalid_payload_normalizes_to_true(self) -> None:
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "shell": {
+                            "tab_strip_density": "regular",
+                            "show_tooltips": "disabled",
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        graphics = self._controller.load()["graphics"]
+
+        self.assertEqual(graphics["shell"]["tab_strip_density"], "regular")
+        self.assertTrue(graphics["shell"]["show_tooltips"])
+
+    def test_tooltip_preferences_persist_false_roundtrip(self) -> None:
+        graphics = self._controller.set_graphics_settings(
+            {
+                "shell": {
+                    "show_tooltips": False,
+                },
+            }
+        )
+
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+        reloaded = AppPreferencesController(store=self._store).load()["graphics"]
+
+        self.assertFalse(graphics["shell"]["show_tooltips"])
+        self.assertFalse(persisted["graphics"]["shell"]["show_tooltips"])
+        self.assertFalse(reloaded["shell"]["show_tooltips"])
+
+    def test_tooltip_preferences_load_into_runtime_host_updates_shell_state(self) -> None:
+        host = _RuntimeTooltipHost()
+        self._preferences_path.write_text(
+            json.dumps(
+                {
+                    "kind": APP_PREFERENCES_KIND,
+                    "version": APP_PREFERENCES_VERSION,
+                    "graphics": {
+                        "shell": {
+                            "show_tooltips": False,
+                        },
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        resolved = self._controller.load_into_host(host)
+
+        self.assertFalse(resolved["shell"]["show_tooltips"])
+        self.assertFalse(host.workspace_ui_state.graphics_show_tooltips)
+        self.assertFalse(host.tooltip_manager.info_tooltips_enabled)
+        self.assertEqual(host._synced_show_tooltips, [False])
+        self.assertFalse(shell_context_properties._qt_graphics_show_tooltips(host))
+
+    def test_tooltip_preferences_shell_entry_point_updates_runtime_and_store(self) -> None:
+        host = _RuntimeTooltipHost(controller=self._controller)
+
+        shell_run_and_style_state.set_graphics_show_tooltips(host, False)
+
+        persisted = json.loads(self._preferences_path.read_text(encoding="utf-8"))
+
+        self.assertFalse(host.workspace_ui_state.graphics_show_tooltips)
+        self.assertFalse(host.tooltip_manager.info_tooltips_enabled)
+        self.assertEqual(host._synced_show_tooltips, [False])
+        self.assertFalse(persisted["graphics"]["shell"]["show_tooltips"])
+
+    def test_tooltip_manager_info_toggle_keeps_warning_and_inactive_visibility_independent(self) -> None:
+        manager = TooltipManager(info_tooltips_enabled=False)
+
+        self.assertFalse(manager.info_tooltips_enabled)
+        self.assertFalse(manager.should_show_info_tooltip("Show grid"))
+        self.assertTrue(manager.should_show_warning_tooltip("Disabled while running"))
+        self.assertTrue(manager.should_show_inactive_tooltip("Unavailable for passive nodes"))
+        self.assertFalse(manager.should_show_warning_tooltip(""))
+        self.assertFalse(manager.should_show_inactive_tooltip(""))
 
     def test_expand_collision_avoidance_preferences_default_and_partial_payloads(self) -> None:
         defaults = self._controller.load()["graphics"]["interaction"]["expand_collision_avoidance"]
