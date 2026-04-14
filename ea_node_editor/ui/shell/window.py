@@ -14,13 +14,14 @@ from ea_node_editor.nodes.builtins.subnode import (
     SUBNODE_OUTPUT_TYPE_ID,
 )
 from ea_node_editor.persistence.session_store import SessionAutosaveStore
-from ea_node_editor.settings import autosave_project_path, recent_session_path
+from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS, autosave_project_path, recent_session_path
 from ea_node_editor.ui.shell import window_state_helpers as state_helpers
 from ea_node_editor.ui.shell.composition import (
     ShellWindowComposition,
     bootstrap_shell_window,
     build_shell_window_composition,
 )
+from ea_node_editor.ui.shell.tooltip_manager import TooltipManager
 from ea_node_editor.ui_qml.embedded_viewer_overlay_manager import EmbeddedViewerOverlayManager
 
 
@@ -237,6 +238,11 @@ class ShellWindow(QMainWindow):
         fget=state_helpers._qt_graphics_show_port_labels,
         notify=graphics_preferences_changed,
     )
+    graphics_show_tooltips = pyqtProperty(
+        bool,
+        fget=state_helpers._qt_graphics_show_tooltips,
+        notify=graphics_preferences_changed,
+    )
     graphics_minimap_expanded = pyqtProperty(
         bool,
         fget=state_helpers._qt_graphics_minimap_expanded,
@@ -376,6 +382,9 @@ class ShellWindow(QMainWindow):
         self._viewer_window_active = True
         self._application_state_signal_connected = False
         self._shell_teardown_started = False
+        self.tooltip_manager = TooltipManager(
+            info_tooltips_enabled=bool(DEFAULT_GRAPHICS_SETTINGS["shell"]["show_tooltips"])
+        )
         if _defer_bootstrap:
             return
         resolved_composition = composition or build_shell_window_composition(self)

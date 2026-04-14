@@ -223,6 +223,10 @@ def normalize_graphics_settings(payload: Any) -> dict[str, Any]:
             shell_payload.get("tab_strip_density"),
             defaults["shell"]["tab_strip_density"],
         )
+        normalized["shell"]["show_tooltips"] = _normalize_bool(
+            shell_payload.get("show_tooltips"),
+            defaults["shell"]["show_tooltips"],
+        )
     if isinstance(theme_payload, Mapping):
         normalized["theme"]["theme_id"] = _normalize_theme_id(
             theme_payload.get("theme_id"),

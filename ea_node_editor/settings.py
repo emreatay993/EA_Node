@@ -145,6 +145,7 @@ DEFAULT_GRAPHICS_SETTINGS = {
     },
     "shell": {
         "tab_strip_density": "compact",
+        "show_tooltips": True,
     },
     "theme": {
         "theme_id": "stitch_dark",

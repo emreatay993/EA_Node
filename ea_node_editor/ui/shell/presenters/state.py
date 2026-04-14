@@ -37,6 +37,7 @@ class ShellWorkspaceUiState:
     shadow_offset: int
     graphics_performance_mode: str
     tab_strip_density: str
+    graphics_show_tooltips: bool
     active_theme_id: str
 
 
@@ -48,6 +49,9 @@ def build_default_shell_workspace_ui_state(
     performance = graphics_settings.get("performance", {}) if isinstance(graphics_settings, dict) else {}
     theme = graphics_settings.get("theme", {}) if isinstance(graphics_settings, dict) else {}
     typography = graphics_settings.get("typography", {}) if isinstance(graphics_settings, dict) else {}
+    show_tooltips = shell.get("show_tooltips", DEFAULT_GRAPHICS_SETTINGS["shell"]["show_tooltips"])
+    if not isinstance(show_tooltips, bool):
+        show_tooltips = DEFAULT_GRAPHICS_SETTINGS["shell"]["show_tooltips"]
     graph_label_pixel_size = normalize_graph_label_pixel_size(
         typography.get("graph_label_pixel_size", DEFAULT_GRAPHICS_SETTINGS["typography"]["graph_label_pixel_size"])
     )
@@ -82,6 +86,7 @@ def build_default_shell_workspace_ui_state(
         tab_strip_density=str(
             shell.get("tab_strip_density", DEFAULT_GRAPHICS_SETTINGS["shell"]["tab_strip_density"])
         ),
+        graphics_show_tooltips=show_tooltips,
         active_theme_id=str(theme.get("theme_id", DEFAULT_GRAPHICS_SETTINGS["theme"]["theme_id"])),
     )
 
