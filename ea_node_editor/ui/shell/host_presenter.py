@@ -290,6 +290,7 @@ class ShellHostPresenter(QObject):
             available_graph_themes=self._host.app_preferences_controller.graph_theme_choices(),
             manage_graph_themes_callback=self.edit_graph_theme_settings,
             active_renderer_label=self.active_renderer_label(),
+            tooltips_enabled=bool(self._host.graphics_show_tooltips),
             parent=self._host,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:

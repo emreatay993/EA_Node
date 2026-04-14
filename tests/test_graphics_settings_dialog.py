@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import copy
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QObject, Qt
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
@@ -12,6 +13,78 @@ from ea_node_editor.settings import DEFAULT_GRAPHICS_SETTINGS
 from ea_node_editor.ui.dialogs.graphics_settings_dialog import GraphicsSettingsDialog
 from ea_node_editor.ui.dialogs.sectioned_settings_dialog import SectionedSettingsDialog
 from ea_node_editor.ui.graph_theme import graph_theme_choices, resolve_graph_theme
+
+
+_EXPAND_COLLISION_TOOLTIP_CASES = (
+    (
+        "expand_collision_enabled_check",
+        "Pushes newly expanded items away from nearby content to reduce overlap.",
+    ),
+    (
+        "expand_collision_strategy_combo",
+        "Chooses how the first items are picked when overlap resolution begins.",
+    ),
+    (
+        "expand_collision_animate_check",
+        "Animates the repositioning pass so the settled layout stays readable.",
+    ),
+    (
+        "expand_collision_scope_combo",
+        "Limits which nearby items can move when the expanded area needs room.",
+    ),
+    (
+        "expand_collision_gap_preset_combo",
+        "Sets the target spacing kept between the expanded area and moved items.",
+    ),
+    (
+        "expand_collision_radius_mode_combo",
+        "Controls whether overlap checks stay local or search across the full canvas.",
+    ),
+    (
+        "expand_collision_local_radius_preset_combo",
+        "Sets how far the local search reaches when reach mode stays nearby.",
+    ),
+)
+
+
+def _set_next_combo_index(combo) -> None:  # noqa: ANN001
+    if combo.count() > 1:
+        combo.setCurrentIndex((combo.currentIndex() + 1) % combo.count())
+
+
+def _apply_roundtrip_mutations(dialog: GraphicsSettingsDialog) -> None:
+    dialog.show_grid_check.setChecked(False)
+    dialog.show_port_labels_check.setChecked(False)
+    dialog.expand_collision_enabled_check.setChecked(True)
+    _set_next_combo_index(dialog.expand_collision_strategy_combo)
+    _set_next_combo_index(dialog.expand_collision_scope_combo)
+    _set_next_combo_index(dialog.expand_collision_gap_preset_combo)
+    _set_next_combo_index(dialog.expand_collision_radius_mode_combo)
+    _set_next_combo_index(dialog.expand_collision_local_radius_preset_combo)
+    dialog.expand_collision_animate_check.setChecked(False)
+
+
+class _RecordingGraphicsSettingsController:
+    def __init__(self) -> None:
+        self.applied_graphics: list[tuple[dict[str, object], object]] = []
+
+    def graphics_settings(self) -> dict[str, object]:
+        return copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+
+    def graph_theme_choices(self) -> list[tuple[str, str]]:
+        return list(graph_theme_choices())
+
+    def set_graphics_settings(self, graphics: dict[str, object], *, host: object) -> None:
+        self.applied_graphics.append((copy.deepcopy(graphics), host))
+
+
+class _TooltipPolicyHost(QObject):
+    def __init__(self, *, show_tooltips: bool) -> None:
+        super().__init__()
+        self.graphics_show_tooltips = bool(show_tooltips)
+        self.project_path = ""
+        self.model = SimpleNamespace(project=SimpleNamespace(metadata={}))
+        self.app_preferences_controller = _RecordingGraphicsSettingsController()
 
 
 class GraphicsSettingsDialogTests(unittest.TestCase):
@@ -521,6 +594,59 @@ class GraphicsSettingsDialogTests(unittest.TestCase):
                     self.assertEqual(dialog.values()["typography"]["graph_label_pixel_size"], expected)
                 finally:
                     dialog.close()
+
+    def test_tooltip_expand_collision_controls_are_present_by_default(self) -> None:
+        dialog = GraphicsSettingsDialog()
+        try:
+            for control_name, tooltip_text in _EXPAND_COLLISION_TOOLTIP_CASES:
+                with self.subTest(control=control_name):
+                    self.assertEqual(getattr(dialog, control_name).toolTip(), tooltip_text)
+        finally:
+            dialog.close()
+
+    def test_tooltip_expand_collision_controls_are_suppressed_when_disabled(self) -> None:
+        dialog = GraphicsSettingsDialog(tooltips_enabled=False)
+        try:
+            for control_name, _tooltip_text in _EXPAND_COLLISION_TOOLTIP_CASES:
+                with self.subTest(control=control_name):
+                    self.assertEqual(getattr(dialog, control_name).toolTip(), "")
+        finally:
+            dialog.close()
+
+    def test_tooltip_policy_does_not_change_settings_roundtrip_behavior(self) -> None:
+        dialog_with_tooltips = GraphicsSettingsDialog()
+        dialog_without_tooltips = GraphicsSettingsDialog(tooltips_enabled=False)
+        try:
+            _apply_roundtrip_mutations(dialog_with_tooltips)
+            _apply_roundtrip_mutations(dialog_without_tooltips)
+
+            self.assertEqual(dialog_without_tooltips.values(), dialog_with_tooltips.values())
+        finally:
+            dialog_with_tooltips.close()
+            dialog_without_tooltips.close()
+
+    def test_tooltip_host_presenter_passes_current_global_policy_to_graphics_dialog(self) -> None:
+        from ea_node_editor.ui.shell.host_presenter import ShellHostPresenter
+
+        host = _TooltipPolicyHost(show_tooltips=False)
+        presenter = ShellHostPresenter(host)
+        expected_settings = copy.deepcopy(DEFAULT_GRAPHICS_SETTINGS)
+        expected_settings["canvas"]["show_grid"] = False
+
+        with patch("ea_node_editor.ui.dialogs.GraphicsSettingsDialog") as dialog_cls:
+            dialog = dialog_cls.return_value
+            dialog.DialogCode.Accepted = 1
+            dialog.exec.return_value = 1
+            dialog.values.return_value = expected_settings
+
+            presenter.show_graphics_settings_dialog()
+
+        self.assertEqual(dialog_cls.call_count, 1)
+        self.assertEqual(dialog_cls.call_args.kwargs["tooltips_enabled"], False)
+        self.assertEqual(
+            host.app_preferences_controller.applied_graphics,
+            [(expected_settings, host)],
+        )
 
 
 if __name__ == "__main__":
